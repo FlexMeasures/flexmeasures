@@ -1578,10 +1578,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -3359,43 +3367,52 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
+            "name": "prior",
+            "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-03T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "event_ends_before",
+            "name": "start",
+            "description": "Only include events starting after this datetime (legacy alias: `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-01T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_after",
+            "name": "end",
+            "description": "Only include events ending before this datetime (legacy alias: `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-06T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_before",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "example": "PT24H",
+              "format": "duration"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "include_data",
+            "name": "include-data",
+            "description": "If true, chart specs include the data; if false, fetch data separately from the `chart_data` endpoint.",
             "schema": {
               "type": "boolean"
             },
@@ -3403,7 +3420,8 @@
           },
           {
             "in": "query",
-            "name": "combine_legend",
+            "name": "combine-legend",
+            "description": "If true (default), render one shared legend across all subcharts.",
             "schema": {
               "type": "boolean",
               "default": true
@@ -3412,7 +3430,8 @@
           },
           {
             "in": "query",
-            "name": "include_asset_annotations",
+            "name": "include-asset-annotations",
+            "description": "If true, include the asset's own annotations in the chart.",
             "schema": {
               "type": "boolean"
             },
@@ -3420,7 +3439,8 @@
           },
           {
             "in": "query",
-            "name": "include_account_annotations",
+            "name": "include-account-annotations",
+            "description": "If true, include the asset's account annotations in the chart.",
             "schema": {
               "type": "boolean"
             },
@@ -3428,7 +3448,8 @@
           },
           {
             "in": "query",
-            "name": "dataset_name",
+            "name": "dataset-name",
+            "description": "Name to use for the embedded chart dataset.",
             "schema": {
               "type": "string"
             },
@@ -3437,6 +3458,7 @@
           {
             "in": "query",
             "name": "height",
+            "description": "Chart height in pixels; without it, FlexMeasures sets a default.",
             "schema": {
               "type": "string"
             },
@@ -3445,6 +3467,7 @@
           {
             "in": "query",
             "name": "width",
+            "description": "Chart width in pixels; without it, the chart is scaled to the full width of its container.",
             "schema": {
               "type": "string"
             },
@@ -3452,7 +3475,8 @@
           },
           {
             "in": "query",
-            "name": "chart_type",
+            "name": "chart-type",
+            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
             "schema": {
               "type": "string"
             },
@@ -3505,8 +3529,8 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
-            "description": "Only return annotations that end after this datetime.",
+            "name": "start",
+            "description": "Only return annotations that end after this datetime (legacy alias `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3514,8 +3538,26 @@
           },
           {
             "in": "query",
-            "name": "event_ends_before",
-            "description": "Only return annotations that start before this datetime.",
+            "name": "end",
+            "description": "Only return annotations that start before this datetime (legacy alias `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
+            "schema": {
+              "type": "string",
+              "format": "duration"
+            }
+          },
+          {
+            "in": "query",
+            "name": "prior",
+            "description": "Only return annotations recorded before this datetime (legacy alias `beliefs_before`).",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3586,43 +3628,62 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
+            "name": "prior",
+            "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-03T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "event_ends_before",
+            "name": "start",
+            "description": "Only include events starting after this datetime (legacy alias: `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-01T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_after",
+            "name": "end",
+            "description": "Only include events ending before this datetime (legacy alias: `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-06T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_before",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "example": "PT24H",
+              "format": "duration"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "most_recent_beliefs_only",
+            "name": "use-latest-version-per-event",
+            "description": "If true, only the latest version of each event's belief is returned.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "most-recent-beliefs-only",
+            "description": "If true (default), return only the most recently recorded belief for each event; if false, return every recorded belief.",
             "schema": {
               "type": "boolean"
             },
@@ -3630,7 +3691,8 @@
           },
           {
             "in": "query",
-            "name": "compress_json",
+            "name": "compress-json",
+            "description": "If true, compress the JSON response.",
             "schema": {
               "type": "boolean"
             },
@@ -4295,10 +4357,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -4345,10 +4415,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -5016,6 +5094,82 @@
         ],
         "additionalProperties": false
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Reference to a group of devices whose aggregate power is constrained."
+      },
+      "InflexibleDevice": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          },
+          "source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude-source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Exclude beliefs from sources with these source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from these data source IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "source-account": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from data sources linked to these account IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "group": {
+            "description": "Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{\"asset\": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{\"sensor\": <id>}``) is also accepted - give exactly one of the two.\nThe referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).\nWhen the group is referenced by ``asset``, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.\nWhen the group is referenced by ``sensor``, the group's scheduled aggregate power is saved directly to that group sensor.\n",
+            "example": {
+              "asset": 7
+            },
+            "$ref": "#/components/schemas/GroupReference"
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "description": "Sensor reference from which to look up an inflexible device's power (or energy) data."
+      },
       "OutputSensorReference": {
         "type": "object",
         "properties": {
@@ -5167,13 +5321,43 @@
           },
           "inflexible-device-sensors": {
             "type": "array",
-            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
+            "description": "[Deprecated field] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nTo avoid using the field, use <code>inflexible-consumption</code> and/or <code>inflexible-production</code> instead, which make clear the sign convention.\nFor this field, each sensor's sign convention is determined by its <code>consumption_is_positive</code> attribute (default: false, i.e. production-positive).\nMust be a list of integers.\n",
             "example": [
               3,
               4
             ],
             "items": {
               "type": "integer"
+            }
+          },
+          "inflexible-consumption": {
+            "type": "array",
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nMust be a list of sensor references, optionally with source filters, and optionally each assigned to a <code>group</code> (so the device's measured load counts towards that group's intermediate power constraint).\n",
+            "example": [
+              {
+                "sensor": 3
+              },
+              {
+                "sensor": 4
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InflexibleDevice"
+            }
+          },
+          "inflexible-production": {
+            "type": "array",
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nMust be a list of sensor references, optionally with source filters, and optionally each assigned to a <code>group</code> (so the device's measured supply counts towards that group's intermediate power constraint).\n",
+            "example": [
+              {
+                "sensor": 3
+              },
+              {
+                "sensor": 4
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InflexibleDevice"
             }
           },
           "aggregate-consumption": {
@@ -5243,37 +5427,84 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
-              2093,
-              2094
+              {
+                "sensor": 2093,
+                "sources": [
+                  12,
+                  13
+                ]
+              },
+              {
+                "sensor": 2094,
+                "source-types": [
+                  "forecaster"
+                ]
+              }
             ],
             "items": {
-              "type": "integer"
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/components/schemas/SensorReference"
+                }
+              ]
             }
           },
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
-              2095
+              {
+                "sensor": 2095,
+                "exclude-source-types": [
+                  "forecaster"
+                ]
+              }
             ],
             "items": {
-              "type": "integer"
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/components/schemas/SensorReference"
+                }
+              ]
             }
           },
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
-              2093,
-              2094,
-              2095
+              {
+                "sensor": 2093,
+                "sources": [
+                  12,
+                  13
+                ]
+              },
+              {
+                "sensor": 2094,
+                "source-account": [
+                  4
+                ]
+              }
             ],
             "items": {
-              "type": "integer"
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/components/schemas/SensorReference"
+                }
+              ]
             }
           },
           "annotation-regressors": {
@@ -6702,18 +6933,6 @@
           }
         ]
       },
-      "GroupReference": {
-        "type": "object",
-        "properties": {
-          "sensor": {
-            "type": "integer"
-          },
-          "asset": {
-            "type": "integer"
-          }
-        },
-        "description": "Reference to a group of devices whose aggregate power is constrained."
-      },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -6796,9 +7015,9 @@
             }
           },
           "group": {
-            "description": "Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (<code>{\"sensor\": <id>}</code>) or an asset (<code>{\"asset\": <id>}</code>) - exactly one of the two.\nThe referenced sensor or asset should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved to that group sensor.\nWhen the group is referenced by <code>asset</code> (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\n",
+            "description": "Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the <code>asset</code> that represents the shared equipment (<code>{\"asset\": <id>}</code>, e.g. a sub-EMS asset in the tree); a power <code>sensor</code> (<code>{\"sensor\": <id>}</code>) is also accepted - give exactly one of the two.\nThe referenced asset or sensor should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>asset</code>, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved directly to that group sensor.\n",
             "example": {
-              "sensor": 5
+              "asset": 7
             },
             "$ref": "#/components/schemas/GroupReference"
           },

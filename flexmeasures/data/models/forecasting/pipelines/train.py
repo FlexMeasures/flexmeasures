@@ -15,6 +15,7 @@ from flexmeasures.data.models.forecasting.custom_models.lgbm_model import (
     DEFAULT_SEASONAL_LAGS_STEPS,
 )
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.schemas.sensors import SensorReference
 
 warnings.filterwarnings("ignore")
 
@@ -38,8 +39,8 @@ def derive_daily_lag_steps(
 class TrainPipeline(BasePipeline):
     def __init__(
         self,
-        future_regressors: list[Sensor],
-        past_regressors: list[Sensor],
+        future_regressors: list[Sensor | SensorReference],
+        past_regressors: list[Sensor | SensorReference],
         target_sensor: Sensor,
         model_save_dir: str,
         n_steps_to_predict: int,
@@ -59,8 +60,8 @@ class TrainPipeline(BasePipeline):
         Initialize the TrainPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param past_regressors: List of sensors serving as past regressors.
-        :param future_regressors: List of sensors serving as future regressors.
+        :param past_regressors: List of sensors or sensor references serving as past regressors.
+        :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
         :param model_save_dir: Directory where the trained model will be saved.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.

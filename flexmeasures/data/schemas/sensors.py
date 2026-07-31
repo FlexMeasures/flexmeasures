@@ -359,6 +359,11 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return value.id
 
 
+SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
+    {"source-types", "exclude-source-types", "sources", "source-account"}
+)
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,
@@ -445,9 +450,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
 
-    _SOURCE_FILTER_KEYS = frozenset(
-        {"source-types", "exclude-source-types", "sources", "source-account"}
-    )
+    _SOURCE_FILTER_KEYS = SENSOR_REFERENCE_SOURCE_FILTER_KEYS
 
     def _deserialize_source_filters(self, value: dict[str, Any]) -> tuple[
         list[str] | None,
@@ -967,6 +970,12 @@ class SensorReference:
     properties works without modification. The source filters are passed through to
     :meth:`TimedBelief.search <flexmeasures.data.models.time_series.TimedBelief.search>`
     in :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
+
+    The optional ``group`` carries an inflexible device's group membership (a
+    ``{"sensor": ...}`` / ``{"asset": ...}`` reference, see
+    :class:`~flexmeasures.data.schemas.scheduling.groups.GroupReferenceSchema`); it is
+    only meaningful for inflexible-device flex-context entries and is ignored by belief
+    queries.
     """
 
     sensor: Sensor
@@ -974,6 +983,10 @@ class SensorReference:
     exclude_source_types: list[str] | None = field(default=None)
     sources: list[DataSource] | None = field(default=None)
     source_account: list[Account] | None = field(default=None)
+    #: Inflexible-device group membership (a ``{"sensor": ...}``/``{"asset": ...}``
+    #: reference); ignored by belief queries. None when the reference is not an
+    #: inflexible device or does not belong to a group.
+    group: dict | None = field(default=None)
 
     @property
     def unit(self) -> str:
@@ -1044,6 +1057,42 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
             description="Only use beliefs from data sources linked to these account IDs.",
         ),
     )
+
+
+class SensorIdOrReferenceField(fields.Raw):
+    """Field accepting either a sensor ID or a source-filtered sensor reference."""
+
+    def __init__(self, *args, **kwargs):
+        metadata = dict(kwargs.pop("metadata", {}))
+        metadata.setdefault(
+            "oneOf",
+            [
+                {"type": "integer"},
+                {"$ref": "#/components/schemas/SensorReference"},
+            ],
+        )
+        kwargs["metadata"] = metadata
+        super().__init__(*args, **kwargs)
+        self.sensor_id_field = SensorIdField()
+        self.sensor_reference_schema = SensorReferenceSchema()
+
+    def _deserialize(
+        self, value: Any, attr, data, **kwargs
+    ) -> Sensor | SensorReference:
+        if not isinstance(value, dict):
+            return self.sensor_id_field.deserialize(value, attr, data, **kwargs)
+
+        sensor_reference = self.sensor_reference_schema.load(value)
+        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value):
+            return sensor_reference["sensor"]
+        return SensorReference(**sensor_reference)
+
+    def _serialize(
+        self, value: Sensor | SensorReference, attr, obj, **kwargs
+    ) -> int | dict[str, Any]:
+        if isinstance(value, SensorReference):
+            return self.sensor_reference_schema.dump(value)
+        return self.sensor_id_field._serialize(value, attr, obj, **kwargs)
 
 
 class TimeSeriesSchema(Schema):

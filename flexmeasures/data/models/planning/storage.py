@@ -239,7 +239,7 @@ class MetaStorageScheduler(Scheduler):
                         f"The 'group' field references {group_key_label(gkey)}, "
                         "but no device in the flex-model belongs to that group."
                     )
-                commodities = {inventory.devices[d].commodity for d in leaves}
+                commodities = {inventory.by_index(d).commodity for d in leaves}
                 if len(commodities) > 1:
                     raise ValueError(
                         f"All member devices of group {group_key_label(gkey)} must "
@@ -745,7 +745,7 @@ class MetaStorageScheduler(Scheduler):
                 continue
             group_entry = self._group_models[group_key]
             group_label = f"{group_key[0]}:{group_key[1]}"
-            group_commodity = inventory.devices[leaf_members[0]].commodity
+            group_commodity = inventory.by_index(leaf_members[0]).commodity
             group_devices = device_list_series(leaf_members, index)
 
             group_power_capacity = get_continuous_series_sensor_or_quantity(
@@ -935,13 +935,15 @@ class MetaStorageScheduler(Scheduler):
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(inventory.inflexible_sensors):
+        for i, inflexible_device in enumerate(inventory.inflexible_devices):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    sensor=inflexible_sensor,
+                    sensor=inflexible_device.sensor_reference
+                    or inflexible_device.power_sensor,
+                    consumption_is_positive=inflexible_device.consumption_is_positive,
                 )
             )
 
@@ -2519,13 +2521,15 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
+            # Iterate over the dict keys (not the sensors list, which may hold the
+            # same sensor for multiple devices), so no sensor is emitted twice.
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
                 }
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
         else:
@@ -2985,9 +2989,10 @@ class StorageScheduler(MetaStorageScheduler):
 
         Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
             1. flexible devices (from the flex-model), in order,
-            2. top-level (electricity) inflexible-device-sensors, in order,
-            3. each commodity context's own inflexible-device-sensors, in the order the
-               commodity contexts are given.
+            2. top-level (electricity) inflexible devices, in order,
+            3. each commodity context's own inflexible devices, in the order the
+               commodity contexts are given
+               (within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order).
 
         The returned device indices line up with entries of `ems_schedule` /
         `device_constraints`.
@@ -3326,6 +3331,22 @@ class StorageScheduler(MetaStorageScheduler):
             unresolved, resolved = self._compute_unresolved_targets(
                 flex_model_for_soc, soc_schedule_mwh, start, end, resolution
             )
+            # A device's power sensor may itself be one of its declared consumption/
+            # production output sensors — for example, a flex-model entry that
+            # references its power sensor only via a nested output reference, like
+            # {"consumption": {"sensor": ...}} (see _resolve_power_sensor). Such a
+            # sensor already receives its schedule via the consumption/production
+            # outputs below, which is the semantically correct single entry to keep:
+            # the sign conventions for output sensors are defined on that path (see
+            # _build_consumption_production_schedules), and the scheduling service
+            # resolves the sign via the consumption_is_positive attribute set on
+            # output sensors. Emitting a second ("storage_schedule") entry for the
+            # same sensor would save duplicate beliefs within one scheduling-job
+            # transaction, violating the timed_belief primary key and failing the
+            # whole job.
+            output_sensor_ids = {
+                sensor.id for sensor in consumption_production_schedule.keys()
+            }
             storage_schedules = [
                 {
                     "name": "storage_schedule",
@@ -3334,7 +3355,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in storage_schedule.keys()
-                if sensor is not None
+                if sensor is not None and sensor.id not in output_sensor_ids
             ]
             commitment_costs = [
                 {
@@ -3385,7 +3406,7 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                 }
             ]
-            return (
+            return self._deduplicate_outputs(
                 storage_schedules
                 + commitment_costs
                 + soc_schedules
@@ -3394,6 +3415,30 @@ class StorageScheduler(MetaStorageScheduler):
             )
         else:
             return storage_schedule[sensors[0]]
+
+    @staticmethod
+    def _deduplicate_outputs(outputs: list[dict]) -> list[dict]:
+        """Safety net: never let one sensor appear in multiple outputs.
+
+        All outputs are saved with identical belief coordinates in the same
+        scheduling-job transaction, so a duplicate sensor is guaranteed to
+        violate the timed_belief primary key and fail the whole job.
+        Keep the first entry for a sensor and drop (with a warning) any later one.
+        """
+        seen_sensor_ids: set[int] = set()
+        deduplicated_outputs = []
+        for output in outputs:
+            output_sensor = output.get("sensor")
+            if output_sensor is not None:
+                if output_sensor.id in seen_sensor_ids:
+                    current_app.logger.warning(
+                        f"Dropping duplicate '{output.get('name')}' output for {output_sensor}: "
+                        f"another output already saves a schedule to this sensor."
+                    )
+                    continue
+                seen_sensor_ids.add(output_sensor.id)
+            deduplicated_outputs.append(output)
+        return deduplicated_outputs
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:
