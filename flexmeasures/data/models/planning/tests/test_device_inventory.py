@@ -494,6 +494,28 @@ def test_flex_model_inflexible_precedes_flat_context_inflexible():
     assert [d.index for d in inventory.inflexible_devices] == [1, 2]
 
 
+def test_flex_model_inflexible_device_commodity():
+    """A flex-model inflexible device may set a commodity (defaulting to electricity);
+    it then joins that commodity's device group, so its fixed power nets under that
+    commodity's grid connection rather than the electricity one."""
+    battery = make_sensor(1)  # electricity (device 0)
+    gas_load = make_sensor(12)
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_production": gas_load, "commodity": "gas"},
+        ]
+    )
+
+    device = inventory.inflexible_devices[0]
+    assert device.commodity == "gas"
+    assert device.consumption_is_positive is False
+    # The gas inflexible device joins the gas group, not the electricity one.
+    assert inventory.commodity_to_devices["gas"] == [device.index]
+    assert device.index not in inventory.commodity_to_devices["electricity"]
+
+
 def test_flex_model_inflexible_source_filtered_reference():
     """A flex-model inflexible entry given as a source-filtered SensorReference keeps the
     reference on FlexDevice.sensor_reference, so its source filters reach the solver's
