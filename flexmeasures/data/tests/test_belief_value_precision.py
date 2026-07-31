@@ -34,6 +34,39 @@ def test_value_columns_are_single_precision(column_name):
     )
 
 
+def test_rounding_follows_the_column_rather_than_a_hardcoded_precision(monkeypatch):
+    """No rounding may happen while the column is still float8.
+
+    There is a window between deploying this code and running the ``9f2c1d7b3a44``
+    migration in which the column is still double precision. Rounding to float4 during
+    that window would classify a genuine update as "unchanged" and silently drop it, so
+    the precision has to be read from the column rather than assumed.
+    """
+    from flexmeasures.data.services import time_series as time_series_service
+
+    # Pretend the column is still double precision, as it is pre-migration
+    monkeypatch.setattr(time_series_service, "_stored_dtype", lambda field: None)
+
+    high_precision_value = 1234567.891
+    df = pd.DataFrame(
+        {"event_value": [high_precision_value], "cumulative_probability": [0.5]}
+    )
+    rounded = time_series_service.round_to_stored_precision(df)
+
+    assert (
+        rounded["event_value"][0] == high_precision_value
+    ), "values were rounded even though the column is not narrowed"
+
+
+def test_stored_dtype_reads_the_mapped_column():
+    """The stored dtype must be derived from the column, and be float32 today."""
+    from flexmeasures.data.services.time_series import _stored_dtype
+
+    _stored_dtype.cache_clear()
+    assert _stored_dtype("event_value") == "float32"
+    assert _stored_dtype("cumulative_probability") == "float32"
+
+
 def test_round_to_stored_precision_leaves_input_untouched():
     """The helper must not mutate the frame it is handed."""
     df = pd.DataFrame(

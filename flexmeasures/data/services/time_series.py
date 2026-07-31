@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from datetime import timedelta
+from functools import lru_cache
 
 import inflect
 from flask import current_app
@@ -13,19 +14,43 @@ from flexmeasures.data.queries.utils import simplify_index
 
 p = inflect.engine()
 
-#: The columns that ``timed_belief`` stores as single-precision floats (float4).
-#: See the matching columns on flexmeasures.data.models.time_series.TimedBelief.
-FLOAT4_FIELDS = ("cumulative_probability", "event_value")
+#: The ``timed_belief`` columns whose stored precision we need to account for when
+#: deciding whether a belief has changed.
+VALUE_FIELDS = ("cumulative_probability", "event_value")
+
+
+@lru_cache(maxsize=None)
+def _stored_dtype(field: str) -> str | None:
+    """Return the numpy dtype ``field`` is stored at, or None if it is not narrowed.
+
+    Read from the mapped column rather than hardcoded, so this keeps telling the truth
+    if the column type changes -- including during the window between deploying code
+    that expects float4 and actually running the migration that narrows the column.
+    Getting that backwards is not a missed optimization: rounding to float4 while the
+    database is still float8 would classify a real update as "unchanged" and silently
+    drop it.
+
+    This is an attribute lookup on already-loaded table metadata, not a query.
+    """
+    # Imported here because flexmeasures.data.models.time_series imports this module
+    from flexmeasures.data.models.time_series import TimedBelief
+
+    precision = TimedBelief.__table__.columns[field].type.precision
+    # A Float with precision <= 24 is single precision (float4/REAL) on PostgreSQL;
+    # anything wider (precision None means a bare Float, i.e. float8) needs no rounding.
+    if precision is not None and precision <= 24:
+        return "float32"
+    return None
 
 
 def round_to_stored_precision(df: pd.DataFrame) -> pd.DataFrame:
-    """Round the float4-stored fields of a reset-index belief frame to float4.
+    """Round the value fields of a reset-index belief frame to the precision they are stored at.
 
-    Beliefs read back from the database have been rounded to float4 by Postgres, while
-    candidate beliefs still carry the full double precision they were submitted or
-    computed with. Comparing the two directly would report any value needing more than
-    ~7 significant digits as "changed" on every single submission, so the same data
-    would be re-saved forever.
+    Beliefs read back from the database have been rounded to whatever the column stores,
+    while candidate beliefs still carry the full double precision they were submitted or
+    computed with. Where the column is narrower than float8, comparing the two directly
+    would report any value needing more than ~7 significant digits as "changed" on every
+    single submission, so the same data would be re-saved forever.
 
     Rounding both sides to the precision they will actually be stored at makes the
     comparison ask the question we mean to ask: will storing this candidate change what
@@ -34,9 +59,10 @@ def round_to_stored_precision(df: pd.DataFrame) -> pd.DataFrame:
     Operates on a copy; ``df`` is left untouched.
     """
     df = df.copy()
-    for field in FLOAT4_FIELDS:
-        if field in df.columns:
-            df[field] = df[field].astype("float32").astype("float64")
+    for field in VALUE_FIELDS:
+        dtype = _stored_dtype(field)
+        if dtype is not None and field in df.columns:
+            df[field] = df[field].astype(dtype).astype("float64")
     return df
 
 
