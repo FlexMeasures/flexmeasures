@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from contextlib import nullcontext, redirect_stdout
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any
 from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
@@ -1279,6 +1279,42 @@ def add_holidays(
         )
 
 
+def _normalize_yaml_value(value):
+    """Convert YAML-native date values to the strings expected by our schemas."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _normalize_yaml_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalize_yaml_value(item) for item in value]
+    return value
+
+
+def _load_yaml_mapping(stream: TextIOBase, option_name: str) -> dict:
+    """Load a YAML/JSON CLI option file whose top level must be an object."""
+    value = yaml.safe_load(stream)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise click.UsageError(
+            f"The {option_name} file must contain a YAML or JSON object "
+            "at the top level."
+        )
+    return _normalize_yaml_value(value)
+
+
+def _normalize_yaml_mapping(value, option_name: str) -> dict:
+    """Validate and normalize YAML/JSON data returned by the editor."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise click.UsageError(
+            f"The {option_name} data must contain a YAML or JSON object "
+            "at the top level."
+        )
+    return _normalize_yaml_value(value)
+
+
 def _assemble_forecaster_config_and_parameters(
     kwargs: dict,
     source: DataSource | None = None,
@@ -1295,7 +1331,7 @@ def _assemble_forecaster_config_and_parameters(
     """
     config = dict()
     if config_file:
-        config = yaml.safe_load(config_file)
+        config = _load_yaml_mapping(config_file, "--config")
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         field_value = kwargs.pop(field_name, None)
         if field_value is not None:
@@ -1308,7 +1344,9 @@ def _assemble_forecaster_config_and_parameters(
             config[field.data_key] = field_value
 
     if edit_config:
-        config = launch_editor("/tmp/config.yml")
+        config = _normalize_yaml_mapping(
+            launch_editor("/tmp/config.yml"), "--edit-config"
+        )
 
     if source is not None and config:
         raise click.UsageError(
@@ -1318,10 +1356,12 @@ def _assemble_forecaster_config_and_parameters(
 
     parameters = dict()
     if parameters_file:
-        parameters = yaml.safe_load(parameters_file)
+        parameters = _load_yaml_mapping(parameters_file, "--parameters")
 
     if edit_parameters:
-        parameters = launch_editor("/tmp/parameters.yml")
+        parameters = _normalize_yaml_mapping(
+            launch_editor("/tmp/parameters.yml"), "--edit-parameters"
+        )
 
     # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
     for k, v in kwargs.items():
