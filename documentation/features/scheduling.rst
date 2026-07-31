@@ -298,6 +298,12 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``group``
      - |GROUP.example|
      - .. include:: ../_autodoc/GROUP.rst
+   * - ``inflexible-consumption``
+     - ``{"sensor": 3}``
+     - .. include:: ../_autodoc/INFLEXIBLE_CONSUMPTION.rst
+   * - ``inflexible-production``
+     - ``{"sensor": 3}``
+     - .. include:: ../_autodoc/INFLEXIBLE_PRODUCTION.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
@@ -349,7 +355,7 @@ The sensor-referenced form is convenient when you pass the whole flex-model in o
 
 Here, the battery and PV installation may each individually schedule up to 2 kW, but their combined power flowing through the shared inverter is hard-limited to 2.5 kW.
 
-Inflexible (measured) devices can be group members too. An ``inflexible-consumption`` or ``inflexible-production`` entry in the flex-context may carry the same ``group`` field, so that its fixed load or supply counts towards the group's intermediate power constraint — for example, an unschedulable base load sitting behind the same inverter or feeder as a battery. As with flexible members, the recommended form is an ``{"asset": <id>}`` reference to the equipment node the device sits behind (a ``{"sensor": <id>}`` reference is also accepted), and the group's own flex-model entry (defining its capacities) must still be present.
+Inflexible (measured) devices can be group members too — for example, an unschedulable base load sitting behind the same inverter or feeder as a battery. To do so, model the inflexible device as its own asset and give its flex-model entry a single ``inflexible-consumption`` or ``inflexible-production`` reference to the sensor recording its power (the field name sets the sign convention, and source filters may be added). Such an entry carries no schedulable-device fields; it simply declares a fixed device whose power is accounted for. It then joins a group through the ordinary ``group`` field, exactly like a flexible member (with the group's own flex-model entry, defining its capacities, still present), so its fixed load or supply counts towards the group's intermediate power constraint. Site-wide inflexible load that does not belong to any group is instead listed in the flex-context's ``inflexible-consumption``/``inflexible-production`` fields (as a list).
 
 
 Usually, not the whole flexibility model is needed.

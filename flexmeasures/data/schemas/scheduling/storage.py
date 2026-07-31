@@ -24,6 +24,7 @@ from flexmeasures.data.schemas.scheduling.groups import (
 )
 from flexmeasures.data.schemas.sensors import (
     SensorReference,
+    InflexibleDeviceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -34,6 +35,81 @@ from flexmeasures.utils.unit_utils import (
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
+
+
+#: User-facing (hyphenated) flex-model keys that make an entry a schedulable device;
+#: an entry that declares an inflexible device must carry none of them, so
+#: device-inventory classification stays unambiguous. Keyed on data-keys (consistent
+#: across StorageFlexModelSchema and DBStorageFlexModelSchema, whose attribute names
+#: differ). ``group``, ``commodity``, ``asset``, ``sensor`` and the activation
+#: preferences may co-exist with an inflexible declaration.
+_SCHEDULABLE_DEVICE_DATA_KEYS = (
+    "consumption",
+    "production",
+    "state-of-charge",
+    "soc-at-start",
+    "soc-min",
+    "soc-max",
+    "soc-minima",
+    "soc-maxima",
+    "soc-targets",
+    "soc-gain",
+    "soc-usage",
+    "power-capacity",
+    "consumption-capacity",
+    "production-capacity",
+    "roundtrip-efficiency",
+    "charging-efficiency",
+    "discharging-efficiency",
+    "storage-efficiency",
+    "operation-modes",
+)
+
+
+def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
+    """Validate a flex-model entry that declares an inflexible device.
+
+    An inflexible device is declared by a single ``inflexible-consumption`` or
+    ``inflexible-production`` sensor reference. Such an entry must not declare both
+    signs, must not use a sensor whose explicit ``consumption_is_positive`` attribute
+    contradicts the field's sign convention, and must not also carry schedulable-device
+    fields (so it is unambiguously classified as an inflexible device). The last check
+    inspects the original (hyphenated) input keys, so it works for both flex-model
+    schemas and ignores load-default fills.
+    """
+    has_consumption = "inflexible_consumption" in data
+    has_production = "inflexible_production" in data
+    if not has_consumption and not has_production:
+        return
+    if has_consumption and has_production:
+        raise ValidationError(
+            "An inflexible device entry must declare either inflexible-consumption or"
+            " inflexible-production, not both.",
+            field_name="inflexible-consumption",
+        )
+    field, data_key, consumption_is_positive = (
+        ("inflexible_consumption", "inflexible-consumption", True)
+        if has_consumption
+        else ("inflexible_production", "inflexible-production", False)
+    )
+    entry = data[field]
+    sensor = entry.sensor if isinstance(entry, SensorReference) else entry
+    explicit_attribute = (getattr(sensor, "attributes", None) or {}).get(
+        "consumption_is_positive"
+    )
+    if explicit_attribute is not None and explicit_attribute != consumption_is_positive:
+        raise ValidationError(
+            f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`,"
+            f" which conflicts with the sign convention of the `{data_key}` field.",
+            field_name=data_key,
+        )
+    offending = [k for k in _SCHEDULABLE_DEVICE_DATA_KEYS if k in original_data]
+    if offending:
+        raise ValidationError(
+            f"An inflexible device entry (`{data_key}`) must not also carry"
+            f" schedulable-device field(s) {offending}.",
+            field_name=data_key,
+        )
 
 
 #  Telling type hints what to expect after schema parsing
@@ -289,6 +365,22 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.GROUP.to_dict(),
     )
 
+    # An entry may instead describe an inflexible (unschedulable) device: a single
+    # sensor reference whose fixed power is accounted for (and, via `group`, counted
+    # towards a group's intermediate power constraint), rather than being scheduled.
+    inflexible_consumption = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-consumption",
+        required=False,
+        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    )
+    inflexible_production = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-production",
+        required=False,
+        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
+    )
+
     # Activation prices
     prefer_curtailing_later = fields.Bool(
         data_key="prefer-curtailing-later",
@@ -461,6 +553,10 @@ class StorageFlexModelSchema(Schema):
     def validate_group(self, group: dict, **kwargs):
         validate_group_sensor_is_power_sensor(group)
 
+    @validates_schema(pass_original=True)
+    def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
+        validate_inflexible_flex_model_entry(data, original_data)
+
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
         if self.sensor is not None and self.sensor.asset != asset:
@@ -553,6 +649,19 @@ class DBStorageFlexModelSchema(Schema):
         data_key="group",
         required=False,
         metadata=metadata.GROUP.to_dict(),
+    )
+
+    inflexible_consumption = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-consumption",
+        required=False,
+        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    )
+    inflexible_production = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-production",
+        required=False,
+        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
     )
 
     soc_min = VariableQuantityField(
@@ -698,6 +807,10 @@ class DBStorageFlexModelSchema(Schema):
     @validates("group")
     def validate_group(self, group: dict, **kwargs):
         validate_group_sensor_is_power_sensor(group)
+
+    @validates_schema(pass_original=True)
+    def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
+        validate_inflexible_flex_model_entry(data, original_data)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

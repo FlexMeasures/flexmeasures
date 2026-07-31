@@ -1707,64 +1707,61 @@ def test_flex_context_schema_inflexible_devices_deserialization(
     assert reference.source_types == ["forecaster"]
 
 
-def test_flex_context_schema_inflexible_device_group(
-    db, app, setup_inflexible_sensors, setup_price_sensors, dummy_asset
+def test_storage_flex_model_inflexible_device_field(
+    db, app, setup_dummy_sensors, setup_inflexible_sensors
 ):
-    """An inflexible device may carry a `group` reference; it deserializes to a
-    SensorReference (even without source filters) carrying that group, and the group
-    must reference a power sensor (or an asset)."""
-    load = setup_inflexible_sensors["attributeless power"]
-    group_sensor = setup_inflexible_sensors["consumption-positive power"]
+    """A flex-model entry can declare an inflexible device via a single
+    inflexible-consumption/production reference. Both signs on one entry, a sensor
+    whose explicit sign contradicts the field, and a co-existing schedulable field are
+    all rejected."""
+    consumption_positive = setup_inflexible_sensors["consumption-positive power"]
+    production_positive = setup_inflexible_sensors["production-positive power"]
+    attributeless = setup_inflexible_sensors["attributeless power"]
 
-    data = FlexContextSchema().load(
-        {
-            "inflexible-consumption": [
-                {"sensor": load.id, "group": {"sensor": group_sensor.id}}
-            ]
-        }
-    )
-    entry = data["inflexible_consumption"][0]
-    assert isinstance(entry, SensorReference)
-    assert entry.sensor == load
-    assert entry.group == {"sensor": group_sensor}
-    assert entry.source_types is None  # no source filters given
+    for schema in (
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.UTC), sensor=None
+        ),
+        DBStorageFlexModelSchema(),
+    ):
+        # A plain reference deserializes to a Sensor.
+        loaded = schema.load({"inflexible-consumption": {"sensor": attributeless.id}})
+        assert loaded["inflexible_consumption"] == attributeless
 
-    # An asset-referenced group is also accepted.
-    data_asset = FlexContextSchema().load(
-        {
-            "inflexible-production": [
-                {"sensor": load.id, "group": {"asset": dummy_asset.id}}
-            ]
-        }
-    )
-    assert data_asset["inflexible_production"][0].group == {"asset": dummy_asset}
-
-    # The group must reference a power sensor.
-    price_sensor = setup_price_sensors["consumption-price in SEK/kWh"]
-    with pytest.raises(ValidationError, match="power unit"):
-        FlexContextSchema().load(
+        # A source-filtered reference deserializes to a SensorReference.
+        loaded = schema.load(
             {
-                "inflexible-consumption": [
-                    {"sensor": load.id, "group": {"sensor": price_sensor.id}}
-                ]
+                "inflexible-production": {
+                    "sensor": attributeless.id,
+                    "source-types": ["forecaster"],
+                }
             }
         )
+        assert isinstance(loaded["inflexible_production"], SensorReference)
 
-    # Exactly one of 'sensor'/'asset' must be given.
-    with pytest.raises(ValidationError, match="exactly one"):
-        FlexContextSchema().load(
-            {
-                "inflexible-consumption": [
-                    {
-                        "sensor": load.id,
-                        "group": {
-                            "sensor": group_sensor.id,
-                            "asset": dummy_asset.id,
-                        },
-                    }
-                ]
-            }
-        )
+        # Declaring both signs on one entry is rejected.
+        with pytest.raises(ValidationError, match="not both"):
+            schema.load(
+                {
+                    "inflexible-consumption": {"sensor": attributeless.id},
+                    "inflexible-production": {"sensor": attributeless.id},
+                }
+            )
+
+        # A sensor whose explicit consumption_is_positive contradicts the field.
+        with pytest.raises(ValidationError, match="conflicts with the sign convention"):
+            schema.load({"inflexible-consumption": {"sensor": production_positive.id}})
+        with pytest.raises(ValidationError, match="conflicts with the sign convention"):
+            schema.load({"inflexible-production": {"sensor": consumption_positive.id}})
+
+        # An inflexible entry must not also carry a schedulable-device field.
+        with pytest.raises(ValidationError, match="schedulable-device field"):
+            schema.load(
+                {
+                    "inflexible-consumption": {"sensor": attributeless.id},
+                    "power-capacity": "1 MW",
+                }
+            )
 
 
 def test_db_flex_context_schema_inflexible_devices(
