@@ -24,6 +24,7 @@ from flexmeasures.data.schemas.scheduling.groups import (
 )
 from flexmeasures.data.schemas.sensors import (
     SensorReference,
+    InflexibleDeviceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -34,6 +35,87 @@ from flexmeasures.utils.unit_utils import (
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
+
+
+#: User-facing (hyphenated) flex-model keys that may co-exist with an inflexible-device
+#: declaration: its own identity/grouping/commodity and the always-defaulted activation
+#: preferences. Any other declared field is a schedulable-device field, so an entry
+#: carrying one alongside ``inflexible-consumption``/``inflexible-production`` is
+#: rejected -- this is a whitelist (rather than a blacklist of schedulable keys) so it
+#: stays complete as new device fields are added. Keyed on data-keys, which are the
+#: same across StorageFlexModelSchema and DBStorageFlexModelSchema (their *attribute*
+#: names differ).
+_INFLEXIBLE_ALLOWED_DATA_KEYS = frozenset(
+    {
+        "inflexible-consumption",
+        "inflexible-production",
+        "group",
+        "commodity",
+        "asset",
+        "sensor",
+        "prefer-charging-sooner",
+        "prefer-curtailing-later",
+    }
+)
+
+
+def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
+    """Validate a flex-model entry that declares an inflexible device.
+
+    An inflexible device is declared by a single ``inflexible-consumption`` or ``inflexible-production`` sensor reference.
+    Such an entry must not declare both signs,
+    must not use a sensor whose explicit ``consumption_is_positive`` attribute contradicts the field's sign convention,
+    and must not also carry schedulable-device fields (so it is unambiguously classified as an inflexible device).
+    The last check inspects the original (hyphenated) input keys against a whitelist of keys allowed alongside an inflexible declaration,
+    so it works for both flex-model schemas, stays complete as device fields are added, and ignores load-default fills.
+    """
+    has_consumption = "inflexible_consumption" in data
+    has_production = "inflexible_production" in data
+    if not has_consumption and not has_production:
+        return
+    if has_consumption and has_production:
+        raise ValidationError(
+            "An inflexible device entry must declare either inflexible-consumption or"
+            " inflexible-production, not both.",
+            field_name="inflexible-consumption",
+        )
+    field, data_key, consumption_is_positive = (
+        ("inflexible_consumption", "inflexible-consumption", True)
+        if has_consumption
+        else ("inflexible_production", "inflexible-production", False)
+    )
+    entry = data[field]
+    sensor = entry.sensor if isinstance(entry, SensorReference) else entry
+    explicit_attribute = (getattr(sensor, "attributes", None) or {}).get(
+        "consumption_is_positive"
+    )
+    if explicit_attribute is not None and explicit_attribute != consumption_is_positive:
+        raise ValidationError(
+            f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`,"
+            f" which conflicts with the sign convention of the `{data_key}` field.",
+            field_name=data_key,
+        )
+    offending = sorted(set(original_data) - _INFLEXIBLE_ALLOWED_DATA_KEYS)
+    if offending:
+        raise ValidationError(
+            f"An inflexible device entry (`{data_key}`) must not also carry"
+            f" schedulable-device field(s) {offending}.",
+            field_name=data_key,
+        )
+
+
+# In a flex-model entry the inflexible fields are a *single* sensor reference (unlike
+# the flex-context, where they are lists), so override the shared metadata's list
+# example with a single object -- otherwise the generated OpenAPI/docs would show an
+# array for an object-valued field.
+_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META = {
+    **metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    "example": {"sensor": 3},
+}
+_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META = {
+    **metadata.INFLEXIBLE_PRODUCTION.to_dict(),
+    "example": {"sensor": 3},
+}
 
 
 #  Telling type hints what to expect after schema parsing
@@ -289,6 +371,22 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.GROUP.to_dict(),
     )
 
+    # An entry may instead describe an inflexible (unschedulable) device: a single
+    # sensor reference whose fixed power is accounted for (and, via `group`, counted
+    # towards a group's intermediate power constraint), rather than being scheduled.
+    inflexible_consumption = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-consumption",
+        required=False,
+        metadata=_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META,
+    )
+    inflexible_production = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-production",
+        required=False,
+        metadata=_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META,
+    )
+
     # Activation prices
     prefer_curtailing_later = fields.Bool(
         data_key="prefer-curtailing-later",
@@ -461,6 +559,10 @@ class StorageFlexModelSchema(Schema):
     def validate_group(self, group: dict, **kwargs):
         validate_group_sensor_is_power_sensor(group)
 
+    @validates_schema(pass_original=True)
+    def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
+        validate_inflexible_flex_model_entry(data, original_data)
+
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
         if self.sensor is not None and self.sensor.asset != asset:
@@ -553,6 +655,19 @@ class DBStorageFlexModelSchema(Schema):
         data_key="group",
         required=False,
         metadata=metadata.GROUP.to_dict(),
+    )
+
+    inflexible_consumption = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-consumption",
+        required=False,
+        metadata=_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META,
+    )
+    inflexible_production = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-production",
+        required=False,
+        metadata=_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META,
     )
 
     soc_min = VariableQuantityField(
@@ -698,6 +813,10 @@ class DBStorageFlexModelSchema(Schema):
     @validates("group")
     def validate_group(self, group: dict, **kwargs):
         validate_group_sensor_is_power_sensor(group)
+
+    @validates_schema(pass_original=True)
+    def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
+        validate_inflexible_flex_model_entry(data, original_data)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

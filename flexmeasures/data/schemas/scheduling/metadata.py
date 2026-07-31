@@ -49,7 +49,7 @@ Their power demand cannot be adjusted but still matters for finding the best sch
 The sign convention is determined by the key name: positive values denote consumption.
 Sensors that explicitly record consumption as negative values (``consumption_is_positive`` attribute set to false) are rejected here; list them under ``inflexible-production`` instead.
 
-Must be a list of sensor references, optionally with source filters, and optionally each assigned to a ``group`` (so the device's measured load counts towards that group's intermediate power constraint).
+Each entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a ``group`` like any other member.
 """,
     example=[{"sensor": 3}, {"sensor": 4}],
 )
@@ -61,7 +61,7 @@ Their power supply cannot be adjusted but still matters for finding the best sch
 The sign convention is determined by the key name: positive values denote production (the FlexMeasures default).
 Sensors that explicitly record production as negative values (``consumption_is_positive`` attribute set to true) are rejected here; list them under ``inflexible-consumption`` instead.
 
-Must be a list of sensor references, optionally with source filters, and optionally each assigned to a ``group`` (so the device's measured supply counts towards that group's intermediate power constraint).
+Each entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a ``group`` like any other member.
 """,
     example=[{"sensor": 3}, {"sensor": 4}],
 )
