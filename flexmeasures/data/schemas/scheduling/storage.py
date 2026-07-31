@@ -62,14 +62,12 @@ _INFLEXIBLE_ALLOWED_DATA_KEYS = frozenset(
 def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
     """Validate a flex-model entry that declares an inflexible device.
 
-    An inflexible device is declared by a single ``inflexible-consumption`` or
-    ``inflexible-production`` sensor reference. Such an entry must not declare both
-    signs, must not use a sensor whose explicit ``consumption_is_positive`` attribute
-    contradicts the field's sign convention, and must not also carry schedulable-device
-    fields (so it is unambiguously classified as an inflexible device). The last check
-    inspects the original (hyphenated) input keys against a whitelist of keys allowed
-    alongside an inflexible declaration, so it works for both flex-model schemas, stays
-    complete as device fields are added, and ignores load-default fills.
+    An inflexible device is declared by a single ``inflexible-consumption`` or ``inflexible-production`` sensor reference.
+    Such an entry must not declare both signs,
+    must not use a sensor whose explicit ``consumption_is_positive`` attribute contradicts the field's sign convention,
+    and must not also carry schedulable-device fields (so it is unambiguously classified as an inflexible device).
+    The last check inspects the original (hyphenated) input keys against a whitelist of keys allowed alongside an inflexible declaration,
+    so it works for both flex-model schemas, stays complete as device fields are added, and ignores load-default fills.
     """
     has_consumption = "inflexible_consumption" in data
     has_production = "inflexible_production" in data

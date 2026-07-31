@@ -317,15 +317,15 @@ def _classify_group_entry(inventory: DeviceInventory, fm: dict) -> bool:
 def _classify_flex_model_inflexible_entry(fm: dict) -> "FlexDevice | None":
     """Classify a flex-model entry that declares an inflexible device, or return None.
 
-    An inflexible device is declared by a single ``inflexible-consumption`` or
-    ``inflexible-production`` sensor reference on its own flex-model entry (typically
-    the flex-model of the inflexible device's asset). Its fixed power is accounted for
-    but not scheduled; its group membership (if any) is read from its own ``group``
-    field, exactly like a flexible member. Schema validation guarantees at most one of
-    the two fields is present and that the entry carries no schedulable-device fields.
+    An inflexible device is declared by a single ``inflexible-consumption`` or ``inflexible-production`` sensor reference on its own flex-model entry,
+    typically the flex-model of the inflexible device's asset.
+    Its fixed power is accounted for but not scheduled;
+    its group membership (if any) is read from its own ``group`` field, exactly like a flexible member.
+    Schema validation guarantees at most one of the two fields is present,
+    and that the entry carries no schedulable-device fields.
 
-    The returned device's ``index`` is None; it is assigned into the inflexible tail
-    (after the flexible devices) once their count is known.
+    The returned device's ``index`` is None;
+    it is assigned into the inflexible tail (after the flexible devices) once their count is known.
     """
     for field_name, consumption_is_positive in (
         ("inflexible_consumption", True),
@@ -361,10 +361,10 @@ def _register_flex_model_inflexible(
 ) -> bool:
     """Classify and register a flex-model inflexible-device entry, if this is one.
 
-    Groups (and the inflexible-device entries that join them) need a multi-device
-    flex-model, so this is a no-op in single-sensor mode. The registered device is
-    appended to ``inventory.entries`` now, and to ``pending`` for index assignment into
-    the inflexible tail once the flexible-device count is known.
+    Groups (and the inflexible-device entries that join them) need a multi-device flex-model,
+    so this is a no-op in single-sensor mode.
+    The registered device is appended to ``inventory.entries`` now,
+    and to ``pending`` for index assignment into the inflexible tail once the flexible-device count is known.
 
     :returns: True if the entry was an inflexible device (and got registered).
     """

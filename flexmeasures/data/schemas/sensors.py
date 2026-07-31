@@ -1052,11 +1052,10 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 class InflexibleDeviceSchema(SensorReferenceSchema):
     """One inflexible device: a sensor reference with optional source filters.
 
-    Used both in the flex-context (as a list, for site-level inflexible load) and in a
-    flex-model entry (as a single reference, when an inflexible device is modelled as
-    its own asset). Deserializes to a plain :class:`Sensor` when no source filters are
-    given (a backward-compatible shape downstream) and to a :class:`SensorReference`
-    otherwise.
+    Used both in the flex-context (as a list, for site-level inflexible load),
+    and in a flex-model entry (as a single reference, when an inflexible device is modelled as its own asset).
+    Deserializes to a plain :class:`Sensor` when no source filters are given (a backward-compatible shape downstream),
+    and to a :class:`SensorReference` otherwise.
     """
 
     class Meta:

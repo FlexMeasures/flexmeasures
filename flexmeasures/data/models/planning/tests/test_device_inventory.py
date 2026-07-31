@@ -494,6 +494,29 @@ def test_flex_model_inflexible_precedes_flat_context_inflexible():
     assert [d.index for d in inventory.inflexible_devices] == [1, 2]
 
 
+def test_flex_model_inflexible_source_filtered_reference():
+    """A flex-model inflexible entry given as a source-filtered SensorReference keeps the
+    reference on FlexDevice.sensor_reference, so its source filters reach the solver's
+    power lookup (not just the flat flex-context list)."""
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    battery = make_sensor(1)
+    load = make_sensor(12)
+    reference = SensorReference(sensor=load, source_types=["forecaster"])
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_consumption": reference},
+        ]
+    )
+
+    device = inventory.inflexible_devices[0]
+    assert device.power_sensor is load
+    assert device.sensor_reference is reference
+    assert device.consumption_is_positive is True
+
+
 def test_flat_context_inflexible_device_has_no_group():
     """A flat-list inflexible device from the flex-context has no flex-model entry, so
     it never belongs to a group."""
