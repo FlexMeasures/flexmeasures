@@ -3281,7 +3281,7 @@
                       "asset_id": 1,
                       "type": "forecasts",
                       "name": "Day-ahead PV forecasts",
-                      "cronstr": "0 6 <em> </em> *",
+                      "cronstr": "0 6 * * *",
                       "recurrence_description": "At 06:00",
                       "active": true,
                       "parameters": {
@@ -3359,7 +3359,7 @@
                           "asset_id": 1,
                           "type": "forecasts",
                           "name": "Day-ahead PV forecasts",
-                          "cronstr": "0 6 <em> </em> *",
+                          "cronstr": "0 6 * * *",
                           "recurrence_description": "At 06:00",
                           "active": true
                         }
