@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 
 from sqlalchemy import select
 
@@ -128,7 +129,7 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)
-    assert result.output.count("already ran") == 2, result.output
+    assert result.output.count("already attempted") == 2, result.output
     assert len(app.queues["forecasting"].jobs) == n_jobs
 
     # inactive automations are not due
@@ -138,3 +139,29 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     app.redis_connection.flushdb()
     result = runner.invoke(run_automations)
     assert "No automations due" in result.output, result.output
+
+
+def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
+    """A failure after partial queueing must not duplicate that work on retry."""
+    from flexmeasures.cli.jobs import run_automations
+
+    automation = SimpleNamespace(id=42, name="Partial run", asset_id=1)
+    mocker.patch("flexmeasures.cli.jobs.get_due_automations", return_value=[automation])
+
+    def queue_then_fail(_automation):
+        app.queues["forecasting"].enqueue("flexmeasures.utils.time_utils.server_now")
+        raise RuntimeError("failed after queueing")
+
+    mocker.patch("flexmeasures.cli.jobs.run_automation", side_effect=queue_then_fail)
+    runner = app.test_cli_runner()
+
+    first_result = runner.invoke(run_automations)
+    assert first_result.exit_code == 1, first_result.output
+    assert "failed after queueing" in first_result.output
+    assert app.queues["forecasting"].count == 1
+
+    retry_result = runner.invoke(run_automations)
+    assert retry_result.exit_code == 0, retry_result.output
+    assert "already attempted" in retry_result.output
+    assert "Skipping to avoid duplicate jobs" in retry_result.output
+    assert app.queues["forecasting"].count == 1
