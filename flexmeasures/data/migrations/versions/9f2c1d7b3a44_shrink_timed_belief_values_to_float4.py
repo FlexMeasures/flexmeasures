@@ -15,8 +15,11 @@ primary key, since ``cumulative_probability`` is part of it), so on a large
 ``timed_belief`` this is a heavy, table-locking operation — run it during a
 maintenance window.
 
+Note: the downgrade restores the column type, not the precision. Digits lost by
+the upgrade's rounding are gone for good.
+
 Revision ID: 9f2c1d7b3a44
-Revises: 4b0f2e9c1a6d
+Revises: 3c2f9e5a1d47
 Create Date: 2026-07-20
 
 """
@@ -27,7 +30,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "9f2c1d7b3a44"
-down_revision = "4b0f2e9c1a6d"
+down_revision = "3c2f9e5a1d47"
 branch_labels = None
 depends_on = None
 

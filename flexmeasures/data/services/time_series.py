@@ -13,6 +13,32 @@ from flexmeasures.data.queries.utils import simplify_index
 
 p = inflect.engine()
 
+#: The columns that ``timed_belief`` stores as single-precision floats (float4).
+#: See the matching columns on flexmeasures.data.models.time_series.TimedBelief.
+FLOAT4_FIELDS = ("cumulative_probability", "event_value")
+
+
+def round_to_stored_precision(df: pd.DataFrame) -> pd.DataFrame:
+    """Round the float4-stored fields of a reset-index belief frame to float4.
+
+    Beliefs read back from the database have been rounded to float4 by Postgres, while
+    candidate beliefs still carry the full double precision they were submitted or
+    computed with. Comparing the two directly would report any value needing more than
+    ~7 significant digits as "changed" on every single submission, so the same data
+    would be re-saved forever.
+
+    Rounding both sides to the precision they will actually be stored at makes the
+    comparison ask the question we mean to ask: will storing this candidate change what
+    is in the database?
+
+    Operates on a copy; ``df`` is left untouched.
+    """
+    df = df.copy()
+    for field in FLOAT4_FIELDS:
+        if field in df.columns:
+            df[field] = df[field].astype("float32").astype("float64")
+    return df
+
 
 def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
     # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict
@@ -81,17 +107,17 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
         return bdf
 
-    # Remove unchanged beliefs from within the new data itself
+    # Remove unchanged beliefs from within the new data itself.
+    # Deduplicate at stored precision, for the same reason we compare against the
+    # database at stored precision, but keep the caller's original values in the rows
+    # we do retain.
     index_names = bdf.index.names
-    bdf = (
-        bdf.sort_index()
-        .reset_index()
-        .drop_duplicates(
-            ["event_start", "source", "cumulative_probability", "event_value"],
-            keep="first",
-        )
-        .set_index(index_names)
+    flat_bdf = bdf.sort_index().reset_index()
+    already_seen = round_to_stored_precision(flat_bdf).duplicated(
+        ["event_start", "source", "cumulative_probability", "event_value"],
+        keep="first",
     )
+    bdf = flat_bdf[~already_seen].set_index(index_names)
 
     # Remove unchanged beliefs with respect to what is already stored in the database
     if bdf.belief_horizons[0] > timedelta(0):
@@ -184,20 +210,11 @@ def _drop_unchanged_beliefs_compared_to_db(
         "cumulative_probability",
         "event_value",
     ]
-    # timed_belief stores cumulative_probability and event_value as single-precision
-    # floats (float4). The beliefs already in the database (b_df) are therefore rounded
-    # to float4, while the incoming candidate (a_df) still carries the full double
-    # precision it was submitted/computed with. Round the candidate to the same
-    # precision before comparing, so re-submitting already-stored data is recognised as
-    # unchanged instead of looking like a (rejected) replacement. See the matching
-    # float4 columns on flexmeasures.data.models.time_series.TimedBelief.
-    for compare_df in (a_df, b_df):
-        for float4_field in ("cumulative_probability", "event_value"):
-            compare_df[float4_field] = (
-                compare_df[float4_field].astype("float32").astype("float64")
-            )
-    a = a_df.set_index(compare_fields)
-    b = b_df.set_index(compare_fields)
+    # Compare at the precision the values are stored at, not the precision they arrived
+    # with (see round_to_stored_precision). Only the comparison is rounded: the frame we
+    # return still carries the caller's original values.
+    a = round_to_stored_precision(a_df).set_index(compare_fields)
+    b = round_to_stored_precision(b_df).set_index(compare_fields)
     dropped = a.drop(b.index, errors="ignore", axis=0)
 
     # Keep whole probabilistic beliefs, not just the parts that changed

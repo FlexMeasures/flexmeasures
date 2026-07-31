@@ -838,8 +838,16 @@ def _get_sensor_stats(
     # We pass it to aggregate FILTER clauses so that the planner can compute all aggregates in a single pass over the belief rows.
     not_nan = TimedBelief.event_value != float("nan")
 
-    def filtered_agg(func):
-        return func(TimedBelief.event_value).filter(not_nan)
+    # event_value is stored as float4 (see TimedBelief), and PostgreSQL's sum() over a
+    # float4 column both returns and *accumulates in* float4. Over a sensor with many
+    # rows the running total outgrows the magnitude of the individual values being added
+    # to it, and the sum drifts visibly. So sum over an explicit float8 cast.
+    # (avg() already accumulates in float8, and min()/max() pick an existing value, so
+    # only sum() needs this.)
+    def filtered_agg(func, column=TimedBelief.event_value):
+        return func(column).filter(not_nan)
+
+    event_value_as_float8 = sa.cast(TimedBelief.event_value, sa.Float())
 
     q = (
         sa.select(
@@ -854,7 +862,7 @@ def _get_sensor_stats(
             filtered_agg(sa.func.min).label("min_event_value"),
             filtered_agg(sa.func.max).label("max_event_value"),
             filtered_agg(sa.func.avg).label("avg_event_value"),
-            filtered_agg(sa.func.sum).label("sum_event_value"),
+            filtered_agg(sa.func.sum, event_value_as_float8).label("sum_event_value"),
             sa.func.count(TimedBelief.event_value).label("count_event_value"),
         )
         .select_from(TimedBelief)

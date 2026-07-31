@@ -931,6 +931,19 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     # of the (typically largest) timed_belief table by ~15-20%. ~7 significant digits
     # of single precision are plenty for sensor readings and for a cumulative
     # probability in [0, 1]. Keep in sync with the matching Alembic migration.
+    #
+    # TODO: replace this override with timely_beliefs' value_column_type hook
+    #       (SeitaBV/timely-beliefs#242) once a release carrying it is out:
+    #
+    #           value_column_type = db.Float(precision=24)
+    #
+    #       Redeclaring the columns here works, but because mixin columns are ordered by
+    #       creation order it moves both to the front of the table and of the primary
+    #       key, making cumulative_probability (nearly always 0.5) the leading key
+    #       column. That only affects schemas built by create_all() -- i.e. the test
+    #       schema, since deployments run `flexmeasures db upgrade` -- so it is a
+    #       tolerable interim, but it does mean tests exercise a different index shape
+    #       than production. The upstream hook keeps the ordering identical.
     cumulative_probability = db.Column(
         db.Float(precision=24), nullable=False, primary_key=True, default=0.5
     )
