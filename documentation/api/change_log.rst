@@ -8,6 +8,7 @@ API change log
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
+- Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
 - Introduced the ``inflexible-consumption`` and ``inflexible-production`` flex-context fields, which make explicit how the sign of each inflexible device's power data should be read: positive values denote consumption resp. production. Each entry is a sensor reference (``{"sensor": <id>}``), optionally with source filters (``source-types``, ``exclude-source-types``, ``sources``, ``source-account``). Deprecated the ``inflexible-device-sensors`` field (a list of bare sensor IDs, whose sign convention is read from each sensor's ``consumption_is_positive`` attribute); it remains supported, but cannot be combined with the new fields in one flex-context.
 - Added a ``role`` query parameter to ``GET /api/v3_0/accounts`` for filtering accessible organisations by account role.
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.

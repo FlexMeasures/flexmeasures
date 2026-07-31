@@ -12,7 +12,7 @@ since v1.0.0 | July XX, 2026
 * Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
 * Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset; for now, computing forecasts).
-* Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron).
+* Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions. Run this command once per minute. It makes at most one queueing attempt per automation per minute, including when an attempt fails after partially queueing jobs.
 
 since v0.33.0 | June 01, 2026
 =================================
