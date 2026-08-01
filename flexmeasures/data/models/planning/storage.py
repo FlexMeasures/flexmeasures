@@ -1551,15 +1551,15 @@ class MetaStorageScheduler(Scheduler):
     ) -> tuple[list[int], str]:
         """Resolve a scoped commitment's device set to canonical solver indices.
 
-        Both scopes include a device whether it is flexible or inflexible: a ``group``
-        scope yields the group's (leaf) members, and a ``sensors`` scope yields the
-        devices recording the listed power sensors. So listing a group's member sensors
-        resolves to the same set as scoping by that group. Canonical indices always come
-        from the device inventory, never from re-enumerating raw flex-model lists.
+        Both scopes include a device whether it is flexible or inflexible:
+        a ``group`` scope yields the group's (leaf) members,
+        and a ``sensors`` scope yields the devices recording the listed power sensors.
+        So listing a group's member sensors resolves to the same set as scoping by that group.
+        Canonical indices always come from the device inventory,
+        never from re-enumerating raw flex-model lists.
 
-        The commitment then binds the *net signed* aggregate of these devices' flow
-        (consumption positive, production negative), so consumers add, producers
-        subtract, and any inflexible (fixed) member contributes its fixed signed power.
+        The commitment then binds the *net signed* aggregate of these devices' flow (consumption positive, production negative),
+        so consumers add, producers subtract, and any inflexible (fixed) member contributes its fixed signed power.
 
         :returns: A ``(sorted device indices, human-readable scope description)`` pair.
         """
@@ -1591,8 +1591,8 @@ class MetaStorageScheduler(Scheduler):
     ) -> "FlowCommitment | None":
         """Build one aggregate-flow FlowCommitment for a scoped commitment.
 
-        Returns None (logged) when the scope matches no device in the flex-model, so
-        the commitment binds nothing rather than failing the whole schedule.
+        Returns None (logged) when the scope matches no device in the flex-model,
+        so the commitment binds nothing rather than failing the whole schedule.
 
         :raises ValueError: When the scoped devices span more than one commodity.
         """
@@ -1615,15 +1615,15 @@ class MetaStorageScheduler(Scheduler):
                 f" more than one commodity ({sorted(commodities)}); a commitment binds"
                 " the aggregate flow of a single commodity."
             )
-        # A scoped commitment's commodity is defined by its scope, so pin it to the
-        # scoped devices' (single) commodity -- otherwise the commitment keeps the
-        # schema's electricity default (or a mismatching explicit value) and its cost
-        # would be misattributed to the wrong commodity.
+        # A scoped commitment's commodity is defined by its scope,
+        # so pin it to the scoped devices' (single) commodity;
+        # otherwise the commitment keeps the schema's electricity default (or a mismatching explicit value),
+        # and its cost would be misattributed to the wrong commodity.
         commitment_spec["commodity"] = next(iter(commodities))
         index = commitment_spec["index"]
-        # device_group maps device index -> group label; one shared label makes the
-        # engine bind the aggregate flow. The label is unique per commitment so two
-        # scoped commitments never merge, even if they share a name.
+        # device_group maps device index -> group label;
+        # one shared label makes the engine bind the aggregate flow.
+        # The label is unique per commitment, so two scoped commitments never merge, even if they share a name.
         group_label = f"scoped-commitment-{commitment_index}"
         return FlowCommitment(
             device=pd.Series([scoped_devices] * len(index), index=index),
@@ -1696,12 +1696,12 @@ class MetaStorageScheduler(Scheduler):
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
 
-            # A commitment scoped to a subset of devices binds the *aggregate* flow of
-            # those devices as one commitment, rather than each device separately. The
-            # scope is given either as a raw list of power `sensors` (a cherry-pick that
-            # may span electrical groups, e.g. an aFRR band on a site's e-heaters) or as
-            # a `group` reference (the members of an electrical group, reusing its
-            # already-resolved membership). The schema allows at most one of the two.
+            # A commitment scoped to a subset of devices binds the *aggregate* flow of those devices as one commitment,
+            # rather than each device separately.
+            # The scope is given either as a raw list of power `sensors` (a cherry-pick that may span electrical groups,
+            # e.g. an aFRR band on a site's e-heaters),
+            # or as a `group` reference (the members of an electrical group, reusing its already-resolved membership);
+            # the schema allows at most one of the two.
             scoped_sensors = commitment_spec.pop("sensors", None)
             scoped_group = commitment_spec.pop("group", None)
             if scoped_sensors is not None or scoped_group is not None:

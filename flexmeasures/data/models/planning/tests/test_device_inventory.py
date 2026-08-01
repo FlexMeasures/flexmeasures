@@ -211,8 +211,8 @@ def test_by_sensor_id():
 
 
 def test_scheduled_devices_by_sensor_id_includes_inflexible():
-    """scheduled_devices_by_sensor_id returns flexible *and* inflexible devices, whereas
-    by_sensor_id returns flexible devices only."""
+    """scheduled_devices_by_sensor_id returns flexible *and* inflexible devices,
+    whereas by_sensor_id returns flexible devices only."""
     battery = make_sensor(1)
     load = make_sensor(12)
     inventory = DeviceInventory.from_flex_config(

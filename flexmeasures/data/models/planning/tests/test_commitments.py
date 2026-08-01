@@ -2086,10 +2086,9 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
 
 
 def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
-    """A commitment scoped to specific sensors (here: two e-heaters) binds their
-    aggregate flow as one commitment: a baseline of 10 MW with a steep penalty on
-    downward deviation keeps their combined consumption at 10 MW even though a
-    cheaper allocation (0 MW) exists.
+    """A commitment scoped to specific sensors (here: two e-heaters) binds their aggregate flow as one commitment:
+    a baseline of 10 MW with a steep penalty on downward deviation keeps their combined consumption at 10 MW,
+    even though a cheaper allocation (0 MW) exists.
     """
     heater_type = get_or_create_model(GenericAssetType, name="e-heater")
     site = GenericAsset(
@@ -2115,8 +2114,8 @@ def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
 
     flex_model = [
         {
-            # Heaters burn money at the consumption price; without the band
-            # commitment the optimum is to stay off.
+            # Heaters burn money at the consumption price;
+            # without the band commitment the optimum is to stay off.
             "sensor": heater_1.id,
             "power-capacity": "8 MW",
             "consumption-capacity": "8 MW",
@@ -2138,8 +2137,8 @@ def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
                 "name": "reserved band",
                 "sensors": [heater_1.id, heater_2.id],
                 "baseline": "10 MW",
-                # Steep penalty for consuming less than the band (negative price
-                # penalizes downward deviation); consuming more is free.
+                # Steep penalty for consuming less than the band (negative price penalizes downward deviation);
+                # consuming more is free.
                 "down-price": "-10000 EUR/MWh",
             }
         ],
@@ -2196,9 +2195,10 @@ def test_commitment_scope_sensors_and_group_are_mutually_exclusive(app, db):
 
 
 def test_group_scoped_commitment_binds_group_aggregate(app, db):
-    """A commitment scoped to a ``group`` reference binds the aggregate flow of that
-    group's members, reusing the group's resolved membership -- the same band effect as
-    listing the members' sensors, but pointing at the group instead."""
+    """A commitment scoped to a ``group`` reference binds the aggregate flow of that group's members,
+    reusing the group's resolved membership;
+    the same band effect as listing the members' sensors, but pointing at the group instead.
+    """
     heater_type = get_or_create_model(GenericAssetType, name="e-heater")
     site = GenericAsset(name="Group-scoped band site", generic_asset_type=heater_type)
     db.session.add(site)
@@ -2272,8 +2272,9 @@ def test_group_scoped_commitment_binds_group_aggregate(app, db):
 
 
 def test_sensor_scope_includes_inflexible_and_matches_group_scope(app):
-    """A sensors scope includes an inflexible device (by its power sensor), so listing a
-    group's member sensors binds the same device set as scoping by that group."""
+    """A sensors scope includes an inflexible device (by its power sensor),
+    so listing a group's member sensors binds the same device set as scoping by that group.
+    """
     from flexmeasures.data.models.planning.devices import DeviceInventory
 
     scheduler = object.__new__(StorageScheduler)
@@ -2334,8 +2335,9 @@ def test_sensor_scope_includes_inflexible_and_matches_group_scope(app):
 
 
 def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
-    """A scoped commitment's commodity follows its scoped devices, overriding the
-    schema's electricity default -- so its cost is attributed to the right commodity."""
+    """A scoped commitment's commodity follows its scoped devices,
+    overriding the schema's electricity default, so its cost is attributed to the right commodity.
+    """
     from flexmeasures.data.models.planning.devices import DeviceInventory
 
     scheduler = object.__new__(StorageScheduler)
@@ -2381,8 +2383,8 @@ def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
 def test_scoped_commitment_with_no_matching_devices_warns_and_binds_nothing(
     app, caplog
 ):
-    """A scope that matches no device in the flex-model logs a warning and binds
-    nothing, rather than failing the whole schedule."""
+    """A scope that matches no device in the flex-model logs a warning and binds nothing,
+    rather than failing the whole schedule."""
     import logging
     from flexmeasures.data.models.planning.devices import DeviceInventory
 
