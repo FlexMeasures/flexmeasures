@@ -624,6 +624,18 @@ class DeviceInventory:
         """Return the flexible devices whose power sensor has the given id."""
         return [device for device in self.devices if device.sensor_id == sensor_id]
 
+    def scheduled_devices_by_sensor_id(self, sensor_id: int) -> list[FlexDevice]:
+        """Return all devices (flexible and inflexible) whose power sensor has the given id.
+
+        Unlike :meth:`by_sensor_id`, this includes inflexible (fixed-power) devices,
+        so a commitment scoped to a sensor list can bind an inflexible device's flow too.
+        """
+        return [
+            device
+            for device in (*self.devices, *self.inflexible_devices)
+            if device.sensor_id == sensor_id
+        ]
+
     @cached_property
     def stock_groups(self) -> dict[int, list[int]]:
         """Map each stock key to the indices of the devices drawing from that stock.

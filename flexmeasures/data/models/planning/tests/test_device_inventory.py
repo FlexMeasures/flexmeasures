@@ -210,6 +210,24 @@ def test_by_sensor_id():
     assert inventory.by_sensor_id(3) == []
 
 
+def test_scheduled_devices_by_sensor_id_includes_inflexible():
+    """scheduled_devices_by_sensor_id returns flexible *and* inflexible devices,
+    whereas by_sensor_id returns flexible devices only."""
+    battery = make_sensor(1)
+    load = make_sensor(12)
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_consumption": load},
+        ]
+    )
+    # by_sensor_id is flexible-only, so the inflexible load's sensor matches nothing.
+    assert inventory.by_sensor_id(12) == []
+    # scheduled_devices_by_sensor_id includes the inflexible device (index 1).
+    assert [d.index for d in inventory.scheduled_devices_by_sensor_id(12)] == [1]
+    assert [d.index for d in inventory.scheduled_devices_by_sensor_id(1)] == [0]
+
+
 def test_state_of_charge_as_time_series_forms_own_stock():
     """A state of charge given as a value or time series (rather than a sensor
     reference) cannot link devices into a shared stock: the device keeps its own
