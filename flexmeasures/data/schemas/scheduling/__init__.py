@@ -81,9 +81,12 @@ class CommitmentSchema(Schema):
     # Give either a list of power `sensors` (a cherry-pick that may span electrical groups,
     # e.g. an aFRR band on a site's e-heaters),
     # or a `group` reference (the members of an electrical group); at most one of the two.
-    # A sensor scope binds the listed *flexible* devices only;
-    # a group scope binds the group's members, which include any inflexible (fixed-load) members,
-    # so the aggregate covers the node's total flow (see StorageScheduler._resolve_commitment_scope).
+    # Either scope includes a device whether flexible or inflexible, so listing a group's
+    # member sensors resolves to the same set as scoping by that group.
+    # The commitment binds the net signed aggregate of the scoped devices (consumption
+    # positive, production negative), so consumers add, producers subtract, and any
+    # inflexible (fixed) member contributes its fixed signed power -- see
+    # StorageScheduler._resolve_commitment_scope.
     sensors = fields.List(
         SensorIdField(),
         required=False,

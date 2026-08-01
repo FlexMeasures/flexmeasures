@@ -2271,6 +2271,68 @@ def test_group_scoped_commitment_binds_group_aggregate(app, db):
     np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
 
 
+def test_sensor_scope_includes_inflexible_and_matches_group_scope(app):
+    """A sensors scope includes an inflexible device (by its power sensor), so listing a
+    group's member sensors binds the same device set as scoping by that group."""
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    def mk(sid, name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset_id=1
+        )
+        s.id = sid
+        return s
+
+    battery = mk(1, "scope battery")
+    load = mk(12, "scope fixed load")
+    group_sensor = mk(10, "scope group sensor")
+
+    flex_model = [
+        {"sensor": battery, "group": {"sensor": group_sensor}},
+        {
+            "asset": object(),
+            "inflexible_consumption": load,
+            "group": {"sensor": group_sensor},
+        },
+        {"sensor": group_sensor, "power_capacity_in_mw": ur.Quantity("1 GW")},
+    ]
+
+    def commitment_devices(scope):
+        scheduler.flex_context = {
+            "shared_currency_unit": "EUR",
+            "commitments": [
+                {
+                    "name": "band",
+                    "baseline": ur.Quantity("1 MW"),
+                    "up_price": ur.Quantity("1 EUR/MWh"),
+                    **scope,
+                }
+            ],
+        }
+        scheduler.device_inventory = DeviceInventory.from_flex_config(
+            flex_model, scheduler.flex_context
+        )
+        commitments = scheduler.convert_to_commitments(
+            flex_model,
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=start,
+        )
+        # FlowCommitment.device is a Series of (identical) device-index lists.
+        return set(commitments[0].device.iloc[0])
+
+    by_sensors = commitment_devices({"sensors": [battery, load]})
+    by_group = commitment_devices({"group": {"sensor": group_sensor}})
+
+    assert by_sensors == by_group  # listing the members == scoping the group
+    assert by_sensors == {0, 1}  # the flexible battery (0) and the inflexible load (1)
+
+
 def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
     """A scoped commitment's commodity follows its scoped devices, overriding the
     schema's electricity default -- so its cost is attributed to the right commodity."""

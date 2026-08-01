@@ -1551,12 +1551,15 @@ class MetaStorageScheduler(Scheduler):
     ) -> tuple[list[int], str]:
         """Resolve a scoped commitment's device set to canonical solver indices.
 
-        A ``group`` scope yields the group's (leaf) members, which -- unlike the
-        by-sensor scope -- include any inflexible members, so the aggregate covers the
-        node's total flow (fixed load included). A ``sensors`` scope yields the listed
-        *flexible* devices (``by_sensor_id`` returns schedulable devices only, so
-        inflexible devices are not bound by a sensor scope). Canonical indices always
-        come from the device inventory, never from re-enumerating raw flex-model lists.
+        Both scopes include a device whether it is flexible or inflexible: a ``group``
+        scope yields the group's (leaf) members, and a ``sensors`` scope yields the
+        devices recording the listed power sensors. So listing a group's member sensors
+        resolves to the same set as scoping by that group. Canonical indices always come
+        from the device inventory, never from re-enumerating raw flex-model lists.
+
+        The commitment then binds the *net signed* aggregate of these devices' flow
+        (consumption positive, production negative), so consumers add, producers
+        subtract, and any inflexible (fixed) member contributes its fixed signed power.
 
         :returns: A ``(sorted device indices, human-readable scope description)`` pair.
         """
@@ -1577,7 +1580,9 @@ class MetaStorageScheduler(Scheduler):
         scoped_devices = sorted(
             device.index
             for sensor_id in scoped_sensor_ids
-            for device in self.device_inventory.by_sensor_id(sensor_id)
+            for device in self.device_inventory.scheduled_devices_by_sensor_id(
+                sensor_id
+            )
         )
         return scoped_devices, f"sensors {sorted(scoped_sensor_ids)}"
 
