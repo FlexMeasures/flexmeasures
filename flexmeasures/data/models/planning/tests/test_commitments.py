@@ -2089,6 +2089,10 @@ def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
     """A commitment scoped to specific sensors (here: two e-heaters) binds their aggregate flow as one commitment:
     a baseline of 10 MW with a steep penalty on downward deviation keeps their combined consumption at 10 MW,
     even though a cheaper allocation (0 MW) exists.
+
+    "Band" (as in the "reserved band" commitment name) means a committed power level the aggregate is held to,
+    by penalising deviation from the baseline;
+    here only downward deviation is priced, so the band acts as a floor rather than a two-sided range.
     """
     heater_type = get_or_create_model(GenericAssetType, name="e-heater")
     site = GenericAsset(
