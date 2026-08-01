@@ -1222,6 +1222,7 @@ dependencies = [
     { name = "marshmallow-oneofschema", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "marshmallow-polyfield", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "marshmallow-sqlalchemy", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "openpyxl", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pandas", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pillow", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pint", version = "0.24.4", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and os_name != 'nt' and sys_platform == 'darwin') or (python_full_version < '3.11' and os_name != 'nt' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32')" },
@@ -1290,7 +1291,6 @@ docs = [
 test = [
     { name = "fakeredis", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "lupa", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "openpyxl", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pytest", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pytest-cov", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pytest-flask", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -1345,6 +1345,7 @@ requires-dist = [
     { name = "marshmallow-oneofschema", specifier = ">=3.2.0" },
     { name = "marshmallow-polyfield", specifier = ">=5.11" },
     { name = "marshmallow-sqlalchemy", specifier = ">=0.23.1" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.2.1" },
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "pint", specifier = ">=0.19.1" },
@@ -1411,7 +1412,6 @@ docs = [
 test = [
     { name = "fakeredis", specifier = ">=2.33.0" },
     { name = "lupa", specifier = ">=2.6" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pytest-flask", specifier = ">=1.3.0" },
