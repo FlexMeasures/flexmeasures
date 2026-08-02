@@ -108,7 +108,7 @@ async def run_tutorial(args: argparse.Namespace) -> None:
         raise FileNotFoundError(f"Example data file not found: {args.file}")
 
     password = os.getenv("FLEXMEASURES_PASSWORD") or getpass.getpass(
-        "FlexMeasures password: "
+        f"FlexMeasures password for {args.email}: "
     )
     client = FlexMeasuresClient(
         host=args.host,

@@ -162,12 +162,13 @@ For data collected dynamically, the surrounding pipeline could look like this:
 
 
     async def main():
+        email = os.environ["FLEXMEASURES_EMAIL"]
         client = FlexMeasuresClient(
             host=os.environ["FLEXMEASURES_HOST"],
             ssl=True,
-            email=os.environ["FLEXMEASURES_EMAIL"],
+            email=email,
             password=os.getenv("FLEXMEASURES_PASSWORD")
-            or getpass.getpass("FlexMeasures password: "),
+            or getpass.getpass(f"FlexMeasures password for {email}: "),
         )
         try:
             values = export_latest_meter_values()  # Your database or vendor API
