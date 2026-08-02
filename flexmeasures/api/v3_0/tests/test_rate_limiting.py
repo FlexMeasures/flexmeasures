@@ -96,6 +96,47 @@ def test_default_rate_limit(app, rate_limiting, requesting_user):
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
+def test_play_mode_is_exempt_from_both_rate_limits(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+):
+    """A play server runs simulations, which trigger in tight loops on purpose."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_MODE", "play")
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        for _ in range(3):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+            assert trigger(client, battery).status_code != 429
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_development_mode_still_rate_limits(app, rate_limiting, requesting_user):
+    """Only the play mode is exempt: a dev server limits like production does,
+    so that the limits do not first surface once they are live."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_MODE", "development")
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_health_endpoint_is_exempt_from_default_rate_limit(
     app, rate_limiting, requesting_user
 ):

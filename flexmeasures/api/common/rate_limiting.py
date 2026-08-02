@@ -17,6 +17,11 @@ triggers we accepted, because it exists to protect the expensive computation whi
 a client whose payload we rejected did not cost us a schedule, and should not pay for one.
 
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
+
+Neither limit applies on a play server (``FLEXMEASURES_MODE`` is "play"), which is the mode for running
+simulations ― precisely the tight trigger loop the trigger limit exists to stop. Note that this is about
+the play mode, not about running in development: a development server rate-limits like any other, so that
+what you see there is what you get in production.
 """
 
 from __future__ import annotations
@@ -64,6 +69,15 @@ def _account_rate_limit(limit_name: str) -> str | None:
 def _is_unlimited(limit_name: str) -> bool:
     """Whether the account is exempt from the given limit."""
     return _account_rate_limit(limit_name) == UNLIMITED_RATE_LIMIT
+
+
+def _is_play_mode() -> bool:
+    """Whether this server is for running simulations, which trigger computation in tight loops.
+
+    Deliberately keyed on the play mode rather than on the development environment: a dev server
+    should rate-limit like production does, or the limits only ever surface once they are live.
+    """
+    return current_app.config.get("FLEXMEASURES_MODE") == "play"
 
 
 def default_key_func() -> str:
@@ -153,6 +167,8 @@ def _exempt_from_default_limit() -> bool:
         return True
     if request.path.startswith(EXEMPT_PATH_PREFIXES):
         return True
+    if _is_play_mode():
+        return True
     return _is_unlimited("default")
 
 
@@ -185,7 +201,7 @@ def limit_triggers():
         # endpoint and the (deprecated) sensor endpoint.
         scope="triggers",
         key_func=trigger_key_func,
-        exempt_when=lambda: _is_unlimited("trigger"),
+        exempt_when=lambda: _is_play_mode() or _is_unlimited("trigger"),
         deduct_when=_trigger_set_work_in_motion,
     )
 

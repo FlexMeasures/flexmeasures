@@ -16,6 +16,11 @@ reached, FlexMeasures lets requests through rather than refusing them.
 Both limits are configured server-wide, and can be overridden per account by putting the account on a plan.
 The settings themselves are documented under :ref:`rate-limiting-config`.
 
+.. note:: Neither limit applies on a play server (see :ref:`modes-dev`), which is the mode for running
+          simulations ― precisely the tight trigger loop the trigger limit exists to stop. This is about
+          the play mode, not about running in development: a development server rate-limits like any other,
+          so that the limits do not first surface once they are live.
+
 
 How the two limits count
 -------------------------
