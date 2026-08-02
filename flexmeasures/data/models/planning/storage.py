@@ -22,6 +22,7 @@ from flexmeasures.data.models.planning.devices import (
     DeviceInventory,
     _resolve_stock_key,
     group_key_label,
+    resolve_group_reference,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -1545,6 +1546,92 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
+    def _resolve_commitment_scope(
+        self, scoped_sensors, scoped_group
+    ) -> tuple[list[int], str]:
+        """Resolve a scoped commitment's device set to canonical solver indices.
+
+        Both scopes include a device whether it is flexible or inflexible:
+        a ``group`` scope yields the group's (leaf) members,
+        and a ``sensors`` scope yields the devices recording the listed power sensors.
+        So listing a group's member sensors resolves to the same set as scoping by that group.
+        Canonical indices always come from the device inventory,
+        never from re-enumerating raw flex-model lists.
+
+        The commitment then binds the *net signed* aggregate of these devices' flow (consumption positive, production negative),
+        so consumers add, producers subtract, and any inflexible (fixed) member contributes its fixed signed power.
+
+        :returns: A ``(sorted device indices, human-readable scope description)`` pair.
+        """
+        if scoped_group is not None:
+            group_key = resolve_group_reference(scoped_group)
+            scoped_devices = sorted(
+                self.device_inventory.group_to_devices.get(group_key, [])
+            )
+            description = (
+                f"group {group_key_label(group_key)}"
+                if group_key is not None
+                else "an unresolved group reference"
+            )
+            return scoped_devices, description
+        scoped_sensor_ids = {
+            sensor.id if hasattr(sensor, "id") else sensor for sensor in scoped_sensors
+        }
+        scoped_devices = sorted(
+            device.index
+            for sensor_id in scoped_sensor_ids
+            for device in self.device_inventory.scheduled_devices_by_sensor_id(
+                sensor_id
+            )
+        )
+        return scoped_devices, f"sensors {sorted(scoped_sensor_ids)}"
+
+    def _build_scoped_commitment(
+        self, commitment_spec, scoped_sensors, scoped_group, commitment_index
+    ) -> "FlowCommitment | None":
+        """Build one aggregate-flow FlowCommitment for a scoped commitment.
+
+        Returns None (logged) when the scope matches no device in the flex-model,
+        so the commitment binds nothing rather than failing the whole schedule.
+
+        :raises ValueError: When the scoped devices span more than one commodity.
+        """
+        scoped_devices, scope_description = self._resolve_commitment_scope(
+            scoped_sensors, scoped_group
+        )
+        if not scoped_devices:
+            current_app.logger.warning(
+                f"Commitment '{commitment_spec.get('name')}' is scoped to"
+                f" {scope_description}, none of which appear in the flex-model."
+                " This commitment will not bind any device."
+            )
+            return None
+        commodities = {
+            self.device_inventory.by_index(d).commodity for d in scoped_devices
+        }
+        if len(commodities) > 1:
+            raise ValueError(
+                f"Commitment '{commitment_spec.get('name')}' is scoped to devices of"
+                f" more than one commodity ({sorted(commodities)}); a commitment binds"
+                " the aggregate flow of a single commodity."
+            )
+        # A scoped commitment's commodity is defined by its scope,
+        # so pin it to the scoped devices' (single) commodity;
+        # otherwise the commitment keeps the schema's electricity default (or a mismatching explicit value),
+        # and its cost would be misattributed to the wrong commodity.
+        commitment_spec["commodity"] = next(iter(commodities))
+        index = commitment_spec["index"]
+        # device_group maps device index -> group label;
+        # one shared label makes the engine bind the aggregate flow.
+        # The label is unique per commitment, so two scoped commitments never merge, even if they share a name.
+        group_label = f"scoped-commitment-{commitment_index}"
+        return FlowCommitment(
+            device=pd.Series([scoped_devices] * len(index), index=index),
+            device_group=pd.Series({d: group_label for d in scoped_devices}),
+            provenance="custom",
+            **commitment_spec,
+        )
+
     def convert_to_commitments(
         self,
         flex_model,
@@ -1579,7 +1666,7 @@ class MetaStorageScheduler(Scheduler):
         commitments = []
         # The specs were copied above, so converting (which pops fields) does not
         # mutate self.flex_context and repeated conversions see the original specs.
-        for commitment_spec in commitment_specs:
+        for commitment_index, commitment_spec in enumerate(commitment_specs):
 
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
@@ -1608,6 +1695,22 @@ class MetaStorageScheduler(Scheduler):
                 start, end, timing_kwargs["resolution"]
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
+
+            # A commitment scoped to a subset of devices binds the *aggregate* flow of those devices as one commitment,
+            # rather than each device separately.
+            # The scope is given either as a raw list of power `sensors` (a cherry-pick that may span electrical groups,
+            # e.g. an aFRR band on a site's e-heaters),
+            # or as a `group` reference (the members of an electrical group, reusing its already-resolved membership);
+            # the schema allows at most one of the two.
+            scoped_sensors = commitment_spec.pop("sensors", None)
+            scoped_group = commitment_spec.pop("group", None)
+            if scoped_sensors is not None or scoped_group is not None:
+                scoped = self._build_scoped_commitment(
+                    commitment_spec, scoped_sensors, scoped_group, commitment_index
+                )
+                if scoped is not None:
+                    commitments.append(scoped)
+                continue
             bound_device_count = 0
             for d, flex_model_d in enumerate(flex_model):
                 device_commodity = flex_model_d.get("commodity", "electricity")

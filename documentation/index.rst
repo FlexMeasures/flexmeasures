@@ -244,6 +244,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/data
     host/deployment
     host/multi-tenancy
+    host/plans
     configuration
     host/white-labelling
     host/queues

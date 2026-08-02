@@ -210,6 +210,24 @@ def test_by_sensor_id():
     assert inventory.by_sensor_id(3) == []
 
 
+def test_scheduled_devices_by_sensor_id_includes_inflexible():
+    """scheduled_devices_by_sensor_id returns flexible *and* inflexible devices,
+    whereas by_sensor_id returns flexible devices only."""
+    battery = make_sensor(1)
+    load = make_sensor(12)
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_consumption": load},
+        ]
+    )
+    # by_sensor_id is flexible-only, so the inflexible load's sensor matches nothing.
+    assert inventory.by_sensor_id(12) == []
+    # scheduled_devices_by_sensor_id includes the inflexible device (index 1).
+    assert [d.index for d in inventory.scheduled_devices_by_sensor_id(12)] == [1]
+    assert [d.index for d in inventory.scheduled_devices_by_sensor_id(1)] == [0]
+
+
 def test_state_of_charge_as_time_series_forms_own_stock():
     """A state of charge given as a value or time series (rather than a sensor
     reference) cannot link devices into a shared stock: the device keeps its own
@@ -391,11 +409,42 @@ def test_inflexible_field_enumeration_and_signs():
     assert inventory.inflexible_sensors == [legacy, load, pv]
 
 
-def test_inflexible_device_group_membership():
-    """An inflexible device carrying a ``group`` field becomes a member of that group,
-    so its (fixed) load counts towards the group's intermediate power constraint."""
-    from flexmeasures.data.schemas.sensors import SensorReference
+def test_flex_model_inflexible_device_classified():
+    """A flex-model entry declaring a single inflexible-consumption/production reference
+    is classified as an inflexible device (not a schedulable one), in the inflexible
+    tail after the flexible devices."""
+    battery = make_sensor(1)
+    load = make_sensor(12)
+    solar = make_sensor(13)
 
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_consumption": load},
+            {"asset": object(), "inflexible_production": solar},
+        ]
+    )
+
+    assert [entry.role for entry in inventory.entries] == [
+        DeviceRole.DEVICE,
+        DeviceRole.INFLEXIBLE,
+        DeviceRole.INFLEXIBLE,
+    ]
+    assert inventory.num_flexible == 1
+    assert inventory.num_scheduled == 3
+    # Inflexible devices follow the flexible battery (index 0), at indices 1, 2.
+    assert [d.index for d in inventory.inflexible_devices] == [1, 2]
+    assert [d.sensor_id for d in inventory.inflexible_devices] == [12, 13]
+    # The sign convention comes from the field the device was declared under.
+    assert [d.consumption_is_positive for d in inventory.inflexible_devices] == [
+        True,
+        False,
+    ]
+
+
+def test_flex_model_inflexible_device_group_membership():
+    """A flex-model inflexible entry joins a group through the normal ``group`` field,
+    exactly like a flexible member, so its fixed load counts towards the group."""
     battery = make_sensor(1)
     load = make_sensor(12)
     group_sensor = make_sensor(10)
@@ -404,57 +453,25 @@ def test_inflexible_device_group_membership():
     inventory = DeviceInventory.from_flex_config(
         [
             {"sensor": battery, "group": {"sensor": group_sensor}},
+            {
+                "asset": object(),
+                "inflexible_consumption": load,
+                "group": {"sensor": group_sensor},
+            },
             group_entry,
-        ],
-        {
-            "inflexible_consumption": [
-                SensorReference(sensor=load, group={"sensor": group_sensor})
-            ]
-        },
+        ]
     )
 
     assert inventory.num_flexible == 1
-    # The inflexible load follows the flexible battery (index 0), at index 1.
-    assert [device.index for device in inventory.inflexible_devices] == [1]
     assert inventory.group_entries == {("sensor", group_sensor.id): group_entry}
     # The group contains both the flexible battery (0) and the inflexible load (1).
     assert inventory.group_to_devices == {("sensor", group_sensor.id): [0, 1]}
-    assert inventory.by_index(1).commodity == "electricity"
+    assert inventory.by_index(1).group_key == ("sensor", group_sensor.id)
 
 
-def test_group_referenced_only_by_inflexible_device():
-    """A group referenced solely by an inflexible device still gets its flex-model
-    entry classified as a group entry, with the inflexible device as its member."""
-    from flexmeasures.data.schemas.sensors import SensorReference
-
-    battery = make_sensor(1)  # not in the group
-    load = make_sensor(12)
-    group_sensor = make_sensor(10)
-    group_entry = {"sensor": group_sensor, "power_capacity_in_mw": 0.001}
-
-    inventory = DeviceInventory.from_flex_config(
-        [
-            {"sensor": battery},
-            group_entry,
-        ],
-        {
-            "inflexible_consumption": [
-                SensorReference(sensor=load, group={"sensor": group_sensor})
-            ]
-        },
-    )
-
-    assert [entry.role for entry in inventory.entries] == [
-        DeviceRole.DEVICE,
-        DeviceRole.GROUP,
-    ]
-    assert inventory.group_to_devices == {("sensor", group_sensor.id): [1]}
-
-
-def test_inflexible_device_asset_group_membership():
-    """An inflexible device may reference its group by asset, mirroring the asset-tree
-    way of defining groups (see PR #2277)."""
-    from flexmeasures.data.schemas.sensors import SensorReference
+def test_flex_model_inflexible_device_asset_group():
+    """The group may be referenced by asset, mirroring the asset-tree way of defining
+    groups (PR #2277)."""
 
     class _FakeAsset:
         def __init__(self, asset_id: int):
@@ -468,39 +485,91 @@ def test_inflexible_device_asset_group_membership():
     inventory = DeviceInventory.from_flex_config(
         [
             {"sensor": battery, "group": {"asset": inverter}},
+            {
+                "asset": object(),
+                "inflexible_production": load,
+                "group": {"asset": inverter},
+            },
             group_entry,
-        ],
-        {
-            "inflexible_production": [
-                SensorReference(sensor=load, group={"asset": inverter})
-            ]
-        },
+        ]
     )
 
     assert inventory.group_to_devices == {("asset", inverter.id): [0, 1]}
 
 
-def test_inflexible_group_rejected_in_single_sensor_mode():
-    """Groups need a multi-device flex-model to hold the group entry, so an inflexible
-    device with a ``group`` field in single-sensor mode is rejected."""
+def test_flex_model_inflexible_precedes_flat_context_inflexible():
+    """Canonical order: flex-model inflexible devices come before the flat-list
+    inflexible devices from the flex-context."""
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": make_sensor(1)},
+            {"asset": object(), "inflexible_consumption": make_sensor(12)},
+        ],
+        flex_context={"inflexible_consumption": [make_sensor(20)]},
+    )
+    # index 0 = flexible; 1 = flex-model inflexible; 2 = flat-context inflexible.
+    assert [d.sensor_id for d in inventory.inflexible_devices] == [12, 20]
+    assert [d.index for d in inventory.inflexible_devices] == [1, 2]
+
+
+def test_flex_model_inflexible_device_commodity():
+    """A flex-model inflexible device may set a commodity (defaulting to electricity);
+    it then joins that commodity's device group, so its fixed power nets under that
+    commodity's grid connection rather than the electricity one."""
+    battery = make_sensor(1)  # electricity (device 0)
+    gas_load = make_sensor(12)
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_production": gas_load, "commodity": "gas"},
+        ]
+    )
+
+    device = inventory.inflexible_devices[0]
+    assert device.commodity == "gas"
+    assert device.consumption_is_positive is False
+    # The gas inflexible device joins the gas group, not the electricity one.
+    assert inventory.commodity_to_devices["gas"] == [device.index]
+    assert device.index not in inventory.commodity_to_devices["electricity"]
+
+
+def test_flex_model_inflexible_source_filtered_reference():
+    """A flex-model inflexible entry given as a source-filtered SensorReference keeps the
+    reference on FlexDevice.sensor_reference, so its source filters reach the solver's
+    power lookup (not just the flat flex-context list)."""
     from flexmeasures.data.schemas.sensors import SensorReference
 
+    battery = make_sensor(1)
+    load = make_sensor(12)
+    reference = SensorReference(sensor=load, source_types=["forecaster"])
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": battery},
+            {"asset": object(), "inflexible_consumption": reference},
+        ]
+    )
+
+    device = inventory.inflexible_devices[0]
+    assert device.power_sensor is load
+    assert device.sensor_reference is reference
+    assert device.consumption_is_positive is True
+
+
+def test_flex_model_inflexible_rejected_in_single_sensor_mode():
+    """Inflexible-device fields need a multi-device flex-model; a single-sensor dict that
+    declares one is rejected, rather than silently scheduled as a normal device."""
     with pytest.raises(ValueError, match="multi-device"):
         DeviceInventory.from_flex_config(
-            {"soc_at_start": 0.0},
-            {
-                "inflexible_consumption": [
-                    SensorReference(
-                        sensor=make_sensor(12), group={"sensor": make_sensor(10)}
-                    )
-                ]
-            },
+            {"inflexible_consumption": make_sensor(12)},
             sensor=make_sensor(1),
         )
 
 
-def test_inflexible_device_without_group_has_no_membership():
-    """A plain-sensor inflexible device (no group) forms no group membership."""
+def test_flat_context_inflexible_device_has_no_group():
+    """A flat-list inflexible device from the flex-context has no flex-model entry, so
+    it never belongs to a group."""
     inventory = DeviceInventory.from_flex_config(
         [{"sensor": make_sensor(1)}],
         {"inflexible_consumption": [make_sensor(12)]},

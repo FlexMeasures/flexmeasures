@@ -970,12 +970,6 @@ class SensorReference:
     properties works without modification. The source filters are passed through to
     :meth:`TimedBelief.search <flexmeasures.data.models.time_series.TimedBelief.search>`
     in :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
-
-    The optional ``group`` carries an inflexible device's group membership (a
-    ``{"sensor": ...}`` / ``{"asset": ...}`` reference, see
-    :class:`~flexmeasures.data.schemas.scheduling.groups.GroupReferenceSchema`); it is
-    only meaningful for inflexible-device flex-context entries and is ignored by belief
-    queries.
     """
 
     sensor: Sensor
@@ -983,10 +977,6 @@ class SensorReference:
     exclude_source_types: list[str] | None = field(default=None)
     sources: list[DataSource] | None = field(default=None)
     source_account: list[Account] | None = field(default=None)
-    #: Inflexible-device group membership (a ``{"sensor": ...}``/``{"asset": ...}``
-    #: reference); ignored by belief queries. None when the reference is not an
-    #: inflexible device or does not belong to a group.
-    group: dict | None = field(default=None)
 
     @property
     def unit(self) -> str:
@@ -1057,6 +1047,41 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
             description="Only use beliefs from data sources linked to these account IDs.",
         ),
     )
+
+
+class InflexibleDeviceSchema(SensorReferenceSchema):
+    """One inflexible device: a sensor reference with optional source filters.
+
+    Used both in the flex-context (as a list, for site-level inflexible load),
+    and in a flex-model entry (as a single reference, when an inflexible device is modelled as its own asset).
+    Deserializes to a plain :class:`Sensor` when no source filters are given (a backward-compatible shape downstream),
+    and to a :class:`SensorReference` otherwise.
+    """
+
+    class Meta:
+        description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @post_load
+    def to_sensor_or_reference(
+        self, data: dict, **kwargs
+    ) -> "Sensor | SensorReference":
+        if not any(
+            data.get(key)
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            return data["sensor"]
+        return SensorReference(
+            sensor=data["sensor"],
+            source_types=data.get("source_types"),
+            exclude_source_types=data.get("exclude_source_types"),
+            sources=data.get("sources"),
+            source_account=data.get("source_account"),
+        )
 
 
 class SensorIdOrReferenceField(fields.Raw):

@@ -25,15 +25,12 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
-    SensorReferenceSchema,
+    InflexibleDeviceSchema,
     OutputSensorReferenceSchema,
     PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.scheduling.groups import (
-    GroupReferenceSchema,
-    validate_group_sensor_is_power_sensor,
-)
+from flexmeasures.data.schemas.scheduling.groups import GroupReferenceSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
@@ -79,6 +76,26 @@ class NoTimeSeriesSpecs(Schema):
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
+    # Optional scoping: bind this commitment to the aggregate flow of a subset of devices,
+    # rather than binding each device of the commodity separately.
+    # Give either a list of power `sensors` (a cherry-pick that may span electrical groups,
+    # e.g. an aFRR band on a site's e-heaters),
+    # or a `group` reference (the members of an electrical group); at most one of the two.
+    # Either scope includes a device whether flexible or inflexible,
+    # so listing a group's member sensors resolves to the same set as scoping by that group.
+    # The commitment binds the net signed aggregate of the scoped devices (consumption positive, production negative),
+    # so consumers add, producers subtract,
+    # and any inflexible (fixed) member contributes its fixed signed power (see StorageScheduler._resolve_commitment_scope).
+    sensors = fields.List(
+        SensorIdField(),
+        required=False,
+        data_key="sensors",
+    )
+    group = fields.Nested(
+        GroupReferenceSchema,
+        required=False,
+        data_key="group",
+    )
     # Not described in UI_FLEX_CONTEXT_SCHEMA or the Sphinx docs (it does show up
     # in the generated OpenAPI schema, without being promoted in field descriptions).
     # Internal bookkeeping only: not the documented way to associate a commitment
@@ -104,6 +121,15 @@ class CommitmentSchema(Schema):
         required=False,
         data_key="down-price",
     )
+
+    @validates_schema
+    def forbid_scope_conflict(self, commitment, **kwargs):
+        """A commitment's scope is a sensor list or a group reference, not both."""
+        if "sensors" in commitment and "group" in commitment:
+            raise ValidationError(
+                "A commitment may be scoped by 'sensors' or by 'group', not both.",
+                field_name="sensors",
+            )
 
     @validates_schema
     def require_a_price(self, commitment, **kwargs):
@@ -182,54 +208,6 @@ class CommitmentSchema(Schema):
 
 class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
-
-
-class InflexibleDeviceSchema(SensorReferenceSchema):
-    """One inflexible device: a sensor reference with optional source filters,
-    optionally assigned to a group (so its measured load counts towards that group's
-    intermediate power constraint)."""
-
-    class Meta:
-        description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
-
-    group = fields.Nested(
-        GroupReferenceSchema,
-        data_key="group",
-        required=False,
-        metadata=metadata.GROUP.to_dict(),
-    )
-
-    @validates("group")
-    def validate_group(self, group: dict, **kwargs):
-        validate_group_sensor_is_power_sensor(group)
-
-    @post_load
-    def to_sensor_or_reference(self, data: dict, **kwargs) -> Sensor | SensorReference:
-        """Return a plain Sensor when neither source filters nor a group are given
-        (backward-compatible shape downstream), and a SensorReference otherwise (see
-        VariableQuantityField._deserialize_dict). A group is carried on the
-        SensorReference (belief queries ignore it) so the device inventory can resolve
-        the device's group membership.
-        """
-        group = data.get("group")
-        if group is None and not any(
-            data.get(key)
-            for key in (
-                "source_types",
-                "exclude_source_types",
-                "sources",
-                "source_account",
-            )
-        ):
-            return data["sensor"]
-        return SensorReference(
-            sensor=data["sensor"],
-            source_types=data.get("source_types"),
-            exclude_source_types=data.get("exclude_source_types"),
-            sources=data.get("sources"),
-            source_account=data.get("source_account"),
-            group=group,
-        )
 
 
 class SharedSchema(Schema):
@@ -1427,6 +1405,24 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
             "ui": "One fixed value only.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["commodity"],
+    },
+    "inflexible-consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor recording this inflexible device's power (positive is consumption).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor recording this inflexible device's power (positive is production).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }
 
