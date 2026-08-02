@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
@@ -7,7 +8,7 @@ from flask_security import UserMixin, RoleMixin, current_user
 import pandas as pd
 from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
+from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey, Enum
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
@@ -20,6 +21,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
+from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 from flexmeasures.utils.time_utils import server_now
 
@@ -49,6 +51,53 @@ class AccountRole(db.Model):
 
     def __repr__(self):
         return "<AccountRole:%s (ID:%s)>" % (self.name, self.id)
+
+
+class RateLimitKey(enum.Enum):
+    """What a trigger rate limit is counted against.
+
+    See flexmeasures.api.common.rate_limiting for how this is used.
+    """
+
+    ACCOUNT_PLUS_ASSET = "account+asset"
+    ACCOUNT = "account"
+    USER = "user"
+
+
+class Plan(db.Model):
+    """
+    A plan bundles the rate limits and quotas that apply to the accounts assigned to it.
+
+    Rate limits (how often an account may call the API) and quotas (how many users or assets
+    an account may create) are enforced through separate code paths, but share this table because
+    they are both first-class properties of a commercial plan rather than ad hoc account attributes.
+
+    Quota fields are not enforced yet; enforcement is left to a follow-up.
+    """
+
+    __tablename__ = "plan"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(80), unique=True, nullable=False)
+
+    # Rate limits, as flask-limiter limit strings (e.g. "500 per minute"), or "unlimited".
+    # NULL falls back to the server-wide config setting.
+    default_rate_limit = Column(String(80), nullable=True)
+    trigger_rate_limit = Column(String(80), nullable=True)
+    # The enum type name is pinned to match the migration which created it
+    rate_limit_key = Column(Enum(RateLimitKey, name="ratelimitkey"), nullable=True)
+
+    # Quotas, not enforced yet. NULL means no quota (falls back to server-wide behaviour).
+    max_users = Column(Integer, nullable=True)
+    max_assets = Column(Integer, nullable=True)
+    # For consultancy accounts, capping the number of client accounts they may manage.
+    max_clients = Column(Integer, nullable=True)
+
+    # A plan usually reflects a contractual agreement, so rather than editing one that accounts are on,
+    # retire it: a legacy plan keeps applying to the accounts already on it, but is no longer handed out.
+    legacy = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    def __repr__(self):
+        return "<Plan %s (ID:%s)>" % (self.name, self.id)
 
 
 class Account(db.Model, AuthModelMixin):
@@ -86,6 +135,9 @@ class Account(db.Model, AuthModelMixin):
     consultancy_account = db.relationship(
         "Account", back_populates="consultancy_client_accounts", remote_side=[id]
     )
+
+    plan_id = Column(Integer, db.ForeignKey("plan.id"), default=None, nullable=True)
+    plan = db.relationship("Plan", backref=backref("accounts", lazy="dynamic"))
 
     def __repr__(self):
         return "<Account %s (ID:%s)>" % (self.name, self.id)
@@ -140,6 +192,8 @@ class Account(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -149,6 +203,9 @@ class Account(db.Model, AuthModelMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
 
         # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
@@ -186,6 +243,7 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.start < annotations_before,
             )
+        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
         if parsed_sources:
             query = query.filter(
                 Annotation.source.in_(parsed_sources),

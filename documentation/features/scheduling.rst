@@ -67,6 +67,12 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``commodity``
      - |COMMODITY_FLEX_CONTEXT.example|
      - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
+   * - ``inflexible-consumption``
+     - |INFLEXIBLE_CONSUMPTION.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_CONSUMPTION.rst
+   * - ``inflexible-production``
+     - |INFLEXIBLE_PRODUCTION.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_PRODUCTION.rst
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
@@ -297,9 +303,18 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``production-capacity``
      - |PRODUCTION_CAPACITY.example| (only consumption)
      - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
+   * - ``operation-modes``
+     - |OPERATION_MODES.example|
+     - .. include:: ../_autodoc/OPERATION_MODES.rst
    * - ``group``
      - |GROUP.example|
      - .. include:: ../_autodoc/GROUP.rst
+   * - ``inflexible-consumption``
+     - ``{"sensor": 3}``
+     - .. include:: ../_autodoc/INFLEXIBLE_CONSUMPTION.rst
+   * - ``inflexible-production``
+     - ``{"sensor": 3}``
+     - .. include:: ../_autodoc/INFLEXIBLE_PRODUCTION.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
@@ -315,24 +330,31 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 Intermediate power constraints
 """""""""""""""""""""""""""""""
 
-In a multi-device flex-model list, a device entry may declare a ``group`` field referencing a group of devices, for example a hybrid inverter shared by a battery and PV installation, or a feeder shared by several devices. This lets you model an intermediate power constraint that sits between the individual devices and the site as a whole. The ``group`` field accepts exactly one of two references:
+In a multi-device flex-model list, a device entry may declare a ``group`` field referencing a group of devices, for example a hybrid inverter shared by a battery and PV installation, or a feeder shared by several devices. This lets you model an intermediate power constraint that sits between the individual devices and the site as a whole.
 
-- ``{"sensor": <power sensor id>}``: the group is identified by a power sensor, which itself gets its own flex-model entry (typically passed alongside the device entries; mainly useful for API-passed flex-models).
-- ``{"asset": <asset id>}``: the group is identified by the flex-model entry stored on that asset (typically a sub-EMS/asset in the asset tree, such as the inverter in the example below). Such a group entry defines no power sensor of its own; instead, like any other asset-only entry, it may define ``consumption`` and/or ``production`` output sensor references (see below) on which the group's aggregate power gets saved.
+The recommended way to identify a group is by the **asset** that represents the shared equipment — a node in your asset tree, such as the inverter. This is the form that composes with flex-models stored on the asset tree and with multi-level hierarchies (see below), and it is what stored configurations naturally produce:
 
-Either way, the group reference's target (sensor or asset) gets its own flex-model entry, defining constraints on the group's aggregate (summed) power:
+- ``{"asset": <asset id>}``: the group is identified by the flex-model entry on that asset (typically a sub-EMS/asset in the asset tree, such as the inverter in the example below). Such a group entry defines no power sensor of its own; instead, like any other asset-only entry, it may define ``consumption`` and/or ``production`` output sensor references (see below) on which the group's aggregate power gets saved.
+
+Alternatively, a group can be identified by a **power sensor**. This is handy for compact, one-shot flex-models passed via the API, or when you already have an aggregate power sensor (e.g. a metered inverter feed) on which to record the group's schedule:
+
+- ``{"sensor": <power sensor id>}``: the group is identified by a power sensor, which itself gets its own flex-model entry (typically passed alongside the device entries).
+
+Either way, the group reference's target (asset or sensor) gets its own flex-model entry, defining constraints on the group's aggregate (summed) power:
 
 - ``power-capacity`` on the group is a **hard** constraint (applied in both directions).
 - ``consumption-capacity`` and ``production-capacity`` on the group are **soft** constraints, enforced with the same default breach prices used at the site level (10000 currency/kW); users cannot configure custom breach prices for groups.
 
 The group's scheduled aggregate power is saved as a schedule output, following the same conventions used for any device's schedule output:
 
-- If the group's flex-model entry has a ``sensor`` field, the aggregate power is saved directly to that sensor.
-- Otherwise (an asset-only entry), the aggregate power is saved via its ``consumption`` and/or ``production`` output sensor references: with only ``consumption`` set, the full profile is saved consumption-positive; with only ``production`` set, the full profile is saved production-positive (i.e. sign-flipped before saving); with both set, the profile is split into its non-negative part (saved to ``consumption``) and its non-positive part (saved, as a positive magnitude, to ``production``).
+- For an asset-referenced group (an asset-only entry), the aggregate power is saved via its ``consumption`` and/or ``production`` output sensor references: with only ``consumption`` set, the full profile is saved consumption-positive; with only ``production`` set, the full profile is saved production-positive (i.e. sign-flipped before saving); with both set, the profile is split into its non-negative part (saved to ``consumption``) and its non-positive part (saved, as a positive magnitude, to ``production``).
+- For a sensor-referenced group (whose flex-model entry has a ``sensor`` field), the aggregate power is saved directly to that sensor.
 
 Groups can be nested (a group entry may itself reference a parent group), but cyclic references are rejected. Groups require a multi-device flex-model; they are rejected when scheduling a single sensor.
 
-Example, for a 2.5 kW hybrid inverter (sensor 5) shared by a battery (sensor 1) and PV installation (sensor 2), taken from `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_:
+The recommended, tree-based way to configure a group is to define the whole flex-model on the asset tree in the DB, with no flex-model needed in the scheduling trigger at all: each device asset carries its own (partial) flex-model, including a ``group`` field pointing at the parent asset that represents the shared equipment, and that parent asset's own flex-model defines the group's constraints and output sensor(s). Triggering a schedule for the top-level site asset with an empty (or omitted) ``flex-model`` then collects the full configuration from the tree. For a hands-on walkthrough (including how to store flex-models on assets, and where the resulting schedules end up), see :ref:`tut_toy_schedule_group_constraints`.
+
+The sensor-referenced form is convenient when you pass the whole flex-model in one go via the API. For example, a 2.5 kW hybrid inverter (sensor 5) shared by a battery (sensor 1) and PV installation (sensor 2), taken from `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_:
 
 .. code-block:: json
 
@@ -344,7 +366,9 @@ Example, for a 2.5 kW hybrid inverter (sensor 5) shared by a battery (sensor 1) 
 
 Here, the battery and PV installation may each individually schedule up to 2 kW, but their combined power flowing through the shared inverter is hard-limited to 2.5 kW.
 
-The ``{"asset": <id>}`` variant lets you define the entire flex-model on the asset tree in the DB, with no flex-model needed in the scheduling trigger at all: each device asset carries its own (partial) flex-model, including a ``group`` field pointing at the parent asset that represents the shared equipment, and that parent asset's own flex-model defines the group's constraints and output sensor(s). Triggering a schedule for the top-level site asset with an empty (or omitted) ``flex-model`` then collects the full configuration from the tree. For a hands-on walkthrough (including how to store flex-models on assets, and where the resulting schedules end up), see :ref:`tut_toy_schedule_group_constraints`.
+Inflexible (measured) devices can be modelled in the flex-model too — for example, an unschedulable base load. To do so, model the inflexible device as its own asset and give its flex-model entry a single ``inflexible-consumption`` or ``inflexible-production`` reference to the sensor recording its power (the field name sets the sign convention, and source filters may be added). Such an entry carries no schedulable-device fields; it simply declares a fixed device whose power is accounted for. Like any device entry, it may set a ``commodity`` (defaulting to electricity), and its fixed power is then netted into that commodity's grid connection.
+
+The ``group`` field is optional on such an entry. Without it, the device is simply accounted for under the grid connection (just like listing its sensor in the flex-context's ``inflexible-consumption``/``inflexible-production`` fields, only declared on the asset instead). With it, the device *also* joins that group through the ordinary ``group`` field, exactly like a flexible member (the group's own flex-model entry, defining its capacities, must still be present), so that its fixed load or supply additionally counts towards the group's intermediate power constraint — for example, a base load sitting behind the same inverter or feeder as a battery.
 
 
 Usually, not the whole flexibility model is needed.

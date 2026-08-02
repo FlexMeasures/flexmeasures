@@ -97,7 +97,11 @@ def test_asset_trigger_and_get_schedule(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
+        assert (
+            trigger_schedule_response.json["job"]
+            == trigger_schedule_response.json["schedule"]
+        )
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -379,7 +383,7 @@ def test_asset_trigger_and_get_aggregate_schedule(
             url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     # Process the scheduling queue
@@ -588,9 +592,9 @@ def test_asset_trigger_with_multi_commodity_flex_context(
             url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
             json=message,
         )
-        if trigger_response.status_code != 200:
+        if trigger_response.status_code != 202:
             print(f"Error response: {trigger_response.json}")
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     # Process the scheduling queue
@@ -737,9 +741,9 @@ def test_asset_trigger_with_flex_context_commodity_not_used(
             url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
             json=message,
         )
-        if trigger_response.status_code != 200:
+        if trigger_response.status_code != 202:
             print(f"Error response: {trigger_response.json}")
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     # Process the scheduling queue
@@ -887,9 +891,9 @@ def test_asset_trigger_with_group_power_constraint(
             url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
             json=message,
         )
-        if trigger_response.status_code != 200:
+        if trigger_response.status_code != 202:
             print(f"Error response: {trigger_response.json}")
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     # Process the scheduling queue
@@ -955,7 +959,7 @@ def test_asset_trigger_with_group_power_constraint(
             url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
             json=control_message,
         )
-        assert control_response.status_code == 200
+        assert control_response.status_code == 202
         control_job_id = control_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)

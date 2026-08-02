@@ -22,6 +22,7 @@ from flexmeasures.data.models.planning.devices import (
     DeviceInventory,
     _resolve_stock_key,
     group_key_label,
+    resolve_group_reference,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -35,7 +36,10 @@ from flexmeasures.data.models.planning.utils import (
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling.storage import (
+    OperationModeSchema,
+    StorageFlexModelSchema,
+)
 from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
@@ -59,7 +63,6 @@ from flexmeasures.utils.calculations import (
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
-
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
@@ -245,7 +248,7 @@ class MetaStorageScheduler(Scheduler):
                         f"The 'group' field references {group_key_label(gkey)}, "
                         "but no device in the flex-model belongs to that group."
                     )
-                commodities = {inventory.devices[d].commodity for d in leaves}
+                commodities = {inventory.by_index(d).commodity for d in leaves}
                 if len(commodities) > 1:
                     raise ValueError(
                         f"All member devices of group {group_key_label(gkey)} must "
@@ -355,6 +358,9 @@ class MetaStorageScheduler(Scheduler):
         ]
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
+        ]
+        operation_modes = [
+            flex_model_d.get("operation_modes") for flex_model_d in flex_model
         ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
@@ -774,7 +780,7 @@ class MetaStorageScheduler(Scheduler):
                 continue
             group_entry = self._group_models[group_key]
             group_label = f"{group_key[0]}:{group_key[1]}"
-            group_commodity = inventory.devices[leaf_members[0]].commodity
+            group_commodity = inventory.by_index(leaf_members[0]).commodity
             group_devices = device_list_series(leaf_members, index)
 
             group_power_capacity = get_continuous_series_sensor_or_quantity(
@@ -964,13 +970,15 @@ class MetaStorageScheduler(Scheduler):
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(inventory.inflexible_sensors):
+        for i, inflexible_device in enumerate(inventory.inflexible_devices):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    sensor=inflexible_sensor,
+                    sensor=inflexible_device.sensor_reference
+                    or inflexible_device.power_sensor,
+                    consumption_is_positive=inflexible_device.consumption_is_positive,
                 )
             )
 
@@ -1023,6 +1031,13 @@ class MetaStorageScheduler(Scheduler):
             )
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
+
+            # Power bands (S2 operation modes): carried on the constraints frame,
+            # in signed MW (positive is consumption), for the device scheduler.
+            if operation_modes[d]:
+                device_constraints[d].attrs["operation_modes"] = [
+                    OperationModeSchema.signed_band(mode) for mode in operation_modes[d]
+                ]
 
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
@@ -1565,20 +1580,128 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
+    def _resolve_commitment_scope(
+        self, scoped_sensors, scoped_group
+    ) -> tuple[list[int], str]:
+        """Resolve a scoped commitment's device set to canonical solver indices.
+
+        Both scopes include a device whether it is flexible or inflexible:
+        a ``group`` scope yields the group's (leaf) members,
+        and a ``sensors`` scope yields the devices recording the listed power sensors.
+        So listing a group's member sensors resolves to the same set as scoping by that group.
+        Canonical indices always come from the device inventory,
+        never from re-enumerating raw flex-model lists.
+
+        The commitment then binds the *net signed* aggregate of these devices' flow (consumption positive, production negative),
+        so consumers add, producers subtract, and any inflexible (fixed) member contributes its fixed signed power.
+
+        :returns: A ``(sorted device indices, human-readable scope description)`` pair.
+        """
+        if scoped_group is not None:
+            group_key = resolve_group_reference(scoped_group)
+            scoped_devices = sorted(
+                self.device_inventory.group_to_devices.get(group_key, [])
+            )
+            description = (
+                f"group {group_key_label(group_key)}"
+                if group_key is not None
+                else "an unresolved group reference"
+            )
+            return scoped_devices, description
+        scoped_sensor_ids = {
+            sensor.id if hasattr(sensor, "id") else sensor for sensor in scoped_sensors
+        }
+        scoped_devices = sorted(
+            device.index
+            for sensor_id in scoped_sensor_ids
+            for device in self.device_inventory.scheduled_devices_by_sensor_id(
+                sensor_id
+            )
+        )
+        return scoped_devices, f"sensors {sorted(scoped_sensor_ids)}"
+
+    def _build_scoped_commitment(
+        self, commitment_spec, scoped_sensors, scoped_group, commitment_index
+    ) -> "FlowCommitment | None":
+        """Build one aggregate-flow FlowCommitment for a scoped commitment.
+
+        Returns None (logged) when the scope matches no device in the flex-model,
+        so the commitment binds nothing rather than failing the whole schedule.
+
+        :raises ValueError: When the scoped devices span more than one commodity.
+        """
+        scoped_devices, scope_description = self._resolve_commitment_scope(
+            scoped_sensors, scoped_group
+        )
+        if not scoped_devices:
+            current_app.logger.warning(
+                f"Commitment '{commitment_spec.get('name')}' is scoped to"
+                f" {scope_description}, none of which appear in the flex-model."
+                " This commitment will not bind any device."
+            )
+            return None
+        commodities = {
+            self.device_inventory.by_index(d).commodity for d in scoped_devices
+        }
+        if len(commodities) > 1:
+            raise ValueError(
+                f"Commitment '{commitment_spec.get('name')}' is scoped to devices of"
+                f" more than one commodity ({sorted(commodities)}); a commitment binds"
+                " the aggregate flow of a single commodity."
+            )
+        # A scoped commitment's commodity is defined by its scope,
+        # so pin it to the scoped devices' (single) commodity;
+        # otherwise the commitment keeps the schema's electricity default (or a mismatching explicit value),
+        # and its cost would be misattributed to the wrong commodity.
+        commitment_spec["commodity"] = next(iter(commodities))
+        index = commitment_spec["index"]
+        # device_group maps device index -> group label;
+        # one shared label makes the engine bind the aggregate flow.
+        # The label is unique per commitment, so two scoped commitments never merge, even if they share a name.
+        group_label = f"scoped-commitment-{commitment_index}"
+        return FlowCommitment(
+            device=pd.Series([scoped_devices] * len(index), index=index),
+            device_group=pd.Series({d: group_label for d in scoped_devices}),
+            provenance="custom",
+            **commitment_spec,
+        )
+
     def convert_to_commitments(
         self,
         flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
-        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
-        commitment_specs = self.flex_context.get("commitments", [])
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
+
+        Commitments are collected from the top-level flex-context and from each
+        commodity context; a commitment within a commodity context always binds that
+        context's commodity (matching how the UI editor scopes commitments per
+        commodity tab).
+
+        User-given commitment names are kept as is, but the resulting commitments are
+        tagged with provenance "custom", so cost reporting can tell them apart from the
+        commitments the scheduler sets up internally (e.g. "electricity net energy").
+        """
+        commitment_specs = [
+            dict(spec) for spec in self.flex_context.get("commitments", []) or []
+        ]
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            for spec in commodity_context.get("commitments", []) or []:
+                spec = dict(spec)
+                # A commitment in a commodity context binds that commodity
+                # (overriding the schema's electricity default on the field).
+                spec["commodity"] = commodity_context.get("commodity", "electricity")
+                commitment_specs.append(spec)
         if len(commitment_specs) == 0:
             return []
 
         start, end = timing_kwargs["query_window"]
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
-        for commitment_spec in commitment_specs:
+        # The specs were copied above, so converting (which pops fields) does not
+        # mutate self.flex_context and repeated conversions see the original specs.
+        for commitment_index, commitment_spec in enumerate(commitment_specs):
+
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
@@ -1606,6 +1729,22 @@ class MetaStorageScheduler(Scheduler):
                 start, end, timing_kwargs["resolution"]
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
+
+            # A commitment scoped to a subset of devices binds the *aggregate* flow of those devices as one commitment,
+            # rather than each device separately.
+            # The scope is given either as a raw list of power `sensors` (a cherry-pick that may span electrical groups,
+            # e.g. an aFRR band on a site's e-heaters),
+            # or as a `group` reference (the members of an electrical group, reusing its already-resolved membership);
+            # the schema allows at most one of the two.
+            scoped_sensors = commitment_spec.pop("sensors", None)
+            scoped_group = commitment_spec.pop("group", None)
+            if scoped_sensors is not None or scoped_group is not None:
+                scoped = self._build_scoped_commitment(
+                    commitment_spec, scoped_sensors, scoped_group, commitment_index
+                )
+                if scoped is not None:
+                    commitments.append(scoped)
+                continue
             bound_device_count = 0
             for d, flex_model_d in enumerate(flex_model):
                 device_commodity = flex_model_d.get("commodity", "electricity")
@@ -1614,6 +1753,7 @@ class MetaStorageScheduler(Scheduler):
                 commitment = FlowCommitment(
                     device=d,
                     device_group=device_commodity,
+                    provenance="custom",
                     **commitment_spec,
                 )
                 commitments.append(commitment)
@@ -2518,13 +2658,15 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
+            # Iterate over the dict keys (not the sensors list, which may hold the
+            # same sensor for multiple devices), so no sensor is emitted twice.
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
                 }
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
         else:
@@ -2984,9 +3126,10 @@ class StorageScheduler(MetaStorageScheduler):
 
         Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
             1. flexible devices (from the flex-model), in order,
-            2. top-level (electricity) inflexible-device-sensors, in order,
-            3. each commodity context's own inflexible-device-sensors, in the order the
-               commodity contexts are given.
+            2. top-level (electricity) inflexible devices, in order,
+            3. each commodity context's own inflexible devices, in the order the
+               commodity contexts are given
+               (within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order).
 
         The returned device indices line up with entries of `ems_schedule` /
         `device_constraints`.
@@ -3209,6 +3352,9 @@ class StorageScheduler(MetaStorageScheduler):
             stock_groups=self.stock_groups,
             coupling_groups=self.coupling_groups if self.coupling_groups else None,
             balance_groups=getattr(self, "balance_groups", None) or None,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
@@ -3324,6 +3470,22 @@ class StorageScheduler(MetaStorageScheduler):
             unresolved, resolved = self._compute_unresolved_targets(
                 flex_model_for_soc, soc_schedule_mwh, start, end, resolution
             )
+            # A device's power sensor may itself be one of its declared consumption/
+            # production output sensors — for example, a flex-model entry that
+            # references its power sensor only via a nested output reference, like
+            # {"consumption": {"sensor": ...}} (see _resolve_power_sensor). Such a
+            # sensor already receives its schedule via the consumption/production
+            # outputs below, which is the semantically correct single entry to keep:
+            # the sign conventions for output sensors are defined on that path (see
+            # _build_consumption_production_schedules), and the scheduling service
+            # resolves the sign via the consumption_is_positive attribute set on
+            # output sensors. Emitting a second ("storage_schedule") entry for the
+            # same sensor would save duplicate beliefs within one scheduling-job
+            # transaction, violating the timed_belief primary key and failing the
+            # whole job.
+            output_sensor_ids = {
+                sensor.id for sensor in consumption_production_schedule.keys()
+            }
             storage_schedules = [
                 {
                     "name": "storage_schedule",
@@ -3332,17 +3494,14 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in storage_schedule.keys()
-                if sensor is not None
+                if sensor is not None and sensor.id not in output_sensor_ids
             ]
             commitment_costs = [
                 {
                     "name": "commitment_costs",
-                    "data": {
-                        c.name: costs
-                        for c, costs in zip(
-                            commitments, model.commitment_costs.values()
-                        )
-                    },
+                    "data": report_commitment_costs_by_name(
+                        commitments, model.commitment_costs.values()
+                    ),
                     "unit": self.flex_context["shared_currency_unit"],
                 },
             ]
@@ -3386,7 +3545,7 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                 }
             ]
-            return (
+            return self._deduplicate_outputs(
                 storage_schedules
                 + commitment_costs
                 + soc_schedules
@@ -3395,6 +3554,30 @@ class StorageScheduler(MetaStorageScheduler):
             )
         else:
             return storage_schedule[sensors[0]]
+
+    @staticmethod
+    def _deduplicate_outputs(outputs: list[dict]) -> list[dict]:
+        """Safety net: never let one sensor appear in multiple outputs.
+
+        All outputs are saved with identical belief coordinates in the same
+        scheduling-job transaction, so a duplicate sensor is guaranteed to
+        violate the timed_belief primary key and fail the whole job.
+        Keep the first entry for a sensor and drop (with a warning) any later one.
+        """
+        seen_sensor_ids: set[int] = set()
+        deduplicated_outputs = []
+        for output in outputs:
+            output_sensor = output.get("sensor")
+            if output_sensor is not None:
+                if output_sensor.id in seen_sensor_ids:
+                    current_app.logger.warning(
+                        f"Dropping duplicate '{output.get('name')}' output for {output_sensor}: "
+                        f"another output already saves a schedule to this sensor."
+                    )
+                    continue
+                seen_sensor_ids.add(output_sensor.id)
+            deduplicated_outputs.append(output)
+        return deduplicated_outputs
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:
@@ -3625,6 +3808,35 @@ def add_storage_constraints(
     )
 
     return storage_device_constraints
+
+
+def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
+    """Key commitment costs by commitment name.
+
+    Costs of same-named commitments of the same provenance are summed (e.g. one
+    custom commitment bound per device). A custom commitment whose name collides
+    with a scheduler-internal one is reported under "<name> (custom)" instead,
+    to keep both cost entries readable.
+    """
+    scheduler_commitment_names = {
+        c.name for c in commitments if c.provenance == "scheduler"
+    }
+    costs_by_name: dict[str, float] = {}
+    colliding_names = set()
+    for c, cost in zip(commitments, costs):
+        key = c.name
+        if c.provenance == "custom" and key in scheduler_commitment_names:
+            key = f"{c.name} (custom)"
+            colliding_names.add(c.name)
+        costs_by_name[key] = costs_by_name.get(key, 0) + cost
+    # Warn once per colliding name (custom commitments are bound per device).
+    for name in sorted(colliding_names):
+        current_app.logger.warning(
+            f"Custom commitment '{name}' shares its name with a commitment"
+            f" the scheduler sets up internally; reporting its costs as"
+            f" '{name} (custom)'. Consider renaming the commitment."
+        )
+    return costs_by_name
 
 
 def validate_storage_constraints(

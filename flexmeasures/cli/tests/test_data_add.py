@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -6,6 +8,7 @@ from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
 )
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Plan, RateLimitKey
 
 from flexmeasures.cli.tests.utils import (
     check_command_ran_without_error,
@@ -47,6 +50,116 @@ def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
             user_id=cli_input["user"],
         )
     ).scalar_one_or_none()
+
+
+def test_add_plan(app, fresh_db):
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    cli_input = {
+        "name": "Pro",
+        "trigger-rate-limit": "60 per 5 minutes",
+        "rate-limit-key": "account",
+        "max-assets": 200,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(new_plan, to_flags(cli_input))
+
+    check_command_ran_without_error(result)
+    assert "successfully created" in result.output
+
+    plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
+    assert plan.trigger_rate_limit == "60 per 5 minutes"
+    assert plan.rate_limit_key == RateLimitKey.ACCOUNT
+    assert plan.max_assets == 200
+    # Fields we did not set fall back on the server-wide config settings
+    assert plan.default_rate_limit is None
+    assert plan.legacy is False
+
+
+def test_add_plan_with_invalid_rate_limit(app, fresh_db):
+    """A limit string we cannot make sense of is caught when the plan is created,
+    rather than when a request comes in."""
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_plan, to_flags({"name": "Typo", "trigger-rate-limit": "10 per fortnight"})
+    )
+
+    assert result.exit_code != 0
+    assert "not a valid rate limit" in result.output
+    assert db.session.execute(select(Plan).filter_by(name="Typo")).scalar() is None
+
+
+def test_edit_plan(app, fresh_db):
+    """A plan can be retired, so that it is no longer handed out."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes")
+    db.session.add(plan)
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--legacy"])
+
+    check_command_ran_without_error(result)
+    assert db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().legacy
+
+
+def test_edit_plan_name(app, fresh_db):
+    """A plan is identified by its ID, so that --name can rename it."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes")
+    taken = Plan(name="Basic")
+    db.session.add_all([plan, taken])
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--name", "Professional"])
+
+    check_command_ran_without_error(result)
+    assert db.session.get(Plan, plan.id).name == "Professional"
+
+    # Names are unique, so renaming cannot take another plan's name
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--name", "Basic"])
+    assert result.exit_code != 0
+    assert "already exists" in result.output
+    assert db.session.get(Plan, plan.id).name == "Professional"
+
+
+def test_edit_plan_clear_field(app, fresh_db):
+    """A plan field can be cleared back to NULL, meaning the server-wide behaviour applies."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes", max_users=10)
+    db.session.add(plan)
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        edit_plan, ["--id", str(plan.id), "--clear", "trigger-rate-limit"]
+    )
+
+    check_command_ran_without_error(result)
+    plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
+    assert plan.trigger_rate_limit is None
+    assert plan.max_users == 10  # fields not named stay untouched
+
+    # Setting and clearing the same field contradict each other
+    result = runner.invoke(
+        edit_plan, ["--id", str(plan.id), "--max-users", "5", "--clear", "max-users"]
+    )
+    assert result.exit_code != 0
+    assert (
+        db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().max_users
+        == 10
+    )
 
 
 def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
@@ -94,3 +207,495 @@ def test_cli_help(app):
         result = runner.invoke(cmd, ["--help"])
         check_command_ran_without_error(result)
         assert "Usage" in result.output
+
+
+def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+):
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    captured_configs = []
+
+    class StubForecaster:
+        def compute(self, **kwargs):
+            return {"n_jobs": 1}
+
+    def capture_forecaster_config(**kwargs):
+        captured_configs.append(
+            TrainPredictPipelineConfigSchema().load(kwargs["config"])
+        )
+        return StubForecaster()
+
+    monkeypatch.setattr(data_add, "get_data_generator", capture_forecaster_config)
+    runner = app.test_cli_runner()
+    common_args = ["--sensor", str(target_sensor.id), "--as-job", "--regressors"]
+
+    reference_result = runner.invoke(
+        data_add.add_forecast,
+        common_args
+        + [json.dumps([{"sensor": regressor_sensor.id, "sources": [source.id]}])],
+    )
+    plain_id_result = runner.invoke(
+        data_add.add_forecast,
+        common_args + [str(regressor_sensor.id)],
+    )
+
+    check_command_ran_without_error(reference_result)
+    check_command_ran_without_error(plain_id_result)
+    filtered_regressor = captured_configs[0]["future_regressors"][0]
+    assert isinstance(filtered_regressor, SensorReference)
+    assert filtered_regressor.sensor == regressor_sensor
+    assert filtered_regressor.sources == [source]
+    assert captured_configs[0]["past_regressors"] == [filtered_regressor]
+    assert captured_configs[1]["future_regressors"] == [regressor_sensor]
+    assert captured_configs[1]["past_regressors"] == [regressor_sensor]
+
+
+def test_add_holidays_with_timezone(app, fresh_db, setup_roles_users_fresh_db):
+    """Test that add_holidays respects --timezone and stores midnight local time."""
+    from flexmeasures.cli.data_add import add_holidays
+    import pandas as pd
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_holidays,
+        [
+            "--year",
+            "2024",
+            "--country",
+            "NL",
+            "--account",
+            "1",
+            "--timezone",
+            "Europe/Amsterdam",
+        ],
+    )
+    check_command_ran_without_error(result)
+
+    # Christmas is Dec 25; in Amsterdam (CET = UTC+1), midnight is 23:00 UTC on Dec 24.
+    # Verify: annotation start for Christmas 2024 is stored as UTC 23:00 on Dec 24.
+    christmas = db.session.execute(
+        select(Annotation).filter(
+            Annotation.content.ilike("%Christmas%"),
+            Annotation.start == pd.Timestamp("2024-12-24T23:00:00Z"),
+        )
+    ).scalar_one_or_none()
+    assert (
+        christmas is not None
+    ), "Christmas annotation should start at 2024-12-24T23:00Z (midnight Amsterdam time)"
+
+
+def test_add_holidays_with_workalendar_school_holidays(
+    app, fresh_db, setup_roles_users_fresh_db
+):
+    """Test adding NetherlandsWithSchoolHolidays (north region) for 2024 via the CLI."""
+    from flexmeasures.cli.data_add import add_holidays
+    from workalendar.europe.netherlands import NetherlandsWithSchoolHolidays
+    import json
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        add_holidays,
+        [
+            "--year",
+            "2024",
+            "--calendar-class",
+            "workalendar.europe.netherlands.NetherlandsWithSchoolHolidays",
+            "--calendar-kwargs",
+            json.dumps({"region": "north"}),
+            "--account",
+            "1",
+            "--timezone",
+            "Europe/Amsterdam",
+        ],
+    )
+    check_command_ran_without_error(result)
+
+    # Verify count matches what the calendar directly produces
+    expected_count = len(NetherlandsWithSchoolHolidays(region="north").holidays(2024))
+    count = db.session.scalar(
+        select(func.count())
+        .select_from(Annotation)
+        .join(AccountAnnotationRelationship)
+        .filter(
+            AccountAnnotationRelationship.account_id == 1,
+            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        .join(DataSource)
+        .filter(
+            DataSource.id == Annotation.source_id,
+            DataSource.name == "workalendar",
+            DataSource.model == "NetherlandsWithSchoolHolidays",
+        )
+    )
+    assert count == expected_count
+    # NetherlandsWithSchoolHolidays returns public + school holiday days (a non-trivial set)
+    assert (
+        count > 90
+    ), f"Expected >90 NL north school+public holidays in 2024, got {count}"
+
+
+def test_add_holidays_with_workalendar_class_unsupported_year(app, fresh_db):
+    """A calendar year without holiday data should abort with a friendly error, not a traceback."""
+    from flexmeasures.cli.data_add import add_holidays
+    import json
+
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        add_holidays,
+        [
+            "--year",
+            "2131",
+            "--calendar-class",
+            "workalendar.europe.netherlands.NetherlandsWithSchoolHolidays",
+            "--calendar-kwargs",
+            json.dumps({"region": "north"}),
+            "--timezone",
+            "Europe/Amsterdam",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "has no holiday data for year 2131" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_holidays_by_package_school(app, fresh_db, setup_roles_users_fresh_db):
+    """Test adding school holidays via the holidays package.
+
+    Uses Israel (IL) which reliably supports the 'school' category across
+    holidays-package versions.  Germany/Bavaria was removed because the installed
+    version of the holidays package no longer includes school holidays for DE.
+    """
+    from flexmeasures.cli.data_add import add_holidays
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_holidays,
+        [
+            "--year",
+            "2024",
+            "--country",
+            "IL",
+            "--category",
+            "school",
+            "--account",
+            "1",
+            "--timezone",
+            "Asia/Jerusalem",
+        ],
+    )
+    check_command_ran_without_error(result)
+    assert "Successfully added" in result.output
+
+    # Israel has ~19 school holiday days in 2024; use 10 as a conservative lower bound.
+    count = db.session.scalar(
+        select(func.count())
+        .select_from(Annotation)
+        .join(AccountAnnotationRelationship)
+        .filter(
+            AccountAnnotationRelationship.account_id == 1,
+            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        .join(DataSource)
+        .filter(
+            DataSource.id == Annotation.source_id,
+            DataSource.name == "holidays",
+            DataSource.model == "IL",
+        )
+    )
+    assert count > 10, f"Expected >10 IL school holiday days in 2024, got {count}"
+
+
+def test_annotation_regressors_loaded_in_pipeline(
+    app, fresh_db, setup_roles_users_fresh_db
+):
+    """Test annotation regressors: binary loading and CLI end-to-end.
+
+    Setup
+    -----
+    A factory power sensor has a perfectly constant output of 10 MW, except during
+    annotated shutdown periods (0 MW).  Several shutdowns are added to the
+    2023 training window.  A forecast-window shutdown covers Jan 15-17 2024.
+
+    Part 1 - BasePipeline._load_annotation_regressor_df
+        Verify the annotation DataFrame contains 1.0 during the shutdown window and
+        0.0 outside it.
+
+    Part 2 - CLI end-to-end
+        Verify future annotation rows remain available after annotation data is
+        combined with target sensor beliefs.
+
+    Part 3 - CLI end-to-end
+        Invoke ``flexmeasures add forecasts`` via the Click test runner using the
+        JSON double-quoted form of ``--annotation-regressors``.  Verify no exception
+        is raised.
+
+    Part 4 - DB persistence
+        Verify that forecast beliefs were persisted for the full 4-day window.
+
+    Part 5 - CLI parsing
+        Verify the Python-literal single-quoted form is accepted by the same Click
+        parameter type and schema used by the command, without writing a duplicate
+        forecast to the same DB key.
+    """
+    import json
+    from datetime import timedelta
+
+    import pandas as pd
+    from sqlalchemy import insert
+
+    from flexmeasures.data.models.annotations import get_or_create_annotation
+    from flexmeasures.data.services.data_sources import get_or_create_source
+    from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+    from flexmeasures.data.models.data_sources import DataSource
+    from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.cli.utils import NestedDictParamType
+
+    db = fresh_db
+
+    # ------------------------------------------------------------------
+    # 1.  Create asset + sensor
+    # ------------------------------------------------------------------
+    asset_type = GenericAssetType(name="Factory")
+    db.session.add(asset_type)
+
+    factory_asset = GenericAsset(name="Test Factory", generic_asset_type=asset_type)
+    db.session.add(factory_asset)
+    db.session.flush()
+
+    power_sensor = Sensor(
+        "power",
+        generic_asset=factory_asset,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    db.session.add(power_sensor)
+    db.session.flush()
+
+    # ------------------------------------------------------------------
+    # 2.  Annotate shutdown periods (2023 training shutdowns + 2024 test shutdown)
+    # ------------------------------------------------------------------
+    ann_source = get_or_create_source(
+        "test", model="logistics", source_type="CLI script"
+    )
+
+    # Quarterly shutdowns spread through 2023 give the model a strong training signal.
+    # Weekly shutdowns in Dec 2023 / early Jan 2024 ensure the default 30-day lookback
+    # window (Dec 15 – Jan 14) always contains clear shutdown examples.
+    shutdown_periods_training = [
+        ("2023-02-15", "2023-02-17"),
+        ("2023-05-15", "2023-05-17"),
+        ("2023-08-15", "2023-08-17"),
+        ("2023-11-15", "2023-11-17"),
+        # weekly shutdowns within the default 30-day lookback
+        ("2023-12-18", "2023-12-20"),
+        ("2023-12-25", "2023-12-27"),
+        ("2024-01-01", "2024-01-03"),
+        ("2024-01-08", "2024-01-10"),
+    ]
+    forecast_shutdown = ("2024-01-15", "2024-01-17")
+    all_shutdown_periods = shutdown_periods_training + [forecast_shutdown]
+
+    for start_str, end_str in all_shutdown_periods:
+        ann_obj = Annotation(
+            content="Factory shutdown",
+            start=pd.Timestamp(f"{start_str}T00:00:00Z"),
+            end=pd.Timestamp(f"{end_str}T00:00:00Z"),
+            source=ann_source,
+            type="label",
+        )
+        ann, _ = get_or_create_annotation(ann_obj)
+        factory_asset.annotations.append(ann)
+
+    db.session.flush()
+
+    # ------------------------------------------------------------------
+    # 3.  Bulk-insert hourly training data: 10 MW normally, 0 MW during shutdowns
+    # ------------------------------------------------------------------
+    data_source = DataSource(name="factory_measurements", type="demo script")
+    db.session.add(data_source)
+    db.session.flush()
+
+    # Build a set of shutdown hours for fast lookup
+    shutdown_hours: set[pd.Timestamp] = set()
+    for start_str, end_str in all_shutdown_periods:
+        period = pd.date_range(
+            start=pd.Timestamp(f"{start_str}T00:00:00Z"),
+            end=pd.Timestamp(f"{end_str}T00:00:00Z"),
+            freq="h",
+            inclusive="left",
+        )
+        shutdown_hours.update(period)
+
+    train_start = pd.Timestamp("2023-01-01T00:00:00Z")
+    train_end = pd.Timestamp("2024-01-14T00:00:00Z")  # up to forecast window
+    all_hours = pd.date_range(
+        start=train_start, end=train_end, freq="h", inclusive="left"
+    )
+
+    rows = [
+        {
+            "sensor_id": power_sensor.id,
+            "source_id": data_source.id,
+            "event_start": ts.to_pydatetime(),
+            "belief_horizon": timedelta(0),
+            "cumulative_probability": 0.5,
+            "event_value": 0.0 if ts in shutdown_hours else 10.0,
+        }
+        for ts in all_hours
+    ]
+    db.session.execute(insert(TimedBelief), rows)
+    db.session.commit()
+
+    # ------------------------------------------------------------------
+    # Part 1: BasePipeline._load_annotation_regressor_df
+    # ------------------------------------------------------------------
+    annotation_spec = {
+        "asset": factory_asset.id,
+        "annotation_type": "label",  # snake_case: used directly by BasePipeline
+        "name": "factory_shutdown",
+    }
+
+    pipeline = BasePipeline(
+        target_sensor=power_sensor,
+        future_regressors=[],
+        past_regressors=[],
+        n_steps_to_predict=48,
+        max_forecast_horizon=24,
+        forecast_frequency=1,
+        event_starts_after=pd.Timestamp("2024-01-14T00:00:00Z"),
+        event_ends_before=pd.Timestamp("2024-01-18T00:00:00Z"),
+        annotation_regressors=[annotation_spec],
+    )
+
+    col_name = pipeline.annotation_regressor_names[0]
+
+    ann_df = pipeline._load_annotation_regressor_df(
+        spec=annotation_spec,
+        col_name=col_name,
+        start=pd.Timestamp("2024-01-14T00:00:00Z"),
+        end=pd.Timestamp("2024-01-18T00:00:00Z"),
+    )
+
+    assert not ann_df.empty, "Annotation regressor DataFrame should not be empty"
+    assert col_name in ann_df.columns
+
+    shutdown_mask = (ann_df["event_start"] >= pd.Timestamp("2024-01-15")) & (
+        ann_df["event_start"] < pd.Timestamp("2024-01-17")
+    )
+    assert (
+        ann_df.loc[shutdown_mask, col_name] == 1.0
+    ).all(), "Shutdown period should be marked as 1.0"
+    assert (
+        ann_df.loc[~shutdown_mask, col_name] == 0.0
+    ).all(), "Non-shutdown period should be marked as 0.0"
+
+    # ------------------------------------------------------------------
+    # Part 2: Future annotation rows survive the sensor-belief merge
+    # ------------------------------------------------------------------
+    loaded_df = pipeline.load_data_all_beliefs()
+    loaded_shutdown = loaded_df.loc[
+        (loaded_df["event_start"] >= pd.Timestamp("2024-01-15"))
+        & (loaded_df["event_start"] < pd.Timestamp("2024-01-17"))
+    ]
+    assert len(loaded_shutdown) == 48
+    assert (loaded_shutdown[col_name] == 1.0).all()
+
+    # ------------------------------------------------------------------
+    # Part 3: CLI end-to-end
+    # ------------------------------------------------------------------
+    runner = app.test_cli_runner()
+    sensor_id = str(power_sensor.id)
+    asset_id = factory_asset.id
+    common_args = [
+        "--sensor",
+        sensor_id,
+        "--train-start",
+        "2023-01-01T00:00+00:00",
+        "--start",
+        "2024-01-14T00:00+00:00",
+        "--end",
+        "2024-01-18T00:00+00:00",
+    ]
+
+    # --- Part 2a: JSON double-quoted form; also used for the forecast-effect check ---
+    json_arg = json.dumps({"asset": asset_id, "annotation-type": "label"})
+    result_json = runner.invoke(
+        add_forecast, common_args + ["--annotation-regressors", json_arg]
+    )
+    assert (
+        "Invalid input type" not in result_json.output
+    ), f"CLI failed to parse JSON form:\n{result_json.output}"
+    assert result_json.exception is None or "ValidationError" not in str(
+        result_json.exception
+    ), f"CLI raised ValidationError (JSON form): {result_json.exception}"
+    assert result_json.exception is None, (
+        f"CLI raised an unexpected exception (JSON form): {result_json.exception}\n"
+        f"{result_json.output}"
+    )
+
+    # ------------------------------------------------------------------
+    # Part 4: Verify that forecast beliefs were persisted for the full window.
+    #
+    # We do not assert a specific forecast magnitude here: whether the LGBM model
+    # learns to produce lower values during the shutdown depends on regularisation
+    # hyper-parameters and data density, which vary across environments.  The
+    # structural correctness of the annotation regressor pipeline is already
+    # verified in Part 1 (data loading) and Part 2 (CLI parsing + no exception).
+    # ------------------------------------------------------------------
+    from flexmeasures.data.models.data_sources import DataSource as DS
+
+    forecast_source = db.session.execute(
+        select(DS).filter(DS.model == "TrainPredictPipeline")
+    ).scalar_one()
+
+    forecast_beliefs = (
+        db.session.execute(
+            select(TimedBelief).where(
+                TimedBelief.sensor_id == power_sensor.id,
+                TimedBelief.source_id == forecast_source.id,
+                TimedBelief.event_start >= pd.Timestamp("2024-01-14T00:00:00Z"),
+                TimedBelief.event_start < pd.Timestamp("2024-01-18T00:00:00Z"),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert forecast_beliefs, "No forecast beliefs found in DB after CLI invocation"
+    assert len(forecast_beliefs) == 4 * 24, (
+        f"Expected 96 hourly forecast beliefs for the 4-day window, "
+        f"got {len(forecast_beliefs)}"
+    )
+
+    # --- Part 5: Python-literal single-quoted form – parsing only, no DB write ---
+    literal_arg = str({"asset": asset_id, "annotation-type": "label"})
+    parsed_literal = NestedDictParamType().convert(literal_arg, None, None)
+    literal_config = TrainPredictPipelineConfigSchema().load(
+        {"annotation-regressors": [parsed_literal]}
+    )
+    assert literal_config["annotation_regressors"][0]["asset"] == factory_asset
+    assert literal_config["annotation_regressors"][0]["annotation_type"] == "label"
