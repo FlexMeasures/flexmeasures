@@ -50,6 +50,9 @@
           },
           "401": {
             "description": "UNAUTHORIZED"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -90,6 +93,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -134,6 +140,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -214,6 +223,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -293,6 +305,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -344,6 +359,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -479,6 +497,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -549,6 +570,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -683,6 +707,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -869,6 +896,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -966,6 +996,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1034,6 +1067,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1215,6 +1251,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1289,6 +1328,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1343,6 +1385,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1442,6 +1487,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1629,6 +1677,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1749,6 +1800,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1833,6 +1887,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1888,6 +1945,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1896,7 +1956,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n- The <strong>plan_id</strong> field can only be edited by admins, and cannot be set to a legacy plan.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1966,6 +2026,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2108,6 +2171,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2149,6 +2215,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2203,6 +2272,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2320,6 +2392,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2389,6 +2464,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2474,6 +2552,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2615,6 +2696,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2695,6 +2779,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2731,6 +2818,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2866,6 +2956,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2983,6 +3076,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3056,6 +3152,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3098,6 +3197,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3155,6 +3257,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3231,6 +3336,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3390,6 +3498,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3486,6 +3597,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3607,6 +3721,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3673,6 +3790,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3761,6 +3881,9 @@
           },
           "405": {
             "description": "INVALID_METHOD"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3967,6 +4090,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4056,6 +4182,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4110,6 +4239,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4152,6 +4284,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4342,6 +4477,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4410,6 +4548,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4462,6 +4603,9 @@
           },
           "400": {
             "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4496,6 +4640,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4732,6 +4879,9 @@
           },
           "503": {
             "description": "SERVICE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4797,6 +4947,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -5909,6 +6062,12 @@
               "integer",
               "null"
             ]
+          },
+          "plan_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -5956,6 +6115,12 @@
             ]
           },
           "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "plan_id": {
             "type": [
               "integer",
               "null"
