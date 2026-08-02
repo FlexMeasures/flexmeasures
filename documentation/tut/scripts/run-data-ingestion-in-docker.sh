@@ -3,7 +3,7 @@
 set -euo pipefail
 
 CONTAINER_NAME="${1:-$(basename "$(pwd)")-server-1}"
-CLIENT_REQUIREMENT="flexmeasures-client>=0.9.4,<0.10"
+CLIENT_REQUIREMENT="flexmeasures-client>=0.9.4"
 
 echo "[TUTORIAL-RUNNER] RUNNING DATA-INGESTION TUTORIAL ..."
 echo "-----------------------------------------------------"
@@ -31,5 +31,7 @@ fi
 FLEXMEASURES_SENSOR_ID="${FM_TOY_BATTERY_SENSOR_ID}" \
 FLEXMEASURES_SENSOR_UNIT="MW" \
 FLEXMEASURES_SENSOR_RESOLUTION="PT1H" \
+FLEXMEASURES_EMAIL="${FLEXMEASURES_EMAIL:-toy-user@flexmeasures.io}" \
+FLEXMEASURES_PASSWORD="${FLEXMEASURES_PASSWORD:-toy-password}" \
     "${CLIENT_COMMAND[@]}" python \
     documentation/tut/scripts/run-data-ingestion.py

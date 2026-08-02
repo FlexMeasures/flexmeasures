@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import os
 from pathlib import Path
 from time import monotonic
@@ -40,9 +41,6 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("FLEXMEASURES_EMAIL", "toy-user@flexmeasures.io"),
     )
     parser.add_argument(
-        "--password", default=os.getenv("FLEXMEASURES_PASSWORD", "toy-password")
-    )
-    parser.add_argument(
         "--sensor-id",
         type=int,
         default=os.getenv("FLEXMEASURES_SENSOR_ID"),
@@ -68,7 +66,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def wait_for_values(
+async def wait_for_values_and_verify(
     client: FlexMeasuresClient,
     *,
     sensor_id: int,
@@ -109,11 +107,14 @@ async def run_tutorial(args: argparse.Namespace) -> None:
     if not args.file.is_file():
         raise FileNotFoundError(f"Example data file not found: {args.file}")
 
+    password = os.getenv("FLEXMEASURES_PASSWORD") or getpass.getpass(
+        "FlexMeasures password: "
+    )
     client = FlexMeasuresClient(
         host=args.host,
         ssl=args.ssl,
         email=args.email,
-        password=args.password,
+        password=password,
     )
     try:
         # Start file upload example
@@ -123,7 +124,7 @@ async def run_tutorial(args: argparse.Namespace) -> None:
             belief_time_measured_instantly=True,
         )
         # End file upload example
-        await wait_for_values(
+        await wait_for_values_and_verify(
             client,
             sensor_id=args.sensor_id,
             start=EXAMPLE_FILE_START,
@@ -143,7 +144,7 @@ async def run_tutorial(args: argparse.Namespace) -> None:
             unit=args.unit,
         )
         # End export script example
-        await wait_for_values(
+        await wait_for_values_and_verify(
             client,
             sensor_id=args.sensor_id,
             start=EXPORT_START,

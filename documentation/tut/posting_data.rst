@@ -5,6 +5,7 @@ Ingesting data from files and scripts
 
 FlexMeasures turns time-series data into forecasts, reports and optimized schedules.
 This tutorial shows how to build the first part of that journey: an automated data-ingestion pipeline.
+In this tutorial, we build a complete script which you can run from the command line.
 
 You will upload a CSV or Excel file with the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client/>`_,
 verify the stored values, and then adapt the example to values produced by an export script.
@@ -57,14 +58,16 @@ Install version 0.9.4 or newer of the client:
 
     $ pip install "flexmeasures-client>=0.9.4"
 
-Store credentials outside the script, for example as environment variables:
+Store connection details outside the script, for example as environment variables:
 
 .. code-block:: console
 
     $ export FLEXMEASURES_HOST="company.flexmeasures.io"
     $ export FLEXMEASURES_EMAIL="data-pipeline@example.com"
-    $ export FLEXMEASURES_PASSWORD="..."
     $ export FLEXMEASURES_SENSOR_ID="16"
+
+When you run the complete script, it securely prompts for the password without recording it in your shell history.
+For an unattended pipeline, inject ``FLEXMEASURES_PASSWORD`` from your deployment platform's secret manager.
 
 Preparing a file
 ----------------
@@ -152,6 +155,7 @@ For data collected dynamically, the surrounding pipeline could look like this:
 .. code-block:: python
 
     import asyncio
+    import getpass
     import os
 
     from flexmeasures_client import FlexMeasuresClient
@@ -162,7 +166,8 @@ For data collected dynamically, the surrounding pipeline could look like this:
             host=os.environ["FLEXMEASURES_HOST"],
             ssl=True,
             email=os.environ["FLEXMEASURES_EMAIL"],
-            password=os.environ["FLEXMEASURES_PASSWORD"],
+            password=os.getenv("FLEXMEASURES_PASSWORD")
+            or getpass.getpass("FlexMeasures password: "),
         )
         try:
             values = export_latest_meter_values()  # Your database or vendor API
@@ -180,11 +185,14 @@ For data collected dynamically, the surrounding pipeline could look like this:
     asyncio.run(main())
 
 The client expects a hostname without ``https://``; set ``ssl=True`` for HTTPS.
+The vendor-specific placeholder ``export_latest_meter_values()`` must return a ``list[float]``, ordered from the oldest interval to the newest.
 
 Verifying the result
 --------------------
 
-Read back the same interval after ingestion:
+Reading values back is not required for ingestion.
+We do it here for the sake of the tutorial, to demonstrate that the pipeline stored the expected data.
+Read back the same interval:
 
 .. code-block:: python
 
@@ -203,12 +211,12 @@ Verifying the values, unit and interval catches mistakes that a successful HTTP 
 Running the executable tutorial
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This repository contains a complete script which uploads an example Excel file,
+The complete script uploads an example Excel file,
 posts a second interval as in-memory values and verifies both results:
 
 .. code-block:: console
 
-    $ uv run --no-project --with "flexmeasures-client>=0.9.4,<0.10" \
+    $ uv run --no-project --with "flexmeasures-client>=0.9.4" \
         python documentation/tut/scripts/run-data-ingestion.py \
         --sensor-id 16 --unit EUR/MWh --resolution PT1H
 
