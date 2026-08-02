@@ -18,14 +18,15 @@ from flexmeasures.data.models.forecasting.utils import (
     data_to_bdf,
 )
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.utils import save_to_db
 
 
 class PredictPipeline(BasePipeline):
     def __init__(
         self,
-        future_regressors: list[Sensor],
-        past_regressors: list[Sensor],
+        future_regressors: list[Sensor | SensorReference],
+        past_regressors: list[Sensor | SensorReference],
         target_sensor: Sensor,
         model_path: str,
         output_path: str,
@@ -43,14 +44,15 @@ class PredictPipeline(BasePipeline):
         predict_end: datetime | None = None,
         data_source: Source = None,
         missing_threshold: float = 1.0,
+        annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param past_regressors: List of sensors serving as past regressors.
-        :param future_regressors: List of sensors serving as future regressors.
+        :param past_regressors: List of sensors or sensor references serving as past regressors.
+        :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
         :param model_path: Path to the model file.
         :param output_path: Path where predictions will be saved.
@@ -83,6 +85,7 @@ class PredictPipeline(BasePipeline):
             missing_threshold=missing_threshold,
             save_belief_time=save_belief_time,
             beliefs_before=beliefs_before,
+            annotation_regressors=annotation_regressors,
         )
         self.model_path = model_path
         self.output_path = output_path

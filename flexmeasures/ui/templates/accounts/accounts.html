@@ -16,6 +16,17 @@
             </a>
             {% endif %}
           </div>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label for="accountRoleFilter" class="form-label">Organisation role</label>
+                <select id="accountRoleFilter" class="form-select">
+                  <option value="">All roles</option>
+                  {% for role in account_role_options %}
+                  <option value="{{ role | e }}">{{ role | e }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped paginate nav-on-click" title="View data" id="accountsTable">
                 </table>
@@ -74,6 +85,11 @@
             url = `${url}&filter=${filter}`;
           }
 
+          const selectedRole = $("#accountRoleFilter").val();
+          if (selectedRole) {
+            url = `${url}&role=${encodeURIComponent(selectedRole)}`;
+          }
+
           if (orderColumnName){
             url = `${url}&sort_by=${orderColumnName}&sort_dir=${orderDirection}`;
           }
@@ -106,6 +122,10 @@
             },
           });
         },
+      });
+
+      $("#accountRoleFilter").on("change", function () {
+        table.api().ajax.reload();
       });
     });
   </script>

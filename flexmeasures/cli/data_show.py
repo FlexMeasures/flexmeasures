@@ -19,7 +19,7 @@ import json
 from sqlalchemy import select, func
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account, AccountRole, User, Role
+from flexmeasures.data.models.user import Account, AccountRole, Plan, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -79,6 +79,50 @@ def list_accounts():
         for account in accounts
     ]
     click.echo(tabulate(account_data, headers=["ID", "Name", "Assets"]))
+
+
+@fm_show_data.command("plans")
+@with_appcontext
+def list_plans():
+    """
+    List all plans on this FlexMeasures instance, with the rate limits they set.
+
+    The quota fields a plan carries (max_users, max_assets and max_clients) are left out,
+    as long as nothing enforces them yet.
+    """
+    plans = db.session.scalars(select(Plan).order_by(Plan.name)).all()
+    if not plans:
+        click.secho("No plans created yet.", **MsgStyle.WARN)
+        raise click.Abort()
+    click.echo("All plans on this FlexMeasures instance:\n ")
+    plan_data = [
+        (
+            plan.id,
+            plan.name,
+            plan.default_rate_limit,
+            plan.trigger_rate_limit,
+            plan.rate_limit_key.value if plan.rate_limit_key else None,
+            "yes" if plan.legacy else "no",
+        )
+        for plan in plans
+    ]
+    click.echo(
+        tabulate(
+            plan_data,
+            headers=[
+                "ID",
+                "Name",
+                "Default rate limit",
+                "Trigger rate limit",
+                "Rate limit key",
+                "Legacy",
+            ],
+        )
+    )
+    click.echo(
+        "\nAn empty cell means the server-wide setting applies."
+        "\nA legacy plan keeps applying to the accounts already on it, but is no longer offered when assigning a plan."
+    )
 
 
 @fm_show_data.command("roles")

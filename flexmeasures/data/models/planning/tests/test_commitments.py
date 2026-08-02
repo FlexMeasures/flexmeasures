@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.utils.unit_utils import ur
 from flexmeasures.data.models.planning import (
     Commitment,
     StockCommitment,
@@ -17,7 +18,6 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.utils.unit_utils import ur
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -2464,6 +2464,43 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
 
 
+def test_user_commitment_names_and_provenance(app):
+    """User-given commitment names are kept as is, and the resulting commitments are
+    tagged with provenance "custom" (used to disambiguate the name-keyed cost report
+    when a user name collides with a scheduler-internal commitment name).
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T04:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                # Deliberately shadowing an internal commitment name
+                "name": "electricity net energy",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("100 EUR/MWh"),
+            },
+        ],
+    }
+    flex_model = [{"commodity": "electricity"}]
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    assert commitments[0].name == "electricity net energy"
+    assert commitments[0].provenance == "custom"
+
+    # Converting must not mutate the original specs (e.g. on repeated conversions).
+    assert scheduler.flex_context["commitments"][0]["name"] == "electricity net energy"
+    assert "baseline" in scheduler.flex_context["commitments"][0]
+
+
 def _shared_stock_scheduler(db, flex_model, label):
     """Set up a battery with two inverter power sensors and one SoC sensor.
 
@@ -2707,3 +2744,402 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
     # the electricity device (index 0), not the gas device (index 1).
     assert (electricity_commitment.device == 0).all()
     assert set(electricity_commitment.device_group.unique()) == {"electricity"}
+
+
+def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
+    """A commitment scoped to specific sensors (here: two e-heaters) binds their aggregate flow as one commitment:
+    a baseline of 10 MW with a steep penalty on downward deviation keeps their combined consumption at 10 MW,
+    even though a cheaper allocation (0 MW) exists.
+
+    "Band" (as in the "reserved band" commitment name) means a committed power level the aggregate is held to,
+    by penalising deviation from the baseline;
+    here only downward deviation is priced, so the band acts as a floor rather than a two-sided range.
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(
+        name="Band site (scoped commitment test)", generic_asset_type=heater_type
+    )
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("band heater 1")
+    heater_2 = sensor("band heater 2")
+    db.session.flush()
+
+    flex_model = [
+        {
+            # Heaters burn money at the consumption price;
+            # without the band commitment the optimum is to stay off.
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                "name": "reserved band",
+                "sensors": [heater_1.id, heater_2.id],
+                "baseline": "10 MW",
+                # Steep penalty for consuming less than the band (negative price penalizes downward deviation);
+                # consuming more is free.
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # The band keeps the aggregate at 10 MW (cheapest way to avoid the penalty),
+    # even though each heater alone (8 MW max) could not carry it.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_commitment_scope_sensors_and_group_are_mutually_exclusive(app, db):
+    """A commitment's scope is either a sensor list or a group reference, not both."""
+    from flexmeasures.data.schemas.scheduling import CommitmentSchema
+    from marshmallow import ValidationError
+
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(name="scope-conflict site", generic_asset_type=heater_type)
+    db.session.add(site)
+    db.session.flush()
+    power = Sensor(
+        name="scope-conflict power",
+        unit="MW",
+        event_resolution=pd.Timedelta("1h"),
+        generic_asset=site,
+    )
+    db.session.add(power)
+    db.session.flush()
+
+    with pytest.raises(ValidationError, match="not both"):
+        CommitmentSchema().load(
+            {
+                "name": "conflicted",
+                "baseline": "1 MW",
+                "up-price": "1 EUR/MWh",
+                "sensors": [power.id],
+                "group": {"sensor": power.id},
+            }
+        )
+
+
+def test_group_scoped_commitment_binds_group_aggregate(app, db):
+    """A commitment scoped to a ``group`` reference binds the aggregate flow of that group's members,
+    reusing the group's resolved membership;
+    the same band effect as listing the members' sensors, but pointing at the group instead.
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(name="Group-scoped band site", generic_asset_type=heater_type)
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("group band heater 1")
+    heater_2 = sensor("group band heater 2")
+    group_sensor = sensor("group aggregate sensor")
+    db.session.flush()
+
+    flex_model = [
+        {
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+            "group": {"sensor": group_sensor.id},
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+            "group": {"sensor": group_sensor.id},
+        },
+        # The group entry (a loose cap so it does not itself bind the aggregate).
+        {"sensor": group_sensor.id, "power-capacity": "1 GW"},
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                "name": "reserved band on the group",
+                "group": {"sensor": group_sensor.id},
+                "baseline": "10 MW",
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # The band on the group keeps its members' aggregate at 10 MW.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_sensor_scope_includes_inflexible_and_matches_group_scope(app):
+    """A sensors scope includes an inflexible device (by its power sensor),
+    so listing a group's member sensors binds the same device set as scoping by that group.
+    """
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    def mk(sid, name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset_id=1
+        )
+        s.id = sid
+        return s
+
+    battery = mk(1, "scope battery")
+    load = mk(12, "scope fixed load")
+    group_sensor = mk(10, "scope group sensor")
+
+    flex_model = [
+        {"sensor": battery, "group": {"sensor": group_sensor}},
+        {
+            "asset": object(),
+            "inflexible_consumption": load,
+            "group": {"sensor": group_sensor},
+        },
+        {"sensor": group_sensor, "power_capacity_in_mw": ur.Quantity("1 GW")},
+    ]
+
+    def commitment_devices(scope):
+        scheduler.flex_context = {
+            "shared_currency_unit": "EUR",
+            "commitments": [
+                {
+                    "name": "band",
+                    "baseline": ur.Quantity("1 MW"),
+                    "up_price": ur.Quantity("1 EUR/MWh"),
+                    **scope,
+                }
+            ],
+        }
+        scheduler.device_inventory = DeviceInventory.from_flex_config(
+            flex_model, scheduler.flex_context
+        )
+        commitments = scheduler.convert_to_commitments(
+            flex_model,
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=start,
+        )
+        # FlowCommitment.device is a Series of (identical) device-index lists.
+        return set(commitments[0].device.iloc[0])
+
+    by_sensors = commitment_devices({"sensors": [battery, load]})
+    by_group = commitment_devices({"group": {"sensor": group_sensor}})
+
+    assert by_sensors == by_group  # listing the members == scoping the group
+    assert by_sensors == {0, 1}  # the flexible battery (0) and the inflexible load (1)
+
+
+def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
+    """A scoped commitment's commodity follows its scoped devices,
+    overriding the schema's electricity default, so its cost is attributed to the right commodity.
+    """
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_load = Sensor(
+        name="scoped gas load",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset_id=1,
+    )
+    gas_load.id = 12
+    flex_model = [{"sensor": gas_load, "commodity": "gas"}]
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "gas band",
+                "commodity": "electricity",  # as the schema's electricity default supplies
+                "sensors": [gas_load],
+                "baseline": ur.Quantity("1 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            }
+        ],
+    }
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    # Pinned to the scoped device's commodity, not the "electricity" default.
+    assert commitments[0].commodity == "gas"
+
+
+def test_scoped_commitment_with_no_matching_devices_warns_and_binds_nothing(
+    app, caplog
+):
+    """A scope that matches no device in the flex-model logs a warning and binds nothing,
+    rather than failing the whole schedule."""
+    import logging
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    present = Sensor(
+        name="present device",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset_id=1,
+    )
+    present.id = 1
+    flex_model = [{"sensor": present, "commodity": "electricity"}]
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "orphan band",
+                "sensors": [999],  # no device in the flex-model records this sensor
+                "baseline": ur.Quantity("1 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            }
+        ],
+    }
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+
+    with caplog.at_level(logging.WARNING):
+        commitments = scheduler.convert_to_commitments(
+            flex_model,
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=start,
+        )
+    assert commitments == []  # bound nothing, did not raise
+    assert "will not bind any device" in caplog.text
+
+
+def test_commitments_in_commodity_contexts_are_converted(app):
+    """Commitments saved within a commodity context (as the UI editor does per
+    commodity tab) are picked up by the scheduler and bind that context's commodity.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "top-level commitment",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            },
+        ],
+        "commodity_contexts": [
+            {
+                "commodity": "gas",
+                "commitments": [
+                    {
+                        "name": "gas context commitment",
+                        # Even the schema's electricity default gets overridden
+                        # by the surrounding context's commodity.
+                        "commodity": "electricity",
+                        "baseline": ur.Quantity("1 MW"),
+                        "up_price": ur.Quantity("2 EUR/MWh"),
+                    },
+                ],
+            },
+        ],
+    }
+    # Flexible devices: 0 = electricity, 1 = gas.
+    flex_model = [{"commodity": "electricity"}, {"commodity": "gas"}]
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 2
+    gas_commitment = next(c for c in commitments if c.name == "gas context commitment")
+    assert (gas_commitment.device == 1).all()
+    assert set(gas_commitment.device_group.unique()) == {"gas"}
+
+    # The original specs (including the nested ones) are not mutated.
+    nested_spec = scheduler.flex_context["commodity_contexts"][0]["commitments"][0]
+    assert "baseline" in nested_spec
+    assert nested_spec["commodity"] == "electricity"
