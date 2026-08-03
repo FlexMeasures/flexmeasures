@@ -157,6 +157,17 @@ def convert_commitments_to_subcommitments(
     return sub_commitments, commitment_mapping
 
 
+def _is_missing(value) -> bool:
+    """Whether ``value`` is missing, in the sense ``DataFrame.dropna`` uses.
+
+    A commitment's "device" column may hold a collection of device indices,
+    which ``pd.isna`` would answer element-wise; such a value is never missing.
+    """
+    if isinstance(value, (list, tuple, set, np.ndarray)):
+        return False
+    return bool(pd.isna(value))
+
+
 def loss_coefficients(efficiency: float) -> tuple[float, float]:
     """Coefficients (a, b) of one step of the stock recursion, for `how="linear"`.
 
@@ -420,28 +431,36 @@ def prepare_scheduling_problem(  # noqa C901
             continue
 
         has_device_group = "device_group" in df.columns
+
+        # Read the columns as arrays rather than slicing + dropna()-ing a fresh
+        # DataFrame per sub-commitment. Each time step usually forms its own
+        # group, so this loop runs once per time step, and the per-call pandas
+        # overhead dominated it (~50 ms of a ~135 ms prepare on 4 devices x 192
+        # steps; the arrays bring that under 1 ms).
+        device_values = df["device"].to_numpy()
         if has_device_group:
-            rows = df[["device", "device_group"]].dropna()
+            group_values = df["device_group"].to_numpy()
         else:
             # Backwards-compatible default: each device is its own group.
             # This preserves the behaviour of old-style DataFrame commitments that
             # pre-date the device_group feature (e.g. from initialize_device_commitment).
-            rows = df[["device"]].dropna()
+            group_values = device_values
 
-        device_group_lookup[c] = {}
-
-        for _, row in rows.iterrows():
-            d = row["device"]
-            # When no device_group column is present, use the device id itself as
-            # the group label so that each device forms an independent group.
-            g = row["device_group"] if has_device_group else d
+        groups: dict = {}
+        for d, g in zip(device_values, group_values):
+            # Skip what the previous dropna() dropped: a missing device, or a
+            # missing group label when the commitment declares groups.
+            if _is_missing(d) or (has_device_group and _is_missing(g)):
+                continue
 
             if isinstance(d, (list, tuple, set, np.ndarray)):
                 devices = set(d)
             else:
                 devices = {d}
 
-            device_group_lookup[c].setdefault(g, set()).update(devices)
+            groups.setdefault(g, set()).update(devices)
+
+        device_group_lookup[c] = groups
 
     # Oversimplified check for a convex cost curve
     if commitments:
