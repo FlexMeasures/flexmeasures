@@ -19,6 +19,13 @@ EXEMPT = {
     # These build named assets in the database, so running each test twice in the same
     # fixture scope violates generic_asset's unique-name constraint. Parametrizing them
     # means making their fixtures unique-per-parameter first.
+    #
+    # They are not unverified, though: a whole run can be pinned to one backend with
+    # --lp-solver, and all three pass under the non-default one. See the PR description,
+    # and re-check with:
+    #   pytest flexmeasures/data/models/planning/tests/test_commitments.py \
+    #          flexmeasures/data/models/planning/tests/test_storage.py \
+    #          flexmeasures/data/models/planning/tests/test_process.py --lp-solver=appsi_highs
     "test_commitments.py": "creates named DB assets; not idempotent across parameters",
     "test_storage.py": "creates named DB assets; not idempotent across parameters",
     "test_process.py": "ProcessScheduler does not use device_scheduler",

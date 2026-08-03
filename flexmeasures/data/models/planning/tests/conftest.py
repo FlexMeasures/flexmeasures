@@ -475,3 +475,37 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize(
             "solver_backend", ["appsi_highs", "highspy"], indirect=True
         )
+
+
+def pytest_addoption(parser):
+    """Allow a whole run to be pinned to one solver backend.
+
+    The modules that cannot be parametrized in-process (see EXEMPT in
+    test_solver_coverage.py) can still be shown green under the other backend by running
+    them again with this flag. Note that FLEXMEASURES_LP_SOLVER cannot be set from the
+    environment for tests, because TestingConfig does not read it.
+    """
+    parser.addoption(
+        "--lp-solver",
+        action="store",
+        default=None,
+        help="Run every test under this solver backend (e.g. appsi_highs).",
+    )
+
+
+@pytest.fixture(autouse=True)
+def pinned_solver_backend(request, app):
+    """Apply --lp-solver, unless the test is already parametrized over backends."""
+    solver = request.config.getoption("--lp-solver")
+    if (
+        solver is None
+        or "solver_backend" in request.fixturenames
+        and getattr(request.node, "callspec", None)
+        and "solver_backend" in request.node.callspec.params
+    ):
+        yield
+        return
+    original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
+    app.config["FLEXMEASURES_LP_SOLVER"] = solver
+    yield
+    app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
