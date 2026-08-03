@@ -55,8 +55,9 @@ REDUNDANT_COLUMNS = ("event_start", "sensor_id")
 # Partial and expression indexes are excluded too:
 # a deployment-specific index with a WHERE predicate answers queries the composite indexes do not,
 # so it is not redundant even though it covers the same column.
-# The namespace is pinned to current_schema(),
-# so a same-named table in another schema is never touched.
+# The namespace is resolved from the catalog rather than assumed to be current_schema(),
+# so that the lookup and the DDL cannot disagree about which timed_belief is meant,
+# and a same-named table in another schema is never touched.
 # Selected as a plain query rather than looped over in a DO block,
 # because DROP INDEX CONCURRENTLY cannot run inside one.
 FIND_REDUNDANT_INDEXES = """
@@ -67,7 +68,7 @@ SELECT quote_ident(n.nspname) || '.' || quote_ident(i.relname)
   JOIN pg_namespace n ON n.oid = t.relnamespace
   JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = x.indkey[0]
  WHERE t.relname = 'timed_belief'
-   AND n.nspname = current_schema()
+   AND n.nspname = :schema
    AND x.indnatts = 1
    AND x.indnkeyatts = 1
    AND NOT x.indisunique
@@ -81,10 +82,24 @@ SELECT quote_ident(n.nspname) || '.' || quote_ident(i.relname)
 """
 
 
+RESOLVE_SCHEMA = """
+SELECT n.nspname
+  FROM pg_class t
+  JOIN pg_namespace n ON n.oid = t.relnamespace
+ WHERE t.relname = 'timed_belief'
+   AND t.relkind = 'r'
+   AND pg_table_is_visible(t.oid)
+"""
+
+
 def upgrade():
+    schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).scalar_one()
     names = (
         op.get_bind()
-        .execute(sa.text(FIND_REDUNDANT_INDEXES), {"columns": list(REDUNDANT_COLUMNS)})
+        .execute(
+            sa.text(FIND_REDUNDANT_INDEXES),
+            {"columns": list(REDUNDANT_COLUMNS), "schema": schema},
+        )
         .scalars()
         .all()
     )
@@ -97,9 +112,10 @@ def upgrade():
 
 def downgrade():
     # Recreate under the naming convention this project's metadata uses.
+    schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).scalar_one()
     for column in REDUNDANT_COLUMNS:
         with op.get_context().autocommit_block():
             op.execute(
                 f"CREATE INDEX CONCURRENTLY IF NOT EXISTS timed_belief_{column}_idx"
-                f" ON timed_belief ({column})"
+                f" ON {schema}.timed_belief ({column})"
             )

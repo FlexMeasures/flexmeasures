@@ -92,7 +92,7 @@ SELECT 1
   JOIN pg_class t ON t.oid = x.indrelid
   JOIN pg_namespace n ON n.oid = t.relnamespace
  WHERE t.relname = 'timed_belief'
-   AND n.nspname = current_schema()
+   AND n.nspname = :schema
    AND i.relname = :name
    AND x.indnkeyatts = 4
    AND x.indnatts = 4
@@ -105,13 +105,31 @@ SELECT 1
    ) = ARRAY['sensor_id', 'source_id', 'event_start', 'belief_horizon']
 """
 
-RECREATE_REDUNDANT_INDEX = f"""
-CREATE INDEX CONCURRENTLY IF NOT EXISTS {REDUNDANT_INDEX}
-    ON timed_belief (sensor_id, source_id, event_start, belief_horizon)
+TEMP_INDEX = "timed_belief_pkey_new"
+
+# Which schema's timed_belief are we operating on?
+# Resolved once from the catalog rather than left to search_path,
+# so that the checks below and the DDL that acts on them cannot disagree:
+# pg_table_is_visible picks exactly the table an unqualified reference would resolve to,
+# which is not necessarily the one in current_schema().
+RESOLVE_SCHEMA = """
+SELECT n.nspname, quote_ident(n.nspname)
+  FROM pg_class t
+  JOIN pg_namespace n ON n.oid = t.relnamespace
+ WHERE t.relname = 'timed_belief'
+   AND t.relkind = 'r'
+   AND pg_table_is_visible(t.oid)
 """
 
 
-TEMP_INDEX = "timed_belief_pkey_new"
+def _schema() -> tuple[str, str]:
+    """Return (raw, quoted) schema of the timed_belief table this migration acts on.
+
+    The raw form is for catalog comparisons, the quoted one for interpolating into DDL.
+    Deriving the quoted form with quote_ident rather than by adding quotes here means
+    a schema whose name needs escaping is handled by PostgreSQL's own rules.
+    """
+    return op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).one()
 
 
 def _swap_primary_key(order: list[str]) -> None:
@@ -121,38 +139,52 @@ def _swap_primary_key(order: list[str]) -> None:
     so reads and writes continue while it is built.
     Promoting it to the primary key then costs only a catalog update.
     """
+    raw_schema, schema = _schema()
     # A previous failed run can leave the temporary index behind, possibly marked invalid.
     # Drop it first so a retry is always safe.
     with op.get_context().autocommit_block():
-        op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {TEMP_INDEX}")
+        op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {schema}.{TEMP_INDEX}")
+        # CREATE INDEX takes an unqualified index name:
+        # the index is always created in the schema of its table.
         op.execute(
             f"CREATE UNIQUE INDEX CONCURRENTLY {TEMP_INDEX}"
-            f" ON timed_belief ({', '.join(order)})"
+            f" ON {schema}.timed_belief ({', '.join(order)})"
         )
-    op.drop_constraint("timed_belief_pkey", "timed_belief", type_="primary")
+    op.drop_constraint(
+        "timed_belief_pkey", "timed_belief", type_="primary", schema=schema
+    )
     # USING INDEX adopts the index we just built, so no rebuild happens under the lock.
     # PostgreSQL renames it to the constraint name.
     op.execute(
-        f"ALTER TABLE timed_belief"
+        f"ALTER TABLE {schema}.timed_belief"
         f" ADD CONSTRAINT timed_belief_pkey PRIMARY KEY USING INDEX {TEMP_INDEX}"
     )
 
 
 def upgrade():
     _swap_primary_key(NEW_ORDER)
+    raw_schema, schema = _schema()
     present = (
         op.get_bind()
-        .execute(sa.text(IS_REDUNDANT_INDEX_PRESENT), {"name": REDUNDANT_INDEX})
+        .execute(
+            sa.text(IS_REDUNDANT_INDEX_PRESENT),
+            {"name": REDUNDANT_INDEX, "schema": raw_schema},
+        )
         .scalar()
     )
     if present:
         with op.get_context().autocommit_block():
-            op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {REDUNDANT_INDEX}")
+            op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {schema}.{REDUNDANT_INDEX}")
 
 
 def downgrade():
     # Restore the composite index first,
     # so the queries that relied on it are not left unserved in between.
+    _raw_schema, schema = _schema()
     with op.get_context().autocommit_block():
-        op.execute(RECREATE_REDUNDANT_INDEX)
+        op.execute(
+            f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {REDUNDANT_INDEX}"
+            f" ON {schema}.timed_belief"
+            f" (sensor_id, source_id, event_start, belief_horizon)"
+        )
     _swap_primary_key(OLD_ORDER)
