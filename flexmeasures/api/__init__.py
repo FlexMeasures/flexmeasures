@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures import __version__ as flexmeasures_version
+from flexmeasures.api.common import rate_limiting
 from flexmeasures.api.common.utils.api_utils import catch_timed_belief_replacements
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
@@ -155,6 +156,8 @@ def register_at(app: Flask):
     app.register_error_handler(RequestEntityTooLarge, request_entity_too_large_handler)
     app.register_error_handler(IntegrityError, catch_timed_belief_replacements)
     app.unauthorized_handler_api = invalid_sender
+
+    rate_limiting.register_at(app)
 
     app.register_blueprint(
         flexmeasures_api, url_prefix="/api"

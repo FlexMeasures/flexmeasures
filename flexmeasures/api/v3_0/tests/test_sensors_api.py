@@ -366,10 +366,10 @@ def test_upload_csv_file_returns_accepted_job(
 
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
-    assert response.json["job_monitor_url"] == url_for(
-        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    assert response.json["job-url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job"]
     )
-    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["uploaded_files"][0]["filename"] == "test.csv"
     assert job.kwargs["uploaded_files"][0]["content"] == csv_content.encode("utf-8")
@@ -646,6 +646,11 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
         "inflexible-device-sensors": [existing_sensor_id],
+        # not a valid combination with the deprecated key above, but a deleted
+        # sensor should be pruned from any of the inflexible-device keys
+        "inflexible-production": [
+            {"sensor": existing_sensor_id, "exclude-source-types": ["scheduler"]}
+        ],
     }
     asset.sensors_to_show = [
         {"title": "Power", "plots": [{"sensor": existing_sensor_id}]},
@@ -682,6 +687,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
+    assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
     assert str(existing_sensor_id) not in json.dumps(
         asset_after.sensors_to_show_as_kpis

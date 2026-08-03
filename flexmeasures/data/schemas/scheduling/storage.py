@@ -18,10 +18,13 @@ from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.scheduling.groups import (
+    GroupReferenceSchema,
+    validate_group_sensor_is_power_sensor,
+)
 from flexmeasures.data.schemas.sensors import (
-    SensorIdField,
     SensorReference,
-    SharedSensorReferenceSchema,
+    InflexibleDeviceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -34,50 +37,85 @@ from flexmeasures.utils.unit_utils import (
 ALLOWED_COMMODITIES = {"electricity", "gas"}
 
 
-def _validate_group_sensor_is_power_sensor(group: dict):
-    """Check that the sensor referenced by the `group` field measures power."""
-    sensor = group.get("sensor")
-    if isinstance(sensor, (Sensor, SensorReference)) and not is_power_unit(sensor.unit):
-        raise ValidationError(
-            "The `group` field must reference a sensor with a power unit.",
-            field_name="group",
-        )
+#: User-facing (hyphenated) flex-model keys that may co-exist with an inflexible-device
+#: declaration: its own identity/grouping/commodity and the always-defaulted activation
+#: preferences. Any other declared field is a schedulable-device field, so an entry
+#: carrying one alongside ``inflexible-consumption``/``inflexible-production`` is
+#: rejected -- this is a whitelist (rather than a blacklist of schedulable keys) so it
+#: stays complete as new device fields are added. Keyed on data-keys, which are the
+#: same across StorageFlexModelSchema and DBStorageFlexModelSchema (their *attribute*
+#: names differ).
+_INFLEXIBLE_ALLOWED_DATA_KEYS = frozenset(
+    {
+        "inflexible-consumption",
+        "inflexible-production",
+        "group",
+        "commodity",
+        "asset",
+        "sensor",
+        "prefer-charging-sooner",
+        "prefer-curtailing-later",
+    }
+)
 
 
-class GroupReferenceSchema(SharedSensorReferenceSchema):
-    """Reference to a group of devices whose aggregate power is constrained.
+def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
+    """Validate a flex-model entry that declares an inflexible device.
 
-    Accepts exactly one of:
-      - ``{"sensor": <id>}``: the group's aggregate power is stored on this power sensor
-        (the sensor must itself carry a flex-model entry defining the group's
-        constraints).
-      - ``{"asset": <id>}``: the group is identified by the flex-model entry on this
-        asset (typically a sub-EMS/asset in the tree). Such a group entry defines no
-        power sensor of its own; instead it may define ``consumption`` and/or
-        ``production`` output sensors on which the group's aggregate power gets saved,
-        following the usual output-sensor conventions.
-
-    Inherits from ``SharedSensorReferenceSchema`` (not ``SensorReferenceSchema``) so it
-    accepts only ``sensor``/``asset`` -- a group is a device-group identifier, not a
-    belief-query reference, so the ``source-*`` filter fields do not apply.
+    An inflexible device is declared by a single ``inflexible-consumption`` or ``inflexible-production`` sensor reference.
+    Such an entry must not declare both signs,
+    must not use a sensor whose explicit ``consumption_is_positive`` attribute contradicts the field's sign convention,
+    and must not also carry schedulable-device fields (so it is unambiguously classified as an inflexible device).
+    The last check inspects the original (hyphenated) input keys against a whitelist of keys allowed alongside an inflexible declaration,
+    so it works for both flex-model schemas, stays complete as device fields are added, and ignores load-default fills.
     """
-
-    class Meta:
-        description = (
-            "Reference to a group of devices whose aggregate power is constrained."
+    has_consumption = "inflexible_consumption" in data
+    has_production = "inflexible_production" in data
+    if not has_consumption and not has_production:
+        return
+    if has_consumption and has_production:
+        raise ValidationError(
+            "An inflexible device entry must declare either inflexible-consumption or"
+            " inflexible-production, not both.",
+            field_name="inflexible-consumption",
+        )
+    field, data_key, consumption_is_positive = (
+        ("inflexible_consumption", "inflexible-consumption", True)
+        if has_consumption
+        else ("inflexible_production", "inflexible-production", False)
+    )
+    entry = data[field]
+    sensor = entry.sensor if isinstance(entry, SensorReference) else entry
+    explicit_attribute = (getattr(sensor, "attributes", None) or {}).get(
+        "consumption_is_positive"
+    )
+    if explicit_attribute is not None and explicit_attribute != consumption_is_positive:
+        raise ValidationError(
+            f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`,"
+            f" which conflicts with the sign convention of the `{data_key}` field.",
+            field_name=data_key,
+        )
+    offending = sorted(set(original_data) - _INFLEXIBLE_ALLOWED_DATA_KEYS)
+    if offending:
+        raise ValidationError(
+            f"An inflexible device entry (`{data_key}`) must not also carry"
+            f" schedulable-device field(s) {offending}.",
+            field_name=data_key,
         )
 
-    sensor = SensorIdField(required=False)
-    asset = GenericAssetIdField(required=False)
 
-    @validates_schema
-    def validate_exactly_one_reference(self, data: dict, **kwargs):
-        has_sensor = "sensor" in data
-        has_asset = "asset" in data
-        if has_sensor == has_asset:  # both or neither
-            raise ValidationError(
-                "The `group` field must reference exactly one of 'sensor' or 'asset'."
-            )
+# In a flex-model entry the inflexible fields are a *single* sensor reference (unlike
+# the flex-context, where they are lists), so override the shared metadata's list
+# example with a single object -- otherwise the generated OpenAPI/docs would show an
+# array for an object-valued field.
+_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META = {
+    **metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    "example": {"sensor": 3},
+}
+_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META = {
+    **metadata.INFLEXIBLE_PRODUCTION.to_dict(),
+    "example": {"sensor": 3},
+}
 
 
 #  Telling type hints what to expect after schema parsing
@@ -123,6 +161,128 @@ class EfficiencyField(QuantityField):
             *args,
             **kwargs,
         )
+
+
+class OperationModeSchema(Schema):
+    """One operation mode of a device, in the sense of the S2 standard.
+
+    A device with operation modes can only run within one of the declared modes'
+    power ranges at any given time. Each range is given with an explicit sign
+    convention: ``consumption-range`` (non-negative, positive means consumption)
+    and/or ``production-range`` (non-negative, positive means production). A mode
+    may use either or both; using both forms a single band through zero (so both
+    must then start at 0). The S2 standard fixes one sign convention for power
+    (positive means consumption), whereas FM leaves it to the user; an S2
+    power-range therefore maps onto these fields by sign: its non-negative part
+    corresponds to the FM ``consumption-range``, negative S2 power values
+    (production) correspond to the FM ``production-range`` (with their sign
+    flipped to non-negative), and an S2 range spanning zero maps to a
+    combination of both. A device that can only be off or run at exactly
+    883.7 W of consumption declares:
+
+        [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
+    """
+
+    consumption_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="consumption-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Consumption power range [min, max] of this operation mode "
+            "(non-negative; positive is consumption). The non-negative part of an "
+            "S2 power-range maps to this field.",
+        ),
+    )
+    production_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="production-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Production power range [min, max] of this operation mode "
+            "(non-negative; positive is production). Negative (production) values "
+            "of an S2 power-range map to this field, with their sign flipped.",
+        ),
+    )
+
+    @staticmethod
+    def signed_band(mode: dict) -> tuple[float, float]:
+        """Convert one deserialized operation mode into a signed ``(min, max)``
+        power band in MW (positive is consumption), as used by the device scheduler.
+
+        The ``consumption-range`` maps to the positive side and the
+        ``production-range`` to the negative side; combining both (each validated
+        to start at 0) yields one band through zero ``[-production_max, +consumption_max]``.
+
+        >>> schema = OperationModeSchema()
+        >>> OperationModeSchema.signed_band(schema.load({"consumption-range": ["500 kW", "2 MW"]}))
+        (0.5, 2.0)
+        >>> OperationModeSchema.signed_band(schema.load({"production-range": ["500 kW", "1 MW"]}))
+        (-1.0, -0.5)
+        >>> OperationModeSchema.signed_band(schema.load(
+        ...     {"consumption-range": ["0 MW", "2 MW"], "production-range": ["0 MW", "1 MW"]}
+        ... ))
+        (-1.0, 2.0)
+        """
+        cons = mode.get("consumption_range")
+        prod = mode.get("production_range")
+        if cons and prod:
+            return (
+                -float(prod[1].to("MW").magnitude),
+                float(cons[1].to("MW").magnitude),
+            )
+        if cons:
+            return (
+                float(cons[0].to("MW").magnitude),
+                float(cons[1].to("MW").magnitude),
+            )
+        if prod is None:
+            # check_ranges guarantees at least one range upon deserialization
+            raise ValueError(
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
+        return (
+            -float(prod[1].to("MW").magnitude),
+            -float(prod[0].to("MW").magnitude),
+        )
+
+    @validates_schema
+    def check_ranges(self, data: dict, **kwargs):
+        cons = data.get("consumption_range")
+        prod = data.get("production_range")
+        if cons is None and prod is None:
+            raise ValidationError(
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
+        for name, rng in (("consumption-range", cons), ("production-range", prod)):
+            if rng is None:
+                continue
+            if rng[0].to("MW").magnitude < 0:
+                other = (
+                    "production-range"
+                    if name == "consumption-range"
+                    else "consumption-range"
+                )
+                raise ValidationError(
+                    f"An operation mode's {name} must be non-negative. "
+                    f"To express power flowing in the opposite direction, move the negative part "
+                    f"(with its sign flipped) to the mode's {other}; a range spanning zero "
+                    f"becomes a combination of both, each starting at 0."
+                )
+            if rng[0] > rng[1]:
+                raise ValidationError(
+                    f"The minimum of an operation mode's {name} cannot exceed its maximum."
+                )
+        if (
+            cons is not None
+            and prod is not None
+            and (cons[0].to("MW").magnitude != 0 or prod[0].to("MW").magnitude != 0)
+        ):
+            raise ValidationError(
+                "When an operation mode combines consumption-range and production-range, "
+                "both must start at 0 (so they form one contiguous band through zero)."
+            )
 
 
 class StorageFlexModelSchema(Schema):
@@ -197,11 +357,34 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.PRODUCTION_CAPACITY.to_dict(),
     )
 
+    operation_modes = fields.List(
+        fields.Nested(OperationModeSchema()),
+        data_key="operation-modes",
+        required=False,
+        validate=validate.Length(min=1),
+        metadata=metadata.OPERATION_MODES.to_dict(),
+    )
     group = fields.Nested(
         GroupReferenceSchema,
         data_key="group",
         required=False,
         metadata=metadata.GROUP.to_dict(),
+    )
+
+    # An entry may instead describe an inflexible (unschedulable) device: a single
+    # sensor reference whose fixed power is accounted for (and, via `group`, counted
+    # towards a group's intermediate power constraint), rather than being scheduled.
+    inflexible_consumption = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-consumption",
+        required=False,
+        metadata=_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META,
+    )
+    inflexible_production = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-production",
+        required=False,
+        metadata=_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META,
     )
 
     # Activation prices
@@ -374,7 +557,11 @@ class StorageFlexModelSchema(Schema):
 
     @validates("group")
     def validate_group(self, group: dict, **kwargs):
-        _validate_group_sensor_is_power_sensor(group)
+        validate_group_sensor_is_power_sensor(group)
+
+    @validates_schema(pass_original=True)
+    def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
+        validate_inflexible_flex_model_entry(data, original_data)
 
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
@@ -468,6 +655,19 @@ class DBStorageFlexModelSchema(Schema):
         data_key="group",
         required=False,
         metadata=metadata.GROUP.to_dict(),
+    )
+
+    inflexible_consumption = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-consumption",
+        required=False,
+        metadata=_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META,
+    )
+    inflexible_production = fields.Nested(
+        InflexibleDeviceSchema,
+        data_key="inflexible-production",
+        required=False,
+        metadata=_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META,
     )
 
     soc_min = VariableQuantityField(
@@ -612,7 +812,11 @@ class DBStorageFlexModelSchema(Schema):
 
     @validates("group")
     def validate_group(self, group: dict, **kwargs):
-        _validate_group_sensor_is_power_sensor(group)
+        validate_group_sensor_is_power_sensor(group)
+
+    @validates_schema(pass_original=True)
+    def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
+        validate_inflexible_flex_model_entry(data, original_data)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

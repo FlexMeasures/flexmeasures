@@ -231,3 +231,62 @@ def test_create_sequential_jobs_fallback(
                 # The deferred jobs ran successfully
                 assert deferred_jobs[0].id in finished_jobs
                 assert deferred_jobs[1].id in finished_jobs
+
+
+def test_create_sequential_jobs_with_sign_explicit_context(
+    db, app, flex_description_sequential, smart_building
+):
+    """When the site's flex-context uses the sign-explicit inflexible fields,
+    previously scheduled sensors are injected as sensor references, routed by
+    their consumption_is_positive attribute (all fixture sensors default to
+    production-positive), without touching the deprecated field.
+    """
+    assets, sensors, soc_sensors = smart_building
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_description_sequential["start"] = start
+    flex_description_sequential["end"] = end
+    flex_context = flex_description_sequential["flex_context"]
+    inflexible_sensor_ids = flex_context.pop("inflexible-device-sensors")
+    flex_context["inflexible-production"] = [
+        {"sensor": sensor_id} for sensor_id in inflexible_sensor_ids
+    ]
+
+    create_sequential_scheduling_job(
+        asset=assets["Test Site"],
+        scheduler_specs=scheduler_specs,
+        enqueue=True,
+        **flex_description_sequential,
+    )
+
+    queued_jobs = app.queues["scheduling"].jobs
+    deferred_jobs = [
+        Job.fetch(job_id, connection=queue.connection)
+        for job_id in app.queues["scheduling"].deferred_job_registry.get_job_ids()
+    ]
+    deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
+
+    # The EV is scheduled firstly, using only the user-given inflexible devices.
+    assert queued_jobs[0].kwargs["flex_context"]["inflexible-production"] == [
+        {"sensor": sensors["Test Solar"].id},
+        {"sensor": sensors["Test Building"].id},
+    ]
+    assert "inflexible-device-sensors" not in queued_jobs[0].kwargs["flex_context"]
+
+    # The Battery is scheduled secondly, with the EV's sensor injected as an
+    # inflexible device (production-positive: the EV sensor carries no
+    # consumption_is_positive attribute).
+    assert deferred_jobs[0].kwargs["flex_context"]["inflexible-production"] == [
+        {"sensor": sensors["Test Solar"].id},
+        {"sensor": sensors["Test Building"].id},
+        {"sensor": sensors["Test EV"].id},
+    ]
+    assert "inflexible-device-sensors" not in deferred_jobs[0].kwargs["flex_context"]

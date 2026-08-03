@@ -12,6 +12,7 @@ from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.schemas.sensors import SensorReference
 
 
 class _AnnotationRegressorProxy:
@@ -29,6 +30,74 @@ class _AnnotationRegressorProxy:
 def _entity_id(entity_or_id):
     """Return an entity ID from a deserialized model object or a plain ID."""
     return getattr(entity_or_id, "id", entity_or_id)
+
+
+def _regressor_sensor_and_source_filters(
+    regressor: Sensor | SensorReference,
+) -> tuple[Sensor, dict]:
+    """Return the underlying sensor and belief-search filters for a regressor."""
+    if not isinstance(regressor, SensorReference):
+        return regressor, {}
+
+    source_filters = {
+        "source_types": regressor.source_types,
+        "exclude_source_types": regressor.exclude_source_types,
+        "source": regressor.sources,
+        "source_account_ids": (
+            [account.id for account in regressor.source_account]
+            if regressor.source_account is not None
+            else None
+        ),
+    }
+    return regressor.sensor, {
+        key: value for key, value in source_filters.items() if value is not None
+    }
+
+
+def _resolve_source_collisions(
+    df: pd.DataFrame,
+    regressor: Sensor | SensorReference,
+) -> pd.DataFrame:
+    """Keep a single belief per (event_start, belief_time) pair.
+
+    Several selected sources may record a belief about the same event at the same
+    belief time. Which belief is kept is decided as follows:
+
+    - If the regressor reference lists explicit ``sources``, their list order decides:
+      the first listed source wins.
+    - Otherwise, the source with the highest ID wins. Latest source versions within
+      each source family have already been selected while loading beliefs.
+
+    Deduplicating here, before the source column is dropped, also prevents duplicated
+    (event_start, belief_time) keys from multiplying rows through the outer join over
+    regressors in ``load_data_all_beliefs``.
+    """
+    if not df.duplicated(subset=["event_start", "belief_time"]).any():
+        return df
+    explicit_sources = (
+        regressor.sources if isinstance(regressor, SensorReference) else None
+    )
+    if explicit_sources:
+        rank = {}
+        for position, source in enumerate(explicit_sources):
+            rank.setdefault(source.id, position)
+        precedence = df["source"].map(lambda s: (rank.get(s.id, len(rank)), s.id))
+        first_wins = True
+    else:
+        precedence = df["source"].map(lambda source: source.id)
+        first_wins = False  # sort descending: the highest source ID wins
+    return (
+        df.assign(_precedence=precedence)
+        .sort_values(
+            by=["event_start", "belief_time", "_precedence"],
+            ascending=[True, True, first_wins],
+            kind="mergesort",
+        )
+        .drop_duplicates(subset=["event_start", "belief_time"], keep="first")
+        .drop(columns=["_precedence"])
+        .sort_values(by=["event_start", "belief_time"], kind="mergesort")
+        .reset_index(drop=True)
+    )
 
 
 class BasePipeline:
@@ -57,10 +126,10 @@ class BasePipeline:
 
     Parameters
     ----------
-    past_regressors : list[str] | None
-        Sensor names used only as historical (past) covariates.
-    future_regressors : list[str]
-        Sensor names used as future covariates (with forecast data).
+    past_regressors : list[Sensor | SensorReference]
+        Sensors or sensor references used only as historical (past) covariates.
+    future_regressors : list[Sensor | SensorReference]
+        Sensors or sensor references used as future covariates (with forecast data).
     target : str
         Name of the target sensor (key in `sensors`).
     n_steps_to_predict : int
@@ -74,8 +143,8 @@ class BasePipeline:
     def __init__(
         self,
         target_sensor: Sensor,
-        future_regressors: list[Sensor],
-        past_regressors: list[Sensor],
+        future_regressors: list[Sensor | SensorReference],
+        past_regressors: list[Sensor | SensorReference],
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
@@ -107,12 +176,12 @@ class BasePipeline:
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
-            f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
-            for idx, sensor in enumerate(self.future)
+            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_FR-{idx}"
+            for idx, regressor in enumerate(self.future)
         ]
         self.past_regressors = [
-            f"{sensor.name} (ID: {sensor.id})_PR-{idx}"
-            for idx, sensor in enumerate(self.past)
+            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_PR-{idx}"
+            for idx, regressor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
@@ -190,7 +259,10 @@ class BasePipeline:
         sensor_dfs = []
         sensor_names = self.future_regressors + self.past_regressors + [self.target]
         sensors = self.future + self.past + [self.target_sensor]
-        for name, sensor in zip(sensor_names, sensors):
+        for name, regressor_or_sensor in zip(sensor_names, sensors):
+            sensor, source_filters = _regressor_sensor_and_source_filters(
+                regressor_or_sensor
+            )
             logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
             sensor_event_ends_before = self.event_ends_before
@@ -198,21 +270,24 @@ class BasePipeline:
 
             most_recent_beliefs_only = True
             # Extend time range for future regressors
-            if sensor in self.future:
+            if regressor_or_sensor in self.future:
                 sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
                     hours=self.max_forecast_horizon_in_hours
                 )
 
                 most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
 
+            if name == self.target:
+                # Exclude forecasters from the target data to avoid training on forecasts.
+                source_filters["exclude_source_types"] = ["forecaster"]
+
             df = sensor.search_beliefs(
                 event_starts_after=sensor_event_starts_after,
                 event_ends_before=sensor_event_ends_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 beliefs_before=self.beliefs_before,
-                exclude_source_types=(
-                    ["forecaster"] if name == self.target else []
-                ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
+                one_deterministic_belief_per_event_per_source=True,
+                **source_filters,
             )
             try:
                 # We resample regressors to the target sensor's resolution so they align in time.
@@ -232,6 +307,7 @@ class BasePipeline:
                 logging.warning(f"Error during custom resample for {name}: {e}")
 
             df = df.reset_index()
+            df = _resolve_source_collisions(df, regressor_or_sensor)
             df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
             df_filtered.rename(columns={"event_value": name}, inplace=True)
 

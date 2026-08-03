@@ -184,16 +184,7 @@ def create(  # noqa C901
 
     # This needs to happen here because for unknown reasons, Security(app)
     # and FlaskJSON() will set this to False on their own
-    if app.config.get("FLEXMEASURES_JSON_COMPACT", False) in (
-        True,
-        "True",
-        "true",
-        "1",
-        "yes",
-    ):
-        app.json.compact = True
-    else:
-        app.json.compact = False
+    app.json.compact = app.config.get("FLEXMEASURES_JSON_COMPACT", False) is True
 
     # Register the CLI
 
