@@ -981,7 +981,9 @@ def test_flex_model_schemas(
         and the second entry represents the expectation for the DBStorageFlexModelSchema.
     """
     schemas = [
-        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ),
         DBStorageFlexModelSchema(),
     ]
     if not isinstance(fails, list):
@@ -1576,7 +1578,9 @@ def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
     The direction is inferred from which directional capacity is given (the opposite direction defaults to zero),
     so the sign of its coupling coefficient can be inferred.
     """
-    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+    schema = StorageFlexModelSchema(
+        start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+    )
     flex_model = {
         "power-capacity": "20 kW",
         "coupling": "chp",
@@ -1593,7 +1597,9 @@ def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
 
 def test_uncoupled_device_needs_no_directional_capacities(app):
     """The coupling-direction check only applies to devices that define a `coupling` field."""
-    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+    schema = StorageFlexModelSchema(
+        start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+    )
     schema.load({"power-capacity": "20 kW"})
 
 
@@ -1610,9 +1616,9 @@ def test_blank_coupling_name_is_rejected(app, blank_name):
         "coupling": blank_name,
     }
     with pytest.raises(ValidationError) as e_info:
-        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None).load(
-            scheduling_flex_model
-        )
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ).load(scheduling_flex_model)
     assert "non-empty" in str(e_info.value)
 
     with pytest.raises(ValidationError) as e_info:

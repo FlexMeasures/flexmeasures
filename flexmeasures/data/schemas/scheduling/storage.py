@@ -62,9 +62,8 @@ _INFLEXIBLE_ALLOWED_DATA_KEYS = frozenset(
 def _validate_coupling_name(coupling: str | None):
     """Reject blank/whitespace-only coupling names.
 
-    A blank coupling name would become a coupling-group key, silently coupling
-    unrelated devices under an empty group. When provided, the name must contain
-    at least one non-whitespace character.
+    A blank coupling name would become a coupling-group key, silently coupling unrelated devices under an empty group.
+    When provided, the name must contain at least one non-whitespace character.
     """
     if coupling is not None and not coupling.strip():
         raise ValidationError(
