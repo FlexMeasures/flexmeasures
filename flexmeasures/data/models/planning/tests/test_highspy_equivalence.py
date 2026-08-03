@@ -256,6 +256,68 @@ def run_with_solver(app, solver: str, make_scenario):
         app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
 
 
+def scenario_ems_level_flow_commitment():
+    """Two devices under an EMS-level flow commitment, which names no device.
+
+    Such a commitment binds the summed flow of all devices, via
+    ``ems_flow_commitment_equalities`` rather than the grouped constraints, so it
+    is the case that distinguishes the two constraint families.
+    """
+    index = make_index()
+    prices = make_prices(index)
+    return dict(
+        device_constraints=[make_battery_constraints(), make_battery_constraints()],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            FlowCommitment(
+                name="EMS target",
+                index=index,
+                quantity=0.1,
+                upwards_deviation_price=prices,
+                downwards_deviation_price=prices,
+            )
+        ],
+        initial_stock=[0.5, 0.5],
+    )
+
+
+def scenario_ems_level_commodity_commitment():
+    """An EMS-level flow commitment scoped to one commodity's devices.
+
+    Device 0 carries the commodity, device 1 does not, so the commitment must
+    bind device 0's flow only -- exercising the commodity_devices lookup rather
+    than the sum-over-all-devices fallback.
+    """
+    index = make_index()
+    prices = make_prices(index)
+    commodity_commitment = FlowCommitment(
+        name="gas target",
+        index=index,
+        quantity=0.1,
+        upwards_deviation_price=prices,
+        downwards_deviation_price=prices,
+    )
+    frame = commodity_commitment.to_frame()
+    frame["commodity"] = "gas"
+    # Name the commodity's device without scoping the commitment to a device
+    # group, so it still routes through ems_flow_commitment_equalities.
+    scoping = FlowCommitment(
+        name="gas scope",
+        index=index,
+        quantity=0,
+        upwards_deviation_price=0,
+        downwards_deviation_price=0,
+        device=pd.Series(0, index=index),
+    ).to_frame()
+    scoping["commodity"] = "gas"
+    return dict(
+        device_constraints=[make_battery_constraints(), make_battery_constraints()],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[frame, scoping],
+        initial_stock=[0.5, 0.5],
+    )
+
+
 @pytest.mark.parametrize(
     "make_scenario",
     [
@@ -263,6 +325,8 @@ def run_with_solver(app, solver: str, make_scenario):
         scenario_battery_with_soc_targets,
         scenario_battery_with_site_capacity_and_breach_prices,
         scenario_two_devices_with_stock_commitment,
+        scenario_ems_level_flow_commitment,
+        scenario_ems_level_commodity_commitment,
     ],
     ids=lambda f: f.__name__.replace("scenario_", ""),
 )

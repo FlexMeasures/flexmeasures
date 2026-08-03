@@ -18,33 +18,6 @@
 Deviations from the Pyomo implementation (all verified against the behavior of
 the ``appsi_highs`` path):
 
-- ``ems_flow_commitment_equalities`` is not built. On the Pyomo path this
-  constraint family returns ``(None, expr, None)``, i.e. a constraint without
-  bounds, which ends up as a free (vacuous) row in HiGHS. We skip building the
-  free rows altogether.
-
-  .. note:: This deviation is only harmless for as long as those rows stay free,
-      and two branches in flight change that:
-
-      - #2355 gives the constraint the same one-sided bounds that
-        ``grouped_commitment_equalities`` already uses, making it bind. Once that
-        lands, this module must build the row too — otherwise an EMS-level
-        commitment is silently ignored under this backend. The row is then
-        structurally identical to the grouped one, differing only in the set it
-        sums over (all devices, or the commodity's devices).
-      - #2380 makes an unscoped flex-context commitment device-grouped
-        (``device=<the commodity's device indices>``, ``device_group=<commodity>``)
-        rather than per-device, so commitments coming from ``convert_to_commitments``
-        route through ``grouped_commitment_equalities``, which this module does
-        build. That narrows the exposure above to callers constructing an
-        EMS-level ``FlowCommitment`` (``device=None``) directly, but does not
-        remove it.
-
-      Note that ``tests/test_commitments.py`` does not use the
-      ``app_with_each_solver`` fixture, so its cases only ever run under the
-      configured default solver -- which ``config_defaults`` now sets to
-      ``"highspy"``. Coverage of this constraint family belongs in
-      ``tests/test_highspy_equivalence.py`` to run under both backends.
 - Rows whose computed bounds are impossible to satisfy for any finite value
   (upper bound of -inf, or lower bound of +inf, as happens when a commitment
   quantity is +/-inf) are skipped. On the Pyomo path such rows are rejected by
@@ -62,6 +35,7 @@ import pandas as pd
 
 from flexmeasures.data.models.planning import (
     Commitment,
+    FlowCommitment,
     StockCommitment,
 )
 from flexmeasures.data.models.planning.scheduling_problem import (
@@ -538,57 +512,91 @@ def device_scheduler_highspy(  # noqa C901
     #   lb <= quantity + down_dev + up_dev - sum_over_group <= ub
     # where lb is 0 iff the commitment prices upwards deviations and ub is 0
     # iff it prices downwards deviations (one-sided otherwise).
-    # NB the ems_flow_commitment_equalities of the Pyomo implementation are
-    # deliberately not built here; they are free rows (see module docstring).
+    def _active_rows(df: pd.DataFrame):
+        """The commitment's active time steps and its row bounds.
+
+        A NaN quantity deactivates the commitment at that time step. The Pyomo
+        implementation maps such a quantity to -inf in its Param and lets the
+        resulting row (whose lower bound works out to +inf) be rejected by HiGHS;
+        dropping it here has the same effect.
+        """
+        quantity = _column(df, "quantity")
+        jj = df["j"].to_numpy(dtype=np.int64)
+        active = ~(np.isnan(quantity) | (quantity == -infinity))
+        lb = 0.0 if "upwards deviation price" in df.columns else -infinity
+        ub = 0.0 if "downwards deviation price" in df.columns else infinity
+        return quantity[active], jj[active], lb, ub
+
+    def _add_commitment_rows(c, quantity, jj, lb, ub, devices, is_stock) -> None:
+        """Bind commitment ``c`` to the summed flow or stock of ``devices``."""
+        n_rows = len(jj)
+        idx_cols = [
+            np.full(n_rows, col_cdown + c),
+            np.full(n_rows, col_cup + c),
+        ]
+        val_cols = [np.ones(n_rows), np.ones(n_rows)]
+        if is_stock:
+            # Aggregate coefficients per stock group column and move the
+            # initial stocks into the row bounds.
+            stock_coefficients: dict[int, float] = {}
+            initial_stock_sum = 0.0
+            for dev in devices:
+                base = col_stock + group_index[device_to_group[int(dev)]] * T
+                stock_coefficients[base] = stock_coefficients.get(base, 0.0) - 1.0
+                initial_stock_sum += _initial_stock_of(dev)
+            for base, coefficient in stock_coefficients.items():
+                idx_cols.append(base + jj)
+                val_cols.append(np.full(n_rows, coefficient))
+            offset = initial_stock_sum
+        else:
+            for dev in devices:
+                idx_cols.append(col_ems + int(dev) * T + jj)
+                val_cols.append(np.full(n_rows, -1.0))
+            offset = 0.0
+        rows.add_uniform_rows(
+            lb - quantity - offset,
+            ub - quantity - offset,
+            np.column_stack(idx_cols),
+            np.column_stack(val_cols),
+        )
+
     for c, df in enumerate(commitments):
         groups = device_group_lookup.get(c, {})
         if not groups:
             continue
-        quantity = _column(df, "quantity")
-        jj = df["j"].to_numpy(dtype=np.int64)
-        # A NaN quantity deactivates the commitment at that time step
-        # (NaN was mapped to -inf in the Pyomo implementation's Param).
-        active = ~(np.isnan(quantity) | (quantity == -infinity))
-        if not np.any(active):
+        quantity, jj, lb, ub = _active_rows(df)
+        if len(jj) == 0:
             continue
-        quantity = quantity[active]
-        jj = jj[active]
-        lb = 0.0 if "upwards deviation price" in df.columns else -infinity
-        ub = 0.0 if "downwards deviation price" in df.columns else infinity
         is_stock = df["class"].apply(lambda cl: cl == StockCommitment).all()
-        n_rows = len(jj)
         for g, devices_in_group in groups.items():
             if not devices_in_group:
                 continue
-            idx_cols = [
-                np.full(n_rows, col_cdown + c),
-                np.full(n_rows, col_cup + c),
-            ]
-            val_cols = [np.ones(n_rows), np.ones(n_rows)]
-            if is_stock:
-                # Aggregate coefficients per stock group column and move the
-                # initial stocks into the row bounds.
-                stock_coefficients: dict[int, float] = {}
-                initial_stock_sum = 0.0
-                for dev in devices_in_group:
-                    base = col_stock + group_index[device_to_group[int(dev)]] * T
-                    stock_coefficients[base] = stock_coefficients.get(base, 0.0) - 1.0
-                    initial_stock_sum += _initial_stock_of(dev)
-                for base, coefficient in stock_coefficients.items():
-                    idx_cols.append(base + jj)
-                    val_cols.append(np.full(n_rows, coefficient))
-                offset = initial_stock_sum
+            _add_commitment_rows(c, quantity, jj, lb, ub, devices_in_group, is_stock)
+
+    # ems_flow_commitment_equalities: an EMS-level flow commitment binds the
+    # summed flow of every device, or of its commodity's devices when it names a
+    # commodity. A commitment that names devices is skipped here, being already
+    # bound per device group above; binding it twice would over-constrain it.
+    for c, df in enumerate(commitments):
+        if device_group_lookup.get(c):
+            continue
+        if df["class"].iloc[0] != FlowCommitment:
+            continue
+        if "commodity" not in df.columns:
+            # Legacy behavior: no commodity, so sum over all devices.
+            devices: object = range(D)
+        else:
+            commodity = df["commodity"].iloc[0]
+            if pd.isna(commodity):
+                devices = range(D)
             else:
-                for dev in devices_in_group:
-                    idx_cols.append(col_ems + int(dev) * T + jj)
-                    val_cols.append(np.full(n_rows, -1.0))
-                offset = 0.0
-            rows.add_uniform_rows(
-                lb - quantity - offset,
-                ub - quantity - offset,
-                np.column_stack(idx_cols),
-                np.column_stack(val_cols),
-            )
+                devices = problem.commodity_devices.get(commodity, set())
+                if not devices:
+                    continue
+        quantity, jj, lb, ub = _active_rows(df)
+        if len(jj) == 0:
+            continue
+        _add_commitment_rows(c, quantity, jj, lb, ub, devices, is_stock=False)
 
     # Power bands (S2 operation modes): each banded device runs in exactly one
     # band per time step, and its power must lie within the chosen band.
