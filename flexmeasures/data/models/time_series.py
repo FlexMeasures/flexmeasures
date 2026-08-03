@@ -9,7 +9,7 @@ from flask import current_app
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import exists, select
+from sqlalchemy import DDL, event, exists, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -44,7 +44,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.annotations import filter_by_belief_time
@@ -774,17 +774,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             q = select(DataSource).where(DataSource.id.in_(belief_q.distinct()))
         else:
-            # No time filters: retrieve distinct source IDs for this sensor via a
-            # lightweight index-only scan, then fetch those DataSource rows. This
-            # avoids a full join across potentially hundreds of millions of belief
-            # rows just to enumerate a handful of sources.
-            source_id_subq = (
-                select(TimedBelief.source_id)
-                .where(TimedBelief.sensor_id == self.id)
-                .distinct()
-                .subquery()
+            # No time filters: read the sensor_data_source summary instead of the
+            # beliefs table, which turns a scan over potentially hundreds of millions
+            # of rows into a lookup of a handful.
+            # See SensorDataSource for the superset semantics this accepts.
+            q = select(DataSource).where(
+                DataSource.id.in_(
+                    select(SensorDataSource.source_id).where(
+                        SensorDataSource.sensor_id == self.id
+                    )
+                )
             )
-            q = select(DataSource).where(DataSource.id.in_(select(source_id_subq)))
 
         if source_types:
             q = q.where(DataSource.type.in_(source_types))
@@ -1216,3 +1216,41 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
+
+
+# Keep sensor_data_source current from the database side.
+# A trigger cannot be bypassed:
+# bulk inserts, COPY, plugins and raw SQL all maintain the summary,
+# whereas a hook in the save path only covers the callers that happen to use it.
+# FOR EACH STATEMENT with a transition table costs one small upsert per insert
+# statement, however many rows that statement carries, rather than one per row.
+#
+# Migration f1c8a3d75e29 creates the same objects for databases built by migrations.
+# The statements are repeated there rather than imported,
+# so that the migration stays immutable if this ever changes.
+RECORD_SENSOR_DATA_SOURCES_DDL = DDL(
+    """
+    CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+        INSERT INTO sensor_data_source (sensor_id, source_id)
+        SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
+        ON CONFLICT DO NOTHING;
+        RETURN NULL;
+    END;
+    $$;
+
+    DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources ON timed_belief;
+    CREATE TRIGGER timed_belief_record_sensor_data_sources
+    AFTER INSERT ON timed_belief
+    REFERENCING NEW TABLE AS inserted_beliefs
+    FOR EACH STATEMENT
+    EXECUTE FUNCTION record_sensor_data_sources();
+    """
+)
+
+event.listen(
+    TimedBelief.__table__,
+    "after_create",
+    RECORD_SENSOR_DATA_SOURCES_DDL.execute_if(dialect="postgresql"),
+)
