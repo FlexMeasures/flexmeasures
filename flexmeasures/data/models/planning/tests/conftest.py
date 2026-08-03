@@ -443,3 +443,35 @@ def add_as_beliefs(db, sensor, values, time_slots, source):
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(beliefs)
+
+
+@pytest.fixture(autouse=True)
+def solver_backend(request, app):
+    """Run a test under a specific solver backend, when its module opts in.
+
+    Modules setting ``RUN_UNDER_EACH_SOLVER = True`` have every test run once per
+    backend (see ``pytest_generate_tests`` below). Everything else is untouched and
+    keeps running under the configured default.
+    """
+    solver = getattr(request, "param", None)
+    if solver is None:
+        yield None
+        return
+    original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
+    app.config["FLEXMEASURES_LP_SOLVER"] = solver
+    yield solver
+    app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
+
+
+def pytest_generate_tests(metafunc):
+    """Parametrize a whole module over the solver backends, if it opts in.
+
+    A module that exercises scheduler behaviour is only meaningful under one backend
+    if the two agree, which is exactly what we cannot assume: the schedulers build the
+    same model twice, once through Pyomo and once directly in HiGHS. Opting a module in
+    costs a signature change nowhere -- the autouse fixture above does the switching.
+    """
+    if getattr(metafunc.module, "RUN_UNDER_EACH_SOLVER", False):
+        metafunc.parametrize(
+            "solver_backend", ["appsi_highs", "highspy"], indirect=True
+        )
