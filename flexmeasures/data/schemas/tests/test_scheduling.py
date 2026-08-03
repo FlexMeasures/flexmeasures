@@ -1922,3 +1922,75 @@ def test_db_flex_context_schema_inflexible_devices(
             ]
         }
     )
+
+
+def test_db_flex_model_accepts_an_internal_commodity(app):
+    """A db-stored flex-model accepts a commodity outside electricity and gas.
+
+    Internal commodity nodes carry labels like "steam" or "heat",
+    so the set of commodities is open rather than an enumeration.
+    Without this, a converter feeding an internal node could be scheduled but not stored.
+    """
+    loaded = DBStorageFlexModelSchema().load(
+        {
+            "commodity": "steam",
+            "coupling": "chp",
+            "coupling-coefficient": 0.5,
+            "production-capacity": "10 kW",
+        }
+    )
+    assert loaded["commodity"] == "steam"
+
+
+@pytest.mark.parametrize("blank", ["", " ", "\t"])
+def test_blank_commodity_is_rejected(app, blank):
+    """An open commodity set still excludes blank names, on both schemas."""
+    with pytest.raises(ValidationError):
+        DBStorageFlexModelSchema().load({"commodity": blank})
+    with pytest.raises(ValidationError):
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ).load({"commodity": blank, "power-capacity": "20 kW"})
+
+
+def test_tutorial_chp_example_validates(app):
+    """The CHP example in the multi-commodity tutorial validates as written.
+
+    It is the example a reader copies, so it should load through the schema that stores it,
+    and each port's coupling direction should resolve from its single directional capacity.
+    """
+    from flexmeasures.data.models.planning.devices import (
+        _resolve_coupling_coefficient,
+    )
+
+    ports = [
+        (
+            {
+                "commodity": "gas",
+                "coupling-coefficient": 1.0,
+                "consumption-capacity": "20 kW",
+            },
+            1.0,
+        ),
+        (
+            {
+                "commodity": "steam",
+                "coupling-coefficient": 0.5,
+                "production-capacity": "10 kW",
+            },
+            -0.5,
+        ),
+        (
+            {
+                "commodity": "electricity",
+                "coupling-coefficient": 0.3,
+                "production-capacity": "6 kW",
+            },
+            -0.3,
+        ),
+    ]
+    for entry, expected_coefficient in ports:
+        loaded = DBStorageFlexModelSchema().load({**entry, "coupling": "chp"})
+        assert _resolve_coupling_coefficient(loaded) == pytest.approx(
+            expected_coefficient
+        )

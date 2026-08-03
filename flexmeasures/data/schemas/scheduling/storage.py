@@ -34,8 +34,6 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 
-ALLOWED_COMMODITIES = {"electricity", "gas"}
-
 
 #: User-facing (hyphenated) flex-model keys that may co-exist with an inflexible-device
 #: declaration: its own identity/grouping/commodity and the always-defaulted activation
@@ -57,6 +55,18 @@ _INFLEXIBLE_ALLOWED_DATA_KEYS = frozenset(
         "prefer-curtailing-later",
     }
 )
+
+
+def _validate_commodity_name(commodity: str):
+    """Reject blank/whitespace-only commodity names.
+
+    Any non-blank label is allowed: an internal commodity node can carry a name like "steam" or "heat",
+    so the set of commodities is open rather than an enumeration.
+    """
+    if not isinstance(commodity, str) or not commodity.strip():
+        raise ValidationError(
+            "commodity must be a non-empty string.", field_name="commodity"
+        )
 
 
 def _validate_coupling_name(coupling: str | None):
@@ -865,7 +875,6 @@ class DBStorageFlexModelSchema(Schema):
         required=False,
         data_key="commodity",
         load_default="electricity",
-        validate=OneOf(["electricity", "gas"]),
         metadata=dict(description="Commodity label for this device/asset."),
     )
 
@@ -903,6 +912,10 @@ class DBStorageFlexModelSchema(Schema):
     @validates_schema(pass_original=True)
     def validate_inflexible_device(self, data: dict, original_data: dict, **kwargs):
         validate_inflexible_flex_model_entry(data, original_data)
+
+    @validates("commodity")
+    def validate_commodity(self, commodity: str, **kwargs):
+        _validate_commodity_name(commodity)
 
     @validates("coupling")
     def validate_coupling(self, coupling: str | None, **kwargs):

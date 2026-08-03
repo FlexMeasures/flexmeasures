@@ -272,13 +272,18 @@ For example, a CHP that turns gas into steam and electricity:
 .. code-block:: json
 
     [
-      {"sensor": 6, "commodity": "gas",         "coupling": "chp", "coupling-coefficient": 1.0, "power-capacity": "20 kW", "production-capacity": "0 kW"},
-      {"sensor": 7, "commodity": "steam",       "coupling": "chp", "coupling-coefficient": 0.5, "power-capacity": "1 MW", "consumption-capacity": "0 kW"},
-      {"sensor": 8, "commodity": "electricity", "coupling": "chp", "coupling-coefficient": 0.3, "power-capacity": "1 MW", "consumption-capacity": "0 kW"}
+      {"sensor": 6, "commodity": "gas",         "coupling": "chp", "coupling-coefficient": 1.0, "consumption-capacity": "20 kW"},
+      {"sensor": 7, "commodity": "steam",       "coupling": "chp", "coupling-coefficient": 0.5, "production-capacity": "10 kW"},
+      {"sensor": 8, "commodity": "electricity", "coupling": "chp", "coupling-coefficient": 0.3, "production-capacity": "6 kW"}
     ]
 
 Here each kW of gas input produces 0.5 kW of steam and 0.3 kW of electricity.
-The gas port is import-only (``production-capacity: 0 kW``) and the steam and electricity ports are export-only (``consumption-capacity: 0 kW``).
+Each port gives exactly one directional capacity, and that is what marks its direction:
+the gas port only consumes, and the steam and electricity ports only produce.
+The opposite direction defaults to zero, so it does not need to be written out.
+
+Note that the capacities agree with the coefficients:
+20 kW of gas is the most the unit can burn, which is what caps steam at 10 kW and electricity at 6 kW.
 
 **Internal nodes.** A *non-electricity* commodity that lists no energy price and no capacity (grid-connection) field in the ``flex-context`` (e.g. a steam or heat network with no grid connection) is treated as an **internal node**: its devices must balance each other at every time step, so everything converters produce into the node is consumed from it within the same step.
 Give such a commodity only an ``inflexible-device-sensors`` entry (its fixed demand), or omit it from the ``flex-context`` entirely.
