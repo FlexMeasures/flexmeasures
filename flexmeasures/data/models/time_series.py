@@ -926,6 +926,43 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     """
 
     @declared_attr
+    def __table_args__(cls):
+        """Keep timely_beliefs' indexes, but pin the primary key's column order.
+
+        Without an explicit constraint, the order of the primary key's columns is
+        whatever order SQLAlchemy happened to collect the columns in: attributes
+        declared on this class come first, then the mixin's. That makes the key's
+        shape an accident of which columns a subclass redeclares, and it is why a
+        schema built by ``create_all()`` could disagree with a migrated one.
+
+        The order below is deliberate, and it is not the order the columns are
+        declared in:
+
+        - ``sensor_id`` first, because virtually every query filters on a single
+          sensor. A key that does not lead with it cannot serve those queries at all.
+        - ``source_id`` second, so that ``(sensor_id, source_id, event_start,
+          belief_horizon)`` is a prefix of this key. A separate composite index on
+          exactly those columns is therefore redundant and can be dropped.
+        - ``cumulative_probability`` last, because it is very nearly a constant
+          (0.5 for every deterministic belief) and so contributes no selectivity.
+        - ``sensor_id`` and ``source_id`` adjacent, which is worth ~15% of the
+          index's size: both are 4-byte integers, so keeping them together avoids
+          the alignment padding that separating them forces into every index tuple.
+
+        Changing this order requires a migration; see ``d4a7c1e93b52``.
+        """
+        return tb.TimedBeliefDBMixin.__dict__["__table_args__"].fget(cls) + (
+            db.PrimaryKeyConstraint(
+                "sensor_id",
+                "source_id",
+                "event_start",
+                "belief_horizon",
+                "cumulative_probability",
+                name="timed_belief_pkey",
+            ),
+        )
+
+    @declared_attr
     def source_id(cls):
         return db.Column(db.Integer, db.ForeignKey("data_source.id"), primary_key=True)
 
