@@ -7,6 +7,9 @@ from flexmeasures.data.models.planning import FlowCommitment
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import initialize_index
 
+#: Run every test in this module under both scheduler backends (see conftest).
+RUN_UNDER_EACH_SOLVER = True
+
 
 def _one_device_setup(stock_target: float):
     """One storage device charging towards a stock target over 4 hourly steps.
