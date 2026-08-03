@@ -653,14 +653,14 @@ class StorageFlexModelSchema(Schema):
 
         The flow direction is inferred from which directional capacity is given:
         a device with (only) a consumption-capacity is an input (consuming) device,
-        and a device with (only) a production-capacity is an output (producing)
-        device. The unspecified direction is assumed to be zero, mirroring how a
-        missing directional site capacity defaults to zero, so the user does not
-        need to set the opposite direction to a fixed 0 (though doing so still works).
+        and a device with (only) a production-capacity is an output (producing) device.
+        The unspecified direction is assumed to be zero, mirroring how a missing directional site capacity defaults to zero,
+        so the user does not need to set the opposite direction to a fixed 0 (though doing so still works).
 
-        The direction is ambiguous only when both directions are active (each side
-        either flows itself or is marked active by a fixed zero on the opposite side)
-        or when neither is (both missing); such flex-models are rejected.
+        The direction is ambiguous only when both directions are active
+        (each side either flows itself, or is marked active by a fixed zero on the opposite side),
+        or when neither is (both missing).
+        Such flex-models are rejected.
         """
         if data.get("coupling") is None:
             return

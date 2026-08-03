@@ -1571,10 +1571,11 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     ],
 )
 def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
-    """test_coupling_direction_must_be_unambiguous: a device with a `coupling` field must
-    have an unambiguous flow direction, inferred from which directional capacity is given
-    (the opposite direction defaults to zero), so the sign of its coupling coefficient can
-    be inferred."""
+    """A device with a `coupling` field must have an unambiguous flow direction.
+
+    The direction is inferred from which directional capacity is given (the opposite direction defaults to zero),
+    so the sign of its coupling coefficient can be inferred.
+    """
     schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
     flex_model = {
         "power-capacity": "20 kW",
@@ -1591,17 +1592,18 @@ def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
 
 
 def test_uncoupled_device_needs_no_directional_capacities(app):
-    """test_uncoupled_device_needs_no_directional_capacities: the coupling-direction check
-    only applies to devices that define a `coupling` field."""
+    """The coupling-direction check only applies to devices that define a `coupling` field."""
     schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
     schema.load({"power-capacity": "20 kW"})
 
 
 @pytest.mark.parametrize("blank_name", ["", " ", "\t", "  \n "])
 def test_blank_coupling_name_is_rejected(app, blank_name):
-    """test_blank_coupling_name_is_rejected: a provided coupling name must contain at least
-    one non-whitespace character, so unrelated devices cannot be silently coupled under an
-    empty group key. This holds for both the scheduling and the db-stored schema."""
+    """A provided coupling name must contain at least one non-whitespace character.
+
+    Otherwise unrelated devices could be silently coupled under an empty group key.
+    This holds for both the scheduling schema and the db-stored one.
+    """
     scheduling_flex_model = {
         "power-capacity": "20 kW",
         "production-capacity": "0 kW",
@@ -1619,9 +1621,10 @@ def test_blank_coupling_name_is_rejected(app, blank_name):
 
 
 def test_db_flex_model_coupling_round_trips(app):
-    """test_db_flex_model_coupling_round_trips: a db-stored flex-model (validated via
-    DBStorageFlexModelSchema, e.g. by patch_asset) accepts `coupling`/`coupling-coefficient`
-    and round-trips them."""
+    """A db-stored flex-model accepts `coupling`/`coupling-coefficient` and round-trips them.
+
+    Such flex-models are validated via DBStorageFlexModelSchema, e.g. by patch_asset.
+    """
     schema = DBStorageFlexModelSchema()
     flex_model = {
         "coupling": "chp",
