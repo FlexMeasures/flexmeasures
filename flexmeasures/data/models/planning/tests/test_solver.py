@@ -3468,10 +3468,11 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 ):
     """Flex-context commitments must bind the scheduled devices, not stock-only entries.
 
-    With a stock-only entry listed first, a flex-context commitment should still yield
-    one commitment per scheduled device (indices 0 and 1), rather than one per
-    flex-model entry (indices 0, 1 and 2, of which index 2 does not exist as a
-    flexible device).
+    A regular (unscoped) commitment binds the *aggregate* flow of its commodity's
+    devices as a single commitment (issue #2379). With a stock-only entry listed
+    first, that single commitment should bind the scheduled devices (indices 0 and 1),
+    and never the stock-only entry (which is not a flexible device), rather than one
+    commitment per raw flex-model entry (indices 0, 1 and 2).
     """
     battery_type = setup_generic_asset_types["battery"]
     site = _add_parent_site(db, building, "commitment test site")
@@ -3528,15 +3529,18 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 
     test_commitments = [c for c in commitments if c.name == "test commitment"]
     num_devices = 2
-    assert len(test_commitments) == num_devices, (
-        f"Expected one commitment per scheduled device ({num_devices}), "
+    assert len(test_commitments) == 1, (
+        f"Expected a single aggregate commitment binding all scheduled devices, "
         f"got {len(test_commitments)} (one per flex-model entry, including the "
         "stock-only entry)."
     )
-    commitment_devices = {int(d) for c in test_commitments for d in c.device.unique()}
+    # The aggregate commitment binds all of its commodity's devices at once,
+    # so each row of its device column is the tuple of scheduled device indices.
+    commitment_devices = {int(d) for d in test_commitments[0].device.iloc[0]}
     assert commitment_devices == set(range(num_devices)), (
-        f"Commitments target device indices {sorted(commitment_devices)}, "
-        f"expected {sorted(range(num_devices))}."
+        f"Commitment targets device indices {sorted(commitment_devices)}, "
+        f"expected {sorted(range(num_devices))} (the scheduled devices, not the "
+        "stock-only entry)."
     )
 
 
