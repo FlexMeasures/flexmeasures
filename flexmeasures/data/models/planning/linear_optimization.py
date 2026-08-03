@@ -570,6 +570,15 @@ def device_scheduler(  # noqa C901
         if commitments[c]["class"].iloc[0] != FlowCommitment:
             return Constraint.Skip
 
+        # A device-scoped commitment is already bound, once per device group, by
+        # grouped_commitment_equalities. Now that this constraint family actually
+        # has bounds, binding such a commitment here as well would constrain the
+        # same deviation variables a second time, against a different device set
+        # (the whole EMS, or the whole commodity). Only genuinely EMS-level
+        # commitments -- those naming no device -- belong here.
+        if device_group_lookup.get(c):
+            return Constraint.Skip
+
         # Legacy behavior: no commodity → sum over all devices
         if "commodity" not in commitments[c].columns:
             devices = m.d
@@ -583,12 +592,12 @@ def device_scheduler(  # noqa C901
                     return Constraint.Skip
 
         return (
-            None,
+            0 if "upwards deviation price" in commitments[c].columns else None,
             m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[d, j] for d in devices),
-            None,
+            0 if "downwards deviation price" in commitments[c].columns else None,
         )
 
     def device_derivative_equalities(m, d, j):
