@@ -59,14 +59,18 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from flask import current_app
-from pandas.tseries.frequencies import to_offset
 
 from flexmeasures.data.models.planning import (
     Commitment,
     StockCommitment,
 )
-from flexmeasures.data.models.planning.utils import initialize_series
+from flexmeasures.data.models.planning.scheduling_problem import (
+    aggregate_commodity_costs,
+    aggregate_subcommitment_costs,
+    planned_power_per_device,
+    prepare_scheduling_problem,
+    solver_options,
+)
 
 infinity = float("inf")
 
@@ -267,224 +271,34 @@ def device_scheduler_highspy(  # noqa C901
     if len(device_constraints) == 0:
         return [], 0, HighspySolverResults("unknown", "ok"), model
 
-    # Get timing from first device
-    start = device_constraints[0].index.to_pydatetime()[0]
-    # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
-    resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
-    end = device_constraints[0].index.to_pydatetime()[-1] + resolution
-
-    # Normalise EMS constraints to a list of (DataFrame, device-group) pairs.
-    all_devices = list(range(len(device_constraints)))
-    if isinstance(ems_constraints, pd.DataFrame):
-        ems_constraints_list = [ems_constraints]
-        ems_constraint_device_groups = [all_devices]
-    else:
-        ems_constraints_list = ems_constraints
-        if ems_constraint_groups is None:
-            if len(ems_constraints_list) > 1:
-                raise ValueError(
-                    "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
-                )
-            ems_constraint_device_groups = [all_devices for _ in ems_constraints_list]
-        else:
-            ems_constraint_device_groups = ems_constraint_groups
-
-    # map device -> primary stock group (used for per-device stock bounds)
-    # and map stock group -> all member devices (used for stock accumulation).
-    device_to_group = {}
-
-    # Group keys are namespaced strings, as in the Pyomo implementation.
-    if stock_groups:
-        for g, devices in stock_groups.items():
-            for d in devices:
-                device_to_group[d] = f"stock:{g}"
-    # Devices not in any stock group (e.g. inflexible devices) form individual groups.
-    for d in range(len(device_constraints)):
-        if d not in device_to_group:
-            device_to_group[d] = f"device:{d}"
-
-    group_to_devices: dict[str, list[int]] = {}
-    for d, g in device_to_group.items():
-        group_to_devices.setdefault(g, []).append(d)
-
-    # Devices sharing a stock may not declare different storage efficiencies
-    # or initial stocks (the stock recursion is modelled once per stock group).
-    for g, group_devices in group_to_devices.items():
-        if len(group_devices) > 1:
-            group_efficiency = device_constraints[group_devices[0]].get("efficiency")
-            for d in group_devices[1:]:
-                efficiency = device_constraints[d].get("efficiency")
-                if (
-                    (efficiency is None) != (group_efficiency is None)
-                    or efficiency is not None
-                    and not efficiency.equals(group_efficiency)
-                ):
-                    raise ValueError(
-                        f"Devices {group_devices} share stock group {g} but have different"
-                        " storage efficiencies. The storage efficiency is a property of the"
-                        " shared stock, so define it once per stock group."
-                    )
-            if isinstance(initial_stock, list):
-                group_initial_stocks = {
-                    initial_stock[d] if d < len(initial_stock) else 0
-                    for d in group_devices
-                }
-                if len(group_initial_stocks) > 1:
-                    raise ValueError(
-                        f"Devices {group_devices} share stock group {g} but have different"
-                        " initial stocks. The initial stock is a property of the shared"
-                        " stock, so define it once per stock group."
-                    )
-
-    # Move commitments from old structure to new
-    if commitments is None:
-        commitments = []
-    else:
-        commitments = [
-            c.to_frame() if isinstance(c, Commitment) else c for c in commitments
-        ]
-    if commitment_quantities is not None:
-        from flexmeasures.data.models.planning.utils import initialize_df
-
-        for quantity, down, up in zip(
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
-        ):
-            # Turn prices per commitment into prices per commitment flow
-            if all(isinstance(price, float) for price in down) or isinstance(
-                down, float
-            ):
-                down = initialize_series(down, start, end, resolution)
-            if all(isinstance(price, float) for price in up) or isinstance(up, float):
-                up = initialize_series(up, start, end, resolution)
-
-            group = initialize_series(list(range(len(down))), start, end, resolution)
-            df = initialize_df(
-                ["quantity", "downwards deviation price", "upwards deviation price"],
-                start,
-                end,
-                resolution,
-            )
-            df["quantity"] = quantity
-            df["downwards deviation price"] = down
-            df["upwards deviation price"] = up
-            df["group"] = group
-            commitments.append(df)
-
-    # NB the Pyomo implementation builds a commodity -> device indices lookup here,
-    # but it is only consumed by its ems_flow_commitment_equalities, which this
-    # backend deliberately does not build (they are free rows; see module docstring).
-    # That lookup has to come back when #2355 makes those rows bind.
-
-    # Check if commitments have the same time window and resolution as the constraints
-    for commitment in commitments:
-        start_c = commitment.index.to_pydatetime()[0]
-        resolution_c = pd.to_timedelta(commitment.index.freq)
-        end_c = commitment.index.to_pydatetime()[-1] + resolution
-        if not (start_c == start and end_c == end):
-            raise Exception(
-                "Not implemented for different time windows.\n(%s,%s)\n(%s,%s)"
-                % (start, end, start_c, end_c)
-            )
-        if resolution_c != resolution:
-            raise Exception(
-                "Not implemented for different resolutions.\n%s\n%s"
-                % (resolution, resolution_c)
-            )
-
-    # This transformation is solver-agnostic and shared with the Pyomo backend.
-    from flexmeasures.data.models.planning.linear_optimization import (
-        convert_commitments_to_subcommitments,
+    problem = prepare_scheduling_problem(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitment_quantities=commitment_quantities,
+        commitment_downwards_deviation_price=commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price=commitment_upwards_deviation_price,
+        commitments=commitments,
+        initial_stock=initial_stock,
+        stock_groups=stock_groups,
+        ems_constraint_groups=ems_constraint_groups,
+        device_power_bands=device_power_bands,
     )
 
-    commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
-
-    device_group_lookup: dict[int, dict] = {}
-    for c, df in enumerate(commitments):
-        # Stock-scoped commitments couple to their stock group as a whole.
-        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
-            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
-            if stock_group_key in group_to_devices:
-                device_group_lookup[c] = {
-                    stock_group_key: {group_to_devices[stock_group_key][0]}
-                }
-                continue
-
-        if "device" not in df.columns:
-            # EMS-level commitment: no device grouping needed here.
-            continue
-
-        has_device_group = "device_group" in df.columns
-        if has_device_group:
-            rows = df[["device", "device_group"]].dropna()
-        else:
-            # Backwards-compatible default: each device is its own group.
-            rows = df[["device"]].dropna()
-
-        device_group_lookup[c] = {}
-
-        for _, row in rows.iterrows():
-            d = row["device"]
-            g = row["device_group"] if has_device_group else d
-
-            if isinstance(d, (list, tuple, set, np.ndarray)):
-                devices = set(d)
-            else:
-                devices = {d}
-
-            device_group_lookup[c].setdefault(g, set()).update(devices)
-
-    # Oversimplified check for a convex cost curve (mirrors the Pyomo path)
-    if commitments:
-        df = pd.concat(commitments)[
-            ["upwards deviation price", "downwards deviation price"]
-        ]
-        df = df.groupby(level=0).sum()
-        convex_cost_curve = (
-            len(df[df["upwards deviation price"] < df["downwards deviation price"]])
-            == 0
-        )
-    else:
-        convex_cost_curve = True
-
-    bigM_columns = ["derivative max", "derivative min", "derivative equals"]
-    # Compute a good value for our Big-Ms
-    Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
-    Mc = np.nansum([np.nansum(d[bigM_columns].abs()) for d in device_constraints])
-
-    # Both Md and Mc have to be 1 MW, at least
-    Md = max(Md, 1)
-    Mc = max(Mc, 1)
-
-    for d in range(len(device_constraints)):
-        if "stock delta" not in device_constraints[d].columns:
-            device_constraints[d]["stock delta"] = 0
-        else:
-            device_constraints[d]["stock delta"] = (
-                device_constraints[d]["stock delta"].astype(float).fillna(0)
-            )
-
-    # Look up power bands (S2 operation modes) per device
-    if device_power_bands is None:
-        device_power_bands = [None] * len(device_constraints)
-    elif len(device_power_bands) != len(device_constraints):
-        raise ValueError(
-            f"device_power_bands lists {len(device_power_bands)} devices, "
-            f"while device_constraints lists {len(device_constraints)} devices."
-        )
-    band_lookup: dict[int, list[tuple[float, float]]] = {
-        d: list(bands)
-        for d, bands in enumerate(device_power_bands)
-        if bands is not None and len(bands) > 0
-    }
-    for d, bands in band_lookup.items():
-        for band in bands:
-            if len(band) != 2 or band[0] > band[1]:
-                raise ValueError(
-                    f"Invalid power band {band} for device {d}: "
-                    f"expected a (min, max) pair with min <= max."
-                )
+    # Local aliases, so that the model below reads as it did before the (solver-agnostic)
+    # input handling moved to the scheduling_problem module.
+    start, end, resolution = problem.start, problem.end, problem.resolution
+    device_constraints = problem.device_constraints
+    ems_constraints_list = problem.ems_constraints_list
+    ems_constraint_device_groups = problem.ems_constraint_device_groups
+    device_to_group = problem.device_to_group
+    group_to_devices = problem.group_to_devices
+    commitments = problem.commitments
+    commitment_mapping = problem.commitment_mapping
+    device_group_lookup = problem.device_group_lookup
+    convex_cost_curve = problem.convex_cost_curve
+    Md, Mc = problem.Md, problem.Mc
+    band_lookup = problem.band_lookup
+    _initial_stock_of = problem.initial_stock_of
 
     # ---------------------------------------------------------------
     # Numeric model data (vectorized versions of the Pyomo Param rules)
@@ -532,12 +346,6 @@ def device_scheduler_highspy(  # noqa C901
             down_eff[d] = _column_or_default(dc, "derivative down efficiency", 1)
             up_eff[d] = _column_or_default(dc, "derivative up efficiency", 1)
             delta[d] = _column(dc, "stock delta")
-
-    def _initial_stock_of(d) -> float:
-        if isinstance(initial_stock, list):
-            # No initial stock defined for inflexible device
-            return initial_stock[int(d)] if d < len(initial_stock) else 0
-        return initial_stock
 
     # ---------------------------------------------------------------
     # Column (variable) layout
@@ -842,29 +650,9 @@ def device_scheduler_highspy(  # noqa C901
     if nrow > 0:
         h.addRows(nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value)
 
-    # Apply the same solver options as the Pyomo path applies for HiGHS solvers
-    profile = {
-        "mip_rel_gap": "0",
-        "mip_abs_gap": "0",
-        "primal_feasibility_tolerance": "1e-9",
-        "dual_feasibility_tolerance": "1e-9",
-        "mip_feasibility_tolerance": "1e-9",
-    }
-    # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-    if current_app.config["LOGGING_LEVEL"] == "INFO":
-        profile["output_flag"] = "false"
-
-    # Apply operator-configured options last, so they override the defaults above.
-    configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}
-    if configured_options:
-        from flexmeasures.data.models.planning.linear_optimization import (
-            validate_highs_options,
-        )
-
-        validate_highs_options(configured_options)
-    profile.update(configured_options)
-
-    for option_name, option_value in profile.items():
+    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches
+    # on "highs"), so the two backends cannot disagree on tolerances.
+    for option_name, option_value in solver_options("highspy").items():
         h.setOptionValue(option_name, option_value)
 
     h.run()
@@ -910,36 +698,12 @@ def device_scheduler_highspy(  # noqa C901
     for c in range(C):
         planned_costs += subcommitment_costs[c]
 
-    # Map subcommitment costs to commitments
-    commitment_costs: dict = {}
-    for g, v in subcommitment_costs.items():
-        c = commitment_mapping[g]
-        commitment_costs[c] = commitment_costs.get(c, 0) + v
+    planned_power = planned_power_per_device(ems_values, start, end, resolution)
 
-    planned_power_per_device = []
-    for d in range(D):
-        planned_power_per_device.append(
-            initialize_series(
-                data=list(ems_values[d]),
-                start=start,
-                end=end,
-                resolution=to_offset(resolution),
-            )
-        )
-
-    commodity_costs: dict = {}
-    for c in range(C):
-        commodity = None
-        if "commodity" in commitments[c].columns:
-            commodity = commitments[c]["commodity"].iloc[0]
-        if commodity is None or (isinstance(commodity, float) and np.isnan(commodity)):
-            continue
-        commodity_costs[commodity] = (
-            commodity_costs.get(commodity, 0) + subcommitment_costs[c]
-        )
-
-    model.commitment_costs = commitment_costs
-    model.commodity_costs = commodity_costs
+    model.commitment_costs = aggregate_subcommitment_costs(
+        subcommitment_costs, commitment_mapping
+    )
+    model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
     model.costs = planned_costs
     model.d = range(D)
     model.j = range(T)
@@ -956,4 +720,4 @@ def device_scheduler_highspy(  # noqa C901
         {(d, j): float(sign_values[d, j]) for d in range(D) for j in range(T)}
     )
 
-    return planned_power_per_device, planned_costs, results, model
+    return planned_power, planned_costs, results, model
