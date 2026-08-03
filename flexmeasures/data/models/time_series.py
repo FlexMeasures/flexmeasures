@@ -1227,16 +1227,24 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         return tb.TimedBelief.__repr__(self)
 
 
-# Keep sensor_data_source current from the database side.
-# A trigger cannot be bypassed:
-# bulk inserts, COPY, plugins and raw SQL all maintain the summary,
-# whereas a hook in the save path only covers the callers that happen to use it.
-# FOR EACH STATEMENT with a transition table costs one small upsert per insert statement,
-# however many rows that statement carries, rather than one per row.
+# How the sensor_data_source summary is kept up to date.
 #
-# Migration f1c8a3d75e29 creates the same objects for databases built by migrations.
-# The statements are repeated there rather than imported,
-# so that the migration stays immutable if this ever changes.
+# A database trigger does it, rather than FlexMeasures code.
+# The reason is that beliefs reach timed_belief by several routes:
+# save_to_db, bulk inserts, plugins, and raw SQL.
+# Code added to one of those routes would only ever see the beliefs that took it,
+# leaving the summary quietly incomplete for all the others.
+# A trigger sits on the table itself, so it sees every insert whatever the route.
+#
+# The trigger runs once per INSERT *statement* rather than once per row.
+# It reads that statement's new rows in one go, through what PostgreSQL calls a
+# transition table (named inserted_beliefs below).
+# So saving a million beliefs in one statement adds one small insert, not a million.
+#
+# Migration f1c8a3d75e29 creates the same function and trigger.
+# The statements are written out in both places rather than shared,
+# because a migration should keep doing what it did when it was written,
+# even if this file later changes.
 RECORD_SENSOR_DATA_SOURCES_FUNCTION = """
 CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -1259,17 +1267,28 @@ EXECUTE FUNCTION record_sensor_data_sources()
 
 
 def create_sensor_data_source_trigger(target, connection, **kwargs) -> None:
-    """Install the trigger that keeps sensor_data_source current.
+    """Install the trigger, for databases whose schema is built by create_all().
 
-    Listens on the metadata rather than on timed_belief's own after_create,
-    because the trigger function refers to sensor_data_source,
-    and nothing orders that table's creation relative to timed_belief's.
-    plpgsql resolves the reference lazily, so a per-table listener happens to work,
-    but relying on that is fragile:
-    a function written in plain SQL would be bound eagerly and fail.
+    A FlexMeasures database gets its schema in one of two ways,
+    and each needs its own route to the trigger:
 
-    Skips quietly when either table is absent,
-    so a partial create_all does not break.
+    - built by Alembic migrations, as in production:
+      migration f1c8a3d75e29 installs it there.
+    - built by ``db.create_all()``, as in the test suite and some development setups:
+      this function installs it there.
+
+    SQLAlchemy fires "after_create" whenever it has created something.
+    This listens for that on the whole metadata rather than on the timed_belief table,
+    so that it runs after *all* tables exist.
+    Listening on timed_belief alone would be a bet on creation order,
+    because the trigger's function reads sensor_data_source,
+    and nothing guarantees that table gets created first.
+    PostgreSQL would in fact tolerate the wrong order today,
+    since a function written in its procedural language does not look up the tables it names until it first runs,
+    but depending on that is fragile.
+
+    Does nothing unless the database is PostgreSQL and both tables are present,
+    so another backend, or a create_all() that made only some tables, is left alone.
     """
     if connection.dialect.name != "postgresql":
         return

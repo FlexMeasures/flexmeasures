@@ -1,7 +1,7 @@
 """Tests for the sensor_data_source summary table."""
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select
 from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
@@ -94,8 +94,38 @@ def test_recording_the_pair_is_idempotent(setup_beliefs, db):
     assert len(matching) == 1
 
 
-def test_data_source_sensors_uses_the_summary(setup_beliefs, db):
-    """DataSource.sensors must find the sensor without reading timed_belief."""
+def test_accessors_read_the_summary_and_not_the_beliefs(setup_beliefs, db):
+    """Both accessors must answer from sensor_data_source, not from timed_belief.
+
+    Shown by writing a pair into the summary for which no belief exists at all.
+    An accessor reading timed_belief could not return it;
+    one reading the summary must.
+    """
+    sensor = get_test_sensor(db)
+    source = DataSource(name="Source with no beliefs at all", type="demo script")
+    db.session.add(source)
+    db.session.commit()
+
+    assert sensor not in source.sensors
+    assert source not in sensor.data_sources
+
+    db.session.add(SensorDataSource(sensor_id=sensor.id, source_id=source.id))
+    db.session.commit()
+
+    # No belief ties these two together, so only the summary can be the answer's source.
+    belief_count = db.session.execute(
+        select(func.count())
+        .select_from(TimedBelief)
+        .where(TimedBelief.sensor_id == sensor.id, TimedBelief.source_id == source.id)
+    ).scalar()
+    assert belief_count == 0
+
+    assert sensor in source.sensors
+    assert source in sensor.data_sources
+
+
+def test_data_source_sensors_reflects_a_saved_belief(setup_beliefs, db):
+    """Saving a belief must make the sensor show up on the source."""
     sensor = get_test_sensor(db)
     source = DataSource(name="Source listing sensors", type="demo script")
     db.session.add(source)
@@ -109,8 +139,8 @@ def test_data_source_sensors_uses_the_summary(setup_beliefs, db):
     assert sensor in source.sensors
 
 
-def test_sensor_data_sources_uses_the_summary(setup_beliefs, db):
-    """Sensor.data_sources must find the source, mirroring DataSource.sensors."""
+def test_sensor_data_sources_reflects_a_saved_belief(setup_beliefs, db):
+    """Saving a belief must make the source show up on the sensor, mirroring the above."""
     sensor = get_test_sensor(db)
     source = DataSource(name="Source found from sensor", type="demo script")
     db.session.add(source)
