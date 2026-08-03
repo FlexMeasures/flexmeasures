@@ -83,7 +83,7 @@ SELECT quote_ident(n.nspname) || '.' || quote_ident(i.relname)
 
 
 RESOLVE_SCHEMA = """
-SELECT n.nspname
+SELECT n.nspname, quote_ident(n.nspname)
   FROM pg_class t
   JOIN pg_namespace n ON n.oid = t.relnamespace
  WHERE t.relname = 'timed_belief'
@@ -93,12 +93,12 @@ SELECT n.nspname
 
 
 def upgrade():
-    schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).scalar_one()
+    raw_schema, _quoted_schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).one()
     names = (
         op.get_bind()
         .execute(
             sa.text(FIND_REDUNDANT_INDEXES),
-            {"columns": list(REDUNDANT_COLUMNS), "schema": schema},
+            {"columns": list(REDUNDANT_COLUMNS), "schema": raw_schema},
         )
         .scalars()
         .all()
@@ -112,7 +112,8 @@ def upgrade():
 
 def downgrade():
     # Recreate under the naming convention this project's metadata uses.
-    schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).scalar_one()
+    # The quoted form here, because it is interpolated into raw SQL.
+    _raw_schema, schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).one()
     for column in REDUNDANT_COLUMNS:
         with op.get_context().autocommit_block():
             op.execute(

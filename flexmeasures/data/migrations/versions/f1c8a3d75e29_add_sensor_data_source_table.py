@@ -47,40 +47,86 @@ depends_on = None
 logger = logging.getLogger("alembic.runtime.migration")
 
 
-def upgrade():
-    op.create_table(
-        "sensor_data_source",
-        sa.Column("sensor_id", sa.Integer(), nullable=False),
-        sa.Column("source_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["sensor_id"],
-            ["sensor.id"],
-            name=op.f("sensor_data_source_sensor_id_sensor_fkey"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["source_id"],
-            ["data_source.id"],
-            name=op.f("sensor_data_source_source_id_data_source_fkey"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint(
-            "sensor_id", "source_id", name=op.f("sensor_data_source_pkey")
-        ),
-    )
+CREATE_FUNCTION = """
+CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO sensor_data_source (sensor_id, source_id)
+    SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
+    ON CONFLICT DO NOTHING;
+    RETURN NULL;
+END;
+$$
+"""
 
-    # Backfill from the beliefs already stored.
-    # DISTINCT over the whole table is the one expensive step here,
-    # and it is also the last time we ever have to ask this question that way.
-    n_rows = (
-        op.get_bind()
-        .execute(
+CREATE_TRIGGER = """
+CREATE TRIGGER timed_belief_record_sensor_data_sources
+AFTER INSERT ON timed_belief
+REFERENCING NEW TABLE AS inserted_beliefs
+FOR EACH STATEMENT
+EXECUTE FUNCTION record_sensor_data_sources()
+"""
+
+BACKFILL = """
+INSERT INTO sensor_data_source (sensor_id, source_id)
+SELECT DISTINCT sensor_id, source_id FROM timed_belief
+ON CONFLICT DO NOTHING
+"""
+
+
+def upgrade():
+    connection = op.get_bind()
+
+    # Guarded, because the steps below commit as they go:
+    # a run that fails during the backfill leaves the table and trigger in place,
+    # and the retry has to get past this point.
+    if not sa.inspect(connection).has_table("sensor_data_source"):
+        op.create_table(
+            "sensor_data_source",
+            sa.Column("sensor_id", sa.Integer(), nullable=False),
+            sa.Column("source_id", sa.Integer(), nullable=False),
+            sa.ForeignKeyConstraint(
+                ["sensor_id"],
+                ["sensor.id"],
+                name=op.f("sensor_data_source_sensor_id_sensor_fkey"),
+                ondelete="CASCADE",
+            ),
+            sa.ForeignKeyConstraint(
+                ["source_id"],
+                ["data_source.id"],
+                name=op.f("sensor_data_source_source_id_data_source_fkey"),
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint(
+                "sensor_id", "source_id", name=op.f("sensor_data_source_pkey")
+            ),
+        )
+
+    # Install the trigger *before* the backfill, and commit it, so that it is live for
+    # other sessions while the backfill runs.
+    # The other order loses data:
+    # the backfill reads a snapshot taken when its statement began,
+    # so beliefs inserted while it runs are not in it,
+    # and a trigger created afterwards in the same transaction was not visible to those
+    # inserting sessions either, so nothing would ever record them.
+    # With this order the two overlap instead of leaving a gap,
+    # and ON CONFLICT DO NOTHING absorbs the overlap.
+    with op.get_context().autocommit_block():
+        op.execute(sa.text(CREATE_FUNCTION))
+        op.execute(
             sa.text(
-                "SELECT reltuples::bigint FROM pg_class WHERE relname = 'timed_belief'"
+                "DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources"
+                " ON timed_belief"
             )
         )
-        .scalar_one_or_none()
-    )
+        op.execute(sa.text(CREATE_TRIGGER))
+
+    # Backfill the beliefs that predate the trigger.
+    # DISTINCT over the whole table is the one expensive step here,
+    # and it is also the last time we ever have to ask this question that way.
+    n_rows = connection.execute(
+        sa.text("SELECT reltuples::bigint FROM pg_class WHERE relname = 'timed_belief'")
+    ).scalar_one_or_none()
     if n_rows is not None and n_rows > 1_000_000:
         message = (
             f"Summarising which sources recorded for which sensors"
@@ -90,41 +136,7 @@ def upgrade():
         print(message, flush=True)
         logger.info(message)
 
-    op.execute(
-        """
-        INSERT INTO sensor_data_source (sensor_id, source_id)
-        SELECT DISTINCT sensor_id, source_id FROM timed_belief
-        ON CONFLICT DO NOTHING
-        """
-    )
-
-    # Keep it current from the database side, so no insert path can bypass it.
-    # FOR EACH STATEMENT with a transition table means one upsert per insert statement,
-    # however many rows that statement carries,
-    # rather than one per row.
-    op.execute(
-        """
-        CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
-        LANGUAGE plpgsql AS $$
-        BEGIN
-            INSERT INTO sensor_data_source (sensor_id, source_id)
-            SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
-            ON CONFLICT DO NOTHING;
-            RETURN NULL;
-        END;
-        $$
-        """
-    )
-    op.execute(
-        """
-        DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources ON timed_belief;
-    CREATE TRIGGER timed_belief_record_sensor_data_sources
-        AFTER INSERT ON timed_belief
-        REFERENCING NEW TABLE AS inserted_beliefs
-        FOR EACH STATEMENT
-        EXECUTE FUNCTION record_sensor_data_sources()
-        """
-    )
+    op.execute(sa.text(BACKFILL))
 
 
 def downgrade():

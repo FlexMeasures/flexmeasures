@@ -150,8 +150,10 @@ def _swap_primary_key(order: list[str]) -> None:
             f"CREATE UNIQUE INDEX CONCURRENTLY {TEMP_INDEX}"
             f" ON {schema}.timed_belief ({', '.join(order)})"
         )
+    # Alembic quotes the schema itself, so it wants the raw name,
+    # not the quote_ident'd form used for raw-SQL interpolation.
     op.drop_constraint(
-        "timed_belief_pkey", "timed_belief", type_="primary", schema=schema
+        "timed_belief_pkey", "timed_belief", type_="primary", schema=raw_schema
     )
     # USING INDEX adopts the index we just built, so no rebuild happens under the lock.
     # PostgreSQL renames it to the constraint name.
