@@ -55,11 +55,17 @@ Default: ``False``
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
-We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
-Note that you need to install the solver, read more at :ref:`installing-a-solver`.
+The scheduling solver backend.
 
-Default: ``"appsi_highs"``
+The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
+This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
+
+Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
+Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
+
+Default: ``"highspy"``
 
 
 FLEXMEASURES_LP_SOLVER_OPTIONS

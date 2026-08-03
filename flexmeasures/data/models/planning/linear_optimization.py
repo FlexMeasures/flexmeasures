@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import math
+import inspect
+from functools import lru_cache
 
 from flask import current_app
 import pandas as pd
 import numpy as np
-from pandas.tseries.frequencies import to_offset
 from pyomo.core import (
     ConcreteModel,
     Var,
@@ -29,48 +29,99 @@ from flexmeasures.data.models.planning import (
     FlowCommitment,
     StockCommitment,
 )
-from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
+from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
+    aggregate_commodity_costs,
+    aggregate_subcommitment_costs,
+    convert_commitments_to_subcommitments,
+    loss_coefficients,
+    planned_power_per_device,
+    prepare_scheduling_problem,
+    solver_options,
+    validate_highs_options,
+)
 
 infinity = float("inf")
 
 
-def validate_highs_options(options: dict) -> None:
-    """Raise if HiGHS would refuse any of these options.
+def _left_at_default(value, default) -> bool:
+    """Whether an argument was left at its default.
 
-    Pyomo's appsi_highs interface applies solver options without checking HiGHS'
-    return status, so an unknown name, an invalid value, or a feature missing from
-    the installed HiGHS build is otherwise ignored without a word. That silently
-    turns a mis-typed option into a no-op, and a benchmark of it into a false
-    negative. Probing a throwaway Highs instance surfaces the rejection instead.
+    Best-effort: pandas values compare element-wise, so ``value == default`` may return an array (or raise) rather than a bool.
+    Anything we cannot decide is reported as "not the default",
+    which errs towards raising in :func:`_arguments_for_highspy_backend` rather than silently dropping a value.
     """
+    if value is default:
+        return True
+    if default is inspect.Parameter.empty:
+        return False
     try:
-        import highspy
-    except ImportError:
-        # Solver named "*highs*" but highspy absent: let the solver interface complain.
-        return
+        return bool(value == default)
+    except (TypeError, ValueError):
+        return False
 
-    probe = highspy.Highs()
-    probe.setOptionValue("output_flag", False)
-    rejected = [
-        f"{name}={value!r}"
-        for name, value in options.items()
-        if probe.setOptionValue(name, value) != highspy.HighsStatus.kOk
-    ]
-    if rejected:
-        raise ValueError(
-            f"HiGHS rejected these FLEXMEASURES_LP_SOLVER_OPTIONS: {', '.join(rejected)}."
-            " The option name may be unknown, the value invalid, or the feature absent"
-            " from this HiGHS build. For example, the HiPO solver (solver='hipo') needs"
-            " a HiGHS built against BLAS and METIS, which the pip-installed highspy is not."
-        )
 
-    if "threads" in options or "parallel" in options:
-        current_app.logger.warning(
-            "FLEXMEASURES_LP_SOLVER_OPTIONS sets 'threads' and/or 'parallel'. HiGHS"
-            " initializes its thread scheduler once per process, so inside a long-lived"
-            " worker only the first solve honours these; later solves fail with 'global"
-            " scheduler has already been initialized' and yield no schedule."
+@lru_cache(maxsize=None)
+def _backend_argument_map(declared_by, supported_by) -> tuple[frozenset, tuple]:
+    """Which of ``declared_by``'s arguments ``supported_by`` accepts, and which it lacks.
+
+    Signatures are static, so this is computed once per process (roughly 70 us, which is not worth paying on every schedule).
+    Caching on the two function objects rather than on nothing keeps it correct when a test substitutes one of them.
+    """
+    declared = inspect.signature(declared_by).parameters
+    supported = frozenset(inspect.signature(supported_by).parameters)
+    missing = tuple(
+        (name, parameter.default)
+        for name, parameter in declared.items()
+        if name not in supported
+    )
+    return frozenset(declared) & supported, missing
+
+
+def _arguments_for_highspy_backend(passed_arguments: dict) -> dict:
+    """Map ``device_scheduler``'s arguments onto the direct HiGHS backend's signature.
+
+    A hand-written keyword list here would be a trap:
+    whoever adds the next ``device_scheduler`` parameter naturally works on the Pyomo model further down this file,
+    and a parameter missing from that list would not fail — it would simply never reach the backend.
+    Under ``FLEXMEASURES_LP_SOLVER="highspy"`` (the default),
+    that yields a schedule computed as if the constraint had never been requested:
+    plausible-looking, silently wrong, and not caught by tests written before the default was flipped.
+
+    Forwarding by name removes that failure mode entirely.
+    The remaining case — an argument the direct backend does not model at all —
+    is caught statically by ``test_every_device_scheduler_argument_currently_reaches_the_backend``, so it cannot reach a release.
+    The raise below is only a backstop for a build where that test did not run;
+    it costs nothing while the signatures agree.
+
+    This is a live concern rather than a hypothetical one:
+    ``device_scheduler`` is gaining ``coupling_groups`` (#2218) and ``balance_groups`` (#2289) on branches in flight,
+    and each needs explicit support here.
+    """
+    from flexmeasures.data.models.planning.highspy_optimization import (
+        device_scheduler_highspy,
+    )
+
+    forwardable, missing = _backend_argument_map(
+        device_scheduler, device_scheduler_highspy
+    )
+    if missing:
+        in_use = sorted(
+            name
+            for name, default in missing
+            if not _left_at_default(passed_arguments[name], default)
         )
+        if in_use:
+            raise NotImplementedError(
+                "The direct HiGHS backend (FLEXMEASURES_LP_SOLVER='highspy') does not"
+                f" model these device_scheduler arguments: {', '.join(in_use)}."
+                " Add support for them in"
+                " flexmeasures.data.models.planning.highspy_optimization (and extend"
+                " tests/test_highspy_equivalence.py), or configure a Pyomo-based"
+                " solver such as 'appsi_highs'."
+            )
+    return {
+        name: value for name, value in passed_arguments.items() if name in forwardable
+    }
 
 
 def device_scheduler(  # noqa C901
@@ -153,317 +204,57 @@ def device_scheduler(  # noqa C901
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
 
+    # The "highspy" solver choice bypasses Pyomo altogether:
+    # the same model is built directly with the HiGHS Python API (much faster to construct).
+    # See the highspy_optimization module, which mirrors the model built below and returns compatible result objects.
+    if current_app.config.get("FLEXMEASURES_LP_SOLVER") == "highspy":
+        # Arguments are forwarded by name,
+        # and an argument the direct backend cannot model raises rather than being dropped.
+        # See _arguments_for_highspy_backend.
+        highspy_arguments = _arguments_for_highspy_backend(locals())
+
+        from flexmeasures.data.models.planning.highspy_optimization import (
+            device_scheduler_highspy,
+        )
+
+        return device_scheduler_highspy(**highspy_arguments)
+
     model = ConcreteModel()
 
     # If the EMS has no devices, don't bother
     if len(device_constraints) == 0:
         return [], 0, SolverResults(), model
 
-    # Get timing from first device
-    start = device_constraints[0].index.to_pydatetime()[0]
-    # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
-    resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
-    end = device_constraints[0].index.to_pydatetime()[-1] + resolution
+    problem = prepare_scheduling_problem(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitment_quantities=commitment_quantities,
+        commitment_downwards_deviation_price=commitment_downwards_deviation_price,
+        commitment_upwards_deviation_price=commitment_upwards_deviation_price,
+        commitments=commitments,
+        initial_stock=initial_stock,
+        stock_groups=stock_groups,
+        ems_constraint_groups=ems_constraint_groups,
+        device_power_bands=device_power_bands,
+        coupling_groups=coupling_groups,
+    )
 
-    # Normalise EMS constraints to a list of (DataFrame, device-group) pairs.
-    # A single DataFrame (legacy behaviour) applies to the summed flow of all devices;
-    # a list of DataFrames applies one EMS-level constraint per device group, as set up
-    # per commodity by the StorageScheduler.
-    all_devices = list(range(len(device_constraints)))
-    if isinstance(ems_constraints, pd.DataFrame):
-        ems_constraints_list = [ems_constraints]
-        ems_constraint_device_groups = [all_devices]
-    else:
-        ems_constraints_list = ems_constraints
-        if ems_constraint_groups is None:
-            if len(ems_constraints_list) > 1:
-                raise ValueError(
-                    "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
-                )
-            ems_constraint_device_groups = [all_devices for _ in ems_constraints_list]
-        else:
-            ems_constraint_device_groups = ems_constraint_groups
-
-    # map device -> primary stock group (used for per-device stock bounds)
-    # and map stock group -> all member devices (used for stock accumulation).
-    device_to_group = {}
-    group_to_devices: dict[str, list[int]] = {}
-
-    # Group keys are namespaced strings: a declared stock group's key (a state-of-charge
-    # sensor id) could otherwise collide with the device index of an ungrouped device,
-    # silently merging that device into the stock group.
-    #
-    # A device may belong to more than one stock group — a commodity converter (e.g. a
-    # steamer bridging a heat node and a steam node) participates in every node it
-    # touches, so ``group_to_devices`` keeps the full (possibly overlapping) membership.
-    # ``device_to_group`` records only the primary group (first assignment wins), used
-    # where a single owning group is needed (per-device stock bounds).
-    if stock_groups:
-        for g, devices in stock_groups.items():
-            gkey = f"stock:{g}"
-            group_to_devices[gkey] = list(devices)
-            for d in devices:
-                device_to_group.setdefault(d, gkey)
-    # Devices not in any stock group (e.g. inflexible devices) form individual groups.
-    for d in range(len(device_constraints)):
-        if d not in device_to_group:
-            gkey = f"device:{d}"
-            device_to_group[d] = gkey
-            group_to_devices[gkey] = [d]
-
-    # The stock recursion is modelled once per stock group, using the group's shared
-    # storage efficiency, so devices sharing a stock may not declare different ones.
-    for g, group_devices in group_to_devices.items():
-        if len(group_devices) > 1:
-            # A missing efficiency column means the default (no losses) applies.
-            group_efficiency = device_constraints[group_devices[0]].get("efficiency")
-            for d in group_devices[1:]:
-                efficiency = device_constraints[d].get("efficiency")
-                if (
-                    (efficiency is None) != (group_efficiency is None)
-                    or efficiency is not None
-                    and not efficiency.equals(group_efficiency)
-                ):
-                    raise ValueError(
-                        f"Devices {group_devices} share stock group {g} but have different"
-                        " storage efficiencies. The storage efficiency is a property of the"
-                        " shared stock, so define it once per stock group."
-                    )
-            if isinstance(initial_stock, list):
-                group_initial_stocks = {
-                    initial_stock[d] if d < len(initial_stock) else 0
-                    for d in group_devices
-                }
-                if len(group_initial_stocks) > 1:
-                    raise ValueError(
-                        f"Devices {group_devices} share stock group {g} but have different"
-                        " initial stocks. The initial stock is a property of the shared"
-                        " stock, so define it once per stock group."
-                    )
-
-    # Collect (group_index, device_index, coefficient) triples for coupling constraints.
-    # Each device in each group will be constrained: P[d, j] == coeff * alpha[group, j]
-    # where alpha is a free variable representing the common normalised flow.
-    coupling_device_specs: list[tuple[int, int, float]] = []
-    if coupling_groups:
-        for g_idx, (_group_name, members) in enumerate(coupling_groups.items()):
-            for d_idx, coeff in members:
-                coupling_device_specs.append((g_idx, d_idx, coeff))
-
-    # Move commitments from old structure to new
-    if commitments is None:
-        commitments = []
-    else:
-        commitments = [
-            c.to_frame() if isinstance(c, Commitment) else c for c in commitments
-        ]
-    if commitment_quantities is not None:
-        for quantity, down, up in zip(
-            commitment_quantities,
-            commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price,
-        ):
-
-            # Turn prices per commitment into prices per commitment flow
-            if all(isinstance(price, float) for price in down) or isinstance(
-                down, float
-            ):
-                down = initialize_series(down, start, end, resolution)
-            if all(isinstance(price, float) for price in up) or isinstance(up, float):
-                up = initialize_series(up, start, end, resolution)
-
-            group = initialize_series(list(range(len(down))), start, end, resolution)
-            df = initialize_df(
-                ["quantity", "downwards deviation price", "upwards deviation price"],
-                start,
-                end,
-                resolution,
-            )
-            df["quantity"] = quantity
-            df["downwards deviation price"] = down
-            df["upwards deviation price"] = up
-            df["group"] = group
-            commitments.append(df)
-
-    # commodity → set(device indices)
-    commodity_devices = {}
-
-    for df in commitments:
-        if "commodity" not in df.columns or "device" not in df.columns:
-            continue
-
-        for _, row in df[["commodity", "device"]].dropna().iterrows():
-            devices = row["device"]
-            if not isinstance(devices, (list, tuple, set)):
-                devices = [devices]
-
-            commodity_devices.setdefault(row["commodity"], set()).update(devices)
-
-    # Check if commitments have the same time window and resolution as the constraints
-    for commitment in commitments:
-        start_c = commitment.index.to_pydatetime()[0]
-        resolution_c = pd.to_timedelta(commitment.index.freq)
-        end_c = commitment.index.to_pydatetime()[-1] + resolution
-        if not (start_c == start and end_c == end):
-            raise Exception(
-                "Not implemented for different time windows.\n(%s,%s)\n(%s,%s)"
-                % (start, end, start_c, end_c)
-            )
-        if resolution_c != resolution:
-            raise Exception(
-                "Not implemented for different resolutions.\n%s\n%s"
-                % (resolution, resolution_c)
-            )
-
-    def convert_commitments_to_subcommitments(
-        dfs: list[pd.DataFrame],
-    ) -> tuple[list[pd.DataFrame], dict[int, int]]:
-        """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
-
-        'Groups' are a commitment concept (grouping time slots of a commitment),
-        making it possible that deviations/breaches can be accounted for properly within this group
-        (e.g. highest breach per calendar month defines the penalty).
-        Here, we define sub-commitments, by separating commitments by group and by direction of deviation (up, down).
-
-        We also enumerate the time steps in a new column "j".
-
-        For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
-        we return (sub)commitments A1, A2, A3, B1, B2 and B3,
-        where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
-        """
-        commitment_mapping = {}
-        sub_commitments = []
-        for c, df in enumerate(dfs):
-            # Make sure each commitment has "device" (default NaN) and "class" (default FlowCommitment) columns
-            if "device" not in df.columns:
-                df["device"] = np.nan
-            if "class" not in df.columns:
-                df["class"] = FlowCommitment
-
-            df["j"] = range(len(df.index))
-            groups = list(df["group"].unique())
-            for group in groups:
-                sub_commitment = df[df["group"] == group].drop(columns=["group"])
-
-                # Catch non-uniqueness
-                if len(sub_commitment["upwards deviation price"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique upwards deviation prices."
-                    )
-                if len(sub_commitment["downwards deviation price"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique downwards deviation prices."
-                    )
-                if len(sub_commitment) == 1:
-                    commitment_mapping[len(sub_commitments)] = c
-                    sub_commitments.append(sub_commitment)
-                else:
-                    down_commitment = sub_commitment.copy().drop(
-                        columns="upwards deviation price"
-                    )
-                    up_commitment = sub_commitment.copy().drop(
-                        columns="downwards deviation price"
-                    )
-                    commitment_mapping[len(sub_commitments)] = c
-                    commitment_mapping[len(sub_commitments) + 1] = c
-                    sub_commitments.extend([down_commitment, up_commitment])
-        return sub_commitments, commitment_mapping
-
-    commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
-
-    device_group_lookup = {}
-
-    for c, df in enumerate(commitments):
-        # Stock-scoped commitments couple to their stock group as a whole, regardless
-        # of which device index they name: the group's first device carries the group's
-        # stock, so a single-member group suffices (also avoiding double-counting the
-        # shared stock when the commitment names multiple members).
-        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
-            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
-            if stock_group_key in group_to_devices:
-                device_group_lookup[c] = {
-                    stock_group_key: {group_to_devices[stock_group_key][0]}
-                }
-                continue
-
-        if "device" not in df.columns:
-            # EMS-level commitment: no device grouping needed here;
-            # handled by ems_flow_commitment_equalities.
-            continue
-
-        has_device_group = "device_group" in df.columns
-        if has_device_group:
-            rows = df[["device", "device_group"]].dropna()
-        else:
-            # Backwards-compatible default: each device is its own group.
-            # This preserves the behaviour of old-style DataFrame commitments that
-            # pre-date the device_group feature (e.g. from initialize_device_commitment).
-            rows = df[["device"]].dropna()
-
-        device_group_lookup[c] = {}
-
-        for _, row in rows.iterrows():
-            d = row["device"]
-            # When no device_group column is present, use the device id itself as
-            # the group label so that each device forms an independent group.
-            g = row["device_group"] if has_device_group else d
-
-            if isinstance(d, (list, tuple, set, np.ndarray)):
-                devices = set(d)
-            else:
-                devices = {d}
-
-            device_group_lookup[c].setdefault(g, set()).update(devices)
-
-    # Oversimplified check for a convex cost curve
-    df = pd.concat(commitments)[
-        ["upwards deviation price", "downwards deviation price"]
-    ]
-    df = df.groupby(level=0).sum()
-    if len(df[df["upwards deviation price"] < df["downwards deviation price"]]) == 0:
-        convex_cost_curve = True
-    else:
-        convex_cost_curve = False
-
-    bigM_columns = ["derivative max", "derivative min", "derivative equals"]
-    # Compute a good value for our Big-Ms
-    # Md is used to constrain the search space for device power
-    # Mc is used to constrain the search space for commitment deviations
-    Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
-    Mc = np.nansum([np.nansum(d[bigM_columns].abs()) for d in device_constraints])
-
-    # Both Md and Mc have to be 1 MW, at least
-    Md = max(Md, 1)
-    Mc = max(Mc, 1)
-
-    for d in range(len(device_constraints)):
-        if "stock delta" not in device_constraints[d].columns:
-            device_constraints[d]["stock delta"] = 0
-        else:
-            device_constraints[d]["stock delta"] = (
-                device_constraints[d]["stock delta"].astype(float).fillna(0)
-            )
-
-    # Look up power bands (S2 operation modes) per device
-    if device_power_bands is None:
-        device_power_bands = [None] * len(device_constraints)
-    elif len(device_power_bands) != len(device_constraints):
-        raise ValueError(
-            f"device_power_bands lists {len(device_power_bands)} devices, "
-            f"while device_constraints lists {len(device_constraints)} devices."
-        )
-    band_lookup: dict[int, list[tuple[float, float]]] = {
-        d: list(bands)
-        for d, bands in enumerate(device_power_bands)
-        if bands is not None and len(bands) > 0
-    }
-    for d, bands in band_lookup.items():
-        for band in bands:
-            if len(band) != 2 or band[0] > band[1]:
-                raise ValueError(
-                    f"Invalid power band {band} for device {d}: "
-                    f"expected a (min, max) pair with min <= max."
-                )
+    # Local aliases,
+    # so that the model below reads as it did before the (solver-agnostic) input handling moved to the scheduling_problem module.
+    start, end, resolution = problem.start, problem.end, problem.resolution
+    device_constraints = problem.device_constraints
+    ems_constraints_list = problem.ems_constraints_list
+    ems_constraint_device_groups = problem.ems_constraint_device_groups
+    device_to_group = problem.device_to_group
+    group_to_devices = problem.group_to_devices
+    commitments = problem.commitments
+    commitment_mapping = problem.commitment_mapping
+    device_group_lookup = problem.device_group_lookup
+    convex_cost_curve = problem.convex_cost_curve
+    Md, Mc = problem.Md, problem.Mc
+    band_lookup = problem.band_lookup
+    _initial_stock_of = problem.initial_stock_of
+    coupling_device_specs = problem.coupling_device_specs
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -695,12 +486,6 @@ def device_scheduler(  # noqa C901
     )
     model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
-    def _initial_stock_of(d):
-        if isinstance(initial_stock, list):
-            # No initial stock defined for inflexible device
-            return initial_stock[d] if d < len(initial_stock) else 0
-        return initial_stock
-
     def _stock_change_at(m, g, j):
         """Stock change of stock group g during time step j (before losses)."""
         return sum(
@@ -709,19 +494,6 @@ def device_scheduler(  # noqa C901
             + m.stock_delta[dev, j]
             for dev in group_to_devices[g]
         )
-
-    def _loss_coefficients(efficiency: float) -> tuple[float, float]:
-        """Coefficients (a, b) of one step of the stock recursion, for `how="linear"`.
-
-        stock[j] = a * stock[j-1] + b * change[j]
-
-        Mirrors :func:`apply_stock_changes_and_losses`, which we cannot call here
-        because it expects numbers, while `change[j]` is a Pyomo expression. The
-        storage efficiency is a Param, so `a` and `b` are plain floats.
-        """
-        if efficiency == 1:
-            return 1.0, 1.0
-        return efficiency, (efficiency - 1) / math.log(efficiency)
 
     def group_stock_balance(m, g, j):
         """Recursively couple a stock group's stock to the previous step's stock.
@@ -734,7 +506,7 @@ def device_scheduler(  # noqa C901
         (validated above), so the first device can represent the group here.
         """
         d0 = group_to_devices[g][0]
-        a, b = _loss_coefficients(m.device_efficiency[d0, j])
+        a, b = loss_coefficients(m.device_efficiency[d0, j])
         previous = m.group_stock[g, j - 1] if j > 0 else _initial_stock_of(d0)
         return m.group_stock[g, j] == a * previous + b * _stock_change_at(m, g, j)
 
@@ -806,6 +578,14 @@ def device_scheduler(  # noqa C901
         if commitments[c]["class"].iloc[0] != FlowCommitment:
             return Constraint.Skip
 
+        # A device-scoped commitment is already bound, once per device group, by grouped_commitment_equalities.
+        # Now that this constraint family actually has bounds,
+        # binding such a commitment here as well would constrain the same deviation variables a second time,
+        # against a different device set (the whole EMS, or the whole commodity).
+        # Only genuinely EMS-level commitments -- those naming no device -- belong here.
+        if device_group_lookup.get(c):
+            return Constraint.Skip
+
         # Legacy behavior: no commodity → sum over all devices
         if "commodity" not in commitments[c].columns:
             devices = m.d
@@ -814,17 +594,17 @@ def device_scheduler(  # noqa C901
             if pd.isna(commodity):
                 devices = m.d
             else:
-                devices = commodity_devices.get(commodity, set())
+                devices = problem.commodity_devices.get(commodity, set())
                 if not devices:
                     return Constraint.Skip
 
         return (
-            None,
+            0 if "upwards deviation price" in commitments[c].columns else None,
             m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[d, j] for d in devices),
-            None,
+            0 if "downwards deviation price" in commitments[c].columns else None,
         )
 
     def device_derivative_equalities(m, d, j):
@@ -973,27 +753,9 @@ def device_scheduler(  # noqa C901
         if cbc_path is not None:
             solver.set_executable(cbc_path)
 
-    # Set tight tolerance for HiGHS solver
-    profile = {}
-    if "highs" in solver_name.lower():
-        profile = {
-            "mip_rel_gap": "0",
-            "mip_abs_gap": "0",
-            "primal_feasibility_tolerance": "1e-9",
-            "dual_feasibility_tolerance": "1e-9",
-            "mip_feasibility_tolerance": "1e-9",
-        }
-        # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-        if current_app.config["LOGGING_LEVEL"] == "INFO":
-            profile["output_flag"] = "false"
-
-    # Apply operator-configured options last, so they override the defaults above.
-    configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}
-    if configured_options and "highs" in solver_name.lower():
-        validate_highs_options(configured_options)
-    profile.update(configured_options)
-
-    for option_name, option_value in profile.items():
+    # Tight tolerances for HiGHS, then operator-configured options last
+    # (shared with the direct HiGHS backend, so both apply the same settings).
+    for option_name, option_value in solver_options(solver_name).items():
         solver.options[option_name] = option_value
 
     # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
@@ -1005,44 +767,21 @@ def device_scheduler(  # noqa C901
 
     planned_costs = value(model.costs)
     subcommitment_costs = {g: value(cost) for g, cost in model.commitment_costs.items()}
-    commitment_costs = {}
 
-    # Map subcommitment costs to commitments
-    for g, v in subcommitment_costs.items():
-        c = commitment_mapping[g]
-        commitment_costs[c] = commitment_costs.get(c, 0) + v
+    planned_power = planned_power_per_device(
+        ([model.ems_power[d, j].value for j in model.j] for d in model.d),
+        start,
+        end,
+        resolution,
+    )
 
-    planned_power_per_device = []
-    for d in model.d:
-        planned_device_power = [model.ems_power[d, j].value for j in model.j]
-        planned_power_per_device.append(
-            initialize_series(
-                data=planned_device_power,
-                start=start,
-                end=end,
-                resolution=to_offset(resolution),
-            )
-        )
-
-    model.commitment_costs = commitment_costs
-    commodity_costs = {}
-    for c in model.c:
-        commodity = None
-        if "commodity" in commitments[c].columns:
-            commodity = commitments[c]["commodity"].iloc[0]
-        if commodity is None or (isinstance(commodity, float) and np.isnan(commodity)):
-            continue
-
-        cost = value(
-            model.commitment_downwards_deviation[c] * model.down_price[c]
-            + model.commitment_upwards_deviation[c] * model.up_price[c]
-        )
-        commodity_costs[commodity] = commodity_costs.get(commodity, 0) + cost
-
-    model.commodity_costs = commodity_costs
+    model.commitment_costs = aggregate_subcommitment_costs(
+        subcommitment_costs, commitment_mapping
+    )
+    model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
 
     # model.pprint()
     # model.display()
     # print(results.solver.termination_condition)
     # print(planned_costs)
-    return planned_power_per_device, planned_costs, results, model
+    return planned_power, planned_costs, results, model

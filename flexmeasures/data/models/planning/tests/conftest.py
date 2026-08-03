@@ -14,11 +14,12 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.utils.unit_utils import ur
 
 
-@pytest.fixture(params=["appsi_highs", "cbc"])
+@pytest.fixture(params=["appsi_highs", "cbc", "highspy"])
 def app_with_each_solver(app, request):
     """Set up the app config to run with different solvers.
 
-    A test that uses this fixture runs all of its test cases with HiGHS and then again with Cbc.
+    A test that uses this fixture runs all of its test cases with HiGHS (via Pyomo),
+    then with Cbc, and then with HiGHS again (via the direct highspy backend).
     """
     original_solver = app.config["FLEXMEASURES_LP_SOLVER"]
     app.config["FLEXMEASURES_LP_SOLVER"] = request.param
