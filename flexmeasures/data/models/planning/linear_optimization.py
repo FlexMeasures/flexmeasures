@@ -133,6 +133,7 @@ def device_scheduler(  # noqa C901
     commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
+    coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
@@ -172,6 +173,15 @@ def device_scheduler(  # noqa C901
                                     device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
+    :param coupling_groups:     Hard flow-coupling constraints between devices. Each entry maps a group name to a list of
+                                ``(device_index, coefficient)`` tuples. A decision variable ``alpha`` is introduced per group
+                                per time step and every device ``d`` in the group is constrained by ``P[d, j] == coeff_d * alpha[group, j]``.
+                                Sign convention: positive coefficient for input devices (consuming, positive ``ems_power``),
+                                negative coefficient for output devices (producing, negative ``ems_power``).
+                                Example — a CHP with gas input (d=0, coeff 1.0), heat output (d=1, coeff −0.5) and
+                                power output (d=2, coeff −0.3)::
+
+                                    coupling_groups={"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
     :param device_power_bands:  optional per-device list of signed power bands (min, max), in flow units
                                 (e.g. MW, positive for consumption). A device with bands must operate within
                                 one of its bands at every time step (see S2 operation modes); this introduces
@@ -226,6 +236,7 @@ def device_scheduler(  # noqa C901
         stock_groups=stock_groups,
         ems_constraint_groups=ems_constraint_groups,
         device_power_bands=device_power_bands,
+        coupling_groups=coupling_groups,
     )
 
     # Local aliases,
@@ -243,6 +254,7 @@ def device_scheduler(  # noqa C901
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     _initial_stock_of = problem.initial_stock_of
+    coupling_device_specs = problem.coupling_device_specs
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -639,6 +651,29 @@ def device_scheduler(  # noqa C901
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
+
+    if coupling_device_specs:
+        n_coupling_groups = len(coupling_groups)
+
+        # One free variable per group per time step: the common normalised flow.
+        model.coupling_group_range = RangeSet(0, n_coupling_groups - 1)
+        model.coupling_alpha = Var(model.coupling_group_range, model.j, domain=Reals)
+
+        model.coupling_device_range = RangeSet(0, len(coupling_device_specs) - 1)
+
+        def flow_coupling_rule(m, c, j):
+            """Enforce P[d, j] == coeff * alpha[group, j] for each coupled device.
+
+            This pins every device's flow to the same normalised level ``alpha``,
+            scaled by its coupling coefficient. The coefficient sign indicates direction:
+            positive for inputs (consuming), negative for outputs (producing).
+            """
+            g, d, coeff = coupling_device_specs[c]
+            return m.ems_power[d, j] == coeff * m.coupling_alpha[g, j]
+
+        model.flow_coupling_constraints = Constraint(
+            model.coupling_device_range, model.j, rule=flow_coupling_rule
+        )
 
     # Power bands (S2 operation modes): a banded device must operate within
     # exactly one of its declared signed power ranges at every time step.

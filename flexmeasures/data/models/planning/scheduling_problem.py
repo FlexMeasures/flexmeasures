@@ -219,6 +219,9 @@ class SchedulingProblem:
     #: device index -> its signed power bands (S2 operation modes)
     band_lookup: dict[int, list[tuple[float, float]]]
 
+    #: (group index, device index, coefficient) triples for hard flow-coupling constraints
+    coupling_device_specs: list[tuple[int, int, float]]
+
     initial_stock: float | list[float]
 
     #: The commitments as passed in, before the sub-commitment split.
@@ -268,6 +271,7 @@ def prepare_scheduling_problem(  # noqa C901
     stock_groups: dict[int, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
+    coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
 ) -> SchedulingProblem:
     """Normalise and validate ``device_scheduler``'s arguments into a SchedulingProblem.
 
@@ -302,22 +306,29 @@ def prepare_scheduling_problem(  # noqa C901
     # map device -> primary stock group (used for per-device stock bounds)
     # and map stock group -> all member devices (used for stock accumulation).
     device_to_group = {}
+    group_to_devices: dict[str, list[int]] = {}
 
-    # Group keys are namespaced strings: a declared stock group's key (a state-of-charge
-    # sensor id) could otherwise collide with the device index of an ungrouped device,
+    # Group keys are namespaced strings: a declared stock group's key (a state-of-charge sensor id)
+    # could otherwise collide with the device index of an ungrouped device,
     # silently merging that device into the stock group.
+    #
+    # A device may belong to more than one stock group —
+    # a commodity converter (e.g. a steamer bridging a heat node and a steam node) participates in every node it touches,
+    # so ``group_to_devices`` keeps the full (possibly overlapping) membership.
+    # ``device_to_group`` records only the primary group (first assignment wins),
+    # used where a single owning group is needed (per-device stock bounds).
     if stock_groups:
         for g, devices in stock_groups.items():
+            gkey = f"stock:{g}"
+            group_to_devices[gkey] = list(devices)
             for d in devices:
-                device_to_group[d] = f"stock:{g}"
+                device_to_group.setdefault(d, gkey)
     # Devices not in any stock group (e.g. inflexible devices) form individual groups.
     for d in range(len(device_constraints)):
         if d not in device_to_group:
-            device_to_group[d] = f"device:{d}"
-
-    group_to_devices: dict[str, list[int]] = {}
-    for d, g in device_to_group.items():
-        group_to_devices.setdefault(g, []).append(d)
+            gkey = f"device:{d}"
+            device_to_group[d] = gkey
+            group_to_devices[gkey] = [d]
 
     # The stock recursion is modelled once per stock group, using the group's shared
     # storage efficiency, so devices sharing a stock may not declare different ones.
@@ -348,6 +359,15 @@ def prepare_scheduling_problem(  # noqa C901
                         " initial stocks. The initial stock is a property of the shared"
                         " stock, so define it once per stock group."
                     )
+
+    # Collect (group_index, device_index, coefficient) triples for coupling constraints.
+    # Each device in each group will be constrained: P[d, j] == coeff * alpha[group, j],
+    # where alpha is a free variable representing the common normalised flow.
+    coupling_device_specs: list[tuple[int, int, float]] = []
+    if coupling_groups:
+        for g_idx, (_group_name, members) in enumerate(coupling_groups.items()):
+            for d_idx, coeff in members:
+                coupling_device_specs.append((g_idx, d_idx, coeff))
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -525,6 +545,7 @@ def prepare_scheduling_problem(  # noqa C901
         Md=Md,
         Mc=Mc,
         band_lookup=band_lookup,
+        coupling_device_specs=coupling_device_specs,
         initial_stock=initial_stock,
         original_commitments=original_commitments,
     )

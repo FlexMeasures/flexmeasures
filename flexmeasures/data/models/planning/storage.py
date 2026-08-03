@@ -64,7 +64,6 @@ from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
 
-
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
 
@@ -175,6 +174,10 @@ class MetaStorageScheduler(Scheduler):
             for stock_key, group_devices in self.stock_groups.items()
             for d in group_devices
         }
+
+        # The coupling groups (converter ports sharing a coupling name) also derive from the inventory,
+        # with signed coefficients per canonical device index.
+        self.coupling_groups = inventory.coupling_groups
 
         # Group entries (intermediate power constraints on groups of devices, e.g. a
         # sub-EMS) come classified from the inventory, together with the resolved
@@ -3326,6 +3329,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            coupling_groups=self.coupling_groups if self.coupling_groups else None,
             device_power_bands=[
                 dc.attrs.get("operation_modes") for dc in device_constraints
             ],

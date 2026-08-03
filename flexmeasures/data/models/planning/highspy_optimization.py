@@ -223,6 +223,7 @@ def device_scheduler_highspy(  # noqa C901
     stock_groups: dict[int, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
+    coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
 ) -> tuple[list[pd.Series], float, HighspySolverResults, HighspyModel]:
     """Direct HiGHS implementation of ``device_scheduler``.
 
@@ -253,6 +254,7 @@ def device_scheduler_highspy(  # noqa C901
         stock_groups=stock_groups,
         ems_constraint_groups=ems_constraint_groups,
         device_power_bands=device_power_bands,
+        coupling_groups=coupling_groups,
     )
 
     # Local aliases, so that the model below reads as it did before the (solver-agnostic)
@@ -269,6 +271,7 @@ def device_scheduler_highspy(  # noqa C901
     convex_cost_curve = problem.convex_cost_curve
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
+    coupling_device_specs = problem.coupling_device_specs
     _initial_stock_of = problem.initial_stock_of
 
     # ---------------------------------------------------------------
@@ -346,6 +349,11 @@ def device_scheduler_highspy(  # noqa C901
     for i, (d, b) in enumerate(band_pairs):
         band_col[(d, b)] = col_band + i * T
     ncol += len(band_pairs) * T
+
+    # coupling_alpha[g, j]: the group's common normalised flow (free variable).
+    n_coupling_groups = 1 + max((g for g, _, _ in coupling_device_specs), default=-1)
+    col_alpha = ncol
+    ncol += n_coupling_groups * T
 
     lower = np.full(ncol, -infinity)
     upper = np.full(ncol, infinity)
@@ -626,6 +634,20 @@ def device_scheduler_highspy(  # noqa C901
                 [1.0, 1.0] + [-float(bands[b][1]) for b in range(len(bands))], (T, 1)
             ),
         )
+
+    # flow_coupling_constraints: pin every coupled device's flow to the group's
+    # common normalised flow, scaled by its coefficient:
+    #   ems_power[d, j] - coeff * alpha[g, j] == 0
+    # The coefficient's sign gives the direction (positive for inputs, negative for outputs).
+    if coupling_device_specs:
+        js = np.arange(T)
+        for g, d, coeff in coupling_device_specs:
+            rows.add_uniform_rows(
+                np.zeros(T),
+                np.zeros(T),
+                np.column_stack([col_ems + int(d) * T + js, col_alpha + g * T + js]),
+                np.tile([1.0, -float(coeff)], (T, 1)),
+            )
 
     # ---------------------------------------------------------------
     # Build and solve the HiGHS model

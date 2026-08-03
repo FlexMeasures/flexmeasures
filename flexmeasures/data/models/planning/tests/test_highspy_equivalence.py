@@ -317,6 +317,40 @@ def scenario_ems_level_commodity_commitment():
     )
 
 
+def make_flow_device(derivative_min: float, derivative_max: float) -> pd.DataFrame:
+    """A device with no stock limits, free to flow within the given band."""
+    device_constraints = initialize_df(COLUMNS, START, END, RESOLUTION)
+    device_constraints["min"] = -1000
+    device_constraints["max"] = 1000
+    device_constraints["derivative min"] = derivative_min
+    device_constraints["derivative max"] = derivative_max
+    return device_constraints
+
+
+def scenario_chp_coupling_groups():
+    """A CHP whose gas input, heat output and power output are hard-coupled.
+
+    Every device's flow is pinned to the group's common normalised flow, scaled by its coefficient,
+    so the direct backend has to model coupling_groups or the three devices move independently.
+    """
+    index = make_index()
+    prices = make_prices(index)
+    return dict(
+        device_constraints=[
+            make_flow_device(0, 1),  # gas in
+            make_flow_device(-1, 0),  # heat out
+            make_flow_device(-1, 0),  # power out
+        ],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            make_energy_commitment(index, prices, devices=2),
+            make_energy_commitment(index, -prices / 4, devices=0),
+        ],
+        initial_stock=[0.0, 0.0, 0.0],
+        coupling_groups={"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]},
+    )
+
+
 @pytest.mark.parametrize(
     "make_scenario",
     [
@@ -326,6 +360,7 @@ def scenario_ems_level_commodity_commitment():
         scenario_two_devices_with_stock_commitment,
         scenario_ems_level_flow_commitment,
         scenario_ems_level_commodity_commitment,
+        scenario_chp_coupling_groups,
     ],
     ids=lambda f: f.__name__.replace("scenario_", ""),
 )
