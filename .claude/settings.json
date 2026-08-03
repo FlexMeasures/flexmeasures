@@ -36,6 +36,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/reflow-check.sh\"",
+            "if": "Bash(git commit:*)",
+            "timeout": 30
+          },
+          {
+            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-check.sh\"",
             "if": "Bash(git commit:*)",
             "timeout": 120
