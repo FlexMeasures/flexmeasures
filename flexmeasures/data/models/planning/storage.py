@@ -379,7 +379,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            flex_model=flex_model,
         )
 
         index = initialize_index(start, end, resolution)
@@ -1634,7 +1633,6 @@ class MetaStorageScheduler(Scheduler):
 
     def convert_to_commitments(
         self,
-        flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
@@ -1643,6 +1641,10 @@ class MetaStorageScheduler(Scheduler):
         commodity context; a commitment within a commodity context always binds that
         context's commodity (matching how the UI editor scopes commitments per
         commodity tab).
+
+        An unscoped commitment binds the aggregate flow of all its commodity's devices;
+        a scoped commitment (a ``sensors`` list or ``group`` reference) binds a subset.
+        Device indices come from the device inventory, never from the raw flex-model list.
 
         User-given commitment names are kept as is, but the resulting commitments are
         tagged with provenance "custom", so cost reporting can tell them apart from the
@@ -1711,20 +1713,14 @@ class MetaStorageScheduler(Scheduler):
                 if scoped is not None:
                     commitments.append(scoped)
                 continue
-            bound_device_count = 0
-            for d, flex_model_d in enumerate(flex_model):
-                device_commodity = flex_model_d.get("commodity", "electricity")
-                if device_commodity != commitment_commodity:
-                    continue
-                commitment = FlowCommitment(
-                    device=d,
-                    device_group=device_commodity,
-                    provenance="custom",
-                    **commitment_spec,
-                )
-                commitments.append(commitment)
-                bound_device_count += 1
-            if bound_device_count == 0:
+            # A regular (unscoped) commitment binds the *aggregate* flow of all the commitment commodity's devices as one commitment (issue #2379),
+            # mirroring the internal "<commodity> net energy" commitment.
+            # Device indices come from the device inventory (canonical, and including the commodity's inflexible devices),
+            # never from re-enumerating the raw flex-model list.
+            commodity_devices = self.device_inventory.commodity_to_devices.get(
+                commitment_commodity, []
+            )
+            if not commodity_devices:
                 current_app.logger.warning(
                     f"Commitment '{commitment_spec.get('name')}' has commodity"
                     f" '{commitment_commodity}', which matches none of the devices"
@@ -1732,6 +1728,20 @@ class MetaStorageScheduler(Scheduler):
                     " (check for a typo in the commitment's `commodity` field, or in"
                     " a device's `commodity` field in the flex-model)."
                 )
+                continue
+            index = commitment_spec["index"]
+            commitments.append(
+                FlowCommitment(
+                    device=pd.Series(
+                        [tuple(commodity_devices)] * len(index),
+                        index=index,
+                        name="device",
+                    ),
+                    device_group=commitment_commodity,
+                    provenance="custom",
+                    **commitment_spec,
+                )
+            )
 
         return commitments
 
