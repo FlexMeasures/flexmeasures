@@ -52,6 +52,9 @@ REDUNDANT_COLUMNS = ("event_start", "sensor_id")
 # Only plain, single-column, non-unique indexes on the given column qualify.
 # Excluding unique and constraint-backing indexes keeps the primary key well out of reach,
 # along with any unique constraint a deployment may have added.
+# Partial and expression indexes are excluded too:
+# a deployment-specific index with a WHERE predicate answers queries the composite indexes do not,
+# so it is not redundant even though it covers the same column.
 # The namespace is pinned to current_schema(),
 # so a same-named table in another schema is never touched.
 # Selected as a plain query rather than looped over in a DO block,
@@ -66,8 +69,11 @@ SELECT quote_ident(n.nspname) || '.' || quote_ident(i.relname)
  WHERE t.relname = 'timed_belief'
    AND n.nspname = current_schema()
    AND x.indnatts = 1
+   AND x.indnkeyatts = 1
    AND NOT x.indisunique
    AND NOT x.indisprimary
+   AND x.indpred IS NULL
+   AND x.indexprs IS NULL
    AND a.attname = ANY(:columns)
    AND NOT EXISTS (
        SELECT 1 FROM pg_constraint c WHERE c.conindid = x.indexrelid

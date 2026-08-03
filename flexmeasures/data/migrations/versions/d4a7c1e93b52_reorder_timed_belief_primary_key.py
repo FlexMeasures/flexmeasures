@@ -79,14 +79,30 @@ OLD_ORDER = [
 # Drop it only if it is present *and* matches that definition,
 # so we never drop an index that happens to share the name but covers something else.
 REDUNDANT_INDEX = "idx_tb_sensor_source_event_horizon"
+# Matched against the catalog rather than against indexdef text.
+# A LIKE on indexdef would also match an index that merely starts with these columns,
+# such as one carrying INCLUDE columns or a WHERE predicate,
+# and those are not redundant with the new primary key.
 # The check is a plain query rather than a DO block,
 # because DROP INDEX CONCURRENTLY cannot run inside one.
 IS_REDUNDANT_INDEX_PRESENT = """
-SELECT 1 FROM pg_indexes
- WHERE schemaname = current_schema()
-   AND tablename = 'timed_belief'
-   AND indexname = :name
-   AND indexdef LIKE '%(sensor_id, source_id, event_start, belief_horizon)%'
+SELECT 1
+  FROM pg_index x
+  JOIN pg_class i ON i.oid = x.indexrelid
+  JOIN pg_class t ON t.oid = x.indrelid
+  JOIN pg_namespace n ON n.oid = t.relnamespace
+ WHERE t.relname = 'timed_belief'
+   AND n.nspname = current_schema()
+   AND i.relname = :name
+   AND x.indnkeyatts = 4
+   AND x.indnatts = 4
+   AND x.indpred IS NULL
+   AND x.indexprs IS NULL
+   AND (
+       SELECT array_agg(a.attname::text ORDER BY k.ord)
+         FROM unnest(x.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord)
+         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+   ) = ARRAY['sensor_id', 'source_id', 'event_start', 'belief_horizon']
 """
 
 RECREATE_REDUNDANT_INDEX = f"""
