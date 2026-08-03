@@ -2512,8 +2512,12 @@ def test_user_commitment_names_and_provenance(app):
     }
     flex_model = [{"commodity": "electricity"}]
 
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
     commitments = scheduler.convert_to_commitments(
-        flex_model,
         query_window=(start, end),
         resolution=resolution,
         beliefs_before=start,
@@ -2712,6 +2716,55 @@ def test_stock_scoped_commitment_binds_group_stock(named_device):
     np.testing.assert_allclose(total_energy, 20.0, atol=1e-6)
 
 
+def test_ems_flow_commitment_binds_all_devices():
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-01T01:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    device_constraints = [
+        pd.DataFrame(
+            {
+                "min": -100.0,
+                "max": 100.0,
+                "equals": np.nan,
+                "derivative min": -10.0,
+                "derivative max": 10.0,
+                "derivative equals": np.nan,
+                "derivative down efficiency": 1.0,
+                "derivative up efficiency": 1.0,
+            },
+            index=index,
+        )
+        for _ in range(2)
+    ]
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -100.0, "derivative max": 100.0}, index=index
+    )
+    commitments = [
+        FlowCommitment(
+            name="EMS target",
+            index=index,
+            quantity=5,
+            upwards_deviation_price=10,
+            downwards_deviation_price=-10,
+        )
+    ]
+
+    planned_power, planned_costs, results, _ = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=0,
+    )
+
+    assert results.solver.termination_condition == "optimal"
+    np.testing.assert_allclose(
+        sum(schedule.iloc[0] for schedule in planned_power), 5.0, atol=1e-6
+    )
+    assert planned_costs == pytest.approx(0)
+
+
 def test_commitment_commodity_does_not_bind_other_commodity_devices():
     """A commitment
     listed under the flex-context's `commitments` should only bind devices of its own
@@ -2747,8 +2800,12 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
     end = pd.Timestamp("2024-01-01T03:00:00+01:00")
     resolution = pd.Timedelta("1h")
 
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
     commitments = scheduler.convert_to_commitments(
-        flex_model=flex_model,
         query_window=(start, end),
         resolution=resolution,
         beliefs_before=None,
@@ -2763,13 +2820,88 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
 
     # The gas commitment binds only the gas device (index 1), not the electricity
     # device (index 0).
-    assert (gas_commitment.device == 1).all()
+    assert set(gas_commitment.device.iloc[0]) == {1}
     assert set(gas_commitment.device_group.unique()) == {"gas"}
 
     # The electricity commitment (commodity defaulting to "electricity") binds only
     # the electricity device (index 0), not the gas device (index 1).
-    assert (electricity_commitment.device == 0).all()
+    assert set(electricity_commitment.device.iloc[0]) == {0}
     assert set(electricity_commitment.device_group.unique()) == {"electricity"}
+
+
+def test_unscoped_commitment_binds_commodity_aggregate(app, db):
+    """Regression (#2379): a regular (unscoped) commitment binds the *aggregate* flow of its commodity's devices,
+    not each device individually.
+    Two 8 MW heaters under a 10 MW baseline reach a combined 10 MW (a level neither could carry alone);
+    a per-device binding would instead hold each heater to 10 MW, pushing each to its 8 MW cap (combined 16).
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(
+        name="Aggregate commitment site", generic_asset_type=heater_type
+    )
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("aggregate heater 1")
+    heater_2 = sensor("aggregate heater 2")
+    db.session.flush()
+
+    flex_model = [
+        {
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                # Unscoped: binds the aggregate of the electricity devices.
+                "name": "aggregate band",
+                "baseline": "10 MW",
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # Aggregate binding: the two heaters together reach exactly the 10 MW baseline.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
 
 
 def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
@@ -3010,7 +3142,6 @@ def test_sensor_scope_includes_inflexible_and_matches_group_scope(app):
             flex_model, scheduler.flex_context
         )
         commitments = scheduler.convert_to_commitments(
-            flex_model,
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=start,
@@ -3061,7 +3192,6 @@ def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
     )
 
     commitments = scheduler.convert_to_commitments(
-        flex_model,
         query_window=(start, end),
         resolution=resolution,
         beliefs_before=start,
@@ -3109,7 +3239,6 @@ def test_scoped_commitment_with_no_matching_devices_warns_and_binds_nothing(
 
     with caplog.at_level(logging.WARNING):
         commitments = scheduler.convert_to_commitments(
-            flex_model,
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=start,
@@ -3154,15 +3283,19 @@ def test_commitments_in_commodity_contexts_are_converted(app):
     # Flexible devices: 0 = electricity, 1 = gas.
     flex_model = [{"commodity": "electricity"}, {"commodity": "gas"}]
 
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
     commitments = scheduler.convert_to_commitments(
-        flex_model,
         query_window=(start, end),
         resolution=resolution,
         beliefs_before=start,
     )
     assert len(commitments) == 2
     gas_commitment = next(c for c in commitments if c.name == "gas context commitment")
-    assert (gas_commitment.device == 1).all()
+    assert set(gas_commitment.device.iloc[0]) == {1}
     assert set(gas_commitment.device_group.unique()) == {"gas"}
 
     # The original specs (including the nested ones) are not mutated.
