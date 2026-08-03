@@ -75,6 +75,42 @@ Before changing a test that fails, investigate whether the test is intentionally
 
 A failing test often reveals a production bug, not a test bug.
 
+## Prove a new test can fail
+
+A test that never fails asserts nothing, and it is indistinguishable from a test that works.
+Before considering a new test done, break the thing it covers and watch it go red:
+comment out the constraint, invert the condition, delete the line — then restore.
+If the test still passes, it is not testing what its name says.
+
+This matters most where the assertion depends on the *problem* having a unique answer.
+An optimisation test is the classic trap:
+constrain devices that have no incentive to move, and the optimum is "do nothing" with or without the constraint,
+so the test passes whether or not the feature works.
+
+```python
+# ❌ Vacuous: with no cost incentive, both devices sit at zero either way,
+#    so the balance constraint is satisfied trivially and the test proves nothing.
+device_constraints = [make_flow_device(0, 1), make_flow_device(-1, 0)]
+
+# ✅ Binding: the consumer's draw is pinned, so the balance is the only reason
+#    the producer runs. Remove the constraint and the schedules diverge.
+consumer["derivative equals"] = -0.4
+```
+
+This was not hypothetical: a balance-group scenario in
+`flexmeasures/data/models/planning/tests/test_highspy_equivalence.py`
+passed with the constraint it was named after entirely disabled, and only this check caught it.
+
+Say in the PR description that you did it, and what you broke to prove it.
+Reviewers cannot tell a binding test from a vacuous one by reading it.
+
+## Equivalence tests need both sides exercised
+
+When two implementations are compared (see `test_highspy_equivalence.py`),
+a scenario only has value if each side actually reaches the code under comparison.
+Disable the new code path on one side and confirm the scenario fails;
+a scenario that passes with the feature removed is comparing two no-ops.
+
 ## Module-scoped fixture state
 
 Module-scoped fixtures are shared across tests. When modifying shared objects (e.g. `asset.sensors_to_show`), reset them to the column default — not to `None` — in teardown:
