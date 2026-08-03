@@ -16,16 +16,9 @@ import pathlib
 #: Modules that exercise scheduler behaviour but deliberately run under one solver only.
 #: Each needs a reason, and the reason should be fixable rather than permanent.
 EXEMPT = {
-    # These build named assets in the database,
-    # so running each test twice in the same fixture scope violates generic_asset's unique-name constraint.
-    # Parametrizing them means making their fixtures unique-per-parameter first.
-    #
-    # They are not unverified, though:
-    # a whole run can be pinned to one backend with --lp-solver, and all three pass under the non-default one.
-    # See the PR description, and re-check with:
-    #   pytest flexmeasures/data/models/planning/tests/test_commitments.py \
-    #          flexmeasures/data/models/planning/tests/test_storage.py \
-    #          flexmeasures/data/models/planning/tests/test_process.py --lp-solver=appsi_highs
+    # These create assets with hardcoded names inline,
+    # so running each test twice in one fixture scope violates generic_asset's unique-name constraint.
+    # They still pass under the other backend when a whole run is pinned to it with --lp-solver.
     "test_commitments.py": "creates named DB assets; not idempotent across parameters",
     "test_storage.py": "creates named DB assets; not idempotent across parameters",
     "test_process.py": "ProcessScheduler does not use device_scheduler",
