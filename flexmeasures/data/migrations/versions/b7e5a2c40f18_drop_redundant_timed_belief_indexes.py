@@ -57,7 +57,7 @@ REDUNDANT_COLUMNS = ("event_start", "sensor_id")
 # Selected as a plain query rather than looped over in a DO block,
 # because DROP INDEX CONCURRENTLY cannot run inside one.
 FIND_REDUNDANT_INDEXES = """
-SELECT i.relname
+SELECT quote_ident(n.nspname) || '.' || quote_ident(i.relname)
   FROM pg_index x
   JOIN pg_class i ON i.oid = x.indexrelid
   JOIN pg_class t ON t.oid = x.indrelid
@@ -82,10 +82,11 @@ def upgrade():
         .scalars()
         .all()
     )
-    for name in names:
-        # Quote the identifier the same way PostgreSQL would, in case of odd naming.
+    for qualified_name in names:
+        # The query returns identifiers already quoted by PostgreSQL's own quote_ident(),
+        # so names needing quoting (or containing quotes) are handled correctly.
         with op.get_context().autocommit_block():
-            op.execute(f'DROP INDEX CONCURRENTLY IF EXISTS "{name}"')
+            op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {qualified_name}")
 
 
 def downgrade():

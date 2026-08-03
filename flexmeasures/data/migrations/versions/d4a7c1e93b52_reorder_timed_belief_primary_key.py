@@ -29,8 +29,9 @@ Note that this rebuilds an index but does **not** rewrite the table:
 no heap pages are touched, and no other index is affected.
 
 The swap is done online, so this does not need a maintenance window.
-Building the replacement index is the slow part, and it runs ``CONCURRENTLY`` inside an
-``autocommit_block``, so reads and writes continue throughout.
+Building the replacement index is the slow part,
+and it runs ``CONCURRENTLY`` inside an ``autocommit_block``,
+so reads and writes continue throughout.
 Only the swap itself takes an ACCESS EXCLUSIVE lock,
 and that is catalog-only (milliseconds) because the index already exists by then.
 The redundant composite index is dropped ``CONCURRENTLY`` too.
@@ -100,8 +101,8 @@ TEMP_INDEX = "timed_belief_pkey_new"
 def _swap_primary_key(order: list[str]) -> None:
     """Rebuild timed_belief's primary key in the given column order, without a maintenance window.
 
-    The replacement index is built ``CONCURRENTLY`` outside a transaction, so reads and
-    writes continue while it is built.
+    The replacement index is built ``CONCURRENTLY`` outside a transaction,
+    so reads and writes continue while it is built.
     Promoting it to the primary key then costs only a catalog update.
     """
     # A previous failed run can leave the temporary index behind, possibly marked invalid.
