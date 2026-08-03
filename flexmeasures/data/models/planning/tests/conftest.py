@@ -449,9 +449,8 @@ def add_as_beliefs(db, sensor, values, time_slots, source):
 def solver_backend(request, app):
     """Run a test under a specific solver backend, when its module opts in.
 
-    Modules setting ``RUN_UNDER_EACH_SOLVER = True`` have every test run once per
-    backend (see ``pytest_generate_tests`` below). Everything else is untouched and
-    keeps running under the configured default.
+    Modules setting ``RUN_UNDER_EACH_SOLVER = True`` have every test run once per backend (see ``pytest_generate_tests`` below).
+    Everything else is untouched, and keeps running under the configured default.
     """
     solver = getattr(request, "param", None)
     if solver is None:
@@ -466,10 +465,10 @@ def solver_backend(request, app):
 def pytest_generate_tests(metafunc):
     """Parametrize a whole module over the solver backends, if it opts in.
 
-    A module that exercises scheduler behaviour is only meaningful under one backend
-    if the two agree, which is exactly what we cannot assume: the schedulers build the
-    same model twice, once through Pyomo and once directly in HiGHS. Opting a module in
-    costs a signature change nowhere -- the autouse fixture above does the switching.
+    A module that exercises scheduler behaviour is only meaningful under one backend if the two agree,
+    which is exactly what we cannot assume:
+    the schedulers build the same model twice, once through Pyomo and once directly in HiGHS.
+    Opting a module in costs a signature change nowhere -- the autouse fixture above does the switching.
     """
     if getattr(metafunc.module, "RUN_UNDER_EACH_SOLVER", False):
         metafunc.parametrize(
@@ -480,10 +479,10 @@ def pytest_generate_tests(metafunc):
 def pytest_addoption(parser):
     """Allow a whole run to be pinned to one solver backend.
 
-    The modules that cannot be parametrized in-process (see EXEMPT in
-    test_solver_coverage.py) can still be shown green under the other backend by running
-    them again with this flag. Note that FLEXMEASURES_LP_SOLVER cannot be set from the
-    environment for tests, because TestingConfig does not read it.
+    The modules that cannot be parametrized in-process (see EXEMPT in test_solver_coverage.py)
+    can still be shown green under the other backend, by running them again with this flag.
+    Note that FLEXMEASURES_LP_SOLVER cannot be set from the environment for tests,
+    because TestingConfig does not read it.
     """
     parser.addoption(
         "--lp-solver",
