@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -6,6 +8,7 @@ from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
 )
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Plan, RateLimitKey
 
 from flexmeasures.cli.tests.utils import (
     check_command_ran_without_error,
@@ -47,6 +50,116 @@ def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
             user_id=cli_input["user"],
         )
     ).scalar_one_or_none()
+
+
+def test_add_plan(app, fresh_db):
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    cli_input = {
+        "name": "Pro",
+        "trigger-rate-limit": "60 per 5 minutes",
+        "rate-limit-key": "account",
+        "max-assets": 200,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(new_plan, to_flags(cli_input))
+
+    check_command_ran_without_error(result)
+    assert "successfully created" in result.output
+
+    plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
+    assert plan.trigger_rate_limit == "60 per 5 minutes"
+    assert plan.rate_limit_key == RateLimitKey.ACCOUNT
+    assert plan.max_assets == 200
+    # Fields we did not set fall back on the server-wide config settings
+    assert plan.default_rate_limit is None
+    assert plan.legacy is False
+
+
+def test_add_plan_with_invalid_rate_limit(app, fresh_db):
+    """A limit string we cannot make sense of is caught when the plan is created,
+    rather than when a request comes in."""
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_plan, to_flags({"name": "Typo", "trigger-rate-limit": "10 per fortnight"})
+    )
+
+    assert result.exit_code != 0
+    assert "not a valid rate limit" in result.output
+    assert db.session.execute(select(Plan).filter_by(name="Typo")).scalar() is None
+
+
+def test_edit_plan(app, fresh_db):
+    """A plan can be retired, so that it is no longer handed out."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes")
+    db.session.add(plan)
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--legacy"])
+
+    check_command_ran_without_error(result)
+    assert db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().legacy
+
+
+def test_edit_plan_name(app, fresh_db):
+    """A plan is identified by its ID, so that --name can rename it."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes")
+    taken = Plan(name="Basic")
+    db.session.add_all([plan, taken])
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--name", "Professional"])
+
+    check_command_ran_without_error(result)
+    assert db.session.get(Plan, plan.id).name == "Professional"
+
+    # Names are unique, so renaming cannot take another plan's name
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--name", "Basic"])
+    assert result.exit_code != 0
+    assert "already exists" in result.output
+    assert db.session.get(Plan, plan.id).name == "Professional"
+
+
+def test_edit_plan_clear_field(app, fresh_db):
+    """A plan field can be cleared back to NULL, meaning the server-wide behaviour applies."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes", max_users=10)
+    db.session.add(plan)
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        edit_plan, ["--id", str(plan.id), "--clear", "trigger-rate-limit"]
+    )
+
+    check_command_ran_without_error(result)
+    plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
+    assert plan.trigger_rate_limit is None
+    assert plan.max_users == 10  # fields not named stay untouched
+
+    # Setting and clearing the same field contradict each other
+    result = runner.invoke(
+        edit_plan, ["--id", str(plan.id), "--max-users", "5", "--clear", "max-users"]
+    )
+    assert result.exit_code != 0
+    assert (
+        db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().max_users
+        == 10
+    )
 
 
 def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
@@ -94,6 +207,60 @@ def test_cli_help(app):
         result = runner.invoke(cmd, ["--help"])
         check_command_ran_without_error(result)
         assert "Usage" in result.output
+
+
+def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+):
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    captured_configs = []
+
+    class StubForecaster:
+        def compute(self, **kwargs):
+            return {"n_jobs": 1}
+
+    def capture_forecaster_config(**kwargs):
+        captured_configs.append(
+            TrainPredictPipelineConfigSchema().load(kwargs["config"])
+        )
+        return StubForecaster()
+
+    monkeypatch.setattr(data_add, "get_data_generator", capture_forecaster_config)
+    runner = app.test_cli_runner()
+    common_args = ["--sensor", str(target_sensor.id), "--as-job", "--regressors"]
+
+    reference_result = runner.invoke(
+        data_add.add_forecast,
+        common_args
+        + [json.dumps([{"sensor": regressor_sensor.id, "sources": [source.id]}])],
+    )
+    plain_id_result = runner.invoke(
+        data_add.add_forecast,
+        common_args + [str(regressor_sensor.id)],
+    )
+
+    check_command_ran_without_error(reference_result)
+    check_command_ran_without_error(plain_id_result)
+    filtered_regressor = captured_configs[0]["future_regressors"][0]
+    assert isinstance(filtered_regressor, SensorReference)
+    assert filtered_regressor.sensor == regressor_sensor
+    assert filtered_regressor.sources == [source]
+    assert captured_configs[0]["past_regressors"] == [filtered_regressor]
+    assert captured_configs[1]["future_regressors"] == [regressor_sensor]
+    assert captured_configs[1]["past_regressors"] == [regressor_sensor]
 
 
 def test_add_holidays_with_timezone(app, fresh_db, setup_roles_users_fresh_db):

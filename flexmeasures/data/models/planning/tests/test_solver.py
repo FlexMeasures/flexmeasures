@@ -3476,10 +3476,11 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 ):
     """Flex-context commitments must bind the scheduled devices, not stock-only entries.
 
-    With a stock-only entry listed first, a flex-context commitment should still yield
-    one commitment per scheduled device (indices 0 and 1), rather than one per
-    flex-model entry (indices 0, 1 and 2, of which index 2 does not exist as a
-    flexible device).
+    A regular (unscoped) commitment binds the *aggregate* flow of its commodity's
+    devices as a single commitment (issue #2379). With a stock-only entry listed
+    first, that single commitment should bind the scheduled devices (indices 0 and 1),
+    and never the stock-only entry (which is not a flexible device), rather than one
+    commitment per raw flex-model entry (indices 0, 1 and 2).
     """
     battery_type = setup_generic_asset_types["battery"]
     site = _add_parent_site(db, building, "commitment test site")
@@ -3536,15 +3537,18 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 
     test_commitments = [c for c in commitments if c.name == "test commitment"]
     num_devices = 2
-    assert len(test_commitments) == num_devices, (
-        f"Expected one commitment per scheduled device ({num_devices}), "
+    assert len(test_commitments) == 1, (
+        f"Expected a single aggregate commitment binding all scheduled devices, "
         f"got {len(test_commitments)} (one per flex-model entry, including the "
         "stock-only entry)."
     )
-    commitment_devices = {int(d) for c in test_commitments for d in c.device.unique()}
+    # The aggregate commitment binds all of its commodity's devices at once,
+    # so each row of its device column is the tuple of scheduled device indices.
+    commitment_devices = {int(d) for d in test_commitments[0].device.iloc[0]}
     assert commitment_devices == set(range(num_devices)), (
-        f"Commitments target device indices {sorted(commitment_devices)}, "
-        f"expected {sorted(range(num_devices))}."
+        f"Commitment targets device indices {sorted(commitment_devices)}, "
+        f"expected {sorted(range(num_devices))} (the scheduled devices, not the "
+        "stock-only entry)."
     )
 
 
@@ -4359,3 +4363,91 @@ def test_battery_solver_passes_device_power_bands_to_device_scheduler(
         "the flex-model declared operation-modes. This indicates the operation-modes "
         "wiring inside StorageScheduler has been severed."
     )
+
+
+def test_battery_solver_inflexible_key_equivalence(
+    setup_planning_test_data,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    db,
+):
+    """The deprecated inflexible-device-sensors field and the sign-explicit
+    inflexible-production field yield identical schedules.
+
+    The fixture's inflexible devices store production-positive data (PV positive,
+    residual demand negative) without a consumption_is_positive attribute, so the
+    deprecated field's attribute-driven read matches the inflexible-production
+    convention exactly.
+    """
+    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+
+    inflexible_sensor_ids = [s.id for s in add_inflexible_device_forecasts.keys()]
+    flex_contexts = [
+        {
+            "inflexible-device-sensors": inflexible_sensor_ids,
+            "site-power-capacity": "2 MW",
+        },
+        {
+            "inflexible-production": [
+                {"sensor": sensor_id} for sensor_id in inflexible_sensor_ids
+            ],
+            "site-power-capacity": "2 MW",
+        },
+    ]
+    schedules = []
+    for flex_context in flex_contexts:
+        scheduler: Scheduler = StorageScheduler(
+            battery,
+            start,
+            end,
+            resolution,
+            flex_model={"soc-at-start": soc_at_start},
+            flex_context=flex_context,
+        )
+        schedules.append(scheduler.compute())
+
+    pd.testing.assert_series_equal(schedules[0], schedules[1])
+
+
+def test_battery_solver_inflexible_sign_flip(
+    setup_planning_test_data,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    db,
+):
+    """Listing the same sensor under inflexible-consumption vs inflexible-production
+    flips the sign of its power values in the scheduling problem.
+
+    We check the derivative-equals device constraint built for the PV sensor
+    under either key.
+    """
+    from flexmeasures.data.models.planning.utils import get_power_values
+
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    pv_sensor = next(iter(add_inflexible_device_forecasts.keys()))
+
+    power_as_production = get_power_values(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+        sensor=pv_sensor,
+        consumption_is_positive=False,
+    )
+    power_as_consumption = get_power_values(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+        sensor=pv_sensor,
+        consumption_is_positive=True,
+    )
+    assert np.allclose(power_as_production, -power_as_consumption)
+    assert (power_as_production != 0).any()

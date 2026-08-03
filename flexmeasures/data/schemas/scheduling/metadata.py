@@ -34,12 +34,36 @@ Defaults to ``"electricity"``.
     examples=["electricity", "gas"],
 )
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
-    description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
-For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
-Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+    description="""[Deprecated field] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
+To avoid using the field, use ``inflexible-consumption`` and/or ``inflexible-production`` instead, which make clear the sign convention.
+For this field, each sensor's sign convention is determined by its ``consumption_is_positive`` attribute (default: false, i.e. production-positive).
 Must be a list of integers.
 """,
     example=[3, 4],
+)
+INFLEXIBLE_CONSUMPTION = MetaData(
+    description="""Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.
+For example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.
+Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+
+The sign convention is determined by the key name: positive values denote consumption.
+Sensors that explicitly record consumption as negative values (``consumption_is_positive`` attribute set to false) are rejected here; list them under ``inflexible-production`` instead.
+
+Each entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a ``group`` like any other member.
+""",
+    example=[{"sensor": 3}, {"sensor": 4}],
+)
+INFLEXIBLE_PRODUCTION = MetaData(
+    description="""Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.
+For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
+Their power supply cannot be adjusted but still matters for finding the best schedule for other devices.
+
+The sign convention is determined by the key name: positive values denote production (the FlexMeasures default).
+Sensors that explicitly record production as negative values (``consumption_is_positive`` attribute set to true) are rejected here; list them under ``inflexible-consumption`` instead.
+
+Each entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a ``group`` like any other member.
+""",
+    example=[{"sensor": 3}, {"sensor": 4}],
 )
 AGGREGATE_POWER = MetaData(
     description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.
@@ -414,10 +438,10 @@ Declaring operation modes introduces binary decision variables into the optimiza
     ],
 )
 GROUP = MetaData(
-    description="""Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (``{"sensor": <id>}``) or an asset (``{"asset": <id>}``) - exactly one of the two.
-The referenced sensor or asset should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
-When the group is referenced by ``sensor``, the group's scheduled aggregate power is saved to that group sensor.
-When the group is referenced by ``asset`` (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.
+    description="""Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{"asset": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{"sensor": <id>}``) is also accepted - give exactly one of the two.
+The referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
+When the group is referenced by ``asset``, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.
+When the group is referenced by ``sensor``, the group's scheduled aggregate power is saved directly to that group sensor.
 """,
-    example={"sensor": 5},
+    example={"asset": 7},
 )

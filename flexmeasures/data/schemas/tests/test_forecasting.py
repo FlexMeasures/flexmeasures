@@ -9,6 +9,8 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
 
@@ -645,6 +647,96 @@ def test_timing_parameters_of_forecaster_config_schema(
         # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
         snake_key = kebab_to_snake(k)
         assert data[snake_key] == v, f"{k} did not match expectations."
+
+
+@pytest.mark.parametrize(
+    "regressor_field", ["future-regressors", "past-regressors", "regressors"]
+)
+def test_forecaster_config_schema_loads_plain_regressor_sensor_ids(
+    regressor_field, setup_dummy_sensors
+):
+    sensor, *_ = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load({regressor_field: [sensor.id]})
+
+    expected_fields = (
+        ("future_regressors", "past_regressors")
+        if regressor_field == "regressors"
+        else (regressor_field.replace("-", "_"),)
+    )
+    for field_name in expected_fields:
+        assert data[field_name] == [sensor]
+        assert isinstance(data[field_name][0], Sensor)
+
+
+@pytest.mark.parametrize(
+    "regressor_field", ["future-regressors", "past-regressors", "regressors"]
+)
+def test_forecaster_config_schema_round_trips_filtered_sensor_references(
+    regressor_field,
+    setup_dummy_sensors,
+    setup_sources,
+    setup_accounts,
+    db,
+):
+    sensor, *_ = setup_dummy_sensors
+    source = setup_sources["Seita"]
+    account = setup_accounts["Prosumer"]
+    db.session.flush()
+    serialized_reference = {
+        "sensor": sensor.id,
+        "sources": [source.id],
+        "source-types": ["forecaster"],
+        "exclude-source-types": ["user"],
+        "source-account": [account.id],
+    }
+    schema = TrainPredictPipelineConfigSchema()
+
+    data = schema.load({regressor_field: [serialized_reference]})
+
+    expected_fields = (
+        ("future_regressors", "past_regressors")
+        if regressor_field == "regressors"
+        else (regressor_field.replace("-", "_"),)
+    )
+    for field_name in expected_fields:
+        regressor = data[field_name][0]
+        assert isinstance(regressor, SensorReference)
+        assert regressor.sensor == sensor
+        assert regressor.sources == [source]
+        assert regressor.source_types == ["forecaster"]
+        assert regressor.exclude_source_types == ["user"]
+        assert regressor.source_account == [account]
+
+    dumped = schema.dump(data)
+    for field_name in expected_fields:
+        assert dumped[field_name.replace("_", "-")] == [serialized_reference]
+
+
+def test_forecaster_config_schema_stably_merges_distinct_regressor_references(
+    setup_dummy_sensors,
+):
+    sensor, *_ = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "future-regressors": [sensor.id],
+            "regressors": [
+                {"sensor": sensor.id, "source-types": ["forecaster"]},
+                {"sensor": sensor.id, "source-types": ["scheduler"]},
+            ],
+        }
+    )
+
+    assert data["future_regressors"][0] == sensor
+    assert [regressor.source_types for regressor in data["future_regressors"][1:]] == [
+        ["forecaster"],
+        ["scheduler"],
+    ]
+    assert [regressor.source_types for regressor in data["past_regressors"]] == [
+        ["forecaster"],
+        ["scheduler"],
+    ]
 
 
 def test_forecaster_config_schema_loads_forecast_post_processing_options():
