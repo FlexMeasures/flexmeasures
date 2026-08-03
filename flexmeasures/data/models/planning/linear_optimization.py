@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import inspect
 import math
+from functools import lru_cache
 
 from flask import current_app
 import pandas as pd
@@ -132,6 +134,91 @@ def convert_commitments_to_subcommitments(
     return sub_commitments, commitment_mapping
 
 
+def _left_at_default(value, default) -> bool:
+    """Whether an argument was left at its default.
+
+    Best-effort: pandas values compare element-wise, so ``value == default`` may
+    return an array (or raise) rather than a bool. Anything we cannot decide is
+    reported as "not the default", which errs towards raising in
+    :func:`_arguments_for_highspy_backend` rather than silently dropping a value.
+    """
+    if value is default:
+        return True
+    if default is inspect.Parameter.empty:
+        return False
+    try:
+        return bool(value == default)
+    except (TypeError, ValueError):
+        return False
+
+
+@lru_cache(maxsize=None)
+def _backend_argument_map(declared_by, supported_by) -> tuple[frozenset, tuple]:
+    """Which of ``declared_by``'s arguments ``supported_by`` accepts, and which it lacks.
+
+    Signatures are static, so this is computed once per process (roughly 70 us,
+    which is not worth paying on every schedule). Caching on the two function
+    objects rather than on nothing keeps it correct when a test substitutes one
+    of them.
+    """
+    declared = inspect.signature(declared_by).parameters
+    supported = frozenset(inspect.signature(supported_by).parameters)
+    missing = tuple(
+        (name, parameter.default)
+        for name, parameter in declared.items()
+        if name not in supported
+    )
+    return frozenset(declared) & supported, missing
+
+
+def _arguments_for_highspy_backend(passed_arguments: dict) -> dict:
+    """Map ``device_scheduler``'s arguments onto the direct HiGHS backend's signature.
+
+    A hand-written keyword list here would be a trap: whoever adds the next
+    ``device_scheduler`` parameter naturally works on the Pyomo model further
+    down this file, and a parameter missing from that list would not fail — it
+    would simply never reach the backend. Under ``FLEXMEASURES_LP_SOLVER="highspy"``
+    (the default) that yields a schedule computed as if the constraint had never
+    been requested: plausible-looking, silently wrong, and not caught by tests
+    written before the default was flipped.
+
+    Forwarding by name removes that failure mode entirely. The remaining case —
+    an argument the direct backend does not model at all — is caught statically
+    by ``test_every_device_scheduler_argument_currently_reaches_the_backend``, so
+    it cannot reach a release. The raise below is only a backstop for a build
+    where that test did not run; it costs nothing while the signatures agree.
+
+    This is a live concern rather than a hypothetical one: ``device_scheduler``
+    is gaining ``coupling_groups`` (#2218) and ``balance_groups`` (#2289) on
+    branches in flight, and each needs explicit support here.
+    """
+    from flexmeasures.data.models.planning.highspy_optimization import (
+        device_scheduler_highspy,
+    )
+
+    forwardable, missing = _backend_argument_map(
+        device_scheduler, device_scheduler_highspy
+    )
+    if missing:
+        in_use = sorted(
+            name
+            for name, default in missing
+            if not _left_at_default(passed_arguments[name], default)
+        )
+        if in_use:
+            raise NotImplementedError(
+                "The direct HiGHS backend (FLEXMEASURES_LP_SOLVER='highspy') does not"
+                f" model these device_scheduler arguments: {', '.join(in_use)}."
+                " Add support for them in"
+                " flexmeasures.data.models.planning.highspy_optimization (and extend"
+                " tests/test_highspy_equivalence.py), or configure a Pyomo-based"
+                " solver such as 'appsi_highs'."
+            )
+    return {
+        name: value for name, value in passed_arguments.items() if name in forwardable
+    }
+
+
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
     ems_constraints: pd.DataFrame | list[pd.DataFrame],
@@ -207,22 +294,15 @@ def device_scheduler(  # noqa C901
     # See the highspy_optimization module, which mirrors the model built below
     # and returns compatible result objects.
     if current_app.config.get("FLEXMEASURES_LP_SOLVER") == "highspy":
+        # Arguments are forwarded by name, and an argument the direct backend cannot
+        # model raises rather than being dropped. See _arguments_for_highspy_backend.
+        highspy_arguments = _arguments_for_highspy_backend(locals())
+
         from flexmeasures.data.models.planning.highspy_optimization import (
             device_scheduler_highspy,
         )
 
-        return device_scheduler_highspy(
-            device_constraints=device_constraints,
-            ems_constraints=ems_constraints,
-            commitment_quantities=commitment_quantities,
-            commitment_downwards_deviation_price=commitment_downwards_deviation_price,
-            commitment_upwards_deviation_price=commitment_upwards_deviation_price,
-            commitments=commitments,
-            initial_stock=initial_stock,
-            stock_groups=stock_groups,
-            ems_constraint_groups=ems_constraint_groups,
-            device_power_bands=device_power_bands,
-        )
+        return device_scheduler_highspy(**highspy_arguments)
 
     model = ConcreteModel()
 

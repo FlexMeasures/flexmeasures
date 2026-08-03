@@ -12,6 +12,7 @@ change (see the note in that module's docstring).
 
 from __future__ import annotations
 
+import inspect
 from datetime import timedelta
 
 import numpy as np
@@ -19,6 +20,10 @@ import pandas as pd
 import pytest
 
 from flexmeasures.data.models.planning import FlowCommitment, StockCommitment
+from flexmeasures.data.models.planning import linear_optimization
+from flexmeasures.data.models.planning.highspy_optimization import (
+    device_scheduler_highspy,
+)
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import initialize_df
 
@@ -307,3 +312,48 @@ def test_highspy_matches_pyomo_when_infeasible(app):
 
     # Mirrored fallback behavior: no costs (all variables at zero)
     assert costs_p == costs_h == 0
+
+
+def test_unsupported_argument_is_rejected_not_ignored():
+    """A device_scheduler argument the direct backend cannot model must raise.
+
+    ``device_scheduler`` forwards its arguments to the direct HiGHS backend by
+    name. Whoever adds the next scheduling parameter (``coupling_groups`` in
+    #2218, ``balance_groups`` in #2289) works on the Pyomo model, and a
+    parameter that never reached the backend would not fail -- it would produce
+    a schedule computed as if the constraint had never been requested. Since
+    ``highspy`` is the default solver, that would be silently wrong.
+    """
+    real_device_scheduler = linear_optimization.device_scheduler
+
+    def device_scheduler_of_the_future(
+        device_constraints,
+        ems_constraints,
+        future_parameter=None,
+    ):
+        """Stand-in for a device_scheduler that grew a parameter."""
+
+    linear_optimization.device_scheduler = device_scheduler_of_the_future
+    try:
+        arguments = dict(
+            device_constraints=[], ems_constraints=None, future_parameter=None
+        )
+
+        # Left at its default, the new parameter costs existing callers nothing.
+        forwarded = linear_optimization._arguments_for_highspy_backend(arguments)
+        assert "future_parameter" not in forwarded
+        assert set(forwarded) == {"device_constraints", "ems_constraints"}
+
+        # Actually set, it must be reported rather than dropped.
+        arguments["future_parameter"] = {"some group": [(0, 1.0)]}
+        with pytest.raises(NotImplementedError, match="future_parameter"):
+            linear_optimization._arguments_for_highspy_backend(arguments)
+    finally:
+        linear_optimization.device_scheduler = real_device_scheduler
+
+
+def test_every_device_scheduler_argument_currently_reaches_the_backend():
+    """The direct backend supports the whole current device_scheduler signature."""
+    declared = set(inspect.signature(device_scheduler).parameters)
+    supported = set(inspect.signature(device_scheduler_highspy).parameters)
+    assert declared <= supported, declared - supported

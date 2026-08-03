@@ -22,6 +22,29 @@ the ``appsi_highs`` path):
   constraint family returns ``(None, expr, None)``, i.e. a constraint without
   bounds, which ends up as a free (vacuous) row in HiGHS. We skip building the
   free rows altogether.
+
+  .. note:: This deviation is only harmless for as long as those rows stay free,
+      and two branches in flight change that:
+
+      - #2355 gives the constraint the same one-sided bounds that
+        ``grouped_commitment_equalities`` already uses, making it bind. Once that
+        lands, this module must build the row too — otherwise an EMS-level
+        commitment is silently ignored under this backend. The row is then
+        structurally identical to the grouped one, differing only in the set it
+        sums over (all devices, or the commodity's devices).
+      - #2380 makes an unscoped flex-context commitment device-grouped
+        (``device=<the commodity's device indices>``, ``device_group=<commodity>``)
+        rather than per-device, so commitments coming from ``convert_to_commitments``
+        route through ``grouped_commitment_equalities``, which this module does
+        build. That narrows the exposure above to callers constructing an
+        EMS-level ``FlowCommitment`` (``device=None``) directly, but does not
+        remove it.
+
+      Note that ``tests/test_commitments.py`` does not use the
+      ``app_with_each_solver`` fixture, so its cases only ever run under the
+      configured default solver -- which ``config_defaults`` now sets to
+      ``"highspy"``. Coverage of this constraint family belongs in
+      ``tests/test_highspy_equivalence.py`` to run under both backends.
 - Rows whose computed bounds are impossible to satisfy for any finite value
   (upper bound of -inf, or lower bound of +inf, as happens when a commitment
   quantity is +/-inf) are skipped. On the Pyomo path such rows are rejected by
@@ -352,6 +375,7 @@ def device_scheduler_highspy(  # noqa C901
     # NB the Pyomo implementation builds a commodity -> device indices lookup here,
     # but it is only consumed by its ems_flow_commitment_equalities, which this
     # backend deliberately does not build (they are free rows; see module docstring).
+    # That lookup has to come back when #2355 makes those rows bind.
 
     # Check if commitments have the same time window and resolution as the constraints
     for commitment in commitments:
