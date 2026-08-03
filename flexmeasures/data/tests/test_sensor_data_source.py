@@ -51,11 +51,11 @@ def test_saving_beliefs_records_the_pair(setup_beliefs, db):
 def test_inserts_that_bypass_the_save_path_still_record_the_pair(setup_beliefs, db):
     """A raw insert must maintain the summary just as a normal save does.
 
-    This is the case that decided the design. Beliefs reach timed_belief by more
-    routes than ``save_to_db``: bulk inserts, plugins and raw SQL among them, and
-    several of this repo's own fixtures. A hook in the save path would leave the
-    summary silently incomplete for all of them, so a database trigger maintains
-    it instead.
+    This is the case that decided the design.
+    Beliefs reach timed_belief by more routes than ``save_to_db``:
+    bulk inserts, plugins and raw SQL among them, and several of this repo's own fixtures.
+    A hook in the save path would leave the summary silently incomplete for all of them,
+    so a database trigger maintains it instead.
     """
     sensor = get_test_sensor(db)
     source = DataSource(name="Raw insert source", type="demo script")
@@ -125,9 +125,9 @@ def test_sensor_data_sources_uses_the_summary(setup_beliefs, db):
 def test_summary_is_a_superset_after_deleting_beliefs(setup_beliefs, db):
     """A pair survives deletion of the beliefs that created it, by design.
 
-    Deciding whether a pair went stale would need the scan over timed_belief that
-    this table exists to avoid, so the summary is deliberately a superset. This
-    test pins that, so the behaviour is a documented choice rather than a surprise.
+    Deciding whether a pair went stale would need the scan over timed_belief that this table exists to avoid,
+    so the summary is deliberately a superset.
+    This test pins that, so the behaviour is a documented choice rather than a surprise.
     """
     sensor = get_test_sensor(db)
     source = DataSource(name="Source whose beliefs go away", type="demo script")
@@ -152,9 +152,9 @@ def test_summary_is_a_superset_after_deleting_beliefs(setup_beliefs, db):
 def test_time_filtered_source_search_still_reads_beliefs(setup_beliefs, db):
     """With time filters, the answer must stay exact rather than use the summary.
 
-    The summary knows nothing about when beliefs were recorded, so a time-bounded
-    question has to go to timed_belief. If it did not, a source whose beliefs all
-    fall outside the window would be wrongly reported.
+    The summary knows nothing about when beliefs were recorded,
+    so a time-bounded question has to go to timed_belief.
+    If it did not, a source whose beliefs all fall outside the window would be wrongly reported.
     """
     sensor = get_test_sensor(db)
     source = DataSource(name="Source outside the window", type="demo script")

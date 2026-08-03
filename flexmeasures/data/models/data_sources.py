@@ -279,13 +279,12 @@ class SensorDataSource(db.Model):
     In practice that is a few thousand rows at most.
 
     .. note:: This is a *superset*.
-       A pair is added when beliefs are saved, and is not removed when those beliefs
-       are deleted, because deciding whether a pair has become stale needs exactly the
-       scan this table exists to avoid.
+       A pair is added when beliefs are saved, and is not removed when those beliefs are deleted,
+       because deciding whether a pair has become stale needs exactly the scan this table exists to avoid.
        So read a row as "this source has recorded for this sensor at some point",
        not "this source has beliefs stored for this sensor right now".
-       ``Sensor.search_data_sources`` still consults ``timed_belief`` directly whenever
-       time filters are given, so time-bounded questions stay exact.
+       ``Sensor.search_data_sources`` still consults ``timed_belief`` directly whenever time filters are given,
+       so time-bounded questions stay exact.
     """
 
     __tablename__ = "sensor_data_source"
@@ -357,8 +356,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         """Return all Sensor objects that this data source has recorded beliefs for.
 
         Reads the ``sensor_data_source`` summary rather than ``timed_belief``.
-        Answering this from the beliefs table would mean scanning it in ``source_id``
-        order, which no index serves, to produce a handful of rows.
+        Answering this from the beliefs table would mean scanning it in ``source_id`` order,
+        which no index serves, to produce a handful of rows.
 
         See :class:`SensorDataSource` for the superset semantics:
         a sensor stays listed after its beliefs from this source are deleted.

@@ -3,14 +3,13 @@
 Records which data sources have recorded beliefs for which sensors.
 
 The same information is already implicit in ``timed_belief``,
-but getting it from there costs a scan of the largest table in the database
+but getting it from there costs a scan of the largest table in the database,
 to produce a relation bounded by sensors times sources,
 which in practice is a few thousand rows.
 It also has to be read in ``source_id`` order for ``DataSource.sensors``,
 which no index serves once the primary key leads with ``sensor_id``.
 
-The table is kept current by a statement-level trigger on ``timed_belief`` rather than
-by application code.
+The table is kept current by a statement-level trigger on ``timed_belief``, rather than by application code.
 A trigger cannot be bypassed:
 bulk inserts, ``COPY``, plugins and raw SQL all maintain the summary,
 whereas a hook in the save path only covers the callers that happen to use it.
@@ -20,8 +19,8 @@ however many rows that statement carries.
 The table is a superset:
 pairs are added when beliefs are inserted and are not removed when beliefs are deleted,
 because deciding whether a pair went stale needs exactly the scan this avoids.
-``Sensor.search_data_sources`` still reads ``timed_belief`` whenever time filters are
-given, so time-bounded questions remain exact.
+``Sensor.search_data_sources`` still reads ``timed_belief`` whenever time filters are given,
+so time-bounded questions remain exact.
 
 The backfill reads every belief row once.
 It takes a plain ACCESS SHARE lock, so reads and writes continue,

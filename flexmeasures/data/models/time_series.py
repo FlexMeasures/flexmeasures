@@ -774,9 +774,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             q = select(DataSource).where(DataSource.id.in_(belief_q.distinct()))
         else:
-            # No time filters: read the sensor_data_source summary instead of the
-            # beliefs table, which turns a scan over potentially hundreds of millions
-            # of rows into a lookup of a handful.
+            # No time filters: read the sensor_data_source summary instead of the beliefs table,
+            # which turns a scan over very many rows into a lookup of a handful.
             # See SensorDataSource for the superset semantics this accepts.
             q = select(DataSource).where(
                 DataSource.id.in_(
@@ -1222,8 +1221,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 # A trigger cannot be bypassed:
 # bulk inserts, COPY, plugins and raw SQL all maintain the summary,
 # whereas a hook in the save path only covers the callers that happen to use it.
-# FOR EACH STATEMENT with a transition table costs one small upsert per insert
-# statement, however many rows that statement carries, rather than one per row.
+# FOR EACH STATEMENT with a transition table costs one small upsert per insert statement,
+# however many rows that statement carries, rather than one per row.
 #
 # Migration f1c8a3d75e29 creates the same objects for databases built by migrations.
 # The statements are repeated there rather than imported,
