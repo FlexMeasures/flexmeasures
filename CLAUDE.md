@@ -16,6 +16,9 @@ Most-missed rules, called out so they are not forgotten:
   commit again. See [`pre-commit-hooks.instructions.md`](.github/instructions/pre-commit-hooks.instructions.md).
 - **Add a changelog entry** for user-facing changes, in the right section, with a PR link. See
   [`changelog.instructions.md`](.github/instructions/changelog.instructions.md).
+- **Prove a new test can fail** — break what it covers, confirm it goes red, restore. A test that passes
+  with the feature disabled asserts nothing. See
+  [`testing.instructions.md`](.github/instructions/testing.instructions.md).
 - **One logical change per commit** ([`atomic-commits.instructions.md`](.github/instructions/atomic-commits.instructions.md)),
   **timezone-aware datetimes always** ([`timezone-awareness.instructions.md`](.github/instructions/timezone-awareness.instructions.md)),
   **catch specific exceptions** ([`error-handling.instructions.md`](.github/instructions/error-handling.instructions.md)),
