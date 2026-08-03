@@ -3156,10 +3156,10 @@ def test_multiple_devices_simultaneous_scheduler():
     ]
 
     # Expected results with unfair unmet demand and not entirely unfair costs.
-    # NB This problem has multiple optima: only the site-level (aggregate)
-    # schedule is unique, while the per-device allocation of the charging slots
-    # (and thereby the per-device costs and even which device's demand goes
-    # unmet) is an arbitrary tie-break that depends on the solver backend.
+    # NB This problem has multiple optima: only the site-level (aggregate) schedule is unique,
+    # while the per-device allocation of the charging slots
+    # (and thereby the per-device costs, and even which device's demand goes unmet)
+    # is an arbitrary tie-break that depends on the solver backend.
     # We therefore only check solver-independent properties here.
     expected_aggregate_schedule = [0, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25] + [0] * 17
     total_expected_demand_unmet = total_expected_demand - np.array(

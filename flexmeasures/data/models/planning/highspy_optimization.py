@@ -2,30 +2,26 @@
 
 .. warning:: TWO MODELS TO KEEP IN SYNC
 
-    This module deliberately duplicates the mathematical model of
-    :func:`flexmeasures.data.models.planning.linear_optimization.device_scheduler`
-    (the Pyomo implementation), building the LP/MILP directly with the HiGHS
-    Python API (``highspy``) instead. The Pyomo implementation is the semantic
-    reference: any change to the variables, constraints or objective in
-    ``device_scheduler`` MUST be mirrored here (and vice versa), and the
-    equivalence tests in ``tests/test_highspy_equivalence.py`` should be
-    extended accordingly. This trade-off (a second model to maintain) was
-    accepted because bypassing the Pyomo layer cuts roughly a second (single
-    device) to several seconds (multiple devices) of model construction and
-    solution-ingestion overhead per scheduling job, while the direct build
-    takes milliseconds.
+    This module deliberately duplicates the mathematical model of the Pyomo implementation,
+    :func:`flexmeasures.data.models.planning.linear_optimization.device_scheduler`,
+    building the LP/MILP directly with the HiGHS Python API (``highspy``) instead.
+    The Pyomo implementation is the semantic reference:
+    any change to the variables, constraints or objective in ``device_scheduler`` MUST be mirrored here (and vice versa),
+    and the equivalence tests in ``tests/test_highspy_equivalence.py`` should be extended accordingly.
+    This trade-off (a second model to maintain) was accepted
+    because bypassing the Pyomo layer cuts roughly a second (single device) to several seconds (multiple devices)
+    of model construction and solution-ingestion overhead per scheduling job,
+    while the direct build takes milliseconds.
 
-Deviations from the Pyomo implementation (all verified against the behavior of
-the ``appsi_highs`` path):
+Deviations from the Pyomo implementation (all verified against the behavior of the ``appsi_highs`` path):
 
 - Rows whose computed bounds are impossible to satisfy for any finite value
-  (upper bound of -inf, or lower bound of +inf, as happens when a commitment
-  quantity is +/-inf) are skipped. On the Pyomo path such rows are rejected by
-  HiGHS' ``addRow`` (called by appsi) and thereby silently dropped, with the
-  same net effect.
-- Solver results and model objects are lightweight shims (see
-  :class:`HighspySolverResults` and :class:`HighspyModel`) that expose the
-  attributes callers actually consume, rather than Pyomo objects.
+  (upper bound of -inf, or lower bound of +inf, as happens when a commitment quantity is +/-inf) are skipped.
+  On the Pyomo path such rows are rejected by HiGHS' ``addRow`` (called by appsi) and thereby silently dropped,
+  with the same net effect.
+- Solver results and model objects are lightweight shims
+  (see :class:`HighspySolverResults` and :class:`HighspyModel`)
+  that expose the attributes callers actually consume, rather than Pyomo objects.
 """
 
 from __future__ import annotations
@@ -52,14 +48,13 @@ infinity = float("inf")
 class _SolverInformation:
     """Mimics the ``solver`` entry of a Pyomo ``SolverResults`` object.
 
-    Named after Pyomo's own ``pyomo.opt.results.solver.SolverInformation``, which
-    is what that entry holds.
+    Named after Pyomo's own ``pyomo.opt.results.solver.SolverInformation``, which is what that entry holds.
     """
 
     def __init__(self, termination_condition: str, status: str):
-        #: str containing "optimal", "infeasible", etc. (mirrors Pyomo's
-        #: str-valued TerminationCondition enum, which supports both
-        #: ``== "optimal"`` and ``"infeasible" in ...`` checks)
+        #: str containing "optimal", "infeasible", etc.
+        #: Mirrors Pyomo's str-valued TerminationCondition enum,
+        #: which supports both ``== "optimal"`` and ``"infeasible" in ...`` checks.
         self.termination_condition = termination_condition
         self.status = status
 
@@ -67,8 +62,8 @@ class _SolverInformation:
 class HighspySolverResults:
     """Small stand-in for Pyomo's ``SolverResults``.
 
-    Callers only consume ``results.solver.termination_condition`` (a string
-    containing "optimal"/"infeasible") and ``results.solver.status``.
+    Callers only consume ``results.solver.termination_condition`` (a string containing "optimal"/"infeasible")
+    and ``results.solver.status``.
     """
 
     def __init__(self, termination_condition: str, status: str):
@@ -105,12 +100,11 @@ class HighspyModel:
 
     - ``commitment_costs``: dict of realized costs per (original) commitment
     - ``commodity_costs``: dict of realized costs per commodity
-    - ``costs``: the objective value (a float; ``pyomo.environ.value()`` passes
-      floats through unchanged, so ``value(model.costs)`` keeps working)
+    - ``costs``: the objective value
+      (a float; ``pyomo.environ.value()`` passes floats through unchanged, so ``value(model.costs)`` keeps working)
     - ``d`` and ``j``: the device and datetime index ranges
-    - ``ems_power``, ``device_power_up``, ``device_power_down``,
-      ``device_power_sign``: indexed variable views supporting
-      ``var[d, j].value`` and ``var.extract_values()``
+    - ``ems_power``, ``device_power_up``, ``device_power_down``, ``device_power_sign``:
+      indexed variable views supporting ``var[d, j].value`` and ``var.extract_values()``
     """
 
     def __init__(self):
@@ -133,8 +127,8 @@ def _column(df: pd.DataFrame, name: str) -> np.ndarray:
 def _column_or_default(df: pd.DataFrame, name: str, default: float) -> np.ndarray:
     """Return a DataFrame column as a float array, with missing column or NaN values replaced by a default.
 
-    Mirrors e.g. ``device_efficiency`` in the Pyomo implementation ("assume
-    perfect efficiency if no efficiency information is available").
+    Mirrors e.g. ``device_efficiency`` in the Pyomo implementation
+    ("assume perfect efficiency if no efficiency information is available").
     """
     if name not in df.columns:
         return np.full(len(df), float(default))
@@ -160,10 +154,9 @@ def _loss_coefficient_arrays(efficiency: np.ndarray) -> tuple[np.ndarray, np.nda
 class _RowBuilder:
     """Accumulates constraint rows (in CSR form) for a single HiGHS addRows call.
 
-    Rows that no finite assignment can satisfy (upper bound -inf or lower bound
-    +inf) are skipped, mirroring how HiGHS rejects such rows when the appsi
-    interface adds them one by one (see module docstring). Free rows
-    (-inf, +inf) are also skipped, as they cannot bind.
+    Rows that no finite assignment can satisfy (upper bound -inf or lower bound +inf) are skipped,
+    mirroring how HiGHS rejects such rows when the appsi interface adds them one by one (see module docstring).
+    Free rows (-inf, +inf) are also skipped, as they cannot bind.
     """
 
     def __init__(self):
@@ -510,18 +503,18 @@ def device_scheduler_highspy(  # noqa C901
             np.tile([-1.0, Mc], (C, 1)),
         )
 
-    # grouped_commitment_equalities: couple each commitment's baseline (plus
-    # deviation variables) to the summed flow (FlowCommitment) or stock
-    # (StockCommitment) of each of its device groups:
+    # grouped_commitment_equalities:
+    # couple each commitment's baseline (plus deviation variables)
+    # to the summed flow (FlowCommitment) or stock (StockCommitment) of each of its device groups:
     #   lb <= quantity + down_dev + up_dev - sum_over_group <= ub
-    # where lb is 0 iff the commitment prices upwards deviations and ub is 0
-    # iff it prices downwards deviations (one-sided otherwise).
+    # where lb is 0 iff the commitment prices upwards deviations,
+    # and ub is 0 iff it prices downwards deviations (one-sided otherwise).
     def _active_rows(df: pd.DataFrame):
         """The commitment's active time steps and its row bounds.
 
-        A NaN quantity deactivates the commitment at that time step. The Pyomo
-        implementation maps such a quantity to -inf in its Param and lets the
-        resulting row (whose lower bound works out to +inf) be rejected by HiGHS;
+        A NaN quantity deactivates the commitment at that time step.
+        The Pyomo implementation maps such a quantity to -inf in its Param
+        and lets the resulting row (whose lower bound works out to +inf) be rejected by HiGHS;
         dropping it here has the same effect.
         """
         quantity = _column(df, "quantity")
@@ -540,8 +533,8 @@ def device_scheduler_highspy(  # noqa C901
         ]
         val_cols = [np.ones(n_rows), np.ones(n_rows)]
         if is_stock:
-            # Aggregate coefficients per stock group column and move the
-            # initial stocks into the row bounds.
+            # Aggregate coefficients per stock group column,
+            # and move the initial stocks into the row bounds.
             stock_coefficients: dict[int, float] = {}
             initial_stock_sum = 0.0
             for dev in devices:
@@ -577,10 +570,10 @@ def device_scheduler_highspy(  # noqa C901
                 continue
             _add_commitment_rows(c, quantity, jj, lb, ub, devices_in_group, is_stock)
 
-    # ems_flow_commitment_equalities: an EMS-level flow commitment binds the
-    # summed flow of every device, or of its commodity's devices when it names a
-    # commodity. A commitment that names devices is skipped here, being already
-    # bound per device group above; binding it twice would over-constrain it.
+    # ems_flow_commitment_equalities: an EMS-level flow commitment binds the summed flow of every device,
+    # or of its commodity's devices when it names a commodity.
+    # A commitment that names devices is skipped here, being already bound per device group above;
+    # binding it twice would over-constrain it.
     for c, df in enumerate(commitments):
         if device_group_lookup.get(c):
             continue
@@ -662,8 +655,8 @@ def device_scheduler_highspy(  # noqa C901
     if nrow > 0:
         h.addRows(nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value)
 
-    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches
-    # on "highs"), so the two backends cannot disagree on tolerances.
+    # The same options the Pyomo path applies for HiGHS solvers ("highspy" matches on "highs"),
+    # so the two backends cannot disagree on tolerances.
     for option_name, option_value in solver_options("highspy").items():
         h.setOptionValue(option_name, option_value)
 

@@ -1,18 +1,16 @@
 """Solver-agnostic preparation of the device scheduler's inputs.
 
-:func:`flexmeasures.data.models.planning.linear_optimization.device_scheduler`
-(Pyomo) and
-:func:`flexmeasures.data.models.planning.highspy_optimization.device_scheduler_highspy`
-(direct HiGHS) build the same mathematical model in two very different
-representations, so the model construction itself is necessarily written twice.
-Everything *around* it is not: normalising arguments, resolving stock groups,
-converting legacy commitments, deriving Big-Ms, and turning solver output back
-into schedules and costs is plain pandas/numpy work with no solver in it.
+:func:`flexmeasures.data.models.planning.linear_optimization.device_scheduler` (Pyomo) and
+:func:`flexmeasures.data.models.planning.highspy_optimization.device_scheduler_highspy` (direct HiGHS)
+build the same mathematical model in two very different representations,
+so the model construction itself is necessarily written twice.
+Everything *around* it is not:
+normalising arguments, resolving stock groups, converting legacy commitments, deriving Big-Ms,
+and turning solver output back into schedules and costs is plain pandas/numpy work with no solver in it.
 
-Keeping that work here means the two backends cannot drift apart on input
-handling — only on the model, which is what the equivalence tests in
-``tests/test_highspy_equivalence.py`` compare. It also gives both backends a
-single place to grow support for a new scheduling feature's *inputs*.
+Keeping that work here means the two backends cannot drift apart on input handling —
+only on the model, which is what the equivalence tests in ``tests/test_highspy_equivalence.py`` compare.
+It also gives both backends a single place to grow support for a new scheduling feature's *inputs*.
 """
 
 from __future__ import annotations
@@ -35,11 +33,10 @@ infinity = float("inf")
 def validate_highs_options(options: dict) -> None:
     """Raise if HiGHS would refuse any of these options.
 
-    Pyomo's appsi_highs interface applies solver options without checking HiGHS'
-    return status, so an unknown name, an invalid value, or a feature missing from
-    the installed HiGHS build is otherwise ignored without a word. That silently
-    turns a mis-typed option into a no-op, and a benchmark of it into a false
-    negative. Probing a throwaway Highs instance surfaces the rejection instead.
+    Pyomo's appsi_highs interface applies solver options without checking HiGHS' return status,
+    so an unknown name, an invalid value, or a feature missing from the installed HiGHS build is otherwise ignored without a word.
+    That silently turns a mis-typed option into a no-op, and a benchmark of it into a false negative.
+    Probing a throwaway Highs instance surfaces the rejection instead.
     """
     try:
         import highspy
@@ -74,10 +71,10 @@ def validate_highs_options(options: dict) -> None:
 def solver_options(solver_name: str) -> dict:
     """The solver options to apply, for the given solver.
 
-    HiGHS (whether reached through Pyomo as ``appsi_highs`` or directly as
-    ``highspy`` -- both match on "highs") gets a tight-tolerance profile, so the
-    two backends cannot disagree on tolerances and silently produce different
-    schedules. Operator-configured options are applied last, so they win.
+    HiGHS (whether reached through Pyomo as ``appsi_highs`` or directly as ``highspy`` -- both match on "highs")
+    gets a tight-tolerance profile,
+    so the two backends cannot disagree on tolerances and silently produce different schedules.
+    Operator-configured options are applied last, so they win.
     """
     is_highs = "highs" in solver_name.lower()
 
@@ -107,8 +104,7 @@ def convert_commitments_to_subcommitments(
     """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
 
     'Groups' are a commitment concept (grouping time slots of a commitment),
-    making it possible that deviations/breaches can be accounted for properly within this group
-    (e.g. highest breach per calendar month defines the penalty).
+    making it possible that deviations/breaches can be accounted for properly within this group (e.g. highest breach per calendar month defines the penalty).
     Here, we define sub-commitments, by separating commitments by group and by direction of deviation (up, down).
 
     We also enumerate the time steps in a new column "j".
@@ -128,10 +124,9 @@ def convert_commitments_to_subcommitments(
 
         df["j"] = range(len(df.index))
 
-        # Group rows by the "group" column in order of first appearance (like
-        # pd.unique), in a single pass rather than by filtering the DataFrame
-        # once per group (which would scale quadratically with the number of
-        # time steps, as each time step often forms its own group).
+        # Group rows by the "group" column in order of first appearance (like pd.unique),
+        # in a single pass rather than by filtering the DataFrame once per group
+        # (which would scale quadratically with the number of time steps, as each time step often forms its own group).
         grouped = df.drop(columns=["group"]).groupby(df["group"], sort=False)
 
         # Catch non-uniqueness (vectorized across all groups)
@@ -160,8 +155,8 @@ def convert_commitments_to_subcommitments(
 def _is_missing(value) -> bool:
     """Whether ``value`` is missing, in the sense ``DataFrame.dropna`` uses.
 
-    A commitment's "device" column may hold a collection of device indices,
-    which ``pd.isna`` would answer element-wise; such a value is never missing.
+    A commitment's "device" column may hold a collection of device indices, which ``pd.isna`` would answer element-wise;
+    such a value is never missing.
     """
     if isinstance(value, (list, tuple, set, np.ndarray)):
         return False
@@ -173,8 +168,8 @@ def loss_coefficients(efficiency: float) -> tuple[float, float]:
 
     stock[j] = a * stock[j-1] + b * change[j]
 
-    Mirrors :func:`apply_stock_changes_and_losses`, which we cannot call here
-    because it expects numbers, while `change[j]` may be a Pyomo expression.
+    Mirrors :func:`apply_stock_changes_and_losses`, which we cannot call here because it expects numbers,
+    while `change[j]` may be a Pyomo expression.
     """
     if efficiency == 1:
         return 1.0, 1.0
@@ -185,8 +180,8 @@ def loss_coefficients(efficiency: float) -> tuple[float, float]:
 class SchedulingProblem:
     """Everything both scheduler backends need before building their model.
 
-    Produced by :func:`prepare_scheduling_problem`; see ``device_scheduler``'s
-    docstring for what the underlying arguments mean.
+    Produced by :func:`prepare_scheduling_problem`;
+    see ``device_scheduler``'s docstring for what the underlying arguments mean.
     """
 
     #: Timing, taken from the first device
@@ -214,11 +209,10 @@ class SchedulingProblem:
     device_group_lookup: dict[int, dict]
 
     #: Whether the summed deviation prices describe a convex cost curve
-    #: (a non-convex curve needs binary commitment-sign variables)
+    #: (a non-convex curve needs binary commitment-sign variables).
     convex_cost_curve: bool
 
-    #: Big-Ms bounding the search space for device power (Md) and commitment
-    #: deviations (Mc)
+    #: Big-Ms bounding the search space for device power (Md) and commitment deviations (Mc)
     Md: float
     Mc: float
 
@@ -227,15 +221,14 @@ class SchedulingProblem:
 
     initial_stock: float | list[float]
 
-    #: The commitments as passed in, before the sub-commitment split. Only kept to
-    #: derive :attr:`commodity_devices` lazily.
+    #: The commitments as passed in, before the sub-commitment split.
+    #: Only kept to derive :attr:`commodity_devices` lazily.
     original_commitments: list[pd.DataFrame] = field(default_factory=list, repr=False)
 
     def initial_stock_of(self, d) -> float:
         """The initial stock of device ``d``, defaulting to 0.
 
-        Device indices reaching this from a commitment's "device" column may be
-        numpy floats, hence the cast.
+        Device indices reaching this from a commitment's "device" column may be numpy floats, hence the cast.
         """
         if isinstance(self.initial_stock, list):
             # No initial stock defined for inflexible device
@@ -247,8 +240,8 @@ class SchedulingProblem:
     def commodity_devices(self) -> dict:
         """commodity -> set(device indices).
 
-        Computed on demand: only the EMS-level flow commitment constraints need
-        it, and the per-row scan is not cheap enough to pay for unconditionally.
+        Computed on demand: only the EMS-level flow commitment constraints need it,
+        and the per-row scan is not cheap enough to pay for unconditionally.
         """
         commodity_devices: dict = {}
         for df in self.original_commitments:
@@ -278,8 +271,8 @@ def prepare_scheduling_problem(  # noqa C901
 ) -> SchedulingProblem:
     """Normalise and validate ``device_scheduler``'s arguments into a SchedulingProblem.
 
-    .. note:: This adds a "stock delta" column to the passed ``device_constraints``
-        DataFrames in place, as the schedulers have always done.
+    .. note:: This adds a "stock delta" column to the passed ``device_constraints`` DataFrames in place,
+        as the schedulers have always done.
     """
     # Get timing from first device
     start = device_constraints[0].index.to_pydatetime()[0]
@@ -432,11 +425,10 @@ def prepare_scheduling_problem(  # noqa C901
 
         has_device_group = "device_group" in df.columns
 
-        # Read the columns as arrays rather than slicing + dropna()-ing a fresh
-        # DataFrame per sub-commitment. Each time step usually forms its own
-        # group, so this loop runs once per time step, and the per-call pandas
-        # overhead dominated it (~50 ms of a ~135 ms prepare on 4 devices x 192
-        # steps; the arrays bring that under 1 ms).
+        # Read the columns as arrays rather than slicing + dropna()-ing a fresh DataFrame per sub-commitment.
+        # Each time step usually forms its own group, so this loop runs once per time step,
+        # and the per-call pandas overhead dominated it
+        # (~50 ms of a ~135 ms prepare on 4 devices x 192 steps; the arrays bring that under 1 ms).
         device_values = df["device"].to_numpy()
         if has_device_group:
             group_values = df["device_group"].to_numpy()
@@ -448,8 +440,8 @@ def prepare_scheduling_problem(  # noqa C901
 
         groups: dict = {}
         for d, g in zip(device_values, group_values):
-            # Skip what the previous dropna() dropped: a missing device, or a
-            # missing group label when the commitment declares groups.
+            # Skip what the previous dropna() dropped:
+            # a missing device, or a missing group label when the commitment declares groups.
             if _is_missing(d) or (has_device_group and _is_missing(g)):
                 continue
 
@@ -474,7 +466,7 @@ def prepare_scheduling_problem(  # noqa C901
         )
     else:
         # No commitments at all: nothing can make the cost curve non-convex.
-        # (The Pyomo path used to raise on the empty pd.concat here.)
+        # The Pyomo path used to raise on the empty pd.concat here.
         convex_cost_curve = True
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]

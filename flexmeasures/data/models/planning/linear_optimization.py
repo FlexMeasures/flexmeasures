@@ -46,10 +46,9 @@ infinity = float("inf")
 def _left_at_default(value, default) -> bool:
     """Whether an argument was left at its default.
 
-    Best-effort: pandas values compare element-wise, so ``value == default`` may
-    return an array (or raise) rather than a bool. Anything we cannot decide is
-    reported as "not the default", which errs towards raising in
-    :func:`_arguments_for_highspy_backend` rather than silently dropping a value.
+    Best-effort: pandas values compare element-wise, so ``value == default`` may return an array (or raise) rather than a bool.
+    Anything we cannot decide is reported as "not the default",
+    which errs towards raising in :func:`_arguments_for_highspy_backend` rather than silently dropping a value.
     """
     if value is default:
         return True
@@ -65,10 +64,8 @@ def _left_at_default(value, default) -> bool:
 def _backend_argument_map(declared_by, supported_by) -> tuple[frozenset, tuple]:
     """Which of ``declared_by``'s arguments ``supported_by`` accepts, and which it lacks.
 
-    Signatures are static, so this is computed once per process (roughly 70 us,
-    which is not worth paying on every schedule). Caching on the two function
-    objects rather than on nothing keeps it correct when a test substitutes one
-    of them.
+    Signatures are static, so this is computed once per process (roughly 70 us, which is not worth paying on every schedule).
+    Caching on the two function objects rather than on nothing keeps it correct when a test substitutes one of them.
     """
     declared = inspect.signature(declared_by).parameters
     supported = frozenset(inspect.signature(supported_by).parameters)
@@ -83,23 +80,22 @@ def _backend_argument_map(declared_by, supported_by) -> tuple[frozenset, tuple]:
 def _arguments_for_highspy_backend(passed_arguments: dict) -> dict:
     """Map ``device_scheduler``'s arguments onto the direct HiGHS backend's signature.
 
-    A hand-written keyword list here would be a trap: whoever adds the next
-    ``device_scheduler`` parameter naturally works on the Pyomo model further
-    down this file, and a parameter missing from that list would not fail — it
-    would simply never reach the backend. Under ``FLEXMEASURES_LP_SOLVER="highspy"``
-    (the default) that yields a schedule computed as if the constraint had never
-    been requested: plausible-looking, silently wrong, and not caught by tests
-    written before the default was flipped.
+    A hand-written keyword list here would be a trap:
+    whoever adds the next ``device_scheduler`` parameter naturally works on the Pyomo model further down this file,
+    and a parameter missing from that list would not fail — it would simply never reach the backend.
+    Under ``FLEXMEASURES_LP_SOLVER="highspy"`` (the default),
+    that yields a schedule computed as if the constraint had never been requested:
+    plausible-looking, silently wrong, and not caught by tests written before the default was flipped.
 
-    Forwarding by name removes that failure mode entirely. The remaining case —
-    an argument the direct backend does not model at all — is caught statically
-    by ``test_every_device_scheduler_argument_currently_reaches_the_backend``, so
-    it cannot reach a release. The raise below is only a backstop for a build
-    where that test did not run; it costs nothing while the signatures agree.
+    Forwarding by name removes that failure mode entirely.
+    The remaining case — an argument the direct backend does not model at all —
+    is caught statically by ``test_every_device_scheduler_argument_currently_reaches_the_backend``, so it cannot reach a release.
+    The raise below is only a backstop for a build where that test did not run;
+    it costs nothing while the signatures agree.
 
-    This is a live concern rather than a hypothetical one: ``device_scheduler``
-    is gaining ``coupling_groups`` (#2218) and ``balance_groups`` (#2289) on
-    branches in flight, and each needs explicit support here.
+    This is a live concern rather than a hypothetical one:
+    ``device_scheduler`` is gaining ``coupling_groups`` (#2218) and ``balance_groups`` (#2289) on branches in flight,
+    and each needs explicit support here.
     """
     from flexmeasures.data.models.planning.highspy_optimization import (
         device_scheduler_highspy,
@@ -198,13 +194,13 @@ def device_scheduler(  # noqa C901
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
 
-    # The "highspy" solver choice bypasses Pyomo altogether: the same model is
-    # built directly with the HiGHS Python API (much faster to construct).
-    # See the highspy_optimization module, which mirrors the model built below
-    # and returns compatible result objects.
+    # The "highspy" solver choice bypasses Pyomo altogether:
+    # the same model is built directly with the HiGHS Python API (much faster to construct).
+    # See the highspy_optimization module, which mirrors the model built below and returns compatible result objects.
     if current_app.config.get("FLEXMEASURES_LP_SOLVER") == "highspy":
-        # Arguments are forwarded by name, and an argument the direct backend cannot
-        # model raises rather than being dropped. See _arguments_for_highspy_backend.
+        # Arguments are forwarded by name,
+        # and an argument the direct backend cannot model raises rather than being dropped.
+        # See _arguments_for_highspy_backend.
         highspy_arguments = _arguments_for_highspy_backend(locals())
 
         from flexmeasures.data.models.planning.highspy_optimization import (
@@ -232,8 +228,8 @@ def device_scheduler(  # noqa C901
         device_power_bands=device_power_bands,
     )
 
-    # Local aliases, so that the model below reads as it did before the (solver-agnostic)
-    # input handling moved to the scheduling_problem module.
+    # Local aliases,
+    # so that the model below reads as it did before the (solver-agnostic) input handling moved to the scheduling_problem module.
     start, end, resolution = problem.start, problem.end, problem.resolution
     device_constraints = problem.device_constraints
     ems_constraints_list = problem.ems_constraints_list
@@ -570,12 +566,11 @@ def device_scheduler(  # noqa C901
         if commitments[c]["class"].iloc[0] != FlowCommitment:
             return Constraint.Skip
 
-        # A device-scoped commitment is already bound, once per device group, by
-        # grouped_commitment_equalities. Now that this constraint family actually
-        # has bounds, binding such a commitment here as well would constrain the
-        # same deviation variables a second time, against a different device set
-        # (the whole EMS, or the whole commodity). Only genuinely EMS-level
-        # commitments -- those naming no device -- belong here.
+        # A device-scoped commitment is already bound, once per device group, by grouped_commitment_equalities.
+        # Now that this constraint family actually has bounds,
+        # binding such a commitment here as well would constrain the same deviation variables a second time,
+        # against a different device set (the whole EMS, or the whole commodity).
+        # Only genuinely EMS-level commitments -- those naming no device -- belong here.
         if device_group_lookup.get(c):
             return Constraint.Skip
 

@@ -1,13 +1,12 @@
 """Equivalence tests for the direct highspy scheduling backend.
 
-Each scenario is run through ``device_scheduler`` twice: once with the Pyomo
-path (``appsi_highs``) and once with the direct HiGHS path (``highspy``), and
-the resulting schedules, costs and termination handling are compared.
+Each scenario is run through ``device_scheduler`` twice:
+once with the Pyomo path (``appsi_highs``) and once with the direct HiGHS path (``highspy``),
+and the resulting schedules, costs and termination handling are compared.
 
-If one of these tests fails after a change to the model in
-``linear_optimization.device_scheduler``, the twin model in
-``highspy_optimization.device_scheduler_highspy`` probably needs the same
-change (see the note in that module's docstring).
+If one of these tests fails after a change to the model in ``linear_optimization.device_scheduler``,
+the twin model in ``highspy_optimization.device_scheduler_highspy`` probably needs the same change
+(see the note in that module's docstring).
 """
 
 from __future__ import annotations
@@ -259,9 +258,9 @@ def run_with_solver(app, solver: str, make_scenario):
 def scenario_ems_level_flow_commitment():
     """Two devices under an EMS-level flow commitment, which names no device.
 
-    Such a commitment binds the summed flow of all devices, via
-    ``ems_flow_commitment_equalities`` rather than the grouped constraints, so it
-    is the case that distinguishes the two constraint families.
+    Such a commitment binds the summed flow of all devices,
+    via ``ems_flow_commitment_equalities`` rather than the grouped constraints,
+    so it is the case that distinguishes the two constraint families.
     """
     index = make_index()
     prices = make_prices(index)
@@ -284,9 +283,9 @@ def scenario_ems_level_flow_commitment():
 def scenario_ems_level_commodity_commitment():
     """An EMS-level flow commitment scoped to one commodity's devices.
 
-    Device 0 carries the commodity, device 1 does not, so the commitment must
-    bind device 0's flow only -- exercising the commodity_devices lookup rather
-    than the sum-over-all-devices fallback.
+    Device 0 carries the commodity, device 1 does not,
+    so the commitment must bind device 0's flow only --
+    exercising the commodity_devices lookup rather than the sum-over-all-devices fallback.
     """
     index = make_index()
     prices = make_prices(index)
@@ -381,12 +380,12 @@ def test_highspy_matches_pyomo_when_infeasible(app):
 def test_unsupported_argument_is_rejected_not_ignored():
     """A device_scheduler argument the direct backend cannot model must raise.
 
-    ``device_scheduler`` forwards its arguments to the direct HiGHS backend by
-    name. Whoever adds the next scheduling parameter (``coupling_groups`` in
-    #2218, ``balance_groups`` in #2289) works on the Pyomo model, and a
-    parameter that never reached the backend would not fail -- it would produce
-    a schedule computed as if the constraint had never been requested. Since
-    ``highspy`` is the default solver, that would be silently wrong.
+    ``device_scheduler`` forwards its arguments to the direct HiGHS backend by name.
+    Whoever adds the next scheduling parameter (``coupling_groups`` in #2218, ``balance_groups`` in #2289)
+    works on the Pyomo model,
+    and a parameter that never reached the backend would not fail --
+    it would produce a schedule computed as if the constraint had never been requested.
+    Since ``highspy`` is the default solver, that would be silently wrong.
     """
     real_device_scheduler = linear_optimization.device_scheduler
 
