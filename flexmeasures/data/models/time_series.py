@@ -9,7 +9,7 @@ from flask import current_app
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import DDL, event, exists, select
+from sqlalchemy import event, exists, select, text as sa_text
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -717,7 +717,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         exclude_source_types: list[str] | None = None,
         check_exists: bool = False,
     ) -> list[DataSource] | bool:
-        """
+        """Find the data sources that have recorded beliefs for this sensor.
+
+        Where the answer comes from depends on whether time filters are given.
+        With them, the beliefs table is consulted, so the answer is exact for that window.
+        Without them, the ``sensor_data_source`` summary is read instead,
+        which avoids scanning the beliefs table but is a superset:
+        a source stays listed after its beliefs for this sensor are deleted.
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource`.
+
         :returns: list of Data Source objects, or, if check_exists, True if any such sources exist, False if none do.
         """
 
@@ -799,9 +807,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def data_sources(self) -> list[DataSource]:
         """Return all DataSource objects that have recorded beliefs for this sensor.
 
-        Uses a two-step subquery (distinct source IDs → DataSource rows) so that
-        it scales to very large timed_belief tables without fetching every belief row.
-        Equivalent to ``search_data_sources()`` with no filters.
+        Equivalent to ``search_data_sources()`` with no filters,
+        which reads the ``sensor_data_source`` summary rather than the beliefs table.
+
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource` for the superset semantics that implies:
+        a source stays listed after its beliefs for this sensor are deleted.
         """
         return self.search_data_sources()
 
@@ -1227,29 +1237,55 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 # Migration f1c8a3d75e29 creates the same objects for databases built by migrations.
 # The statements are repeated there rather than imported,
 # so that the migration stays immutable if this ever changes.
-RECORD_SENSOR_DATA_SOURCES_DDL = DDL(
-    """
-    CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
-    LANGUAGE plpgsql AS $$
-    BEGIN
-        INSERT INTO sensor_data_source (sensor_id, source_id)
-        SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
-        ON CONFLICT DO NOTHING;
-        RETURN NULL;
-    END;
-    $$;
+RECORD_SENSOR_DATA_SOURCES_FUNCTION = """
+CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO sensor_data_source (sensor_id, source_id)
+    SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
+    ON CONFLICT DO NOTHING;
+    RETURN NULL;
+END;
+$$
+"""
 
-    DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources ON timed_belief;
-    CREATE TRIGGER timed_belief_record_sensor_data_sources
-    AFTER INSERT ON timed_belief
-    REFERENCING NEW TABLE AS inserted_beliefs
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION record_sensor_data_sources();
-    """
-)
+RECORD_SENSOR_DATA_SOURCES_TRIGGER = """
+CREATE TRIGGER timed_belief_record_sensor_data_sources
+AFTER INSERT ON timed_belief
+REFERENCING NEW TABLE AS inserted_beliefs
+FOR EACH STATEMENT
+EXECUTE FUNCTION record_sensor_data_sources()
+"""
 
-event.listen(
-    TimedBelief.__table__,
-    "after_create",
-    RECORD_SENSOR_DATA_SOURCES_DDL.execute_if(dialect="postgresql"),
-)
+
+def create_sensor_data_source_trigger(target, connection, **kwargs) -> None:
+    """Install the trigger that keeps sensor_data_source current.
+
+    Listens on the metadata rather than on timed_belief's own after_create,
+    because the trigger function refers to sensor_data_source,
+    and nothing orders that table's creation relative to timed_belief's.
+    plpgsql resolves the reference lazily, so a per-table listener happens to work,
+    but relying on that is fragile:
+    a function written in plain SQL would be bound eagerly and fail.
+
+    Skips quietly when either table is absent,
+    so a partial create_all does not break.
+    """
+    if connection.dialect.name != "postgresql":
+        return
+    inspector = inspect(connection)
+    if not inspector.has_table("timed_belief") or not inspector.has_table(
+        "sensor_data_source"
+    ):
+        return
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_FUNCTION))
+    connection.execute(
+        sa_text(
+            "DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources"
+            " ON timed_belief"
+        )
+    )
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_TRIGGER))
+
+
+event.listen(db.metadata, "after_create", create_sensor_data_source_trigger)
