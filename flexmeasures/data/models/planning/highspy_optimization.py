@@ -49,8 +49,12 @@ from flexmeasures.data.models.planning.scheduling_problem import (
 infinity = float("inf")
 
 
-class _SolverStanza:
-    """Mimics the ``solver`` entry of a Pyomo ``SolverResults`` object."""
+class _SolverInformation:
+    """Mimics the ``solver`` entry of a Pyomo ``SolverResults`` object.
+
+    Named after Pyomo's own ``pyomo.opt.results.solver.SolverInformation``, which
+    is what that entry holds.
+    """
 
     def __init__(self, termination_condition: str, status: str):
         #: str containing "optimal", "infeasible", etc. (mirrors Pyomo's
@@ -68,7 +72,7 @@ class HighspySolverResults:
     """
 
     def __init__(self, termination_condition: str, status: str):
-        self.solver = _SolverStanza(termination_condition, status)
+        self.solver = _SolverInformation(termination_condition, status)
 
 
 class _IndexedVarView:
