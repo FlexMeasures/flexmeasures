@@ -95,7 +95,7 @@ class Config(object):
 
     # Hosts on which this platform is served, used by Flask to validate the Host header.
     # Leaving this unset means any Host header is accepted, which lets clients poison generated URLs.
-    TRUSTED_HOSTS: list[str] | str | None = None  # str will be checked for commas
+    TRUSTED_HOSTS: list[str] | str | None = None  # str will be checked for commas.
 
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: list[str] | str = []
