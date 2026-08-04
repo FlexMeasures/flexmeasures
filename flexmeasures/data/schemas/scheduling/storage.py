@@ -34,7 +34,6 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 
-
 #: User-facing (hyphenated) flex-model keys that may co-exist with an inflexible-device
 #: declaration: its own identity/grouping/commodity and the always-defaulted activation
 #: preferences. Any other declared field is a schedulable-device field, so an entry
