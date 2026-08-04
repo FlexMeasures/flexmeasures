@@ -6,6 +6,7 @@ from flask import url_for
 
 from flexmeasures import Sensor
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 
 
@@ -42,8 +43,14 @@ def test_asset_jobs_redact_inaccessible_automation_provenance(
     )
     fresh_db.session.add_all([target_asset, target_sensor])
     fresh_db.session.flush()
+    generator = DataSource(
+        name="asset jobs automation generator",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
     automation = Automation(
         asset=source_asset,
+        generator=generator,
         name="Confidential source automation",
         type="forecasts",
         cronstr="0 6 * * *",

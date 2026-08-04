@@ -6,14 +6,21 @@ import pytest
 from flask import url_for
 
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 
 
 @pytest.fixture(scope="module")
 def add_automations(db, add_battery_assets):
     battery = add_battery_assets["Test battery"]
+    generator = DataSource(
+        name="automations API test generator",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
     automations = [
         Automation(
             asset_id=battery.id,
+            generator=generator,
             type="forecasts",
             name="Day-ahead forecasts",
             cronstr="0 6 * * *",
@@ -22,6 +29,7 @@ def add_automations(db, add_battery_assets):
         ),
         Automation(
             asset_id=battery.id,
+            generator=generator,
             type="forecasts",
             name="Intraday forecasts",
             cronstr="0 * * * *",
