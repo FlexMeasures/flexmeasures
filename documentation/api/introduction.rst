@@ -125,7 +125,7 @@ The response body will contain a JSON message with a ``status`` field set to ``"
 
     The fallback schedule mechanism activates when the main scheduler encounters an infeasible problem (i.e. when constraints cannot be satisfied).
     This is less likely to happen when ``"relax-constraints": true`` is set in the ``flex-context``, as constraint relaxation softens most infeasibility-causing constraints.
-    The hard constraints that remain even after constraint relaxation are ``soc-min``, ``soc-max``, ``soc-targets`` and ``power-capacity`` in the ``flex-model``, and ``site-power-capacity`` in the ``flex-context``.
+    The hard constraints that remain even after constraint relaxation are ``soc-min``, ``soc-max`` and ``power-capacity`` in the ``flex-model``, and ``site-power-capacity`` in the ``flex-context``.
 
     Server administrators can configure whether clients receive a 303 redirect (``FLEXMEASURES_FALLBACK_REDIRECT = True``) or whether FlexMeasures follows the fallback automatically and returns the fallback schedule directly (``FLEXMEASURES_FALLBACK_REDIRECT = False``, the default).
 

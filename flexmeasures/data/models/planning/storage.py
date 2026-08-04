@@ -1391,6 +1391,106 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
+            # A soc target is a two-sided constraint: falling short of it is a shortage
+            # (priced like a soc-minima breach) and overshooting it is a surplus (priced
+            # like a soc-maxima breach). We therefore relax targets only when both breach
+            # prices are available, which is the case whenever SoC relaxation is on, since
+            # the two default prices are filled in as a pair.
+            if (
+                self.flex_context.get("soc_minima_breach_price") is not None
+                and self.flex_context.get("soc_maxima_breach_price") is not None
+                and soc_targets[d] is not None
+                and soc_at_start[d] is not None
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
+                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
+                any_soc_target_shortage_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=soc_minima_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                        query_window=(start + resolution, end + resolution),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    ).shift(-1, freq=resolution)
+                )
+                all_soc_target_shortage_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=soc_minima_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                        query_window=(start + resolution, end + resolution),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    ).shift(-1, freq=resolution)
+                )
+                any_soc_target_surplus_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_target_surplus_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_targets_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_targets_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_targets[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="first",
+                )
+                # shift soc targets by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_targets_d = soc_targets_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc targets",
+                    quantity=soc_targets_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-any_soc_target_shortage_price,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=any_soc_target_surplus_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc targets",
+                    quantity=soc_targets_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-all_soc_target_shortage_price,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=all_soc_target_surplus_price,
+                    index=index,
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                # soc-targets will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_targets[d] = None
+
             # only apply SOC constraints to the first device of a shared stock
             apply_soc_constraints = True
             for stock_id, devices in self.stock_groups.items():
@@ -2832,6 +2932,52 @@ class StorageScheduler(MetaStorageScheduler):
 
         return soc_schedule, soc_schedule_mwh
 
+    def _soc_target_violations(
+        self,
+        soc_targets,
+        soc_mwh: pd.Series,
+        start: datetime,
+        end: datetime,
+        resolution: timedelta,
+        precision: int,
+        most_relevant_only: bool,
+    ) -> list[dict]:
+        """Report time slots where the scheduled state of charge misses a soc target.
+
+        A target is a two-sided constraint, so a violation is the absolute deviation from
+        the target, in either direction. There is no headroom to report when a target is
+        met, so targets never produce a "resolved" entry.
+        """
+        if soc_targets is None:
+            return []
+        soc_targets_series = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_targets,
+            unit="MWh",
+            query_window=(start + resolution, end + resolution),
+            resolution=resolution,
+            beliefs_before=self.belief_time,
+            as_instantaneous_events=True,
+            resolve_overlaps="first",
+        )
+        defined_targets = soc_targets_series.dropna()
+        if len(defined_targets) == 0:
+            return []
+        deviations = (soc_mwh.reindex(defined_targets.index) - defined_targets).abs()
+        # Ignore deviations that would round away at the reporting precision.
+        violations = deviations[deviations.mul(1000).round(precision) > 0]
+        if violations.empty:
+            return []
+        violation_times = (
+            [violations.index[0]] if most_relevant_only else violations.index
+        )
+        return [
+            {
+                "datetime": t.tz_convert("UTC").isoformat(),
+                "violation": f"{round(float(violations[t]) * 1000, precision)} kWh",
+            }
+            for t in violation_times
+        ]
+
     def _compute_unresolved_targets(
         self,
         flex_model: list[dict],
@@ -3001,6 +3147,18 @@ class StorageScheduler(MetaStorageScheduler):
                             }
                             for t in margin_times
                         ]
+
+            target_violations = self._soc_target_violations(
+                soc_targets=flex_model_d.get("soc_targets"),
+                soc_mwh=soc_mwh,
+                start=start,
+                end=end,
+                resolution=resolution,
+                precision=precision,
+                most_relevant_only=most_relevant_only,
+            )
+            if target_violations:
+                device_violations["soc-targets"] = target_violations
 
             if device_violations:
                 violation_entry = {"asset": asset_id}

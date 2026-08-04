@@ -1273,7 +1273,12 @@ def test_validate_constraints(
 
 
 def test_infeasible_problem_error(db, add_battery_assets):
-    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
+    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0
+
+    Note that this only yields an infeasible problem when constraint relaxation is off;
+    with relaxation on (the default), an unreachable target is breached at a price. See
+    ``test_unreachable_soc_target_is_relaxed_by_default``.
+    """
 
     # get the sensors from the database
     _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
@@ -1291,6 +1296,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1319,6 +1325,44 @@ def test_infeasible_problem_error(db, add_battery_assets):
         ValueError, match="The input data yields an infeasible problem."
     ):
         compute_schedule(flex_model)
+
+
+def test_unreachable_soc_target_is_relaxed_by_default(db, add_battery_assets):
+    """An unreachable soc-target no longer makes the problem infeasible.
+
+    Same setup as ``test_infeasible_problem_error`` (soc-max 4.5, soc-target 8.0), but
+    with the default ``relax-constraints``. The target becomes a stock commitment, so
+    the scheduler charges as far as the (hard) soc-max allows and breaches the target
+    at a price, instead of failing to produce a schedule at all.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(hours=1)
+
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-min": 0.5,
+            "soc-max": 4.5,
+            "soc-targets": [{"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}],
+        },
+    )
+    schedule = scheduler.compute()
+    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=3)
+
+    # The hard soc-max still holds, and the scheduler gets as close to the target as it can.
+    assert soc_schedule.max() <= 4.5 + TOLERANCE
+    assert soc_schedule.loc[pd.Timestamp("2015-01-02T16:00:00+01:00")] == pytest.approx(
+        4.5, abs=1e-3
+    )
 
 
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
@@ -1372,6 +1416,9 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             ],
             "soc-unit": "MWh",
         },
+        # This test is about numerical error in the hard "equals" constraint, so opt
+        # out of the relaxation that would turn soc-targets into stock commitments.
+        flex_context={"relax-constraints": False},
     )
 
     (
@@ -2379,7 +2426,14 @@ def test_add_storage_constraint_from_sensor(
     ]
 
     scheduler: Scheduler = StorageScheduler(
-        battery, start, end, resolution, flex_model=flex_model
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        # This test inspects the hard "equals" constraint, so opt out of the
+        # relaxation that would turn soc-targets into stock commitments instead.
+        flex_context={"relax-constraints": False},
     )
 
     scheduler_info = scheduler._prepare()
