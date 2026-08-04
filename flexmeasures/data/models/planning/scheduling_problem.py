@@ -222,6 +222,9 @@ class SchedulingProblem:
     #: (group index, device index, coefficient) triples for hard flow-coupling constraints
     coupling_device_specs: list[tuple[int, int, float]]
 
+    #: device lists of the balance groups (internal commodity nodes), empty groups dropped
+    balance_group_specs: list[list[int]]
+
     initial_stock: float | list[float]
 
     #: The commitments as passed in, before the sub-commitment split.
@@ -272,6 +275,7 @@ def prepare_scheduling_problem(  # noqa C901
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
     coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
+    balance_groups: dict[str, list[int]] | None = None,
 ) -> SchedulingProblem:
     """Normalise and validate ``device_scheduler``'s arguments into a SchedulingProblem.
 
@@ -368,6 +372,13 @@ def prepare_scheduling_problem(  # noqa C901
         for g_idx, (_group_name, members) in enumerate(coupling_groups.items()):
             for d_idx, coeff in members:
                 coupling_device_specs.append((g_idx, d_idx, coeff))
+
+    # Collect the device lists of the balance groups (internal commodity nodes).
+    balance_group_specs: list[list[int]] = []
+    if balance_groups:
+        balance_group_specs = [
+            list(devices) for devices in balance_groups.values() if devices
+        ]
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -546,6 +557,7 @@ def prepare_scheduling_problem(  # noqa C901
         Mc=Mc,
         band_lookup=band_lookup,
         coupling_device_specs=coupling_device_specs,
+        balance_group_specs=balance_group_specs,
         initial_stock=initial_stock,
         original_commitments=original_commitments,
     )

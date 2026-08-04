@@ -1339,6 +1339,37 @@ def test_commodity_flex_context_smart_defaults(context_input, expected):
 
 
 @pytest.mark.parametrize(
+    ["context_input", "expected_is_internal_node"],
+    [
+        # No grid-connection signal at all -> internal node.
+        ({"commodity": "gas"}, True),
+        # A price declares a grid connection -> not an internal node.
+        ({"commodity": "gas", "consumption-price": "10 EUR/MWh"}, False),
+        # A capacity field also declares a grid connection, even without any price,
+        # since its prices get smart-defaulted to zero.
+        # This must NOT be flagged as an internal node --
+        # otherwise the scheduler would skip EMS constraints,
+        # and force a per-step balance for a genuinely grid-connected commodity.
+        ({"commodity": "gas", "site-consumption-capacity": "5 MW"}, False),
+        ({"commodity": "gas", "site-production-capacity": "5 MW"}, False),
+        ({"commodity": "gas", "site-power-capacity": "5 MW"}, False),
+    ],
+)
+def test_commodity_flex_context_internal_node_flag(
+    context_input, expected_is_internal_node
+):
+    """A commodity is an internal node only when the user gave neither prices nor any capacity/grid-connection field.
+
+    See CommodityFlexContextSchema.fill_grid_connection_defaults.
+    """
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    loaded = CommodityFlexContextSchema().load(context_input)
+
+    assert loaded.get("is_internal_node", False) == expected_is_internal_node
+
+
+@pytest.mark.parametrize(
     ["flex_context_listing", "fails"],
     [
         # Test flex-context listing with mixed currencies should fail
@@ -1892,3 +1923,75 @@ def test_db_flex_context_schema_inflexible_devices(
             ]
         }
     )
+
+
+def test_db_flex_model_accepts_an_internal_commodity(app):
+    """A db-stored flex-model accepts a commodity outside electricity and gas.
+
+    Internal commodity nodes carry labels like "steam" or "heat",
+    so the set of commodities is open rather than an enumeration.
+    Without this, a converter feeding an internal node could be scheduled but not stored.
+    """
+    loaded = DBStorageFlexModelSchema().load(
+        {
+            "commodity": "steam",
+            "coupling": "chp",
+            "coupling-coefficient": 0.5,
+            "production-capacity": "10 kW",
+        }
+    )
+    assert loaded["commodity"] == "steam"
+
+
+@pytest.mark.parametrize("blank", ["", " ", "\t"])
+def test_blank_commodity_is_rejected(app, blank):
+    """An open commodity set still excludes blank names, on both schemas."""
+    with pytest.raises(ValidationError):
+        DBStorageFlexModelSchema().load({"commodity": blank})
+    with pytest.raises(ValidationError):
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ).load({"commodity": blank, "power-capacity": "20 kW"})
+
+
+def test_tutorial_chp_example_validates(app):
+    """The CHP example in the multi-commodity tutorial validates as written.
+
+    It is the example a reader copies, so it should load through the schema that stores it,
+    and each port's coupling direction should resolve from its single directional capacity.
+    """
+    from flexmeasures.data.models.planning.devices import (
+        _resolve_coupling_coefficient,
+    )
+
+    ports = [
+        (
+            {
+                "commodity": "gas",
+                "coupling-coefficient": 1.0,
+                "consumption-capacity": "20 kW",
+            },
+            1.0,
+        ),
+        (
+            {
+                "commodity": "steam",
+                "coupling-coefficient": 0.5,
+                "production-capacity": "10 kW",
+            },
+            -0.5,
+        ),
+        (
+            {
+                "commodity": "electricity",
+                "coupling-coefficient": 0.3,
+                "production-capacity": "6 kW",
+            },
+            -0.3,
+        ),
+    ]
+    for entry, expected_coefficient in ports:
+        loaded = DBStorageFlexModelSchema().load({**entry, "coupling": "chp"})
+        assert _resolve_coupling_coefficient(loaded) == pytest.approx(
+            expected_coefficient
+        )

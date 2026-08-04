@@ -134,6 +134,7 @@ def device_scheduler(  # noqa C901
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
     coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
+    balance_groups: dict[str, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
@@ -188,6 +189,16 @@ def device_scheduler(  # noqa C901
                                 binary variables (one per device per band per time step). Use None (per device
                                 or for the whole argument) for devices without band restrictions.
 
+    :param balance_groups:      Flow-balance constraints for internal commodity nodes (e.g. a heat or steam network without a grid connection).
+                                Each entry maps a node name to a list of device indices whose commodity-side flows must balance at every time step:
+                                ``sum_d(ems_power[d, j]) == 0``.
+                                In other words, everything produced into the node is consumed from it within the same time step;
+                                the node itself stores nothing.
+                                Derivative efficiencies and stock deltas describe each device's own stock-side conversion,
+                                and do not enter this commodity-side balance.
+                                To add storage to a node, include a storage device in the group:
+                                its flow absorbs the imbalance, and its stock is bounded by its own device constraints.
+
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
             - e.g. in MW or boxes/h
@@ -237,6 +248,7 @@ def device_scheduler(  # noqa C901
         ems_constraint_groups=ems_constraint_groups,
         device_power_bands=device_power_bands,
         coupling_groups=coupling_groups,
+        balance_groups=balance_groups,
     )
 
     # Local aliases,
@@ -255,6 +267,7 @@ def device_scheduler(  # noqa C901
     band_lookup = problem.band_lookup
     _initial_stock_of = problem.initial_stock_of
     coupling_device_specs = problem.coupling_device_specs
+    balance_group_specs = problem.balance_group_specs
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -673,6 +686,27 @@ def device_scheduler(  # noqa C901
 
         model.flow_coupling_constraints = Constraint(
             model.coupling_device_range, model.j, rule=flow_coupling_rule
+        )
+
+    if balance_group_specs:
+        model.balance_group_range = RangeSet(0, len(balance_group_specs) - 1)
+
+        def node_balance_rule(m, b, j):
+            """Balance the power flows of an internal commodity node at every time step.
+
+            Everything produced into the node must be consumed from it within the same time step.
+            The balance sums the devices' commodity-side flows (ems_power);
+            derivative efficiencies and stock deltas describe each device's own stock-side conversion (e.g. of a shared buffer),
+            and do not enter the commodity balance.
+            """
+            return (
+                0,
+                sum(m.ems_power[d, j] for d in balance_group_specs[b]),
+                0,
+            )
+
+        model.node_balance_constraints = Constraint(
+            model.balance_group_range, model.j, rule=node_balance_rule
         )
 
     # Power bands (S2 operation modes): a banded device must operate within
