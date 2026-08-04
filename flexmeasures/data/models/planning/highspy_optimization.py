@@ -224,6 +224,7 @@ def device_scheduler_highspy(  # noqa C901
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
     coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
+    balance_groups: dict[str, list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, HighspySolverResults, HighspyModel]:
     """Direct HiGHS implementation of ``device_scheduler``.
 
@@ -255,6 +256,7 @@ def device_scheduler_highspy(  # noqa C901
         ems_constraint_groups=ems_constraint_groups,
         device_power_bands=device_power_bands,
         coupling_groups=coupling_groups,
+        balance_groups=balance_groups,
     )
 
     # Local aliases, so that the model below reads as it did before the (solver-agnostic)
@@ -272,6 +274,7 @@ def device_scheduler_highspy(  # noqa C901
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     coupling_device_specs = problem.coupling_device_specs
+    balance_group_specs = problem.balance_group_specs
     _initial_stock_of = problem.initial_stock_of
 
     # ---------------------------------------------------------------
@@ -648,6 +651,18 @@ def device_scheduler_highspy(  # noqa C901
                 np.column_stack([col_ems + int(d) * T + js, col_alpha + g * T + js]),
                 np.tile([1.0, -float(coeff)], (T, 1)),
             )
+
+    # node_balance_constraints: an internal commodity node stores nothing,
+    # so everything produced into it is consumed from it within the same time step,
+    # i.e. sum_d(ems_power[d, j]) == 0.
+    # Groups with no devices were dropped during preparation, so they add no row here,
+    # matching the Pyomo path's Constraint.Skip for that case.
+    for devices_in_node in balance_group_specs:
+        js = np.arange(T)
+        idx = np.column_stack([col_ems + int(d) * T + js for d in devices_in_node])
+        rows.add_uniform_rows(
+            np.zeros(T), np.zeros(T), idx, np.ones_like(idx, dtype=float)
+        )
 
     # ---------------------------------------------------------------
     # Build and solve the HiGHS model

@@ -351,6 +351,31 @@ def scenario_chp_coupling_groups():
     )
 
 
+def scenario_internal_commodity_balance():
+    """A heat node with a producer and a fixed consumer, and no grid connection.
+
+    The node stores nothing, so the two devices' flows must cancel at every time step.
+    The consumer's draw is pinned by "derivative equals",
+    so the balance is what forces the producer to match it:
+    drop the constraint and the producer has no reason to run at all.
+    """
+    index = make_index()
+    prices = make_prices(index)
+    consumer = make_flow_device(-1, 0)
+    consumer["derivative equals"] = -0.4
+    return dict(
+        device_constraints=[
+            make_flow_device(0, 1),  # heat producer, free within its band
+            consumer,  # heat consumer, fixed draw
+            make_battery_constraints(),
+        ],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[make_energy_commitment(index, prices, devices=2)],
+        initial_stock=[0.0, 0.0, 0.5],
+        balance_groups={"heat": [0, 1]},
+    )
+
+
 @pytest.mark.parametrize(
     "make_scenario",
     [
@@ -361,6 +386,7 @@ def scenario_chp_coupling_groups():
         scenario_ems_level_flow_commitment,
         scenario_ems_level_commodity_commitment,
         scenario_chp_coupling_groups,
+        scenario_internal_commodity_balance,
     ],
     ids=lambda f: f.__name__.replace("scenario_", ""),
 )
