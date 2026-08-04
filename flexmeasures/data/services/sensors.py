@@ -32,7 +32,6 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
 
-
 _REMOVE = object()
 
 #: The keys a stored sensor reference may carry (see SensorReferenceSchema):

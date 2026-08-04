@@ -41,6 +41,11 @@ The ``flex-context`` is independent of the type of flexible device that is optim
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas). See :ref:`tut_multi_commodity` for a hands-on example.
 
+A *non-electricity* commodity that defines no energy prices and no capacity (grid-connection) fields in the flex-context (e.g. a heat or steam network without a grid connection) is treated as an internal node:
+its devices must balance each other at every time step, so everything produced into the node is consumed from it within the same time step.
+Electricity is the exception: it is always assumed to be grid-connected, so electricity without a price raises an error rather than becoming an internal node.
+Devices that convert between commodities (such as a CHP unit, gas boiler or electric heater) are described in the flex-model, one entry per commodity port, tied together by a ``coupling`` group. See :ref:`tut_converters` for a worked example flex-model.
+
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
@@ -229,6 +234,12 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``commodity``
      - |COMMODITY_FLEX_MODEL.example|
      - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
+   * - ``coupling``
+     - |COUPLING.example|
+     - .. include:: ../_autodoc/COUPLING.rst
+   * - ``coupling-coefficient``
+     - |COUPLING_COEFFICIENT.example|
+     - .. include:: ../_autodoc/COUPLING_COEFFICIENT.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst
@@ -298,6 +309,12 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``group``
      - |GROUP.example|
      - .. include:: ../_autodoc/GROUP.rst
+   * - ``inflexible-consumption``
+     - ``{"sensor": 3}``
+     - .. include:: ../_autodoc/INFLEXIBLE_CONSUMPTION.rst
+   * - ``inflexible-production``
+     - ``{"sensor": 3}``
+     - .. include:: ../_autodoc/INFLEXIBLE_PRODUCTION.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
@@ -349,7 +366,16 @@ The sensor-referenced form is convenient when you pass the whole flex-model in o
 
 Here, the battery and PV installation may each individually schedule up to 2 kW, but their combined power flowing through the shared inverter is hard-limited to 2.5 kW.
 
-Inflexible (measured) devices can be group members too. An ``inflexible-consumption`` or ``inflexible-production`` entry in the flex-context may carry the same ``group`` field, so that its fixed load or supply counts towards the group's intermediate power constraint — for example, an unschedulable base load sitting behind the same inverter or feeder as a battery. As with flexible members, the recommended form is an ``{"asset": <id>}`` reference to the equipment node the device sits behind (a ``{"sensor": <id>}`` reference is also accepted), and the group's own flex-model entry (defining its capacities) must still be present.
+.. _inflexible_devices_in_flex_model:
+
+Inflexible devices in the flex-model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Inflexible (measured) devices can be modelled in the flex-model too — for example, an unschedulable base load. To do so, model the inflexible device as its own asset and give its flex-model entry a single ``inflexible-consumption`` or ``inflexible-production`` reference to the sensor recording its power (the field name sets the sign convention, and source filters may be added). Such an entry carries no schedulable-device fields; it simply declares a fixed device whose power is accounted for. Like any device entry, it may set a ``commodity`` (defaulting to electricity), and its fixed power is then netted into that commodity's grid connection.
+
+There are two places to declare an inflexible device, and the choice is about *where* it belongs rather than *what* it does. Listing its sensor in the flex-context's ``inflexible-consumption``/``inflexible-production`` fields describes plain site base load, which is a property of the connection. Giving it its own flex-model entry describes a device that sits somewhere specific in the asset tree — under a particular inverter, feeder or commodity — which is a property of the device. Both net the same fixed power into the grid connection.
+
+The ``group`` field is optional on such an entry. Without it, the device is simply accounted for under the grid connection (just like listing its sensor in the flex-context's ``inflexible-consumption``/``inflexible-production`` fields, only declared on the asset instead). With it, the device *also* joins that group through the ordinary ``group`` field, exactly like a flexible member (the group's own flex-model entry, defining its capacities, must still be present), so that its fixed load or supply additionally counts towards the group's intermediate power constraint — for example, a base load sitting behind the same inverter or feeder as a battery.
 
 
 Usually, not the whole flexibility model is needed.

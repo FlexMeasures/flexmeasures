@@ -981,7 +981,9 @@ def test_flex_model_schemas(
         and the second entry represents the expectation for the DBStorageFlexModelSchema.
     """
     schemas = [
-        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ),
         DBStorageFlexModelSchema(),
     ]
     if not isinstance(fails, list):
@@ -1337,6 +1339,37 @@ def test_commodity_flex_context_smart_defaults(context_input, expected):
 
 
 @pytest.mark.parametrize(
+    ["context_input", "expected_is_internal_node"],
+    [
+        # No grid-connection signal at all -> internal node.
+        ({"commodity": "gas"}, True),
+        # A price declares a grid connection -> not an internal node.
+        ({"commodity": "gas", "consumption-price": "10 EUR/MWh"}, False),
+        # A capacity field also declares a grid connection, even without any price,
+        # since its prices get smart-defaulted to zero.
+        # This must NOT be flagged as an internal node --
+        # otherwise the scheduler would skip EMS constraints,
+        # and force a per-step balance for a genuinely grid-connected commodity.
+        ({"commodity": "gas", "site-consumption-capacity": "5 MW"}, False),
+        ({"commodity": "gas", "site-production-capacity": "5 MW"}, False),
+        ({"commodity": "gas", "site-power-capacity": "5 MW"}, False),
+    ],
+)
+def test_commodity_flex_context_internal_node_flag(
+    context_input, expected_is_internal_node
+):
+    """A commodity is an internal node only when the user gave neither prices nor any capacity/grid-connection field.
+
+    See CommodityFlexContextSchema.fill_grid_connection_defaults.
+    """
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    loaded = CommodityFlexContextSchema().load(context_input)
+
+    assert loaded.get("is_internal_node", False) == expected_is_internal_node
+
+
+@pytest.mark.parametrize(
     ["flex_context_listing", "fails"],
     [
         # Test flex-context listing with mixed currencies should fail
@@ -1547,6 +1580,101 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     assert "flex-context" in str(e_info.value)
 
 
+@pytest.mark.parametrize(
+    "capacity_fields, fails",
+    [
+        # Input device: production blocked, direction is unambiguous
+        ({"production-capacity": "0 kW"}, False),
+        # Output device: consumption blocked, direction is unambiguous
+        ({"consumption-capacity": "0 kW"}, False),
+        # Output device with a bounded input side still has one blocked direction
+        ({"consumption-capacity": "5 kW", "production-capacity": "0 kW"}, False),
+        # Smart default: only a consumption-capacity given -> input device
+        # (production defaults to zero), no explicit zero needed.
+        ({"consumption-capacity": "5 kW"}, False),
+        # Smart default: only a production-capacity given -> output device
+        # (consumption defaults to zero), no explicit zero needed.
+        ({"production-capacity": "5 kW"}, False),
+        # Neither direction given: ambiguous
+        ({}, True),
+        # Both directions open: ambiguous
+        ({"consumption-capacity": "5 kW", "production-capacity": "5 kW"}, True),
+        # Both directions blocked: degenerate (device pinned to zero flow)
+        ({"consumption-capacity": "0 kW", "production-capacity": "0 kW"}, True),
+    ],
+)
+def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
+    """A device with a `coupling` field must have an unambiguous flow direction.
+
+    The direction is inferred from which directional capacity is given (the opposite direction defaults to zero),
+    so the sign of its coupling coefficient can be inferred.
+    """
+    schema = StorageFlexModelSchema(
+        start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+    )
+    flex_model = {
+        "power-capacity": "20 kW",
+        "coupling": "chp",
+        "coupling-coefficient": 0.5,
+        **capacity_fields,
+    }
+    if fails:
+        with pytest.raises(ValidationError) as e_info:
+            schema.load(flex_model)
+        assert "unambiguous flow direction" in str(e_info.value)
+    else:
+        schema.load(flex_model)
+
+
+def test_uncoupled_device_needs_no_directional_capacities(app):
+    """The coupling-direction check only applies to devices that define a `coupling` field."""
+    schema = StorageFlexModelSchema(
+        start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+    )
+    schema.load({"power-capacity": "20 kW"})
+
+
+@pytest.mark.parametrize("blank_name", ["", " ", "\t", "  \n "])
+def test_blank_coupling_name_is_rejected(app, blank_name):
+    """A provided coupling name must contain at least one non-whitespace character.
+
+    Otherwise unrelated devices could be silently coupled under an empty group key.
+    This holds for both the scheduling schema and the db-stored one.
+    """
+    scheduling_flex_model = {
+        "power-capacity": "20 kW",
+        "production-capacity": "0 kW",
+        "coupling": blank_name,
+    }
+    with pytest.raises(ValidationError) as e_info:
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ).load(scheduling_flex_model)
+    assert "non-empty" in str(e_info.value)
+
+    with pytest.raises(ValidationError) as e_info:
+        DBStorageFlexModelSchema().load({"coupling": blank_name})
+    assert "non-empty" in str(e_info.value)
+
+
+def test_db_flex_model_coupling_round_trips(app):
+    """A db-stored flex-model accepts `coupling`/`coupling-coefficient` and round-trips them.
+
+    Such flex-models are validated via DBStorageFlexModelSchema, e.g. by patch_asset.
+    """
+    schema = DBStorageFlexModelSchema()
+    flex_model = {
+        "coupling": "chp",
+        "coupling-coefficient": 0.5,
+    }
+    loaded = schema.load(flex_model)
+    assert loaded["coupling"] == "chp"
+    assert loaded["coupling_coefficient"] == 0.5
+    # coupling-coefficient must be strictly positive
+    with pytest.raises(ValidationError):
+        schema.load({"coupling": "chp", "coupling-coefficient": 0})
+
+
 # Note: AssetTriggerSchema itself no longer aliases legacy field names (e.g.
 # force_new_job_creation) -- that's v3_0-specific backward compatibility,
 # layered on top by AssetTriggerSchemaV3 in flexmeasures/api/v3_0/assets.py,
@@ -1707,62 +1835,72 @@ def test_flex_context_schema_inflexible_devices_deserialization(
     assert reference.source_types == ["forecaster"]
 
 
-def test_flex_context_schema_inflexible_device_group(
-    db, app, setup_inflexible_sensors, setup_price_sensors, dummy_asset
+def test_storage_flex_model_inflexible_device_field(
+    db, app, setup_dummy_sensors, setup_inflexible_sensors
 ):
-    """An inflexible device may carry a `group` reference; it deserializes to a
-    SensorReference (even without source filters) carrying that group, and the group
-    must reference a power sensor (or an asset)."""
-    load = setup_inflexible_sensors["attributeless power"]
-    group_sensor = setup_inflexible_sensors["consumption-positive power"]
+    """A flex-model entry can declare an inflexible device via a single
+    inflexible-consumption/production reference. Both signs on one entry, a sensor
+    whose explicit sign contradicts the field, and a co-existing schedulable field are
+    all rejected."""
+    consumption_positive = setup_inflexible_sensors["consumption-positive power"]
+    production_positive = setup_inflexible_sensors["production-positive power"]
+    attributeless = setup_inflexible_sensors["attributeless power"]
 
-    data = FlexContextSchema().load(
-        {
-            "inflexible-consumption": [
-                {"sensor": load.id, "group": {"sensor": group_sensor.id}}
-            ]
-        }
-    )
-    entry = data["inflexible_consumption"][0]
-    assert isinstance(entry, SensorReference)
-    assert entry.sensor == load
-    assert entry.group == {"sensor": group_sensor}
-    assert entry.source_types is None  # no source filters given
+    for schema in (
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.UTC), sensor=None
+        ),
+        DBStorageFlexModelSchema(),
+    ):
+        # A plain reference deserializes to a Sensor.
+        loaded = schema.load({"inflexible-consumption": {"sensor": attributeless.id}})
+        assert loaded["inflexible_consumption"] == attributeless
 
-    # An asset-referenced group is also accepted.
-    data_asset = FlexContextSchema().load(
-        {
-            "inflexible-production": [
-                {"sensor": load.id, "group": {"asset": dummy_asset.id}}
-            ]
-        }
-    )
-    assert data_asset["inflexible_production"][0].group == {"asset": dummy_asset}
-
-    # The group must reference a power sensor.
-    price_sensor = setup_price_sensors["consumption-price in SEK/kWh"]
-    with pytest.raises(ValidationError, match="power unit"):
-        FlexContextSchema().load(
+        # A source-filtered reference deserializes to a SensorReference.
+        loaded = schema.load(
             {
-                "inflexible-consumption": [
-                    {"sensor": load.id, "group": {"sensor": price_sensor.id}}
-                ]
+                "inflexible-production": {
+                    "sensor": attributeless.id,
+                    "source-types": ["forecaster"],
+                }
             }
         )
+        assert isinstance(loaded["inflexible_production"], SensorReference)
 
-    # Exactly one of 'sensor'/'asset' must be given.
-    with pytest.raises(ValidationError, match="exactly one"):
-        FlexContextSchema().load(
+        # Declaring both signs on one entry is rejected.
+        with pytest.raises(ValidationError, match="not both"):
+            schema.load(
+                {
+                    "inflexible-consumption": {"sensor": attributeless.id},
+                    "inflexible-production": {"sensor": attributeless.id},
+                }
+            )
+
+        # A sensor whose explicit consumption_is_positive contradicts the field.
+        with pytest.raises(ValidationError, match="conflicts with the sign convention"):
+            schema.load({"inflexible-consumption": {"sensor": production_positive.id}})
+        with pytest.raises(ValidationError, match="conflicts with the sign convention"):
+            schema.load({"inflexible-production": {"sensor": consumption_positive.id}})
+
+        # An inflexible entry must not also carry a schedulable-device field. The check
+        # is a whitelist, so it also catches less-obvious device fields (e.g. soc-unit),
+        # not just an enumerated blacklist.
+        with pytest.raises(ValidationError, match="schedulable-device field"):
+            schema.load(
+                {
+                    "inflexible-consumption": {"sensor": attributeless.id},
+                    "power-capacity": "1 MW",
+                }
+            )
+
+    # soc-unit exists only on StorageFlexModelSchema, and is also rejected.
+    with pytest.raises(ValidationError, match="schedulable-device field"):
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.UTC), sensor=None
+        ).load(
             {
-                "inflexible-consumption": [
-                    {
-                        "sensor": load.id,
-                        "group": {
-                            "sensor": group_sensor.id,
-                            "asset": dummy_asset.id,
-                        },
-                    }
-                ]
+                "inflexible-consumption": {"sensor": attributeless.id},
+                "soc-unit": "kWh",
             }
         )
 
@@ -1785,3 +1923,75 @@ def test_db_flex_context_schema_inflexible_devices(
             ]
         }
     )
+
+
+def test_db_flex_model_accepts_an_internal_commodity(app):
+    """A db-stored flex-model accepts a commodity outside electricity and gas.
+
+    Internal commodity nodes carry labels like "steam" or "heat",
+    so the set of commodities is open rather than an enumeration.
+    Without this, a converter feeding an internal node could be scheduled but not stored.
+    """
+    loaded = DBStorageFlexModelSchema().load(
+        {
+            "commodity": "steam",
+            "coupling": "chp",
+            "coupling-coefficient": 0.5,
+            "production-capacity": "10 kW",
+        }
+    )
+    assert loaded["commodity"] == "steam"
+
+
+@pytest.mark.parametrize("blank", ["", " ", "\t"])
+def test_blank_commodity_is_rejected(app, blank):
+    """An open commodity set still excludes blank names, on both schemas."""
+    with pytest.raises(ValidationError):
+        DBStorageFlexModelSchema().load({"commodity": blank})
+    with pytest.raises(ValidationError):
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.utc), sensor=None
+        ).load({"commodity": blank, "power-capacity": "20 kW"})
+
+
+def test_tutorial_chp_example_validates(app):
+    """The CHP example in the multi-commodity tutorial validates as written.
+
+    It is the example a reader copies, so it should load through the schema that stores it,
+    and each port's coupling direction should resolve from its single directional capacity.
+    """
+    from flexmeasures.data.models.planning.devices import (
+        _resolve_coupling_coefficient,
+    )
+
+    ports = [
+        (
+            {
+                "commodity": "gas",
+                "coupling-coefficient": 1.0,
+                "consumption-capacity": "20 kW",
+            },
+            1.0,
+        ),
+        (
+            {
+                "commodity": "steam",
+                "coupling-coefficient": 0.5,
+                "production-capacity": "10 kW",
+            },
+            -0.5,
+        ),
+        (
+            {
+                "commodity": "electricity",
+                "coupling-coefficient": 0.3,
+                "production-capacity": "6 kW",
+            },
+            -0.3,
+        ),
+    ]
+    for entry, expected_coefficient in ports:
+        loaded = DBStorageFlexModelSchema().load({**entry, "coupling": "chp"})
+        assert _resolve_coupling_coefficient(loaded) == pytest.approx(
+            expected_coefficient
+        )

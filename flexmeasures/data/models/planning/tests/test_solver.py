@@ -3155,29 +3155,37 @@ def test_multiple_devices_simultaneous_scheduler():
         for d, schedule in enumerate(schedules)
     ]
 
-    # Expected results with unfair unmet demand and not entirely unfair costs
-    expected_schedules = [
-        # the first EV leaves later, and takes three of the cheapest slots, and one expensive slot
-        [0, 0, 0, 0.25, 0.25, 0.25, 0.25] + [0] * 17,
-        # the second EV leaves earlier, and takes one cheap slot and the remaining (expensive) slot
-        [0, 0.25, 0.25] + [0] * 21,
-    ]
-    total_expected_demand_unmet = (
-        total_expected_demand - np.array(expected_schedules).sum()
-    )
+    # Expected results with unfair unmet demand and not entirely unfair costs.
+    # NB This problem has multiple optima: only the site-level (aggregate) schedule is unique,
+    # while the per-device allocation of the charging slots
+    # (and thereby the per-device costs, and even which device's demand goes unmet)
+    # is an arbitrary tie-break that depends on the solver backend.
+    # We therefore only check solver-independent properties here.
+    expected_aggregate_schedule = [0, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25] + [0] * 17
+    total_expected_demand_unmet = total_expected_demand - np.array(
+        expected_aggregate_schedule
+    ).sum(dtype=float)
     assert total_expected_demand_unmet > 0
-    expected_individual_costs = [(0, 889.51), (1, 607.96)]
+    expected_total_energy_costs = sum(
+        power * price
+        for power, price in zip(expected_aggregate_schedule, market_prices)
+    )
+    expected_total_costs = (
+        expected_total_energy_costs + total_expected_demand_unmet * soc_target_penalty
+    )
 
     # Assertions
-    assert all(
-        np.isclose(schedule, expected_schedules[d]).all()
-        for d, schedule in enumerate(schedules)
-    ), "Schedules mismatch: Device schedules do not match the expected schedules."
+    aggregate_schedule = sum(schedules)
+    assert np.isclose(
+        aggregate_schedule, expected_aggregate_schedule
+    ).all(), "Schedules mismatch: The aggregate schedule does not match the expected aggregate schedule."
 
-    assert all(
-        device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
-        for d, (device, cost) in enumerate(individual_costs)
-    ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+    total_costs = sum(cost for _, cost in individual_costs) + sum(
+        model.commitment_costs[c] for c in (1, 2)  # the device (target) commitments
+    )
+    assert (
+        pytest.approx(total_costs, 0.01) == expected_total_costs
+    ), "Costs mismatch: Total costs are not calculated as expected."
 
 
 def test_prefer_full_storage_skips_non_storage_devices(db, building):
@@ -3468,10 +3476,11 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 ):
     """Flex-context commitments must bind the scheduled devices, not stock-only entries.
 
-    With a stock-only entry listed first, a flex-context commitment should still yield
-    one commitment per scheduled device (indices 0 and 1), rather than one per
-    flex-model entry (indices 0, 1 and 2, of which index 2 does not exist as a
-    flexible device).
+    A regular (unscoped) commitment binds the *aggregate* flow of its commodity's
+    devices as a single commitment (issue #2379). With a stock-only entry listed
+    first, that single commitment should bind the scheduled devices (indices 0 and 1),
+    and never the stock-only entry (which is not a flexible device), rather than one
+    commitment per raw flex-model entry (indices 0, 1 and 2).
     """
     battery_type = setup_generic_asset_types["battery"]
     site = _add_parent_site(db, building, "commitment test site")
@@ -3528,15 +3537,18 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 
     test_commitments = [c for c in commitments if c.name == "test commitment"]
     num_devices = 2
-    assert len(test_commitments) == num_devices, (
-        f"Expected one commitment per scheduled device ({num_devices}), "
+    assert len(test_commitments) == 1, (
+        f"Expected a single aggregate commitment binding all scheduled devices, "
         f"got {len(test_commitments)} (one per flex-model entry, including the "
         "stock-only entry)."
     )
-    commitment_devices = {int(d) for c in test_commitments for d in c.device.unique()}
+    # The aggregate commitment binds all of its commodity's devices at once,
+    # so each row of its device column is the tuple of scheduled device indices.
+    commitment_devices = {int(d) for d in test_commitments[0].device.iloc[0]}
     assert commitment_devices == set(range(num_devices)), (
-        f"Commitments target device indices {sorted(commitment_devices)}, "
-        f"expected {sorted(range(num_devices))}."
+        f"Commitment targets device indices {sorted(commitment_devices)}, "
+        f"expected {sorted(range(num_devices))} (the scheduled devices, not the "
+        "stock-only entry)."
     )
 
 

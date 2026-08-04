@@ -45,7 +45,6 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 
-
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
     deferred=DeferredJobRegistry,

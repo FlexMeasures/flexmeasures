@@ -50,6 +50,9 @@
           },
           "401": {
             "description": "UNAUTHORIZED"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -90,6 +93,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -134,6 +140,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -214,6 +223,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -293,6 +305,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -344,6 +359,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -479,6 +497,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -549,6 +570,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -683,6 +707,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -869,6 +896,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -966,6 +996,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1034,6 +1067,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1215,6 +1251,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1289,6 +1328,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1343,6 +1385,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1442,6 +1487,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1629,6 +1677,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1749,6 +1800,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1833,6 +1887,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1888,6 +1945,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1896,7 +1956,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n- The <strong>plan_id</strong> field can only be edited by admins, and cannot be set to a legacy plan.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1966,6 +2026,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2108,6 +2171,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2149,6 +2215,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2203,6 +2272,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2320,6 +2392,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2389,6 +2464,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2474,6 +2552,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2615,6 +2696,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2695,6 +2779,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2731,6 +2818,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2866,6 +2956,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2983,6 +3076,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3056,6 +3152,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3098,6 +3197,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3155,6 +3257,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3231,6 +3336,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3316,6 +3424,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3381,6 +3492,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3540,6 +3654,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3636,6 +3753,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3757,6 +3877,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3824,6 +3947,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3912,6 +4038,9 @@
           },
           "405": {
             "description": "INVALID_METHOD"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4118,6 +4247,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4207,6 +4339,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4261,6 +4396,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4303,6 +4441,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4493,6 +4634,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4561,6 +4705,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4613,6 +4760,9 @@
           },
           "400": {
             "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4647,6 +4797,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4883,6 +5036,9 @@
           },
           "503": {
             "description": "SERVICE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4948,6 +5104,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -5071,12 +5230,33 @@
           }
         }
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Reference to a group of devices whose aggregate power is constrained."
+      },
       "Commitment": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
             "minLength": 1
+          },
+          "sensors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "group": {
+            "$ref": "#/components/schemas/GroupReference"
           },
           "commodity": {
             "type": "string",
@@ -5091,18 +5271,6 @@
           "name"
         ],
         "additionalProperties": false
-      },
-      "GroupReference": {
-        "type": "object",
-        "properties": {
-          "sensor": {
-            "type": "integer"
-          },
-          "asset": {
-            "type": "integer"
-          }
-        },
-        "description": "Reference to a group of devices whose aggregate power is constrained."
       },
       "InflexibleDevice": {
         "type": "object",
@@ -5154,13 +5322,6 @@
             "items": {
               "type": "integer"
             }
-          },
-          "group": {
-            "description": "Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{\"asset\": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{\"sensor\": <id>}``) is also accepted - give exactly one of the two.\nThe referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).\nWhen the group is referenced by ``asset``, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.\nWhen the group is referenced by ``sensor``, the group's scheduled aggregate power is saved directly to that group sensor.\n",
-            "example": {
-              "asset": 7
-            },
-            "$ref": "#/components/schemas/GroupReference"
           }
         },
         "required": [
@@ -5330,7 +5491,7 @@
           },
           "inflexible-consumption": {
             "type": "array",
-            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nMust be a list of sensor references, optionally with source filters, and optionally each assigned to a <code>group</code> (so the device's measured load counts towards that group's intermediate power constraint).\n",
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
             "example": [
               {
                 "sensor": 3
@@ -5345,7 +5506,7 @@
           },
           "inflexible-production": {
             "type": "array",
-            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nMust be a list of sensor references, optionally with source filters, and optionally each assigned to a <code>group</code> (so the device's measured supply counts towards that group's intermediate power constraint).\n",
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
             "example": [
               {
                 "sensor": 3
@@ -6058,6 +6219,12 @@
               "integer",
               "null"
             ]
+          },
+          "plan_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -6105,6 +6272,12 @@
             ]
           },
           "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "plan_id": {
             "type": [
               "integer",
               "null"
@@ -7007,6 +7180,20 @@
             },
             "$ref": "#/components/schemas/GroupReference"
           },
+          "inflexible-consumption": {
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": {
+              "sensor": 3
+            },
+            "$ref": "#/components/schemas/InflexibleDevice"
+          },
+          "inflexible-production": {
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": {
+              "sensor": 3
+            },
+            "$ref": "#/components/schemas/InflexibleDevice"
+          },
           "prefer-curtailing-later": {
             "type": "boolean",
             "default": true,
@@ -7116,6 +7303,22 @@
               }
             ],
             "items": {}
+          },
+          "coupling": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Name of the coupling group this device belongs to.\nDevices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.\nUse this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.\nFor example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.\nUse together with <code>coupling-coefficient</code> to set the flow ratios.\n",
+            "example": "chp"
+          },
+          "coupling-coefficient": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.0,
+            "description": "Positive coupling magnitude for this device within its coupling group.\nThe scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.\nThe flow direction of each device is inferred from which directional capacity is set: a device given only a <code>production-capacity</code> is an output (producing) device, and a device given only a <code>consumption-capacity</code> is an input (consuming) device.\nThe unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).\nFor example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).\nDefaults to 1.\n",
+            "example": 0.5
           },
           "sensor": {
             "type": "integer",

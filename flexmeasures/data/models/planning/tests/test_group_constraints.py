@@ -8,8 +8,10 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.utils.unit_utils import ur
+
+#: Run every test in this module under both scheduler backends (see conftest).
+RUN_UNDER_EACH_SOLVER = True
 
 
 def _unique_name(prefix: str) -> str:
@@ -197,9 +199,10 @@ def _write_constant_forecast(db, sensor, value_mw: float, hours: int = 4):
 
 
 def test_inflexible_device_counts_towards_group(db, building):
-    """Point 5 of the #2276 discussion: an inflexible (measured) load assigned to a
-    group counts towards that group's intermediate power constraint, so the flexible
-    members get less headroom than the group cap alone would give them.
+    """Point 5 of the #2276 discussion: an inflexible (measured) load modelled as its
+    own asset (a flex-model entry with a single ``inflexible-consumption`` reference)
+    and assigned to a group counts towards that group's intermediate power constraint,
+    so the flexible members get less headroom than the group cap alone would give them.
 
     A battery that is paid to consume would use its full 2 MW capacity, but a 2 MW
     group cap shared with a fixed 1 MW inflexible load leaves it only 1 MW.
@@ -209,39 +212,40 @@ def test_inflexible_device_counts_towards_group(db, building):
     load = make_group_sensor(db, building)  # a 1 MW inflexible consumer
     _write_constant_forecast(db, load, value_mw=1.0)
 
-    flex_model = [
-        {
-            "sensor": battery,
-            "soc_at_start": 0.0,
-            "soc_min": 0.0,
-            "soc_max": 100.0,
-            "power_capacity_in_mw": ur.Quantity("2 MW"),
-            "consumption_capacity": ur.Quantity("2 MW"),
-            "production_capacity": ur.Quantity("2 MW"),
-            "group": {"sensor": group_sensor},
-        },
-        {"sensor": group_sensor, "power_capacity_in_mw": ur.Quantity("2 MW")},
-    ]
+    flex_context = {
+        "consumption_price": ur.Quantity("-100 EUR/MWh"),  # paid to consume
+        "production_price": ur.Quantity("100 EUR/MWh"),
+        "shared_currency_unit": "EUR",
+    }
 
-    def flex_context_with(load_in_group: bool):
-        return {
-            "consumption_price": ur.Quantity("-100 EUR/MWh"),  # paid to consume
-            "production_price": ur.Quantity("100 EUR/MWh"),
-            "shared_currency_unit": "EUR",
-            "inflexible_consumption": [
-                SensorReference(
-                    sensor=load,
-                    group={"sensor": group_sensor} if load_in_group else None,
-                )
-            ],
-        }
+    def flex_model(load_in_group: bool):
+        # The inflexible load is a flex-model entry declaring a single
+        # inflexible-consumption reference; it joins the group through the normal
+        # `group` field, exactly like the flexible battery.
+        load_entry = {"inflexible_consumption": load}
+        if load_in_group:
+            load_entry["group"] = {"sensor": group_sensor}
+        return [
+            {
+                "sensor": battery,
+                "soc_at_start": 0.0,
+                "soc_min": 0.0,
+                "soc_max": 100.0,
+                "power_capacity_in_mw": ur.Quantity("2 MW"),
+                "consumption_capacity": ur.Quantity("2 MW"),
+                "production_capacity": ur.Quantity("2 MW"),
+                "group": {"sensor": group_sensor},
+            },
+            load_entry,
+            {"sensor": group_sensor, "power_capacity_in_mw": ur.Quantity("2 MW")},
+        ]
 
     # With the load in the group, battery consumption is capped at 1 MW (2 MW group
     # cap minus the fixed 1 MW load), and the saved aggregate includes the load.
     results = run_scheduler(
         building,
-        flex_model,
-        flex_context_with(True),
+        flex_model(load_in_group=True),
+        flex_context,
         return_multiple=True,
     ).compute()
     schedules = {
@@ -258,8 +262,8 @@ def test_inflexible_device_counts_towards_group(db, building):
     # Control: with the same load NOT in the group, the battery uses the full 2 MW.
     results_control = run_scheduler(
         building,
-        flex_model,
-        flex_context_with(False),
+        flex_model(load_in_group=False),
+        flex_context,
         return_multiple=True,
     ).compute()
     schedules_control = {
