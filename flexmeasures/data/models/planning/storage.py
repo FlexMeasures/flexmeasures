@@ -468,7 +468,7 @@ class MetaStorageScheduler(Scheduler):
                 # internal node (e.g. a heat or steam network without a grid
                 # connection): its devices must balance each other at every time
                 # step, and it needs no commitments or EMS-level capacity constraints.
-                current_app.logger.info(
+                current_app.logger.debug(
                     f"Commodity '{commodity}' has no energy prices; treating it as an "
                     f"internal node whose devices (indices {devices}) balance each other."
                 )
