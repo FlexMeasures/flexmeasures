@@ -179,9 +179,8 @@ class MetaStorageScheduler(Scheduler):
         # with signed coefficients per canonical device index.
         self.coupling_groups = inventory.coupling_groups
 
-        # Balance groups for internal commodity nodes (commodities without energy
-        # prices, i.e. without a grid connection) are derived further below, once
-        # the devices of each commodity are enumerated.
+        # Balance groups for internal commodity nodes (commodities without energy prices, i.e. without a grid connection)
+        # are derived further below, once the devices of each commodity are enumerated.
         self.balance_groups: dict[str, list[int]] = {}
 
         # Group entries (intermediate power constraints on groups of devices, e.g. a
@@ -444,12 +443,11 @@ class MetaStorageScheduler(Scheduler):
             if production_price is None:
                 production_price = consumption_price
 
-            # A context is an internal node only when the user gave no grid-connection
-            # signal at all -- neither prices nor capacity fields (see
-            # CommodityFlexContextSchema.fill_grid_connection_defaults, which flags this
-            # with is_internal_node). A commodity given a capacity but no price still
-            # carries smart-defaulted zero prices, yet it declares a grid connection, so
-            # it must not be treated as an internal node.
+            # A context is an internal node only when the user gave no grid-connection signal at all --
+            # neither prices nor capacity fields.
+            # See CommodityFlexContextSchema.fill_grid_connection_defaults, which flags this with is_internal_node.
+            # A commodity given a capacity but no price still carries smart-defaulted zero prices,
+            # yet it declares a grid connection, so it must not be treated as an internal node.
             is_internal_node = consumption_price is None or (
                 commodity_context.get("is_internal_node", False)
                 and consumption_price_sensor is None
@@ -458,16 +456,15 @@ class MetaStorageScheduler(Scheduler):
 
             if is_internal_node:
                 if commodity == "electricity":
-                    # Electricity is assumed to be grid-connected, so a missing
-                    # price is treated as a configuration error rather than as
-                    # an internal node.
+                    # Electricity is assumed to be grid-connected,
+                    # so a missing price is treated as a configuration error rather than as an internal node.
                     raise ValueError(
                         f"Missing consumption price for commodity '{commodity}'."
                     )
-                # A non-electricity commodity without energy prices is treated as an
-                # internal node (e.g. a heat or steam network without a grid
-                # connection): its devices must balance each other at every time
-                # step, and it needs no commitments or EMS-level capacity constraints.
+                # A non-electricity commodity without energy prices is treated as an internal node,
+                # e.g. a heat or steam network without a grid connection:
+                # its devices must balance each other at every time step,
+                # and it needs no commitments or EMS-level capacity constraints.
                 current_app.logger.debug(
                     f"Commodity '{commodity}' has no energy prices; treating it as an "
                     f"internal node whose devices (indices {devices}) balance each other."

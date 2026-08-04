@@ -1856,10 +1856,10 @@ def _run_factory_scenario(
 ) -> tuple:
     """Run the simplified factory scenario and return the 7 device schedules.
 
-    With ``use_balance_groups=False``, the heat and steam nodes are balanced via
-    shared stock groups whose first ("reference") device carries min=max=0 stock
-    bounds. With ``use_balance_groups=True``, the same nodes are expressed directly
-    as ``balance_groups``, needing neither stock groups nor reference-device bounds.
+    With ``use_balance_groups=False``,
+    the heat and steam nodes are balanced via shared stock groups whose first ("reference") device carries min=max=0 stock bounds.
+    With ``use_balance_groups=True``,
+    the same nodes are expressed directly as ``balance_groups``, needing neither stock groups nor reference-device bounds.
 
     Devices
     ~~~~~~~
@@ -1960,16 +1960,16 @@ def _run_factory_scenario(
         index=index,
     )
 
-    # Node membership: the steamer (d=2) converts heat to steam, so it belongs
-    # to both nodes (its single flow drains heat and feeds steam).
+    # Node membership: the steamer (d=2) converts heat to steam,
+    # so it belongs to both nodes (its single flow drains heat and feeds steam).
     heat_node = [0, 1, 2]
     steam_node = [2, 4, 6]
     if use_balance_groups:
         stock_groups = None
         balance_groups = {"heat": heat_node, "steam": steam_node}
     else:
-        # stock group: all heat-buffer devices share the same stock
-        # (keys 0 and 1 are arbitrary group ids, not device indices)
+        # stock group: all heat-buffer devices share the same stock.
+        # Keys 0 and 1 are arbitrary group ids, not device indices.
         stock_groups = {0: heat_node, 1: steam_node}
         balance_groups = None
 
@@ -2027,12 +2027,10 @@ def _run_factory_scenario(
 def test_factory_chp_dispatch(use_balance_groups):
     """Factory: CHP + gas boiler + e-heater competing to meet a fixed steam demand.
 
-    The heat and steam nodes are balanced either via shared stock groups with
-    a min=max=0 reference device (``use_balance_groups=False``) or via explicit
-    ``balance_groups`` (``use_balance_groups=True``) — both must yield the same
-    dispatch. The steam node is drained at a
-    constant rate of 15 kW by the steam demand device. Two price scenarios
-    verify that the optimizer correctly chooses the cheapest heat source.
+    The heat and steam nodes are balanced either via shared stock groups with a min=max=0 reference device (``use_balance_groups=False``),
+    or via explicit ``balance_groups`` (``use_balance_groups=True``) — both must yield the same dispatch.
+    The steam node is drained at a constant rate of 15 kW by the steam demand device.
+    Two price scenarios verify that the optimizer correctly chooses the cheapest heat source.
 
     Scenario A — gas cheaper than electricity
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

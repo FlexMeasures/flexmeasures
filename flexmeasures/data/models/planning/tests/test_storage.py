@@ -2163,14 +2163,15 @@ def test_storage_scheduler_chp_coupling(app, db):
 
 
 def test_factory_chp_dispatch_through_storage_scheduler(app, db):
-    """The full factory scenario (CHP + gas boiler + e-heater meeting a fixed steam
-    demand) scheduled end-to-end through ``StorageScheduler.compute()``.
+    """The full factory scenario, scheduled end-to-end through ``StorageScheduler.compute()``.
 
-    Unlike the engine-level ``test_factory_chp_dispatch`` (which passes balance groups
-    to ``device_scheduler`` directly), this test only supplies a flex-model and a
-    flex-context. Each converter is described as one device per commodity port, tied
-    together by a coupling group. The heat and steam commodities have no energy prices
-    in the flex-context, so the scheduler derives internal-node balance groups for them.
+    That is a CHP, a gas boiler and an e-heater, together meeting a fixed steam demand.
+
+    Unlike the engine-level ``test_factory_chp_dispatch``, which passes balance groups to ``device_scheduler`` directly,
+    this test only supplies a flex-model and a flex-context.
+    Each converter is described as one device per commodity port, tied together by a coupling group.
+    The heat and steam commodities have no energy prices in the flex-context,
+    so the scheduler derives internal-node balance groups for them.
 
     Topology (flex-model device indices)::
 
@@ -2181,10 +2182,11 @@ def test_factory_chp_dispatch_through_storage_scheduler(app, db):
                                              --8--> electricity (grid)
         steam              --9--> fixed 15 kW demand (inflexible sensor)
 
-    Prices: gas 20 EUR/MWh, electricity 50 EUR/MWh. Marginal cost per kW of steam:
-    CHP (20·20 − 50·6) / 10 = 10, boiler-via-steamer 20, e-heater-via-steamer 50.
-    So the CHP runs at maximum (20 kW gas → 10 kW steam + 6 kW power) and the boiler
-    covers the remaining 5 kW of steam via the steamer; the e-heater stays off.
+    Prices: gas 20 EUR/MWh, electricity 50 EUR/MWh.
+    Marginal cost per kW of steam: CHP (20·20 − 50·6) / 10 = 10, boiler-via-steamer 20, e-heater-via-steamer 50.
+    So the CHP runs at maximum (20 kW gas → 10 kW steam + 6 kW power),
+    and the boiler covers the remaining 5 kW of steam via the steamer;
+    the e-heater stays off.
     """
     factory_type = get_or_create_model(GenericAssetType, name="factory")
     factory = GenericAsset(
@@ -2217,8 +2219,8 @@ def test_factory_chp_dispatch_through_storage_scheduler(app, db):
     db.session.flush()
 
     # A constant 15 kW steam demand, recorded as beliefs.
-    # By default, power sensors store consumption as negative values
-    # (get_power_values flips the sign to the scheduler's consumption-positive convention).
+    # By default, power sensors store consumption as negative values.
+    # (get_power_values flips the sign to the scheduler's consumption-positive convention.)
     index = initialize_index(start, end, resolution)
     source = get_or_create_model(DataSource, name="test source", type="forecaster")
     db.session.add_all(

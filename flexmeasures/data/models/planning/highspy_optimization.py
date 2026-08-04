@@ -653,8 +653,8 @@ def device_scheduler_highspy(  # noqa C901
             )
 
     # node_balance_constraints: an internal commodity node stores nothing,
-    # so everything produced into it is consumed from it within the same time step:
-    #   sum_d(ems_power[d, j]) == 0
+    # so everything produced into it is consumed from it within the same time step,
+    # i.e. sum_d(ems_power[d, j]) == 0.
     # Groups with no devices were dropped during preparation, so they add no row here,
     # matching the Pyomo path's Constraint.Skip for that case.
     for devices_in_node in balance_group_specs:

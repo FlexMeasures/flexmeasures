@@ -189,16 +189,15 @@ def device_scheduler(  # noqa C901
                                 binary variables (one per device per band per time step). Use None (per device
                                 or for the whole argument) for devices without band restrictions.
 
-    :param balance_groups:      Flow-balance constraints for internal commodity nodes (e.g. a heat or steam network
-                                without a grid connection). Each entry maps a node name to a list of device indices
-                                whose commodity-side flows must balance at every time step:
+    :param balance_groups:      Flow-balance constraints for internal commodity nodes (e.g. a heat or steam network without a grid connection).
+                                Each entry maps a node name to a list of device indices whose commodity-side flows must balance at every time step:
                                 ``sum_d(ems_power[d, j]) == 0``.
-                                In other words, everything produced into the node is consumed from it within the
-                                same time step; the node itself stores nothing. Derivative efficiencies and stock
-                                deltas describe each device's own stock-side conversion and do not enter this
-                                commodity-side balance. To add storage to a node, include a storage device in the
-                                group (its flow absorbs the imbalance and its stock is bounded by its own device
-                                constraints).
+                                In other words, everything produced into the node is consumed from it within the same time step;
+                                the node itself stores nothing.
+                                Derivative efficiencies and stock deltas describe each device's own stock-side conversion,
+                                and do not enter this commodity-side balance.
+                                To add storage to a node, include a storage device in the group:
+                                its flow absorbs the imbalance, and its stock is bounded by its own device constraints.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -695,11 +694,10 @@ def device_scheduler(  # noqa C901
         def node_balance_rule(m, b, j):
             """Balance the power flows of an internal commodity node at every time step.
 
-            Everything produced into the node must be consumed from it within the same
-            time step. The balance sums the devices' commodity-side flows (ems_power);
-            derivative efficiencies and stock deltas describe each device's own
-            stock-side conversion (e.g. of a shared buffer) and do not enter the
-            commodity balance.
+            Everything produced into the node must be consumed from it within the same time step.
+            The balance sums the devices' commodity-side flows (ems_power);
+            derivative efficiencies and stock deltas describe each device's own stock-side conversion (e.g. of a shared buffer),
+            and do not enter the commodity balance.
             """
             return (
                 0,
