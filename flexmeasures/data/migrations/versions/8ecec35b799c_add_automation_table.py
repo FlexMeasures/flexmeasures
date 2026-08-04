@@ -27,7 +27,7 @@ def upgrade():
         sa.Column("name", sa.String(length=80), nullable=False),
         sa.Column("cronstr", sa.String(length=80), nullable=False),
         sa.Column("active", sa.Boolean(), nullable=False),
-        sa.Column("generator_id", sa.Integer(), nullable=True),
+        sa.Column("generator_id", sa.Integer(), nullable=False),
         sa.Column(
             "parameters",
             postgresql.JSONB(astext_type=sa.Text()),
@@ -43,7 +43,6 @@ def upgrade():
             ["generator_id"],
             ["data_source.id"],
             name=op.f("automation_generator_id_data_source_fkey"),
-            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("automation_pkey")),
     )
