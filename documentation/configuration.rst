@@ -705,7 +705,9 @@ As a list in your config file, or as a comma-separated environment variable:
 
 Entries starting with a dot match all subdomains, so ``".example.com"`` also matches ``api.example.com``. Ports are ignored when matching.
 
-Default: ``None``
+In the ``development`` environment, loopback hosts are trusted by default, so no warning is shown there. Reaching a development server under another name, for instance by its LAN address from a phone or through a tunnel, means listing that name here as well. Rejected requests say which host was not trusted.
+
+Default: ``None``, except in the ``development`` environment, where it is ``["localhost", ".localhost", "127.0.0.1", "[::1]"]``
 
 
 .. _mail-config:

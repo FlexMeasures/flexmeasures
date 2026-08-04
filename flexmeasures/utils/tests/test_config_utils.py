@@ -1,5 +1,8 @@
 import pytest
 from flask import Flask
+from werkzeug.sansio.utils import host_is_trusted
+
+from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
 
 from flexmeasures.utils.config_utils import (
     get_config_warnings,
@@ -111,6 +114,29 @@ def test_config_warnings_flag_unset_trusted_hosts():
     missing_settings, config_warnings = get_config_warnings(app)
     assert "TRUSTED_HOSTS" in missing_settings
     assert any("TRUSTED_HOSTS" in warning for warning in config_warnings)
+
+
+def test_development_config_trusts_loopback():
+    """A dev server is reached over loopback, so it needs no TRUSTED_HOSTS warning."""
+    app = Flask(__name__)
+    app.config.from_object(DevelopmentConfig)
+    missing_settings, _ = get_config_warnings(app)
+    assert "TRUSTED_HOSTS" not in missing_settings
+
+    normalize_trusted_hosts(app)
+    for host in ("localhost:5000", "127.0.0.1", "[::1]:5000", "app.localhost:5000"):
+        assert host_is_trusted(host, app.config["TRUSTED_HOSTS"]), host
+    # Other hosts are still rejected, so development resembles production.
+    assert not host_is_trusted("evil.example", app.config["TRUSTED_HOSTS"])
+
+
+def test_production_config_does_not_trust_any_host():
+    """Production must not get a default, so the warning fires until a host sets it."""
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    assert app.config["TRUSTED_HOSTS"] is None
+    missing_settings, _ = get_config_warnings(app)
+    assert "TRUSTED_HOSTS" in missing_settings
 
 
 def test_config_warnings_silent_when_trusted_hosts_is_set():

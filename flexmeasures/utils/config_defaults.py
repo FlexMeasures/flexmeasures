@@ -268,6 +268,15 @@ class StagingConfig(Config):
 class DevelopmentConfig(Config):
     DEBUG: bool = True
     LOGGING_LEVEL: int = logging.DEBUG
+    # A dev server is not the target of host header poisoning, so warning about TRUSTED_HOSTS here would only be noise.
+    # Trust the loopback names a dev server is normally reached by, and let developers extend this when they need to,
+    # e.g. to reach the server from a phone on the LAN or through a tunnel.
+    TRUSTED_HOSTS: list[str] | str | None = [
+        "localhost",
+        ".localhost",
+        "127.0.0.1",
+        "[::1]",
+    ]
     SQLALCHEMY_ECHO: bool = False
     PROPAGATE_EXCEPTIONS: bool = True
     # PRESERVE_CONTEXT_ON_EXCEPTION: bool = False  # might need this to make our transaction handling work in debug mode
