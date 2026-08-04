@@ -152,6 +152,9 @@ def read_config(app: Flask, custom_path_to_config: str | None):
         if custom_test_db_uri:
             app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
 
+    # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
+    normalize_trusted_hosts(app)
+
     # Check for missing values.
     # Again, tests and documentation run fine without them.
     if not app.testing and flexmeasures_env != "documentation":
@@ -275,6 +278,19 @@ def are_required_settings_complete(app) -> bool:
         )
         return False
     return True
+
+
+def normalize_trusted_hosts(app: Flask) -> None:
+    """Turn a comma-separated TRUSTED_HOSTS string into a list.
+
+    Werkzeug matches a plain string as a single host,
+    so "a.example.com,b.example.com" would silently match nothing.
+    """
+    trusted_hosts = app.config.get("TRUSTED_HOSTS")
+    if isinstance(trusted_hosts, str):
+        app.config["TRUSTED_HOSTS"] = [
+            host.strip() for host in trusted_hosts.split(",") if len(host.strip()) > 0
+        ]
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:

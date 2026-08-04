@@ -691,6 +691,20 @@ TRUSTED_HOSTS
 
 A Flask setting you should use to prevent host header poisoning. Read more at :ref:`security-best-practices-for-hosts`.
 
+Leaving this unset means any ``Host`` header is accepted, so FlexMeasures warns about it on startup.
+
+As a list in your config file, or as a comma-separated environment variable:
+
+.. code-block:: python
+
+    TRUSTED_HOSTS = ["flexmeasures.example.com", "10.0.0.5"]
+
+.. code-block:: bash
+
+    TRUSTED_HOSTS="flexmeasures.example.com,10.0.0.5"
+
+Entries starting with a dot match all subdomains, so ``".example.com"`` also matches ``api.example.com``. Ports are ignored when matching.
+
 Default: ``None``
 
 
