@@ -50,6 +50,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
 * The database migration for this release splits each stored flex-context's ``inflexible-device-sensors`` field into ``inflexible-consumption``/``inflexible-production`` sensor references, classifying each sensor by its ``consumption_is_positive`` attribute (behavior-preserving; sensor attributes themselves are kept). Downgrading merges them back into bare sensor IDs, dropping any source filters added in the meantime [see `PR #2358 <https://www.github.com/FlexMeasures/flexmeasures/pull/2358>`_]
 * Speed up listing assets: eager-load each asset's sensors instead of lazy-loading them one query per asset during serialization, and skip loading sensors entirely for field-filtered responses that do not include them [see `PR #2363 <https://www.github.com/FlexMeasures/flexmeasures/pull/2363>`_]
