@@ -3,7 +3,6 @@ from darts.models import LightGBMModel
 from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
-
 DEFAULT_SEASONAL_LAGS_STEPS = [1, 24]
 
 

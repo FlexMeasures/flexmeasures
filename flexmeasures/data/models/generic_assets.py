@@ -36,7 +36,6 @@ from flexmeasures.utils.time_utils import (
 )
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
-
 # Each fixed-value origin gets its own unique negative source ID so that
 # chart specs that key on source ID can distinguish between them.
 # Negative IDs are chosen so they never clash with real DataSource IDs (always > 0).

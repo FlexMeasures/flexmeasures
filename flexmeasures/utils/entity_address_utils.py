@@ -10,7 +10,6 @@ from flask import request, current_app, has_request_context
 
 from flexmeasures.utils.time_utils import get_first_day_of_next_month
 
-
 """
 Functionality to support parsing and building Entity Addresses as defined by USEF [1].
 See our documentation for more details.

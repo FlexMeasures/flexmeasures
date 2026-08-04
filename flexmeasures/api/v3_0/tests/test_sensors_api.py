@@ -20,7 +20,6 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
 from flexmeasures.utils.unit_utils import is_valid_unit
 
-
 sensor_schema = SensorSchema()
 
 

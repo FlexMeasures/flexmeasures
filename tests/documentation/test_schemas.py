@@ -5,7 +5,6 @@ from pathlib import Path
 import flexmeasures.data.schemas.scheduling.metadata as metadata_module
 from flexmeasures.data.schemas.scheduling.metadata import MetaData
 
-
 DOC_PATH = Path("documentation/features/scheduling.rst")
 
 # Metadata constants that intentionally do not appear in the documentation

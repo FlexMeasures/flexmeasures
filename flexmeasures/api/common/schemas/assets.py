@@ -8,7 +8,6 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
 )
 
-
 default_response_fields = ["id", "name", "account_id", "generic_asset_type"]
 
 

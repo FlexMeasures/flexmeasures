@@ -4,7 +4,6 @@ Functionality common to all API versions.
 
 from flask import Flask, Blueprint
 
-
 # The api blueprint. It is registered with the Flask app (see register_at)
 flexmeasures_api = Blueprint("flexmeasures_api_ops", __name__)
 
