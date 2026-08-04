@@ -9,7 +9,6 @@ from flexmeasures.ui.views.users.logged_in_user import (  # noqa: F401  # noqa: 
     logged_in_user_view,
 )
 
-
 # Shared label/description for the "attributes" JSON field.
 # Imported by sensor and account views so the text is defined exactly once.
 # Actually, attributes are edited not in the form itself anymore, but in their own modal dialogue.

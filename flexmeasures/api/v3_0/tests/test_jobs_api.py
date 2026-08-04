@@ -20,7 +20,6 @@ from flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db import (
 )
 from flexmeasures.utils.job_utils import work_on_rq
 
-
 JOB_STATUS_DEPRECATED_FIELDS = {
     "func_name": "func-name",
     "enqueued_at": "enqueued-at",

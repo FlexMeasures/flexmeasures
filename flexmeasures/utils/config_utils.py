@@ -22,7 +22,6 @@ from flexmeasures.utils.config_defaults import (
     warnable,
 )
 
-
 flexmeasures_logging_config = {
     "version": 1,
     "formatters": {

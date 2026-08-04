@@ -14,7 +14,6 @@ from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 from pandas.core.resample import Resampler
 from pandas.core.groupby.grouper import Grouper
 
-
 # Methods whose Python signature we choose NOT to bind against.
 # We’ll do our own strict payload checks instead.
 DEFAULT_SKIP_SIGNATURE_METHODS = {"get_attribute"}

@@ -2060,7 +2060,7 @@ def test_factory_chp_dispatch():
     # ------------------------------------------------------------------ #
     # Scenario A: gas cheaper — CHP at max, gas boiler fills the rest    #
     # ------------------------------------------------------------------ #
-    (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
+    e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand = (
         _run_factory_scenario(gas_price=20.0, elec_price=50.0)
     )
 
@@ -2125,7 +2125,7 @@ def test_factory_chp_dispatch():
     # ------------------------------------------------------------------ #
     # Scenario B: electricity cheaper — e-heater meets all demand        #
     # ------------------------------------------------------------------ #
-    (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
+    e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand = (
         _run_factory_scenario(gas_price=100.0, elec_price=10.0)
     )
 
@@ -2173,7 +2173,7 @@ def test_factory_chp_dispatch():
     # --------------------------------------------------------------------------------- #
     # Scenario C: gas slightly cheaper — gas boiler at max, e-heater fills the rest     #
     # --------------------------------------------------------------------------------- #
-    (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
+    e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand = (
         _run_factory_scenario(gas_price=50.0, elec_price=55.0)
     )
 

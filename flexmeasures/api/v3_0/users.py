@@ -28,7 +28,6 @@ from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
-
 """
 API endpoints to manage users.
 

@@ -18,7 +18,6 @@ from flexmeasures.utils.coding_utils import deprecated, merge_or_append
 from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
 
-
 SchedulerOutputType = pd.Series | list[dict[str, Any]] | None
 
 
