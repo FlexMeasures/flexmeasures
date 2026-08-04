@@ -280,16 +280,22 @@ def are_required_settings_complete(app) -> bool:
 
 
 def normalize_trusted_hosts(app: Flask) -> None:
-    """Turn a comma-separated TRUSTED_HOSTS string into a list.
+    """Turn a comma-separated TRUSTED_HOSTS string into a list, and an empty one into None.
 
     Werkzeug matches a plain string as a single host,
     so "a.example.com,b.example.com" would silently match nothing.
+    It also trusts every host when the list is empty, just as when the setting is unset,
+    so an empty value (e.g. TRUSTED_HOSTS="" in a container env file) becomes None.
+    Otherwise it would disable host validation while passing as configured, suppressing the warning.
     """
     trusted_hosts = app.config.get("TRUSTED_HOSTS")
     if isinstance(trusted_hosts, str):
-        app.config["TRUSTED_HOSTS"] = [
+        trusted_hosts = [
             host.strip() for host in trusted_hosts.split(",") if len(host.strip()) > 0
         ]
+        app.config["TRUSTED_HOSTS"] = trusted_hosts
+    if trusted_hosts is not None and len(trusted_hosts) == 0:
+        app.config["TRUSTED_HOSTS"] = None
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:

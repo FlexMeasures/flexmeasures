@@ -94,7 +94,11 @@ def test_read_env_vars_reads_trusted_hosts(monkeypatch):
         (" a.example.com , b.example.com ", ["a.example.com", "b.example.com"]),
         # Empty segments are dropped.
         ("a.example.com,,", ["a.example.com"]),
-        ("", []),
+        # Werkzeug trusts every host on an empty list, so an empty value must read as unset.
+        ("", None),
+        ("   ", None),
+        (",,", None),
+        ([], None),
         # Lists are left alone, and so is the unset default.
         (["a.example.com"], ["a.example.com"]),
         (None, None),
@@ -114,6 +118,19 @@ def test_config_warnings_flag_unset_trusted_hosts():
     missing_settings, config_warnings = get_config_warnings(app)
     assert "TRUSTED_HOSTS" in missing_settings
     assert any("TRUSTED_HOSTS" in warning for warning in config_warnings)
+
+
+def test_empty_trusted_hosts_still_warns():
+    """An empty value must not pass as configured.
+
+    Werkzeug trusts every host on an empty list, so leaving it empty would disable
+    host validation while silencing the warning that says so.
+    """
+    app = Flask(__name__)
+    app.config["TRUSTED_HOSTS"] = ""  # e.g. TRUSTED_HOSTS= in a container env file.
+    normalize_trusted_hosts(app)
+    missing_settings, _ = get_config_warnings(app)
+    assert "TRUSTED_HOSTS" in missing_settings
 
 
 def test_development_config_trusts_loopback():
