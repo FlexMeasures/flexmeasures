@@ -290,7 +290,13 @@ You can still create a flex-context entry for such a commodity to define ``infle
 Alternatively, omit it from the ``flex-context`` entirely (fixed demand and supply can also be set up with flex-models of their own, see :ref:`inflexible_devices_in_flex_model`).
 Electricity is the exception: it is always assumed to be grid-connected, so missing electricity prices raise an error rather than turning electricity into an internal node.
 
-Internal nodes and coupled converters together are how a whole factory is scheduled end-to-end: an e-heater and a boiler feed an internal ``heat`` node, a steamer converts heat into an internal ``steam`` node, a CHP also feeds steam (while exporting electricity to the grid), and a fixed steam demand closes the balance — priced commodities (electricity, gas) at the grid, unpriced commodities (heat, steam) balanced internally.
+Coupled converters and internal nodes compose, which is what lets these two features reach beyond the single unit shown above.
+Chain a few of them and you can describe an industrial site: converters feeding internal nodes, those nodes feeding further converters, and only the priced commodities meeting the grid.
+Nothing extra is needed to get there — no new fields, just more entries of the kinds already shown.
+We do not walk through such a site here, and yours will not look like anyone else's, but the pieces are the ones on this page.
+
+**Pricing what flows through a node.** An internal node's flows sum to zero by construction, so a commitment scoped to the node itself would bind nothing: there is no net flow to price.
+To put a cost on throughput — pipe wear, say, or a conversion levy — scope the commitment to the devices *producing* into the node, whose summed flow is what actually passes through it.
 
 We hope this demonstration helped to illustrate multi-commodity scheduling.
 To revisit scheduling several devices that share a single commodity and stock, head back to :ref:`tut_multi_feed_storage`.
