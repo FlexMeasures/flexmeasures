@@ -3,6 +3,7 @@ from datetime import timedelta
 from flexmeasures import Asset, AssetType, Account, Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
+from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 from flexmeasures.data.schemas.scheduling import (
     UI_FLEX_CONTEXT_SCHEMA,
     UI_FLEX_MODEL_SCHEMA,
@@ -10,6 +11,13 @@ from flexmeasures.data.schemas.scheduling import (
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
+
+
+def test_svg_asset_icon_name_for_evse():
+    charger_icon = "https://api.iconify.design/material-symbols/ev-station-outline.svg"
+
+    for asset_type_name in ("one-way_evse", "two-way_evse"):
+        assert svg_asset_icon_name(asset_type_name) == charger_icon
 
 
 def test_get_ancestry(app, db):

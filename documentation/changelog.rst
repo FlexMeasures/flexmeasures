@@ -80,6 +80,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Show charger icons for one-way and two-way EVSE assets in the UI's asset structure view [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Replaying a chart for a past window no longer shows annotations that were only recorded later; annotation searches and the ``chart_annotations`` endpoints can now be scoped by recording (belief) time [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Continuing the query-parameter cleanup started in PR #2352: the chart-related endpoints now use ``prior``, ``start``, ``end`` and hyphenated field names, with a new ``duration`` field to derive a missing ``start``/``end``; old spellings keep working as legacy aliases [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
