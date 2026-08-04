@@ -286,7 +286,7 @@ Note that the capacities agree with the coefficients:
 20 kW of gas is the most the unit can burn, which is what caps steam at 10 kW and electricity at 6 kW.
 
 **Internal nodes.** A *non-electricity* commodity that lists no energy price and no capacity (grid-connection) field in the ``flex-context`` (e.g. a steam or heat network with no grid connection) is treated as an **internal node**: its devices must balance each other at every time step, so everything converters produce into the node is consumed from it within the same step.
-Give such a commodity only an ``inflexible-device-sensors`` entry (its fixed demand), or omit it from the ``flex-context`` entirely.
+Give such a commodity only an ``inflexible-consumption`` entry (its fixed demand), or omit it from the ``flex-context`` entirely.
 Electricity is the exception: it is always assumed to be grid-connected, so missing electricity prices raise an error rather than turning electricity into an internal node.
 
 This is how a whole factory is scheduled end-to-end: an e-heater and a boiler feed an internal ``heat`` node, a steamer converts heat into an internal ``steam`` node, a CHP also feeds steam (while exporting electricity to the grid), and a fixed steam demand closes the balance — priced commodities (electricity, gas) at the grid, unpriced commodities (heat, steam) balanced internally.
