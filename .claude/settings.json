@@ -48,6 +48,12 @@
           },
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/push-file-review.sh\"",
+            "if": "Bash(git push:*)",
+            "timeout": 30
+          },
+          {
+            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-reminder.sh\"",
             "if": "Bash(git push:*)",
             "timeout": 10
