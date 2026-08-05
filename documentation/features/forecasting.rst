@@ -206,5 +206,8 @@ The jobs record how they were created, which is shown on the asset's status page
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html>`_.
 Account admins and consultants can also create, (de)activate and delete automations right there on the page,
 or through the API (`[POST] /assets/(id)/automations`, `[PATCH] /assets/(id)/automations/(automation_id)` and `[DELETE] /assets/(id)/automations/(automation_id)`).
+An automation created this way can only involve sensors that its creator can access themselves:
+they need read access to the sensors it reads data from, and permission to record data on the sensors it writes to.
+The CLI is not restricted in this way.
 
 Schedules can be automated in the same way — see :ref:`automating_schedules`.
