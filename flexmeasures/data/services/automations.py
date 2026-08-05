@@ -89,14 +89,39 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
 def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     """Find the automations that write data to the given sensor.
 
+    Only automations on the sensor's own asset or on one of its ancestors are
+    considered, as an automation may only write to its asset's subtree
+    (see `validate_forecast_output_scope`). Working out the output sensors requires
+    setting up each candidate's data generator, so this keeps the work proportional
+    to the number of automations that could feed this sensor.
+
     Note that this does not filter by permission: callers showing these to a user
     should check read access on each automation (e.g. with `user_can_read`).
     """
+    candidate_automations = db.session.scalars(
+        select(Automation).filter(
+            Automation.asset_id.in_(_asset_and_ancestor_ids(sensor.generic_asset_id))
+        )
+    ).unique()
     return [
         automation
-        for automation in db.session.scalars(select(Automation)).unique().all()
+        for automation in candidate_automations
         if sensor.id in [output.id for output in automation.output_sensors]
     ]
+
+
+def _asset_and_ancestor_ids(asset_id: int | None) -> list[int]:
+    """List the given asset and all of its ancestors, nearest first."""
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    asset_ids: list[int] = []
+    while asset_id is not None and asset_id not in asset_ids:
+        asset_ids.append(asset_id)
+        asset = db.session.get(GenericAsset, asset_id)
+        if asset is None:
+            break
+        asset_id = asset.parent_asset_id
+    return asset_ids
 
 
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
