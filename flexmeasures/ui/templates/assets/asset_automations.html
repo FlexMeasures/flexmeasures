@@ -17,12 +17,13 @@
           <span class="fa fa-info-circle" title="
           This table shows the automations defined on this asset: recurring tasks, such as computing forecasts.
 
-An active automation runs whenever its recurrence (a cron string) matches the current time. Each run queues jobs.
+An active automation follows its cron recurrence in the timezone shown below. If the runner misses forecast occurrences, it coalesces them into one current forecast when it resumes.
           "></span>
         </h4>
         <p>
           Recent jobs created by these automations are listed on the
           <a href="/assets/{{ asset.id }}/status">status page</a>.
+          During daylight-saving-time changes, a skipped local occurrence runs once after the clock moves forward, and a repeated local occurrence runs only once.
         </p>
 
         <ul class="nav nav-tabs" role="tablist">
@@ -87,6 +88,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       `,
       active: `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`,
       recurrence: `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`,
+      timezone: esc(automation.timezone),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
       details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
@@ -118,6 +120,10 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           ? `${res.generator.description} (data source ${res.generator.id})`
           : "None";
         $(`#AutomationDetailsBody-${automationId}`).html(`
+          <h6>Timezone</h6>
+          <p>${esc(res.timezone)}</p>
+          <h6>Scheduling cursor (UTC)</h6>
+          <p title="Occurrences at or before this UTC watermark are ineligible for another automatic queueing attempt; this does not indicate successful queueing or job completion.">${esc(res.scheduling_cursor || "Not initialized yet")}</p>
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
           <h6>Parameters</h6>
@@ -153,6 +159,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
         { data: "created_at", title: "Created At" },
         { data: "active", title: "Active" },
         { data: "recurrence", title: "Recurrence" },
+        { data: "timezone", title: "Timezone" },
         { data: "jobs", title: "Jobs" },
         { data: "details", title: "", className: "text-right" },
       ],

@@ -68,8 +68,11 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.models.automations import Automation
-from flexmeasures.data.schemas.automations import CronField
+from flexmeasures.data.models.automations import (
+    Automation,
+    get_default_automation_timezone,
+)
+from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
     AwareDateTimeField,
@@ -1642,7 +1645,15 @@ def add_forecast(  # noqa: C901
     "cronstr",
     required=True,
     type=CronField(),
-    help='Recurrence of the automation as a cron string, e.g. "0 6 * * *" for daily at 6 AM (in the FLEXMEASURES_TIMEZONE).',
+    help='Recurrence as a standard five-field cron expression, e.g. "0 6 * * *" for daily at 06:00. The expression is interpreted in the automation timezone.',
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    default=get_default_automation_timezone,
+    show_default="FLEXMEASURES_TIMEZONE",
+    type=TimezoneField(),
+    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam". Defaults to FLEXMEASURES_TIMEZONE.',
 )
 @click.option(
     "--type",
@@ -1693,6 +1704,7 @@ def add_automation(
     asset: GenericAsset,
     name: str,
     cronstr: str,
+    timezone: str,
     automation_type: str,
     inactive: bool = False,
     forecaster_class: str = "TrainPredictPipeline",
@@ -1707,7 +1719,8 @@ def add_automation(
     \b
     Example
       flexmeasures add automation --asset 3 --name "Day-ahead PV forecasts"
-        --cron "0 6 * * *" --sensor 2092 --regressors 2093
+        --cron "0 6 * * *" --timezone Europe/Amsterdam
+        --sensor 2092 --regressors 2093
 
     The forecaster configuration is stored on a data source, and the forecast
     parameters are validated and stored on the automation itself.
@@ -1755,6 +1768,7 @@ def add_automation(
         type=automation_type,
         name=name,
         cronstr=cronstr,
+        timezone=timezone,
         active=not inactive,
         generator_id=generator.id,
         parameters=parameters,
@@ -1767,7 +1781,7 @@ def add_automation(
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
-        f" to compute {automation_type} for asset {asset.id}, recurring per cron string '{cronstr}'.",
+        f" to compute {automation_type} for asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
         **MsgStyle.SUCCESS,
     )
 
