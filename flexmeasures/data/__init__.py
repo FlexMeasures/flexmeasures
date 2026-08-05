@@ -16,7 +16,6 @@ from sqlalchemy import text
 from flexmeasures.data.config import configure_db_for, db
 from flexmeasures.data.transactional import after_request_exception_rollback_session
 
-
 ma: Marshmallow = Marshmallow()
 
 

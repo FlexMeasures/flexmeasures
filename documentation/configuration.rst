@@ -55,11 +55,17 @@ Default: ``False``
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
-We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
-Note that you need to install the solver, read more at :ref:`installing-a-solver`.
+The scheduling solver backend.
 
-Default: ``"appsi_highs"``
+The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
+This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
+
+Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
+Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
+
+Default: ``"highspy"``
 
 
 FLEXMEASURES_LP_SOLVER_OPTIONS
@@ -685,7 +691,23 @@ TRUSTED_HOSTS
 
 A Flask setting you should use to prevent host header poisoning. Read more at :ref:`security-best-practices-for-hosts`.
 
-Default: ``None``
+Leaving this unset means any ``Host`` header is accepted, so FlexMeasures warns about it on startup.
+
+As a list in your config file, or as a comma-separated environment variable:
+
+.. code-block:: python
+
+    TRUSTED_HOSTS = ["flexmeasures.example.com", "10.0.0.5"]
+
+.. code-block:: bash
+
+    TRUSTED_HOSTS="flexmeasures.example.com,10.0.0.5"
+
+Entries starting with a dot match all subdomains, so ``".example.com"`` also matches ``api.example.com``. Ports are ignored when matching.
+
+In the ``development`` environment, loopback hosts are trusted by default, so no warning is shown there. Reaching a development server under another name, for instance by its LAN address from a phone or through a tunnel, means listing that name here as well. Rejected requests say which host was not trusted.
+
+Default: ``None``, except in the ``development`` environment, where it is ``["localhost", ".localhost", "127.0.0.1", "[::1]"]``
 
 
 .. _mail-config:
@@ -869,6 +891,56 @@ FLEXMEASURES_REDIS_PASSWORD (*)
 Password of the redis server.
 
 Default: ``None``
+
+.. _rate-limiting-config:
+
+API rate limiting
+-----------------
+
+The settings below rate-limit the API server-wide. They can be overridden per account, by putting the account on
+a plan. Read more at :ref:`plans-and-rate-limiting`.
+
+RATELIMIT_ENABLED
+^^^^^^^^^^^^^^^^^
+
+Whether to rate-limit the API at all. Set this to ``False`` to turn rate limiting off.
+
+Default: ``True``
+
+FLEXMEASURES_API_DEFAULT_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
+if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
+
+Default: ``"500 per minute"``
+
+FLEXMEASURES_API_TRIGGER_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often a client may trigger a schedule or a forecast. This is the expensive work, so this limit is stricter
+than the default one. The trigger endpoints share this budget, so triggering a forecast and triggering a schedule
+draw on the same one.
+
+Default: ``"10 per 5 minutes"``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
+schedule is a business decision, so you decide what shares a budget:
+
+- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
+  usually works, so it is the default.
+- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
+  that this multiplies the limit by the number of assets an account has.
+- ``"user"``: each user gets their own budget.
+
+An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
+to ``"account"`` rather than raising an error.
+
+Default: ``"account"``
+
 
 Demonstrations
 --------------
