@@ -4,14 +4,16 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
+from copy import copy
 from datetime import datetime
 from typing import Any
 
 from cron_descriptor import get_description, Options
 from croniter import croniter
+from flask import current_app
 from sqlalchemy import select
 
-from flexmeasures import Forecaster
+from flexmeasures import Forecaster, Sensor
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.utils.time_utils import get_timezone, server_now
@@ -54,13 +56,52 @@ def get_due_automations(now: datetime | None = None) -> list[Automation]:
     ]
 
 
+def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
+    """Look up which sensors an automation reads from and writes to on each run.
+
+    The sensors are derived from the data generator, configured with the automation's
+    own parameters. Automations whose data generator or parameters cannot be loaded
+    (e.g. because a sensor was deleted) report no sensors.
+    """
+    no_sensors: dict[str, list[Sensor]] = {"input_sensors": [], "output_sensors": []}
+    if automation.generator is None:
+        return no_sensors
+    try:
+        # Work on a copy, as the data generator is cached on the data source,
+        # which may be shared by several automations.
+        data_generator = copy(automation.generator.data_generator)
+        data_generator._parameters = data_generator._parameters_schema.load(
+            dict(automation.parameters or {})
+        )
+        return {
+            "input_sensors": data_generator.input_sensors,
+            "output_sensors": data_generator.output_sensors,
+        }
+    except Exception as e:
+        current_app.logger.warning(
+            f"Could not determine the sensors of automation {automation.id}: {e}"
+        )
+        return no_sensors
+
+
+def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
+    """Find the automations that write data to the given sensor.
+
+    Note that this does not filter by permission: callers showing these to a user
+    should check read access on each automation (e.g. with `user_can_read`).
+    """
+    return [
+        automation
+        for automation in db.session.scalars(select(Automation)).unique().all()
+        if sensor.id in [output.id for output in automation.output_sensors]
+    ]
+
+
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     """Count the jobs created by this automation, per job status.
 
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
-    from flask import current_app
-
     # Jobs are cached under the forecast target sensor(s), which may belong
     # to a different asset than the automation's own asset.
     sensor_ids = {sensor.id for sensor in automation.asset.sensors}
