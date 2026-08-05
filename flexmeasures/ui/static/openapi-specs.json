@@ -3361,7 +3361,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires account admin or consultant rights.\n",
+        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires account admin or consultant rights.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from, and permission to record data\non the sensors it writes to.\n",
         "security": [
           {
             "ApiKeyAuth": []
