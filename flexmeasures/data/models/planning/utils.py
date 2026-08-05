@@ -173,7 +173,8 @@ def get_power_values(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None,
-    sensor: Sensor,
+    sensor: Sensor | SensorReference,
+    consumption_is_positive: bool | None = None,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
@@ -184,18 +185,41 @@ def get_power_values(
     :param query_window:    datetime window within which events occur (equal to the scheduling window)
     :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
     :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
-    :param sensor:          power sensor representing an energy flow out of the device
+    :param sensor:          power sensor representing an energy flow out of the device,
+                            or a SensorReference wrapping such a sensor with source filters
+    :param consumption_is_positive: sign convention of the sensor's data, as determined by
+                            the flex-context field the device was listed under
+                            (``inflexible-consumption`` → True, ``inflexible-production`` → False);
+                            None means the sign convention is read from the sensor's
+                            ``consumption_is_positive`` attribute (the deprecated
+                            ``inflexible-device-sensors`` field's behavior)
     :returns:               power measurements or forecasts (consumption is positive, production is negative)
     """
+    if isinstance(sensor, SensorReference):
+        underlying_sensor = sensor.sensor
+        source_filters = dict(
+            source_types=sensor.source_types,
+            exclude_source_types=sensor.exclude_source_types,
+            source=sensor.sources,
+            source_account_ids=(
+                [account.id for account in sensor.source_account]
+                if sensor.source_account
+                else None
+            ),
+        )
+    else:
+        underlying_sensor = sensor
+        source_filters = {}
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
-        sensor,
+        underlying_sensor,
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
         beliefs_before=beliefs_before,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
-    )  # consumption is negative, production is positive
+        **source_filters,
+    )
     df = simplify_index(bdf)
     df = df.reindex(initialize_index(query_window[0], query_window[1], resolution))
     nan_values = df.isnull().values
@@ -212,9 +236,12 @@ def get_power_values(
         event_resolution=sensor.event_resolution,
     )
 
-    if sensor.get_attribute(
-        "consumption_is_positive", False
-    ):  # FlexMeasures default is to store consumption as negative power values
+    if consumption_is_positive is None:
+        # FlexMeasures default is to store consumption as negative power values
+        consumption_is_positive = underlying_sensor.get_attribute(
+            "consumption_is_positive", False
+        )
+    if consumption_is_positive:
         return series
 
     return -series

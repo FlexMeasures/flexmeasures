@@ -6,7 +6,6 @@ from typing import Callable
 
 import altair as alt
 
-
 FONT_SIZE = 16
 STROKE_WIDTH = 2
 ANNOTATION_MARGIN = 16

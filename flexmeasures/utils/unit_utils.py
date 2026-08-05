@@ -19,7 +19,6 @@ import pandas as pd
 import pint
 import timely_beliefs as tb
 
-
 # Create custom template
 custom_template = [f"{c} = [currency_{c}]" for c in list_all_currencies()]
 

@@ -22,7 +22,6 @@ from flexmeasures.utils.config_defaults import (
     warnable,
 )
 
-
 flexmeasures_logging_config = {
     "version": 1,
     "formatters": {
@@ -152,6 +151,9 @@ def read_config(app: Flask, custom_path_to_config: str | None):
         if custom_test_db_uri:
             app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
 
+    # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
+    normalize_trusted_hosts(app)
+
     # Check for missing values.
     # Again, tests and documentation run fine without them.
     if not app.testing and flexmeasures_env != "documentation":
@@ -212,15 +214,29 @@ def read_custom_config(
     return path_to_config
 
 
+def parse_bool_env(value: str) -> bool:
+    """
+    Parse a boolean setting from a (case-insensitive) environment variable string.
+
+    "true", "1", "yes" and "on" count as True; anything else is False.
+    Surrounding whitespace is ignored.
+    """
+    return value.strip().lower() in ("true", "1", "yes", "on")
+
+
 def read_env_vars(app: Flask):
     """
     Read in what we support as environment settings.
     At the moment, these are:
     - All required and warnable variables
-    - Logging settings
+    - Logging and debugging settings
     - access tokens
     - plugins (handled in plugin utils)
     - json compactness
+    - two-factor authentication (SECURITY_TOTP_SECRETS is handled in app_utils.set_totp_secrets)
+
+    Settings whose default is a boolean are parsed as booleans
+    (env values are strings, and e.g. "False" is truthy).
     """
     for var in (
         required
@@ -228,14 +244,24 @@ def read_env_vars(app: Flask):
         + [
             "LOGGING_LEVEL",
             "MAPBOX_ACCESS_TOKEN",
-            "SENTRY_SDN",
+            "SENTRY_DSN",
             "FLEXMEASURES_PLUGINS",
             "FLEXMEASURES_JSON_COMPACT",
+            "SECURITY_TWO_FACTOR",
+            "DEBUG",
         ]
     ):
-        app.config[var] = os.getenv(var, app.config.get(var, None))
-    # DEBUG in env can come in as a string ("True") so make sure we don't trip here
-    app.config["DEBUG"] = int(bool(os.getenv("DEBUG", app.config.get("DEBUG", False))))
+        value = os.getenv(var, None)
+        if value is None:
+            continue
+        if isinstance(getattr(DefaultConfig, var, None), bool):
+            value = parse_bool_env(value)
+        app.config[var] = value
+
+    # Sentry is initialized from SENTRY_DSN, but we long documented the typo SENTRY_SDN,
+    # so keep accepting that as a fallback.
+    if app.config.get("SENTRY_DSN") is None and os.getenv("SENTRY_SDN") is not None:
+        app.config["SENTRY_DSN"] = os.getenv("SENTRY_SDN")
 
 
 def are_required_settings_complete(app) -> bool:
@@ -251,6 +277,25 @@ def are_required_settings_complete(app) -> bool:
         )
         return False
     return True
+
+
+def normalize_trusted_hosts(app: Flask) -> None:
+    """Turn a comma-separated TRUSTED_HOSTS string into a list, and an empty one into None.
+
+    Werkzeug matches a plain string as a single host,
+    so "a.example.com,b.example.com" would silently match nothing.
+    It also trusts every host when the list is empty, just as when the setting is unset,
+    so an empty value (e.g. TRUSTED_HOSTS="" in a container env file) becomes None.
+    Otherwise it would disable host validation while passing as configured, suppressing the warning.
+    """
+    trusted_hosts = app.config.get("TRUSTED_HOSTS")
+    if isinstance(trusted_hosts, str):
+        trusted_hosts = [
+            host.strip() for host in trusted_hosts.split(",") if len(host.strip()) > 0
+        ]
+        app.config["TRUSTED_HOSTS"] = trusted_hosts
+    if trusted_hosts is not None and len(trusted_hosts) == 0:
+        app.config["TRUSTED_HOSTS"] = None
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:

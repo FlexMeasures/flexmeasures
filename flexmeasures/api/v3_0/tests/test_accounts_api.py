@@ -6,7 +6,7 @@ from flask import url_for
 import pytest
 from sqlalchemy import select
 
-from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.models.user import Account, AccountRole, Plan
 from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.data.services.users import find_user_by_email
 
@@ -84,6 +84,90 @@ def test_get_accounts(
 
     if sort_by:
         assert accounts[0]["name"] == expected_name_of_first_account
+
+
+@pytest.mark.parametrize(
+    "requesting_user, role, expected_names",
+    [
+        (
+            "test_admin_user@seita.nl",
+            "Dummy",
+            {"Test Dummy Account", "Multi Role Account"},
+        ),
+        (
+            "test_admin_user@seita.nl",
+            "Prosumer",
+            {"Test Prosumer Account", "Multi Role Account"},
+        ),
+        ("test_prosumer_user@seita.nl", "Supplier", set()),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_accounts_filters_by_role_within_accessible_accounts(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    role,
+    expected_names,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": role},
+    )
+
+    assert response.status_code == 200
+    assert {account["name"] for account in response.json} == expected_names
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_accounts_filters_by_role_before_pagination(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    unfiltered_response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"page": 1, "per_page": 10},
+    )
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": "Dummy", "page": 1, "per_page": 10},
+    )
+
+    assert response.status_code == 200
+    assert {account["name"] for account in response.json["data"]} == {
+        "Test Dummy Account",
+        "Multi Role Account",
+    }
+    # num-records counts all accessible accounts, before the role filter
+    assert response.json["num-records"] == unfiltered_response.json["num-records"]
+    assert response.json["num-records"] > 2
+    assert response.json["filtered-records"] == 2
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_accounts_rejects_unknown_role(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": "Unknown role"},
+    )
+
+    assert response.status_code == 422
+    assert response.json["message"]["query"]["role"] == [
+        "No account role found with name Unknown role."
+    ]
 
 
 @pytest.mark.parametrize(
@@ -307,6 +391,94 @@ def test_patch_account_attributes_with_consultancy(
         response.json["consultancy_account_id"]
         == consultancy_client_account.consultancy_account_id
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_admin_user@seita.nl", 200),
+        ("test_prosumer_user@seita.nl", 403),  # only admins hand out plans
+    ],
+    indirect=["requesting_user"],
+)
+def test_patch_account_plan(
+    db, client, setup_api_test_data, requesting_user, expected_status_code
+):
+    """Only an admin may put an account on a plan."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    plan = Plan(
+        name=f"test-plan-patch-{expected_status_code}",
+        trigger_rate_limit="60 per 5 minutes",
+    )
+    db.session.add(plan)
+    db.session.commit()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": plan.id},
+    )
+    assert response.status_code == expected_status_code, response.json
+    if expected_status_code == 200:
+        assert response.json["plan_id"] == plan.id
+        assert account.plan == plan
+    else:
+        assert account.plan != plan
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_unknown_plan(db, client, setup_api_test_data, requesting_user):
+    """A plan which does not exist cannot be assigned."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    plan_before = account.plan
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": 999999},
+    )
+    assert response.status_code == 422, response.json
+    assert account.plan == plan_before
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_legacy_plan(db, client, setup_api_test_data, requesting_user):
+    """A legacy plan is no longer handed out, not even by an admin."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    plan_before = account.plan
+    legacy_plan = Plan(name="test-plan-retired", legacy=True)
+    db.session.add(legacy_plan)
+    db.session.commit()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": legacy_plan.id},
+    )
+    assert response.status_code == 422, response.json
+    # The refusal uses the standard error envelope, keyed by field
+    assert "retired" in str(response.json["message"]["json"]["plan_id"])
+    assert account.plan == plan_before
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_already_on_legacy_plan(
+    db, client, setup_api_test_data, requesting_user
+):
+    """An account already on a legacy plan must stay editable.
+
+    The account edit form always resends the current plan_id, so resubmitting the
+    account's own (legacy) plan alongside another change is not an assignment and passes.
+    """
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    legacy_plan = Plan(name="test-plan-grandfathered", legacy=True)
+    account.plan = legacy_plan
+    db.session.commit()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": legacy_plan.id, "logo_url": "https://example.com/logo.png"},
+    )
+    assert response.status_code == 200, response.json
+    assert account.plan == legacy_plan
+    assert account.logo_url == "https://example.com/logo.png"
 
 
 @pytest.mark.parametrize(
