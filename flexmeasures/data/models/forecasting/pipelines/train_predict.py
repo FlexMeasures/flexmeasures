@@ -332,7 +332,10 @@ class TrainPredictPipeline(Forecaster):
         as_job: bool = False,
         queue: str = "forecasting",
     ):
-        logging.info(
+        # Only announce a pipeline run when actually running it here: with as_job, this
+        # method merely queues the cycles, and the workers running them log their own start.
+        log_start = logging.debug if as_job else logging.info
+        log_start(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
         connection = current_app.queues[queue].connection
