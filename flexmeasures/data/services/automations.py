@@ -13,9 +13,11 @@ from croniter import croniter
 from flask import current_app
 from sqlalchemy import select
 
-from flexmeasures import Forecaster, Sensor
+from flexmeasures import Forecaster
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
 from flexmeasures.utils.time_utils import get_timezone, server_now
 
 
@@ -126,6 +128,38 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
+    """Resolve the sensor on which a forecast automation registers beliefs."""
+    sensor_reference = parameters.get("sensor-to-save")
+    if sensor_reference is None:
+        sensor_reference = parameters.get("sensor_to_save")
+    if sensor_reference is None:
+        sensor_reference = parameters.get("sensor")
+
+    if isinstance(sensor_reference, Sensor):
+        return sensor_reference
+    try:
+        sensor_id = int(sensor_reference)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Forecast automation has no valid output sensor.") from exc
+
+    sensor = db.session.get(Sensor, sensor_id)
+    if sensor is None:
+        raise ValueError(
+            f"Forecast automation output sensor {sensor_id} does not exist."
+        )
+    return sensor
+
+
+def validate_forecast_output_scope(asset_id: int, output_sensor: Sensor) -> None:
+    """Require forecast output on the automation asset or a descendant."""
+    if not asset_is_in_subtree(asset_id, output_sensor.generic_asset_id):
+        raise ValueError(
+            f"Forecast automation output sensor {output_sensor.id} must belong to asset "
+            f"{asset_id} or one of its descendants."
+        )
+
+
 def run_automation(automation: Automation) -> dict[str, Any] | None:
     """Queue the jobs for one run of an automation.
 
@@ -145,6 +179,8 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
         raise ValueError(
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
         )
+    output_sensor = get_forecast_output_sensor(automation.parameters or {})
+    validate_forecast_output_scope(automation.asset_id, output_sensor)
     # The data generator instance is cached on the data source, which may be shared
     # by several automations, so wipe any parameter state from a previous run.
     forecaster._parameters = None

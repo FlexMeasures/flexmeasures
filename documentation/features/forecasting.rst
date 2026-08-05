@@ -172,6 +172,47 @@ If you want to take regressors into account, in addition to merely past measurem
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
 
+Annotation regressors
+~~~~~~~~~~~~~~~~~~~~~
+
+In addition to sensor-based regressors, you can use *annotation regressors* to let the forecasting model learn from binary signals derived from annotation data. Holiday flags, factory shutdowns, or any other event stored as an annotation can be passed as future covariates.
+
+Annotation regressors are configured in the ``annotation-regressors`` key of the forecasting config. Each entry is a dict with:
+
+- ``account``, ``asset``, or ``sensor`` (required): the database ID of the account, asset, or sensor whose annotations to use.
+- ``annotation-type`` (optional, default ``"holiday"``): filter to annotations of this type (``"holiday"``, ``"label"``, ``"alert"``, etc.).
+- ``name`` (optional): a human-readable column name for the regressor. Defaults to ``annotation_regressor_<index>``.
+
+The annotation data is converted to a binary 0/1 time series at the target sensor's resolution: **1** for every time step that falls within an annotation period, **0** otherwise. Since holidays and scheduled events are typically known in advance, annotation regressors are treated as *future* covariates.
+
+Example config (passed via ``--config`` file):
+
+.. code-block:: json
+
+    {
+      "annotation-regressors": [
+        {"account": 1, "annotation-type": "holiday", "name": "public_holidays"},
+        {"asset": 5, "annotation-type": "label", "name": "factory_shutdown"}
+      ]
+    }
+
+Usage:
+
+.. code-block:: bash
+
+    flexmeasures add forecasts \
+      --from-date 2024-01-01T00:00:00+00:00 \
+      --to-date 2024-12-31T00:00:00+00:00 \
+      --max-forecast-horizon PT24H \
+      --sensor 42 \
+      --annotation-regressors \
+        '{"account": 1, "annotation-type": "holiday", "name": "public_holidays"}'
+
+.. note::
+
+   Create the annotations you want to use as regressors before running the forecast.
+   For holidays, use ``flexmeasures add holidays``, which supports both ``workalendar``
+   and ``holidays``. See :ref:`annotations` for details.
 
 .. _automating_forecasts:
 
@@ -182,6 +223,8 @@ Instead of asking for forecasts one at a time, you can set up an *automation*: a
 On each run, the automation queues forecasting jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
 When the automation was created, its forecast parameters (see above) were stored, and validated with the same schema that the CLI and API use.
 Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
+The sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation asset or one of its descendants.
+This relationship is checked both when the automation is created and immediately before each run.
 
 Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
 
@@ -189,10 +232,12 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
 
     flexmeasures add automation --asset 3 --name "Daily PV forecasts" --cron "0 6 * * *" --sensor 12
 
-The recurrence is defined by a cron string (interpreted in the ``FLEXMEASURES_TIMEZONE``), which defaults to ``"0 0 * * *"`` (daily at midnight).
+The recurrence is defined by a standard five-field cron string (minute, hour, day of month, month, and day of week), interpreted in the ``FLEXMEASURES_TIMEZONE``, which defaults to ``"0 0 * * *"`` (daily at midnight).
+Cron aliases and optional seconds or year fields are not supported.
 Automations are active by default (use ``--inactive`` to create them in deactivated state).
 Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
 These changes are recorded in the asset's audit log.
+The stored data generator is required while the automation exists, so its data source cannot be deleted until the automation is removed.
 
 The forecaster and its configuration are stored on a data source.
 Pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
@@ -204,8 +249,10 @@ For automations to actually run, let a cron job execute the following command on
     * * * * * flexmeasures jobs run-automations
 
 Each due automation then queues its forecasting jobs.
+Only one queueing attempt is made per automation per minute.
+If an attempt fails after queueing some jobs, it is not retried automatically, because a retry could duplicate that partial work.
 The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
 
-Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html>`_.
+Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
 An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
 Conversely, a sensor's page lists the automations that write data to it.

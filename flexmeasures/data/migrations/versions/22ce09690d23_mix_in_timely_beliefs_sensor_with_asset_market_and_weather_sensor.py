@@ -11,7 +11,6 @@ import json
 import sqlalchemy as sa
 from timely_beliefs.sensors.func_store import knowledge_horizons
 
-
 # revision identifiers, used by Alembic.
 revision = "22ce09690d23"
 down_revision = "564e8df4e3a9"

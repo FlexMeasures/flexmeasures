@@ -1,1 +1,1 @@
-""" Higher-level tests """
+"""Higher-level tests"""

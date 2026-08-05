@@ -19,7 +19,7 @@ Make a schedule
 
 After going through the setup, we can finally create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our battery, specifically to store it on the (dis)charging sensor (ID 2).
+We'll ask FlexMeasures for a schedule for our battery, specifically to store it on the battery power sensor we created in :ref:`tut_load_data`.
 
 To keep this short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and also that the SoC should never fall below 50 kWh.
 
@@ -39,7 +39,7 @@ There is more information being used by the scheduler, such as the battery's cap
         .. code-block:: bash
 
             $ flexmeasures add schedule \
-                --sensor 2 \
+                --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
@@ -66,7 +66,7 @@ There is more information being used by the scheduler, such as the battery's cap
             }
             
             $ flexmeasures add schedule \                                      
-                --sensor 2 \
+                --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
                 --start 2024-02-04T07:00+01:00 \
                 --duration PT24H \
                 --soc-at-start 50% \
@@ -90,6 +90,20 @@ There is more information being used by the scheduler, such as the battery's cap
             }
 
         .. note:: You can try this right in Swagger UI, too! You should find it at `http://localhost:5000/api/v3_0/docs <http://localhost:5000/api/v3_0/docs>`_ after starting FlexMeasures locally.
+        
+        The API returns a **202 Accepted** response with a ``job`` field to track the scheduling job:
+    
+        .. code-block:: json
+        
+            {
+                "status": "ACCEPTED",
+                "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                "results-url": "/api/v3_0/sensors/2/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+            }
+        
+        **Important:** Use the ``job`` field to reference the scheduling job. You can also follow the returned ``results-url`` to fetch the schedule results once they are ready. For more details, see :ref:`api_background_jobs`.
 
     .. tab:: FlexMeasures Client
 

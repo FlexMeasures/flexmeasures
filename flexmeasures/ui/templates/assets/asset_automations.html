@@ -51,7 +51,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 </div>
 
 <script>
-  const assetId = "{{ asset.id }}";
+  const assetId = {{ asset.id }};
 
   // Escape user-controlled strings before interpolating them into HTML
   function esc(value) {
@@ -67,6 +67,21 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 
   function renderSortable(data, type) {
     return type === "display" ? data.display : data.order;
+  }
+
+  function automationAjaxErrorMessage(xhr) {
+    const responseMessage = xhr.responseJSON?.message;
+    if (typeof responseMessage === "string" && responseMessage) {
+      return responseMessage;
+    }
+    if (responseMessage) {
+      return JSON.stringify(responseMessage);
+    }
+    return xhr.status ? `HTTP ${xhr.status}` : "unknown error";
+  }
+
+  function showAutomationsError(message) {
+    $("#automations_err").removeClass("d-none").text(message);
   }
 
   function AutomationRow(automation) {
@@ -147,6 +162,9 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       error: function (xhr) {
         $(`#automation-jobs-${automationId}`).text("unknown");
         $(`#AutomationDetailsBody-${automationId}`).text("Could not load details.");
+        showAutomationsError(
+          `Could not load automation details: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
+        );
       },
     });
   }
@@ -180,8 +198,11 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
             res.automations.forEach(automation => loadAutomationDetails(automation.id));
           },
           error: function (xhr) {
-            console.error("Error fetching automations:", xhr);
             callback({ data: [] });
+            $("#automationsTable").hide();
+            showAutomationsError(
+              `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
+            );
           },
         });
       },

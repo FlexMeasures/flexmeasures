@@ -17,6 +17,11 @@ class CronField(MarshmallowClickMixin, fields.Str):
 
     def _deserialize(self, value, attr, obj, **kwargs) -> str:
         value = super()._deserialize(value, attr, obj, **kwargs)
+        if len(value.split()) != 5:
+            raise FMValidationError(
+                "Automation cron expressions must contain exactly five fields "
+                "(minute, hour, day of month, month, and day of week)."
+            )
         if not croniter.is_valid(value):
             raise FMValidationError(f"'{value}' is not a valid cron string.")
         return value

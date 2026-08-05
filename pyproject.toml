@@ -38,6 +38,7 @@ dependencies = [
     "iso8601>=2.1.0",
     "xlrd>=2.0.2",
     "workalendar>=17.0.0",
+    "holidays>=0.57",
     "inflection>=0.5.1",
     "inflect>=7.5.0",
     "pydantic>=2.12.5",
@@ -81,6 +82,8 @@ dependencies = [
     "flask-marshmallow>=1.4.0",
     "flask-cors>=6.0.2",
     "flask-swagger-ui>=5.21.0",
+    # Note: the redis extra (used for rate-limit storage) currently pins redis<8
+    "Flask-Limiter[redis]>=4.0",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
     # See GH#1450 (failing tests on older Python versions)
@@ -112,6 +115,8 @@ dependencies = [
     "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
     "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
+    "pyasn1>=0.6.4",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/622 (and 623)
+    "setuptools>=83.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/621
 ]
 
 [project.urls]
@@ -205,7 +210,7 @@ args = [
 
 [dependency-groups]
 dev = [
-    "black==24.8.0",
+    "black==26.3.1",
     "flake8==7.1.1",
     "flake8-blind-except",
     "pytest-runner",

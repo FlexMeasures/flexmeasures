@@ -45,7 +45,6 @@ from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 
-
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
     deferred=DeferredJobRegistry,
@@ -73,8 +72,9 @@ def run_automations():
     \b
         * * * * * flexmeasures jobs run-automations
 
-    A Redis-based guard prevents queueing jobs twice if the command happens to run
-    more than once within the same minute.
+    A Redis-based guard allows at most one queueing attempt per automation per minute.
+    A failed attempt is not retried automatically because it may already have queued
+    some jobs.
     """
     now = floor_to_minute(server_now())
     due_automations = get_due_automations(now)
@@ -90,7 +90,8 @@ def run_automations():
         guard_key = f"automation-run:{automation.id}:{now.isoformat()}"
         if not connection.set(guard_key, 1, nx=True, ex=120):
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') already ran at {now}. Skipping.",
+                f"Automation {automation.id} ('{automation.name}') was already attempted at {now}. "
+                "Skipping to avoid duplicate jobs.",
                 **MsgStyle.WARN,
             )
             continue
@@ -104,8 +105,8 @@ def run_automations():
             n_run += 1
         except Exception as e:
             db.session.rollback()
-            # release the guard, so a retry within the same minute can still queue jobs
-            connection.delete(guard_key)
+            # Queueing a multi-cycle forecast is not transactional. Keep the guard
+            # because this attempt may have queued some jobs before failing.
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
                 **MsgStyle.ERROR,

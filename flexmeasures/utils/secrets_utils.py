@@ -159,17 +159,14 @@ def log_keyring_config_error_and_exit(app, setting_name: str, filename: str) -> 
     :param setting_name: Name of the FlexMeasures configuration setting.
     :param filename: File path containing an invalid value.
     """
-    app.logger.error(
-        """
+    app.logger.error("""
         ERROR: The file %s exists but does not contain a valid dictionary for %s.
 
         The correct format is:
 
         {"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
 
-        """
-        % (filename, setting_name)
-    )
+        """ % (filename, setting_name))
     sys.exit(2)
 
 
@@ -192,8 +189,7 @@ def set_secret_key(app, filename: str = "secret_key") -> None:
         with open(filename, "rb") as secret_key_file:
             app.config["SECRET_KEY"] = secret_key_file.read()
     except IOError:
-        app.logger.error(
-            """
+        app.logger.error("""
         Error: No secret key set.
 
         You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
@@ -214,9 +210,7 @@ def set_secret_key(app, filename: str = "secret_key") -> None:
 
         python3 -c "import secrets; print(secrets.token_urlsafe())"
 
-        """
-            % (os.path.dirname(filename), filename)
-        )
+        """ % (os.path.dirname(filename), filename))
 
         sys.exit(2)
 
