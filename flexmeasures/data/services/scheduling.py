@@ -31,6 +31,7 @@ from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
     SCHEDULING_RESULT_KEY,
 )
+from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
@@ -342,6 +343,39 @@ def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     # jobs = [Job.fetch(job_id) for job_id in jobs_ids]
 
 
+def _add_inflexible_devices(flex_context: dict, sensors: list[Sensor]) -> None:
+    """Add previously scheduled sensors to a (serialized) flex-context as inflexible devices.
+
+    If the context already uses the deprecated ``inflexible-device-sensors`` key, bare
+    sensor ids are appended there (their stored schedules are read according to each
+    sensor's ``consumption_is_positive`` attribute, and mixing the deprecated key with
+    the newer keys is rejected by FlexContextSchema.check_inflexible_devices).
+    Otherwise, each sensor is routed to ``inflexible-consumption`` or
+    ``inflexible-production`` according to that same attribute, which is also how the
+    sign of the sensor's stored schedule was resolved when it was written
+    (see :func:`_resolve_schedule_output_sign`).
+    """
+    already_listed = {
+        entry["sensor"] if isinstance(entry, dict) else entry
+        for key in INFLEXIBLE_DEVICE_KEYS
+        for entry in (flex_context.get(key) or [])
+    }
+    for sensor in sensors:
+        if sensor.id in already_listed:
+            continue
+        already_listed.add(sensor.id)
+        if "inflexible-device-sensors" in flex_context:
+            flex_context["inflexible-device-sensors"].append(sensor.id)
+        elif sensor.get_attribute("consumption_is_positive", False):
+            flex_context.setdefault("inflexible-consumption", []).append(
+                {"sensor": sensor.id}
+            )
+        else:
+            flex_context.setdefault("inflexible-production", []).append(
+                {"sensor": sensor.id}
+            )
+
+
 @job_cache("scheduling")
 def create_sequential_scheduling_job(
     asset: Asset,
@@ -399,10 +433,8 @@ def create_sequential_scheduling_job(
         current_scheduler_kwargs = deepcopy(scheduler_kwargs)
 
         current_scheduler_kwargs["flex_model"] = child_flex_model["sensor_flex_model"]
-        if "inflexible-device-sensors" not in current_scheduler_kwargs["flex_context"]:
-            current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"] = []
-        current_scheduler_kwargs["flex_context"]["inflexible-device-sensors"].extend(
-            previous_sensors
+        _add_inflexible_devices(
+            current_scheduler_kwargs["flex_context"], previous_sensors
         )
         if "resolution" not in current_scheduler_kwargs:
             current_scheduler_kwargs["resolution"] = sensor.event_resolution
@@ -419,7 +451,7 @@ def create_sequential_scheduling_job(
             trigger=trigger,
         )
         jobs.append(job)
-        previous_sensors.append(sensor.id)
+        previous_sensors.append(sensor)
         previous_job = job
 
     # create job that triggers when the last job is done
@@ -782,7 +814,6 @@ def make_schedule(  # noqa: C901
 
     # we get the default scheduler info in case it fails in the compute step
     if rq_job:
-        click.echo("Job %s made schedule." % rq_job.id)
         rq_job.meta["scheduler_info"] = scheduler.info
 
     consumption_schedule: SchedulerOutputType = scheduler.compute()
@@ -818,11 +849,12 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
+    num_beliefs_created = 0
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
             continue
-        if rq_job and result["name"] == "commitment_costs":
+        if rq_job and result.get("name") == "commitment_costs":
             rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
             continue
         if "sensor" not in result:
@@ -858,10 +890,14 @@ def make_schedule(  # noqa: C901
 
         if not dry_run:
             save_to_db(bdf)
+            num_beliefs_created += len(bdf)
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
             )
+
+    # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
+    scheduling_result_dict["num-beliefs"] = num_beliefs_created
 
     if not dry_run:
         scheduler.persist_flex_model()

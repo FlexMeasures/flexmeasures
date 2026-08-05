@@ -359,6 +359,11 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return value.id
 
 
+SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
+    {"source-types", "exclude-source-types", "sources", "source-account"}
+)
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def __init__(
         self,
@@ -445,9 +450,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
 
-    _SOURCE_FILTER_KEYS = frozenset(
-        {"source-types", "exclude-source-types", "sources", "source-account"}
-    )
+    _SOURCE_FILTER_KEYS = SENSOR_REFERENCE_SOURCE_FILTER_KEYS
 
     def _deserialize_source_filters(self, value: dict[str, Any]) -> tuple[
         list[str] | None,
@@ -676,6 +679,18 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Unexpected type '{type(variable_quantity)}' for variable_quantity describing '{self.data_key}': {variable_quantity}."
             )
         return unit
+
+
+class PriceField(VariableQuantityField):
+    """VariableQuantityField for monetary values.
+
+    Price fields participate in currency validation: all price fields in the
+    flex-context must share one currency (recorded as the flex-context's
+    ``shared_currency_unit``), and price fields in a flex-model must use a
+    currency that is convertible to the flex-context's shared currency.
+    """
+
+    pass
 
 
 class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
@@ -1032,6 +1047,77 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
             description="Only use beliefs from data sources linked to these account IDs.",
         ),
     )
+
+
+class InflexibleDeviceSchema(SensorReferenceSchema):
+    """One inflexible device: a sensor reference with optional source filters.
+
+    Used both in the flex-context (as a list, for site-level inflexible load),
+    and in a flex-model entry (as a single reference, when an inflexible device is modelled as its own asset).
+    Deserializes to a plain :class:`Sensor` when no source filters are given (a backward-compatible shape downstream),
+    and to a :class:`SensorReference` otherwise.
+    """
+
+    class Meta:
+        description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @post_load
+    def to_sensor_or_reference(
+        self, data: dict, **kwargs
+    ) -> "Sensor | SensorReference":
+        if not any(
+            data.get(key)
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            return data["sensor"]
+        return SensorReference(
+            sensor=data["sensor"],
+            source_types=data.get("source_types"),
+            exclude_source_types=data.get("exclude_source_types"),
+            sources=data.get("sources"),
+            source_account=data.get("source_account"),
+        )
+
+
+class SensorIdOrReferenceField(fields.Raw):
+    """Field accepting either a sensor ID or a source-filtered sensor reference."""
+
+    def __init__(self, *args, **kwargs):
+        metadata = dict(kwargs.pop("metadata", {}))
+        metadata.setdefault(
+            "oneOf",
+            [
+                {"type": "integer"},
+                {"$ref": "#/components/schemas/SensorReference"},
+            ],
+        )
+        kwargs["metadata"] = metadata
+        super().__init__(*args, **kwargs)
+        self.sensor_id_field = SensorIdField()
+        self.sensor_reference_schema = SensorReferenceSchema()
+
+    def _deserialize(
+        self, value: Any, attr, data, **kwargs
+    ) -> Sensor | SensorReference:
+        if not isinstance(value, dict):
+            return self.sensor_id_field.deserialize(value, attr, data, **kwargs)
+
+        sensor_reference = self.sensor_reference_schema.load(value)
+        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value):
+            return sensor_reference["sensor"]
+        return SensorReference(**sensor_reference)
+
+    def _serialize(
+        self, value: Sensor | SensorReference, attr, obj, **kwargs
+    ) -> int | dict[str, Any]:
+        if isinstance(value, SensorReference):
+            return self.sensor_reference_schema.dump(value)
+        return self.sensor_id_field._serialize(value, attr, obj, **kwargs)
 
 
 class TimeSeriesSchema(Schema):

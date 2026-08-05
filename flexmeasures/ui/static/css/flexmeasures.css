@@ -881,10 +881,6 @@ table.dataTable.no-footer {
 /* extra buffer for bootstrap rows */
 .top-buffer { margin-top:15px; }
 
-.dataTables_wrapper {
-    margin-bottom: 20px;
-}
-
 .dataTables_wrapper .paginate_button {
     outline: none;
 }
@@ -1871,6 +1867,35 @@ div.heading-group {
   justify-content: flex-start;
 }
 
+/* "Fast chart" toggle, relocated to the top of the replay column so it shares a
+   column with the replay button (its top). Keep it clear of the play button and,
+   in the narrow replay column, let it wrap and stay inside the column instead of
+   overflowing onto the chart card. */
+.fast-chart-toggle {
+  /* Switch + "Fast chart (beta)" on a single line, centered. In the narrow replay
+     column this can overflow the column a little — that's accepted, in exchange for
+     the cleaner single-line look. */
+  margin: 0.5rem 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding-left: 0; /* override Bootstrap .form-check's 2.5em */
+}
+.fast-chart-toggle .form-check-input {
+  margin-left: 0; /* override the -2.5em float offset so the switch stays in flow */
+  float: none;
+}
+.fast-chart-toggle .form-check-label {
+  white-space: nowrap;
+}
+
+/* Mobile: let a one-finger vertical swipe scroll the page over the fast chart,
+   while a two-finger pinch still zooms it (handled by ECharts). Without this the
+   canvas would swallow the swipe. Desktop (mouse) is unaffected by touch-action. */
+#fast-chart-container,
+#fast-chart-container canvas {
+  touch-action: pan-y !important;
+}
+
 #replay-time {
   margin-top: 15px;
 }
@@ -1977,6 +2002,7 @@ body.touched [title]:hover:after {
 
 .table-responsive{
     padding: 20px;
+    scrollbar-width: none;
 }
 
 .border-on-click {

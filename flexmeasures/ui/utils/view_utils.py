@@ -166,13 +166,29 @@ def clear_session(keys_to_clear: list[str] = None):
             del session[skey]
 
 
-def set_session_variables(*var_names: str):
+def set_session_variables(*var_names: str, aliases: dict[str, str] | None = None):
     """Store request values as session variables, for a consistent UX across UI page loads.
 
+    Session values are always taken as the raw (string) request value, never a
+    deserialized/typed one -- downstream template rendering expects strings here
+    (see the `event_starts_after`/`event_ends_before` handling in
+    `render_flexmeasures_template`).
+
+    :param aliases: maps a `var_name` to an alternative request key to also check
+        (e.g. its canonical spelling), for when a client may send either.
+
     >>> set_session_variables("event_starts_after", "event_ends_before", "chart_type")
+    >>> set_session_variables(
+    ...     "event_starts_after",
+    ...     "event_ends_before",
+    ...     aliases={"event_starts_after": "start", "event_ends_before": "end"},
+    ... )
     """
+    aliases = aliases or {}
     for var_name in var_names:
         var = request.values.get(var_name)
+        if var is None and var_name in aliases:
+            var = request.values.get(aliases[var_name])
         if var is not None:
             session[var_name] = var
 

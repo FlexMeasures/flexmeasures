@@ -34,12 +34,36 @@ Defaults to ``"electricity"``.
     examples=["electricity", "gas"],
 )
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
-    description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
-For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
-Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+    description="""[Deprecated field] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
+To avoid using the field, use ``inflexible-consumption`` and/or ``inflexible-production`` instead, which make clear the sign convention.
+For this field, each sensor's sign convention is determined by its ``consumption_is_positive`` attribute (default: false, i.e. production-positive).
 Must be a list of integers.
 """,
     example=[3, 4],
+)
+INFLEXIBLE_CONSUMPTION = MetaData(
+    description="""Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.
+For example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.
+Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+
+The sign convention is determined by the key name: positive values denote consumption.
+Sensors that explicitly record consumption as negative values (``consumption_is_positive`` attribute set to false) are rejected here; list them under ``inflexible-production`` instead.
+
+Each entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a ``group`` like any other member.
+""",
+    example=[{"sensor": 3}, {"sensor": 4}],
+)
+INFLEXIBLE_PRODUCTION = MetaData(
+    description="""Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.
+For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
+Their power supply cannot be adjusted but still matters for finding the best schedule for other devices.
+
+The sign convention is determined by the key name: positive values denote production (the FlexMeasures default).
+Sensors that explicitly record production as negative values (``consumption_is_positive`` attribute set to true) are rejected here; list them under ``inflexible-consumption`` instead.
+
+Each entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a ``group`` like any other member.
+""",
+    example=[{"sensor": 3}, {"sensor": 4}],
 )
 AGGREGATE_POWER = MetaData(
     description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.
@@ -74,8 +98,16 @@ See the ``aggregate-consumption`` field for the full description of the split lo
     example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
-    example=[],
+    description="""Prior commitments. Each commitment needs a ``name`` and a ``baseline``, plus at least one deviation price (``up-price`` and/or ``down-price``); its ``commodity`` defaults to electricity.
+You can find more information in :ref:`commitments`.
+""",
+    example=[
+        {
+            "name": "capacity contract",
+            "baseline": "100 kW",
+            "up-price": {"sensor": 5},
+        }
+    ],
 )
 CONSUMPTION_PRICE = MetaData(
     description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
@@ -223,6 +255,25 @@ Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
 )
+COUPLING = MetaData(
+    description="""Name of the coupling group this device belongs to.
+Devices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.
+Use this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.
+For example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.
+Use together with ``coupling-coefficient`` to set the flow ratios.
+""",
+    example="chp",
+)
+COUPLING_COEFFICIENT = MetaData(
+    description="""Positive coupling magnitude for this device within its coupling group.
+The scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.
+The flow direction of each device is inferred from which directional capacity is set: a device given only a ``production-capacity`` is an output (producing) device, and a device given only a ``consumption-capacity`` is an input (consuming) device.
+The unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).
+For example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).
+Defaults to 1.
+""",
+    example=0.5,
+)
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.
 
@@ -285,7 +336,7 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
     example=[
         {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
         {
@@ -298,7 +349,7 @@ Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
 If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#minimum_overlap]_""",
+Otherwise, they become hard constraints. [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
     example=[
         {
             "value": "51 kWh",
@@ -310,7 +361,7 @@ Otherwise, they become hard constraints. [#minimum_overlap]_""",
 SOC_TARGETS = MetaData(
     description="""
 Exact set point(s) of the storage's state of charge that the scheduler needs to realize.
-These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.
+These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
 """,
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
@@ -391,4 +442,25 @@ How much power can be supplied by this asset.
 For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 """,
     example="0 kW",
+)
+OPERATION_MODES = MetaData(
+    description="""Confine the device's power to one of several power ranges at every time step.
+Each operation mode declares a ``consumption-range`` (non-negative, positive is consumption) and/or a ``production-range`` (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.
+This is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).
+Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.
+S2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM ``consumption-range``, negative S2 power values (production) correspond to the FM ``production-range`` (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.
+Declaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.
+""",
+    example=[
+        {"consumption-range": ["0 W", "0 W"]},
+        {"consumption-range": ["883.7 W", "883.7 W"]},
+    ],
+)
+GROUP = MetaData(
+    description="""Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{"asset": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{"sensor": <id>}``) is also accepted - give exactly one of the two.
+The referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
+When the group is referenced by ``asset``, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.
+When the group is referenced by ``sensor``, the group's scheduled aggregate power is saved directly to that group sensor.
+""",
+    example={"asset": 7},
 )

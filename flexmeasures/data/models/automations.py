@@ -38,7 +38,7 @@ class Automation(db.Model, AuthModelMixin):
     cronstr = db.Column(db.String(80), nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
     generator_id = db.Column(
-        db.Integer, db.ForeignKey("data_source.id", ondelete="SET NULL"), nullable=True
+        db.Integer, db.ForeignKey("data_source.id"), nullable=False
     )
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 

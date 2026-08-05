@@ -93,6 +93,10 @@ class Config(object):
         else None
     )
 
+    # Hosts on which this platform is served, used by Flask to validate the Host header.
+    # Leaving this unset means any Host header is accepted, which lets clients poison generated URLs.
+    TRUSTED_HOSTS: list[str] | str | None = None  # str will be checked for commas.
+
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: list[str] | str = []
     # this can be a dict with all possible options as value per regex, see https://flask-cors.readthedocs.io/en/latest/configuration.html
@@ -128,6 +132,7 @@ class Config(object):
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: tuple | None = None
+    FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = True
     # Configuration used for entity addressing:
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
@@ -153,7 +158,10 @@ class Config(object):
         "renewables": ["solar", "wind"],
         "EVSE": ["one-way_evse", "two-way_evse"],
     }  # how to group assets by asset types
-    FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
+    FLEXMEASURES_LP_SOLVER: str = "highspy"
+    FLEXMEASURES_LP_SOLVER_OPTIONS: dict[str, str | int | float] = {}
+    FLEXMEASURES_DEFAULT_JOB_TIMEOUT: timedelta = timedelta(seconds=180)
+    FLEXMEASURES_JOB_TIMEOUT: dict[str, timedelta | str] = {}
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
     FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = (
@@ -175,10 +183,20 @@ class Config(object):
     FLEXMEASURES_REDIS_PORT: int = 6379
     FLEXMEASURES_REDIS_DB_NR: int = 0  # Redis per default has 16 databases, [0-15]
     FLEXMEASURES_REDIS_PASSWORD: str | None = None
+    # API rate limiting (see flexmeasures.api.common.rate_limiting)
+    RATELIMIT_ENABLED: bool = (
+        True  # Flask-Limiter's own switch, to turn off rate limiting altogether
+    )
+    FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
+    FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
+    FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
+        "account"  # what to count triggers against: "account", "account+asset" or "user"
+    )
     FLEXMEASURES_JS_VERSIONS: dict = dict(
         vega="5.22.1",
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
+        echarts="5.6.0",  # used for the fast (canvas-based) chart mode
         currencysymbolmap="5.1.0",
         jsoneditor="2.15.2",
         leaflet="1.9.4",
@@ -220,7 +238,9 @@ required: list[str] = ["SQLALCHEMY_DATABASE_URI"]
 #  settings whose absence should trigger a warning
 mail_warning = "Without complete mail settings, FlexMeasures will not be able to send mails to users, e.g. for password resets!"
 redis_warning = "Without complete redis connection settings, FlexMeasures will not be able to run forecasting and scheduling job queues."
+trusted_hosts_warning = "Without TRUSTED_HOSTS, FlexMeasures accepts any Host header, so clients can poison the URLs it generates, e.g. password reset links!"
 warnable: dict[str, str] = {
+    "TRUSTED_HOSTS": trusted_hosts_warning,
     "MAIL_SERVER": mail_warning,
     "MAIL_PORT": mail_warning,
     "MAIL_USE_TLS": mail_warning,
@@ -248,6 +268,15 @@ class StagingConfig(Config):
 class DevelopmentConfig(Config):
     DEBUG: bool = True
     LOGGING_LEVEL: int = logging.DEBUG
+    # A dev server is not the target of host header poisoning, so warning about TRUSTED_HOSTS here would only be noise.
+    # Trust the loopback names a dev server is normally reached by, and let developers extend this when they need to,
+    # e.g. to reach the server from a phone on the LAN or through a tunnel.
+    TRUSTED_HOSTS: list[str] | str | None = [
+        "localhost",
+        ".localhost",
+        "127.0.0.1",
+        "[::1]",
+    ]
     SQLALCHEMY_ECHO: bool = False
     PROPAGATE_EXCEPTIONS: bool = True
     # PRESERVE_CONTEXT_ON_EXCEPTION: bool = False  # might need this to make our transaction handling work in debug mode
@@ -258,6 +287,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     DEBUG: bool = True  # this seems to be important for logging in, not sure why
     LOGGING_LEVEL: int = logging.INFO
+    FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = False
     WTF_CSRF_ENABLED: bool = False  # also necessary for logging in during tests
 
     SECRET_KEY: str = "dummy-key-for-testing"
@@ -276,6 +306,12 @@ class TestingConfig(Config):
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
+
+    # The rate limiter stays initialized during tests (turning it on later is not possible),
+    # but its limits are set so high that only the rate limiting tests, which lower them, will hit them.
+    RATELIMIT_STORAGE_URI: str = "memory://"
+    FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
