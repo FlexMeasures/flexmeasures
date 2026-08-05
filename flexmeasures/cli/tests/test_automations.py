@@ -3,8 +3,10 @@ from types import SimpleNamespace
 
 from sqlalchemy import select
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.cli.tests.utils import to_flags
 
 
@@ -13,6 +15,52 @@ def clean_redis(app):
     app.redis_connection.flushdb()
     yield
     app.redis_connection.flushdb()
+
+
+@pytest.fixture()
+def automation_scope_assets(fresh_db, setup_dummy_data):
+    root_sensor = fresh_db.session.get(Sensor, setup_dummy_data[0])
+    root_asset = root_sensor.generic_asset
+    asset_type = root_asset.generic_asset_type
+
+    ancestor = GenericAsset(name="automation ancestor", generic_asset_type=asset_type)
+    child = GenericAsset(
+        name="automation child",
+        generic_asset_type=asset_type,
+        parent_asset=root_asset,
+    )
+    grandchild = GenericAsset(
+        name="automation grandchild",
+        generic_asset_type=asset_type,
+        parent_asset=child,
+    )
+    unrelated = GenericAsset(name="automation unrelated", generic_asset_type=asset_type)
+    root_asset.parent_asset = ancestor
+
+    sensors = {"root": root_sensor}
+    for name, asset in (
+        ("ancestor", ancestor),
+        ("child", child),
+        ("grandchild", grandchild),
+        ("unrelated", unrelated),
+    ):
+        sensors[name] = Sensor(
+            f"{name} output",
+            generic_asset=asset,
+            event_resolution=root_sensor.event_resolution,
+            unit=root_sensor.unit,
+        )
+
+    fresh_db.session.add_all(
+        [ancestor, child, grandchild, unrelated, *sensors.values()]
+    )
+    fresh_db.session.commit()
+    return {
+        "root_asset": root_asset,
+        "child_asset": child,
+        "unrelated_asset": unrelated,
+        "sensors": sensors,
+    }
 
 
 def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
@@ -85,6 +133,82 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     # NB click reports the offending value; once it reports the validation message
     # instead (see PR #2303), the cron string's own error text shows up here.
     assert "Invalid value" in result.output
+
+
+@pytest.mark.parametrize(
+    ("output_sensor_name", "should_succeed"),
+    (
+        ("root", True),
+        ("child", True),
+        ("grandchild", True),
+        ("unrelated", False),
+        ("ancestor", False),
+    ),
+)
+def test_add_automation_constrains_output_to_asset_subtree(
+    app,
+    fresh_db,
+    automation_scope_assets,
+    output_sensor_name,
+    should_succeed,
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    root_asset = automation_scope_assets["root_asset"]
+    output_sensor = automation_scope_assets["sensors"][output_sensor_name]
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            str(root_asset.id),
+            "--name",
+            f"{output_sensor_name} output",
+            "--cron",
+            "0 6 * * *",
+            "--sensor",
+            str(output_sensor.id),
+        ],
+    )
+
+    automations = fresh_db.session.scalars(select(Automation)).all()
+    if should_succeed:
+        assert result.exit_code == 0, result.output
+        assert len(automations) == 1
+    else:
+        assert result.exit_code != 0
+        assert "must belong to asset" in result.output
+        assert automations == []
+
+
+def test_add_automation_constrains_explicit_output_sensor(
+    app, fresh_db, automation_scope_assets
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    root_asset = automation_scope_assets["root_asset"]
+    root_sensor = automation_scope_assets["sensors"]["root"]
+    unrelated_sensor = automation_scope_assets["sensors"]["unrelated"]
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            str(root_asset.id),
+            "--name",
+            "unrelated explicit output",
+            "--cron",
+            "0 6 * * *",
+            "--sensor",
+            str(root_sensor.id),
+            "--sensor-to-save",
+            str(unrelated_sensor.id),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "must belong to asset" in result.output
+    assert fresh_db.session.scalars(select(Automation)).all() == []
 
 
 @pytest.mark.parametrize(
@@ -261,3 +385,41 @@ def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
     assert "already attempted" in retry_result.output
     assert "Skipping to avoid duplicate jobs" in retry_result.output
     assert app.queues["forecasting"].count == 1
+
+
+def test_run_automation_revalidates_output_scope(
+    app, fresh_db, automation_scope_assets, clean_redis
+):
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+
+    root_asset = automation_scope_assets["root_asset"]
+    child_asset = automation_scope_assets["child_asset"]
+    unrelated_asset = automation_scope_assets["unrelated_asset"]
+    child_sensor = automation_scope_assets["sensors"]["child"]
+    runner = app.test_cli_runner()
+
+    add_result = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            str(root_asset.id),
+            "--name",
+            "moved output",
+            "--cron",
+            "* * * * *",
+            "--sensor",
+            str(child_sensor.id),
+        ],
+    )
+    assert add_result.exit_code == 0, add_result.output
+
+    child_asset.parent_asset = unrelated_asset
+    fresh_db.session.commit()
+    fresh_db.session.expire_all()
+
+    run_result = runner.invoke(run_automations)
+
+    assert run_result.exit_code == 1
+    assert "must belong to asset" in run_result.output
+    assert app.queues["forecasting"].count == 0
