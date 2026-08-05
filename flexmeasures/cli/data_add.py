@@ -1728,6 +1728,22 @@ def add_automation(
         kwargs, source, config_file, parameters_file
     )
 
+    has_forecast_config = any(
+        value is not None
+        and value is not False
+        and not (isinstance(value, (dict, list, tuple)) and not value)
+        for value in config.values()
+    )
+    if automation_type == "schedules" and (
+        source is not None
+        or config_file is not None
+        or forecaster_class != "TrainPredictPipeline"
+        or has_forecast_config
+    ):
+        raise click.UsageError(
+            "Forecaster options (--forecaster, --source, --config and forecasting configuration fields) cannot be used with --type schedules."
+        )
+
     # Validate the parameters using the forecast parameters schema (we store them serialized)
     generator_id = None
     if automation_type == "forecasts":
