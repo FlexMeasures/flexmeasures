@@ -3095,7 +3095,7 @@
     "/api/v3_0/assets/{id}/automations/{automation_id}": {
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (for forecasts, these are the forecast parameters\nused on each run), information about the data generator that runs it,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (for forecasts, these are the forecast parameters\nused on each run), information about the data generator that runs it,\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3145,6 +3145,22 @@
                         "id": 6,
                         "description": "forecaster 'TrainPredictPipeline' (v1)"
                       },
+                      "input_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        },
+                        {
+                          "id": 2093,
+                          "name": "irradiance"
+                        }
+                      ],
+                      "output_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        }
+                      ],
                       "job_stats": {
                         "finished": 3,
                         "failed": 1
@@ -4540,6 +4556,66 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
+    "/api/v3_0/sources/{id}": {
+      "get": {
+        "summary": "Get one data source.",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the data source.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 6,
+                  "name": "Seita",
+                  "type": "forecaster",
+                  "model": "TrainPredictPipeline",
+                  "version": "1",
+                  "description": "Seita's TrainPredictPipeline model v1",
+                  "account_id": 2,
+                  "user_id": null,
+                  "attributes": {
+                    "data_generator": {
+                      "config": {
+                        "model": "CustomLGBM"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
