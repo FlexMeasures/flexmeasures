@@ -280,6 +280,53 @@ def test_post_automation_with_inaccessible_sensor(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_schedule_automation_with_inaccessible_output_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+):
+    """Sensors that a schedule would be recorded on are checked, wherever they are named.
+
+    The aggregate power schedule is recorded on the flex-context's aggregate-consumption
+    sensor, so that one needs to be writable, too — not just the flex-model's own sensors.
+    """
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="aggregate consumption",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.flush()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Schedules aggregated onto another account's sensor",
+                "cronstr": "0 0 * * *",
+                "type": "schedules",
+                "parameters": {
+                    "duration": "PT12H",
+                    "flex-context": {
+                        "aggregate-consumption": {"sensor": someone_elses_sensor.id}
+                    },
+                },
+            },
+        )
+    assert response.status_code == 403
+    assert str(someone_elses_sensor.id) in response.json["message"]
+    assert "record data on" in response.json["message"]
+
+
+@pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
         ("test_prosumer_user@seita.nl", 403),  # plain account member
