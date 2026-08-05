@@ -129,6 +129,51 @@ def test_run_schedule_automation(
     }
 
 
+@pytest.mark.parametrize("sequential", (False, True))
+def test_run_minimal_schedule_automation_with_stored_flex_config(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+):
+    """A minimal trigger inherits a single device's flex config from the asset tree."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-at-start": "2.5 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    automation = Automation(
+        asset=building,
+        type="schedules",
+        name="Minimal stored-flex schedule",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT1H", "sequential": sequential},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    returns = run_automation(automation)
+    job = Job.fetch(returns["job_id"], connection=app.redis_connection)
+
+    if sequential:
+        assert returns["n_jobs"] == 2
+        device_job = Job.fetch(job.args[0][0], connection=app.redis_connection)
+        assert device_job.meta["asset_or_sensor"] == {
+            "id": power_sensor.id,
+            "class": "Sensor",
+        }
+    else:
+        assert returns["n_jobs"] == 1
+        assert job.meta["asset_or_sensor"] == {"id": building.id, "class": "Asset"}
+
+
 def test_schedule_automation_stats_include_descendant_jobs_once(
     fresh_db, app, automation_with_generator, clean_scheduling_redis
 ):
