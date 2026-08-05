@@ -36,7 +36,6 @@ from flexmeasures.utils.time_utils import (
 )
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
-
 # Each fixed-value origin gets its own unique negative source ID so that
 # chart specs that key on source ID can distinguish between them.
 # Negative IDs are chosen so they never clash with real DataSource IDs (always > 0).
@@ -754,6 +753,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                   the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
         """
         from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+        from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 
         flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
         flex_context = {
@@ -762,11 +762,21 @@ class GenericAsset(db.Model, AuthModelMixin):
         }
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
+            # The inflexible-device keys form one field family: once any of them is
+            # defined by a nearer asset, farther ancestors' definitions of the whole
+            # family are shadowed, so the deprecated and newer keys never mix across
+            # tree levels (mixing is rejected by FlexContextSchema.check_inflexible_devices).
+            inflexible_family_defined = any(
+                key in flex_context for key in INFLEXIBLE_DEVICE_KEYS
+            )
             # An ancestor's flex_context may still be None (e.g. a pending asset
             # created without one, before its column default is applied on flush).
             for field, value in (parent_asset.flex_context or {}).items():
-                if field not in flex_context:
-                    flex_context[field] = dict(value=value, asset=parent_asset)
+                if field in flex_context:
+                    continue
+                if field in INFLEXIBLE_DEVICE_KEYS and inflexible_family_defined:
+                    continue
+                flex_context[field] = dict(value=value, asset=parent_asset)
             parent_asset = parent_asset.parent_asset
         return flex_context
 
@@ -834,18 +844,29 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def get_inflexible_device_sensors(self):
         """
-        Searches for inflexible_device_sensors upwards on the asset tree
+        Searches for inflexible device sensors upwards on the asset tree, across the
+        deprecated ``inflexible-device-sensors`` key (bare sensor IDs) and the
+        ``inflexible-consumption``/``inflexible-production`` keys (sensor references),
+        both top-level and within each nested ``commodities`` entry.
         This search will stop once any sensors are found (will not aggregate towards the top of the tree)
         """
 
         from flexmeasures.data.models.time_series import Sensor
+        from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 
         flex_context = self.get_flex_context()
-        # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
-        if flex_context.get("inflexible-device-sensors"):
-            sensors = Sensor.query.filter(
-                Sensor.id.in_(flex_context["inflexible-device-sensors"])
-            ).all()
+        contexts = [flex_context] + list(flex_context.get("commodities") or [])
+        # Need to load inflexible device sensors manually as generic_asset does not get to SQLAlchemy session context.
+        sensor_ids = list(
+            dict.fromkeys(  # dedupe, preserving order
+                entry["sensor"] if isinstance(entry, dict) else entry
+                for context in contexts
+                for key in INFLEXIBLE_DEVICE_KEYS
+                for entry in (context.get(key) or [])
+            )
+        )
+        if sensor_ids:
+            sensors = Sensor.query.filter(Sensor.id.in_(sensor_ids)).all()
             return sensors or []
         if self.parent_asset:
             return self.parent_asset.get_inflexible_device_sensors()
@@ -878,6 +899,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         self,
         annotations_after: datetime | None = None,
         annotations_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -891,6 +914,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
         parsed_sources = parse_source_arg(source)
         annotations = db.session.scalars(
@@ -898,6 +924,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 asset_id=self.id,
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
             )
@@ -906,6 +934,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
 
@@ -943,13 +973,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        return query_asset_annotations(
+        query = query_asset_annotations(
             asset_id=self.id,
             annotations_after=annotations_after,
             annotations_before=annotations_before,
             sources=parsed_sources,
             annotation_type=annotation_type,
-        ).count()
+        )
+        return db.session.scalar(select(func.count()).select_from(query.subquery()))
 
     def chart(
         self,

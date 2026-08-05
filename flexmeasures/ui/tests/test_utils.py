@@ -79,6 +79,7 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
+        "inflexible-device-sensors",  # deprecated; the UI only offers inflexible-consumption/inflexible-production
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
         "commodities",  # internal field; the UI manages it through the commodity tab bar
     ]

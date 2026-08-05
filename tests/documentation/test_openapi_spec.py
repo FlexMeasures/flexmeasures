@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-
 OPENAPI_SPEC_PATH = Path("flexmeasures/ui/static/openapi-specs.json")
 
 # Python type names that are commonly confused with their JSON Schema equivalents.

@@ -3,7 +3,6 @@ from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
 from flexmeasures.data.schemas.sensors import SensorIdField
 
-
 # Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
 
 storage_flex_model_schema_openAPI = make_openapi_compatible(

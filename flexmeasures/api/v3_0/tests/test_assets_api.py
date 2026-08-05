@@ -1650,6 +1650,55 @@ def test_get_asset_chart_annotations(client, annotated_asset, requesting_user):
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+@pytest.mark.parametrize("prior_query_key", ["prior", "beliefs_before"])
+def test_get_asset_chart_annotations_belief_time(
+    client, db, annotated_asset, requesting_user, prior_query_key
+):
+    """GET /assets/<id>/chart_annotations excludes annotations recorded after the given prior cutoff.
+
+    An annotation without a belief_time is still returned. Parametrized over both
+    the canonical `prior` query key and its legacy `beliefs_before` alias, which
+    must keep working for older clients.
+    """
+    import pandas as pd
+
+    from flexmeasures.data.models.annotations import Annotation
+    from flexmeasures.data.models.data_sources import DataSource
+
+    late_content = f"Breach alert recorded after the fact ({prior_query_key})"
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    annotated_asset.annotations.append(
+        Annotation(
+            content=late_content,
+            start=pd.Timestamp("2025-05-02 12:00+02"),
+            end=pd.Timestamp("2025-05-02 18:00+02"),
+            source=source,
+            type="alert",
+            belief_time=pd.Timestamp("2025-05-10 00:00+02"),
+        )
+    )
+    db.session.flush()
+
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "event_starts_after": "2025-05-01T00:00:00+02:00",
+            "event_ends_before": "2025-05-06T00:00:00+02:00",
+            prior_query_key: "2025-05-03T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    contents = [content for record in records for content in record["content"]]
+    # Recorded after the prior cutoff, so excluded.
+    assert late_content not in contents
+    # No belief_time, so still included regardless of the prior cutoff.
+    assert "Projected breach of site capacity" in contents
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_get_asset_chart_with_annotation_layers(
     client, annotated_asset, requesting_user
 ):
@@ -1684,3 +1733,52 @@ def test_get_asset_chart_with_annotation_layers(
         if param["name"].startswith("annotation_")
     ]
     assert len(all_param_names) == len(set(all_param_names))
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_annotations_start_and_duration(
+    client, db, annotated_asset, requesting_user
+):
+    """GET /assets/<id>/chart_annotations derives `end` from `start` + `duration` when `end` isn't given."""
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "duration": "P5D",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    assert isinstance(records, list)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_session_vars_with_canonical_params(
+    client, db, annotated_asset, requesting_user
+):
+    """Regression test: GET /assets/<id>/chart persists the selected time range as
+    session variables (for a consistent UX across UI page loads) even when the
+    client uses the canonical `start`/`end` query params rather than the legacy
+    `event_starts_after`/`event_ends_before` spelling.
+
+    Session values must stay raw strings (not deserialized datetimes): downstream
+    template rendering only normalizes URL encoding for `str` values.
+    """
+    with client.session_transaction() as sess:
+        sess.pop("event_starts_after", None)
+        sess.pop("event_ends_before", None)
+    response = client.get(
+        url_for("AssetAPI:get_chart", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "end": "2025-05-02T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert sess.get("event_starts_after") == "2025-05-01T00:00:00+02:00"
+        assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"

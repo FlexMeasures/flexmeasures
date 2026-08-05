@@ -18,11 +18,13 @@ def is_response_tuple(value) -> bool:
     """Check if an object qualifies as a ResponseTuple"""
     if not isinstance(value, tuple):
         return False
-    if not len(value) == 2:
+    if len(value) not in (2, 3):
         return False
     if not isinstance(value[0], dict):
         return False
     if not isinstance(value[1], int):
+        return False
+    if len(value) == 3 and not isinstance(value[2], dict):
         return False
     return True
 
@@ -383,20 +385,44 @@ def request_processed(message: str) -> ResponseTuple:
 def request_accepted_for_processing(
     job_id: str,
     message: str = "Request has been accepted for processing.",
+    legacy_key: str | None = None,
+    job_results_url: str | None = None,
 ) -> ResponseTuple:
-    return (
-        dict(
-            status="ACCEPTED",
-            message=message,
-            job_monitor_url=url_for("JobAPI:get_job_status", uuid=job_id),
-            job_id=job_id,
-        ),
-        202,
+    """
+    Standard 202 response when a background job is accepted.
+
+    `job` is the canonical field identifying the job. Optional
+    backwards-compatibility: if `legacy_key` is provided the response will
+    also include the job id under that legacy key (e.g. `schedule` or
+    `forecast`). Legacy keys are kept around indefinitely within API version
+    v3_0 (no per-field deprecation signal is sent for them); they are only
+    planned for removal in a future major API version.
+
+    Optional `job_results_url` may be supplied to provide a direct link to the
+    sensor-specific job results endpoint, e.g. `/api/v3_0/sensors/<id>/schedules/<uuid>`.
+    """
+    resp: dict[str, object] = dict(
+        status="ACCEPTED",
+        message=message,
+        job=job_id,
     )
+    resp["job-url"] = url_for("JobAPI:get_job_status", uuid=job_id)
+    if job_results_url:
+        resp["results-url"] = job_results_url
+
+    if legacy_key:
+        # keep legacy key for backwards compatibility; not (yet) deprecated, see docstring
+        resp[legacy_key] = job_id
+
+    return resp, 202
 
 
 def request_too_large(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="PAYLOAD_TOO_LARGE", message=message), 413
+
+
+def too_many_requests(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="TOO_MANY_REQUESTS", message=message), 429
 
 
 def pluralize(usef_role_name: str) -> str:

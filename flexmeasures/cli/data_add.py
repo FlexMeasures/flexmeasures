@@ -54,7 +54,13 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
+from flexmeasures.data.models.user import (
+    Account,
+    AccountRole,
+    Plan,
+    RateLimitKey,
+    RolesAccounts,
+)
 from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
@@ -91,10 +97,33 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
+from flexmeasures.cli.utils import (
+    validate_color_cli,
+    validate_rate_limit_cli,
+    validate_url_cli,
+)
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
+
+
+def _parse_regressor_cli_values(values: tuple | list) -> list:
+    """Parse repeated IDs or JSON arrays/objects passed to a regressor option."""
+    parsed_values = []
+    for value in values:
+        if not isinstance(value, str):
+            parsed_values.append(value)
+            continue
+        try:
+            parsed_value = json.loads(value)
+        except json.JSONDecodeError:
+            parsed_values.append(value)
+            continue
+        if isinstance(parsed_value, list):
+            parsed_values.extend(parsed_value)
+        else:
+            parsed_values.append(parsed_value)
+    return parsed_values
 
 
 @click.group("add")
@@ -162,6 +191,79 @@ def new_account_role(name: str, description: str):
     db.session.commit()
     click.secho(
         f"Account role '{name}' (ID: {role.id}) successfully created.",
+        **MsgStyle.SUCCESS,
+    )
+
+
+@fm_add_data.command("plan")
+@with_appcontext
+@click.option("--name", required=True, help="Name of the plan, e.g. 'Pro'.")
+@click.option(
+    "--default-rate-limit",
+    callback=validate_rate_limit_cli,
+    help="How often accounts on this plan may call any API endpoint, e.g. '1000 per minute'."
+    " Defaults to the FLEXMEASURES_API_DEFAULT_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
+)
+@click.option(
+    "--trigger-rate-limit",
+    callback=validate_rate_limit_cli,
+    help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
+    " Defaults to the FLEXMEASURES_API_TRIGGER_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
+)
+@click.option(
+    "--rate-limit-key",
+    type=click.Choice([key.value for key in RateLimitKey]),
+    help="What the trigger rate limit is counted against."
+    " Defaults to the FLEXMEASURES_API_RATE_LIMIT_KEY setting.",
+)
+@click.option(
+    "--max-users",
+    type=int,
+    help="How many users an account on this plan may have (not enforced yet).",
+)
+@click.option(
+    "--max-assets",
+    type=int,
+    help="How many assets an account on this plan may have (not enforced yet).",
+)
+@click.option(
+    "--max-clients",
+    type=int,
+    help="How many client accounts a consultancy account on this plan may have (not enforced yet).",
+)
+def new_plan(
+    name: str,
+    default_rate_limit: str | None,
+    trigger_rate_limit: str | None,
+    rate_limit_key: str | None,
+    max_users: int | None,
+    max_assets: int | None,
+    max_clients: int | None,
+):
+    """
+    Create a plan, which bundles the rate limits and quotas for the accounts assigned to it.
+
+    Assign accounts to a plan from the account page in the UI (as an admin).
+    Any limit left unset falls back to the server-wide config setting.
+    """
+    plan = db.session.execute(select(Plan).filter_by(name=name)).scalar_one_or_none()
+    if plan is not None:
+        click.secho(f"Plan '{name}' already exists.", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    plan = Plan(
+        name=name,
+        default_rate_limit=default_rate_limit,
+        trigger_rate_limit=trigger_rate_limit,
+        rate_limit_key=RateLimitKey(rate_limit_key) if rate_limit_key else None,
+        max_users=max_users,
+        max_assets=max_assets,
+        max_clients=max_clients,
+    )
+    db.session.add(plan)
+    db.session.commit()
+    click.secho(
+        f"Plan '{name}' (ID: {plan.id}) successfully created.",
         **MsgStyle.SUCCESS,
     )
 
@@ -1373,6 +1475,12 @@ def add_forecast(  # noqa: C901
         config = yaml.safe_load(config_file)
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         if field_value := kwargs.pop(field_name, None):
+            if field_name in {
+                "future_regressors",
+                "past_regressors",
+                "regressors",
+            }:
+                field_value = _parse_regressor_cli_values(field_value)
             config[field.data_key] = field_value
 
     if edit_config:
