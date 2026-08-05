@@ -8,6 +8,8 @@ API change log
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
+- Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` to list the automations defined on an asset (recurring tasks; for now, computing forecasts) and to show the details of one, including its parameters, its data generator, the sensors it reads from and writes to, and counts of recently created jobs.
+- Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
 
 v3.0-31 | 2026-06-01
