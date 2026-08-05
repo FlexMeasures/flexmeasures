@@ -60,18 +60,33 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
     }[c]));
   }
 
+  // Columns that show rendered HTML sort on a separate value (see renderSortable)
+  function sortable(order, display) {
+    return { order: order, display: display };
+  }
+
+  function renderSortable(data, type) {
+    return type === "display" ? data.display : data.order;
+  }
+
   function AutomationRow(automation) {
     const createdAt = automation.created_at;
     return {
       id: automation.id,
       name: esc(automation.name),
-      created_at: `
+      created_at: sortable(createdAt || "", `
         <span title="${esc(createdAt)}">
           ${createdAt ? esc(getHumanFriendlyDeltaOrTimeStr(createdAt)) : "Unknown"}
         </span>
-      `,
-      active: `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`,
-      recurrence: `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`,
+      `),
+      active: sortable(
+        automation.active ? 1 : 0,
+        `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
+      ),
+      recurrence: sortable(
+        automation.cronstr,
+        `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`
+      ),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
       details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
@@ -84,6 +99,17 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           </div></div>
         </div>`,
     };
+  }
+
+  // Link to each sensor's page, with the automation's data source pre-selected there
+  function sensorLinks(sensors, generator) {
+    if (!sensors || !sensors.length) {
+      return "None";
+    }
+    const sourceParam = generator ? `?source=${encodeURIComponent(generator.id)}` : "";
+    return sensors.map(sensor =>
+      `<a href="/sensors/${encodeURIComponent(sensor.id)}${sourceParam}">${esc(sensor.name)} (${esc(sensor.id)})</a>`
+    ).join(", ");
   }
 
   function loadAutomationDetails(automationId) {
@@ -105,6 +131,10 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
         $(`#AutomationDetailsBody-${automationId}`).html(`
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
+          <h6>Reads from</h6>
+          <p>${sensorLinks(res.input_sensors, res.generator)}</p>
+          <h6>Writes to</h6>
+          <p>${sensorLinks(res.output_sensors, res.generator)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Recently created jobs</h6>
@@ -126,17 +156,18 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       searching: false,
       paging: false,
       info: false,
-      ordering: false,
+      ordering: true,
+      order: [[1, "desc"]],  // most recently created first
       language: {
         emptyTable: "No automations have been defined on this asset yet. They can be created with the CLI command `flexmeasures add automation`.",
       },
       columns: [
         { data: "name", title: "Name" },
-        { data: "created_at", title: "Created At" },
-        { data: "active", title: "Active" },
-        { data: "recurrence", title: "Recurrence" },
-        { data: "jobs", title: "Jobs" },
-        { data: "details", title: "", className: "text-right" },
+        { data: "created_at", title: "Created At", render: renderSortable },
+        { data: "active", title: "Active", render: renderSortable },
+        { data: "recurrence", title: "Recurrence", render: renderSortable },
+        { data: "jobs", title: "Jobs", orderable: false },
+        { data: "details", title: "", className: "text-right", orderable: false },
       ],
       ajax: function (data, callback) {
         $.ajax({
