@@ -82,7 +82,7 @@ Symbol                                      Variable in the Code               D
 :math:`P^{ems}_{min}(e,j)`                  ems_derivative_min                 Minimum aggregated flow of EMS constraint group :math:`e` during time period :math:`j`.
 :math:`P^{ems}_{max}(e,j)`                  ems_derivative_max                 Maximum aggregated flow of EMS constraint group :math:`e` during time period :math:`j`.
 :math:`D(d,j)`                              stock_delta                        Explicit stock gain or loss of device :math:`d` during time period :math:`j`.
-:math:`\gamma(k,d)`                         coupling coefficient               Fixed proportion of device :math:`d` within coupling group :math:`k`. Positive for inputs (consuming), negative for outputs (producing).
+:math:`\gamma(k,d)`                         coupling_device_specs              Fixed proportion of device :math:`d` within coupling group :math:`k`. Positive for inputs (consuming), negative for outputs (producing).
 :math:`B_{min}(d,b)`, :math:`B_{max}(d,b)`  band_lookup                        Lower and upper flow bound of power band :math:`b` of device :math:`d`.
 :math:`M_d`                                 Md                                 Big-M bounding device power: the largest absolute device flow limit (at least 1 MW).
 :math:`M_c`                                 Mc                                 Big-M bounding commitment deviations: the summed absolute device flow limits (at least 1 MW).
@@ -91,20 +91,21 @@ Symbol                                      Variable in the Code               D
 
 Variables
 ^^^^^^^^^
-========================  ==============================  =====================================================================================================================
-Symbol                    Variable in the Code            Description
-========================  ==============================  =====================================================================================================================
-:math:`\Delta_{up}(c)`    commitment_upwards_deviation    Upwards deviation from sub-commitment :math:`c` (:math:`\geq 0`). One variable per sub-commitment, not per time step.
-:math:`\Delta_{down}(c)`  commitment_downwards_deviation  Downwards deviation from sub-commitment :math:`c` (:math:`\leq 0`).
-:math:`\sigma_c(c)`       commitment_sign                 Binary. Upwards deviation allowed if :math:`\sigma_c(c)=1`, downwards deviation otherwise.
-:math:`P_{up}(d,j)`       device_power_up                 Upwards (consuming) power of device :math:`d` during time period :math:`j` (:math:`\geq 0`).
-:math:`P_{down}(d,j)`     device_power_down               Downwards (producing) power of device :math:`d` during time period :math:`j` (:math:`\leq 0`).
-:math:`P^{ems}(d,j)`      ems_power                       Net flow of device :math:`d` during time period :math:`j`.
-:math:`\sigma(d,j)`       device_power_sign               Binary. Upwards power activation if :math:`\sigma(d,j)=1`, downwards power activation otherwise.
-:math:`Stock(s,j)`        group_stock                     Stock of stock group :math:`s` at the end of time period :math:`j`.
-:math:`\alpha(k,j)`       coupling_alpha                  Common normalised flow level of coupling group :math:`k` during time period :math:`j`.
-:math:`y(d,b,j)`          device_band                     Binary. Device :math:`d` operates in power band :math:`b` during time period :math:`j`.
-========================  ==============================  =====================================================================================================================
+=========================  ==============================  =====================================================================================================================
+Symbol                     Variable in the Code            Description
+=========================  ==============================  =====================================================================================================================
+:math:`\Delta_{up}(c)`     commitment_upwards_deviation    Upwards deviation from sub-commitment :math:`c` (:math:`\geq 0`). One variable per sub-commitment, not per time step.
+:math:`\Delta_{down}(c)`   commitment_downwards_deviation  Downwards deviation from sub-commitment :math:`c` (:math:`\leq 0`).
+:math:`\sigma_c(c)`        commitment_sign                 Binary. Upwards deviation allowed if :math:`\sigma_c(c)=1`, downwards deviation otherwise.
+:math:`P_{up}(d,j)`        device_power_up                 Upwards (consuming) power of device :math:`d` during time period :math:`j` (:math:`\geq 0`).
+:math:`P_{down}(d,j)`      device_power_down               Downwards (producing) power of device :math:`d` during time period :math:`j` (:math:`\leq 0`).
+:math:`P^{ems}(d,j)`       ems_power                       Net flow of device :math:`d` during time period :math:`j`.
+:math:`\sigma(d,j)`        device_power_sign               Binary. Upwards power activation if :math:`\sigma(d,j)=1`, downwards power activation otherwise.
+:math:`Stock(s,j)`         group_stock                     Stock of stock group :math:`s` at the end of time period :math:`j`.
+:math:`\Delta Stock(s,j)`  n/a                             Auxiliary symbol used below: the stock change of stock group :math:`s` during time period :math:`j`, before losses.
+:math:`\alpha(k,j)`        coupling_alpha                  Common normalised flow level of coupling group :math:`k` during time period :math:`j`.
+:math:`y(d,b,j)`           device_band                     Binary. Device :math:`d` operates in power band :math:`b` during time period :math:`j`.
+=========================  ==============================  =====================================================================================================================
 
 Commitments and sub-commitments
 --------------------------------
