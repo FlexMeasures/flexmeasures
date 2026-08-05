@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -77,6 +78,7 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
         "asset": 1,
         "name": "Test forecasts",
         "cron": "0 6 * * *",
+        "timezone": "Europe/Amsterdam",
         "sensor": sensor_id,
     }
     result = runner.invoke(add_automation, to_flags(cli_input))
@@ -88,6 +90,7 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     assert automation.active is True
     assert automation.type == "forecasts"
     assert automation.cronstr == "0 6 * * *"
+    assert automation.timezone == "Europe/Amsterdam"
     # CLI option values are stored as provided (strings); they are coerced by the schema when the automation runs
     assert automation.parameters == {"sensor": str(sensor_id)}
     assert automation.generator is not None
@@ -99,10 +102,19 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     # edit
     result = runner.invoke(
         edit_automation,
-        ["--id", automation.id, "--name", "Renamed", "--deactivate"],
+        [
+            "--id",
+            automation.id,
+            "--name",
+            "Renamed",
+            "--timezone",
+            "UTC",
+            "--deactivate",
+        ],
     )
     assert "Successfully updated" in result.output, result.output
     assert automation.name == "Renamed"
+    assert automation.timezone == "UTC"
     assert automation.active is False
     assert fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Updated automation%"))
@@ -133,6 +145,131 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     # NB click reports the offending value; once it reports the validation message
     # instead (see PR #2303), the cron string's own error text shows up here.
     assert "Invalid value" in result.output
+
+
+def test_add_automation_defaults_to_configured_timezone(
+    app, fresh_db, setup_dummy_data, monkeypatch
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    monkeypatch.setitem(app.config, "FLEXMEASURES_TIMEZONE", "America/New_York")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Configured timezone",
+            "--cron",
+            "0 6 * * *",
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.timezone == "America/New_York"
+
+
+def test_add_and_edit_automation_reject_invalid_timezone(
+    app, fresh_db, setup_dummy_data
+):
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+
+    runner = app.test_cli_runner()
+    invalid_add = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Invalid timezone",
+            "--cron",
+            "0 6 * * *",
+            "--timezone",
+            "Europe/NotAmsterdam",
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+    assert invalid_add.exit_code != 0
+    assert fresh_db.session.scalars(select(Automation)).all() == []
+
+    valid_add = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Valid timezone",
+            "--cron",
+            "0 6 * * *",
+            "--timezone",
+            "UTC",
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+    assert valid_add.exit_code == 0, valid_add.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    invalid_edit = runner.invoke(
+        edit_automation,
+        ["--id", str(automation.id), "--timezone", "Europe/NotAmsterdam"],
+    )
+    assert invalid_edit.exit_code != 0
+    assert automation.timezone == "UTC"
+
+
+@pytest.mark.parametrize(
+    "edit_args",
+    (
+        ["--cron", "15 10 * * *"],
+        ["--timezone", "Europe/Amsterdam"],
+        ["--activate"],
+    ),
+)
+def test_edit_automation_rebases_scheduling_cursor(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    freeze_server_now,
+    edit_args,
+):
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_edit import edit_automation
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 0, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Rebased automation",
+            "--cron",
+            "0 10 * * *",
+            "--timezone",
+            "UTC",
+            "--inactive",
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+
+    freeze_server_now(datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc))
+    edit_result = runner.invoke(
+        edit_automation, ["--id", str(automation.id), *edit_args]
+    )
+
+    assert edit_result.exit_code == 0, edit_result.output
+    assert automation.scheduling_cursor == datetime(
+        2026, 1, 15, 9, 59, tzinfo=timezone.utc
+    )
 
 
 @pytest.mark.parametrize(
@@ -349,7 +486,7 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)
-    assert result.output.count("already attempted") == 2, result.output
+    assert "No automations due" in result.output, result.output
     assert len(app.queues["forecasting"].jobs) == n_jobs
 
     # inactive automations are not due
@@ -361,12 +498,69 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     assert "No automations due" in result.output, result.output
 
 
+def test_run_automations_catches_up_once_after_downtime(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    clean_redis,
+    freeze_server_now,
+):
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Amsterdam catch-up",
+            "--cron",
+            "0 10 * * *",
+            "--timezone",
+            "Europe/Amsterdam",
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+    assert add_result.exit_code == 0, add_result.output
+
+    freeze_server_now(datetime(2026, 1, 15, 9, 5, tzinfo=timezone.utc))
+    first_result = runner.invoke(run_automations)
+    assert first_result.exit_code == 0, first_result.output
+    assert first_result.output.count("queued") == 1
+    n_jobs = app.queues["forecasting"].count
+    assert n_jobs > 0
+
+    fresh_db.session.remove()
+    second_result = runner.invoke(run_automations)
+    assert second_result.exit_code == 0, second_result.output
+    assert "No automations due" in second_result.output
+    assert app.queues["forecasting"].count == n_jobs
+
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.timezone == "Europe/Amsterdam"
+    assert automation.scheduling_cursor == datetime(
+        2026, 1, 15, 9, 0, tzinfo=timezone.utc
+    )
+
+
 def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
     """A failure after partial queueing must not duplicate that work on retry."""
     from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.services.automations import DueAutomation
 
     automation = SimpleNamespace(id=42, name="Partial run", asset_id=1)
-    mocker.patch("flexmeasures.cli.jobs.get_due_automations", return_value=[automation])
+    due_automation = DueAutomation(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+    )
+    mocker.patch(
+        "flexmeasures.cli.jobs.get_due_automations", return_value=[due_automation]
+    )
+    mocker.patch("flexmeasures.cli.jobs.claim_due_automation", return_value=True)
 
     def queue_then_fail(_automation):
         app.queues["forecasting"].enqueue("flexmeasures.utils.time_utils.server_now")
