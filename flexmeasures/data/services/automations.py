@@ -22,32 +22,83 @@ from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import get_timezone, server_now
 
+# Fields naming a sensor that a scheduler records its results on, rather than reads from.
+# A scheduler hands its results to `make_schedule` as (sensor, data) pairs, and these are
+# the fields that decide which sensors those are: besides the power sensor of each device
+# in the flex-model, its state of charge and its consumption and production sensors, plus
+# the aggregates over all devices, which are defined in the flex-context.
+OUTPUT_SENSOR_FIELDS = (
+    "consumption",
+    "production",
+    "state-of-charge",
+    "state_of_charge",
+    "aggregate-consumption",
+    "aggregate_consumption",
+    "aggregate-production",
+    "aggregate_production",
+)
+
 
 def collect_sensors(
-    value: Any, sensors: dict[int, Sensor] | None = None
+    value: Any,
+    sensors: dict[int, Sensor] | None = None,
+    only_under_output_field: bool = False,
+    _under_output_field: bool = False,
 ) -> list[Sensor]:
     """Collect the sensors referenced anywhere in a (possibly nested) structure.
 
     Both deserialized sensors and the sensor references that survive deserialization
-    as raw data (e.g. in the flex-context, which is loaded as-is) are picked up.
+    as raw data (e.g. the flex-context and each device's flex-model, which schedulers
+    deserialize themselves) are picked up.
+
+    :param only_under_output_field: only collect the sensors that are referenced under
+                                    one of the OUTPUT_SENSOR_FIELDS, at any depth.
     """
     if sensors is None:
         sensors = {}
+
+    def collect(sensor: Sensor | None):
+        if sensor is not None and (_under_output_field or not only_under_output_field):
+            sensors[sensor.id] = sensor
+
     if isinstance(value, Sensor):
-        sensors[value.id] = value
+        collect(value)
     elif isinstance(value, dict):
         for key, item in value.items():
-            if key in ("sensor", "sensor-to-save") and isinstance(item, (int, str)):
-                sensor = (
-                    db.session.get(Sensor, int(item)) if str(item).isdigit() else None
-                )
-                if sensor is not None:
-                    sensors[sensor.id] = sensor
+            under_output_field = _under_output_field or key in OUTPUT_SENSOR_FIELDS
+            if key == "sensor" and isinstance(item, (int, str)):
+                # a sensor reference that was not deserialized, e.g. {"sensor": 12}
+                if str(item).isdigit():
+                    sensor = db.session.get(Sensor, int(item))
+                    if sensor is not None and (
+                        under_output_field or not only_under_output_field
+                    ):
+                        sensors[sensor.id] = sensor
             else:
-                collect_sensors(item, sensors)
+                collect_sensors(
+                    item, sensors, only_under_output_field, under_output_field
+                )
     elif isinstance(value, (list, tuple, set)):
         for item in value:
-            collect_sensors(item, sensors)
+            collect_sensors(item, sensors, only_under_output_field, _under_output_field)
+    return list(sensors.values())
+
+
+def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
+    """The sensors that scheduling with this trigger message would record data on.
+
+    That is the power sensor of each device in the flex-model, plus any sensor named by
+    a field that defines where generated data goes (see OUTPUT_SENSOR_FIELDS), both per
+    device and, for the aggregates, in the flex-context.
+    """
+    sensors: dict[int, Sensor] = {}
+    for device in message.get("flex_model") or []:
+        # each device's power sensor is what its schedule is recorded on
+        collect_sensors(device.get("sensor"), sensors)
+        collect_sensors(
+            device.get("sensor_flex_model"), sensors, only_under_output_field=True
+        )
+    collect_sensors(message.get("flex_context"), sensors, only_under_output_field=True)
     return list(sensors.values())
 
 
@@ -260,15 +311,14 @@ def create_automation(
             prepare_schedule_trigger_message(parameters, asset.id)
         )
 
-        # A schedule is recorded on the power sensor of each device in the flex-model,
-        # and reads whatever sensors the flex-model and flex-context refer to.
-        output_sensors = collect_sensors(
-            [device.get("sensor") for device in message.get("flex_model", [])]
-        )
+        # A schedule is recorded on the sensors that the scheduler returns its results
+        # for, and reads whatever other sensors the flex-model and flex-context refer to
+        # (such as price sensors and the sensors of inflexible devices).
+        output_sensors = collect_schedule_output_sensors(message)
         output_sensor_ids = [sensor.id for sensor in output_sensors]
         input_sensors = [
             sensor
-            for sensor in collect_sensors(parameters)
+            for sensor in collect_sensors(message)
             if sensor.id not in output_sensor_ids
         ]
         if "start" in parameters:
