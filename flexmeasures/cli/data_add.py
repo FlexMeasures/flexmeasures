@@ -1378,7 +1378,12 @@ def _normalize_yaml_value(value):
 
 def _load_yaml_mapping(stream: TextIOBase, option_name: str) -> dict:
     """Load a YAML/JSON CLI option file whose top level must be an object."""
-    value = yaml.safe_load(stream)
+    try:
+        value = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        raise click.UsageError(
+            f"The {option_name} file is not valid YAML or JSON."
+        ) from exc
     if value is None:
         return {}
     if not isinstance(value, dict):
