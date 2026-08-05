@@ -17,12 +17,13 @@ from pathlib import Path
 from io import TextIOBase
 from string import Template
 
-from marshmallow import validate, ValidationError
+from marshmallow import Schema, validate, ValidationError
 import pandas as pd
 import pytz
 from flask import current_app as app
 from flask.cli import with_appcontext
 import click
+from click.core import ParameterSource
 import getpass
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
@@ -1009,6 +1010,32 @@ def add_holidays(
     )
 
 
+def _find_options_given_on_command_line(
+    options_by_param_name: dict[str, str],
+    *schemas: Schema,
+) -> list[str]:
+    """List which of the given CLI options were actually passed on the command line.
+
+    Options are looked up by their click parameter name, both from an explicit mapping
+    of parameter names to option names, and from the CLI metadata of any schema fields
+    (as added by `add_cli_options_from_schema`).
+    """
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return []
+    options_by_param_name = dict(options_by_param_name)
+    for schema in schemas:
+        for field_name, field in schema.fields.items():
+            cli = field.metadata.get("cli")
+            if cli:
+                options_by_param_name[field_name] = cli["option"]
+    return [
+        option
+        for param_name, option in options_by_param_name.items()
+        if ctx.get_parameter_source(param_name) == ParameterSource.COMMANDLINE
+    ]
+
+
 def _assemble_forecaster_config_and_parameters(
     kwargs: dict,
     config_file: TextIOBase | None = None,
@@ -1223,9 +1250,11 @@ def add_forecast(  # noqa: C901
 @click.option(
     "--cron",
     "cronstr",
-    required=True,
+    default="0 0 * * *",
+    show_default=True,
     type=CronField(),
-    help='Recurrence of the automation as a cron string, e.g. "0 6 * * *" for daily at 6 AM (in the FLEXMEASURES_TIMEZONE).',
+    help='Recurrence of the automation as a cron string, e.g. "0 6 * * *" for daily at 6 AM'
+    " (in the FLEXMEASURES_TIMEZONE). Defaults to daily at midnight.",
 )
 @click.option(
     "--type",
@@ -1244,24 +1273,27 @@ def add_forecast(  # noqa: C901
 @click.option(
     "--forecaster",
     "forecaster_class",
-    default="TrainPredictPipeline",
+    default=None,
     type=click.STRING,
     help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
-    " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
+    " Defaults to TrainPredictPipeline. Use the command `flexmeasures show forecasters` to list all the available forecasters."
+    " Cannot be combined with --source, which already determines the forecaster.",
 )
 @click.option(
     "--source",
     "source",
     required=False,
     type=DataSourceIdField(),
-    help="DataSource ID of the `Forecaster`.",
+    help="DataSource ID of the `Forecaster`. The forecaster class and its configuration are read from"
+    " the data source's data generator attributes, so --forecaster and --config are not needed (or allowed) with it.",
 )
 @click.option(
     "--config",
     "config_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the configuration of the forecaster.",
+    help="Path to the JSON or YAML file with the configuration of the forecaster."
+    " Cannot be combined with --source, which already determines the configuration.",
 )
 @click.option(
     "--parameters",
@@ -1278,7 +1310,7 @@ def add_automation(
     cronstr: str,
     automation_type: str,
     inactive: bool = False,
-    forecaster_class: str = "TrainPredictPipeline",
+    forecaster_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
@@ -1296,7 +1328,27 @@ def add_automation(
     parameters are validated and stored on the automation itself.
     Each time the automation runs, forecasting jobs are queued
     (see `flexmeasures jobs run-automations`).
+
+    Alternatively, pass an existing data source (--source) to reuse the forecaster
+    and configuration stored on it.
     """
+    if source is not None:
+        # The forecaster class and its config are read from the data source's data
+        # generator attributes, so anything given here would be silently ignored.
+        conflicting_options = _find_options_given_on_command_line(
+            {"forecaster_class": "--forecaster", "config_file": "--config"},
+            TrainPredictPipelineConfigSchema(),
+        )
+        if conflicting_options:
+            click.secho(
+                f"{flexmeasures_inflection.join_words_into_a_list(conflicting_options)} cannot be combined with --source."
+                f" Data source {source.id} already determines the forecaster and its configuration.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+    if forecaster_class is None:
+        forecaster_class = "TrainPredictPipeline"
+
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, config_file, parameters_file
     )
