@@ -18,6 +18,7 @@ from traceback import print_tb
 import click
 from flask import current_app
 from isodate import duration_isoformat
+from marshmallow import ValidationError
 from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job
@@ -444,11 +445,32 @@ def create_sequential_scheduling_job(
             scheduler_params=scheduler_kwargs,
         )
         scheduler.collect_flex_config()
+        collected_flex_model = deepcopy(scheduler.flex_model)
         scheduler_kwargs["flex_context"] = scheduler.flex_context
-        scheduler_kwargs["flex_model"] = scheduler.flex_model
         scheduler.deserialize_config()
+        scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).load(
+            collected_flex_model
+        )
 
     flex_model = scheduler_kwargs["flex_model"]
+    for child_flex_model in flex_model:
+        if child_flex_model.get("sensor") is not None:
+            continue
+        sensor_ids = {
+            sensor_reference["sensor"]
+            for field in ("consumption", "production")
+            if (sensor_reference := child_flex_model["sensor_flex_model"].get(field))
+            is not None
+        }
+        if len(sensor_ids) != 1:
+            asset = child_flex_model.get("asset")
+            raise ValidationError(
+                "Sequential scheduling requires each stored device flex-model to "
+                "reference exactly one output sensor through 'consumption' or "
+                f"'production' (asset {asset.id if asset else 'unknown'})."
+            )
+        child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
+
     jobs = []
     previous_sensors = []
     previous_job = depends_on
