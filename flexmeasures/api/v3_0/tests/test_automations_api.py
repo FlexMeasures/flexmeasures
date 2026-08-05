@@ -110,6 +110,9 @@ def test_get_automation_details(
     assert response.json["name"] == "Day-ahead forecasts"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
+    # without a data generator, the sensors an automation would read and write cannot be derived
+    assert response.json["input_sensors"] == []
+    assert response.json["output_sensors"] == []
 
 
 @pytest.mark.parametrize(

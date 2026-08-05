@@ -1,10 +1,14 @@
+from datetime import datetime, timedelta
+
 import pytest
 
 from sqlalchemy import select
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.cli.tests.utils import to_flags
+from flexmeasures.utils.time_utils import get_timezone
 
 
 @pytest.fixture(scope="function")
@@ -66,6 +70,111 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     assert fresh_db.session.execute(
         select(AssetAuditLog).filter(AssetAuditLog.event.like("Deleted automation%"))
     ).scalar_one_or_none()
+
+
+def test_add_automation_default_cron(app, fresh_db, setup_dummy_data):
+    """Without --cron, an automation recurs daily."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.services.automations import get_due_automations
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags({"asset": 1, "name": "Daily forecasts", "sensor": sensor_id}),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Daily forecasts")
+    ).scalar_one()
+    assert automation.cronstr == "0 0 * * *"
+
+    # due at midnight in the server's timezone, and not an hour later
+    midnight = get_timezone().localize(datetime(2026, 7, 11, 0, 0))
+    assert [a.id for a in get_due_automations(midnight)] == [automation.id]
+    assert get_due_automations(midnight + timedelta(hours=1)) == []
+
+
+def test_add_automation_source_conflicts_with_forecaster(
+    app, fresh_db, setup_dummy_data
+):
+    """--source already determines the forecaster and its config, so combining them fails."""
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    # first create an automation, so that a data source with a forecaster config exists
+    result = runner.invoke(
+        add_automation,
+        to_flags({"asset": 1, "name": "First", "sensor": sensor_id}),
+    )
+    assert "Successfully created" in result.output, result.output
+    source_id = (
+        fresh_db.session.execute(select(Automation).filter_by(name="First"))
+        .scalar_one()
+        .generator_id
+    )
+
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Second",
+                "sensor": sensor_id,
+                "source": source_id,
+                "forecaster": "TrainPredictPipeline",
+            }
+        ),
+    )
+    assert result.exit_code != 0
+    assert "--forecaster cannot be combined with --source" in result.output
+
+    # without the conflicting option, the same data source is simply reused
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {"asset": 1, "name": "Second", "sensor": sensor_id, "source": source_id}
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    assert (
+        fresh_db.session.execute(select(Automation).filter_by(name="Second"))
+        .scalar_one()
+        .generator_id
+        == source_id
+    )
+
+
+def test_automation_sensors(app, fresh_db, setup_dummy_data):
+    """An automation knows which sensors it reads from and writes to."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.services.automations import get_automations_feeding_sensor
+
+    sensor_id, regressor_id = setup_dummy_data[0], setup_dummy_data[1]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Test forecasts",
+                "sensor": sensor_id,
+                "regressors": regressor_id,
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Test forecasts")
+    ).scalar_one()
+    assert [sensor.id for sensor in automation.output_sensors] == [sensor_id]
+    assert sorted(sensor.id for sensor in automation.input_sensors) == sorted(
+        [sensor_id, regressor_id]
+    )
+
+    sensor = fresh_db.session.get(Sensor, sensor_id)
+    assert [a.id for a in get_automations_feeding_sensor(sensor)] == [automation.id]
 
 
 def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
