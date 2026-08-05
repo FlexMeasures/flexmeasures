@@ -73,8 +73,8 @@ Symbol                                      Variable in the Code               D
 :math:`Commitment(c,j)`                     commitment_quantity                Committed quantity of sub-commitment :math:`c` for time period :math:`j` (a flow, or a stock for stock commitments).
 :math:`\eta_{up}(d,j)`                      device_derivative_up_efficiency    Upwards conversion efficiency (stock increase : flow in).
 :math:`\eta_{down}(d,j)`                    device_derivative_down_efficiency  Downwards conversion efficiency (flow out : stock decrease).
-:math:`Stock_{min}(d,j)`                    device_min                         Minimum quantity for the stock of device :math:`d` at the end of time period :math:`j`.
-:math:`Stock_{max}(d,j)`                    device_max                         Maximum quantity for the stock of device :math:`d` at the end of time period :math:`j`.
+:math:`Stock_{min}(d,j)`                    device_min                         Minimum stock of device :math:`d` at the end of time period :math:`j`, relative to its initial stock.
+:math:`Stock_{max}(d,j)`                    device_max                         Maximum stock of device :math:`d` at the end of time period :math:`j`, relative to its initial stock.
 :math:`Stock_0(d)`                          initial_stock                      Initial stock of device :math:`d`, shared by all devices in its stock group.
 :math:`\epsilon(d,j)`                       device_efficiency                  Storage efficiency (stock losses), shared by all devices in a stock group.
 :math:`P_{max}(d,j)`                        device_derivative_max              Maximum flow of device :math:`d` during time period :math:`j`.
@@ -230,8 +230,9 @@ The same trick prevents a sub-commitment from deviating in both directions at on
 
     -\Delta_{down}(c) \leq M_c \cdot (1-\sigma_c(c))
 
-These two constraints (and their binary variables) are only added when the summed deviation prices do not describe a convex cost curve.
-For a convex cost curve, deviating in both directions is never optimal anyway, and leaving the binaries out keeps the problem a pure LP.
+These two constraints are only added when the summed deviation prices do not describe a convex cost curve.
+For a convex cost curve, deviating in both directions is never optimal anyway, so dropping them leaves the problem a pure LP.
+The direct HiGHS backend then omits :math:`\sigma_c(c)` as well, while the Pyomo backend still declares the variable, leaving it unreferenced.
 
 Grid constraints
 ^^^^^^^^^^^^^^^^^
