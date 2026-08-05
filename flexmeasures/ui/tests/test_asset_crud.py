@@ -71,9 +71,15 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
     if view == "automations":
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
+        assert "Schedules".encode() in asset_page.data
+        assert b'id="automationsTable-forecasts"' in asset_page.data
+        assert b'id="automationsTable-schedules"' in asset_page.data
+        assert b"automation.type === automationType" in asset_page.data
+        assert b"No ${automationType} automations" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
         assert b"Could not load automations:" in asset_page.data
-        assert b'$("#automationsTable").hide();' in asset_page.data
+        assert b"`#automationsTable-${automationType}`" in asset_page.data
+        assert b"columns.adjust();" in asset_page.data
     if view in ("get", "context"):
         assert "Show sensors".encode() in asset_page.data
         assert "Edit flex-context".encode() in asset_page.data
