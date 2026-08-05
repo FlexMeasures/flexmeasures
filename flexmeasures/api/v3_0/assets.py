@@ -1328,6 +1328,10 @@ class AssetAPI(FlaskView):
             forecast parameters for type `forecasts`, or a schedule trigger message
             (without the asset id) for type `schedules`.
             Requires account admin or consultant rights.
+
+            The automation can only involve sensors that you have access to yourself:
+            read access to the sensors it reads data from, and permission to record data
+            on the sensors it writes to.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1382,6 +1386,7 @@ class AssetAPI(FlaskView):
                 forecaster_class=automation_data["forecaster"],
                 config=automation_data["config"],
                 origin="API",
+                check_permissions=True,
             )
         except ValidationError as e:
             return unprocessable_entity({"parameters": e.messages})

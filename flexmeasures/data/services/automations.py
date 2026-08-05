@@ -13,10 +13,67 @@ import isodate
 import pandas as pd
 from sqlalchemy import select
 
+from werkzeug.exceptions import Forbidden
+
 from flexmeasures import Forecaster
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import get_timezone, server_now
+
+
+def collect_sensors(
+    value: Any, sensors: dict[int, Sensor] | None = None
+) -> list[Sensor]:
+    """Collect the sensors referenced anywhere in a (possibly nested) structure.
+
+    Both deserialized sensors and the sensor references that survive deserialization
+    as raw data (e.g. in the flex-context, which is loaded as-is) are picked up.
+    """
+    if sensors is None:
+        sensors = {}
+    if isinstance(value, Sensor):
+        sensors[value.id] = value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if key in ("sensor", "sensor-to-save") and isinstance(item, (int, str)):
+                sensor = (
+                    db.session.get(Sensor, int(item)) if str(item).isdigit() else None
+                )
+                if sensor is not None:
+                    sensors[sensor.id] = sensor
+            else:
+                collect_sensors(item, sensors)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            collect_sensors(item, sensors)
+    return list(sensors.values())
+
+
+def check_sensor_access(
+    input_sensors: list[Sensor], output_sensors: list[Sensor]
+) -> None:
+    """Require access to the sensors that an automation would read from and write to.
+
+    Reading a sensor's data requires read access to it, and recording data on a sensor
+    requires the same permission as recording data through the API (create-children).
+    """
+    for sensors, permission, action in (
+        (input_sensors, "read", "read data from"),
+        (output_sensors, "create-children", "record data on"),
+    ):
+        for sensor in sensors:
+            try:
+                check_access(sensor, permission)
+            except Forbidden as exc:
+                setattr(
+                    exc,
+                    "api_message",
+                    f"You cannot set up an automation that would {action} sensor"
+                    f" {sensor.id} ({sensor.name}), because you cannot {action} it yourself.",
+                )
+                raise
 
 
 def describe_cronstr(cronstr: str) -> str:
@@ -130,14 +187,21 @@ def create_automation(
     config: dict | None = None,
     source=None,
     origin: str = "API",
+    check_permissions: bool = False,
 ) -> tuple[Automation, list[str]]:
     """Create an automation (not committed yet), validating its parameters by type.
 
     For forecasts, the forecaster config is stored on a data source.
     An audit log record is added to the asset.
 
+    :param check_permissions: whether to require that the current user may read the
+                              sensors that the automation reads from, and record data
+                              on the sensors it writes to. Set this for automations
+                              created by a user (through the API or the UI); the CLI
+                              runs without a user, and is trusted.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the forecaster cannot be set up.
+    :raises werkzeug.exceptions.Forbidden: if a sensor is not accessible to the user.
     :returns: the automation and a list of warnings.
     """
     from marshmallow import ValidationError
@@ -148,6 +212,8 @@ def create_automation(
     parameters = parameters or {}
     warnings: list[str] = []
     generator_id = None
+    input_sensors: list[Sensor] = []
+    output_sensors: list[Sensor] = []
     if automation_type == "forecasts":
         from flexmeasures.data.schemas.forecasting.pipeline import (
             ForecasterParametersSchema,
@@ -174,12 +240,37 @@ def create_automation(
         )  # looks up or creates the data source storing the forecaster config
         db.session.flush()
         generator_id = generator.id
+
+        # A forecast reads the history of the sensor to forecast, plus its regressors,
+        # and records the forecast on the sensor to save to (the same sensor by default).
+        output_sensor = deserialized_parameters.get("sensor_to_save") or sensor
+        output_sensors = collect_sensors(output_sensor)
+        input_sensors = collect_sensors(
+            [
+                sensor,
+                forecaster._config.get("past_regressors"),
+                forecaster._config.get("future_regressors"),
+                forecaster._config.get("regressors"),
+            ]
+        )
     elif automation_type == "schedules":
         from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 
-        AssetTriggerSchema().load(
+        message = AssetTriggerSchema().load(
             prepare_schedule_trigger_message(parameters, asset.id)
         )
+
+        # A schedule is recorded on the power sensor of each device in the flex-model,
+        # and reads whatever sensors the flex-model and flex-context refer to.
+        output_sensors = collect_sensors(
+            [device.get("sensor") for device in message.get("flex_model", [])]
+        )
+        output_sensor_ids = [sensor.id for sensor in output_sensors]
+        input_sensors = [
+            sensor
+            for sensor in collect_sensors(parameters)
+            if sensor.id not in output_sensor_ids
+        ]
         if "start" in parameters:
             warnings.append(
                 "The schedule 'start' is fixed, so each run will compute the same period."
@@ -189,6 +280,9 @@ def create_automation(
         raise ValidationError(
             f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
         )
+
+    if check_permissions:
+        check_sensor_access(input_sensors, output_sensors)
 
     automation = Automation(
         asset_id=asset.id,
