@@ -18,8 +18,10 @@ Without any of these, the model reduces to a plain linear program.
 
 .. note::
     The model below is built by ``flexmeasures.data.models.planning.linear_optimization.device_scheduler`` using Pyomo.
-    A second backend (``highspy_optimization``) builds the same model directly with the HiGHS Python API, which is much faster to construct.
-    Both are fed by the same input preparation step (``scheduling_problem.prepare_scheduling_problem``), and the symbols below refer to its output.
+    A second backend, ``flexmeasures.data.models.planning.highspy_optimization.device_scheduler_highspy``,
+    builds the same model directly with the HiGHS Python API, which is much faster to construct.
+    Both are fed by the same input preparation step, ``flexmeasures.data.models.planning.scheduling_problem.prepare_scheduling_problem``,
+    and the symbols below refer to its output.
 
 
 Notation
@@ -44,6 +46,22 @@ Symbol     Variable in the Code  Description
 .. note::
   The time index :math:`j` has two interpretations: a time period or an instantaneous moment at the end of time period :math:`j`.
   For example, :math:`j` in flow constraints correspond to time periods, whereas :math:`j` used in a stock constraint refers to the end of time period :math:`j`.
+
+Sets and mappings
+^^^^^^^^^^^^^^^^^^
+
+The constraints below sum over the devices that a group covers. These sets name those memberships.
+
+======================  ============================  ==============================================================================================================
+Symbol                  Variable in the Code          Description
+======================  ============================  ==============================================================================================================
+:math:`s(d)`            device_to_group               The stock group that device :math:`d` belongs to (its primary one, if it participates in several).
+:math:`S(s)`            group_to_devices              The devices that share stock group :math:`s`. Written as :math:`d \in s` below.
+:math:`E(e)`            ems_constraint_device_groups  The devices covered by EMS constraint group :math:`e`.
+:math:`\mathcal{D}(c)`  commodity_devices             The devices covered by an EMS-level commitment :math:`c`: all devices, or those of the commitment's commodity.
+:math:`G(c,g)`          device_group_lookup           The devices in device group :math:`g` of a device-scoped commitment :math:`c`.
+:math:`N(n)`            balance_group_specs           The devices attached to internal commodity node :math:`n`.
+======================  ============================  ==============================================================================================================
 
 Parameters
 ^^^^^^^^^^
@@ -138,7 +156,7 @@ The stock is then defined recursively, rather than as a running sum over all pre
 
     Stock(s, j) = a(s,j) \cdot Stock(s, j-1) + b(s,j) \cdot \Delta Stock(s,j)
 
-with :math:`Stock(s, -1) = Stock_0(s)`, and with the loss coefficients
+with :math:`Stock(s, -1) = Stock_0(d)` for any device :math:`d \in s` (the group's devices share one initial stock), and with the loss coefficients
 
 .. math::
   :name: loss_coefficients
