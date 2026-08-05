@@ -178,6 +178,22 @@ def test_add_automation_source_conflicts_with_forecaster(
     assert result.exit_code != 0
     assert "--forecaster cannot be combined with --source" in result.output
 
+    # a configuration option given on the command line conflicts, too
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Second",
+                "sensor": sensor_id,
+                "source": source_id,
+                "regressors": sensor_id,
+            }
+        ),
+    )
+    assert result.exit_code != 0
+    assert "--regressors cannot be combined with --source" in result.output
+
     # without the conflicting option, the same data source is simply reused
     result = runner.invoke(
         add_automation,
