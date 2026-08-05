@@ -1995,3 +1995,63 @@ def test_tutorial_chp_example_validates(app):
         assert _resolve_coupling_coefficient(loaded) == pytest.approx(
             expected_coefficient
         )
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "device_softened", "soc_softened", "site_softened"],
+    [
+        # Nothing given: relax-constraints defaults to True, which softens the SoC and
+        # site capacity constraints, but no longer the device directional capacities.
+        ({}, False, True, True),
+        # An explicitly passed relax-constraints still softens everything, as it did
+        # before relax-constraints defaulted to True.
+        ({"relax-constraints": True}, True, True, True),
+        # The targeted flag softens device capacities on its own.
+        ({"relax-capacity-constraints": True}, True, True, True),
+        # Explicitly opting out keeps everything hard.
+        ({"relax-constraints": False}, False, False, False),
+        # Opting out of the blanket while opting into device capacity relaxation.
+        (
+            {"relax-constraints": False, "relax-capacity-constraints": True},
+            True,
+            False,
+            False,
+        ),
+    ],
+)
+def test_device_capacity_relaxation_is_opt_in(
+    flex_context, device_softened, soc_softened, site_softened
+):
+    """A defaulted relax-constraints must not soften device directional capacities.
+
+    A directional capacity can state a physical impossibility (a heat pump that cannot
+    produce), so making it breachable at a price has to be asked for, either through
+    relax-capacity-constraints or through an explicitly passed relax-constraints.
+    """
+    loaded = FlexContextSchema().load(flex_context)
+
+    assert (loaded.get("consumption_breach_price") is not None) is device_softened
+    assert (loaded.get("production_breach_price") is not None) is device_softened
+    assert (loaded.get("soc_minima_breach_price") is not None) is soc_softened
+    assert (loaded.get("soc_maxima_breach_price") is not None) is soc_softened
+    assert (loaded.get("ems_consumption_breach_price") is not None) is site_softened
+    assert (loaded.get("ems_production_breach_price") is not None) is site_softened
+
+
+def test_explicit_device_breach_price_is_not_overwritten():
+    """An explicitly given device breach price survives relax-capacity-constraints.
+
+    ``set_default_breach_prices`` assigns unconditionally, so the guard has to keep it
+    from running at all when the caller already priced a breach themselves.
+    """
+    loaded = FlexContextSchema().load(
+        {
+            "relax-capacity-constraints": True,
+            "consumption-breach-price": "7 EUR/kW",
+        }
+    )
+
+    assert loaded["consumption_breach_price"] == ur.Quantity("7 EUR/kW")
+    # The opposite direction is left alone too: pricing one direction explicitly puts
+    # the caller in charge of both, rather than mixing their price with our default.
+    assert loaded.get("production_breach_price") is None
