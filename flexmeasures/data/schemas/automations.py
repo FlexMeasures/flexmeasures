@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from croniter import croniter
 from marshmallow import fields, validates, ValidationError
+from pytz import all_timezones_set
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.automations import Automation
@@ -24,6 +25,16 @@ class CronField(MarshmallowClickMixin, fields.Str):
             )
         if not croniter.is_valid(value):
             raise FMValidationError(f"'{value}' is not a valid cron string.")
+        return value
+
+
+class TimezoneField(MarshmallowClickMixin, fields.Str):
+    """Field that validates an exact IANA timezone name."""
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> str:
+        value = super()._deserialize(value, attr, obj, **kwargs)
+        if value not in all_timezones_set:
+            raise FMValidationError(f"Timezone '{value}' does not exist.")
         return value
 
 
@@ -56,6 +67,19 @@ class AutomationSchema(ma.SQLAlchemySchema):
     type = ma.auto_field()
     name = ma.auto_field(required=True)
     cronstr = CronField(required=True)
+    timezone = TimezoneField(
+        metadata={
+            "description": "IANA timezone in which the cron expression is interpreted.",
+            "example": "Europe/Amsterdam",
+        }
+    )
+    scheduling_cursor = ma.auto_field(
+        dump_only=True,
+        metadata={
+            "description": "UTC scheduling watermark. Occurrences at or before this timestamp are ineligible for another automatic queueing attempt; it is not a successful-run timestamp.",
+            "example": "2026-08-05T06:00:00+00:00",
+        },
+    )
     active = ma.auto_field()
 
     @validates("type")

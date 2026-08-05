@@ -19,9 +19,16 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import (
+    Automation,
+    get_initial_scheduling_cursor,
+)
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
-from flexmeasures.data.schemas.automations import AutomationIdField, CronField
+from flexmeasures.data.schemas.automations import (
+    AutomationIdField,
+    CronField,
+    TimezoneField,
+)
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
@@ -77,7 +84,14 @@ def fm_edit_data():
     "cronstr",
     required=False,
     type=CronField(),
-    help='New recurrence of the automation as a cron string, e.g. "0 6 * * *".',
+    help="New recurrence as a standard five-field cron expression, interpreted in the automation timezone.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    required=False,
+    type=TimezoneField(),
+    help='New IANA timezone in which to interpret the cron recurrence, e.g. "Europe/Amsterdam".',
 )
 @click.option(
     "--activate/--deactivate",
@@ -89,22 +103,33 @@ def edit_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
+    timezone: str | None = None,
     active: bool | None = None,
 ):
-    """Edit the name, recurrence (cron string) or activation status of an automation."""
+    """Edit the name, recurrence, timezone or activation status of an automation."""
     changes = []
+    rebase_schedule = False
     if name is not None and name != automation.name:
         changes.append(f"name: '{automation.name}' → '{name}'")
         automation.name = name
     if cronstr is not None and cronstr != automation.cronstr:
         changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
         automation.cronstr = cronstr
+        rebase_schedule = True
+    if timezone is not None and timezone != automation.timezone:
+        changes.append(f"timezone: '{automation.timezone}' → '{timezone}'")
+        automation.timezone = timezone
+        rebase_schedule = True
     if active is not None and active != automation.active:
         changes.append("activated" if active else "deactivated")
+        if active:
+            rebase_schedule = True
         automation.active = active
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
+    if rebase_schedule:
+        automation.scheduling_cursor = get_initial_scheduling_cursor()
     AssetAuditLog.add_record(
         automation.asset,
         f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via CLI.",

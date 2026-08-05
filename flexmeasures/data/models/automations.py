@@ -4,12 +4,32 @@ Automations: recurring tasks (for now: forecasting) defined per asset.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
+from flask import current_app
+from pytz import all_timezones_set
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.orm import validates
 
 from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now
+
+
+def get_default_automation_timezone() -> str:
+    """Return the timezone to snapshot when an automation is created."""
+    timezone_name = current_app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
+    if timezone_name not in all_timezones_set:
+        raise ValueError(f"Timezone '{timezone_name}' does not exist.")
+    return timezone_name
+
+
+def get_initial_scheduling_cursor() -> datetime:
+    """Return a cursor which keeps the automation's creation minute eligible."""
+    return server_now().astimezone(timezone.utc).replace(
+        second=0, microsecond=0
+    ) - timedelta(minutes=1)
 
 
 class Automation(db.Model, AuthModelMixin):
@@ -36,6 +56,14 @@ class Automation(db.Model, AuthModelMixin):
     type = db.Column(db.String(80), nullable=False, default="forecasts")
     name = db.Column(db.String(80), nullable=False)
     cronstr = db.Column(db.String(80), nullable=False)
+    timezone = db.Column(
+        db.String(64), nullable=False, default=get_default_automation_timezone
+    )
+    scheduling_cursor = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=get_initial_scheduling_cursor,
+    )
     active = db.Column(db.Boolean, nullable=False, default=True)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
@@ -50,6 +78,13 @@ class Automation(db.Model, AuthModelMixin):
         ),
     )
     generator = db.relationship("DataSource", foreign_keys=[generator_id])
+
+    @validates("timezone")
+    def validate_timezone(self, key: str, timezone: str) -> str:
+        """Require an exact timezone name from the IANA timezone database."""
+        if timezone not in all_timezones_set:
+            raise ValueError(f"Timezone '{timezone}' does not exist.")
+        return timezone
 
     def __acl__(self):
         """
