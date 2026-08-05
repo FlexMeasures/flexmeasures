@@ -1389,7 +1389,7 @@ class AssetAPI(FlaskView):
             The response will be a list of automations: recurring tasks (for now, computing forecasts)
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
-            and described in natural language.
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted and its persistent scheduling cursor.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1415,6 +1415,8 @@ class AssetAPI(FlaskView):
                             type: forecasts
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
+                            timezone: Europe/Amsterdam
+                            scheduling_cursor: "2026-07-11T04:00:00+00:00"
                             recurrence_description: "At 06:00"
                             active: true
             400:
@@ -1460,6 +1462,7 @@ class AssetAPI(FlaskView):
             used on each run), information about the data generator that runs it,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            The scheduling cursor is a UTC watermark: occurrences at or before it are ineligible for another automatic queueing attempt. It is not a successful-run timestamp.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1490,6 +1493,8 @@ class AssetAPI(FlaskView):
                         type: forecasts
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
+                        timezone: Europe/Amsterdam
+                        scheduling_cursor: "2026-07-11T04:00:00+00:00"
                         recurrence_description: "At 06:00"
                         active: true
                         parameters:
