@@ -47,6 +47,7 @@ from flexmeasures.data.schemas.automations import AutomationSchema
 from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_automation_job_stats,
+    get_automation_sensors,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import (
@@ -1218,6 +1219,7 @@ class AssetAPI(FlaskView):
             In addition to the fields shown when listing automations, the response shows
             the automation's parameters (for forecasts, these are the forecast parameters
             used on each run), information about the data generator that runs it,
+            the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
           security:
@@ -1257,6 +1259,14 @@ class AssetAPI(FlaskView):
                         generator:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
+                        input_sensors:
+                          - id: 2092
+                            name: power
+                          - id: 2093
+                            name: irradiance
+                        output_sensors:
+                          - id: 2092
+                            name: power
                         job_stats:
                           finished: 3
                           failed: 1
@@ -1290,6 +1300,12 @@ class AssetAPI(FlaskView):
             if automation.generator is not None
             else None
         )
+        automation_sensors = get_automation_sensors(automation)
+        for key in ("input_sensors", "output_sensors"):
+            automation_data[key] = [
+                {"id": sensor.id, "name": sensor.name}
+                for sensor in automation_sensors[key]
+            ]
         redis_connection_err = None
         try:
             automation_data["job_stats"] = get_automation_job_stats(automation)
