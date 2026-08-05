@@ -213,3 +213,46 @@ Usage:
    Create the annotations you want to use as regressors before running the forecast.
    For holidays, use ``flexmeasures add holidays``, which supports both ``workalendar``
    and ``holidays``. See :ref:`annotations` for details.
+
+.. _automating_forecasts:
+
+Automating forecasts
+--------------------
+
+Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset.
+On each run, the automation queues forecasting jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
+When the automation was created, its forecast parameters (see above) were stored, and validated with the same schema that the CLI and API use.
+Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
+The sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation asset or one of its descendants.
+This relationship is checked both when the automation is created and immediately before each run.
+
+Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --cron "0 6 * * *" --sensor 12
+
+The recurrence is defined by a standard five-field cron string (minute, hour, day of month, month, and day of week), interpreted in the ``FLEXMEASURES_TIMEZONE``, which defaults to ``"0 0 * * *"`` (daily at midnight).
+Cron aliases and optional seconds or year fields are not supported.
+Automations are active by default (use ``--inactive`` to create them in deactivated state).
+Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
+These changes are recorded in the asset's audit log.
+The stored data generator is required while the automation exists, so its data source cannot be deleted until the automation is removed.
+
+The forecaster and its configuration are stored on a data source.
+Pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
+
+For automations to actually run, let a cron job execute the following command once per minute:
+
+.. code-block:: bash
+
+    * * * * * flexmeasures jobs run-automations
+
+Each due automation then queues its forecasting jobs.
+Only one queueing attempt is made per automation per minute.
+If an attempt fails after queueing some jobs, it is not retried automatically, because a retry could duplicate that partial work.
+The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
+
+Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
+An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
+Conversely, a sensor's page lists the automations that write data to it.

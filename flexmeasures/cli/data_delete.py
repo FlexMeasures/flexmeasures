@@ -17,7 +17,10 @@ from sqlalchemy import delete, func, select
 from flexmeasures import Source
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
+from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -33,6 +36,7 @@ from flexmeasures.cli.utils import (
     done,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    MsgStyle,
 )
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.secrets_utils import delete_secret, get_secret_paths
@@ -271,6 +275,35 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
         click.confirm(prompt, abort=True)
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
     db.session.commit()
+
+
+@fm_delete_data.command("automation")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=True,
+    type=AutomationIdField(),
+    help="ID of the automation to delete.",
+)
+@click.option("--force/--no-force", default=False, help="Skip confirmation prompt.")
+def delete_automation(automation: Automation, force: bool):
+    """
+    Delete an automation.
+    """
+    if not force:
+        prompt = f"Delete automation '{automation.name}' (ID: {automation.id}) of asset '{automation.asset.name}'?"
+        click.confirm(prompt, abort=True)
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Deleted automation '{automation.name}' ({automation.id}) via CLI.",
+    )
+    db.session.delete(automation)
+    db.session.commit()
+    click.secho(
+        f"Successfully deleted automation '{automation.name}' (ID: {automation.id}).",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_delete_data.command("structure")
