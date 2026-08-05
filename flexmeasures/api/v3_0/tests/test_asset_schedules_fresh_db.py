@@ -121,6 +121,10 @@ def test_asset_trigger_and_get_schedule(
         ), "the whole scheduling job is handled as a single job (simultaneous scheduling)"
         done_job_id = scheduled_jobs[0].id
     scheduling_job = scheduled_jobs[0]
+    assert all(
+        job.meta["trigger"] == {"origin": "API"}
+        for job in [*scheduled_jobs, *deferred_jobs]
+    )
 
     print(scheduling_job.kwargs)
     if sequential:
