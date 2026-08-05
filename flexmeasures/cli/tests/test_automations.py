@@ -310,6 +310,35 @@ def test_add_automation_rejects_non_object_yaml_file(
     assert "Traceback" not in result.output
 
 
+@pytest.mark.parametrize("option_name", ("--config", "--parameters"))
+def test_add_automation_rejects_malformed_yaml_file(
+    app, fresh_db, setup_dummy_data, tmp_path, option_name
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    malformed_file = tmp_path / "malformed.yaml"
+    malformed_file.write_text("field: [\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Malformed YAML",
+            "--cron",
+            "0 6 * * *",
+            option_name,
+            str(malformed_file),
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert f"The {option_name} file is not valid YAML or JSON" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     """Create a schedules automation; parameters are validated as a schedule trigger message."""
     from flexmeasures.cli.data_add import add_automation
