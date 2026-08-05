@@ -189,6 +189,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
                 enqueue=False,
                 scheduler_specs=scheduler_specs,
                 success_callback=Callback(success_callback),
+                trigger=job.meta.get("trigger"),
                 **scheduler_kwargs,
             )
 
@@ -201,6 +202,13 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             job.meta["fallback_job_id"] = fallback_job.id
             job.save_meta()
             current_app.queues["scheduling"].enqueue_job(fallback_job)
+            asset_or_sensor_ref = get_asset_or_sensor_ref(asset_or_sensor)
+            current_app.job_cache.add(
+                asset_or_sensor_ref["id"],
+                fallback_job.id,
+                queue="scheduling",
+                asset_or_sensor_type=asset_or_sensor_ref["class"].lower(),
+            )
 
 
 @job_cache("scheduling")
@@ -238,6 +246,7 @@ def create_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optional provenance metadata stored on every device job and the wrap-up job.
     :param trigger:                 Optionally, info about how the job got created (e.g. via the CLI,
                                     the API or an automation), stored as job meta data.
     :returns:                       The job.
@@ -399,6 +408,7 @@ def create_sequential_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optional provenance metadata stored on the scheduling job.
     :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
                                     and the flex-model (partially deserialized, see example below).
     :returns:                       The wrap-up job.
@@ -423,6 +433,21 @@ def create_sequential_scheduling_job(
         raise NotImplementedError(
             "See why: https://github.com/FlexMeasures/flexmeasures/pull/1313/files#r1971479492"
         )
+    if scheduler_specs:
+        scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
+    else:
+        scheduler_class = find_scheduler_class(asset)
+    if not scheduler_kwargs["flex_model"]:
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=asset,
+            scheduler_params=scheduler_kwargs,
+        )
+        scheduler.collect_flex_config()
+        scheduler_kwargs["flex_context"] = scheduler.flex_context
+        scheduler_kwargs["flex_model"] = scheduler.flex_model
+        scheduler.deserialize_config()
+
     flex_model = scheduler_kwargs["flex_model"]
     jobs = []
     previous_sensors = []

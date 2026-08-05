@@ -4,13 +4,14 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from cron_descriptor import get_description, Options
 from croniter import croniter
 import isodate
-import pandas as pd
+from isodate.isoerror import ISO8601Error
+from marshmallow import ValidationError
 from sqlalchemy import select
 
 from flexmeasures import Forecaster
@@ -38,6 +39,13 @@ def describe_cronstr(cronstr: str) -> str:
 def floor_to_minute(dt: datetime) -> datetime:
     """Floor a datetime to the minute, in the FLEXMEASURES_TIMEZONE."""
     return dt.astimezone(get_timezone()).replace(second=0, microsecond=0)
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    """Floor an aware datetime to a fixed resolution without losing its DST fold."""
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
 
 
 def get_due_automations(now: datetime | None = None) -> list[Automation]:
@@ -68,15 +76,25 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     message = dict(parameters)
     message["id"] = asset_id
     if "start" not in message:
-        start = floor_to_minute(server_now())
+        start = server_now()
         if message.get("resolution") is not None:
             try:
                 resolution = isodate.parse_duration(message["resolution"])
-                start = (
-                    pd.Timestamp(start).floor(pd.Timedelta(resolution)).to_pydatetime()
+            except (ISO8601Error, TypeError) as exc:
+                raise ValidationError(
+                    {"resolution": ["Not a valid ISO 8601 duration."]}
+                ) from exc
+            if not isinstance(resolution, timedelta) or resolution <= timedelta(0):
+                raise ValidationError(
+                    {
+                        "resolution": [
+                            "Schedule resolution must be a positive, fixed duration."
+                        ]
+                    }
                 )
-            except Exception:
-                pass  # leave start floored to the minute
+            start = floor_to_resolution(start, resolution)
+        else:
+            start = floor_to_minute(start)
         message["start"] = start.isoformat()
     return message
 
@@ -92,8 +110,11 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     if automation.type == "schedules":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual sensors (per-device jobs).
+        assets = [automation.asset, *automation.asset.offspring]
         cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
-            (sensor.id, "scheduling", "sensor") for sensor in automation.asset.sensors
+            (sensor.id, "scheduling", "sensor")
+            for asset in assets
+            for sensor in asset.sensors
         ]
     else:
         # Forecasting jobs are cached under the forecast target sensor(s),
@@ -202,10 +223,11 @@ def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
         start=start,
         end=start + trigger_data["duration"],
         belief_time=trigger_data.get("belief_time"),  # server time if not set
-        resolution=trigger_data.get("resolution"),
         flex_model=trigger_data["flex_model"],
         flex_context=trigger_data["flex_context"],
     )
+    if trigger_data.get("resolution") is not None:
+        scheduler_kwargs["resolution"] = trigger_data["resolution"]
     if trigger_data["sequential"]:
         f = create_sequential_scheduling_job
     else:
@@ -217,4 +239,5 @@ def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
         trigger={"origin": "automation", "automation_id": automation.id},
         **scheduler_kwargs,
     )
-    return {"job_id": job.id, "n_jobs": 1}
+    n_jobs = len(job.args[0]) + 1 if trigger_data["sequential"] else 1
+    return {"job_id": job.id, "n_jobs": n_jobs}
