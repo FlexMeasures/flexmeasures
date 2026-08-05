@@ -52,6 +52,7 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
+from flexmeasures.data.services.automations import validate_forecast_output_scope
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import (
@@ -1723,12 +1724,14 @@ def add_automation(
     except ValidationError as e:
         click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
         raise click.Abort()
-    sensor = deserialized_parameters.get("sensor")
-    if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
-        click.secho(
-            f"Warning: the sensor to forecast ({sensor.id}) does not belong to asset {asset.id}.",
-            **MsgStyle.WARN,
-        )
+    output_sensor = deserialized_parameters.get(
+        "sensor_to_save"
+    ) or deserialized_parameters.get("sensor")
+    try:
+        validate_forecast_output_scope(asset.id, output_sensor)
+    except ValueError as exc:
+        click.secho(str(exc), **MsgStyle.ERROR)
+        raise click.Abort()
 
     forecaster = get_data_generator(
         source=source,
