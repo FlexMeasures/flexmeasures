@@ -17,11 +17,9 @@ The model is a *mixed-integer* linear program: binary variables model the sign o
 Without any of these, the model reduces to a plain linear program.
 
 .. note::
-    The model below is built by ``flexmeasures.data.models.planning.linear_optimization.device_scheduler`` using Pyomo.
-    A second backend, ``flexmeasures.data.models.planning.highspy_optimization.device_scheduler_highspy``,
-    builds the same model directly with the HiGHS Python API, which is much faster to construct.
-    Both are fed by the same input preparation step, ``flexmeasures.data.models.planning.scheduling_problem.prepare_scheduling_problem``,
-    and the symbols below refer to its output.
+    The model below is built by :func:`~flexmeasures.data.models.planning.linear_optimization.device_scheduler`, using Pyomo.
+    A second backend, :mod:`~flexmeasures.data.models.planning.highspy_optimization`, builds the same model directly with the HiGHS Python API, which is much faster to construct.
+    Both are fed by the same input preparation step, :func:`~flexmeasures.data.models.planning.scheduling_problem.prepare_scheduling_problem`, and the symbols below refer to its output.
 
 
 Notation
@@ -172,7 +170,7 @@ for any device :math:`d \in s` (they all share the group's storage efficiency).
 .. note::
     This is the *linear* treatment of storage losses: the stock is assumed to change at a constant rate, while losses decay exponentially, within each time step.
     The scheduler models losses this way exclusively. The alternative treatments (perfect, left and right) still exist in
-    ``flexmeasures.utils.calculations.apply_stock_changes_and_losses``, which reconstructs a stock series from a known power series.
+    :func:`~flexmeasures.utils.calculations.apply_stock_changes_and_losses`, which reconstructs a stock series from a known power series.
 
 Constraints
 --------------
