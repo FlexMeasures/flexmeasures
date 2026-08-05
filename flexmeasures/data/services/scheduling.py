@@ -247,7 +247,6 @@ def create_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
-    :param trigger:                 Optional provenance metadata stored on every device job and the wrap-up job.
     :param trigger:                 Optionally, info about how the job got created (e.g. via the CLI,
                                     the API or an automation), stored as job meta data.
     :returns:                       The job.
@@ -409,7 +408,7 @@ def create_sequential_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
-    :param trigger:                 Optional provenance metadata stored on the scheduling job.
+    :param trigger:                 Optional provenance metadata stored on every device job and the wrap-up job.
     :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
                                     and the flex-model (partially deserialized, see example below).
     :returns:                       The wrap-up job.
@@ -564,9 +563,10 @@ def create_simultaneous_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optional provenance metadata stored on the scheduling job.
     :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
                                     and the flex-model (partially deserialized, see example below).
-    :returns:                       The wrap-up job.
+    :returns:                       The scheduling job.
 
     Example of a partially deserialized flex-model per sensor:
 
