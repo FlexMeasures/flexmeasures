@@ -29,10 +29,10 @@ Notation
 
 Indexes
 ^^^^^^^^
-=========  ====================  ===============================================================================================================
+=========  ====================  ===========================================================================================================================================================
 Symbol     Variable in the Code  Description
-=========  ====================  ===============================================================================================================
-:math:`c`  c                     Sub-commitments: one per commitment group and per deviation direction (see `Commitments and sub-commitments`_).
+=========  ====================  ===========================================================================================================================================================
+:math:`c`  c                     Sub-commitments: one per commitment group, and one per deviation direction where a group spans several time steps (see `Commitments and sub-commitments`_).
 :math:`d`  d                     Devices, for example, a battery or a load.
 :math:`j`  j                     0-indexed time dimension.
 :math:`g`  cg, cjg               Device groups within a device-scoped commitment :math:`c`.
@@ -41,7 +41,7 @@ Symbol     Variable in the Code  Description
 :math:`b`  db                    Power bands (S2 operation modes) of a banded device :math:`d`.
 :math:`k`  coupling_group_range  Coupling groups: sets of devices whose flows are hard-coupled in fixed proportions.
 :math:`n`  balance_group_range   Balance groups: internal commodity nodes (e.g. a heat or steam network) whose flows must net to zero.
-=========  ====================  ===============================================================================================================
+=========  ====================  ===========================================================================================================================================================
 
 .. note::
   The time index :math:`j` has two interpretations: a time period or an instantaneous moment at the end of time period :math:`j`.
