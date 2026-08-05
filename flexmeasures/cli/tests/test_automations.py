@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
+import pytz
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -365,6 +366,98 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     )  # fmt: skip
     assert "Successfully created" in result.output, result.output
     assert "each run will compute the same period" in result.output
+
+
+@pytest.mark.parametrize(
+    "parameters_yaml",
+    (
+        'resolution: "P1M"\n',
+        'resolution: "PT0S"\n',
+        'resolution: "-PT15M"\n',
+        'duration: "PT0S"\n',
+        'duration: "-PT1H"\n',
+    ),
+)
+def test_add_schedule_automation_rejects_unsupported_durations(
+    app, fresh_db, setup_dummy_data, tmp_path, parameters_yaml
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(parameters_yaml)
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Invalid schedule durations",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "schedules",
+            "--parameters",
+            str(parameters_file),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid schedule parameters" in result.output
+
+
+def test_add_schedule_automation_rejects_forecast_config(
+    app, fresh_db, setup_dummy_data
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule with ignored forecast config",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "schedules",
+            "--regressors",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "Forecaster options" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        ["--asset", "1", "--name", "No sensor", "--cron", "0 * * * *"],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid forecast parameters" in result.output
+
+
+@pytest.mark.parametrize("is_dst", (True, False))
+def test_prepare_schedule_start_floors_both_dst_folds(app, monkeypatch, is_dst):
+    from flexmeasures.data.services import automations
+
+    timezone = pytz.timezone("Europe/Amsterdam")
+    now = timezone.localize(datetime(2026, 10, 25, 2, 7, 30), is_dst=is_dst)
+    monkeypatch.setattr(automations, "server_now", lambda: now)
+    parameters = {"duration": "PT1H", "resolution": "PT15M"}
+
+    message = automations.prepare_schedule_trigger_message(parameters, asset_id=1)
+
+    assert datetime.fromisoformat(message["start"]) == now.replace(
+        minute=0, second=0, microsecond=0
+    )
+    assert parameters == {"duration": "PT1H", "resolution": "PT15M"}
 
 
 def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monkeypatch):
