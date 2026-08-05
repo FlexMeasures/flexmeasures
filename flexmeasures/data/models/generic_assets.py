@@ -30,9 +30,11 @@ from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    truncated_integer_epochs,
+)
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
-
 
 # Each fixed-value origin gets its own unique negative source ID so that
 # chart specs that key on source ID can distinguish between them.
@@ -741,26 +743,53 @@ class GenericAsset(db.Model, AuthModelMixin):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
 
+    def get_flex_context_with_provenance(self) -> dict[str, dict]:
+        """Reconstitutes the asset's serialized flex-context, tracking each field's origin in the asset tree.
+
+        Flex-context fields of ancestors that are nearer have priority.
+        We return once we collect all flex-context fields or reach the top asset.
+
+        :returns: Dictionary mapping each flex-context field name to a dictionary with
+                  the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
+        """
+        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+        from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
+
+        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
+        flex_context = {
+            field: dict(value=value, asset=self)
+            for field, value in (self.flex_context or {}).items()
+        }
+        parent_asset = self.parent_asset
+        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
+            # The inflexible-device keys form one field family: once any of them is
+            # defined by a nearer asset, farther ancestors' definitions of the whole
+            # family are shadowed, so the deprecated and newer keys never mix across
+            # tree levels (mixing is rejected by FlexContextSchema.check_inflexible_devices).
+            inflexible_family_defined = any(
+                key in flex_context for key in INFLEXIBLE_DEVICE_KEYS
+            )
+            # An ancestor's flex_context may still be None (e.g. a pending asset
+            # created without one, before its column default is applied on flush).
+            for field, value in (parent_asset.flex_context or {}).items():
+                if field in flex_context:
+                    continue
+                if field in INFLEXIBLE_DEVICE_KEYS and inflexible_family_defined:
+                    continue
+                flex_context[field] = dict(value=value, asset=parent_asset)
+            parent_asset = parent_asset.parent_asset
+        return flex_context
+
     def get_flex_context(self) -> dict:
         """Reconstitutes the asset's serialized flex-context by gathering flex-contexts upwards in the asset tree.
 
         Flex-context fields of ancestors that are nearer have priority.
         We return once we collect all flex-context fields or reach the top asset.
         """
-        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
-
-        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
-        if self.flex_context:
-            flex_context = self.flex_context.copy()
-        else:
-            flex_context = {}
-        parent_asset = self.parent_asset
-        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
-            # An ancestor's flex_context may still be None (e.g. a pending asset
-            # created without one, before its column default is applied on flush).
-            flex_context = {**(parent_asset.flex_context or {}), **flex_context}
-            parent_asset = parent_asset.parent_asset
-        return flex_context
+        return {
+            field: entry["value"]
+            for field, entry in self.get_flex_context_with_provenance().items()
+        }
 
     def get_flex_model(self) -> dict[int, dict]:
         """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
@@ -815,18 +844,29 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def get_inflexible_device_sensors(self):
         """
-        Searches for inflexible_device_sensors upwards on the asset tree
+        Searches for inflexible device sensors upwards on the asset tree, across the
+        deprecated ``inflexible-device-sensors`` key (bare sensor IDs) and the
+        ``inflexible-consumption``/``inflexible-production`` keys (sensor references),
+        both top-level and within each nested ``commodities`` entry.
         This search will stop once any sensors are found (will not aggregate towards the top of the tree)
         """
 
         from flexmeasures.data.models.time_series import Sensor
+        from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 
         flex_context = self.get_flex_context()
-        # Need to load inflexible_device_sensors manually as generic_asset does not get to SQLAlchemy session context.
-        if flex_context.get("inflexible-device-sensors"):
-            sensors = Sensor.query.filter(
-                Sensor.id.in_(flex_context["inflexible-device-sensors"])
-            ).all()
+        contexts = [flex_context] + list(flex_context.get("commodities") or [])
+        # Need to load inflexible device sensors manually as generic_asset does not get to SQLAlchemy session context.
+        sensor_ids = list(
+            dict.fromkeys(  # dedupe, preserving order
+                entry["sensor"] if isinstance(entry, dict) else entry
+                for context in contexts
+                for key in INFLEXIBLE_DEVICE_KEYS
+                for entry in (context.get(key) or [])
+            )
+        )
+        if sensor_ids:
+            sensors = Sensor.query.filter(Sensor.id.in_(sensor_ids)).all()
             return sensors or []
         if self.parent_asset:
             return self.parent_asset.get_inflexible_device_sensors()
@@ -859,6 +899,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         self,
         annotations_after: datetime | None = None,
         annotations_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -872,6 +914,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
         parsed_sources = parse_source_arg(source)
         annotations = db.session.scalars(
@@ -879,6 +924,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 asset_id=self.id,
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
             )
@@ -887,6 +934,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
 
@@ -924,13 +973,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        return query_asset_annotations(
+        query = query_asset_annotations(
             asset_id=self.id,
             annotations_after=annotations_after,
             annotations_before=annotations_before,
             sources=parsed_sources,
             annotation_type=annotation_type,
-        ).count()
+        )
+        return db.session.scalar(select(func.count()).select_from(query.subquery()))
 
     def chart(
         self,
@@ -1169,7 +1219,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
-        bdf_dict = {}
+        from flexmeasures.data.models.time_series import TimedBelief
+
         if sensors is None:
             sensors = self.sensors
 
@@ -1177,8 +1228,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             list(set([sensor.unit for sensor in sensors]))
         )
 
-        for sensor in sensors:
-            bdf_dict[sensor] = sensor.search_beliefs(
+        # One search call for all sensors, so source criteria are parsed only once
+        bdf_dict = (
+            TimedBelief.search(
+                sensors=list(sensors),
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 beliefs_after=beliefs_after,
@@ -1192,7 +1245,11 @@ class GenericAsset(db.Model, AuthModelMixin):
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
+                sum_multiple=False,
             )
+            if sensors
+            else {}
+        )
         if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
@@ -1348,56 +1405,45 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                     # Add source IDs if available
                     if "source" in df.columns:
-                        source_ids = (
-                            df["source"]
-                            .apply(lambda x: x.id if hasattr(x, "id") else None)
-                            .tolist()
-                        )
-                        base_records["src"] = source_ids
+                        source_codes, unique_sources = pd.factorize(df["source"])
+                        unique_source_ids = [
+                            source_obj.id if hasattr(source_obj, "id") else None
+                            for source_obj in unique_sources
+                        ]
+                        base_records["src"] = [
+                            unique_source_ids[code] if code >= 0 else None
+                            for code in source_codes
+                        ]
 
-                    # Add belief horizons if available
+                    # Add belief horizons if available (in milliseconds)
                     if "belief_horizon" in df.columns:
-                        belief_horizons_sec = (
-                            df["belief_horizon"]
-                            .apply(
-                                lambda x: (
-                                    int(x.total_seconds() * 1000)
-                                    if pd.notnull(x)
-                                    else None
-                                )
-                            )
-                            .tolist()
+                        bh_values = df["belief_horizon"]
+                        bh_mask = bh_values.notna().to_numpy()
+                        bh_ms = truncated_integer_epochs(
+                            bh_values.to_numpy().view("int64"), 1_000_000
                         )
-                        base_records["bh"] = belief_horizons_sec
+                        base_records["bh"] = [
+                            int(value) if keep else None
+                            for value, keep in zip(bh_ms, bh_mask)
+                        ]
 
-                    # Add belief times if needed
+                    # Add belief times if needed (in milliseconds)
                     if not most_recent_beliefs_only and "belief_time" in df.columns:
-                        belief_times_ms = (
-                            df["belief_time"]
-                            .apply(
-                                lambda x: (
-                                    int(x.timestamp() * 1000) if pd.notnull(x) else None
-                                )
-                            )
-                            .tolist()
+                        bt_values = df["belief_time"]
+                        bt_mask = bt_values.notna().to_numpy()
+                        bt_ms = truncated_integer_epochs(
+                            bt_values.to_numpy(dtype="datetime64[ns]").view("int64"),
+                            1_000_000,
                         )
-                        base_records["bt"] = belief_times_ms
-
-                    cleaned_records = {}
-                    for key, values in base_records.items():
-                        if isinstance(values, list):
-                            cleaned_records[key] = values
-                        else:
-                            cleaned_records[key] = (
-                                pd.Series(values).fillna(None).tolist()
-                            )
+                        base_records["bt"] = [
+                            int(value) if keep else None
+                            for value, keep in zip(bt_ms, bt_mask)
+                        ]
 
                     # Convert to list of dictionaries
-                    for i in range(len(df)):
-                        record = {
-                            key: values[i] for key, values in cleaned_records.items()
-                        }
-                        all_records.append(record)
+                    record_keys = list(base_records)
+                    for row_values in zip(*base_records.values()):
+                        all_records.append(dict(zip(record_keys, row_values)))
 
                 return json.dumps(
                     {

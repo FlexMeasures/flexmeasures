@@ -17,7 +17,6 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
-
 SAVE_TO_DB_SUCCESS = "success"
 SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED = (
     "success_with_unchanged_beliefs_skipped"

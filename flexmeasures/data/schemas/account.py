@@ -6,7 +6,7 @@ from flask_security import current_user
 from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.models.user import Account, AccountRole, Plan
 from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
@@ -33,6 +33,25 @@ class AccountRoleSchema(ma.SQLAlchemySchema):
     accounts = fields.Nested("AccountSchema", exclude=("account_roles",), many=True)
 
 
+class AccountRoleField(MarshmallowClickMixin, fields.Str):
+    """Field that deserializes to an AccountRole and serializes to its name."""
+
+    @with_appcontext_if_needed()
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> AccountRole:
+        """Turn an account role name into an AccountRole."""
+        role_name: str = super()._deserialize(value, attr, data, **kwargs)
+        role = db.session.execute(
+            db.select(AccountRole).filter_by(name=role_name)
+        ).scalar_one_or_none()
+        if role is None:
+            raise FMValidationError(f"No account role found with name {role_name}.")
+        return role
+
+    def _serialize(self, value: AccountRole, attr, obj, **kwargs) -> str:
+        """Turn an AccountRole into its name."""
+        return value.name
+
+
 class AccountSchema(ma.SQLAlchemySchema):
     """Account schema, with validations."""
 
@@ -47,6 +66,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
+    plan_id = ma.auto_field(allow_none=True)
 
     @validates("primary_color")
     def validate_primary_color(self, value, **kwargs):
@@ -185,6 +205,7 @@ class AccountPatchSchema(Schema):
     secondary_color = fields.String(required=False, allow_none=True)
     logo_url = fields.String(required=False, allow_none=True)
     consultancy_account_id = fields.Integer(required=False, allow_none=True)
+    plan_id = fields.Integer(required=False, allow_none=True)
     attributes = JSON(required=False)
     account_roles = fields.List(fields.Integer(), required=False)
 
@@ -217,6 +238,26 @@ class AccountPatchSchema(Schema):
         Uses shared validation logic. For PATCH requests, None clears the relationship.
         """
         _validate_consultancy_account_id_permissions(value, allow_clearing=True)
+
+    @validates("plan_id")
+    @with_appcontext_if_needed()
+    def validate_plan_id(self, value, **kwargs):
+        """Validate the plan an account is being put on.
+
+        Which plan an account is on decides what it may ask of the server, so only admins
+        get to say. None clears the plan, which falls the account back on the server config.
+        """
+        if not user_has_admin_access(current_user, "update"):
+            raise Forbidden(
+                "Only platform administrators may change the plan an organisation is on."
+            )
+        if value is None:
+            return
+        plan = db.session.get(Plan, value)
+        if plan is None:
+            raise FMValidationError(f"No plan found with id {value}.")
+        # Note that whether a legacy plan may be (re)assigned depends on which account is
+        # being patched, which this schema does not know, so that check lives in the endpoint.
 
     @post_load
     @with_appcontext_if_needed()

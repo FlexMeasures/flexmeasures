@@ -241,7 +241,9 @@ function numericRows(data) {
  */
 function groupData(data, groupSpec) {
   const groups = [];
-  const groupBySensorId = new Map();
+  // A sensor may be configured in several subplots (sensors_to_show rows), and
+  // then its data must show in each of them, as in the Vega-Lite charts.
+  const groupsBySensorId = new Map(); // sensor id -> [group, ...]
   const groupByUnit = new Map(); // fallback for rows not covered by the spec
 
   function newGroup(title, sensorType, yAxis) {
@@ -261,7 +263,10 @@ function groupData(data, groupSpec) {
     for (const entry of groupSpec) {
       const group = newGroup(entry.title || "", entry.sensorType || "", entry.yAxis);
       for (const sensorId of entry.sensorIds || []) {
-        groupBySensorId.set(sensorId, group);
+        if (!groupsBySensorId.has(sensorId)) {
+          groupsBySensorId.set(sensorId, []);
+        }
+        groupsBySensorId.get(sensorId).push(group);
       }
     }
   }
@@ -270,34 +275,36 @@ function groupData(data, groupSpec) {
     const sensor = row.sensor || {};
     const source = row.source || {};
     const unit = sensor.unit || row.sensor_unit || "";
-    let group = groupBySensorId.get(sensor.id);
-    if (!group) {
-      group = groupByUnit.get(unit) || groupByUnit.set(unit, newGroup("", "")).get(unit);
+    let rowGroups = groupsBySensorId.get(sensor.id);
+    if (!rowGroups) {
+      rowGroups = [groupByUnit.get(unit) || groupByUnit.set(unit, newGroup("", "")).get(unit)];
     }
-    group.units.add(unit);
-    group.sensorNames.add(sensor.name || "sensor " + sensor.id);
-    const seriesKey = sensor.id + "|" + source.id;
-    if (!group.series.has(seriesKey)) {
-      group.series.set(seriesKey, {
-        sensorName: sensor.name || "sensor " + sensor.id,
-        sensorDescription: sensor.description || sensor.name || "",
-        sourceLabel: sourceLabel(source),
-        source: source,
-        unit: unit,
-        // The sensor's real event resolution in seconds (0 = instantaneous),
-        // as sent by Sensor.as_dict; undefined for legacy data, in which case we
-        // fall back to inferring it from the event spacing.
-        eventResolutionSec:
-          typeof sensor.event_resolution === "number" ? sensor.event_resolution : null,
-        points: [],
-        eventStarts: [], // kept for resolution inference (not sent to ECharts)
-      });
+    for (const group of rowGroups) {
+      group.units.add(unit);
+      group.sensorNames.add(sensor.name || "sensor " + sensor.id);
+      const seriesKey = sensor.id + "|" + source.id;
+      if (!group.series.has(seriesKey)) {
+        group.series.set(seriesKey, {
+          sensorName: sensor.name || "sensor " + sensor.id,
+          sensorDescription: sensor.description || sensor.name || "",
+          sourceLabel: sourceLabel(source),
+          source: source,
+          unit: unit,
+          // The sensor's real event resolution in seconds (0 = instantaneous),
+          // as sent by Sensor.as_dict; undefined for legacy data, in which case we
+          // fall back to inferring it from the event spacing.
+          eventResolutionSec:
+            typeof sensor.event_resolution === "number" ? sensor.event_resolution : null,
+          points: [],
+          eventStarts: [], // kept for resolution inference (not sent to ECharts)
+        });
+      }
+      const ser = group.series.get(seriesKey);
+      // Third dimension carries the belief horizon (ms) for the tooltip;
+      // LTTB sampling selects original points, so it survives downsampling.
+      ser.points.push([row.event_start, row.event_value, row.belief_horizon]);
+      ser.eventStarts.push(row.event_start);
     }
-    const ser = group.series.get(seriesKey);
-    // Third dimension carries the belief horizon (ms) for the tooltip;
-    // LTTB sampling selects original points, so it survives downsampling.
-    ser.points.push([row.event_start, row.event_value, row.belief_horizon]);
-    ser.eventStarts.push(row.event_start);
   }
 
   // Mirror the Vega-Lite legend encoding:
