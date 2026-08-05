@@ -688,3 +688,24 @@ Here are some thoughts on further innovation:
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
 
 
+.. _automating_schedules:
+
+Automating schedules
+--------------------
+
+Like forecasts, schedules can be computed on a recurring basis by an *automation* defined on the asset (see :ref:`automating_forecasts` for the full introduction, including how to run automations).
+The automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ API endpoint (without the asset id).
+Use the canonical API field names, including ``flex-model``, ``flex-context`` and ``force-new-job-creation``.
+
+Omit the ``start`` field to calculate it afresh from the server time on each run.
+It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
+A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
+The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
+As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
+
+For example, this automation queues a scheduling job every hour, each time scheduling the next 12 hours:
+
+.. code-block:: bash
+
+    echo 'duration: "PT12H"' > trigger-message.yml
+    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type schedules --parameters trigger-message.yml

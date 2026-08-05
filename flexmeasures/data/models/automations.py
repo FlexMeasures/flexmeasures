@@ -1,6 +1,4 @@
-"""
-Automations: recurring tasks (for now: forecasting) defined per asset.
-"""
+"""Automations: recurring forecasting or scheduling tasks defined per asset."""
 
 from __future__ import annotations
 
@@ -15,14 +13,20 @@ from flexmeasures.utils.time_utils import server_now
 class Automation(db.Model, AuthModelMixin):
     """A recurring task on an asset, such as computing forecasts.
 
-    The recurrence is defined by a cron string, and the work to be done is defined
-    by a data generator (e.g. a forecaster, linked through a data source) together
-    with the parameters to call it with.
+    The recurrence is defined by a cron string. Forecast automations use a data
+    generator (e.g. a forecaster linked through a data source), while schedule
+    automations use only their stored parameters.
     """
 
     __tablename__ = "automation"
+    __table_args__ = (
+        db.CheckConstraint(
+            "type != 'forecasts' OR generator_id IS NOT NULL",
+            name="forecast_generator",
+        ),
+    )
 
-    SUPPORTED_TYPES = ["forecasts"]  # later also "schedules" and "reports"
+    SUPPORTED_TYPES = ["forecasts", "schedules"]  # later also "reports"
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
@@ -37,9 +41,7 @@ class Automation(db.Model, AuthModelMixin):
     name = db.Column(db.String(80), nullable=False)
     cronstr = db.Column(db.String(80), nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
-    generator_id = db.Column(
-        db.Integer, db.ForeignKey("data_source.id"), nullable=False
-    )
+    generator_id = db.Column(db.Integer, db.ForeignKey("data_source.id"), nullable=True)
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     asset = db.relationship(

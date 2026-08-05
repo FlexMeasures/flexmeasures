@@ -18,6 +18,7 @@ from traceback import print_tb
 import click
 from flask import current_app
 from isodate import duration_isoformat
+from marshmallow import ValidationError
 from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job
@@ -189,6 +190,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
                 enqueue=False,
                 scheduler_specs=scheduler_specs,
                 success_callback=Callback(success_callback),
+                trigger=job.meta.get("trigger"),
                 **scheduler_kwargs,
             )
 
@@ -201,6 +203,13 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             job.meta["fallback_job_id"] = fallback_job.id
             job.save_meta()
             current_app.queues["scheduling"].enqueue_job(fallback_job)
+            asset_or_sensor_ref = get_asset_or_sensor_ref(asset_or_sensor)
+            current_app.job_cache.add(
+                asset_or_sensor_ref["id"],
+                fallback_job.id,
+                queue="scheduling",
+                asset_or_sensor_type=asset_or_sensor_ref["class"].lower(),
+            )
 
 
 @job_cache("scheduling")
@@ -213,6 +222,7 @@ def create_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: Job | list[Job] | None = None,
     success_callback: Callable | None = None,
+    trigger: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -237,6 +247,8 @@ def create_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optionally, info about how the job got created (e.g. via the CLI,
+                                    the API or an automation), stored as job meta data.
     :returns:                       The job.
 
     """
@@ -289,6 +301,8 @@ def create_scheduling_job(
     )
 
     job.meta["asset_or_sensor"] = asset_or_sensor
+    if trigger:
+        job.meta["trigger"] = trigger
     job.meta["scheduler_kwargs"] = scheduler_kwargs
 
     # Serialize start, end, resolution and belief_time
@@ -381,6 +395,7 @@ def create_sequential_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
+    trigger: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
@@ -393,6 +408,7 @@ def create_sequential_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optional provenance metadata stored on every device job and the wrap-up job.
     :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
                                     and the flex-model (partially deserialized, see example below).
     :returns:                       The wrap-up job.
@@ -417,7 +433,43 @@ def create_sequential_scheduling_job(
         raise NotImplementedError(
             "See why: https://github.com/FlexMeasures/flexmeasures/pull/1313/files#r1971479492"
         )
+    if scheduler_specs:
+        scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
+    else:
+        scheduler_class = find_scheduler_class(asset)
+    if not scheduler_kwargs["flex_model"]:
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=asset,
+            scheduler_params=scheduler_kwargs,
+        )
+        scheduler.collect_flex_config()
+        collected_flex_model = deepcopy(scheduler.flex_model)
+        scheduler_kwargs["flex_context"] = scheduler.flex_context
+        scheduler.deserialize_config()
+        scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).load(
+            collected_flex_model
+        )
+
     flex_model = scheduler_kwargs["flex_model"]
+    for child_flex_model in flex_model:
+        if child_flex_model.get("sensor") is not None:
+            continue
+        sensor_ids = {
+            sensor_reference["sensor"]
+            for field in ("consumption", "production")
+            if (sensor_reference := child_flex_model["sensor_flex_model"].get(field))
+            is not None
+        }
+        if len(sensor_ids) != 1:
+            asset = child_flex_model.get("asset")
+            raise ValidationError(
+                "Sequential scheduling requires each stored device flex-model to "
+                "reference exactly one output sensor through 'consumption' or "
+                f"'production' (asset {asset.id if asset else 'unknown'})."
+            )
+        child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
+
     jobs = []
     previous_sensors = []
     previous_job = depends_on
@@ -442,6 +494,7 @@ def create_sequential_scheduling_job(
             enqueue=enqueue,
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
+            trigger=trigger,
         )
         jobs.append(job)
         previous_sensors.append(sensor)
@@ -466,6 +519,8 @@ def create_sequential_scheduling_job(
         connection=current_app.queues["scheduling"].connection,
     )
     job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset)
+    if trigger:
+        job.meta["trigger"] = trigger
     job.save_meta()
 
     try:
@@ -495,6 +550,7 @@ def create_simultaneous_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
+    trigger: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """Create a single job to schedule all devices at once.
@@ -507,9 +563,10 @@ def create_simultaneous_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optional provenance metadata stored on the scheduling job.
     :param scheduler_kwargs:        Dict containing start and end (both deserialized) the flex-context (serialized),
                                     and the flex-model (partially deserialized, see example below).
-    :returns:                       The wrap-up job.
+    :returns:                       The scheduling job.
 
     Example of a partially deserialized flex-model per sensor:
 
@@ -542,6 +599,7 @@ def create_simultaneous_scheduling_job(
         depends_on=depends_on,
         success_callback=success_callback,
         force_new_job_creation=force_new_job_creation,
+        trigger=trigger,
     )
 
     try:

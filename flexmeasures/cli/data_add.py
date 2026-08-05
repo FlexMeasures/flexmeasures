@@ -40,6 +40,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     add_cli_options_from_schema,
+    make_cli_options_optional,
     split_commas,
 )
 from flexmeasures.data import db
@@ -48,6 +49,7 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
+from flexmeasures.data.services.automations import prepare_schedule_trigger_message
 from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
@@ -1376,7 +1378,12 @@ def _normalize_yaml_value(value):
 
 def _load_yaml_mapping(stream: TextIOBase, option_name: str) -> dict:
     """Load a YAML/JSON CLI option file whose top level must be an object."""
-    value = yaml.safe_load(stream)
+    try:
+        value = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        raise click.UsageError(
+            f"The {option_name} file is not valid YAML or JSON."
+        ) from exc
     if value is None:
         return {}
     if not isinstance(value, dict):
@@ -1685,8 +1692,12 @@ def add_forecast(  # noqa: C901
     "parameters_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step on each run of the automation).",
+    help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
+    " forecast parameters for --type forecasts, or a schedule trigger message for --type schedules.",
 )
+@make_cli_options_optional(
+    "sensor"
+)  # only required for --type forecasts, which the forecast parameter schema enforces
 @add_cli_options_from_schema(ForecasterParametersSchema())
 @add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
 def add_automation(
@@ -1702,53 +1713,90 @@ def add_automation(
     **kwargs,
 ):
     """
-    Add an automation: a recurring task (for now, computing forecasts) on an asset.
+    Add an automation: a recurring task (computing forecasts or schedules) on an asset.
 
     \b
-    Example
+    Examples
       flexmeasures add automation --asset 3 --name "Day-ahead PV forecasts"
         --cron "0 6 * * *" --sensor 2092 --regressors 2093
+      flexmeasures add automation --asset 3 --name "Hourly schedules"
+        --cron "0 * * * *" --type schedules --parameters trigger-message.yml
 
-    The forecaster configuration is stored on a data source, and the forecast
-    parameters are validated and stored on the automation itself.
-    Each time the automation runs, forecasting jobs are queued
-    (see `flexmeasures jobs run-automations`).
+    For forecasts, the forecaster configuration is stored on a data source, and
+    the forecast parameters are validated and stored on the automation itself.
+    For schedules, the parameters form a schedule trigger message (as accepted by
+    the [POST] /assets/(id)/schedules/trigger API endpoint, without the asset id);
+    omit its "start" field to schedule from the run time on each run.
+    Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
     """
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
     )
 
-    # Validate the parameters using the forecast parameters schema (we store them serialized)
-    try:
-        deserialized_parameters = ForecasterParametersSchema().load(parameters)
-    except ValidationError as e:
-        click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
-        raise click.Abort()
-    output_sensor = deserialized_parameters.get(
-        "sensor_to_save"
-    ) or deserialized_parameters.get("sensor")
-    try:
-        validate_forecast_output_scope(asset.id, output_sensor)
-    except ValueError as exc:
-        click.secho(str(exc), **MsgStyle.ERROR)
-        raise click.Abort()
-
-    forecaster = get_data_generator(
-        source=source,
-        model=forecaster_class,
-        config=config,
-        save_config=True,
-        data_generator_type=Forecaster,
+    has_forecast_config = any(
+        value is not None
+        and value is not False
+        and not (isinstance(value, (dict, list, tuple)) and not value)
+        for value in config.values()
     )
-    if forecaster is None:
-        click.secho(
-            f"Could not set up forecaster '{forecaster_class}'.", **MsgStyle.ERROR
+    if automation_type == "schedules" and (
+        source is not None
+        or config_file is not None
+        or forecaster_class != "TrainPredictPipeline"
+        or has_forecast_config
+    ):
+        raise click.UsageError(
+            "Forecaster options (--forecaster, --source, --config and forecasting configuration fields) cannot be used with --type schedules."
         )
-        raise click.Abort()
-    generator = (
-        forecaster.data_source
-    )  # looks up or creates the data source storing the forecaster config
-    db.session.flush()
+
+    # Validate the parameters using the forecast parameters schema (we store them serialized)
+    generator_id = None
+    if automation_type == "forecasts":
+        try:
+            deserialized_parameters = ForecasterParametersSchema().load(parameters)
+        except ValidationError as e:
+            click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
+            raise click.Abort()
+        output_sensor = deserialized_parameters.get(
+            "sensor_to_save"
+        ) or deserialized_parameters.get("sensor")
+        try:
+            validate_forecast_output_scope(asset.id, output_sensor)
+        except ValueError as exc:
+            click.secho(str(exc), **MsgStyle.ERROR)
+            raise click.Abort()
+
+        forecaster = get_data_generator(
+            source=source,
+            model=forecaster_class,
+            config=config,
+            save_config=True,
+            data_generator_type=Forecaster,
+        )
+        if forecaster is None:
+            click.secho(
+                f"Could not set up forecaster '{forecaster_class}'.", **MsgStyle.ERROR
+            )
+            raise click.Abort()
+        generator = (
+            forecaster.data_source
+        )  # looks up or creates the data source storing the forecaster config
+        db.session.flush()
+        generator_id = generator.id
+    else:  # schedules
+        try:
+            AssetTriggerSchema().load(
+                prepare_schedule_trigger_message(parameters, asset.id)
+            )
+        except ValidationError as e:
+            click.secho(f"Invalid schedule parameters: {e.messages}", **MsgStyle.ERROR)
+            raise click.Abort()
+        if "start" in parameters:
+            click.secho(
+                "Warning: the schedule 'start' is fixed, so each run will compute the same period."
+                " Omit 'start' to schedule from the run time instead.",
+                **MsgStyle.WARN,
+            )
 
     automation = Automation(
         asset_id=asset.id,
@@ -1756,7 +1804,7 @@ def add_automation(
         name=name,
         cronstr=cronstr,
         active=not inactive,
-        generator_id=generator.id,
+        generator_id=generator_id,
         parameters=parameters,
     )
     db.session.add(automation)
@@ -1932,7 +1980,9 @@ def add_schedule(  # noqa C901
 
     if as_job:
         job = create_scheduling_job(
-            asset_or_sensor=asset_or_sensor, **scheduling_kwargs
+            asset_or_sensor=asset_or_sensor,
+            trigger={"origin": "CLI"},
+            **scheduling_kwargs,
         )
         if job:
             click.secho(
