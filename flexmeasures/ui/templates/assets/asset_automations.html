@@ -27,10 +27,10 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab">Forecasts</button>
+            <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab" aria-controls="forecasts-tab-pane" aria-selected="true">Forecasts</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab">Schedules</button>
+            <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab" aria-controls="schedules-tab-pane" aria-selected="false">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
@@ -169,6 +169,12 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
+    $('button[data-bs-toggle="tab"]').on("shown.bs.tab", function () {
+      const table = $($(this).attr("data-bs-target")).find("table");
+      if ($.fn.dataTable.isDataTable(table)) {
+        table.DataTable().columns.adjust();
+      }
+    });
     $.ajax({
       url: `/api/v3_0/assets/${assetId}/automations`,
       method: "GET",
