@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from flask import url_for
+from sqlalchemy import select
 
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.time_series import Sensor
 
 
 @pytest.fixture(scope="module")
@@ -213,6 +217,66 @@ def test_post_automation_with_invalid_parameters(
         )
     assert response.status_code == 422
     assert "sensor" in str(response.json)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_with_inaccessible_sensor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+):
+    """An account admin cannot set up an automation on a sensor of another account."""
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="wind speed",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="m/s",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.flush()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts of another account's sensor",
+                "cronstr": "0 6 * * *",
+                "type": "forecasts",
+                "parameters": {"sensor": someone_elses_sensor.id},
+            },
+        )
+    assert response.status_code == 403
+    assert str(someone_elses_sensor.id) in response.json["message"]
+    assert (
+        db.session.execute(
+            select(Automation).filter_by(name="Forecasts of another account's sensor")
+        ).scalar_one_or_none()
+        is None
+    )
+
+    # the same automation on their own sensor is fine
+    own_sensor = battery.sensors[0]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts of their own sensor",
+                "cronstr": "0 6 * * *",
+                "type": "forecasts",
+                "parameters": {"sensor": own_sensor.id},
+            },
+        )
+    assert response.status_code == 201, response.json
+    # clean up for other tests in this module
+    db.session.delete(db.session.get(Automation, response.json["id"]))
+    db.session.flush()
 
 
 @pytest.mark.parametrize(
