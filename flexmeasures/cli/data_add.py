@@ -1459,11 +1459,25 @@ def _assemble_forecaster_config_and_parameters(
             launch_editor("/tmp/config.yml"), "--edit-config"
         )
 
-    if source is not None and config:
-        raise click.UsageError(
-            "--source uses the forecaster configuration stored with that source. "
-            "Omit --source to use the supplied configuration options."
+    if source is not None:
+        # The forecaster class and its configuration are read from the data source's data
+        # generator attributes, so anything configured here would be silently ignored.
+        # Only options actually given on the command line count: the configuration options
+        # that were left out still show up in the config, with their schema defaults.
+        conflicting_options = _find_options_given_on_command_line(
+            {
+                "forecaster_class": "--forecaster",
+                "config_file": "--config",
+                "edit_config": "--edit-config",
+            },
+            TrainPredictPipelineConfigSchema(),
         )
+        if conflicting_options:
+            raise click.UsageError(
+                f"{flexmeasures_inflection.join_words_into_a_list(conflicting_options)} cannot be"
+                " combined with --source: --source uses the forecaster configuration stored with"
+                " that source. Omit --source to use the supplied configuration options."
+            )
 
     parameters = dict()
     if parameters_file:
@@ -1749,20 +1763,6 @@ def add_automation(
     Alternatively, pass an existing data source (--source) to reuse the forecaster
     and configuration stored on it.
     """
-    if source is not None:
-        # The forecaster class and its config are read from the data source's data
-        # generator attributes, so anything given here would be silently ignored.
-        conflicting_options = _find_options_given_on_command_line(
-            {"forecaster_class": "--forecaster", "config_file": "--config"},
-            TrainPredictPipelineConfigSchema(),
-        )
-        if conflicting_options:
-            click.secho(
-                f"{flexmeasures_inflection.join_words_into_a_list(conflicting_options)} cannot be combined with --source."
-                f" Data source {source.id} already determines the forecaster and its configuration.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
     if forecaster_class is None:
         forecaster_class = "TrainPredictPipeline"
 
