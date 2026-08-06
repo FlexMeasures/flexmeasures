@@ -1303,12 +1303,14 @@ function buildLineBarOption(elementId, groups, opts) {
       axisLabel: { fontSize: FONT_SIZE, color: "#222" },
       ...yAxisDomainOptions(group), // issue #2244 y-axis modes (zero / data / floor / strict)
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
-      // Finer gridlines between the major value lines, as in Vega-Lite.
-      // Only the gridlines: showing the minor ticks, too, would put tick marks
-      // halfway between the labelled values (e.g. at 25 and 75 for labels at 0,
-      // 50 and 100), which reads as if the labels were misaligned.
-      // minorSplitLine still follows minorTick.splitNumber when the ticks are hidden.
-      minorTick: { show: false, splitNumber: 2 },
+      // Tick marks at the labelled values. A value axis defaults to axisTick.show
+      // "auto", which resolves to false next to a time axis — so without this, the
+      // minor ticks below were the only ones drawn, halfway between the labelled
+      // values (e.g. at 25 and 75 for labels at 0, 50 and 100).
+      axisTick: { show: true },
+      // Finer gridlines between the major value lines, as in Vega-Lite, with shorter
+      // tick marks to match.
+      minorTick: { show: true, splitNumber: 2 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
     // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation for
