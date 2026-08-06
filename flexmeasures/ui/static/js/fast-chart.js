@@ -1303,6 +1303,10 @@ function buildLineBarOption(elementId, groups, opts) {
       axisLabel: { fontSize: FONT_SIZE, color: "#222" },
       ...yAxisDomainOptions(group), // issue #2244 y-axis modes (zero / data / floor / strict)
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
+      // A tick mark next to each labelled value, as in Vega-Lite. ECharts would
+      // otherwise hide them ("auto" resolves to hidden for a value axis whose
+      // other axis is a time axis), leaving the labels floating next to the grid.
+      axisTick: { show: true, lineStyle: { color: "#888" } },
       // Finer gridlines between the major value lines, as in Vega-Lite.
       // Only the gridlines: showing the minor ticks, too, would put tick marks
       // halfway between the labelled values (e.g. at 25 and 75 for labels at 0,
