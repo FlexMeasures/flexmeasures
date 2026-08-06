@@ -253,6 +253,9 @@ ICON_MAPPING = {
     "wind speed": "wi wi-strong-wind",
 }
 
+CHARGER_ICON = "https://api.iconify.design/material-symbols/ev-station-outline.svg"
+FALLBACK_SVG_ICON = "https://api.iconify.design/fa-solid/question-circle.svg"
+
 SVG_ICON_MAPPING = {
     # site structure
     "building": "https://api.iconify.design/mdi/home-city.svg",
@@ -262,10 +265,19 @@ SVG_ICON_MAPPING = {
     "scenario": "https://api.iconify.design/mdi/binoculars.svg",
     "pv": "https://api.iconify.design/wi/day-sunny.svg",
     "solar": "https://api.iconify.design/wi/day-sunny.svg",
-    "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
-    "ev": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
-    "one-way_evse": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
-    "two-way_evse": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "wind": "https://api.iconify.design/mdi/wind-turbine.svg",
+    "process": "https://api.iconify.design/mdi/factory.svg",
+    "heat-storage": "https://api.iconify.design/mdi/storage-tank.svg",
+    # EV infrastructure, which projects name in a variety of ways
+    "chargepoint": CHARGER_ICON,
+    "ev": CHARGER_ICON,
+    "evse": CHARGER_ICON,
+    "one-way_evse": CHARGER_ICON,
+    "two-way_evse": CHARGER_ICON,
+    "charging_station": CHARGER_ICON,
+    "charging_hub": CHARGER_ICON,
+    "ev_charger": CHARGER_ICON,
+    "charger": CHARGER_ICON,
     "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
 }
 
@@ -287,12 +299,14 @@ def asset_icon_name(asset_type_name: str) -> str:
 
 
 def svg_asset_icon_name(asset_type_name: str) -> str:
+    """SVG icon URL for this asset type, as used in the asset structure view.
 
+    A namespaced name, such as a plugin's "myplugin.battery", is matched on its last dot-separated component.
+    An asset type we have no icon for falls back to a question mark.
+    """
     if asset_type_name:
         asset_type_name = asset_type_name.split(".")[-1].lower()
-    return SVG_ICON_MAPPING.get(
-        asset_type_name, "https://api.iconify.design/fa-solid/question-circle.svg"
-    )
+    return SVG_ICON_MAPPING.get(asset_type_name, FALLBACK_SVG_ICON)
 
 
 def username(user_id) -> str:

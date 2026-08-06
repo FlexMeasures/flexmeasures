@@ -3,7 +3,11 @@ from datetime import timedelta
 from flexmeasures import Asset, AssetType, Account, Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
-from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
+from flexmeasures.ui.utils.view_utils import (
+    CHARGER_ICON,
+    FALLBACK_SVG_ICON,
+    svg_asset_icon_name,
+)
 from flexmeasures.data.schemas.scheduling import (
     UI_FLEX_CONTEXT_SCHEMA,
     UI_FLEX_MODEL_SCHEMA,
@@ -13,11 +17,31 @@ from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchem
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 
-def test_svg_asset_icon_name_for_evse():
-    charger_icon = "https://api.iconify.design/material-symbols/ev-station-outline.svg"
+def test_svg_asset_icon_name_for_default_asset_types():
+    """Every asset type that FlexMeasures seeds by default should have its own icon.
+
+    These are the types added by flexmeasures.data.scripts.data_gen.add_default_asset_types.
+    """
+    for asset_type_name in (
+        "solar",
+        "wind",
+        "one-way_evse",
+        "two-way_evse",
+        "battery",
+        "building",
+        "process",
+        "heat-storage",
+    ):
+        assert svg_asset_icon_name(asset_type_name) != FALLBACK_SVG_ICON
 
     for asset_type_name in ("one-way_evse", "two-way_evse"):
-        assert svg_asset_icon_name(asset_type_name) == charger_icon
+        assert svg_asset_icon_name(asset_type_name) == CHARGER_ICON
+
+
+def test_svg_asset_icon_name_falls_back_for_unknown_asset_type():
+    assert svg_asset_icon_name("no-such-asset-type") == FALLBACK_SVG_ICON
+    assert svg_asset_icon_name("") == FALLBACK_SVG_ICON
+    assert svg_asset_icon_name(None) == FALLBACK_SVG_ICON
 
 
 def test_get_ancestry(app, db):
