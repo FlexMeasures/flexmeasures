@@ -5033,7 +5033,7 @@
           },
           "default": {
             "type": "string",
-            "description": "Fallback quantity to use when the referenced sensor has missing values. Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained.",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
           }
         },
@@ -5187,7 +5187,7 @@
           },
           "default": {
             "type": "string",
-            "description": "Fallback quantity to use when the referenced sensor has missing values. Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained.",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
           }
         },
