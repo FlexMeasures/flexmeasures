@@ -138,7 +138,7 @@ Typical translations include:
 
 - tariffs (``consumption-price``, ``production-price``) → an ``"energy"`` FlowCommitment with zero baseline so net consumption/production is priced;
 - peak/excess limits (``site-peak-production``, ``site-peak-production-price``, etc.) → dedicated peak FlowCommitment(s);
-- storage-related fields (``soc-minima``, ``soc-minima-breach-price``, etc.) → StockCommitment(s).
+- storage-related fields (``soc-min``, ``soc-max``, legacy ``soc-minima`` and ``soc-maxima``, and the SoC breach prices) → StockCommitment(s).
 
 
 Let us look at some concrete examples. 
@@ -179,9 +179,9 @@ commitments the scheduler constructs.
 
 6. **SOC minima / maxima (storage preferences)**
 
-   - *Fields used*: ``soc-minima``, ``soc-minima-breach-price``, ``soc-maxima`` and ``soc-maxima-breach-price``.
+   - *Fields used*: ``soc-min``, ``soc-minima``, ``soc-minima-breach-price``, ``soc-max``, ``soc-maxima`` and ``soc-maxima-breach-price``.
    - *Commitment*: StockCommitment(s) that price deviations below minima or
-     above maxima. Hard storage capacities are set through ``soc-min`` and ``soc-max`` instead and are modelled as Pyomo constraints.
+     above maxima. Set ``relax-soc-constraints`` to ``False`` to keep these SoC bounds as hard Pyomo constraints instead.
 
 7. **Power bands per device**
 
