@@ -25,10 +25,12 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
+    InflexibleDeviceSchema,
     OutputSensorReferenceSchema,
     PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.scheduling.groups import GroupReferenceSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
@@ -74,6 +76,26 @@ class NoTimeSeriesSpecs(Schema):
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
+    # Optional scoping: bind this commitment to the aggregate flow of a subset of devices,
+    # rather than binding each device of the commodity separately.
+    # Give either a list of power `sensors` (a cherry-pick that may span electrical groups,
+    # e.g. an aFRR band on a site's e-heaters),
+    # or a `group` reference (the members of an electrical group); at most one of the two.
+    # Either scope includes a device whether flexible or inflexible,
+    # so listing a group's member sensors resolves to the same set as scoping by that group.
+    # The commitment binds the net signed aggregate of the scoped devices (consumption positive, production negative),
+    # so consumers add, producers subtract,
+    # and any inflexible (fixed) member contributes its fixed signed power (see StorageScheduler._resolve_commitment_scope).
+    sensors = fields.List(
+        SensorIdField(),
+        required=False,
+        data_key="sensors",
+    )
+    group = fields.Nested(
+        GroupReferenceSchema,
+        required=False,
+        data_key="group",
+    )
     # Not described in UI_FLEX_CONTEXT_SCHEMA or the Sphinx docs (it does show up
     # in the generated OpenAPI schema, without being promoted in field descriptions).
     # Internal bookkeeping only: not the documented way to associate a commitment
@@ -99,6 +121,15 @@ class CommitmentSchema(Schema):
         required=False,
         data_key="down-price",
     )
+
+    @validates_schema
+    def forbid_scope_conflict(self, commitment, **kwargs):
+        """A commitment's scope is a sensor list or a group reference, not both."""
+        if "sensors" in commitment and "group" in commitment:
+            raise ValidationError(
+                "A commitment may be scoped by 'sensors' or by 'group', not both.",
+                field_name="sensors",
+            )
 
     @validates_schema
     def require_a_price(self, commitment, **kwargs):
@@ -332,10 +363,22 @@ class SharedSchema(Schema):
         metadata=metadata.COMMITMENTS.to_dict(),
     )
 
+    # todo: deprecated since flexmeasures==1.0
     inflexible_device_sensors = fields.List(
         SensorIdField(),
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
+    )
+
+    inflexible_consumption = fields.List(
+        fields.Nested(InflexibleDeviceSchema),
+        data_key="inflexible-consumption",
+        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    )
+    inflexible_production = fields.List(
+        fields.Nested(InflexibleDeviceSchema),
+        data_key="inflexible-production",
+        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
     )
 
     # Aggregate output sensors
@@ -351,6 +394,53 @@ class SharedSchema(Schema):
         data_key="aggregate-production",
         metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
     )
+
+    @validates_schema
+    def check_inflexible_devices(self, data: dict, **kwargs):
+        """Check assumptions about inflexible devices.
+
+        1. The deprecated ``inflexible-device-sensors`` field must not be mixed with
+           ``inflexible-consumption``/``inflexible-production``.
+        2. Each sensor may be listed at most once across the two new fields.
+        3. A sensor's explicit ``consumption_is_positive`` attribute must not contradict
+           the sign convention of the field it is listed under. Note the deliberate
+           asymmetry with the legacy read path: here only the sensor's own explicitly
+           set attribute counts (as in the flex-model's consumption/production output
+           sensors), whereas ``inflexible-device-sensors`` entries defer to
+           ``Sensor.get_attribute`` (which falls back to the sensor's asset).
+        """
+        if "inflexible_device_sensors" in data and (
+            "inflexible_consumption" in data or "inflexible_production" in data
+        ):
+            raise ValidationError(
+                "Must pass either inflexible-device-sensors (deprecated) or inflexible-consumption/inflexible-production.",
+                field_name="inflexible-device-sensors",
+            )
+
+        seen_sensor_ids = set()
+        for field, data_key, consumption_is_positive in (
+            ("inflexible_consumption", "inflexible-consumption", True),
+            ("inflexible_production", "inflexible-production", False),
+        ):
+            for entry in data.get(field, []):
+                sensor = entry.sensor if isinstance(entry, SensorReference) else entry
+                if sensor.id in seen_sensor_ids:
+                    raise ValidationError(
+                        f"Sensor {sensor.id} may only be listed once across inflexible-consumption and inflexible-production.",
+                        field_name=data_key,
+                    )
+                seen_sensor_ids.add(sensor.id)
+                explicit_attribute = (sensor.attributes or {}).get(
+                    "consumption_is_positive"
+                )
+                if (
+                    explicit_attribute is not None
+                    and explicit_attribute != consumption_is_positive
+                ):
+                    raise ValidationError(
+                        f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`, which conflicts with the sign convention of the `{data_key}` field.",
+                        field_name=data_key,
+                    )
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
@@ -597,6 +687,14 @@ class CommodityFlexContextSchema(SharedSchema):
             or has_production_capacity
             or has_power_capacity
         )
+
+        # Record durably whether this commodity carries no user-given grid-connection signal at all --
+        # neither prices nor capacity fields.
+        # Only then may the scheduler treat it as an internal node (devices balancing each other).
+        # A capacity field (cases 4-6) declares a grid connection,
+        # so a commodity with a capacity but no price is NOT an internal node,
+        # even though its prices get smart-defaulted to zero here.
+        data["is_internal_node"] = not any_given
 
         currency = data.get("shared_currency_unit") or "EUR"
         zero_price = ur.Quantity(f"0 {currency}/MWh")
@@ -1085,9 +1183,14 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
-    "inflexible-device-sensors": {
+    "inflexible-consumption": {
         "default": [],
-        "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
+        "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-production": {
+        "default": [],
+        "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "commitments": {
@@ -1311,6 +1414,42 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
+    "coupling": {
+        "default": None,
+        "description": rst_to_openapi(metadata.COUPLING.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a coupling-group name shared by a converter's commodity ports).",
+        },
+        "example-units": ['a coupling-group name, e.g. "CHP"'],
+    },
+    "coupling-coefficient": {
+        "default": 1.0,
+        "description": rst_to_openapi(metadata.COUPLING_COEFFICIENT.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a positive number).",
+        },
+        "example-units": ["a number, e.g. 0.5"],
+    },
+    "inflexible-consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor recording this inflexible device's power (positive is consumption).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor recording this inflexible device's power (positive is production).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
 }
 
 
@@ -1429,13 +1568,17 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                 )
 
     def _validate_inflexible_device_sensors(self, data: dict):
-        """Validate inflexible device sensors."""
-        if "inflexible_device_sensors" in data:
-            for sensor in data["inflexible_device_sensors"]:
+        """Validate inflexible device sensors (both Sensor and SensorReference entries)."""
+        for field in (
+            "inflexible_device_sensors",
+            "inflexible_consumption",
+            "inflexible_production",
+        ):
+            for sensor in data.get(field, []):
                 if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
                     raise ValidationError(
                         f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
-                        field_name="inflexible-device-sensors",
+                        field_name=self.mapped_schema_keys[field],
                     )
 
     def _forbid_fixed_prices(self, data: dict, **kwargs):

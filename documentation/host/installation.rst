@@ -360,13 +360,9 @@ Install an LP solver
 
 For computing schedules, the FlexMeasures platform uses a linear program solver. Currently that is the HiGHS or CBC solvers.
 
-It's already installed in the Docker image. For yourself, you can simply install it like this:
+The default solver (HiGHS, used directly via its Python API) is installed together with FlexMeasures, so there is nothing to do here.
 
-.. code-block:: bash
-
-   $ pip install highspy
-
-Read more on solvers (e.g. how to install a different one) at :ref:`installing-a-solver`.
+Read more on solvers (e.g. how to install a different one, such as CBC) at :ref:`installing-a-solver`.
 
 
 

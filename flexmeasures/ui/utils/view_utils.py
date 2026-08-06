@@ -253,6 +253,9 @@ ICON_MAPPING = {
     "wind speed": "wi wi-strong-wind",
 }
 
+CHARGER_ICON = "https://api.iconify.design/material-symbols/ev-station-outline.svg"
+FALLBACK_SVG_ICON = "https://api.iconify.design/fa-solid/question-circle.svg"
+
 SVG_ICON_MAPPING = {
     # site structure
     "building": "https://api.iconify.design/mdi/home-city.svg",
@@ -262,9 +265,44 @@ SVG_ICON_MAPPING = {
     "scenario": "https://api.iconify.design/mdi/binoculars.svg",
     "pv": "https://api.iconify.design/wi/day-sunny.svg",
     "solar": "https://api.iconify.design/wi/day-sunny.svg",
-    "chargepoint": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
-    "ev": "https://api.iconify.design/material-symbols/ev-station-outline.svg",
+    "wind": "https://api.iconify.design/mdi/wind-turbine.svg",
+    "process": "https://api.iconify.design/mdi/factory.svg",
+    "heat-storage": "https://api.iconify.design/mdi/storage-tank.svg",
+    # EV infrastructure, which projects name in a variety of ways
+    "chargepoint": CHARGER_ICON,
+    "ev": CHARGER_ICON,
+    "evse": CHARGER_ICON,
+    "one-way_evse": CHARGER_ICON,
+    "two-way_evse": CHARGER_ICON,
+    "charging_station": CHARGER_ICON,
+    "charging_hub": CHARGER_ICON,
+    "ev_charger": CHARGER_ICON,
+    "charger": CHARGER_ICON,
+    # building services equipment, named by their common abbreviations
+    "hvac": "https://api.iconify.design/mdi/hvac.svg",
+    "ahu": "https://api.iconify.design/mdi/air-filter.svg",  # air handling unit
+    "dhw": "https://api.iconify.design/mdi/water-boiler.svg",  # domestic hot water
+    "heatpump": "https://api.iconify.design/mdi/heat-pump.svg",
+    "chiller": "https://api.iconify.design/mdi/snowflake.svg",
+    "lighting": "https://api.iconify.design/mdi/lightbulb.svg",
+    "other-loads": "https://api.iconify.design/mdi/power-plug.svg",
     "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
+}
+
+
+def normalize_asset_type_name(asset_type_name: str) -> str:
+    """Reduce an asset type name to its lower-case alphanumeric characters, so that spelling variants share one mapping key.
+
+    For example, "charge-point", "charge point" and "Charge_Point" all reduce to "chargepoint".
+    """
+    return "".join(
+        character for character in asset_type_name.lower() if character.isalnum()
+    )
+
+
+NORMALIZED_SVG_ICON_MAPPING = {
+    normalize_asset_type_name(asset_type_name): icon
+    for asset_type_name, icon in SVG_ICON_MAPPING.items()
 }
 
 
@@ -285,12 +323,16 @@ def asset_icon_name(asset_type_name: str) -> str:
 
 
 def svg_asset_icon_name(asset_type_name: str) -> str:
+    """SVG icon URL for this asset type, as used in the asset structure view.
 
+    Asset type names are not restricted, so projects spell the same type in different ways.
+    Matching therefore ignores case and separators, letting a type named "charge-point" share the icon mapped to "chargepoint".
+    A namespaced name, such as a plugin's "myplugin.battery", is matched on its last dot-separated component.
+    An asset type we have no icon for falls back to a question mark.
+    """
     if asset_type_name:
-        asset_type_name = asset_type_name.split(".")[-1].lower()
-    return SVG_ICON_MAPPING.get(
-        asset_type_name, "https://api.iconify.design/fa-solid/question-circle.svg"
-    )
+        asset_type_name = normalize_asset_type_name(asset_type_name.split(".")[-1])
+    return NORMALIZED_SVG_ICON_MAPPING.get(asset_type_name, FALLBACK_SVG_ICON)
 
 
 def username(user_id) -> str:

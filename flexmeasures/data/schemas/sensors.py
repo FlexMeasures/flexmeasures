@@ -1049,6 +1049,41 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
     )
 
 
+class InflexibleDeviceSchema(SensorReferenceSchema):
+    """One inflexible device: a sensor reference with optional source filters.
+
+    Used both in the flex-context (as a list, for site-level inflexible load),
+    and in a flex-model entry (as a single reference, when an inflexible device is modelled as its own asset).
+    Deserializes to a plain :class:`Sensor` when no source filters are given (a backward-compatible shape downstream),
+    and to a :class:`SensorReference` otherwise.
+    """
+
+    class Meta:
+        description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @post_load
+    def to_sensor_or_reference(
+        self, data: dict, **kwargs
+    ) -> "Sensor | SensorReference":
+        if not any(
+            data.get(key)
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            return data["sensor"]
+        return SensorReference(
+            sensor=data["sensor"],
+            source_types=data.get("source_types"),
+            exclude_source_types=data.get("exclude_source_types"),
+            sources=data.get("sources"),
+            source_account=data.get("source_account"),
+        )
+
+
 class SensorIdOrReferenceField(fields.Raw):
     """Field accepting either a sensor ID or a source-filtered sensor reference."""
 

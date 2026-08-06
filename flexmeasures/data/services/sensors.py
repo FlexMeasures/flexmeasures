@@ -24,12 +24,22 @@ from flexmeasures import Sensor, Account, Asset
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
 
-
 _REMOVE = object()
+
+#: The keys a stored sensor reference may carry (see SensorReferenceSchema):
+#: a dict with the "sensor" key and no keys beyond these is a pure sensor reference.
+_SENSOR_REFERENCE_KEYS = {
+    "sensor",
+    "source-types",
+    "exclude-source-types",
+    "sources",
+    "source-account",
+}
 
 
 def _prune_flex_config_sensor_refs(
@@ -39,7 +49,8 @@ def _prune_flex_config_sensor_refs(
 
     This function handles deeply nested JSON objects and lists from flex_model and flex_context
     JSONB columns. It scans for sensor references in two forms:
-    - Direct objects: {"sensor": sensor_id_to_remove}
+    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filter keys
+      (e.g. entries of "inflexible-consumption"/"inflexible-production" lists)
     - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
 
     Args:
@@ -63,8 +74,12 @@ def _prune_flex_config_sensor_refs(
         True
     """
     if isinstance(value, dict):
-        # Direct sensor reference object (for example {"sensor": 12})
-        if set(value.keys()) == {"sensor"} and value.get("sensor") == sensor_id:
+        # Direct sensor reference object (for example {"sensor": 12}),
+        # optionally with source filter keys (see SensorReferenceSchema)
+        if (
+            value.get("sensor") == sensor_id
+            and set(value.keys()) <= _SENSOR_REFERENCE_KEYS
+        ):
             return _REMOVE, True
 
         changed = False
@@ -299,6 +314,9 @@ def cleanup_sensor_references_in_assets(
                     "$.**.sensor ? (@ == $sid)",
                     vars_json,
                 ),
+                # Also matches {"sensor": id} entries nested in lists, e.g. of the
+                # "inflexible-consumption"/"inflexible-production" keys (lax-mode
+                # jsonpath auto-unwraps arrays at every level of the $.** wildcard).
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_context,
                     "$.**.sensor ? (@ == $sid)",
@@ -650,7 +668,7 @@ def get_asset_sensors_metadata(
         field: Sensor.query.get(asset.flex_context[field]["sensor"])
         for field in asset.flex_context
         if isinstance(asset.flex_context[field], dict)
-        and field != "inflexible-device-sensors"
+        and field not in INFLEXIBLE_DEVICE_KEYS
     }
 
     # Get sensors to show using the validate_sensors_to_show method
@@ -695,7 +713,7 @@ def serialize_sensor_status_data(
         field: Sensor.query.get(asset.flex_context[field]["sensor"])
         for field in asset.flex_context
         if isinstance(asset.flex_context[field], dict)
-        and field != "inflexible-device-sensors"
+        and field not in INFLEXIBLE_DEVICE_KEYS
     }
     sensors = []
     for sensor_status in sensor_statuses:

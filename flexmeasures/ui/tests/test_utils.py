@@ -3,6 +3,13 @@ from datetime import timedelta
 from flexmeasures import Asset, AssetType, Account, Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
+from flexmeasures.ui.utils.view_utils import (
+    CHARGER_ICON,
+    FALLBACK_SVG_ICON,
+    SVG_ICON_MAPPING,
+    normalize_asset_type_name,
+    svg_asset_icon_name,
+)
 from flexmeasures.data.schemas.scheduling import (
     UI_FLEX_CONTEXT_SCHEMA,
     UI_FLEX_MODEL_SCHEMA,
@@ -10,6 +17,57 @@ from flexmeasures.data.schemas.scheduling import (
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
+
+
+def test_svg_asset_icon_name_for_default_asset_types():
+    """Every asset type that FlexMeasures seeds by default should have its own icon.
+
+    These are the types added by flexmeasures.data.scripts.data_gen.add_default_asset_types.
+    """
+    for asset_type_name in (
+        "solar",
+        "wind",
+        "one-way_evse",
+        "two-way_evse",
+        "battery",
+        "building",
+        "process",
+        "heat-storage",
+    ):
+        assert svg_asset_icon_name(asset_type_name) != FALLBACK_SVG_ICON
+
+    for asset_type_name in ("one-way_evse", "two-way_evse"):
+        assert svg_asset_icon_name(asset_type_name) == CHARGER_ICON
+
+
+def test_svg_asset_icon_name_falls_back_for_unknown_asset_type():
+    assert svg_asset_icon_name("no-such-asset-type") == FALLBACK_SVG_ICON
+    assert svg_asset_icon_name("") == FALLBACK_SVG_ICON
+    assert svg_asset_icon_name(None) == FALLBACK_SVG_ICON
+
+
+def test_svg_asset_icon_name_ignores_case_and_separators():
+    """Projects are free to name their asset types, so spelling variants should find the same icon."""
+    for asset_type_name in ("charge-point", "charge point", "Charge_Point"):
+        assert svg_asset_icon_name(asset_type_name) == CHARGER_ICON
+
+    # a namespaced asset type, as a plugin may define it, is matched on its last component
+    assert svg_asset_icon_name("myplugin.battery") == svg_asset_icon_name("battery")
+
+
+def test_svg_icon_mapping_keys_do_not_collide_when_normalized():
+    """Two keys that normalize to the same name would silently shadow each other."""
+    normalized_keys: dict[str, list[str]] = {}
+    for asset_type_name in SVG_ICON_MAPPING:
+        normalized_keys.setdefault(
+            normalize_asset_type_name(asset_type_name), []
+        ).append(asset_type_name)
+
+    assert {
+        normalized: keys
+        for normalized, keys in normalized_keys.items()
+        if len(keys) > 1
+    } == {}
 
 
 def test_get_ancestry(app, db):
@@ -79,6 +137,7 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
+        "inflexible-device-sensors",  # deprecated; the UI only offers inflexible-consumption/inflexible-production
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
         "commodities",  # internal field; the UI manages it through the commodity tab bar
     ]

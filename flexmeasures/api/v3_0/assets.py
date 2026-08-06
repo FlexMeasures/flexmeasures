@@ -77,6 +77,7 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_accepted_for_processing,
 )
+from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
@@ -1571,6 +1572,7 @@ class AssetAPI(FlaskView):
         }, 200
 
     @route("/<id>/schedules/trigger", methods=["POST"])
+    @limit_triggers()
     @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
@@ -1682,7 +1684,8 @@ class AssetAPI(FlaskView):
                           flex-context:
                             consumption-price: {sensor: 9}
                             production-price: {sensor: 10}
-                            inflexible-device-sensors: [13, 14, 15]
+                            inflexible-consumption: [{sensor: 13}, {sensor: 14}]
+                            inflexible-production: [{sensor: 15}]
                             site-power-capacity: 100 kVA
                             site-production-capacity: 80 kW
                             site-consumption-capacity: {sensor: 32}
@@ -1720,7 +1723,8 @@ class AssetAPI(FlaskView):
                           flex-context:
                             consumption-price: {sensor: 9}
                             production-price: {sensor: 10}
-                            inflexible-device-sensors: [13, 14, 15]
+                            inflexible-consumption: [{sensor: 13}, {sensor: 14}]
+                            inflexible-production: [{sensor: 15}]
                             site-power-capacity: 100 kVA
                             site-production-capacity: 80 kW
                             site-consumption-capacity: {sensor: 32}
