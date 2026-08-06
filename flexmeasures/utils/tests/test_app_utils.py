@@ -3,6 +3,10 @@ import logging
 import pytest
 import sentry_sdk
 from flask import Flask
+from redis.exceptions import (
+    ConnectionError as RedisConnectionError,
+    TimeoutError as RedisTimeoutError,
+)
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.transport import Transport
 from werkzeug.exceptions import InternalServerError, NotFound, SecurityError
@@ -10,6 +14,7 @@ from werkzeug.exceptions import InternalServerError, NotFound, SecurityError
 from flexmeasures.data import _is_running_db_upgrade_command
 from flexmeasures.utils.app_utils import (
     _make_sentry_daily_rate_limiter,
+    _make_sentry_rate_limit_redis_connection,
     _sentry_filter_notfound,
     init_sentry,
     provision_default_template_assets_on_startup,
@@ -129,7 +134,9 @@ def test_sentry_filter_drops_flask_404_logging_event():
 
 
 def test_sentry_daily_rate_limiter_drops_events_after_limit(app, clean_redis):
-    rate_limit = _make_sentry_daily_rate_limiter(app, daily_rate_limit=2)
+    rate_limit = _make_sentry_daily_rate_limiter(
+        app, daily_rate_limit=2, redis_connection=app.redis_connection
+    )
     events = [{"message": f"error {i}"} for i in range(3)]
 
     assert rate_limit(events[0], {}) is events[0]
@@ -142,14 +149,27 @@ def test_sentry_daily_rate_limiter_drops_events_after_limit(app, clean_redis):
     assert 0 < app.redis_connection.ttl(counter_key) <= 24 * 60 * 60
 
 
-def test_sentry_daily_rate_limiter_fails_open_without_redis(app, monkeypatch, caplog):
-    rate_limit = _make_sentry_daily_rate_limiter(app, daily_rate_limit=1)
+def test_sentry_rate_limit_redis_connection_has_bounded_waits(app):
+    redis_connection = _make_sentry_rate_limit_redis_connection(app)
+    connection_kwargs = redis_connection.connection_pool.connection_kwargs
+
+    assert redis_connection is not app.redis_connection
+    assert connection_kwargs["socket_connect_timeout"] == 1
+    assert connection_kwargs["socket_timeout"] == 1
+    assert connection_kwargs["retry"].get_retries() == 0
+
+
+@pytest.mark.parametrize("redis_error_type", [RedisConnectionError, RedisTimeoutError])
+def test_sentry_daily_rate_limiter_fails_open_on_redis_error(
+    app, monkeypatch, caplog, redis_error_type
+):
+    rate_limit = _make_sentry_daily_rate_limiter(
+        app, daily_rate_limit=1, redis_connection=app.redis_connection
+    )
     event = {"message": "error"}
 
     def fail_pipeline():
-        from redis.exceptions import ConnectionError
-
-        raise ConnectionError("Connection refused")
+        raise redis_error_type("Redis unavailable")
 
     monkeypatch.setattr(app.redis_connection, "pipeline", fail_pipeline)
     with caplog.at_level(logging.WARNING):
@@ -187,6 +207,10 @@ def test_init_sentry_filters_notfound_before_counting_towards_limit(
     monkeypatch.setitem(app.config, "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT", 1)
     monkeypatch.setattr(
         sentry_sdk, "init", lambda **kwargs: sentry_options.update(kwargs)
+    )
+    monkeypatch.setattr(
+        "flexmeasures.utils.app_utils._make_sentry_rate_limit_redis_connection",
+        lambda _app: app.redis_connection,
     )
     init_sentry(app)
     before_send = sentry_options["before_send"]
