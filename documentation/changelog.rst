@@ -80,7 +80,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Show charger icons for one-way and two-way EVSE assets in the UI's asset structure view [see `PR #2391 <https://www.github.com/FlexMeasures/flexmeasures/pull/2391>`_]
+* Show icons for more asset types in the UI's asset structure view, which previously fell back to a question mark: the ``wind``, ``process`` and ``heat-storage`` types that FlexMeasures seeds by default, and EV infrastructure under its various names (such as ``one-way_evse``, ``two-way_evse``, ``evse``, ``charging_station`` and ``charging_hub``) and building services equipment (``hvac``, ``ahu``, ``dhw``, ``heatpump``, ``chiller``, ``lighting`` and ``other-loads``). Asset type names are now matched ignoring case and separators, so an asset type named ``charge-point`` gets the same icon as ``chargepoint`` [see `PR #2391 <https://www.github.com/FlexMeasures/flexmeasures/pull/2391>`_]
 * Replaying a chart for a past window no longer shows annotations that were only recorded later; annotation searches and the ``chart_annotations`` endpoints can now be scoped by recording (belief) time [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Continuing the query-parameter cleanup started in PR #2352: the chart-related endpoints now use ``prior``, ``start``, ``end`` and hyphenated field names, with a new ``duration`` field to derive a missing ``start``/``end``; old spellings keep working as legacy aliases [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
