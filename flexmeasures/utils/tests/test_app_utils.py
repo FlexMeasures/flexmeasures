@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 import pytest
 import sentry_sdk
@@ -11,15 +12,21 @@ from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.transport import Transport
 from werkzeug.exceptions import InternalServerError, NotFound, SecurityError
 
-from flexmeasures.data import _is_running_db_upgrade_command
+from flexmeasures.data import (
+    _is_running_db_upgrade_command,
+    _schema_mismatch_deduplication_key,
+)
+from flexmeasures.data.utils import DatabaseSchemaRevisionStatus
 from flexmeasures.utils.app_utils import (
+    _make_sentry_daily_deduplicator,
     _make_sentry_daily_rate_limiter,
-    _make_sentry_rate_limit_redis_connection,
+    _make_sentry_redis_connection,
     _sentry_filter_notfound,
     init_sentry,
     provision_default_template_assets_on_startup,
 )
 from flexmeasures.utils.error_utils import add_basic_error_handlers
+from flexmeasures.utils.sentry_utils import SENTRY_DEDUPLICATION_KEY_ATTRIBUTE
 
 
 class RecordingTransport(Transport):
@@ -149,8 +156,8 @@ def test_sentry_daily_rate_limiter_drops_events_after_limit(app, clean_redis):
     assert 0 < app.redis_connection.ttl(counter_key) <= 24 * 60 * 60
 
 
-def test_sentry_rate_limit_redis_connection_has_bounded_waits(app):
-    redis_connection = _make_sentry_rate_limit_redis_connection(app)
+def test_sentry_redis_connection_has_bounded_waits(app):
+    redis_connection = _make_sentry_redis_connection(app)
     connection_kwargs = redis_connection.connection_pool.connection_kwargs
 
     assert redis_connection is not app.redis_connection
@@ -209,7 +216,7 @@ def test_init_sentry_filters_notfound_before_counting_towards_limit(
         sentry_sdk, "init", lambda **kwargs: sentry_options.update(kwargs)
     )
     monkeypatch.setattr(
-        "flexmeasures.utils.app_utils._make_sentry_rate_limit_redis_connection",
+        "flexmeasures.utils.app_utils._make_sentry_redis_connection",
         lambda _app: app.redis_connection,
     )
     init_sentry(app)
@@ -222,8 +229,162 @@ def test_init_sentry_filters_notfound_before_counting_towards_limit(
     assert before_send(error_event, make_hint(InternalServerError())) is None
 
 
-def app_logger_record(message):
-    return logging.LogRecord(
+def marked_hint(deduplication_key="database-schema-mismatch:abc123:def456"):
+    """Build the Sentry hint for a log record asking to be reported once a day."""
+    return {
+        "log_record": app_logger_record(
+            "Database schema is not at the Alembic head revision.",
+            deduplication_key=deduplication_key,
+        )
+    }
+
+
+def pretend_utc_now(monkeypatch, moment):
+    """Make the Sentry event filters read a fixed UTC wall clock."""
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return moment
+
+    monkeypatch.setattr("flexmeasures.utils.app_utils.datetime", FrozenDatetime)
+
+
+def test_sentry_daily_deduplicator_sends_marked_events_once_a_day(app, clean_redis):
+    deduplicate = _make_sentry_daily_deduplicator(
+        app, redis_connection=app.redis_connection
+    )
+    event = {"message": "Database schema is not at the Alembic head revision."}
+
+    assert deduplicate(event, marked_hint()) is event
+    assert deduplicate(event, marked_hint()) is None
+    marker_key = next(
+        key
+        for key in app.redis_connection.scan_iter("flexmeasures:sentry-deduplication:*")
+    )
+    assert 0 < app.redis_connection.ttl(marker_key) <= 24 * 60 * 60
+
+
+def test_sentry_daily_deduplicator_resets_on_the_next_calendar_day(
+    app, clean_redis, monkeypatch
+):
+    """The marker expires at UTC midnight, rather than a full day after the first report."""
+    deduplicate = _make_sentry_daily_deduplicator(
+        app, redis_connection=app.redis_connection
+    )
+    event = {"message": "Database schema is not at the Alembic head revision."}
+
+    pretend_utc_now(monkeypatch, datetime(2026, 8, 6, 23, 50, tzinfo=timezone.utc))
+    assert deduplicate(event, marked_hint()) is event
+    assert deduplicate(event, marked_hint()) is None
+
+    pretend_utc_now(monkeypatch, datetime(2026, 8, 7, 0, 10, tzinfo=timezone.utc))
+    assert deduplicate(event, marked_hint()) is event
+    assert deduplicate(event, marked_hint()) is None
+
+
+def test_sentry_daily_deduplicator_reports_another_key_right_away(app, clean_redis):
+    deduplicate = _make_sentry_daily_deduplicator(
+        app, redis_connection=app.redis_connection
+    )
+    event = {"message": "Database schema is not at the Alembic head revision."}
+
+    assert deduplicate(event, marked_hint()) is event
+    assert (
+        deduplicate(event, marked_hint("database-schema-mismatch:abc123:ghi789"))
+        is event
+    )
+
+
+def test_sentry_daily_deduplicator_passes_unmarked_events(app, clean_redis):
+    deduplicate = _make_sentry_daily_deduplicator(
+        app, redis_connection=app.redis_connection
+    )
+    log_event = {"message": "some other error"}
+    exception_event = {"message": "Internal Server Error"}
+
+    unmarked_hint = {"log_record": app_logger_record("some other error")}
+    assert deduplicate(log_event, unmarked_hint) is log_event
+    assert deduplicate(log_event, unmarked_hint) is log_event
+    assert (
+        deduplicate(exception_event, make_hint(InternalServerError()))
+        is exception_event
+    )
+
+
+@pytest.mark.parametrize("redis_error_type", [RedisConnectionError, RedisTimeoutError])
+def test_sentry_daily_deduplicator_fails_open_on_redis_error(
+    app, monkeypatch, caplog, redis_error_type
+):
+    deduplicate = _make_sentry_daily_deduplicator(
+        app, redis_connection=app.redis_connection
+    )
+    event = {"message": "Database schema is not at the Alembic head revision."}
+
+    def fail_set(*args, **kwargs):
+        raise redis_error_type("Redis unavailable")
+
+    monkeypatch.setattr(app.redis_connection, "set", fail_set)
+    with caplog.at_level(logging.WARNING):
+        assert deduplicate(event, marked_hint()) is event
+        assert deduplicate(event, marked_hint()) is event
+
+    assert caplog.text.count("Unable to deduplicate Sentry events") == 1
+
+
+def test_init_sentry_deduplicates_before_counting_towards_limit(
+    app, clean_redis, monkeypatch
+):
+    """Repeated reports of one condition should not spend the daily Sentry allowance."""
+    sentry_options = {}
+    monkeypatch.setitem(app.config, "SENTRY_DSN", "https://public@example.com/1")
+    monkeypatch.setitem(app.config, "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT", 2)
+    monkeypatch.setattr(
+        sentry_sdk, "init", lambda **kwargs: sentry_options.update(kwargs)
+    )
+    monkeypatch.setattr(
+        "flexmeasures.utils.app_utils._make_sentry_redis_connection",
+        lambda _app: app.redis_connection,
+    )
+    init_sentry(app)
+    before_send = sentry_options["before_send"]
+    marked_event = {"message": "Database schema is not at the Alembic head revision."}
+    error_event = {"message": "Internal Server Error"}
+
+    assert before_send(marked_event, marked_hint()) is marked_event
+    for _ in range(5):
+        assert before_send(marked_event, marked_hint()) is None
+    assert before_send(error_event, make_hint(InternalServerError())) is error_event
+    assert before_send(error_event, make_hint(InternalServerError())) is None
+
+
+def test_schema_mismatch_deduplication_key_covers_both_revisions():
+    """The startup error names itself to Sentry by the revisions it reports."""
+    mismatch = DatabaseSchemaRevisionStatus(
+        current_heads=("abc123",), expected_heads=("def456",)
+    )
+    other_current = DatabaseSchemaRevisionStatus(
+        current_heads=("ghi789",), expected_heads=("def456",)
+    )
+    other_expected = DatabaseSchemaRevisionStatus(
+        current_heads=("abc123",), expected_heads=("ghi789",)
+    )
+
+    assert "abc123" in _schema_mismatch_deduplication_key(mismatch)
+    assert "def456" in _schema_mismatch_deduplication_key(mismatch)
+    assert _schema_mismatch_deduplication_key(
+        mismatch
+    ) == _schema_mismatch_deduplication_key(mismatch)
+    assert _schema_mismatch_deduplication_key(
+        other_current
+    ) != _schema_mismatch_deduplication_key(mismatch)
+    assert _schema_mismatch_deduplication_key(
+        other_expected
+    ) != _schema_mismatch_deduplication_key(mismatch)
+
+
+def app_logger_record(message, deduplication_key=None):
+    record = logging.LogRecord(
         "flexmeasures",
         logging.ERROR,
         pathname=__file__,
@@ -232,6 +393,9 @@ def app_logger_record(message):
         args=(),
         exc_info=None,
     )
+    if deduplication_key is not None:
+        setattr(record, SENTRY_DEDUPLICATION_KEY_ATTRIBUTE, deduplication_key)
+    return record
 
 
 def test_provision_default_template_assets_on_startup_skips_old_schema(
