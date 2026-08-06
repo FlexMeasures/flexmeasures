@@ -278,6 +278,14 @@ SVG_ICON_MAPPING = {
     "charging_hub": CHARGER_ICON,
     "ev_charger": CHARGER_ICON,
     "charger": CHARGER_ICON,
+    # building services equipment, named by their common abbreviations
+    "hvac": "https://api.iconify.design/mdi/hvac.svg",
+    "ahu": "https://api.iconify.design/mdi/air-filter.svg",  # air handling unit
+    "dhw": "https://api.iconify.design/mdi/water-boiler.svg",  # domestic hot water
+    "heatpump": "https://api.iconify.design/mdi/heat-pump.svg",
+    "chiller": "https://api.iconify.design/mdi/snowflake.svg",
+    "lighting": "https://api.iconify.design/mdi/lightbulb.svg",
+    "other-loads": "https://api.iconify.design/mdi/power-plug.svg",
     "add_asset": "https://api.iconify.design/material-symbols/add-rounded.svg?color=white",  # Plus Icon for Add Asset
 }
 
