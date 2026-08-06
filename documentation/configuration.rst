@@ -826,6 +826,13 @@ Set a positive integer to limit the number of error events sent to Sentry per
 UTC calendar day. The event count is shared between FlexMeasures processes
 through Redis. If Redis is unavailable, events are sent without rate limiting.
 
+.. note::
+   This limit is applied before Sentry's error sampling. If ``sample_rate`` or
+   ``error_sampler`` is configured through ``FLEXMEASURES_SENTRY_CONFIG``,
+   events that are later sampled out still count towards the limit. The number
+   of events actually sent to Sentry may therefore be lower than the configured
+   limit.
+
 Default: ``None`` (no rate limit)
 
 .. note:: This setting is also recognized as environment variable.
