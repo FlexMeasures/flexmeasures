@@ -282,6 +282,22 @@ SVG_ICON_MAPPING = {
 }
 
 
+def normalize_asset_type_name(asset_type_name: str) -> str:
+    """Reduce an asset type name to its lower-case alphanumeric characters, so that spelling variants share one mapping key.
+
+    For example, "charge-point", "charge point" and "Charge_Point" all reduce to "chargepoint".
+    """
+    return "".join(
+        character for character in asset_type_name.lower() if character.isalnum()
+    )
+
+
+NORMALIZED_SVG_ICON_MAPPING = {
+    normalize_asset_type_name(asset_type_name): icon
+    for asset_type_name, icon in SVG_ICON_MAPPING.items()
+}
+
+
 def asset_icon_name(asset_type_name: str) -> str:
     """Icon name for this asset type.
 
@@ -301,12 +317,14 @@ def asset_icon_name(asset_type_name: str) -> str:
 def svg_asset_icon_name(asset_type_name: str) -> str:
     """SVG icon URL for this asset type, as used in the asset structure view.
 
+    Asset type names are not restricted, so projects spell the same type in different ways.
+    Matching therefore ignores case and separators, letting a type named "charge-point" share the icon mapped to "chargepoint".
     A namespaced name, such as a plugin's "myplugin.battery", is matched on its last dot-separated component.
     An asset type we have no icon for falls back to a question mark.
     """
     if asset_type_name:
-        asset_type_name = asset_type_name.split(".")[-1].lower()
-    return SVG_ICON_MAPPING.get(asset_type_name, FALLBACK_SVG_ICON)
+        asset_type_name = normalize_asset_type_name(asset_type_name.split(".")[-1])
+    return NORMALIZED_SVG_ICON_MAPPING.get(asset_type_name, FALLBACK_SVG_ICON)
 
 
 def username(user_id) -> str:

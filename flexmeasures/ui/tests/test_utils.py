@@ -6,6 +6,8 @@ from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
 from flexmeasures.ui.utils.view_utils import (
     CHARGER_ICON,
     FALLBACK_SVG_ICON,
+    SVG_ICON_MAPPING,
+    normalize_asset_type_name,
     svg_asset_icon_name,
 )
 from flexmeasures.data.schemas.scheduling import (
@@ -42,6 +44,30 @@ def test_svg_asset_icon_name_falls_back_for_unknown_asset_type():
     assert svg_asset_icon_name("no-such-asset-type") == FALLBACK_SVG_ICON
     assert svg_asset_icon_name("") == FALLBACK_SVG_ICON
     assert svg_asset_icon_name(None) == FALLBACK_SVG_ICON
+
+
+def test_svg_asset_icon_name_ignores_case_and_separators():
+    """Projects are free to name their asset types, so spelling variants should find the same icon."""
+    for asset_type_name in ("charge-point", "charge point", "Charge_Point"):
+        assert svg_asset_icon_name(asset_type_name) == CHARGER_ICON
+
+    # a namespaced asset type, as a plugin may define it, is matched on its last component
+    assert svg_asset_icon_name("myplugin.battery") == svg_asset_icon_name("battery")
+
+
+def test_svg_icon_mapping_keys_do_not_collide_when_normalized():
+    """Two keys that normalize to the same name would silently shadow each other."""
+    normalized_keys: dict[str, list[str]] = {}
+    for asset_type_name in SVG_ICON_MAPPING:
+        normalized_keys.setdefault(
+            normalize_asset_type_name(asset_type_name), []
+        ).append(asset_type_name)
+
+    assert {
+        normalized: keys
+        for normalized, keys in normalized_keys.items()
+        if len(keys) > 1
+    } == {}
 
 
 def test_get_ancestry(app, db):
