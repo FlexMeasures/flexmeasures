@@ -12,6 +12,7 @@ since v1.0.0 | July XX, 2026
 * Add ``flexmeasures add plan``, ``flexmeasures show plans`` and ``flexmeasures edit plan``, to manage the rate limits and quotas which apply to the accounts on a plan.
 * Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
+* ``flexmeasures show data-sources`` now shows the account a data source belongs to, and lists the sensors holding data recorded by a single source with ``--show-sensors``.
 
 since v0.33.0 | June 01, 2026
 =================================

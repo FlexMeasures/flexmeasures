@@ -42,12 +42,12 @@ Also, we want to create a situation with negative prices, so curtailment makes s
             $ # this flex context has negative prices between 12:00 and 14:00
             $ echo '''{
             "consumption-price": [
-                {"start": "'${TOMORROW}'T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                {"start": "'${TOMORROW}'T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
             ],
             "production-price": [
-                {"start": "'${TOMORROW}'T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                {"start": "'${TOMORROW}'T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                {"start": "'${TOMORROW}'T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                {"start": "'${TOMORROW}'T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                {"start": "'${TOMORROW}'T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                {"start": "'${TOMORROW}'T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
             ]
             }''' > tutorial3-priceprofile-flex-context.json
             $ docker cp tutorial3-priceprofile-flex-context.json flexmeasures-server-1:/app/ 
@@ -60,7 +60,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/3/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/9/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 14-18
@@ -71,17 +71,17 @@ Also, we want to create a situation with negative prices, so curtailment makes s
                 "flex-model": [
                     {
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                        "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                     }
                 ],
                 "flex-context": {
                     "consumption-price": [
-                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                     ],
                     "production-price": [
-                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                     ]
                 }
             }
@@ -103,23 +103,23 @@ Also, we want to create a situation with negative prices, so curtailment makes s
             
             async def client_script():
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=3,  # PV production sensor
+                    sensor_id=9,  # PV production sensor
                     start=f"{date.today().isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model=[
                         {
                             "consumption-capacity": "0 kW",
-                            "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                            "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                         }
                     ],
                     flex_context={
                         "consumption-price": [
-                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                         ],
                         "production-price": [
-                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                         ]
                     },
                 )
@@ -133,11 +133,11 @@ Great. Let's see what we made:
     echo "[TUTORIAL-RUNNER] showing PV schedule ..."
     docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
-    Beliefs for Sensor 'production' (ID 3).
+    Beliefs for Sensor 'production' (ID 9).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
-    │                    ▞▀▀▀▌                                   │ 0.2MW
+    │                    ▞▀▀▀▌                                   │ 200kW
     │               ▄▄▄▄▞    ▌          ▗▄▄▄▖                    │
     │              ▗▘        ▚          ▐   ▝▖                   │
     │          ▛▀▀▀▘         ▐          ▐    ▝▀▀▀▜               │
@@ -145,7 +145,7 @@ Great. Let's see what we made:
     │     ▄▄▄▄▌              ▐          ▌         ▐▄▄▄▄          │
     │    ▗▘                  ▐          ▌             ▐          │
     │    ▐                   ▐          ▌              ▌         │
-    │▄▄▄▄▌                   ▐          ▌              ▐▄▄▄▄     │ 0.1MW
+    │▄▄▄▄▌                   ▐          ▌              ▐▄▄▄▄     │ 100kW
     │                         ▌         ▌                  ▐     │
     │                         ▌        ▐                    ▌    │
     │                         ▌        ▐                    ▐    │
@@ -153,7 +153,7 @@ Great. Let's see what we made:
     │                         ▌        ▐                         │
     │                         ▌        ▐                         │
     │                         ▚        ▐                         │
-    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▐▄▄▄▄▄▄▄▄▌▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ -0.0MW
+    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▐▄▄▄▄▄▄▄▄▌▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0kW
     └────────────────────────────────────────────────────────────┘
     06:00         09:00          12:00          15:00
                     ██ production (toy-solar)
@@ -189,7 +189,7 @@ Note that we are still passing in the flex-context with block price profiles her
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/assets/5/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
 
@@ -198,24 +198,24 @@ Note that we are still passing in the flex-context with block price profiles her
                 "duration": "PT12H",
                 "flex-model": [
                     {
-                        "sensor": 3,
+                        "sensor": 9,
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                        "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                     }
                     {
-                        "sensor": 2,
+                        "sensor": 8,
                         "soc-at-start": "225 kWh",
                         "soc-min": "50 kWh"
                     },
                 ],
                 "flex-context": {
                     "consumption-price": [
-                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                     ],
                     "production-price": [
-                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                     ]
                 }
             }
@@ -237,24 +237,24 @@ Note that we are still passing in the flex-context with block price profiles her
                 duration="PT12H",
                 flex_model=[
                     {
-                        "sensor": 3,  # solar production (sensor ID)
+                        "sensor": 9,  # solar production (sensor ID)
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                        "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                     },
                     {
-                        "sensor": 2,  # battery power (sensor ID)
+                        "sensor": 8,  # battery power (sensor ID)
                         "soc-at-start": "225 kWh",
                         "soc-min": "50 kWh",
                     },
                 ],
                 flex_context={
                         "consumption-price": [
-                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                         ],
                         "production-price": [
-                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                         ]
                     },
             )
@@ -264,7 +264,7 @@ The PV inverter should then not need to curtail any production, as the battery c
 
 And the battery should get rid of this energy again when prices go up later in the day.
 
-We can confirm this is the case on the updated scheduling in the `FlexMeasures UI <http://localhost:5000/assets/2/graphs>`_:
+We can confirm this is the case on the updated scheduling in the `FlexMeasures UI <http://localhost:5000/assets/5/graphs>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-multiasset-negativeprices.png
     :align: center
@@ -276,27 +276,27 @@ And here is the CLI version:
 
 .. code-block:: bash
     
-    Beliefs for Sensors production (ID 3) and discharging (ID 2).
+    Beliefs for Sensors production (ID 9) and discharging (ID 8).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
     │                                                         ▛▀▀│
-    │                                                        ▐   │ 0.4MW
+    │                                                        ▐   │ 400kW
     │                                                        ▐   │
     │                                                        ▞   │
     │                      ▐▀▌                               ▌   │
     │                      ▐ ▌▄▄▄▄▄▖                         ▌   │
-    │              ▄▄▄▄▄▞▀▀▞▀▐     ▝▀▚▞▀▚▄▄▄▄▖              ▐    │ 0.2MW
+    │              ▄▄▄▄▄▞▀▀▞▀▐     ▝▀▚▞▀▚▄▄▄▄▖              ▐    │ 200kW
     │     ▄▄▄▄▞▀▀▀▀▘       ▌ ▐               ▝▀▀▀▀▚▄▄▄▄     ▐    │
     │▄▄▄▄▞                ▗▘ ▐                         ▚▄▄▄▄▌    │
     │                     ▞  ▐                              ▌▄▄▄▄│
     │                    ▗▘  ▐                             ▐     │
-    │▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▌▔▔▔▔▔▔▔▔▔▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▔│ -0.0MW
+    │▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▌▔▔▔▔▔▔▔▔▔▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▔│ 0kW
     │                         ▌         ▌                        │
     │                         ▌         ▌                        │
     │                         ▌        ▐                         │
     │                         ▌      ▗▖▐                         │
-    │                         ▐▄▄▄▄▞▀▘▝▘                         │ -0.2MW
+    │                         ▐▄▄▄▄▞▀▘▝▘                         │ -200kW
     └────────────────────────────────────────────────────────────┘
     06:00         09:00          12:00          15:00
     ██ production (toy-solar)   ██ discharging (toy-battery)
@@ -317,7 +317,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
 
 .. code-block:: bash
 
-    Beliefs for Sensors production (ID 3) and discharging (ID 2).
+    Beliefs for Sensors production (ID 9) and discharging (ID 8).
     Data spans 12 hours and starts at 2025-11-19 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
 
@@ -330,7 +330,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
     │▄▄▌▄▄▀▀▀▀▀▀▀▀▀▐    ▐          ▝▀▀▀▀▀▀▀▀▀▄▄▄▄▄     ▌   ▙▘    │
     │  ▌           ▐     ▌                        ▚▄▄▄▐▖   █     │
     │  ▐           ▌     ▌                            ▐▝▀▀▀▐▚▄▄▄▄│
-    │▔▔▝▀▀▀▀▀▀▌▔▔▔▔▌▔▔▔▔▔▝▀▀▀▀▀▀▀▀▌▔▔▔▔▔▔▔▔▔▔▞▀▀▀▀▀▀▀▀▀▔▔▔▔▔▔▔▔▔▔│ 0.0MW
+    │▔▔▝▀▀▀▀▀▀▌▔▔▔▔▌▔▔▔▔▔▝▀▀▀▀▀▀▀▀▌▔▔▔▔▔▔▔▔▔▔▞▀▀▀▀▀▀▀▀▀▔▔▔▔▔▔▔▔▔▔│ 0kW
     │         ▌   ▐               ▐         ▞                    │
     │         ▚   ▐               ▐         ▌                    │
     │         ▐   ▌               ▐         ▌                    │
@@ -338,7 +338,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
     │         ▐  ▐                 ▌       ▐                     │
     │          ▌ ▞                 ▌       ▐                     │
     │          ▌ ▌                 ▌       ▌                     │
-    │          ▙▟                  ▐▄▄▄▄▄▄▄▌                     │ -0.5MW
+    │          ▙▟                  ▐▄▄▄▄▄▄▄▌                     │ -500kW
     └────────────────────────────────────────────────────────────┘
             09:00          12:00          15:00           18:00
     ██ production (toy-solar)   ██ discharging (toy-battery)
