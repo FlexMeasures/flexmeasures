@@ -15,6 +15,7 @@ from sqlalchemy import text
 
 from flexmeasures.data.config import configure_db_for, db
 from flexmeasures.data.transactional import after_request_exception_rollback_session
+from flexmeasures.utils.sentry_utils import SENTRY_DEDUPLICATION_KEY_ATTRIBUTE
 
 ma: Marshmallow = Marshmallow()
 
@@ -23,6 +24,16 @@ def _is_running_db_upgrade_command() -> bool:
     """Return whether this process is already running the Alembic upgrade command."""
     args = sys.argv[1:]
     return any(args[i : i + 2] == ["db", "upgrade"] for i in range(len(args) - 1))
+
+
+def _schema_mismatch_deduplication_key(revision_status) -> str:
+    """Identify a schema mismatch to Sentry by the revisions involved.
+
+    Mismatches against other revisions are a new problem, so they get their own key and are reported right away.
+    """
+    current_heads = ",".join(revision_status.current_heads) or "unknown"
+    expected_heads = ",".join(revision_status.expected_heads) or "unknown"
+    return f"database-schema-mismatch:{current_heads}:{expected_heads}"
 
 
 def _add_vacuum_option_to_db_upgrade(app: Flask):
@@ -85,10 +96,17 @@ def register_at(app: Flask):
                     f"Details: {revision_status.inspection_error}"
                 )
             else:
-                app.logger.warning(
+                # Every process logs this while starting up, and hosts run FlexMeasures CLI commands often,
+                # so we ask Sentry to report it only once a day per pair of revisions.
+                app.logger.error(
                     "Database schema is not at the Alembic head revision "
                     f"({format_database_schema_revision_status(revision_status)}). "
-                    "Run `flexmeasures db upgrade` before starting the app."
+                    "Run `flexmeasures db upgrade` before starting the app.",
+                    extra={
+                        SENTRY_DEDUPLICATION_KEY_ATTRIBUTE: _schema_mismatch_deduplication_key(
+                            revision_status
+                        )
+                    },
                 )
 
     global ma

@@ -22,6 +22,7 @@ from werkzeug.exceptions import NotFound
 
 from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
+from flexmeasures.utils.sentry_utils import SENTRY_DEDUPLICATION_KEY_ATTRIBUTE
 
 _SENTRY_REDIS_TIMEOUT_SECONDS = 1
 
@@ -100,8 +101,8 @@ def _sentry_filter_notfound(event, hint):
     return event
 
 
-def _make_sentry_rate_limit_redis_connection(app: Flask) -> Redis:
-    """Build the short-timeout Redis connection used for Sentry rate limiting."""
+def _make_sentry_redis_connection(app: Flask) -> Redis:
+    """Build the short-timeout Redis connection used for Sentry event filtering."""
     return Redis(
         app.config["FLEXMEASURES_REDIS_URL"],
         port=app.config["FLEXMEASURES_REDIS_PORT"],
@@ -111,6 +112,48 @@ def _make_sentry_rate_limit_redis_connection(app: Flask) -> Redis:
         socket_timeout=_SENTRY_REDIS_TIMEOUT_SECONDS,
         retry=Retry(NoBackoff(), 0),
     )
+
+
+def _make_sentry_daily_deduplicator(
+    app: Flask, redis_connection: Redis
+) -> Callable[[Event, Hint], Event | None]:
+    """Build a fail-open Sentry event filter honouring the deduplication key of a log record.
+
+    Conditions that every process reports while starting up would otherwise spend a host's whole Sentry allowance,
+    because each of the CLI commands a host runs is a fresh start of FlexMeasures.
+    Such a log record names itself through SENTRY_DEDUPLICATION_KEY_ATTRIBUTE, and is then reported once per UTC calendar day per key.
+    The record is still logged in full every time, so the condition stays visible in the host's own logs.
+    """
+    redis_warning_logged = False
+
+    def deduplicate(event: Event, hint: Hint) -> Event | None:
+        nonlocal redis_warning_logged
+        deduplication_key = getattr(
+            hint.get("log_record"), SENTRY_DEDUPLICATION_KEY_ATTRIBUTE, None
+        )
+        if deduplication_key is None:
+            return event
+        now = datetime.now(timezone.utc)
+        marker_key = f"flexmeasures:sentry-deduplication:{now.date().isoformat()}:{deduplication_key}"
+        expires_at = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(
+            days=1
+        )
+        try:
+            is_first_report = redis_connection.set(
+                marker_key, 1, exat=int(expires_at.timestamp()), nx=True
+            )
+        except RedisError as exc:
+            if not redis_warning_logged:
+                redis_warning_logged = True
+                app.logger.warning(
+                    "Unable to deduplicate Sentry events because Redis is unavailable. "
+                    "Events that would be reported once a day will be reported every time: %s",
+                    exc,
+                )
+            return event
+        return event if is_first_report else None
+
+    return deduplicate
 
 
 def _make_sentry_daily_rate_limiter(
@@ -159,9 +202,13 @@ def init_sentry(app: Flask):
         return
     app.logger.info("[FLEXMEASURES] Initialising Sentry ...")
 
+    # The filters run in order, so events dropped by an earlier filter do not count towards the daily rate limit.
     filters = []
     if app.config.get("FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY"):
         filters.append(_sentry_filter_notfound)
+
+    redis_connection = _make_sentry_redis_connection(app)
+    filters.append(_make_sentry_daily_deduplicator(app, redis_connection))
 
     daily_rate_limit = app.config.get("FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT")
     if daily_rate_limit is not None:
@@ -175,7 +222,6 @@ def init_sentry(app: Flask):
                 "or None. Sentry events will be sent without rate limiting."
             )
         else:
-            redis_connection = _make_sentry_rate_limit_redis_connection(app)
             filters.append(
                 _make_sentry_daily_rate_limiter(app, daily_rate_limit, redis_connection)
             )
