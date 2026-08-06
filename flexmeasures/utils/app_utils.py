@@ -10,7 +10,10 @@ from datetime import datetime, timedelta, timezone
 from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
 from flask_security import current_user
+from redis import Redis
+from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
+from redis.retry import Retry
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
@@ -19,6 +22,8 @@ from werkzeug.exceptions import NotFound
 
 from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
+
+_SENTRY_REDIS_TIMEOUT_SECONDS = 1
 
 
 def provision_default_template_assets_on_startup(app: Flask) -> None:
@@ -95,18 +100,27 @@ def _sentry_filter_notfound(event, hint):
     return event
 
 
+def _make_sentry_rate_limit_redis_connection(app: Flask) -> Redis:
+    """Build the short-timeout Redis connection used for Sentry rate limiting."""
+    return Redis(
+        app.config["FLEXMEASURES_REDIS_URL"],
+        port=app.config["FLEXMEASURES_REDIS_PORT"],
+        db=app.config["FLEXMEASURES_REDIS_DB_NR"],
+        password=app.config["FLEXMEASURES_REDIS_PASSWORD"],
+        socket_connect_timeout=_SENTRY_REDIS_TIMEOUT_SECONDS,
+        socket_timeout=_SENTRY_REDIS_TIMEOUT_SECONDS,
+        retry=Retry(NoBackoff(), 0),
+    )
+
+
 def _make_sentry_daily_rate_limiter(
-    app: Flask, daily_rate_limit: int
+    app: Flask, daily_rate_limit: int, redis_connection: Redis
 ) -> Callable[[Event, Hint], Event | None]:
     """Build a fail-open Sentry event filter backed by a daily Redis counter."""
     redis_warning_logged = False
 
     def rate_limit(event: Event, hint: Hint) -> Event | None:
         nonlocal redis_warning_logged
-        redis_connection = getattr(app, "redis_connection", None)
-        if redis_connection is None:
-            return event
-
         now = datetime.now(timezone.utc)
         counter_key = f"flexmeasures:sentry-events:{now.date().isoformat()}"
         try:
@@ -161,7 +175,10 @@ def init_sentry(app: Flask):
                 "or None. Sentry events will be sent without rate limiting."
             )
         else:
-            filters.append(_make_sentry_daily_rate_limiter(app, daily_rate_limit))
+            redis_connection = _make_sentry_rate_limit_redis_connection(app)
+            filters.append(
+                _make_sentry_daily_rate_limiter(app, daily_rate_limit, redis_connection)
+            )
 
     def before_send(event, hint):
         for event_filter in filters:
