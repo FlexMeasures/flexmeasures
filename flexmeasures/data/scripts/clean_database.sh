@@ -3,23 +3,71 @@
 # Call this script to create a fresh database, ready for development
 # (also creates structure).
 # It can also delete any existing one (will ask before).
-# 
+#
 # $ data/scripts/clean_database.sh <db-name> [<db-user>]
 #
 # The database user is optional. If you want to use an existing one,
 # be aware that they might require privileges to access your new db.
+#
+# This works on Linux as well as on macOS.
+# The Linux packages run the server under a dedicated "postgres" system account,
+# which this script reaches through sudo.
+# Homebrew and Postgres.app create no such account, and instead make the installing user a superuser,
+# so on macOS the psql tooling is called directly, as the current user.
 
 # save the current directory
 MAIN_DIR=$(pwd)
 
+# how we reach the server as a superuser depends on the platform
+if [ "$(uname -s)" = "Darwin" ]; then
+  # Homebrew and Postgres.app run the cluster as the user who installed it,
+  # so no sudo and no explicit role are needed.
+  SUPERUSER_PREFIX=()
+  SUPERUSER_ROLE=()
+else
+  # The Linux packages hand ownership of the cluster to the "postgres" system account.
+  SUPERUSER_PREFIX=(sudo -i -u postgres)
+  SUPERUSER_ROLE=(-U postgres)
+fi
+
+# run psql as a superuser.
+# Callers pass the database to connect to themselves, because psql would otherwise
+# fall back to a database named after the current user, which macOS installs do have but Linux ones do not.
+function psql_as_superuser() {
+  "${SUPERUSER_PREFIX[@]}" psql "$@"
+}
+
+# run createdb/dropdb as a superuser
+function createdb_as_superuser() {
+  "${SUPERUSER_PREFIX[@]}" createdb "${SUPERUSER_ROLE[@]}" "$@"
+}
+function dropdb_as_superuser() {
+  "${SUPERUSER_PREFIX[@]}" dropdb "${SUPERUSER_ROLE[@]}" "$@"
+}
+
+# fail early, and clearly, when the server cannot be reached at all
+function check_server_is_reachable() {
+  if psql_as_superuser -d postgres -tAc "SELECT 1" > /dev/null 2>&1; then
+    return 0
+  fi
+  echo "Error: cannot connect to the PostgreSQL server as a superuser."
+  if [ "$(uname -s)" = "Darwin" ]; then
+    echo "Is the server running? With Homebrew, start it with 'brew services start postgresql'."
+    echo "Note that Homebrew makes the installing user a superuser, so run this script as that user."
+  else
+    echo "Is the server running, and does the 'postgres' system account exist?"
+  fi
+  return 1
+}
+
 # function for checking database existence
 function is_database() {
-  sudo -i -u postgres psql -lqt | cut -d \| -f 1 | grep -wq $1
+  psql_as_superuser -d postgres -lqt | cut -d \| -f 1 | grep -wq $1
 }
 
 # check if the user exists
 function is_user() {
-  if sudo -i -u postgres psql -tAc "SELECT 1 FROM  pg_roles WHERE rolname='$1'" | grep -q 1; then
+  if psql_as_superuser -d postgres -tAc "SELECT 1 FROM  pg_roles WHERE rolname='$1'" | grep -q 1; then
     echo "User $1 is already available."
     return 0 # success (user exists)
   else
@@ -40,21 +88,21 @@ function create_user() {
       echo "Error: Passwords do not match. Exiting..."
       return 1
    fi
-   sudo -i -u postgres psql -c "CREATE USER $1 WITH PASSWORD '$password'"
+   psql_as_superuser -d postgres -c "CREATE USER $1 WITH PASSWORD '$password'"
 }
 
 # function to give the required privileges to the newly created user
 function grant_privileges(){
   echo "Connect $2 to $1 "
-   sudo -i -u postgres psql -c "GRANT CONNECT ON DATABASE $1 TO $2"
+   psql_as_superuser -d postgres -c "GRANT CONNECT ON DATABASE $1 TO $2"
    echo "Grant required privileges"
-   sudo -i -u postgres psql -c "GRANT USAGE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $2"
+   psql_as_superuser -d $1 -c "GRANT USAGE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $2"
 }
 
 # function for creating a new database
 function create_database() {
  echo "Creating a new database ..."
- if sudo -i -u postgres createdb -U postgres $1; then
+ if createdb_as_superuser $1; then
    echo "$1 database is created"
  else
    echo "$1 database cannot be created"
@@ -80,9 +128,9 @@ function create_database() {
  fi
 
  echo "Creating cube extension in $1 ..."
- sudo -i -u postgres psql -c "\c $1" -c "CREATE EXTENSION cube;"
+ psql_as_superuser -d $1 -c "CREATE EXTENSION cube;"
  echo "Creating earthdistance extension in $1 ..."
- sudo -i -u postgres psql -c "\c $1" -c "CREATE EXTENSION earthdistance;"
+ psql_as_superuser -d $1 -c "CREATE EXTENSION earthdistance;"
  echo "Updating database structure ..."
  flexmeasures db upgrade
 }
@@ -90,7 +138,7 @@ function create_database() {
 # function for deleting the old database
 function delete_database() {
  echo "Dropping database ..."
- if sudo -i -u postgres dropdb -U postgres $1; then
+ if dropdb_as_superuser $1; then
    echo "$1 database is dropped"
    return 0
  else
@@ -102,6 +150,11 @@ function delete_database() {
 # Check if the database name is provided
 if [ -z "$1" ]; then
   echo "Error: db-name is required. Please provide a value for db-name, e.g., uv run poe clean-db db-name=flexmeasures-db db-user=flexmeasures"
+  exit 1
+fi
+
+# Check that we can talk to the server before doing anything else
+if ! check_server_is_reachable; then
   exit 1
 fi
 
