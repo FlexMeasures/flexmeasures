@@ -2618,7 +2618,7 @@ class MetaStorageScheduler(Scheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "8"
+    __version__ = "9"
     __author__ = "Seita"
 
     @staticmethod
