@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import Type
 
 import pandas as pd
 import numpy as np
@@ -32,7 +31,6 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     initialize_df,
     get_power_values,
-    fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
@@ -1508,6 +1506,7 @@ class MetaStorageScheduler(Scheduler):
                     apply_soc_constraints = False
                     break
 
+            validate_stock_constraints = not skip_validation
             if soc_at_start[d] is not None and apply_soc_constraints:
                 storage_constraints = add_storage_constraints(
                     start,
@@ -1523,8 +1522,9 @@ class MetaStorageScheduler(Scheduler):
                 for column in ("equals", "min", "max"):
                     device_constraints[d][column] = storage_constraints[column]
             else:
-                # No need to validate non-existing storage constraints
-                skip_validation = True
+                # No need to validate non-existing storage constraints for this device.
+                # Only skip them for this device; other devices must still be validated.
+                validate_stock_constraints = False
 
             all_stock_delta = []
 
@@ -1619,15 +1619,19 @@ class MetaStorageScheduler(Scheduler):
                     "and the scheduler will assume their resolution is the one to use.",
                 )
 
-            # check that storage constraints are fulfilled
+            # check that device constraints are fulfilled
             if not skip_validation:
-                constraint_violations = validate_storage_constraints(
+                constraint_violations = validate_power_constraints(
                     constraints=device_constraints[d],
-                    soc_at_start=soc_at_start[d],
-                    soc_min=soc_min[d],
-                    soc_max=soc_max[d],
-                    resolution=resolution,
                 )
+                if validate_stock_constraints:
+                    constraint_violations += validate_storage_constraints(
+                        constraints=device_constraints[d],
+                        soc_at_start=soc_at_start[d],
+                        soc_min=soc_min[d],
+                        soc_max=soc_max[d],
+                        resolution=resolution,
+                    )
 
                 if len(constraint_violations) > 0:
                     # TODO: include hints from constraint_violations into the error message
@@ -2719,82 +2723,9 @@ class MetaStorageScheduler(Scheduler):
         return q
 
 
-class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "3"
-    __author__ = "Seita"
-
-    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
-        """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
-           depending on the first target state of charge and the capabilities of the Charge Point.
-           For the resulting consumption schedule, consumption is defined as positive values.
-
-           Note that this ignores any cause of the infeasibility.
-
-        :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
-        """
-
-        (
-            sensors,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            device_constraints,
-            ems_constraints,
-            commitments,
-        ) = self._prepare(skip_validation=skip_validation)
-
-        # Fallback policy if the problem was unsolvable
-        storage_schedule = {
-            sensor: fallback_charging_policy(
-                sensor, device_constraints[d], start, end, resolution
-            )
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
-
-        # Convert each device schedule to the unit of the device's power sensor
-        storage_schedule = {
-            sensor: convert_units(
-                storage_schedule[sensor],
-                "MW",
-                sensor.unit,
-                event_resolution=sensor.event_resolution,
-            )
-            for sensor in sensors
-            if sensor is not None
-        }
-
-        # Round schedule
-        if self.round_to_decimals:
-            storage_schedule = {
-                sensor: storage_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
-                if sensor is not None
-            }
-
-        if self.return_multiple:
-            # Iterate over the dict keys (not the sensors list, which may hold the
-            # same sensor for multiple devices), so no sensor is emitted twice.
-            return [
-                {
-                    "name": "storage_schedule",
-                    "sensor": sensor,
-                    "data": storage_schedule[sensor],
-                }
-                for sensor in storage_schedule.keys()
-                if sensor is not None
-            ]
-        else:
-            return storage_schedule[sensors[0]]
-
-
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "8"
+    __version__ = "9"
     __author__ = "Seita"
-
-    fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
     @staticmethod
     def _build_soc_schedule(  # noqa: C901
@@ -4012,6 +3943,51 @@ def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
             f" '{name} (custom)'. Consider renaming the commitment."
         )
     return costs_by_name
+
+
+def validate_power_constraints(constraints: pd.DataFrame) -> list[dict]:
+    """Check that the power constraints of a device are consistent, e.g. derivative min <= derivative max.
+
+    D. Power validation in the same time frame
+        D.1) derivative min <= derivative max
+        D.2) derivative min <= derivative equals
+        D.3) derivative equals <= derivative max
+
+    These checks apply to any device, including devices without a stock, for which the stock-based validation of validate_storage_constraints does not apply.
+    Time steps where any involved constraint is unset are skipped.
+
+    :param constraints: dataframe containing the constraints of a device.
+    :returns:           List of constraint violations, specifying their time, constraint and violation.
+    """
+    # get a copy of the constraints to make sure the dataframe doesn't get updated
+    _constraints = constraints.copy()
+
+    _constraints = _constraints.rename(
+        columns={
+            columns_name: columns_name.replace(" ", "_")
+            + "(t)"  # replace spaces with underscore and add time index
+            for columns_name in _constraints.columns
+        }
+    )
+
+    constraint_violations = []
+
+    # 1) derivative min <= derivative max
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t)", "<=", "derivative_max(t)"
+    )
+
+    # 2) derivative min <= derivative equals
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t)", "<=", "derivative_equals(t)"
+    )
+
+    # 3) derivative equals <= derivative max
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_equals(t)", "<=", "derivative_max(t)"
+    )
+
+    return constraint_violations
 
 
 def validate_storage_constraints(

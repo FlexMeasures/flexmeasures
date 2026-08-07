@@ -13,8 +13,11 @@ from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
 )
-from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.models.planning.utils import initialize_index
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    validate_power_constraints,
+)
+from flexmeasures.data.models.planning.utils import initialize_df, initialize_index
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.tests.utils import (
@@ -198,7 +201,8 @@ def test_battery_relaxation(add_battery_assets, db):
     """Check that resolving SoC breaches is more important than resolving device power breaches.
 
     The battery is still charging with 25 kW between noon and 4 PM, when the consumption capacity is supposed to be 0.
-    It is still charging because resolving the still unmatched SoC minima takes precedence (via breach prices).
+    It is still charging because resolving the still unmatched SoC minima takes precedence
+    through the default SoC breach prices.
     """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
@@ -276,7 +280,6 @@ def test_battery_relaxation(add_battery_assets, db):
             "site-peak-production-price": series_to_ts_specs(
                 pd.Series(260, production_prices.index), unit="EUR/MW"
             ),
-            "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
             "consumption-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
             "production-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
         },
@@ -2528,3 +2531,103 @@ def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     assert constraints_2.loc[start, "min"] == pytest.approx(
         4
     ), "the on-tick device's soc-minima should remain a hard constraint"
+
+
+def test_validate_power_constraints():
+    """Contradictory power bounds are reported as violations; unset (NaN) time steps are skipped."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 1, 1))
+    resolution = timedelta(minutes=15)
+    constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+
+    # A consistent frame yields no violations.
+    constraints["derivative min"] = -1
+    constraints["derivative max"] = 1
+    assert validate_power_constraints(constraints) == []
+
+    # Time steps where a bound is unset are skipped.
+    constraints["derivative equals"] = [2, None, None, None]
+    violations = validate_power_constraints(constraints)
+    assert len(violations) == 1
+    assert "derivative_equals(t) <= derivative_max(t)" in violations[0]["condition"]
+
+    # A lower bound above the upper bound is flagged for each affected time step.
+    constraints["derivative equals"] = None
+    constraints["derivative min"] = [2, 2, -1, -1]
+    violations = validate_power_constraints(constraints)
+    assert len(violations) == 2
+    assert all(
+        "derivative_min(t) <= derivative_max(t)" in v["condition"] for v in violations
+    )
+
+
+def test_multi_device_validation_survives_stockless_device(add_battery_assets, db):
+    """A stock-less device must not disable constraint validation for subsequent devices.
+
+    Device 0 has no stock (no soc-at-start), so its storage constraints are not validated.
+    Device 1 has an unreachable hard soc-target (above soc-max),
+    which validation should still report as a clear error, rather than passing it on to the solver.
+    """
+    template = add_battery_assets["Test battery"]
+    asset = GenericAsset(
+        name="Test stock-less device site",
+        generic_asset_type=template.generic_asset_type,
+        owner=template.owner,
+    )
+    sensor_0 = Sensor(
+        name="stock-less power",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    sensor_1 = Sensor(
+        name="battery power",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add_all([asset, sensor_0, sensor_1])
+    db.session.flush()
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        asset,
+        start,
+        end,
+        resolution,
+        flex_model=[
+            {
+                # A stock-less device (e.g. a PV curtailment or converter port): no soc-at-start.
+                "sensor": sensor_0.id,
+                "power-capacity": "1 MW",
+                "production-capacity": "1 MW",
+                "consumption-capacity": "0 MW",
+            },
+            {
+                "sensor": sensor_1.id,
+                "soc-at-start": "0 MWh",
+                "soc-min": "0 MWh",
+                "soc-max": "1 MWh",
+                "power-capacity": "0.04 MW",
+                "soc-targets": [
+                    {
+                        "datetime": "2015-01-01T12:00:00+01:00",
+                        # unreachable: above soc-max
+                        "value": "2 MWh",
+                    }
+                ],
+            },
+        ],
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "2 MW",
+        },
+    )
+
+    with pytest.raises(ValueError, match="Constraint validation"):
+        scheduler.compute()
