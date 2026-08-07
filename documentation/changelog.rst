@@ -12,6 +12,11 @@ v1.0.0 | July XX, 2026
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
+.. warning:: The device ``consumption-capacity`` and ``production-capacity`` are now hard constraints, unless you relax them by name.
+             They are no longer covered by ``relax-constraints``, which we have recommended setting to ``True`` since v0.27.0.
+             For most schedules this is a fix rather than a change: a directional device capacity often states what a device physically cannot do (a heat pump cannot produce), and such a statement should not be breachable at a price.
+             If you use these fields as economic limits that the scheduler may exceed at a cost, set ``relax-capacity-constraints`` to ``True`` in your ``flex-context``, or price the breach yourself through ``consumption-breach-price`` and/or ``production-breach-price``.
+
 New features
 -------------
 
