@@ -706,6 +706,40 @@ def test_flex_context_schema_explicit_site_capacity_relaxation_overrides_umbrell
     ).magnitude == pytest.approx(10_000)
 
 
+def test_flex_context_schema_fills_default_breach_prices_per_field():
+    """Setting one breach price of a pair explicitly still fills the default for the other."""
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "soc-minima-breach-price": "5 EUR/kWh",
+        }
+    )
+
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(5)
+    assert loaded_flex_context["soc_maxima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(1_000)
+
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "site-consumption-breach-price": "3 EUR/kW",
+        }
+    )
+
+    assert loaded_flex_context["ems_consumption_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(3)
+    assert loaded_flex_context["ems_production_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(10_000)
+
+    # The device capacity pair is deliberately not filled per field:
+    # see test_explicit_device_breach_price_is_not_overwritten.
+
+
 def test_db_flex_context_schema_does_not_relax_soc_constraints_by_default():
     loaded_flex_context = DBFlexContextSchema().load({})
 

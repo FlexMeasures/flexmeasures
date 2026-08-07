@@ -463,11 +463,14 @@ class SharedSchema(Schema):
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
     ):
-        """Fill in default breach prices.
+        """Fill in default breach prices, for fields without an explicitly set price.
 
         This relies on _try_to_convert_price_units to run first, setting a shared currency unit.
         """
         for field in fields:
+            if data.get(field) is not None:
+                # An explicitly set breach price is never overwritten.
+                continue
             # use the same denominator as defined in the field
             data[field] = price.to(
                 data["shared_currency_unit"]
@@ -786,14 +789,13 @@ class CommodityFlexContextSchema(SharedSchema):
             "ems_production_capacity_in_mw": "ems_production_breach_price",
         }[field]
         if self.relaxation_asked_for(data, "relax_site_capacity_constraints"):
-            if data.get(breach_price_field) is None:
-                currency = data.get("shared_currency_unit") or "EUR"
-                shared_currency = ur.Quantity(currency)
-                self.set_default_breach_prices(
-                    data,
-                    fields=[breach_price_field],
-                    price=10000 * shared_currency / ur.Quantity("kW"),
-                )
+            currency = data.get("shared_currency_unit") or "EUR"
+            shared_currency = ur.Quantity(currency)
+            self.set_default_breach_prices(
+                data,
+                fields=[breach_price_field],
+                price=10000 * shared_currency / ur.Quantity("kW"),
+            )
         else:
             # Both relax flags default to relaxation being on, so ending up here can only be an explicit user choice:
             # either 'relax-site-capacity-constraints' or the umbrella 'relax-constraints' was explicitly set to False.
@@ -1056,25 +1058,24 @@ class FlexContextSchema(SharedSchema):
         ):
             return data
 
-        # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        # Fill in default soc breach prices when asked to relax SoC constraints, for any breach price not already set explicitly.
         # An explicit relax-soc-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
         # setting either flag to False keeps SoC minima/maxima as hard constraints.
-        if (
-            self.relaxation_asked_for(data, "relax_soc_constraints")
-            and data.get("soc_minima_breach_price") is None
-            and data.get("soc_maxima_breach_price") is None
-        ):
+        if self.relaxation_asked_for(data, "relax_soc_constraints"):
             self.set_default_breach_prices(
                 data,
                 fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
                 price=1000 * shared_currency / ur.Quantity("kWh"),
             )
 
-        # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
+        # Fill in default capacity breach prices when asked to relax capacity constraints, unless the caller already priced a breach themselves.
         # Note that the blanket 'relax-constraints' does not cover device capacities.
         # A directional capacity can state a physical impossibility (a heat pump that cannot produce),
         # rather than an economic limit, so softening it has to name the thing being softened.
         # That leaves 'relax-capacity-constraints', or setting the device breach prices directly.
+        # Unlike the SoC and site capacity pairs (which are relaxed by default and filled per field),
+        # pricing one direction explicitly here puts the caller in charge of both directions,
+        # rather than mixing their price with our default (see test_explicit_device_breach_price_is_not_overwritten).
         if (
             data["relax_capacity_constraints"]
             and data.get("consumption_breach_price") is None
@@ -1086,14 +1087,10 @@ class FlexContextSchema(SharedSchema):
                 price=100 * shared_currency / ur.Quantity("kW"),
             )
 
-        # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
+        # Fill in default site capacity breach prices when asked to relax site capacity constraints, for any breach price not already set explicitly.
         # An explicit relax-site-capacity-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
         # setting either flag to False keeps the site capacities as hard constraints.
-        if (
-            self.relaxation_asked_for(data, "relax_site_capacity_constraints")
-            and data.get("ems_consumption_breach_price") is None
-            and data.get("ems_production_breach_price") is None
-        ):
+        if self.relaxation_asked_for(data, "relax_site_capacity_constraints"):
             self.set_default_breach_prices(
                 data,
                 fields=["ems_consumption_breach_price", "ems_production_breach_price"],
