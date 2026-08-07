@@ -13,6 +13,9 @@ v1.0.0 | July XX, 2026
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 .. warning:: The built-in storage fallback scheduler has been retired: an infeasible storage problem now fails with its failure reason instead of silently saving a fallback schedule.
+             We expect a fallback to be needed much less than before: in practice, it was mostly infeasible SoC minima and maxima that triggered it, and those are now relaxed by default,
+             so the main ``StorageScheduler`` gets you as close as possible to your SoC constraints, while still taking into account everything else it is equipped to handle.
+             The retired fallback scheduler had been kept rather basic and short-sighted in comparison.
              Plugins importing ``StorageFallbackScheduler``, ``fallback_charging_policy`` or ``idle_after_reaching_target`` must drop these imports;
              ``FLEXMEASURES_FALLBACK_REDIRECT`` is now only relevant for custom schedulers that define a fallback scheduler of their own.
 

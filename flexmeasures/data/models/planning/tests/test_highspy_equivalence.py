@@ -429,8 +429,8 @@ def test_highspy_matches_pyomo_when_infeasible(app):
         app, "highspy", scenario_infeasible
     )
 
-    # This is the check the StorageScheduler performs to raise an
-    # InfeasibleProblemException (and to trigger its fallback scheduler).
+    # This is the check the StorageScheduler performs to raise an InfeasibleProblemException,
+    # which fails the scheduling job.
     assert "infeasible" in results_p.solver.termination_condition
     assert "infeasible" in results_h.solver.termination_condition
 
