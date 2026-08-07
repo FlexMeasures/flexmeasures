@@ -3,7 +3,11 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 
 import pandas as pd
 from rq.job import Job
-from flexmeasures.data.services.scheduling import create_sequential_scheduling_job
+from sqlalchemy.exc import PendingRollbackError
+from flexmeasures.data.services.scheduling import (
+    _describe_scheduled_device,
+    create_sequential_scheduling_job,
+)
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.utils import failed_job_reason, sort_jobs
@@ -234,13 +238,38 @@ def test_create_sequential_jobs_fallback(
                 assert deferred_jobs[1].id in finished_jobs
 
 
+def test_describe_scheduled_device_survives_an_unusable_session(
+    db, app, smart_building
+):
+    """Naming the device must not raise when the database session is unusable.
+
+    A job that failed on a database error leaves the session needing a rollback. If naming its device raised,
+    the failure would never be cascaded to the dependent jobs, and the chain would wedge after all.
+    """
+    _, sensors, _ = smart_building
+    sensor = sensors["Test EV"]
+    reference = {"id": sensor.id, "class": "Sensor"}
+
+    assert (
+        _describe_scheduled_device(reference)
+        == f"sensor {sensor.id} ({sensor.generic_asset.name} - {sensor.name})"
+    )
+
+    with patch(
+        "flexmeasures.data.services.scheduling.get_asset_or_sensor_from_ref",
+        side_effect=PendingRollbackError("session needs rollback", None, None),
+    ):
+        assert _describe_scheduled_device(reference) == f"sensor {sensor.id}"
+
+
 def test_create_sequential_jobs_fallback_for_last_device(
     db, app, flex_description_sequential, smart_building
 ):
     """Test the fallback scheduler kicking in for the last device in a chain of sequential scheduling (sub)jobs.
 
-    The wrap-up job depends on that last subjob, so it must wait for the fallback to finish,
-    rather than concluding that the chain failed while the fallback is still queued.
+    The wrap-up job depends on that last subjob directly, so it must stay deferred while the fallback job is pending.
+    Were it queued alongside the fallback job, a second worker could run it right away, find a device without a schedule,
+    and report the chain as failed just before the fallback schedules that device after all.
     """
     assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
@@ -281,14 +310,28 @@ def test_create_sequential_jobs_fallback_for_last_device(
                 assert len(deferred_jobs) == 2
                 battery_job, wrapup_job = deferred_jobs
 
+                # Work until the last subjob has failed and triggered its fallback, but no further
+                work_on_rq(queue, exc_handler=handle_scheduling_exception, max_jobs=2)
+
+                battery_job.refresh()
+                wrapup_job.refresh()
+                fallback_job_id = battery_job.meta["fallback_job_id"]
+                assert battery_job.get_status() == "failed"
+                assert fallback_job_id in [job.id for job in queue.jobs]
+
+                # The wrap-up job must not be runnable while the fallback job is still pending
+                assert wrapup_job.get_status() == "deferred", (
+                    "The wrap-up job should still be waiting for the fallback job, "
+                    f"but it is {wrapup_job.get_status()}."
+                )
+
+                # Now let the fallback job (and, after it, the wrap-up job) run
                 work_on_rq(queue, exc_handler=handle_scheduling_exception)
 
     finished_jobs = queue.finished_job_registry.get_job_ids()
 
     # The last subjob failed, but its fallback scheduled the device after all
-    battery_job.refresh()
-    assert battery_job.get_status() == "failed"
-    assert battery_job.meta["fallback_job_id"] in finished_jobs
+    assert fallback_job_id in finished_jobs
 
     # So the chain succeeded, and the wrap-up job should not report a failure
     assert wrapup_job.id in finished_jobs, (
