@@ -14,7 +14,8 @@ The solver minimizes the costs of deviating from the commitments.
 For a more detailed explanation of commitments in FlexMeasures, see :ref:`commitments`.
 
 The model is a *mixed-integer* linear program: binary variables model the sign of a device's power, the direction of a commitment deviation (only when the cost curve is non-convex), and the choice of operation mode for devices with power bands.
-Without any of these, the model reduces to a plain linear program.
+The sign binaries are part of every model with at least one device;
+the other two families are only added when a non-convex cost curve or a banded device calls for them.
 
 .. note::
     The model below is built by :func:`~flexmeasures.data.models.planning.linear_optimization.device_scheduler`, using Pyomo.
@@ -35,7 +36,7 @@ Symbol     Variable in the Code  Description
 :math:`j`  j                     0-indexed time dimension.
 :math:`g`  cg, cjg               Device groups within a device-scoped commitment :math:`c`.
 :math:`s`  sg                    Stock groups: sets of devices that share one stock (e.g. one state-of-charge sensor).
-:math:`e`  eg                    EMS constraint groups: sets of devices sharing one site-level capacity constraint (one per commodity).
+:math:`e`  eg                    EMS constraint groups: sets of devices sharing one site-level capacity constraint.
 :math:`b`  db                    Power bands (S2 operation modes) of a banded device :math:`d`.
 :math:`k`  coupling_group_range  Coupling groups: sets of devices whose flows are hard-coupled in fixed proportions.
 :math:`n`  balance_group_range   Balance groups: internal commodity nodes (e.g. a heat or steam network) whose flows must net to zero.
@@ -83,7 +84,7 @@ Symbol                                      Variable in the Code               D
 :math:`\gamma(k,d)`                         coupling_device_specs              Fixed proportion of device :math:`d` within coupling group :math:`k`. Positive for inputs (consuming), negative for outputs (producing).
 :math:`B_{min}(d,b)`, :math:`B_{max}(d,b)`  band_lookup                        Lower and upper flow bound of power band :math:`b` of device :math:`d`.
 :math:`M_d`                                 Md                                 Big-M bounding device power: the largest absolute device flow limit (at least 1 MW).
-:math:`M_c`                                 Mc                                 Big-M bounding commitment deviations: the summed absolute device flow limits (at least 1 MW).
+:math:`M_c`                                 Mc                                 Big-M bounding commitment deviations: the absolute device flow limits, summed over devices and time steps (at least 1 MW).
 ==========================================  =================================  ========================================================================================================================================
 
 
@@ -169,8 +170,9 @@ for any device :math:`d \in s` (they all share the group's storage efficiency).
 
 .. note::
     This is the *linear* treatment of storage losses: the stock is assumed to change at a constant rate, while losses decay exponentially, within each time step.
-    The scheduler models losses this way exclusively. The alternative treatments (perfect, left and right) still exist in
+    The scheduler models losses this way exclusively. The alternative treatments (left and right) still exist in
     :func:`~flexmeasures.utils.calculations.apply_stock_changes_and_losses`, which reconstructs a stock series from a known power series.
+    The perfect treatment is simply the lossless case :math:`\epsilon(d,j) = 1`, covered above.
 
 Constraints
 --------------
@@ -242,7 +244,8 @@ Grid constraints
     P^{ems}(d,j) = P_{up}(d,j) + P_{down}(d,j)
 
 Site-level capacity is enforced per EMS constraint group :math:`e`, over the devices :math:`E(e)` it covers.
-The StorageScheduler uses one group per commodity, so each commodity gets its own site-level capacity constraint.
+The StorageScheduler uses one group per commodity, so each commodity gets its own site-level capacity constraint,
+plus one group per device group that declares its own power capacity, enforcing that group's hard bound.
 A single group covering all devices is the default (and the historical behaviour).
 
 .. math::
@@ -253,7 +256,8 @@ A single group covering all devices is the default (and the historical behaviour
 EMS-level commitments
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Commitments that do not name a device apply to the site as a whole.
+Flow commitments that do not name a device apply to the site as a whole
+(a stock commitment only ever binds through the devices or stock group it names; see the next section).
 Writing :math:`\mathcal{D}(c)` for the devices such a commitment covers — all devices, or, if the commitment names a commodity, the devices of that commodity — and
 
 .. math::
@@ -270,6 +274,11 @@ Both prices given                 :math:`0 \leq \Xi \leq 0`  The commitment is m
 Only an upwards deviation price   :math:`\Xi \geq 0`         Flow above the committed quantity is a breach; staying below is free.
 Only a downwards deviation price  :math:`\Xi \leq 0`         Flow below the committed quantity is a breach; staying above is free.
 ================================  =========================  =====================================================================
+
+A commodity's device set is not declared directly:
+it is collected from the commitments that name both that commodity and devices.
+A commodity that no commitment maps to devices this way has an empty :math:`\mathcal{D}(c)`,
+and the constraint is skipped (leaving the commitment unenforced).
 
 Device-scoped commitments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
