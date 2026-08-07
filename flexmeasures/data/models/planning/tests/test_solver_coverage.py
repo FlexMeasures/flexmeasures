@@ -25,6 +25,7 @@ EXEMPT = {
     # Covered by the solver matrix through their own fixture instead.
     "test_solver.py": "uses the app_with_each_solver fixture directly",
     "test_highspy_equivalence.py": "runs both backends explicitly, per scenario",
+    "test_sign_binaries.py": "introspects the Pyomo model; the highspy path is covered by test_highspy_equivalence",
     "test_solver_options.py": "tests option validation, not scheduling",
     # No scheduling involved.
     "test_scheduling_problem.py": "tests the solver-agnostic input preparation, not scheduling",
