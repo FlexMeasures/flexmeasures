@@ -1465,11 +1465,8 @@ def test_off_tick_soc_target_extends_schedule_end_to_next_tick(add_battery_asset
             "production-price": "0 EUR/MWh",
             "site-power-capacity": "1 MW",
             # Keep SoC constraints hard, so we can assert the projected target directly.
-            # Both settings are needed: "relax-soc-constraints" alone would still see the
-            # default SoC breach prices filled in on account of "relax-constraints"
-            # defaulting to True, while "relax-constraints" alone would be overridden by
-            # the automatic SoC relaxation that off-tick projection enables.
-            "relax-constraints": False,
+            # An explicit "relax-soc-constraints" is needed (rather than only "relax-constraints"),
+            # because off-tick projection otherwise enables SoC relaxation automatically.
             "relax-soc-constraints": False,
         },
     )
@@ -2626,6 +2623,9 @@ def test_multi_device_validation_survives_stockless_device(add_battery_assets, d
             "consumption-price": "0 EUR/MWh",
             "production-price": "0 EUR/MWh",
             "site-power-capacity": "2 MW",
+            # Keep the target hard, so that validation has something to report.
+            # Relaxed targets are breached at a price instead, which is a schedule, not an error.
+            "relax-soc-constraints": False,
         },
     )
 
