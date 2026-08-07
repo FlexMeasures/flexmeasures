@@ -81,6 +81,10 @@ dependencies = [
     "flask-swagger-ui>=5.21.0",
     # Note: the redis extra (used for rate-limit storage) currently pins redis<8
     "Flask-Limiter[redis]>=4.0",
+    # Flask-Limiter's rate-limit parser, which we also import directly (to validate rate limits),
+    # so we declare it rather than lean on it arriving transitively.
+    # The floor is Flask-Limiter's own, as we only use the long-standing limits.parse.
+    "limits>=3.13",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
     # See GH#1450 (failing tests on older Python versions)
