@@ -155,6 +155,7 @@ help = "Clean the database."
 # A cmd task runs the script directly and lets it inherit our stdin.
 # The arguments have to be named explicitly, because poe otherwise only exposes them as environment variables.
 cmd = "flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}"
+use_exec = true
 args = [
     {name = "db-name", required = true, help = "The name of the database to clean."},
     {name = "db-user", help = "The user to clean the database for."},
