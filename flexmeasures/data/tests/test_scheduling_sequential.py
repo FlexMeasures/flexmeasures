@@ -6,6 +6,7 @@ from rq.job import Job
 from flexmeasures.data.services.scheduling import create_sequential_scheduling_job
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
+from flexmeasures.data.services.utils import failed_job_reason, sort_jobs
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -231,6 +232,80 @@ def test_create_sequential_jobs_fallback(
                 # The deferred jobs ran successfully
                 assert deferred_jobs[0].id in finished_jobs
                 assert deferred_jobs[1].id in finished_jobs
+
+
+def test_create_sequential_jobs_without_fallback(
+    db, app, flex_description_sequential, smart_building
+):
+    """Test that a failing subjob without a fallback scheduler does not wedge the chain.
+
+    The first device is infeasible, and its scheduler has no fallback. The remaining subjobs can then never run,
+    so they should be failed rather than left deferred, and the wrap-up job — whose id is what the trigger endpoint hands to the client —
+    should reach a terminal failed state naming the device that could not be scheduled.
+    """
+    assets, sensors, _ = smart_building
+    queue = app.queues["scheduling"]
+
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_description_sequential["start"] = start
+    flex_description_sequential["end"] = end
+
+    storage_module = "flexmeasures.data.models.planning.storage"
+
+    with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
+        # Retire the fallback scheduler, like ProcessScheduler and custom schedulers do by default
+        with patch(f"{storage_module}.StorageScheduler.fallback_scheduler_class", None):
+            with patch(
+                f"{storage_module}.StorageScheduler.compute",
+                side_effect=iter([InfeasibleProblemException(), [], []]),
+            ):
+                create_sequential_scheduling_job(
+                    asset=assets["Test Site"],
+                    scheduler_specs=scheduler_specs,
+                    enqueue=True,
+                    force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+                    **flex_description_sequential,
+                )
+
+                queued_jobs = queue.jobs
+                deferred_jobs = sort_jobs(
+                    queue, queue.deferred_job_registry.get_job_ids()
+                )
+                assert len(queued_jobs) == 1
+                assert len(deferred_jobs) == 2
+                ev_job = queued_jobs[0]
+                battery_job, wrapup_job = deferred_jobs
+
+                # Work on jobs
+                work_on_rq(queue, exc_handler=handle_scheduling_exception)
+
+    failed_jobs = queue.failed_job_registry.get_job_ids()
+
+    # The EV subjob failed, and had no fallback to fall back on
+    assert ev_job.id in failed_jobs
+    ev_job.refresh()
+    assert "fallback_job_id" not in ev_job.meta
+
+    # The battery subjob can never run, so it was failed rather than left deferred
+    assert battery_job.id in failed_jobs
+    assert battery_job.get_status() == "failed"
+
+    # The wrap-up job ran, and failed while naming the device that could not be scheduled
+    assert wrapup_job.id in failed_jobs
+    assert wrapup_job.get_status() == "failed"
+    reason = failed_job_reason(Job.fetch(wrapup_job.id, connection=queue.connection))
+    assert f"sensor {sensors['Test EV'].id} (Test EV - power)" in reason
+    assert "InfeasibleProblemException" in reason
+
+    # No job is left waiting on a chain that will never complete
+    assert queue.deferred_job_registry.get_job_ids() == []
 
 
 def test_create_sequential_jobs_with_sign_explicit_context(
