@@ -1736,9 +1736,8 @@ def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
 
     # Whether soft breach commitments are still constructed is left unasserted on purpose.
     # They are harmless next to the hard bound:
-    # their quantity is 0 on these slots, so the pinned flow cannot deviate from them,
-    # which makes them unbreachable and free.
-    # The bound above is what the device actually obeys.
+    # their quantity is 0 on these slots, so the pinned flow cannot deviate from them, which makes them unbreachable and free.
+    # The bound asserted above is what the device actually obeys.
 
 
 @pytest.mark.parametrize(
@@ -1932,13 +1931,12 @@ def test_windowed_zero_directional_capacity_stays_soft(
 ):
     """A zero covering only part of the window is a preference, and must stay breachable.
 
-    The whole-window reading of a zero only holds when the device declares it for the
-    whole window. A zero punched into part of an otherwise non-zero capacity says
-    "not right now", not "never": V2G-Liberty uses exactly this shape to keep a charger
-    idle during a calendar car reservation, so that the user can unplug without waiting
-    (see the "Car reservations" section of the V2G tutorial). Hardening those windows
-    would turn a preference into an infeasibility whenever a soc-minimum needs the
-    device to act during one.
+    The whole-window reading of a zero only holds when the device declares it for the whole window.
+    A zero punched into part of an otherwise non-zero capacity says "not right now", not "never":
+    V2G-Liberty uses exactly this shape to keep a charger idle during a calendar car reservation,
+    so that the user can unplug without waiting (see the "Car reservations" section of the V2G tutorial).
+    Hardening those windows would turn a preference into an infeasibility,
+    whenever a soc-minimum needs the device to act during one.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
 
