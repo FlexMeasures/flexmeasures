@@ -75,7 +75,7 @@ def _make_sentry_redis_connection(app: Flask) -> Redis:
 def _make_sentry_daily_deduplicator(
     app: Flask, redis_connection: Redis
 ) -> Callable[[Event, Hint], Event | None]:
-    """Build a fail-open Sentry event filter honouring the deduplication key of a log record.
+    """Build a Sentry event filter honouring the deduplication key of a log record.
 
     Conditions that every process reports while starting up would otherwise spend a host's whole Sentry allowance,
     because each of the CLI commands a host runs is a fresh start of FlexMeasures.
@@ -106,10 +106,10 @@ def _make_sentry_daily_deduplicator(
                 redis_warning_logged = True
                 app.logger.warning(
                     "Unable to deduplicate Sentry events because Redis is unavailable. "
-                    "Events that would be reported once a day will be reported every time: %s",
+                    "Events that should be reported once a day will not be sent to Sentry: %s",
                     exc,
                 )
-            return event
+            return None
         if not is_first_report:
             return None
         setattr(log_record, _SENTRY_DEDUPLICATION_CONFIRMED_ATTRIBUTE, True)

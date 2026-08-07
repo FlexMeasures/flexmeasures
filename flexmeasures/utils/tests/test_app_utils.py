@@ -318,7 +318,7 @@ def test_sentry_daily_deduplicator_passes_unmarked_events(app, clean_redis):
 
 
 @pytest.mark.parametrize("redis_error_type", [RedisConnectionError, RedisTimeoutError])
-def test_sentry_daily_deduplicator_fails_open_on_redis_error(
+def test_sentry_daily_deduplicator_fails_closed_on_redis_error(
     app, monkeypatch, caplog, redis_error_type
 ):
     deduplicate = _make_sentry_daily_deduplicator(
@@ -331,8 +331,8 @@ def test_sentry_daily_deduplicator_fails_open_on_redis_error(
 
     monkeypatch.setattr(app.redis_connection, "set", fail_set)
     with caplog.at_level(logging.WARNING):
-        assert deduplicate(event, marked_hint()) is event
-        assert deduplicate(event, marked_hint()) is event
+        assert deduplicate(event, marked_hint()) is None
+        assert deduplicate(event, marked_hint()) is None
 
     assert caplog.text.count("Unable to deduplicate Sentry events") == 1
 
