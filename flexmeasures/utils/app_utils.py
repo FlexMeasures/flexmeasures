@@ -87,7 +87,9 @@ def init_sentry(app: Flask):
     daily_rate_limit = app.config.get("FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT")
     if daily_rate_limit is not None:
         if (
-            isinstance(daily_rate_limit, bool)
+            isinstance(
+                daily_rate_limit, bool
+            )  # reject True/False explicitly (instances of int)
             or not isinstance(daily_rate_limit, int)
             or daily_rate_limit <= 0
         ):
