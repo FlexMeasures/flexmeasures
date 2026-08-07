@@ -1633,6 +1633,353 @@ def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
 
 
 @pytest.mark.parametrize(
+    "direction, capacity_field, expected_derivative_col, expected_bound",
+    [
+        ("production", "production-capacity", "derivative min", 0.0),
+        ("consumption", "consumption-capacity", "derivative max", 0.0),
+    ],
+)
+def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
+    db,
+    add_battery_assets,
+    direction,
+    capacity_field,
+    expected_derivative_col,
+    expected_bound,
+):
+    """Explicit zero directional capacity is physical, not economic (#2323).
+
+    With ``relax-constraints`` defaulting to True, non-zero capacity limits may be softened via breach prices.
+    An explicit ``production-capacity: 0`` (or consumption-capacity: 0) must remain a hard bound,
+    otherwise a consumption-only device (e.g. heat pump) can be scheduled to produce,
+    when site breaches are more expensive than device breaches.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Opposite direction stays open so the symmetric power-capacity fallback is not zero.
+    opposite_field = (
+        "consumption-capacity" if direction == "production" else "production-capacity"
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: "0 kW",
+            opposite_field: "2 MW",
+        },
+        # Default relax-constraints=True injects device breach prices.
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1000 EUR/MWh",  # strong incentive to produce
+            # Cheap device breaches vs expensive site breaches — the incentive that
+            # previously made soft zero-capacity look rational to the LP.
+            "production-breach-price": "100 EUR/kW",
+            "consumption-breach-price": "100 EUR/kW",
+            "site-production-breach-price": "10000 EUR/kW",
+            "site-consumption-breach-price": "10000 EUR/kW",
+            "site-power-capacity": "1 kW",
+        },
+    )
+    scheduler.deserialize_config()
+
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    assert np.allclose(
+        device_constraints[0][expected_derivative_col], expected_bound
+    ), (
+        f"explicit zero {capacity_field} must stay a hard {expected_derivative_col} "
+        f"bound under relax-constraints, got "
+        f"{device_constraints[0][expected_derivative_col].unique()}"
+    )
+
+    # Whether soft breach commitments are still constructed is left unasserted on purpose.
+    # They are harmless next to the hard bound:
+    # their quantity is 0 on these slots, so the pinned flow cannot deviate from them, which makes them unbreachable and free.
+    # The bound asserted above is what the device actually obeys.
+
+
+@pytest.mark.parametrize(
+    "direction, capacity_field, expected_derivative_col",
+    [
+        ("production", "production-capacity", "derivative min"),
+        ("consumption", "consumption-capacity", "derivative max"),
+    ],
+)
+def test_non_zero_directional_capacity_still_softens_under_breach_price(
+    db,
+    add_battery_assets,
+    direction,
+    capacity_field,
+    expected_derivative_col,
+):
+    """Non-zero directional capacity remains soft when breach prices are set (#2323).
+
+    Companion to ``test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints``:
+    only the all-zero case stays hard.
+    Economic (non-zero) limits must still create soft breach commitments,
+    and must not pin the hard derivative bound to that capacity.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    opposite_field = (
+        "consumption-capacity" if direction == "production" else "production-capacity"
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: "0.1 MW",  # non-zero economic limit
+            opposite_field: "2 MW",
+        },
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1 EUR/MWh",
+            "production-breach-price": "100 EUR/kW",
+            "consumption-breach-price": "100 EUR/kW",
+            "site-power-capacity": "2 MW",
+        },
+    )
+    scheduler.deserialize_config()
+
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    soft_breach_names = [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ]
+    assert soft_breach_names, (
+        f"non-zero {capacity_field} must still create soft "
+        f"{direction} breach commitments under breach prices"
+    )
+
+    # Hard bound should stay at power-capacity (±2 MW), not be pinned to the soft 0.1 MW.
+    if expected_derivative_col == "derivative min":
+        assert np.allclose(device_constraints[0][expected_derivative_col], -2.0), (
+            f"hard {expected_derivative_col} should remain power-capacity when "
+            f"non-zero {capacity_field} is softened"
+        )
+    else:
+        assert np.allclose(device_constraints[0][expected_derivative_col], 2.0), (
+            f"hard {expected_derivative_col} should remain power-capacity when "
+            f"non-zero {capacity_field} is softened"
+        )
+
+
+@pytest.mark.parametrize(
+    [
+        "capacity_field",
+        "open_field",
+        "breach_price_field",
+        "prices",
+        "forbidden_direction",
+    ],
+    [
+        (
+            "production-capacity",
+            "consumption-capacity",
+            "production-breach-price",
+            {
+                # Strong incentive to discharge (produce) if allowed.
+                "consumption-price": "1 EUR/MWh",
+                "production-price": "1000 EUR/MWh",
+            },
+            "produce",
+        ),
+        (
+            "consumption-capacity",
+            "production-capacity",
+            "consumption-breach-price",
+            {
+                # Paid to consume — strong incentive to charge if allowed.
+                "consumption-price": "-1000 EUR/MWh",
+                "production-price": "1 EUR/MWh",
+            },
+            "consume",
+        ),
+    ],
+)
+def test_explicit_zero_directional_capacity_not_breached_in_schedule(
+    db,
+    add_battery_assets,
+    capacity_field,
+    open_field,
+    breach_price_field,
+    prices,
+    forbidden_direction,
+):
+    """Regression for #2323: never schedule in a direction with explicit capacity 0.
+
+    A soft interpretation of an all-zero directional capacity (via breach prices that ``relax-constraints`` would inject),
+    would allow power in a physically impossible direction.
+    Zero must stay hard for both production and consumption.
+
+    Same failure mode as EV chargers scheduled to discharge despite ``production-capacity: 0 W`` in #2329.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 1))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "0.1 MW",
+            capacity_field: "0 kW",
+            open_field: "0.1 MW",
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            **prices,
+            # Breach price that would soften non-zero limits; must not soften
+            # an explicit zero. Keep other constraints hard for a simple LP.
+            breach_price_field: "100 EUR/kW",
+            "site-power-capacity": "2 MW",
+            "relax-constraints": False,
+        },
+    )
+    schedule = scheduler.compute()
+    if forbidden_direction == "produce":
+        assert (schedule >= -TOLERANCE).all(), (
+            f"{capacity_field}: 0 must forbid negative (production) power even when "
+            f"{breach_price_field} is set; min scheduled power was {schedule.min()}"
+        )
+    else:
+        assert (schedule <= TOLERANCE).all(), (
+            f"{capacity_field}: 0 must forbid positive (consumption) power even when "
+            f"{breach_price_field} is set; max scheduled power was {schedule.max()}"
+        )
+
+
+@pytest.mark.parametrize(
+    "capacity_field, expected_derivative_col, hard_bound",
+    [
+        ("production-capacity", "derivative min", -2),
+        ("consumption-capacity", "derivative max", 2),
+    ],
+)
+def test_windowed_zero_directional_capacity_stays_soft(
+    db, add_battery_assets, capacity_field, expected_derivative_col, hard_bound
+):
+    """A zero covering only part of the window is a preference, and must stay breachable.
+
+    The whole-window reading of a zero only holds when the device declares it for the whole window.
+    A zero punched into part of an otherwise non-zero capacity says "not right now", not "never":
+    V2G-Liberty uses exactly this shape to keep a charger idle during a calendar car reservation,
+    so that the user can unplug without waiting (see the "Car reservations" section of the V2G tutorial).
+    Hardening those windows would turn a preference into an infeasibility,
+    whenever a soc-minimum needs the device to act during one.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Non-zero for the window, except for one hour in the middle.
+    windowed_capacity = [
+        {"value": "2 MW", "start": start.isoformat(), "duration": "PT24H"},
+        {
+            "value": "0 kW",
+            "start": tz.localize(datetime(2015, 1, 2, 12)).isoformat(),
+            "duration": "PT1H",
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: windowed_capacity,
+        },
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1 EUR/MWh",
+            "site-power-capacity": "2 MW",
+            "relax-capacity-constraints": True,
+        },
+    )
+    scheduler.deserialize_config()
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    # The hard bound stays at the symmetric power-capacity, including during the zero hour.
+    assert np.allclose(device_constraints[0][expected_derivative_col], hard_bound), (
+        f"a windowed zero {capacity_field} must not pin the hard "
+        f"{expected_derivative_col}, got "
+        f"{device_constraints[0][expected_derivative_col].unique()}"
+    )
+
+    # And the capacity is still expressed as a breachable commitment.
+    direction = capacity_field.split("-")[0]
+    assert [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ], f"a windowed zero {capacity_field} must still create soft breach commitments"
+
+
+@pytest.mark.parametrize(
     ["soc_values", "log_message", "expected_num_targets"],
     [
         (
