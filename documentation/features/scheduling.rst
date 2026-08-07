@@ -673,8 +673,10 @@ The ``violation`` values tell you how much shortfall exists:
 
 If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
 
-.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler enforces them strictly by definition.
-          If a hard constraint cannot be met, the entire scheduling job will fail, not produce results with violations.
+.. note:: ``soc-targets`` are reported under ``unresolved`` only, and only while constraint relaxation is on.
+          A target is a two-sided constraint, so its reported violation is the absolute deviation from the target, in either direction,
+          and there is no headroom to report when a target is met.
+          With relaxation off, a target that cannot be met makes the entire scheduling job fail instead of producing results with violations.
 
 Work on other schedulers
 ---------------------------------------

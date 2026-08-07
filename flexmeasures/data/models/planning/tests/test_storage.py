@@ -408,6 +408,87 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
     assert scheduling_result.resolved == []
 
 
+def test_unresolved_targets_soc_targets(add_battery_assets, db):
+    """Test that an unreachable soc-target is breached and reported, not made infeasible.
+
+    Same battery as ``test_unresolved_targets_soc_minima``: starting at 0.4 MWh with a
+    0.01 MW charging capacity, it can gain at most 0.24 MWh over 24 hours. A soc-target
+    of 0.9 MWh is therefore unreachable. Under the default constraint relaxation, the
+    scheduler should still produce a schedule and report the shortfall.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    # Constraint reporting reads the scheduled state of charge, which needs a SoC sensor.
+    soc_sensor = Sensor(
+        name="state-of-charge-targets-test",
+        generic_asset=battery.generic_asset,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.01 MVA",  # very limited: max gain 0.24 MWh over 24 h
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-02T00:00:00+01:00",
+                    "value": "0.9 MWh",  # unreachable
+                }
+            ],
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+    scheduling_result = scheduling_result_entry["data"]
+
+    asset_id = battery.generic_asset.id
+    entry = next(
+        (e for e in scheduling_result.unresolved if e["asset"] == asset_id), None
+    )
+    assert (
+        entry is not None
+    ), "an unreachable soc-target should be reported as unresolved"
+    assert "soc-targets" in entry
+    assert len(entry["soc-targets"]) == 1
+    # Charging at 0.01 MW for 24 h reaches 0.64 MWh, so the target is missed by 260 kWh.
+    assert entry["soc-targets"][0]["violation"] == "260.0 kWh"
+    # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
+    assert entry["soc-targets"][0]["datetime"] == "2015-01-01T23:00:00+00:00"
+
+    # A target is two-sided, so it never yields a margin to report.
+    assert all("soc-targets" not in e for e in scheduling_result.resolved)
+
+
 def test_unresolved_targets_none_when_met(add_battery_assets, db):
     """Test that no unresolved targets are reported when constraints are fully met.
 
@@ -1383,7 +1464,9 @@ def test_off_tick_soc_target_extends_schedule_end_to_next_tick(add_battery_asset
             "consumption-price": "0 EUR/MWh",
             "production-price": "0 EUR/MWh",
             "site-power-capacity": "1 MW",
-            # keep SoC constraints hard, so we can assert the projected target directly
+            # Keep SoC constraints hard, so we can assert the projected target directly.
+            # An explicit "relax-soc-constraints" is needed (rather than only "relax-constraints"),
+            # because off-tick projection otherwise enables SoC relaxation automatically.
             "relax-soc-constraints": False,
         },
     )
@@ -2540,6 +2623,9 @@ def test_multi_device_validation_survives_stockless_device(add_battery_assets, d
             "consumption-price": "0 EUR/MWh",
             "production-price": "0 EUR/MWh",
             "site-power-capacity": "2 MW",
+            # Keep the target hard, so that validation has something to report.
+            # Relaxed targets are breached at a price instead, which is a schedule, not an error.
+            "relax-soc-constraints": False,
         },
     )
 
