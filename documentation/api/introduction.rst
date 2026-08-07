@@ -126,6 +126,7 @@ The response body will contain a JSON message with a ``status`` field set to ``"
     FlexMeasures' built-in storage scheduler no longer computes a fallback schedule for infeasible problems.
     Instead, ``soc-minima`` and ``soc-maxima`` are relaxed by default through ``"relax-soc-constraints": true`` (setting either it or ``"relax-constraints"`` to ``false`` keeps them hard).
     The hard constraints that remain even after constraint relaxation are ``soc-min``, ``soc-max``, ``soc-targets`` and ``power-capacity`` in the ``flex-model``, and ``site-power-capacity`` in the ``flex-context``.
+    The device ``consumption-capacity`` and ``production-capacity`` are not covered by ``relax-constraints`` at all; they stay hard unless you relax them by name, either by setting ``relax-capacity-constraints`` or by setting ``consumption-breach-price`` or ``production-breach-price`` yourself.
     If hard constraints cannot be satisfied, the scheduling job fails and clients receive the failure reason when requesting the schedule.
 
     For custom schedulers that still define a fallback scheduler, server administrators can configure whether clients receive a 303 redirect (``FLEXMEASURES_FALLBACK_REDIRECT = True``) or whether FlexMeasures follows the fallback automatically and returns the fallback schedule directly (``FLEXMEASURES_FALLBACK_REDIRECT = False``, the default).

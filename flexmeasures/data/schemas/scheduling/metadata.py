@@ -204,14 +204,18 @@ It must use the same currency as the other price settings and cannot be negative
     example="10 EUR/kW",
 )
 RELAX_CONSTRAINTS = MetaData(
-    description="""If True (default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
+    description="""If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
 
 1. Avoid breaching the site consumption/production capacity.
 2. Avoid not meeting SoC minima/maxima.
-3. Avoid breaching the desired device consumption/production capacity.
 
-SoC minima/maxima are already relaxed by default through ``relax-soc-constraints``.
-Set this field to ``True`` to also enable the default site and device capacity breach prices and associated priorities as defined by FlexMeasures.
+SoC minima/maxima are also relaxed by default through ``relax-soc-constraints``.
+
+The device ``consumption-capacity`` and ``production-capacity`` are deliberately not part of this.
+A directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so making it breachable at a price has to name the thing being softened.
+Use ``relax-capacity-constraints``, or set ``consumption-breach-price`` or ``production-breach-price`` yourself, to relax device capacities.
+
+
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,
     example=True,
