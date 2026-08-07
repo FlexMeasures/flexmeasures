@@ -20,7 +20,7 @@ from flask import current_app
 from isodate import duration_isoformat
 from rq import get_current_job, Callback
 from rq.exceptions import InvalidJobOperation, NoSuchJobError
-from rq.job import Dependency, Job, JobStatus
+from rq.job import Job, JobStatus
 import timely_beliefs as tb
 import pandas as pd
 from sqlalchemy import select
@@ -136,6 +136,13 @@ def success_callback(job, connection, result, *args, **kwargs):
     # requeue deferred jobs
     for dependent_job_ids in orginal_job.dependent_ids:
         queue.deferred_job_registry.requeue(dependent_job_ids)
+
+
+# Meta flag marking a job that should still run when a job it depends on failed, so it can report on that failure.
+# We deliberately do not use RQ's Dependency(allow_failure=True) for this: RQ enqueues such a job the moment its
+# dependency fails, which would let a wrap-up job run while the failed subjob's fallback job is still pending,
+# and report the chain as failed just before the fallback schedules the device after all.
+RUNS_ON_CHAIN_FAILURE = "runs_on_chain_failure"
 
 
 def _describe_scheduled_device(asset_or_sensor_ref: dict | None) -> str:
@@ -264,8 +271,7 @@ def _cascade_failure_to_dependents(job: Job, connection, reason: str) -> None:
     RQ only enqueues the dependents of a job that succeeded, so a failed job without a fallback would otherwise leave its dependents deferred forever,
     which leaves a client polling such a job (in particular the wrap-up job of a sequential schedule) without a terminal state or a reason.
 
-    Dependent jobs that were set up to tolerate a failing dependency are enqueued rather than failed, so they can run and report on the failure.
-    RQ itself does that for the dependents of the job that just failed, so here we only need to do it for the jobs that we fail ourselves.
+    Jobs marked with RUNS_ON_CHAIN_FAILURE are queued rather than failed, so they can run and report on the failure.
 
     :param job:         The failed job whose dependents should be dealt with.
     :param connection:  Redis connection.
@@ -275,14 +281,24 @@ def _cascade_failure_to_dependents(job: Job, connection, reason: str) -> None:
     dependent_ids = list(job.dependent_ids)
     if not dependent_ids:
         return
+    jobs_that_report_on_the_failure = []
     for dependent in Job.fetch_many(dependent_ids, connection=connection):
-        if dependent is None or dependent.allow_dependency_failures:
+        if dependent is None:
             continue
         if dependent.get_status(refresh=True) != JobStatus.DEFERRED:
             continue
+        if dependent.allow_dependency_failures:
+            continue  # RQ enqueues a job that tolerates a failing dependency by itself
+        if dependent.meta.get(RUNS_ON_CHAIN_FAILURE):
+            jobs_that_report_on_the_failure.append(dependent)
+            continue
         _fail_deferred_job(dependent, reason)
         _cascade_failure_to_dependents(dependent, connection, reason)
-        queue.enqueue_dependents(dependent)
+
+    # Only once the rest of the chain has reached a terminal state, let the reporting jobs run,
+    # so that they see every subjob they report on in its final state.
+    for dependent in jobs_that_report_on_the_failure:
+        queue.deferred_job_registry.requeue(dependent.id)
 
 
 def _fail_deferred_job(job: Job, reason: str) -> None:
@@ -429,7 +445,7 @@ def create_scheduling_job(
 def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     """Wrap up a chain of sequential scheduling (sub)jobs.
 
-    This job also runs when one of the subjobs failed (see the Dependency set up in create_sequential_scheduling_job),
+    This job also runs when one of the subjobs failed without being rescued by a fallback (see RUNS_ON_CHAIN_FAILURE),
     in which case it fails, too, naming the devices that could not be scheduled.
     Its id is what the trigger endpoint hands to the client, so this is what gives that client a terminal state and a reason.
 
@@ -603,16 +619,11 @@ def create_sequential_scheduling_job(
         previous_sensors.append(sensor)
         previous_job = job
 
-    # create job that triggers when the last job is done, or failed:
-    # tolerating a failing dependency lets the wrap-up job report which devices could not be scheduled,
-    # rather than staying deferred forever (see cb_done_sequential_scheduling_job)
-    depends_on_last_job = (
-        Dependency(previous_job, allow_failure=True) if previous_job else None
-    )
+    # create job that triggers when the last job is done
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
-        depends_on=depends_on_last_job,
+        depends_on=previous_job,
         ttl=int(
             current_app.config.get(
                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
@@ -627,6 +638,9 @@ def create_sequential_scheduling_job(
         connection=current_app.queues["scheduling"].connection,
     )
     job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset)
+    # This job should also run when a subjob failed, so it can report which devices could not be scheduled
+    # (see _cascade_failure_to_dependents), instead of staying deferred forever.
+    job.meta[RUNS_ON_CHAIN_FAILURE] = True
     job.save_meta()
 
     try:
