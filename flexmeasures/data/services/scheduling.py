@@ -24,6 +24,7 @@ from rq.job import Job, JobStatus
 import timely_beliefs as tb
 import pandas as pd
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
@@ -148,12 +149,22 @@ RUNS_ON_CHAIN_FAILURE = "runs_on_chain_failure"
 def _describe_scheduled_device(asset_or_sensor_ref: dict | None) -> str:
     """Describe the device that a scheduling job was scheduling, for use in a failure message.
 
+    Naming the device costs a database look-up, which is not something we can count on while handling a failure:
+    a job that failed on a database error leaves the session needing a rollback, and every query on it raises.
+    We therefore fall back to naming the device by its bare reference, so that a failure is still reported.
+
     :param asset_or_sensor_ref: Serialized reference to an Asset or Sensor, as stored in a job's meta data.
     """
     if not asset_or_sensor_ref:
         return "an unknown device"
-    asset_or_sensor = get_asset_or_sensor_from_ref(asset_or_sensor_ref)
     kind = asset_or_sensor_ref["class"].lower()
+    try:
+        asset_or_sensor = get_asset_or_sensor_from_ref(asset_or_sensor_ref)
+    except SQLAlchemyError as e:
+        current_app.logger.warning(
+            f"Could not look up {kind} {asset_or_sensor_ref['id']} to name it in a scheduling failure message: {e}"
+        )
+        return f"{kind} {asset_or_sensor_ref['id']}"
     if asset_or_sensor is None:
         return f"{kind} {asset_or_sensor_ref['id']}"
     if isinstance(asset_or_sensor, Sensor):
