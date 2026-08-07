@@ -740,13 +740,20 @@ def test_flex_context_schema_fills_default_breach_prices_per_field():
     # see test_explicit_device_breach_price_is_not_overwritten.
 
 
-def test_db_flex_context_schema_does_not_relax_soc_constraints_by_default():
+def test_db_flex_context_schema_fills_no_default_breach_prices():
+    """Validating a stored flex-context does not bake in the default breach prices implied by the relax flags."""
     loaded_flex_context = DBFlexContextSchema().load({})
 
-    assert loaded_flex_context["relax_constraints"] is False
-    assert loaded_flex_context["relax_soc_constraints"] is False
     assert "soc_minima_breach_price" not in loaded_flex_context
     assert "soc_maxima_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+    assert "ems_production_breach_price" not in loaded_flex_context
+
+    # Not even when relaxation is asked for explicitly in the stored flex-context.
+    loaded_flex_context = DBFlexContextSchema().load({"relax-constraints": True})
+
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
 
 
 def check_schema_loads_data(schema, data, fails):

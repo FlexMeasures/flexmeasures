@@ -811,6 +811,9 @@ class CommodityFlexContextSchema(SharedSchema):
 class FlexContextSchema(SharedSchema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
+    # Whether loading fills in the default breach prices implied by the relax flags (see check_prices).
+    fill_default_breach_prices = True
+
     # The single-dict flex-context form only supports the electricity commodity.
     # Other commodities must be defined via the `commodities` list.
     # Not part of the documented UI/OpenAPI fields.
@@ -1045,14 +1048,14 @@ class FlexContextSchema(SharedSchema):
                 )
 
         # Skip filling default breach prices when:
-        # - the deprecated price sensor fields are used (those predate relaxation
-        #   support; filling defaults would silently change legacy behaviour), or
-        # - the shared currency is not an actual currency (e.g. a mis-united price
-        #   field slipped through _try_to_convert_price_units); filling defaults in a
-        #   nonsense currency would misattribute unit errors to the breach price
-        #   fields in downstream validation (e.g. DBFlexContextSchema).
+        # - this schema does not fill them at all (see fill_default_breach_prices),
+        # - the deprecated price sensor fields are used (those predate relaxation support;
+        #   filling defaults would silently change legacy behaviour), or
+        # - the shared currency is not an actual currency (e.g. a mis-united price field slipped through _try_to_convert_price_units);
+        #   filling defaults in a nonsense currency would misattribute unit errors to the breach price fields in downstream validation (e.g. DBFlexContextSchema).
         if (
-            "consumption_price_sensor" in data
+            not self.fill_default_breach_prices
+            or "consumption_price_sensor" in data
             or "production_price_sensor" in data
             or not is_currency_unit(data["shared_currency_unit"])
         ):
@@ -1508,38 +1511,11 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = _build_ui_flex_model_schema()
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
-    # The relaxation defaults are turned off here, so validating a stored asset
-    # flex-context does not fill in default breach prices. The API-side defaults
-    # (which are True) are applied at scheduling time instead, after the stored
-    # flex-context is merged with the one passed in the scheduling request.
-    relax_constraints = fields.Bool(
-        data_key="relax-constraints",
-        load_default=False,
-        metadata={
-            **metadata.RELAX_CONSTRAINTS.to_dict(),
-            "description": (
-                "Defaults to False when stored on an asset (unlike the True default "
-                "used when scheduling): a stored flex-context should not silently bake "
-                "in default breach prices. The scheduling-time default of True is "
-                "applied after this stored flex-context is merged with the one passed "
-                "in the scheduling request."
-            ),
-        },
-    )
-    relax_soc_constraints = fields.Bool(
-        data_key="relax-soc-constraints",
-        load_default=False,
-        metadata={
-            **metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
-            "description": (
-                "Defaults to False when stored on an asset (unlike the True default "
-                "used when scheduling): a stored flex-context should not silently bake "
-                "in default breach prices. The scheduling-time default of True is "
-                "applied after this stored flex-context is merged with the one passed "
-                "in the scheduling request."
-            ),
-        },
-    )
+    # A stored asset flex-context is only validated here (never scheduled directly),
+    # so it should not silently bake in the default breach prices implied by the relax flags.
+    # Those defaults are applied at scheduling time instead,
+    # after the stored flex-context is merged with the one passed in the scheduling request.
+    fill_default_breach_prices = False
 
     commitments = fields.Nested(
         DBCommitmentSchema, data_key="commitments", required=False, many=True
