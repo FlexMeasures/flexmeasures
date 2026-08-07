@@ -178,6 +178,28 @@ def test_add_cli_options_from_schema_parses_dict_fields():
     assert captured["model_params"] == {"max_depth": 6}
 
 
+@pytest.mark.parametrize("bad_value", ["[1, 2]", "5", '"a string"'])
+def test_add_cli_options_from_schema_rejects_non_mapping_dict_fields(bad_value):
+    """A parsable but non-mapping argument must be rejected by Click itself.
+
+    Such a value would otherwise reach Marshmallow, which reports the unhelpful "Not a valid mapping type".
+    """
+    from flexmeasures.cli.utils import add_cli_options_from_schema
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
+
+    @click.command()
+    @add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
+    def cmd(**kwargs):
+        pass
+
+    result = CliRunner().invoke(cmd, ["--model-params", bad_value])
+    assert result.exit_code == 2, result.output
+    assert "Expected a mapping" in result.output
+    assert "Not a valid mapping type" not in result.output
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=RuntimeError,

@@ -419,16 +419,25 @@ class NestedDictParamType(click.ParamType):
         if isinstance(value, dict):
             return value
         try:
-            return json.loads(value)
+            parsed = json.loads(value)
         except json.JSONDecodeError:
             try:
-                return ast.literal_eval(value)
+                parsed = ast.literal_eval(value)
             except (ValueError, SyntaxError):
                 self.fail(
                     f"Cannot parse as a JSON object or Python-literal dict: {value!r}",
                     param,
                     ctx,
                 )
+        # A parsable non-object (e.g. a list or a number) would otherwise travel on,
+        # only to be rejected further downstream by Marshmallow with "Not a valid mapping type".
+        if not isinstance(parsed, dict):
+            self.fail(
+                f'Expected a mapping such as \'{{"key": "value"}}\', but got {type(parsed).__name__}: {value!r}',
+                param,
+                ctx,
+            )
+        return parsed
 
 
 class JSONOrFile(click.ParamType):
