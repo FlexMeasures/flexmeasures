@@ -142,8 +142,8 @@ def test_create_simultaneous_jobs(
         4,
         f"Total costs should be €{expected_total_cost}, got €{total_cost}",
     )
-    # Aggregate (unscoped) commitment semantics (issue #2379): the sample commitment
-    # rewarding supply binds the site's *aggregate* flow,
+    # Aggregate (unscoped) commitment semantics (issue #2379):
+    # the sample commitment rewarding supply binds the site's *aggregate* flow,
     # so it collects a reward only where the site as a whole net-produces.
     # Under the earlier per-device binding it wrongly rewarded the battery's own supply,
     # also while the site was net-consuming.

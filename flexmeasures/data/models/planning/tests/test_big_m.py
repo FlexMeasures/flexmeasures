@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from flexmeasures.data.models.planning import FlowCommitment, StockCommitment
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
@@ -140,4 +141,4 @@ def test_large_committed_quantity_remains_feasible_under_a_non_convex_cost_curve
     # The upwards deviation earns 1 per unit, so the device consumes at full power.
     np.testing.assert_allclose(schedule[0].values, 0.5, atol=1e-6)
     # Each of the 4 steps deviates upwards by 100.5 at price -1.
-    assert costs == -4 * 100.5
+    assert costs == pytest.approx(-4 * 100.5)
