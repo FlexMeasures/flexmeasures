@@ -27,6 +27,7 @@ EXEMPT = {
     "test_highspy_equivalence.py": "runs both backends explicitly, per scenario",
     "test_solver_options.py": "tests option validation, not scheduling",
     # No scheduling involved.
+    "test_scheduling_problem.py": "tests the solver-agnostic input preparation, not scheduling",
     "test_device_inventory.py": "no scheduling",
     "test_storage_utils.py": "no scheduling",
     "test_utils.py": "no scheduling",
