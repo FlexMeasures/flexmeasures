@@ -461,19 +461,24 @@ def device_scheduler_highspy(  # noqa C901
         np.tile([1.0, 1.0], (nd, 1)),
     )
 
+    # Sign constraints are only needed where both power directions are available:
+    # where one direction is fixed to zero by its bounds, upwards and downwards activation cannot be simultaneous anyway,
+    # so the constraints are dropped and the sign column stays continuous and unreferenced (a one-way device needs no binary at all).
+    sign_needed = ((deriv_min < 0) & (deriv_max > 0)).ravel()
+    ks = k[sign_needed]
     # device_up_derivative_sign: up <= Md * sign
     rows.add_uniform_rows(
-        np.full(nd, -infinity),
-        np.zeros(nd),
-        np.column_stack([col_up + k, col_sign + k]),
-        np.tile([1.0, -Md], (nd, 1)),
+        np.full(len(ks), -infinity),
+        np.zeros(len(ks)),
+        np.column_stack([col_up + ks, col_sign + ks]),
+        np.tile([1.0, -Md], (len(ks), 1)),
     )
     # device_down_derivative_sign: -down <= Md * (1 - sign)
     rows.add_uniform_rows(
-        np.full(nd, -infinity),
-        np.full(nd, float(Md)),
-        np.column_stack([col_down + k, col_sign + k]),
-        np.tile([-1.0, Md], (nd, 1)),
+        np.full(len(ks), -infinity),
+        np.full(len(ks), float(Md)),
+        np.column_stack([col_down + ks, col_sign + ks]),
+        np.tile([-1.0, Md], (len(ks), 1)),
     )
 
     # device_derivative_equalities: up + down - ems_power = 0
@@ -672,8 +677,8 @@ def device_scheduler_highspy(  # noqa C901
     h.addVars(ncol, lower, upper)
     h.changeColsCost(ncol, np.arange(ncol, dtype=np.int32), cost)
 
-    # Binary variables: device signs, commitment signs (if any) and bands
-    integer_cols = [np.arange(col_sign, col_sign + nd, dtype=np.int32)]
+    # Binary variables: device signs (only where their constraints exist), commitment signs (if any) and bands
+    integer_cols = [(col_sign + ks).astype(np.int32)]
     if col_csign is not None:
         integer_cols.append(np.arange(col_csign, col_csign + C, dtype=np.int32))
     if band_pairs:
