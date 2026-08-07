@@ -28,6 +28,7 @@ EXEMPT = {
     "test_sign_binaries.py": "introspects the Pyomo model; the highspy path is covered by test_highspy_equivalence",
     "test_solver_options.py": "tests option validation, not scheduling",
     # No scheduling involved.
+    "test_scheduling_problem.py": "tests the solver-agnostic input preparation, not scheduling",
     "test_device_inventory.py": "no scheduling",
     "test_storage_utils.py": "no scheduling",
     "test_utils.py": "no scheduling",
