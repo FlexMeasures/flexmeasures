@@ -19,8 +19,8 @@ import click
 from flask import current_app
 from isodate import duration_isoformat
 from rq import get_current_job, Callback
-from rq.exceptions import InvalidJobOperation
-from rq.job import Job
+from rq.exceptions import InvalidJobOperation, NoSuchJobError
+from rq.job import Dependency, Job, JobStatus
 import timely_beliefs as tb
 import pandas as pd
 from sqlalchemy import select
@@ -32,7 +32,10 @@ from flexmeasures.data.models.planning.storage import (
     SCHEDULING_RESULT_KEY,
 )
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
-from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
+from flexmeasures.data.models.planning.exceptions import (
+    InfeasibleProblemException,
+    UpstreamSchedulingFailure,
+)
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -42,6 +45,7 @@ from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
 from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
+    failed_job_reason,
     job_cache,
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
@@ -134,73 +138,165 @@ def success_callback(job, connection, result, *args, **kwargs):
         queue.deferred_job_registry.requeue(dependent_job_ids)
 
 
+def _describe_scheduled_device(asset_or_sensor_ref: dict | None) -> str:
+    """Describe the device that a scheduling job was scheduling, for use in a failure message.
+
+    :param asset_or_sensor_ref: Serialized reference to an Asset or Sensor, as stored in a job's meta data.
+    """
+    if not asset_or_sensor_ref:
+        return "an unknown device"
+    asset_or_sensor = get_asset_or_sensor_from_ref(asset_or_sensor_ref)
+    kind = asset_or_sensor_ref["class"].lower()
+    if asset_or_sensor is None:
+        return f"{kind} {asset_or_sensor_ref['id']}"
+    if isinstance(asset_or_sensor, Sensor):
+        return f"{kind} {asset_or_sensor.id} ({asset_or_sensor.generic_asset.name} - {asset_or_sensor.name})"
+    return f"{kind} {asset_or_sensor.id} ({asset_or_sensor.name})"
+
+
 def trigger_optional_fallback(job, connection, type, value, traceback):
-    """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
+    """Handle a failed scheduling job.
+
+    A fallback schedule job is created when the error is of type InfeasibleProblemException,
+    and the scheduler that failed defines a fallback scheduler.
+
+    Schedulers are not required to define a fallback, though. Without one, the failure is cascaded to the jobs that depend on the failed job,
+    so that a client polling one of them (such as the wrap-up job of a sequential schedule, whose id is what the trigger endpoint returns)
+    reaches a terminal state with a reason, rather than waiting on a job that stays deferred forever.
+    """
 
     job.meta["exception"] = value
     job.save_meta()
 
-    if type is InfeasibleProblemException:
-        asset_or_sensor = get_asset_or_sensor_from_ref(job.meta.get("asset_or_sensor"))
+    if type is InfeasibleProblemException and _trigger_fallback_job(job):
+        return
 
-        scheduler_kwargs = job.meta["scheduler_kwargs"]
+    # A failing fallback job leaves the dependents of the original job deferred, so cascade from that job instead.
+    job_with_dependents = job
+    original_job_id = job.meta.get("original_job_id")
+    if original_job_id is not None:
+        try:
+            job_with_dependents = Job.fetch(original_job_id, connection=connection)
+        except NoSuchJobError:
+            current_app.logger.error(
+                f"Original job with ID={original_job_id} (fallback Job ID={job.id}) not found, so its dependents cannot be failed."
+            )
+            return
 
-        # Deserialize start, end, resolution and belief_time
-        # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
-        timezone = "UTC"
-        if hasattr(asset_or_sensor, "timezone"):
-            timezone = asset_or_sensor.timezone
-        scheduler_kwargs["start"] = pd.Timestamp(scheduler_kwargs["start"]).tz_convert(
-            timezone
+    if not job_with_dependents.dependent_ids:
+        return
+    device = _describe_scheduled_device(job.meta.get("asset_or_sensor"))
+    _cascade_failure_to_dependents(
+        job_with_dependents,
+        connection,
+        reason=f"Scheduling {device} failed with {type.__name__}: {value}, so this schedule could not be computed either.",
+    )
+
+
+def _trigger_fallback_job(job) -> bool:
+    """Create and enqueue a fallback schedule job for a failed scheduling job, if its scheduler defines a fallback.
+
+    :param job: The failed scheduling job.
+    :returns:   True if a fallback job was created, and False if the scheduler has no fallback.
+    """
+    asset_or_sensor = get_asset_or_sensor_from_ref(job.meta.get("asset_or_sensor"))
+
+    scheduler_kwargs = job.meta["scheduler_kwargs"]
+
+    # Deserialize start, end, resolution and belief_time
+    # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
+    timezone = "UTC"
+    if hasattr(asset_or_sensor, "timezone"):
+        timezone = asset_or_sensor.timezone
+    scheduler_kwargs["start"] = pd.Timestamp(scheduler_kwargs["start"]).tz_convert(
+        timezone
+    )
+    scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(timezone)
+    if isinstance(scheduler_kwargs.get("belief_time"), str):
+        scheduler_kwargs["belief_time"] = pd.Timestamp(
+            scheduler_kwargs["belief_time"]
+        ).tz_convert(timezone)
+    if isinstance(scheduler_kwargs.get("resolution"), str):
+        scheduler_kwargs["resolution"] = pd.Timedelta(scheduler_kwargs["resolution"])
+
+    if ("scheduler_specs" in job.kwargs) and (
+        job.kwargs["scheduler_specs"] is not None
+    ):
+        scheduler_class: Type[Scheduler] = load_custom_scheduler(
+            job.kwargs["scheduler_specs"]
         )
-        scheduler_kwargs["end"] = pd.Timestamp(scheduler_kwargs["end"]).tz_convert(
-            timezone
-        )
-        if isinstance(scheduler_kwargs.get("belief_time"), str):
-            scheduler_kwargs["belief_time"] = pd.Timestamp(
-                scheduler_kwargs["belief_time"]
-            ).tz_convert(timezone)
-        if isinstance(scheduler_kwargs.get("resolution"), str):
-            scheduler_kwargs["resolution"] = pd.Timedelta(
-                scheduler_kwargs["resolution"]
-            )
+    else:
+        scheduler_class: Type[Scheduler] = find_scheduler_class(asset_or_sensor)
 
-        if ("scheduler_specs" in job.kwargs) and (
-            job.kwargs["scheduler_specs"] is not None
-        ):
-            scheduler_class: Type[Scheduler] = load_custom_scheduler(
-                job.kwargs["scheduler_specs"]
-            )
-        else:
-            scheduler_class: Type[Scheduler] = find_scheduler_class(asset_or_sensor)
+    # only schedule a fallback schedule job if the original job has a fallback
+    # mechanism
+    if scheduler_class.fallback_scheduler_class is None:
+        return False
 
-        # only schedule a fallback schedule job if the original job has a fallback
-        # mechanism
-        if scheduler_class.fallback_scheduler_class is not None:
-            scheduler_class = scheduler_class.fallback_scheduler_class
-            scheduler_specs = {
-                "class": scheduler_class.__name__,
-                "module": inspect.getmodule(scheduler_class).__name__,
-            }
+    scheduler_class = scheduler_class.fallback_scheduler_class
+    scheduler_specs = {
+        "class": scheduler_class.__name__,
+        "module": inspect.getmodule(scheduler_class).__name__,
+    }
 
-            fallback_job = create_scheduling_job(
-                asset_or_sensor,
-                force_new_job_creation=True,
-                enqueue=False,
-                scheduler_specs=scheduler_specs,
-                success_callback=Callback(success_callback),
-                **scheduler_kwargs,
-            )
+    fallback_job = create_scheduling_job(
+        asset_or_sensor,
+        force_new_job_creation=True,
+        enqueue=False,
+        scheduler_specs=scheduler_specs,
+        success_callback=Callback(success_callback),
+        **scheduler_kwargs,
+    )
 
-            # keep track of the id of the original (non-fallback) job
-            fallback_job.meta["original_job_id"] = job.meta.get(
-                "original_job_id", job.id
-            )
-            fallback_job.save_meta()
+    # keep track of the id of the original (non-fallback) job
+    fallback_job.meta["original_job_id"] = job.meta.get("original_job_id", job.id)
+    fallback_job.save_meta()
 
-            job.meta["fallback_job_id"] = fallback_job.id
-            job.save_meta()
-            current_app.queues["scheduling"].enqueue_job(fallback_job)
+    job.meta["fallback_job_id"] = fallback_job.id
+    job.save_meta()
+    current_app.queues["scheduling"].enqueue_job(fallback_job)
+    return True
+
+
+def _cascade_failure_to_dependents(job: Job, connection, reason: str) -> None:
+    """Put the jobs that depend on a failed scheduling job into a terminal state, too.
+
+    RQ only enqueues the dependents of a job that succeeded, so a failed job without a fallback would otherwise leave its dependents deferred forever,
+    which leaves a client polling such a job (in particular the wrap-up job of a sequential schedule) without a terminal state or a reason.
+
+    Dependent jobs that were set up to tolerate a failing dependency are enqueued rather than failed, so they can run and report on the failure.
+    RQ itself does that for the dependents of the job that just failed, so here we only need to do it for the jobs that we fail ourselves.
+
+    :param job:         The failed job whose dependents should be dealt with.
+    :param connection:  Redis connection.
+    :param reason:      Why the schedule could not be computed, naming the device that failed to be scheduled.
+    """
+    queue = current_app.queues["scheduling"]
+    dependent_ids = list(job.dependent_ids)
+    if not dependent_ids:
+        return
+    for dependent in Job.fetch_many(dependent_ids, connection=connection):
+        if dependent is None or dependent.allow_dependency_failures:
+            continue
+        if dependent.get_status(refresh=True) != JobStatus.DEFERRED:
+            continue
+        _fail_deferred_job(dependent, reason)
+        _cascade_failure_to_dependents(dependent, connection, reason)
+        queue.enqueue_dependents(dependent)
+
+
+def _fail_deferred_job(job: Job, reason: str) -> None:
+    """Move a deferred job that will never run to a terminal failed state, recording why.
+
+    :param job:     The deferred job.
+    :param reason:  Why the schedule could not be computed, naming the device that failed to be scheduled.
+    """
+    queue = current_app.queues["scheduling"]
+    job.meta["exception"] = UpstreamSchedulingFailure(reason)
+    job.save_meta()
+    job.set_status(JobStatus.FAILED)
+    queue.deferred_job_registry.remove(job)
+    queue.failed_job_registry.add(job, ttl=job.failure_ttl, exc_string=reason)
 
 
 @job_cache("scheduling")
@@ -331,11 +427,71 @@ def create_scheduling_job(
 
 
 def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
-    """
+    """Wrap up a chain of sequential scheduling (sub)jobs.
+
+    This job also runs when one of the subjobs failed (see the Dependency set up in create_sequential_scheduling_job),
+    in which case it fails, too, naming the devices that could not be scheduled.
+    Its id is what the trigger endpoint hands to the client, so this is what gives that client a terminal state and a reason.
+
     TODO: maybe check if any of the subjobs used a fallback scheduler or accrued a relaxation penalty.
+
+    :param jobs_ids:                    Ids of the scheduling subjobs in the chain.
+    :raises UpstreamSchedulingFailure:  When any of the subjobs did not produce a schedule.
     """
-    current_app.logger.info("Sequential scheduling job finished its chain of subjobs.")
-    # jobs = [Job.fetch(job_id) for job_id in jobs_ids]
+    connection = current_app.queues["scheduling"].connection
+    failed_devices, skipped_devices = [], []
+    for job_id in jobs_ids:
+        if _scheduling_job_succeeded(job_id, connection):
+            continue
+        try:
+            job = Job.fetch(job_id, connection=connection)
+        except NoSuchJobError:
+            failed_devices.append(
+                f"an unknown device (scheduling job {job_id} is no longer available)"
+            )
+            continue
+        device = _describe_scheduled_device(job.meta.get("asset_or_sensor"))
+        if isinstance(job.meta.get("exception"), UpstreamSchedulingFailure):
+            # This device was never scheduled, because a device earlier in the chain failed.
+            skipped_devices.append(device)
+        else:
+            reason = failed_job_reason(job) or f"job status is {job.get_status()}"
+            failed_devices.append(f"{device}: {reason}")
+
+    if not failed_devices and not skipped_devices:
+        current_app.logger.info(
+            "Sequential scheduling job finished its chain of subjobs."
+        )
+        return
+
+    complaints = []
+    if failed_devices:
+        complaints.append(
+            f"Sequential scheduling failed for {'; '.join(failed_devices)}."
+        )
+    if skipped_devices:
+        complaints.append(
+            f"As a result, no schedule was computed for {', '.join(skipped_devices)}."
+        )
+    raise UpstreamSchedulingFailure(" ".join(complaints))
+
+
+def _scheduling_job_succeeded(job_id: str, connection) -> bool:
+    """Tell whether a scheduling job produced a schedule, either by itself or through its fallback job.
+
+    :param job_id:      Id of the scheduling job.
+    :param connection:  Redis connection.
+    """
+    try:
+        job = Job.fetch(job_id, connection=connection)
+    except NoSuchJobError:
+        return False
+    if job.get_status(refresh=True) == JobStatus.FINISHED:
+        return True
+    fallback_job_id = job.meta.get("fallback_job_id")
+    if fallback_job_id is None:
+        return False
+    return _scheduling_job_succeeded(fallback_job_id, connection)
 
 
 def _add_inflexible_devices(flex_context: dict, sensors: list[Sensor]) -> None:
@@ -447,11 +603,16 @@ def create_sequential_scheduling_job(
         previous_sensors.append(sensor)
         previous_job = job
 
-    # create job that triggers when the last job is done
+    # create job that triggers when the last job is done, or failed:
+    # tolerating a failing dependency lets the wrap-up job report which devices could not be scheduled,
+    # rather than staying deferred forever (see cb_done_sequential_scheduling_job)
+    depends_on_last_job = (
+        Dependency(previous_job, allow_failure=True) if previous_job else None
+    )
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
-        depends_on=previous_job,
+        depends_on=depends_on_last_job,
         ttl=int(
             current_app.config.get(
                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
