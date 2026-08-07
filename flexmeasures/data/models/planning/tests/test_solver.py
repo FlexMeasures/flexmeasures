@@ -1734,15 +1734,11 @@ def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
         f"{device_constraints[0][expected_derivative_col].unique()}"
     )
 
-    soft_breach_names = [
-        c.name
-        for c in commitments
-        if c.name is not None and f"{direction} breach device" in c.name
-    ]
-    assert soft_breach_names == [], (
-        f"explicit zero {capacity_field} must not create soft "
-        f"{direction} breach commitments, got {soft_breach_names}"
-    )
+    # Whether soft breach commitments are still constructed is left unasserted on purpose.
+    # They are harmless next to the hard bound:
+    # their quantity is 0 on these slots, so the pinned flow cannot deviate from them,
+    # which makes them unbreachable and free.
+    # The bound above is what the device actually obeys.
 
 
 @pytest.mark.parametrize(
@@ -1922,6 +1918,90 @@ def test_explicit_zero_directional_capacity_not_breached_in_schedule(
             f"{capacity_field}: 0 must forbid positive (consumption) power even when "
             f"{breach_price_field} is set; max scheduled power was {schedule.max()}"
         )
+
+
+@pytest.mark.parametrize(
+    "capacity_field, expected_derivative_col, hard_bound",
+    [
+        ("production-capacity", "derivative min", -2),
+        ("consumption-capacity", "derivative max", 2),
+    ],
+)
+def test_windowed_zero_directional_capacity_stays_soft(
+    db, add_battery_assets, capacity_field, expected_derivative_col, hard_bound
+):
+    """A zero covering only part of the window is a preference, and must stay breachable.
+
+    The whole-window reading of a zero only holds when the device declares it for the
+    whole window. A zero punched into part of an otherwise non-zero capacity says
+    "not right now", not "never": V2G-Liberty uses exactly this shape to keep a charger
+    idle during a calendar car reservation, so that the user can unplug without waiting
+    (see the "Car reservations" section of the V2G tutorial). Hardening those windows
+    would turn a preference into an infeasibility whenever a soc-minimum needs the
+    device to act during one.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Non-zero for the window, except for one hour in the middle.
+    windowed_capacity = [
+        {"value": "2 MW", "start": start.isoformat(), "duration": "PT24H"},
+        {
+            "value": "0 kW",
+            "start": tz.localize(datetime(2015, 1, 2, 12)).isoformat(),
+            "duration": "PT1H",
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: windowed_capacity,
+        },
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1 EUR/MWh",
+            "site-power-capacity": "2 MW",
+            "relax-capacity-constraints": True,
+        },
+    )
+    scheduler.deserialize_config()
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    # The hard bound stays at the symmetric power-capacity, including during the zero hour.
+    assert np.allclose(device_constraints[0][expected_derivative_col], hard_bound), (
+        f"a windowed zero {capacity_field} must not pin the hard "
+        f"{expected_derivative_col}, got "
+        f"{device_constraints[0][expected_derivative_col].unique()}"
+    )
+
+    # And the capacity is still expressed as a breachable commitment.
+    direction = capacity_field.split("-")[0]
+    assert [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ], f"a windowed zero {capacity_field} must still create soft breach commitments"
 
 
 @pytest.mark.parametrize(

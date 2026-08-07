@@ -435,13 +435,23 @@ When exactly one of ``consumption-capacity`` or ``production-capacity`` is confi
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
-    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_",
+    description="""Device-level power constraint on consumption.
+How much power can be drawn by this asset. [#minimum_overlap]_
+
+A value of zero is read as a statement about the device rather than an economic limit, but only when it holds for the whole scheduling window.
+A capacity that is zero throughout says the device cannot flow in that direction at all (a heat pump cannot produce), and is enforced strictly, even where device capacity relaxation is in effect.
+A zero covering only part of the window says "not right now" (keeping an EV charger idle during a calendar car reservation, say), and remains breachable at the applicable breach price like any other limit.
+""",
     example={"sensor": 56},
 )
 PRODUCTION_CAPACITY = MetaData(
     description="""Device-level power constraint on production.
 How much power can be supplied by this asset.
 For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
+
+A value of zero is read as a statement about the device rather than an economic limit, but only when it holds for the whole scheduling window.
+A capacity that is zero throughout says the device cannot flow in that direction at all (a heat pump cannot produce), and is enforced strictly, even where device capacity relaxation is in effect.
+A zero covering only part of the window says "not right now" (keeping an EV charger idle during a calendar car reservation, say), and remains breachable at the applicable breach price like any other limit.
 """,
     example="0 kW",
 )
