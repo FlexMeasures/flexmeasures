@@ -340,10 +340,10 @@ def test_sentry_daily_deduplicator_fails_open_on_redis_error(
 def test_init_sentry_deduplicates_before_counting_towards_limit(
     app, clean_redis, monkeypatch
 ):
-    """Repeated reports of one condition should not spend the daily Sentry allowance."""
+    """A daily notification bypasses the allowance after other errors exhaust it."""
     sentry_options = {}
     monkeypatch.setitem(app.config, "SENTRY_DSN", "https://public@example.com/1")
-    monkeypatch.setitem(app.config, "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT", 2)
+    monkeypatch.setitem(app.config, "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT", 1)
     monkeypatch.setattr(
         sentry_sdk, "init", lambda **kwargs: sentry_options.update(kwargs)
     )
@@ -356,10 +356,10 @@ def test_init_sentry_deduplicates_before_counting_towards_limit(
     marked_event = {"message": "Database schema is not at the Alembic head revision."}
     error_event = {"message": "Internal Server Error"}
 
+    assert before_send(error_event, make_hint(InternalServerError())) is error_event
     assert before_send(marked_event, marked_hint()) is marked_event
     for _ in range(5):
         assert before_send(marked_event, marked_hint()) is None
-    assert before_send(error_event, make_hint(InternalServerError())) is error_event
     assert before_send(error_event, make_hint(InternalServerError())) is None
 
 

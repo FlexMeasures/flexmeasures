@@ -14,6 +14,7 @@ from sentry_sdk.types import Event, Hint
 from werkzeug.exceptions import NotFound
 
 _SENTRY_REDIS_TIMEOUT_SECONDS = 1
+_SENTRY_DEDUPLICATION_CONFIRMED_ATTRIBUTE = "fm_sentry_deduplication_confirmed"
 
 SENTRY_DEDUPLICATION_KEY_ATTRIBUTE = "fm_sentry_deduplication_key"
 """Log record attribute asking Sentry to report the record once a UTC calendar day.
@@ -85,8 +86,9 @@ def _make_sentry_daily_deduplicator(
 
     def deduplicate(event: Event, hint: Hint) -> Event | None:
         nonlocal redis_warning_logged
+        log_record = hint.get("log_record")
         deduplication_key = getattr(
-            hint.get("log_record"), SENTRY_DEDUPLICATION_KEY_ATTRIBUTE, None
+            log_record, SENTRY_DEDUPLICATION_KEY_ATTRIBUTE, None
         )
         if deduplication_key is None:
             return event
@@ -108,7 +110,10 @@ def _make_sentry_daily_deduplicator(
                     exc,
                 )
             return event
-        return event if is_first_report else None
+        if not is_first_report:
+            return None
+        setattr(log_record, _SENTRY_DEDUPLICATION_CONFIRMED_ATTRIBUTE, True)
+        return event
 
     return deduplicate
 
@@ -121,6 +126,12 @@ def _make_sentry_daily_rate_limiter(
 
     def rate_limit(event: Event, hint: Hint) -> Event | None:
         nonlocal redis_warning_logged
+        if getattr(
+            hint.get("log_record"),
+            _SENTRY_DEDUPLICATION_CONFIRMED_ATTRIBUTE,
+            False,
+        ):
+            return event
         now = datetime.now(timezone.utc)
         counter_key = f"flexmeasures:sentry-events:{now.date().isoformat()}"
         try:
