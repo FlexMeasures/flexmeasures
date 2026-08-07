@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import sentry_sdk
@@ -275,12 +275,15 @@ def test_sentry_daily_deduplicator_resets_on_the_next_calendar_day(
         app, redis_connection=app.redis_connection
     )
     event = {"message": "Database schema is not at the Alembic head revision."}
+    first_moment = datetime.now(timezone.utc).replace(
+        hour=23, minute=50, second=0, microsecond=0
+    ) + timedelta(days=1)
 
-    pretend_utc_now(monkeypatch, datetime(2026, 8, 6, 23, 50, tzinfo=timezone.utc))
+    pretend_utc_now(monkeypatch, first_moment)
     assert deduplicate(event, marked_hint()) is event
     assert deduplicate(event, marked_hint()) is None
 
-    pretend_utc_now(monkeypatch, datetime(2026, 8, 7, 0, 10, tzinfo=timezone.utc))
+    pretend_utc_now(monkeypatch, first_moment + timedelta(minutes=20))
     assert deduplicate(event, marked_hint()) is event
     assert deduplicate(event, marked_hint()) is None
 
