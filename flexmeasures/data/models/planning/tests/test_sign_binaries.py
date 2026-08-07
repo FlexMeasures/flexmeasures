@@ -48,7 +48,7 @@ def test_pyomo_only_adds_sign_constraints_where_both_directions_are_available(
         downwards_deviation_price=-1,
         index=index,
     )
-    schedule, costs, results, model = device_scheduler(
+    _, _, results, model = device_scheduler(
         device_constraints=[
             make_device_constraints(one_way=True),
             make_device_constraints(one_way=False),

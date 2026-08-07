@@ -560,9 +560,11 @@ def device_scheduler(  # noqa C901
         )
 
     def _sign_constraint_is_vacuous(m, d, j):
-        """Whether the sign constraints cannot bind: one power direction is fixed to zero by its bounds,
-        so upwards and downwards activation cannot be simultaneous anyway.
-        Skipping them leaves the sign binary unreferenced (a one-way device needs no binary at all).
+        """Whether the sign constraints cannot bind.
+
+        One power direction being fixed to zero by its bounds,
+        upwards and downwards activation cannot be simultaneous anyway.
+        Skipping the constraints leaves the sign binary unreferenced (a one-way device needs no binary at all).
         """
         return m.device_derivative_min[d, j] >= 0 or m.device_derivative_max[d, j] <= 0
 
