@@ -271,6 +271,14 @@ def test_sentry_daily_deduplicator_resets_on_the_next_calendar_day(
     app, clean_redis, monkeypatch
 ):
     """The marker expires at UTC midnight, rather than a full day after the first report."""
+    expiration_times = []
+    redis_set = app.redis_connection.set
+
+    def record_expiration(*args, **kwargs):
+        expiration_times.append(kwargs["exat"])
+        return redis_set(*args, **kwargs)
+
+    monkeypatch.setattr(app.redis_connection, "set", record_expiration)
     deduplicate = _make_sentry_daily_deduplicator(
         app, redis_connection=app.redis_connection
     )
@@ -286,6 +294,15 @@ def test_sentry_daily_deduplicator_resets_on_the_next_calendar_day(
     pretend_utc_now(monkeypatch, first_moment + timedelta(minutes=20))
     assert deduplicate(event, marked_hint()) is event
     assert deduplicate(event, marked_hint()) is None
+
+    first_midnight = first_moment + timedelta(minutes=10)
+    second_midnight = first_midnight + timedelta(days=1)
+    assert expiration_times == [
+        int(first_midnight.timestamp()),
+        int(first_midnight.timestamp()),
+        int(second_midnight.timestamp()),
+        int(second_midnight.timestamp()),
+    ]
 
 
 def test_sentry_daily_deduplicator_reports_another_key_right_away(app, clean_redis):
