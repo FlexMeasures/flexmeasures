@@ -87,7 +87,9 @@ def test_ems_level_stock_commitment_is_rejected():
         downwards_deviation_price=-1,
         index=make_index(),
     )
-    with pytest.raises(ValueError, match="no constraint would bind it"):
+    with pytest.raises(
+        ValueError, match="Commitment 'soc' .* no constraint would bind it"
+    ):
         prepare_scheduling_problem(**make_problem_kwargs([commitment]))
 
 
@@ -101,7 +103,7 @@ def test_commodity_commitment_without_devices_is_rejected():
         commodity="gas",
         index=make_index(),
     )
-    with pytest.raises(ValueError, match="gas"):
+    with pytest.raises(ValueError, match="Commitment 'gas price' .* commodity 'gas'"):
         prepare_scheduling_problem(**make_problem_kwargs([commitment]))
 
 
