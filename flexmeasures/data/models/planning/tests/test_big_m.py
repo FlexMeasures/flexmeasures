@@ -80,7 +80,7 @@ def test_Mc_covers_the_horizon_for_stock_commitments():
         ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
         commitments=[commitment],
     )
-    # 4 time steps of 0.5 + 2 flow limits each, plus the committed quantity
+    # 4 time steps of 0.5 + 2 flow limits each, plus the committed quantity.
     assert problem.Mc == 4 * 2.5 + 0.5
 
 
@@ -105,7 +105,7 @@ def test_Mc_scales_stock_changes_by_conversion_efficiencies_and_stock_deltas():
         commitments=[commitment],
     )
     # 4 time steps of 0.5 flow scaled by the worst-case conversion gain max(2, 1/0.5) plus a 0.25 stock delta,
-    # plus the committed quantity
+    # plus the committed quantity.
     assert problem.Mc == 4 * (0.5 * 2 + 0.25) + 0.5
 
 
@@ -137,7 +137,7 @@ def test_large_committed_quantity_remains_feasible_under_a_non_convex_cost_curve
         commitments=[commitment],
     )
     assert results.solver.termination_condition == "optimal"
-    # The upwards deviation earns 1 per unit, so the device consumes at full power
+    # The upwards deviation earns 1 per unit, so the device consumes at full power.
     np.testing.assert_allclose(schedule[0].values, 0.5, atol=1e-6)
-    # Each of the 4 steps deviates upwards by 100.5 at price -1
+    # Each of the 4 steps deviates upwards by 100.5 at price -1.
     assert costs == -4 * 100.5
