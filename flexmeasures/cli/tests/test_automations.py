@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 
 import pytest
 from types import SimpleNamespace
@@ -239,6 +240,40 @@ def test_automation_sensors(app, fresh_db, setup_dummy_data):
 
     sensor = fresh_db.session.get(Sensor, sensor_id)
     assert [a.id for a in get_automations_feeding_sensor(sensor)] == [automation.id]
+
+
+def test_automation_sensors_with_source_filtered_regressor(
+    app, fresh_db, setup_dummy_data
+):
+    """A regressor that filters on sources still counts as an input sensor.
+
+    The source filters only narrow down which beliefs are read from that sensor,
+    so leaving it out would understate which sensors the automation reads from.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor_id, regressor_id = setup_dummy_data[0], setup_dummy_data[1]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Filtered regressor forecasts",
+                "sensor": sensor_id,
+                "regressors": json.dumps(
+                    [{"sensor": regressor_id, "source-types": ["forecaster"]}]
+                ),
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Filtered regressor forecasts")
+    ).scalar_one()
+    assert sorted(sensor.id for sensor in automation.input_sensors) == sorted(
+        [sensor_id, regressor_id]
+    )
 
 
 def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):

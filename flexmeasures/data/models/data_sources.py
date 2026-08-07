@@ -126,18 +126,23 @@ class DataGenerator:
 
     @staticmethod
     def _resolve_sensors(*values) -> list:
-        """Turn (lists of) sensors or sensor IDs into a list of unique sensors.
+        """Turn (lists of) sensors, sensor references or sensor IDs into a list of unique sensors.
 
+        A sensor reference contributes the sensor it wraps, as the source filters only narrow down
+        which beliefs are read from that sensor, not which sensor is involved.
         Sensor IDs that cannot be found, and None values, are skipped.
         """
         from flexmeasures.data.models.time_series import Sensor
+        from flexmeasures.data.schemas.sensors import SensorReference
 
         sensors: dict[int, Sensor] = {}
         for value in values:
             if value is None:
                 continue
             for item in value if isinstance(value, (list, tuple, set)) else [value]:
-                if isinstance(item, Sensor):
+                if isinstance(item, SensorReference):
+                    sensor = item.sensor
+                elif isinstance(item, Sensor):
                     sensor = item
                 elif isinstance(item, int) or (
                     isinstance(item, str) and item.isdigit()
