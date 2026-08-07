@@ -318,6 +318,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
+.. [#soft_by_default] SoC minima and maxima are relaxed into soft constraints by default, receiving default breach prices, so the scheduler gets as close as possible to them when they cannot all be met. Setting ``relax-soc-constraints`` (or the umbrella ``relax-constraints``) to false keeps them hard, unless breach prices are supplied explicitly.
+
 .. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.

@@ -5284,7 +5284,7 @@
           "relax-constraints": {
             "type": "boolean",
             "default": true,
-            "description": "If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n\nThe specific <code>relax-soc-constraints</code> and <code>relax-site-capacity-constraints</code> flags follow this umbrella flag unless they are set explicitly, in which case they take precedence for their respective constraints.\n\nThe device <code>consumption-capacity</code> and <code>production-capacity</code> are deliberately not part of this.\nA directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so making it breachable at a price has to name the thing being softened.\nUse <code>relax-capacity-constraints</code>, or set <code>consumption-breach-price</code> or <code>production-breach-price</code> yourself, to relax device capacities.\n\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "description": "If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n\nThe specific <code>relax-soc-constraints</code> and <code>relax-site-capacity-constraints</code> flags follow this flag unless they are set explicitly, in which case they take precedence.\nThe device <code>consumption-capacity</code> and <code>production-capacity</code> are deliberately not covered; see <code>relax-capacity-constraints</code>.\n\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
@@ -5293,13 +5293,13 @@
               "null"
             ],
             "default": null,
-            "description": "Whether to avoid not meeting SoC minima/maxima as relaxed (soft) constraints, by setting default breach prices. If not set, the umbrella <code>relax-constraints</code> flag (which defaults to True) decides, so SoC minima/maxima are relaxed by default. Setting this field explicitly takes precedence over <code>relax-constraints</code>; setting either flag to False keeps SoC minima/maxima as hard constraints, unless breach prices are supplied explicitly.",
+            "description": "Whether to soften SoC minima/maxima with default breach prices. If not set, <code>relax-constraints</code> decides (so they are relaxed by default); an explicit value here takes precedence.",
             "example": true
           },
           "relax-capacity-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "description": "If True, softens the device consumption/production capacities with default breach prices. Deliberately not covered by <code>relax-constraints</code>: a directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so softening it has to name the thing being softened.",
             "example": true
           },
           "relax-site-capacity-constraints": {
@@ -5308,7 +5308,7 @@
               "null"
             ],
             "default": null,
-            "description": "Whether to avoid breaching the site consumption/production capacity as relaxed (soft) constraints, by setting default breach prices. If not set, the umbrella <code>relax-constraints</code> flag (which defaults to True) decides, so the site capacities are relaxed by default. Setting this field explicitly takes precedence over <code>relax-constraints</code>; setting either flag to False keeps the site capacities as hard constraints, unless breach prices are supplied explicitly.",
+            "description": "Whether to soften the site consumption/production capacities with default breach prices. If not set, <code>relax-constraints</code> decides (so they are relaxed by default); an explicit value here takes precedence.",
             "example": true
           },
           "commitments": {
@@ -7056,7 +7056,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> are soft constraints in the optimization problem by default, because SoC constraints are relaxed by default (see <code>relax-soc-constraints</code>), which supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nSoft constraints by default (see <code>relax-soc-constraints</code>).",
             "example": [
               {
                 "value": "51 kWh",
@@ -7067,7 +7067,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> are soft constraints in the optimization problem by default, because SoC constraints are relaxed by default (see <code>relax-soc-constraints</code>), which supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nSoft constraints by default (see <code>relax-soc-constraints</code>).\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
