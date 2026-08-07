@@ -11,10 +11,15 @@ from flask_security import current_user
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
-from werkzeug.exceptions import NotFound
 
 from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
+from flexmeasures.utils.sentry_utils import (
+    _make_sentry_daily_deduplicator,
+    _make_sentry_daily_rate_limiter,
+    _make_sentry_redis_connection,
+    _sentry_filter_notfound,
+)
 
 
 def provision_default_template_assets_on_startup(app: Flask) -> None:
@@ -57,40 +62,6 @@ def flexmeasures_cli():
     pass
 
 
-# For the Sentry integration, a crucial task is to filter out noise before it reaches Sentry.
-# Limiting what gets sent to Sentry (by 95%) keeps your costs to what you are interested in.
-# We want to filter out 404s (also those who in addition use untrusted-host request headers),
-# which are common probes in the wild.
-# Note: errors may reach Sentry twice - as raised Exception plus if FlexMeasures logs the error (e.g. during handling it)
-#       With verbose=False, Sentry might only see the  logging event, not an Exception, as it is only visible in the LogRecord message rather than in hint["exc_info"].
-
-
-def _sentry_filter_notfound(event, hint):
-    """Filter out noisy handled web errors to avoid inflating Sentry error budgets."""
-    if "exc_info" in hint:
-        _exc_type, exc_value, _tb = hint["exc_info"]
-        if isinstance(exc_value, NotFound):
-            return None
-    # FlexMeasures logs handled 404s with verbose=False to keep automated
-    # scans for hackable URLs from overwhelming log files. Sentry receives
-    # those as logging events, so the NotFound exception is only visible in
-    # the LogRecord message rather than in hint["exc_info"].
-    # We also filter out handled SecurityErrors that are logged when untrusted-host
-    # request headers are used.
-    log_record = hint.get("log_record")
-    if log_record is not None:
-        message = log_record.getMessage()
-        if message.startswith("NotFound - URL was: "):
-            return None
-        if (
-            message.startswith("SecurityError - URL was: ")
-            and " - \"Host '" in message
-            and message.endswith("' is not trusted.\"")
-        ):
-            return None
-    return event
-
-
 def init_sentry(app: Flask):
     """
     Configure Sentry.
@@ -105,11 +76,38 @@ def init_sentry(app: Flask):
         return
     app.logger.info("[FLEXMEASURES] Initialising Sentry ...")
 
-    before_send = (
-        _sentry_filter_notfound
-        if app.config.get("FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY")
-        else None
-    )
+    # The filters run in order, so events dropped by an earlier filter do not count towards the daily rate limit.
+    filters = []
+    if app.config.get("FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY"):
+        filters.append(_sentry_filter_notfound)
+
+    redis_connection = _make_sentry_redis_connection(app)
+    filters.append(_make_sentry_daily_deduplicator(app, redis_connection))
+
+    daily_rate_limit = app.config.get("FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT")
+    if daily_rate_limit is not None:
+        if (
+            isinstance(
+                daily_rate_limit, bool
+            )  # reject True/False explicitly (instances of int)
+            or not isinstance(daily_rate_limit, int)
+            or daily_rate_limit <= 0
+        ):
+            app.logger.warning(
+                "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT must be a positive integer "
+                "or None. Sentry events will be sent without rate limiting."
+            )
+        else:
+            filters.append(
+                _make_sentry_daily_rate_limiter(app, daily_rate_limit, redis_connection)
+            )
+
+    def before_send(event, hint):
+        for event_filter in filters:
+            event = event_filter(event, hint)
+            if event is None:
+                break
+        return event
 
     sentry_sdk.init(
         dsn=sentry_dsn,
@@ -118,7 +116,7 @@ def init_sentry(app: Flask):
         release=f"flexmeasures@{fm_version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
         environment=app.config.get("FLEXMEASURES_ENV"),
-        before_send=before_send,
+        before_send=before_send if filters else None,
         **app.config["FLEXMEASURES_SENTRY_CONFIG"],
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
