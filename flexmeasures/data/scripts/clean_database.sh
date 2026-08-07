@@ -149,7 +149,7 @@ function delete_database() {
 
 # Check if the database name is provided
 if [ -z "$1" ]; then
-  echo "Error: db-name is required. Please provide a value for db-name, e.g., uv run poe clean-db db-name=flexmeasures-db db-user=flexmeasures"
+  echo "Error: db-name is required. Please provide a value for db-name, e.g., uv run poe clean-db --db-name flexmeasures-db --db-user flexmeasures"
   exit 1
 fi
 
