@@ -124,7 +124,7 @@ The response body will contain a JSON message with a ``status`` field set to ``"
 .. note::
 
     FlexMeasures' built-in storage scheduler no longer computes a fallback schedule for infeasible problems.
-    Instead, ``soc-minima`` and ``soc-maxima`` are relaxed by default through ``"relax-soc-constraints": true`` (setting either it or ``"relax-constraints"`` to ``false`` keeps them hard).
+    Instead, ``soc-minima`` and ``soc-maxima`` are relaxed by default (setting ``relax-soc-constraints`` or ``relax-constraints`` to ``false`` keeps them hard, with an explicitly set ``relax-soc-constraints`` taking precedence).
     The hard constraints that remain even after constraint relaxation are ``soc-min``, ``soc-max``, ``soc-targets`` and ``power-capacity`` in the ``flex-model``, and ``site-power-capacity`` in the ``flex-context``.
     The device ``consumption-capacity`` and ``production-capacity`` are not covered by ``relax-constraints`` at all; they stay hard unless you relax them by name, either by setting ``relax-capacity-constraints`` or by setting ``consumption-breach-price`` or ``production-breach-price`` yourself.
     If hard constraints cannot be satisfied, the scheduling job fails and clients receive the failure reason when requesting the schedule.
