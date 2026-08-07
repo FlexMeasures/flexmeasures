@@ -259,6 +259,52 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     assert "Invalid value" in result.output
 
 
+def test_add_automation_help_focuses_on_automation_options(app):
+    """The forecast schema options are accepted, but kept out of the help text."""
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(add_automation, ["--help"])
+
+    assert result.exit_code == 0, result.output
+    for automation_option in (
+        "--asset",
+        "--name",
+        "--cron",
+        "--config",
+        "--parameters",
+    ):
+        assert automation_option in result.output
+    for forecast_option in ("--sensor ", "--duration", "--train-start"):
+        assert forecast_option not in result.output
+
+
+def test_add_automation_accepts_required_sensor_from_parameters_file(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """The schema requires a sensor, but it may come from --parameters rather than the command line."""
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(f"sensor: {setup_dummy_data[0]}\n")
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "YAML sensor",
+                "parameters": str(parameters_file),
+            }
+        ),
+    )
+
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="YAML sensor")
+    ).scalar_one()
+    assert automation.parameters == {"sensor": setup_dummy_data[0]}
+
+
 @pytest.mark.parametrize(
     ("output_sensor_name", "should_succeed"),
     (

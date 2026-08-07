@@ -1736,8 +1736,12 @@ def add_forecast(  # noqa: C901
     type=click.File("r"),
     help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step on each run of the automation).",
 )
-@add_cli_options_from_schema(ForecasterParametersSchema())
-@add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
+@add_cli_options_from_schema(
+    ForecasterParametersSchema(), hidden=True, force_optional=True
+)
+@add_cli_options_from_schema(
+    TrainPredictPipelineConfigSchema(), hidden=True, force_optional=True
+)
 def add_automation(
     asset: GenericAsset,
     name: str,
@@ -1756,7 +1760,7 @@ def add_automation(
     \b
     Example
       flexmeasures add automation --asset 3 --name "Day-ahead PV forecasts"
-        --cron "0 6 * * *" --sensor 2092 --regressors 2093
+        --cron "0 6 * * *" --parameters forecast-parameters.yml
 
     The forecaster configuration is stored on a data source, and the forecast
     parameters are validated and stored on the automation itself.
@@ -1765,6 +1769,12 @@ def add_automation(
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster
     and configuration stored on it.
+
+    Every forecaster and pipeline option that `flexmeasures add forecast` accepts is accepted here, too,
+    but is left out of the help text above to keep it focused on the automation itself;
+    run `flexmeasures add forecast --help` to see them.
+    A configuration option given on the command line overrides the same setting from --config,
+    while a parameter from --parameters takes precedence over the matching command-line option.
     """
     if forecaster_class is None:
         forecaster_class = "TrainPredictPipeline"
