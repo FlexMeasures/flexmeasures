@@ -5272,37 +5272,43 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with <code>soc-maxima-breach-price</code>, it also prices <code>soc-targets</code>: falling short of a target is priced like a <code>soc-minima</code> breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-maxima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with <code>soc-minima-breach-price</code>, it also prices <code>soc-targets</code>: overshooting a target is priced like a <code>soc-maxima</code> breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "relax-constraints": {
             "type": "boolean",
             "default": true,
-            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "description": "If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n\nThe specific <code>relax-soc-constraints</code> and <code>relax-site-capacity-constraints</code> flags follow this flag unless they are set explicitly, in which case they take precedence.\nThe device <code>consumption-capacity</code> and <code>production-capacity</code> are deliberately not covered; see <code>relax-capacity-constraints</code>.\n\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Whether to soften SoC minima/maxima with default breach prices. If not set, <code>relax-constraints</code> decides (so they are relaxed by default); an explicit value here takes precedence.",
             "example": true
           },
           "relax-capacity-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "description": "If True, softens the device consumption/production capacities with default breach prices. Deliberately not covered by <code>relax-constraints</code>: a directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so softening it has to name the thing being softened.",
             "example": true
           },
           "relax-site-capacity-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Whether to soften the site consumption/production capacities with default breach prices. If not set, <code>relax-constraints</code> decides (so they are relaxed by default); an explicit value here takes precedence.",
             "example": true
           },
           "commitments": {
@@ -7050,7 +7056,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nSoft constraints by default (see <code>relax-soc-constraints</code>).",
             "example": [
               {
                 "value": "51 kWh",
@@ -7061,7 +7067,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nSoft constraints by default (see <code>relax-soc-constraints</code>).\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
@@ -7076,7 +7082,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-targets": {
-            "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nThese are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
+            "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nA target is two-sided, so if both a <code>soc-minima-breach-price</code> and a <code>soc-maxima-breach-price</code> are defined, the <code>soc-targets</code> become soft constraints in the optimization problem.\nFalling short of a target is then priced like a <code>soc-minima</code> breach, and overshooting it like a <code>soc-maxima</code> breach.\nOtherwise, they become hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",

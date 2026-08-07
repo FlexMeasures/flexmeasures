@@ -255,6 +255,25 @@ def run_with_solver(app, solver: str, make_scenario):
         app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
 
 
+def scenario_one_way_consumer():
+    """A consumption-only device (no downwards power), whose sign binaries are dropped entirely.
+
+    One backend dropping the vacuous sign constraints while the other keeps them would still agree on the schedule,
+    so this scenario mainly guards the sparse construction path (empty and partial sign constraint sets).
+    """
+    index = make_index()
+    prices = make_prices(index)
+    device_constraints = initialize_df(COLUMNS, START, END, RESOLUTION)
+    device_constraints["derivative max"] = 0.5
+    device_constraints["derivative min"] = 0
+    device_constraints.loc[index[-1], "equals"] = 2  # consume 2 units by the end
+    return dict(
+        device_constraints=[device_constraints],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[make_energy_commitment(index, prices)],
+    )
+
+
 def scenario_ems_level_flow_commitment():
     """Two devices under an EMS-level flow commitment, which names no device.
 
@@ -383,6 +402,7 @@ def scenario_internal_commodity_balance():
         scenario_battery_with_soc_targets,
         scenario_battery_with_site_capacity_and_breach_prices,
         scenario_two_devices_with_stock_commitment,
+        scenario_one_way_consumer,
         scenario_ems_level_flow_commitment,
         scenario_ems_level_commodity_commitment,
         scenario_chp_coupling_groups,
@@ -429,8 +449,8 @@ def test_highspy_matches_pyomo_when_infeasible(app):
         app, "highspy", scenario_infeasible
     )
 
-    # This is the check the StorageScheduler performs to raise an
-    # InfeasibleProblemException (and to trigger its fallback scheduler).
+    # This is the check the StorageScheduler performs to raise an InfeasibleProblemException,
+    # which fails the scheduling job.
     assert "infeasible" in results_p.solver.termination_condition
     assert "infeasible" in results_h.solver.termination_condition
 

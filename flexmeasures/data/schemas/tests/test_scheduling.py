@@ -611,6 +611,151 @@ def test_flex_context_schema(
     check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
 
 
+def test_flex_context_schema_relaxes_soc_constraints_by_default():
+    loaded_flex_context = FlexContextSchema().load({"consumption-price": "1 EUR/MWh"})
+
+    assert loaded_flex_context["relax_constraints"] is True
+    # The specific flag is not set, so the umbrella flag decides.
+    assert loaded_flex_context["relax_soc_constraints"] is None
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/MWh"
+    ).magnitude == pytest.approx(1_000_000)
+    assert loaded_flex_context["soc_maxima_breach_price"].to(
+        "EUR/MWh"
+    ).magnitude == pytest.approx(1_000_000)
+
+
+def test_flex_context_schema_preserves_explicit_soc_breach_prices():
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "soc-minima-breach-price": "5 EUR/kWh",
+            "soc-maxima-breach-price": "7 EUR/kWh",
+        }
+    )
+
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(5)
+    assert loaded_flex_context["soc_maxima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(7)
+
+
+def test_flex_context_schema_umbrella_opt_out_disables_soc_relaxation():
+    """Setting relax-constraints to False alone keeps SoC minima/maxima hard."""
+    loaded_flex_context = FlexContextSchema().load(
+        {"consumption-price": "1 EUR/MWh", "relax-constraints": False}
+    )
+
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "soc_maxima_breach_price" not in loaded_flex_context
+    assert "consumption_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+
+
+def test_flex_context_schema_explicit_soc_relaxation_overrides_umbrella_opt_out():
+    """An explicit relax-soc-constraints wins over an explicit relax-constraints."""
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "relax-constraints": False,
+            "relax-soc-constraints": True,
+        }
+    )
+
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/MWh"
+    ).magnitude == pytest.approx(1_000_000)
+
+    loaded_flex_context = FlexContextSchema().load(
+        {"consumption-price": "1 EUR/MWh", "relax-soc-constraints": False}
+    )
+
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "soc_maxima_breach_price" not in loaded_flex_context
+
+
+def test_flex_context_schema_explicit_site_capacity_relaxation_overrides_umbrella():
+    """An explicit relax-site-capacity-constraints wins over relax-constraints, in both directions."""
+    # Explicit opt-out beats the umbrella default of True.
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "relax-site-capacity-constraints": False,
+        }
+    )
+
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+    assert "ems_production_breach_price" not in loaded_flex_context
+
+    # Explicit opt-in beats an explicit umbrella opt-out.
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "relax-constraints": False,
+            "relax-site-capacity-constraints": True,
+        }
+    )
+
+    assert loaded_flex_context["ems_consumption_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(10_000)
+    assert loaded_flex_context["ems_production_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(10_000)
+
+
+def test_flex_context_schema_fills_default_breach_prices_per_field():
+    """Setting one breach price of a pair explicitly still fills the default for the other."""
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "soc-minima-breach-price": "5 EUR/kWh",
+        }
+    )
+
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(5)
+    assert loaded_flex_context["soc_maxima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(1_000)
+
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "site-consumption-breach-price": "3 EUR/kW",
+        }
+    )
+
+    assert loaded_flex_context["ems_consumption_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(3)
+    assert loaded_flex_context["ems_production_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(10_000)
+
+    # The device capacity pair is deliberately not filled per field:
+    # see test_explicit_device_breach_price_is_not_overwritten.
+
+
+def test_db_flex_context_schema_fills_no_default_breach_prices():
+    """Validating a stored flex-context does not bake in the default breach prices implied by the relax flags."""
+    loaded_flex_context = DBFlexContextSchema().load({})
+
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "soc_maxima_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+    assert "ems_production_breach_price" not in loaded_flex_context
+
+    # Not even when relaxation is asked for explicitly in the stored flex-context.
+    loaded_flex_context = DBFlexContextSchema().load({"relax-constraints": True})
+
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+
+
 def check_schema_loads_data(schema, data, fails):
     if fails:
         with pytest.raises(ValidationError) as e_info:
@@ -1995,3 +2140,66 @@ def test_tutorial_chp_example_validates(app):
         assert _resolve_coupling_coefficient(loaded) == pytest.approx(
             expected_coefficient
         )
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "device_softened", "soc_softened", "site_softened"],
+    [
+        # Nothing given: relax-constraints defaults to True,
+        # which softens the SoC and site capacity constraints, but not the device directional capacities.
+        ({}, False, True, True),
+        # Writing out the default changes nothing:
+        # the blanket does not cover device capacities either way.
+        ({"relax-constraints": True}, False, True, True),
+        # Device capacities are relaxed by naming them.
+        ({"relax-capacity-constraints": True}, True, True, True),
+        # Explicitly opting out keeps everything hard.
+        ({"relax-constraints": False}, False, False, False),
+        # Opting out of the blanket while opting into device capacity relaxation.
+        (
+            {"relax-constraints": False, "relax-capacity-constraints": True},
+            True,
+            False,
+            False,
+        ),
+    ],
+)
+def test_device_capacity_relaxation_is_opt_in(
+    flex_context, device_softened, soc_softened, site_softened
+):
+    """The blanket relax-constraints must not soften device directional capacities.
+
+    A directional capacity can state a physical impossibility (a heat pump that cannot produce),
+    so making it breachable at a price has to name the thing being softened,
+    through relax-capacity-constraints or through the device breach prices themselves.
+
+    Note that passing relax-constraints explicitly behaves the same as leaving it out:
+    the field defaults to True, so writing out that default must not change anything.
+    """
+    loaded = FlexContextSchema().load(flex_context)
+
+    assert (loaded.get("consumption_breach_price") is not None) is device_softened
+    assert (loaded.get("production_breach_price") is not None) is device_softened
+    assert (loaded.get("soc_minima_breach_price") is not None) is soc_softened
+    assert (loaded.get("soc_maxima_breach_price") is not None) is soc_softened
+    assert (loaded.get("ems_consumption_breach_price") is not None) is site_softened
+    assert (loaded.get("ems_production_breach_price") is not None) is site_softened
+
+
+def test_explicit_device_breach_price_is_not_overwritten():
+    """An explicitly given device breach price survives relax-capacity-constraints.
+
+    ``set_default_breach_prices`` assigns unconditionally,
+    so the guard has to keep it from running at all when the caller already priced a breach themselves.
+    """
+    loaded = FlexContextSchema().load(
+        {
+            "relax-capacity-constraints": True,
+            "consumption-breach-price": "7 EUR/kW",
+        }
+    )
+
+    assert loaded["consumption_breach_price"] == ur.Quantity("7 EUR/kW")
+    # The opposite direction is left alone too:
+    # pricing one direction explicitly puts the caller in charge of both, rather than mixing their price with our default.
+    assert loaded.get("production_breach_price") is None
