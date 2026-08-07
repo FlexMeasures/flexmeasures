@@ -58,6 +58,11 @@ def test_pyomo_only_adds_sign_constraints_where_both_directions_are_available(
     )
     assert results.solver.termination_condition == "optimal"
     n_steps = len(index)
-    # Only the two-way device carries sign constraints (without the skip, both devices would: 2 * n_steps each)
+    # Each constraint family (up sign, down sign) is indexed over all (device, time step) pairs,
+    # so with 2 devices it would hold 2 * n_steps members if every pair contributed one.
+    # The one-way device contributes none: its downwards power is fixed to zero by its bounds,
+    # so both of its sign constraints are vacuous and its rule returns Constraint.Skip at every time step.
+    # The two-way device contributes one member per time step, leaving n_steps members per family.
+    # Skipped members simply do not exist on the Pyomo model, which is what len() counts.
     assert len(model.device_power_up_sign) == n_steps
     assert len(model.device_power_down_sign) == n_steps
