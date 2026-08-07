@@ -25,7 +25,10 @@ import pytz
 from flask import current_app as app
 from flask.cli import with_appcontext
 import click
-from click.core import ParameterSource
+
+# NB the type: ignore comments here and on ctx.get_parameter_source below are needed because types-Flask pins types-click 7.1,
+# whose stubs shadow the inline types that click ships itself, and predate both of these (added in click 8.0).
+from click.core import ParameterSource  # type: ignore[attr-defined]
 import getpass
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
@@ -1422,7 +1425,7 @@ def _find_options_given_on_command_line(
     return [
         option
         for param_name, option in options_by_param_name.items()
-        if ctx.get_parameter_source(param_name) == ParameterSource.COMMANDLINE
+        if ctx.get_parameter_source(param_name) == ParameterSource.COMMANDLINE  # type: ignore[attr-defined]
     ]
 
 
