@@ -1671,11 +1671,10 @@ def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
 ):
     """Explicit zero directional capacity is physical, not economic (#2323).
 
-    With ``relax-constraints`` defaulting to True, non-zero capacity limits may be
-    softened via breach prices. An explicit ``production-capacity: 0`` (or
-    consumption-capacity: 0) must remain a hard bound — otherwise a consumption-only
-    device (e.g. heat pump) can be scheduled to produce when site breaches are
-    more expensive than device breaches.
+    With ``relax-constraints`` defaulting to True, non-zero capacity limits may be softened via breach prices.
+    An explicit ``production-capacity: 0`` (or consumption-capacity: 0) must remain a hard bound,
+    otherwise a consumption-only device (e.g. heat pump) can be scheduled to produce,
+    when site breaches are more expensive than device breaches.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
 
@@ -1757,8 +1756,9 @@ def test_non_zero_directional_capacity_still_softens_under_breach_price(
     """Non-zero directional capacity remains soft when breach prices are set (#2323).
 
     Companion to ``test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints``:
-    only the all-zero case stays hard; economic (non-zero) limits must still create soft
-    breach commitments and must not pin the hard derivative bound to that capacity.
+    only the all-zero case stays hard.
+    Economic (non-zero) limits must still create soft breach commitments,
+    and must not pin the hard derivative bound to that capacity.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
 
@@ -1870,12 +1870,11 @@ def test_explicit_zero_directional_capacity_not_breached_in_schedule(
 ):
     """Regression for #2323: never schedule in a direction with explicit capacity 0.
 
-    A soft interpretation of an all-zero directional capacity (via breach prices
-    that ``relax-constraints`` would inject) would allow power in a physically
-    impossible direction. Zero must stay hard for both production and consumption.
+    A soft interpretation of an all-zero directional capacity (via breach prices that ``relax-constraints`` would inject),
+    would allow power in a physically impossible direction.
+    Zero must stay hard for both production and consumption.
 
-    Same failure mode as EV chargers scheduled to discharge despite
-    ``production-capacity: 0 W`` in #2329.
+    Same failure mode as EV chargers scheduled to discharge despite ``production-capacity: 0 W`` in #2329.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
 
