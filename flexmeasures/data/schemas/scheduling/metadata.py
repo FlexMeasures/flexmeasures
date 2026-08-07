@@ -212,7 +212,7 @@ RELAX_CONSTRAINTS = MetaData(
 
 Priority 3 only applies when you ask for it: leaving this field at its default relaxes the first two, but keeps ``consumption-capacity`` and ``production-capacity`` hard.
 That is because a directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic preference, and a default should not make that breachable at a price.
-Pass ``relax-constraints`` explicitly, or use ``relax-capacity-constraints``, to relax device capacities as well.
+Set ``consumption-breach-price`` or ``production-breach-price`` yourself, or pass ``relax-constraints`` explicitly, or use ``relax-capacity-constraints``, to relax device capacities as well.
 
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,

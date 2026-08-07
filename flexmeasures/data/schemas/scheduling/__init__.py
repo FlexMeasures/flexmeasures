@@ -1056,10 +1056,10 @@ class FlexContextSchema(SharedSchema):
 
         # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
         # Note that a *defaulted* 'relax-constraints' does not soften device capacities.
-        # A directional capacity can state a physical impossibility (a heat pump that
-        # cannot produce), and a default should not make that breachable at a price.
-        # Softening them therefore stays an opt-in, through 'relax-capacity-constraints'
-        # or through an explicitly passed 'relax-constraints'.
+        # A directional capacity can state a physical impossibility (a heat pump that cannot produce),
+        # and a default should not make that breachable at a price.
+        # Softening them therefore stays an opt-in,
+        # through 'relax-capacity-constraints' or through an explicitly passed 'relax-constraints'.
         relax_constraints_key = self.declared_fields["relax_constraints"].data_key
         if (
             data["relax_capacity_constraints"]
