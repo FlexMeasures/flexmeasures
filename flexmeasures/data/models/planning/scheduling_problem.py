@@ -24,7 +24,11 @@ import pandas as pd
 from flask import current_app
 from pandas.tseries.frequencies import to_offset
 
-from flexmeasures.data.models.planning import Commitment, FlowCommitment
+from flexmeasures.data.models.planning import (
+    Commitment,
+    FlowCommitment,
+    StockCommitment,
+)
 from flexmeasures.data.models.planning.utils import initialize_df, initialize_series
 
 infinity = float("inf")
@@ -503,9 +507,61 @@ def prepare_scheduling_problem(  # noqa C901
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for our Big-Ms
     # Md is used to constrain the search space for device power
-    # Mc is used to constrain the search space for commitment deviations
     Md = np.nanmax([np.nanmax(d[bigM_columns].abs()) for d in device_constraints])
-    Mc = np.nansum([np.nansum(d[bigM_columns].abs()) for d in device_constraints])
+
+    # Mc is used to constrain the search space for commitment deviations.
+    # A deviation makes up the gap between a committed quantity and an aggregated device flow (or stock change),
+    # so it is bounded by the largest absolute committed quantity plus the devices' summed flow limits:
+    # summed at any one time step for flow commitments,
+    # and summed over the whole horizon for stock commitments (a stock change accumulates flows since the start).
+    # A device without flow limits at some time step contributes nothing there (as it did before this bound was tightened),
+    # its power being unbounded anyway.
+    per_device_step_limits = [
+        d[bigM_columns].astype(float).abs().max(axis=1).fillna(0).to_numpy()
+        for d in device_constraints
+    ]
+    per_step_total = sum(per_device_step_limits)
+    Mc = float(np.max(per_step_total))
+    has_stock_commitment = any(
+        "class" in c.columns and (c["class"] == StockCommitment).any()
+        for c in commitments
+    )
+    if has_stock_commitment:
+        # A stock change is not a raw flow:
+        # it passes through the derivative efficiencies (P_up * eta_up + P_down / eta_down) and includes the explicit stock delta,
+        # so each device's flow limits are scaled by its worst-case conversion gain, and its stock deltas are added,
+        # before summing over the horizon.
+        horizon_stock_change_limit = 0.0
+        for d, flow_limits in zip(device_constraints, per_device_step_limits):
+            gain = np.ones(len(flow_limits))
+            if "derivative up efficiency" in d.columns:
+                gain = np.maximum(
+                    gain,
+                    d["derivative up efficiency"].astype(float).fillna(1).to_numpy(),
+                )
+            if "derivative down efficiency" in d.columns:
+                gain = np.maximum(
+                    gain,
+                    1
+                    / d["derivative down efficiency"]
+                    .astype(float)
+                    .fillna(1)
+                    .to_numpy(),
+                )
+            deltas = (
+                d["stock delta"].astype(float).fillna(0).abs().to_numpy()
+                if "stock delta" in d.columns
+                else 0.0
+            )
+            horizon_stock_change_limit += float(np.sum(flow_limits * gain + deltas))
+        Mc = max(Mc, horizon_stock_change_limit)
+    if commitments:
+        quantities = np.abs(
+            np.concatenate([c["quantity"].to_numpy(dtype=float) for c in commitments])
+        )
+        finite_quantities = quantities[np.isfinite(quantities)]
+        if len(finite_quantities):
+            Mc += float(np.max(finite_quantities))
 
     # Both Md and Mc have to be 1 MW, at least
     Md = max(Md, 1)

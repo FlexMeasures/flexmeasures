@@ -134,13 +134,6 @@ def test_create_simultaneous_jobs(
 
     # Define expected costs based on resolution
     expected_total_cost = -3.2775
-    # Aggregate (unscoped) commitment semantics (issue #2379): the sample commitment
-    # rewarding supply binds the site's *aggregate* flow, so it stays inactive while
-    # the site is net-consuming and does not bias the per-device dispatch. Under the
-    # earlier per-device binding it wrongly rewarded the battery's supply, shifting the
-    # EV/battery split (EV costs were €2.3125); the total cost is unchanged either way.
-    expected_ev_costs = 2.2375
-    expected_battery_costs = expected_total_cost - expected_ev_costs
 
     # Check costs
     np.testing.assert_approx_equal(
@@ -149,6 +142,15 @@ def test_create_simultaneous_jobs(
         4,
         f"Total costs should be €{expected_total_cost}, got €{total_cost}",
     )
+    # Fairness benchmark: how the total cost is split between the devices.
+    # The optimum is degenerate (both devices face the same prices),
+    # so the split records which vertex the solver lands on, and model changes may move it.
+    # When one does, update the expectation deliberately, as a record of the change's fairness impact.
+    # PR #2411 (tightened Mc, changing the sign-constraint coefficients) moved the EV costs from €2.2375 to €2.3125,
+    # which happens to match the split seen under the old per-device commitment binding of issue #2379;
+    # that semantics is now pinned directly by the commitment-cost assertion below, rather than by the split.
+    expected_ev_costs = 2.3125
+    expected_battery_costs = expected_total_cost - expected_ev_costs
     np.testing.assert_approx_equal(
         ev_costs,
         expected_ev_costs,
@@ -160,6 +162,19 @@ def test_create_simultaneous_jobs(
         expected_battery_costs,
         4,
         f"Battery costs should be €{expected_battery_costs}, got €{battery_costs}",
+    )
+    # Aggregate (unscoped) commitment semantics (issue #2379):
+    # the sample commitment rewarding supply binds the site's *aggregate* flow,
+    # so it collects a reward only where the site as a whole net-produces.
+    # Under the earlier per-device binding it wrongly rewarded the battery's own supply,
+    # also while the site was net-consuming.
+    np.testing.assert_approx_equal(
+        job.meta["scheduler_info"]["commitment_costs"][
+            "a sample commitment rewarding supply"
+        ],
+        -0.038,
+        4,
+        "the aggregate flow commitment should be rewarded for the site's aggregate net supply only",
     )
     np.testing.assert_approx_equal(
         job.meta["scheduler_info"]["commitment_costs"]["electricity net energy"],
