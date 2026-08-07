@@ -77,6 +77,15 @@ def test_read_env_vars_sentry_sdn_fallback(monkeypatch):
     assert app.config["SENTRY_DSN"] == "https://proper@sentry.example/2"
 
 
+def test_read_env_vars_parses_sentry_daily_rate_limit(monkeypatch):
+    monkeypatch.setenv("FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT", "100")
+    app = Flask(__name__)
+
+    read_env_vars(app)
+
+    assert app.config["FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT"] == 100
+
+
 def test_read_env_vars_reads_trusted_hosts(monkeypatch):
     monkeypatch.setenv("TRUSTED_HOSTS", "flexmeasures.example.com")
     app = Flask(__name__)
