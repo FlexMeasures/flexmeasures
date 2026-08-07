@@ -559,12 +559,23 @@ def device_scheduler(  # noqa C901
             max(0, m.device_derivative_max[d, j]),
         )
 
+    def _sign_constraint_is_vacuous(m, d, j):
+        """Whether the sign constraints cannot bind: one power direction is fixed to zero by its bounds,
+        so upwards and downwards activation cannot be simultaneous anyway.
+        Skipping them leaves the sign binary unreferenced (a one-way device needs no binary at all).
+        """
+        return m.device_derivative_min[d, j] >= 0 or m.device_derivative_max[d, j] <= 0
+
     def device_up_derivative_sign(m, d, j):
         """Derivative up if sign points up, derivative not up if sign points down."""
+        if _sign_constraint_is_vacuous(m, d, j):
+            return Constraint.Skip
         return m.device_power_up[d, j] <= Md * m.device_power_sign[d, j]
 
     def device_down_derivative_sign(m, d, j):
         """Derivative down if sign points down, derivative not down if sign points up."""
+        if _sign_constraint_is_vacuous(m, d, j):
+            return Constraint.Skip
         return -m.device_power_down[d, j] <= Md * (1 - m.device_power_sign[d, j])
 
     def ems_derivative_bounds(m, g, j):
