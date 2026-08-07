@@ -234,6 +234,69 @@ def test_create_sequential_jobs_fallback(
                 assert deferred_jobs[1].id in finished_jobs
 
 
+def test_create_sequential_jobs_fallback_for_last_device(
+    db, app, flex_description_sequential, smart_building
+):
+    """Test the fallback scheduler kicking in for the last device in a chain of sequential scheduling (sub)jobs.
+
+    The wrap-up job depends on that last subjob, so it must wait for the fallback to finish,
+    rather than concluding that the chain failed while the fallback is still queued.
+    """
+    assets, sensors, _ = smart_building
+    queue = app.queues["scheduling"]
+
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_description_sequential["start"] = start
+    flex_description_sequential["end"] = end
+
+    storage_module = "flexmeasures.data.models.planning.storage"
+
+    with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
+        with patch(f"{storage_module}.StorageFallbackScheduler.persist_flex_model"):
+            # The first device is scheduled fine, the last one is infeasible and falls back
+            with patch(
+                f"{storage_module}.StorageScheduler.compute",
+                side_effect=iter([[], InfeasibleProblemException(), []]),
+            ):
+                create_sequential_scheduling_job(
+                    asset=assets["Test Site"],
+                    scheduler_specs=scheduler_specs,
+                    enqueue=True,
+                    force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+                    **flex_description_sequential,
+                )
+
+                queued_jobs = queue.jobs
+                deferred_jobs = sort_jobs(
+                    queue, queue.deferred_job_registry.get_job_ids()
+                )
+                assert len(queued_jobs) == 1
+                assert len(deferred_jobs) == 2
+                battery_job, wrapup_job = deferred_jobs
+
+                work_on_rq(queue, exc_handler=handle_scheduling_exception)
+
+    finished_jobs = queue.finished_job_registry.get_job_ids()
+
+    # The last subjob failed, but its fallback scheduled the device after all
+    battery_job.refresh()
+    assert battery_job.get_status() == "failed"
+    assert battery_job.meta["fallback_job_id"] in finished_jobs
+
+    # So the chain succeeded, and the wrap-up job should not report a failure
+    assert wrapup_job.id in finished_jobs, (
+        "The wrap-up job should have waited for the fallback job to finish, "
+        f"but it is {wrapup_job.get_status()}: {failed_job_reason(Job.fetch(wrapup_job.id, connection=queue.connection))}"
+    )
+
+
 def test_create_sequential_jobs_without_fallback(
     db, app, flex_description_sequential, smart_building
 ):
