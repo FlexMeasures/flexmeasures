@@ -324,6 +324,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#projecting_scheduling_constraints] Off-tick ``soc-targets``, ``soc-minima`` and ``soc-maxima`` are projected to the surrounding scheduling ticks. See :ref:`projecting_scheduling_constraints`.
 
+.. [#zero_capacity] A value of zero is read as a statement about the device rather than an economic limit, but only when it holds for the whole scheduling window. A capacity that is zero throughout says the device cannot flow in that direction at all (a heat pump cannot produce), and is enforced strictly, even where device capacity relaxation is in effect. A zero covering only part of the window says "not right now" (keeping an EV charger idle during a calendar car reservation, say), and remains breachable at the applicable breach price like any other limit.
+
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 
@@ -688,5 +690,3 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
-
-
