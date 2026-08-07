@@ -1725,10 +1725,10 @@ def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
 
 
 def test_forecast_only_future_regressor_populates_training_window(monkeypatch):
-    """A future regressor may only ever record ex-ante beliefs (e.g. day-ahead
-    market fundamentals, whose belief time never passes the event start).
-    The training window must then fall back to the latest forecasts instead of
-    coming out empty, while realized values still win where they exist.
+    """A future regressor may only ever record ex-ante beliefs (e.g. day-ahead market fundamentals, whose belief time never passes the event start).
+
+    The training window must then fall back to the latest forecasts instead of coming out empty,
+    while realized values still win where they exist.
     """
     target_sensor = type(
         "SensorStub",
@@ -1805,9 +1805,9 @@ def test_forecast_only_future_regressor_populates_training_window(monkeypatch):
 
     captured_future_frames = []
 
-    # Capture the covariate frame before missing-value filling converts it
-    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
-    # selection instead of requiring database-backed sensor data.
+    # Capture the covariate frame before missing-value filling converts it to a Darts TimeSeries.
+    # This keeps the test focused on in-memory belief selection,
+    # instead of requiring database-backed sensor data.
     def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
         if sensor_names == self.future_regressors:
             captured_future_frames.append(df.copy())
