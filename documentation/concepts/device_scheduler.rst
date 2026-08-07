@@ -13,9 +13,8 @@ A typical example is a house with many devices. The commitments are assumed to b
 The solver minimizes the costs of deviating from the commitments.
 For a more detailed explanation of commitments in FlexMeasures, see :ref:`commitments`.
 
-The model is a *mixed-integer* linear program: binary variables model the sign of a device's power, the direction of a commitment deviation (only when the cost curve is non-convex), and the choice of operation mode for devices with power bands.
-The sign binaries are part of every model with at least one device;
-the other two families are only added when a non-convex cost curve or a banded device calls for them.
+The model is a *mixed-integer* linear program: binary variables model the sign of a device's power (only where the device can both consume and produce during that time period), the direction of a commitment deviation (only when the cost curve is non-convex), and the choice of operation mode for devices with power bands.
+Without any of these — every device one-way or on a fixed flow at every time step, a convex cost curve, and no power bands — the model reduces to a plain linear program.
 
 .. note::
     The model below is built by :func:`~flexmeasures.data.models.planning.linear_optimization.device_scheduler`, using Pyomo.
@@ -218,6 +217,12 @@ Avoid simultaneous upwards and downwards activation during the same time period.
   :name: device_down_derivative_sign
 
     -P_{down}(d,j) \leq M_d \cdot (1-\sigma(d,j))
+
+These two constraints are only added where both power directions are available:
+where one direction is fixed to zero by its bounds (a one-way or fixed-flow device),
+simultaneous activation cannot occur anyway.
+The Pyomo backend still declares the skipped sign binaries, leaving them unreferenced (they are not passed to the solver),
+while the direct HiGHS backend leaves those columns continuous.
 
 The same trick prevents a sub-commitment from deviating in both directions at once:
 
