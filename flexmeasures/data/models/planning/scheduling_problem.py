@@ -602,9 +602,10 @@ def _identify_commitment(df: pd.DataFrame, original_index: int) -> str:
     """Identify a commitment the way the user knows it: by its name, when available.
 
     Commitments passed as plain DataFrames carry no name column, so those fall back to the index alone.
+    The name is quoted with ``repr``, which switches quote style when the name itself contains a quote.
     """
     if "name" in df.columns and not _is_missing(df["name"].iloc[0]):
-        return f"Commitment '{df['name'].iloc[0]}' (index {original_index})"
+        return f"Commitment {str(df['name'].iloc[0])!r} (index {original_index})"
     return f"Commitment {original_index}"
 
 
