@@ -1117,7 +1117,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         required=False,
         allow_none=False,
         metadata=dict(
-            description="Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            description="Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             example="0 kWh",
         ),
     )
