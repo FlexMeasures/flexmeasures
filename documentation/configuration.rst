@@ -837,12 +837,6 @@ Default: ``None`` (no rate limit)
 
 .. note:: This setting is also recognized as environment variable.
 
-.. note::
-   Independently of this setting, the startup error about the database schema not being at the Alembic head revision
-   is sent to Sentry at most once per UTC calendar day per pair of current and expected revisions,
-   because every FlexMeasures process (including each CLI command) logs it while starting up.
-   The error is still logged in full on every start, and a mismatch against other revisions is reported right away.
-
 
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
