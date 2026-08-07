@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import patch
-
 from flask import url_for
 import pytest
 from isodate import parse_datetime, parse_duration
@@ -20,6 +18,7 @@ from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
 )
+from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.services.utils import sort_jobs
 from flexmeasures.utils.unit_utils import ur
 
@@ -1115,13 +1114,16 @@ def test_asset_sequential_schedule_without_fallback_fails_terminally(
 ):
     """Trigger a sequential schedule whose first device is infeasible, using a scheduler without a fallback.
 
+    No scheduler defines a fallback since PR #2252, so the storage scheduler is used as it comes.
     The job id handed to the client is the one of the wrap-up job. Polling it should yield a terminal failure,
     with a reason naming the device that could not be scheduled, rather than a job that stays deferred forever.
     Re-triggering the same request should not hand back a job that is still waiting on that chain, either.
     """
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
 
-    # The uni-directional charging station cannot discharge, so it cannot reach a target below its initial SoC
+    # The uni-directional charging station cannot discharge, and cannot charge faster than its power capacity,
+    # so a usage above that capacity cannot be met. SoC bounds and targets are relaxed by default since PR #2252,
+    # but a device's power capacity stays hard, so this is a genuine infeasibility rather than a priced breach.
     charging_station = add_charging_station_assets_fresh_db["Test charging station"]
     infeasible_sensor = charging_station.sensors[0]
     bidirectional_charging_station = add_charging_station_assets_fresh_db[
@@ -1145,7 +1147,8 @@ def test_asset_sequential_schedule_without_fallback_fails_terminally(
                 "soc-at-start": 10,
                 "soc-min": 0,
                 "soc-max": 40,
-                "soc-targets": [{"value": 9, "datetime": "2015-01-02T02:00:00+01:00"}],
+                "power-capacity": "1 MW",
+                "soc-usage": ["10 MW"],
             },
             {
                 "sensor": feasible_sensor.id,
@@ -1160,56 +1163,52 @@ def test_asset_sequential_schedule_without_fallback_fails_terminally(
     deferred_registry = app.queues["scheduling"].deferred_job_registry
     jobs_deferred_by_other_tests = set(deferred_registry.get_job_ids())
 
-    storage_module = "flexmeasures.data.models.planning.storage"
-    with patch(f"{storage_module}.StorageScheduler.fallback_scheduler_class", None):
-        with app.test_client() as client:
-            trigger_schedule_response = client.post(
-                url_for("AssetAPI:trigger_schedule", id=site_id),
-                json=message,
-            )
-            assert trigger_schedule_response.status_code == 202
-            job_id = trigger_schedule_response.json["job"]
+    assert (
+        StorageScheduler.fallback_scheduler_class is None
+    ), "This test needs a scheduler without a fallback."
 
-            # The subjob for the second device, and the wrap-up job, wait for the first device to be scheduled
-            deferred_jobs_of_this_chain = (
-                set(deferred_registry.get_job_ids()) - jobs_deferred_by_other_tests
-            )
-            assert len(deferred_jobs_of_this_chain) == 2
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=site_id),
+            json=message,
+        )
+        assert trigger_schedule_response.status_code == 202
+        job_id = trigger_schedule_response.json["job"]
 
-            work_on_rq(
-                app.queues["scheduling"], exc_handler=handle_scheduling_exception
-            )
+        # The subjob for the second device, and the wrap-up job, wait for the first device to be scheduled
+        deferred_jobs_of_this_chain = (
+            set(deferred_registry.get_job_ids()) - jobs_deferred_by_other_tests
+        )
+        assert len(deferred_jobs_of_this_chain) == 2
 
-            # Polling the job we were handed gives a terminal failure, naming the device that could not be scheduled
-            job_status_response = client.get(
-                url_for("JobAPI:get_job_status", uuid=job_id)
-            )
-            print("Server responded with:\n%s" % job_status_response.json)
-            assert job_status_response.status_code == 422
-            assert job_status_response.json["status"] == "FAILED"
-            message_to_client = job_status_response.json["message"]
-            assert (
-                f"sensor {infeasible_sensor.id} ({charging_station.name} - {infeasible_sensor.name})"
-                in message_to_client
-            )
-            assert "InfeasibleProblemException" in message_to_client
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
 
-            # No job is left waiting on a chain that will never complete
-            assert deferred_jobs_of_this_chain.isdisjoint(
-                deferred_registry.get_job_ids()
-            )
+        # Polling the job we were handed gives a terminal failure, naming the device that could not be scheduled
+        job_status_response = client.get(url_for("JobAPI:get_job_status", uuid=job_id))
+        print("Server responded with:\n%s" % job_status_response.json)
+        assert job_status_response.status_code == 422
+        assert job_status_response.json["status"] == "FAILED"
+        message_to_client = job_status_response.json["message"]
+        assert (
+            f"sensor {infeasible_sensor.id} ({charging_station.name} - {infeasible_sensor.name})"
+            in message_to_client
+        )
+        assert "InfeasibleProblemException" in message_to_client
 
-            # Re-triggering the same request does not hand back a job that is still waiting on that chain
-            retrigger_response = client.post(
-                url_for("AssetAPI:trigger_schedule", id=site_id),
-                json=message,
-            )
-            assert retrigger_response.status_code == 202
-            retriggered_job = Job.fetch(
-                retrigger_response.json["job"],
-                connection=app.queues["scheduling"].connection,
-            )
-            assert retriggered_job.get_status(refresh=True) not in (
-                JobStatus.DEFERRED,
-                JobStatus.SCHEDULED,
-            )
+        # No job is left waiting on a chain that will never complete
+        assert deferred_jobs_of_this_chain.isdisjoint(deferred_registry.get_job_ids())
+
+        # Re-triggering the same request does not hand back a job that is still waiting on that chain
+        retrigger_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=site_id),
+            json=message,
+        )
+        assert retrigger_response.status_code == 202
+        retriggered_job = Job.fetch(
+            retrigger_response.json["job"],
+            connection=app.queues["scheduling"].connection,
+        )
+        assert retriggered_job.get_status(refresh=True) not in (
+            JobStatus.DEFERRED,
+            JobStatus.SCHEDULED,
+        )
