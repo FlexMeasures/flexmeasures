@@ -47,6 +47,7 @@ from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
+from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.coding_utils import OrderByIdMixin
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -317,6 +318,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         annotations_after: datetime_type | None = None,
         annotation_ends_before: datetime_type | None = None,  # deprecated
         annotations_before: datetime_type | None = None,
+        beliefs_after: datetime_type | None = None,
+        beliefs_before: datetime_type | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -328,6 +331,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
 
         # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
@@ -365,6 +371,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             query = query.filter(
                 Annotation.start < annotations_before,
             )
+        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
         if parsed_sources:
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
@@ -374,12 +381,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             annotations += self.generic_asset.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
         if include_account_annotations:
             annotations += self.generic_asset.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
 

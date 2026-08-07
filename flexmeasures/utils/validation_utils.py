@@ -3,8 +3,32 @@ from __future__ import annotations
 from typing import Callable
 import re
 
+import limits
+
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.unit_utils import ur
+
+UNLIMITED_RATE_LIMIT = "unlimited"
+
+
+def validate_rate_limit(value: str | None) -> None:
+    """Validate that a value is a rate limit which Flask-Limiter can make sense of.
+
+    Accepts limits like "500 per minute", the special value "unlimited", and None
+    (which callers use to mean: fall back to the server-wide config setting).
+
+    :param value:        The rate limit to validate.
+    :raises ValueError:  When the value is not a parseable rate limit.
+    """
+    if value is None or value == UNLIMITED_RATE_LIMIT:
+        return
+    try:
+        limits.parse(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"'{value}' is not a valid rate limit."
+            f" Use a limit like '10 per 5 minutes', or '{UNLIMITED_RATE_LIMIT}'."
+        ) from exc
 
 
 def validate_color_hex(value):
