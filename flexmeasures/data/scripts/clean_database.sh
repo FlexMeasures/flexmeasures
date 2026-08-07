@@ -186,7 +186,7 @@ then
     flexmeasures db-ops dump
   fi
 
-  read -r -p "This will drop your database and re-create a clean one. Continue?[y/N] " response
+  read -r -p "This will drop your database and re-create a clean one. Continue? [y/N] " response
   response=$(tr '[:upper:]' '[:lower:]' <<< $response) # make lowercase
   if [[ "$response" =~ ^(yes|y)$ ]]; then
      if ! delete_database "$1"; then
