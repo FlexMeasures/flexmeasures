@@ -208,11 +208,10 @@ RELAX_CONSTRAINTS = MetaData(
 
 1. Avoid breaching the site consumption/production capacity.
 2. Avoid not meeting SoC minima/maxima.
-3. Avoid breaching the desired device consumption/production capacity.
 
-Priority 3 only applies when you ask for it: leaving this field at its default relaxes the first two, but keeps ``consumption-capacity`` and ``production-capacity`` hard.
-That is because a directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic preference, and a default should not make that breachable at a price.
-Set ``consumption-breach-price`` or ``production-breach-price`` yourself, or pass ``relax-constraints`` explicitly, or use ``relax-capacity-constraints``, to relax device capacities as well.
+The device ``consumption-capacity`` and ``production-capacity`` are deliberately not part of this.
+A directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so making it breachable at a price has to name the thing being softened.
+Use ``relax-capacity-constraints``, or set ``consumption-breach-price`` or ``production-breach-price`` yourself, to relax device capacities.
 
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,

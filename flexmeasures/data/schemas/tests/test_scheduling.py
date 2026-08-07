@@ -2001,12 +2001,12 @@ def test_tutorial_chp_example_validates(app):
     ["flex_context", "device_softened", "soc_softened", "site_softened"],
     [
         # Nothing given: relax-constraints defaults to True,
-        # which softens the SoC and site capacity constraints, but no longer the device directional capacities.
+        # which softens the SoC and site capacity constraints, but not the device directional capacities.
         ({}, False, True, True),
-        # An explicitly passed relax-constraints still softens everything,
-        # as it did before relax-constraints defaulted to True.
-        ({"relax-constraints": True}, True, True, True),
-        # The targeted flag softens device capacities on its own.
+        # Writing out the default changes nothing:
+        # the blanket does not cover device capacities either way.
+        ({"relax-constraints": True}, False, True, True),
+        # Device capacities are relaxed by naming them.
         ({"relax-capacity-constraints": True}, True, True, True),
         # Explicitly opting out keeps everything hard.
         ({"relax-constraints": False}, False, False, False),
@@ -2022,11 +2022,14 @@ def test_tutorial_chp_example_validates(app):
 def test_device_capacity_relaxation_is_opt_in(
     flex_context, device_softened, soc_softened, site_softened
 ):
-    """A defaulted relax-constraints must not soften device directional capacities.
+    """The blanket relax-constraints must not soften device directional capacities.
 
     A directional capacity can state a physical impossibility (a heat pump that cannot produce),
-    so making it breachable at a price has to be asked for,
-    either through relax-capacity-constraints or through an explicitly passed relax-constraints.
+    so making it breachable at a price has to name the thing being softened,
+    through relax-capacity-constraints or through the device breach prices themselves.
+
+    Note that passing relax-constraints explicitly behaves the same as leaving it out:
+    the field defaults to True, so writing out that default must not change anything.
     """
     loaded = FlexContextSchema().load(flex_context)
 
