@@ -18,15 +18,17 @@ from flexmeasures.data import (
 )
 from flexmeasures.data.utils import DatabaseSchemaRevisionStatus
 from flexmeasures.utils.app_utils import (
-    _make_sentry_daily_deduplicator,
-    _make_sentry_daily_rate_limiter,
-    _make_sentry_redis_connection,
-    _sentry_filter_notfound,
     init_sentry,
     provision_default_template_assets_on_startup,
 )
 from flexmeasures.utils.error_utils import add_basic_error_handlers
-from flexmeasures.utils.sentry_utils import SENTRY_DEDUPLICATION_KEY_ATTRIBUTE
+from flexmeasures.utils.sentry_utils import (
+    SENTRY_DEDUPLICATION_KEY_ATTRIBUTE,
+    _make_sentry_daily_deduplicator,
+    _make_sentry_daily_rate_limiter,
+    _make_sentry_redis_connection,
+    _sentry_filter_notfound,
+)
 
 
 class RecordingTransport(Transport):
@@ -247,7 +249,7 @@ def pretend_utc_now(monkeypatch, moment):
         def now(cls, tz=None):
             return moment
 
-    monkeypatch.setattr("flexmeasures.utils.app_utils.datetime", FrozenDatetime)
+    monkeypatch.setattr("flexmeasures.utils.sentry_utils.datetime", FrozenDatetime)
 
 
 def test_sentry_daily_deduplicator_sends_marked_events_once_a_day(app, clean_redis):
