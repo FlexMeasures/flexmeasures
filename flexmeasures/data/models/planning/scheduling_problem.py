@@ -527,7 +527,34 @@ def prepare_scheduling_problem(  # noqa C901
         for c in commitments
     )
     if has_stock_commitment:
-        Mc = max(Mc, float(np.sum(per_step_total)))
+        # A stock change is not a raw flow:
+        # it passes through the derivative efficiencies (P_up * eta_up + P_down / eta_down) and includes the explicit stock delta,
+        # so each device's flow limits are scaled by its worst-case conversion gain, and its stock deltas are added,
+        # before summing over the horizon.
+        horizon_stock_change_limit = 0.0
+        for d, flow_limits in zip(device_constraints, per_device_step_limits):
+            gain = np.ones(len(flow_limits))
+            if "derivative up efficiency" in d.columns:
+                gain = np.maximum(
+                    gain,
+                    d["derivative up efficiency"].astype(float).fillna(1).to_numpy(),
+                )
+            if "derivative down efficiency" in d.columns:
+                gain = np.maximum(
+                    gain,
+                    1
+                    / d["derivative down efficiency"]
+                    .astype(float)
+                    .fillna(1)
+                    .to_numpy(),
+                )
+            deltas = (
+                d["stock delta"].astype(float).fillna(0).abs().to_numpy()
+                if "stock delta" in d.columns
+                else 0.0
+            )
+            horizon_stock_change_limit += float(np.sum(flow_limits * gain + deltas))
+        Mc = max(Mc, horizon_stock_change_limit)
     if commitments:
         quantities = np.abs(
             np.concatenate([c["quantity"].to_numpy(dtype=float) for c in commitments])

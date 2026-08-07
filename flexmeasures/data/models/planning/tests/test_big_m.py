@@ -84,6 +84,31 @@ def test_Mc_covers_the_horizon_for_stock_commitments():
     assert problem.Mc == 4 * 2.5 + 0.5
 
 
+def test_Mc_scales_stock_changes_by_conversion_efficiencies_and_stock_deltas():
+    """A stock change passes through the derivative efficiencies and includes the stock delta, unlike a raw flow."""
+    index = make_index()
+    commitment = StockCommitment(
+        name="soc",
+        quantity=0.5,
+        upwards_deviation_price=1,
+        downwards_deviation_price=-1,
+        device=pd.Series(0, index=index),
+        index=index,
+    )
+    device_constraints = make_device_constraints(0.5)
+    device_constraints["derivative up efficiency"] = 2
+    device_constraints["derivative down efficiency"] = 0.5
+    device_constraints["stock delta"] = 0.25
+    problem = prepare_scheduling_problem(
+        device_constraints=[device_constraints],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[commitment],
+    )
+    # 4 time steps of 0.5 flow scaled by the worst-case conversion gain max(2, 1/0.5) plus a 0.25 stock delta,
+    # plus the committed quantity
+    assert problem.Mc == 4 * (0.5 * 2 + 0.25) + 0.5
+
+
 def test_Mc_is_at_least_one():
     problem = prepare_scheduling_problem(
         device_constraints=[make_device_constraints(0.001)],
