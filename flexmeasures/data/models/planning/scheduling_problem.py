@@ -574,19 +574,19 @@ def _validate_commitments_are_enforceable(problem: SchedulingProblem) -> None:
     the commitment is silently dropped, or, when a deviation price has the favourable sign, the problem becomes unbounded.
     """
     for c, df in enumerate(problem.commitments):
-        original = problem.commitment_mapping[c]
+        identity = _identify_commitment(df, problem.commitment_mapping[c])
         groups = problem.device_group_lookup.get(c)
         if groups:
             if any(groups.values()):
                 continue
             raise ValueError(
-                f"Commitment {original} names only empty device groups, so no constraint would bind it."
+                f"{identity} names only empty device groups, so no constraint would bind it."
             )
 
         # No device grouping: only the EMS-level flow constraints could bind it.
         if df["class"].iloc[0] != FlowCommitment:
             raise ValueError(
-                f"Commitment {original} is a stock commitment that names no device and no known stock group, so no constraint would bind it."
+                f"{identity} is a stock commitment that names no device and no known stock group, so no constraint would bind it."
             )
         if "commodity" in df.columns:
             commodity = df["commodity"].iloc[0]
@@ -594,8 +594,19 @@ def _validate_commitments_are_enforceable(problem: SchedulingProblem) -> None:
                 commodity
             ):
                 raise ValueError(
-                    f"Commitment {original} names commodity '{commodity}', but no commitment maps devices to that commodity, so no constraint would bind it."
+                    f"{identity} names commodity '{commodity}', but no commitment maps devices to that commodity, so no constraint would bind it."
                 )
+
+
+def _identify_commitment(df: pd.DataFrame, original_index: int) -> str:
+    """Identify a commitment the way the user knows it: by its name, when available.
+
+    Commitments passed as plain DataFrames carry no name column, so those fall back to the index alone.
+    The name is quoted with ``repr``, which switches quote style when the name itself contains a quote.
+    """
+    if "name" in df.columns and not _is_missing(df["name"].iloc[0]):
+        return f"Commitment {str(df['name'].iloc[0])!r} (index {original_index})"
+    return f"Commitment {original_index}"
 
 
 def aggregate_subcommitment_costs(
