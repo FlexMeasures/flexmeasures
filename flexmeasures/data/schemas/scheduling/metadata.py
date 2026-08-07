@@ -171,19 +171,23 @@ For large connections, this price is usually stated explicitly on the tariff she
 )
 SOC_MINIMA_BREACH_PRICE = MetaData(
     description="""This **penalty value** is used to discourage the violation of ``soc-minima`` constraints in the flex-model, which the scheduler will attempt to minimize.
+Together with ``soc-maxima-breach-price``, it also prices ``soc-targets``: falling short of a target is priced like a ``soc-minima`` breach.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.
+The same goes for the soc-targets, which need both breach prices to become soft. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
 SOC_MAXIMA_BREACH_PRICE = MetaData(
     description="""This **penalty value** is used to discourage the violation of ``soc-maxima`` constraints in the flex-model, which the scheduler will attempt to minimize.
+Together with ``soc-minima-breach-price``, it also prices ``soc-targets``: overshooting a target is priced like a ``soc-maxima`` breach.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an **internal nudge** to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.
+The same goes for the soc-targets, which need both breach prices to become soft. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
@@ -363,7 +367,9 @@ Otherwise, they become hard constraints. [#minimum_overlap]_ [#projecting_schedu
 SOC_TARGETS = MetaData(
     description="""
 Exact set point(s) of the storage's state of charge that the scheduler needs to realize.
-These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
+A target is two-sided, so if both a ``soc-minima-breach-price`` and a ``soc-maxima-breach-price`` are defined, the ``soc-targets`` become soft constraints in the optimization problem.
+Falling short of a target is then priced like a ``soc-minima`` breach, and overshooting it like a ``soc-maxima`` breach.
+Otherwise, they become hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
 """,
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
