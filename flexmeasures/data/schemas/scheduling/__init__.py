@@ -339,9 +339,10 @@ class SharedSchema(Schema):
         load_default=True,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
+    # The None default means "not set", in which case the umbrella relax-constraints flag decides (see relaxation_asked_for).
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
-        load_default=True,
+        load_default=None,
         metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
     )
     relax_capacity_constraints = fields.Bool(
@@ -349,9 +350,10 @@ class SharedSchema(Schema):
         load_default=False,
         metadata=metadata.RELAX_CAPACITY_CONSTRAINTS.to_dict(),
     )
+    # The None default means "not set", in which case the umbrella relax-constraints flag decides (see relaxation_asked_for).
     relax_site_capacity_constraints = fields.Bool(
         data_key="relax-site-capacity-constraints",
-        load_default=False,
+        load_default=None,
         metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
@@ -441,6 +443,22 @@ class SharedSchema(Schema):
                         f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`, which conflicts with the sign convention of the `{data_key}` field.",
                         field_name=data_key,
                     )
+
+    @staticmethod
+    def relaxation_asked_for(data: dict, specific_field: str) -> bool:
+        """Resolve a specific relax flag, falling back to the umbrella flag when the specific flag is not set.
+
+        An explicitly set specific flag (e.g. ``relax-soc-constraints``) takes precedence;
+        otherwise, the umbrella ``relax-constraints`` flag (which defaults to True) decides.
+
+        :param data:            The deserialized (snake_case) flex-context data.
+        :param specific_field:  Name of the specific relax flag to resolve, e.g. "relax_soc_constraints".
+        :returns:               Whether the given kind of constraint relaxation is asked for.
+        """
+        specific = data.get(specific_field)
+        if specific is None:
+            return bool(data.get("relax_constraints", True))
+        return specific
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
@@ -767,8 +785,8 @@ class CommodityFlexContextSchema(SharedSchema):
             "ems_consumption_capacity_in_mw": "ems_consumption_breach_price",
             "ems_production_capacity_in_mw": "ems_production_breach_price",
         }[field]
-        if data.get("relax_site_capacity_constraints") or data.get("relax_constraints"):
-            if not data.get(breach_price_field):
+        if self.relaxation_asked_for(data, "relax_site_capacity_constraints"):
+            if data.get(breach_price_field) is None:
                 currency = data.get("shared_currency_unit") or "EUR"
                 shared_currency = ur.Quantity(currency)
                 self.set_default_breach_prices(
@@ -776,18 +794,15 @@ class CommodityFlexContextSchema(SharedSchema):
                     fields=[breach_price_field],
                     price=10000 * shared_currency / ur.Quantity("kW"),
                 )
-        elif data.get("relax_constraints") is False:
-            # relax-constraints defaults to True, so False here can only be an
-            # explicit user choice. Since relax-site-capacity-constraints is also
-            # not set/true, this 0 capacity ends up as a *hard* constraint, which
-            # is likely infeasible for any commodity with actual devices/flow.
+        else:
+            # Both relax flags default to relaxation being on, so ending up here can only be an explicit user choice:
+            # either 'relax-site-capacity-constraints' or the umbrella 'relax-constraints' was explicitly set to False.
+            # This 0 capacity thus ends up as a *hard* constraint, which is likely infeasible for any commodity with actual devices/flow.
             current_app.logger.warning(
                 f"Commodity context '{data.get('commodity', 'electricity')}' has"
-                f" its '{field}' defaulted to a 0 capacity, but"
-                " 'relax-constraints' was explicitly set to False (and"
-                " 'relax-site-capacity-constraints' was not set to True), so this"
-                " ends up as a hard 0-capacity constraint, which is likely"
-                " infeasible."
+                f" its '{field}' defaulted to a 0 capacity, and relaxing site"
+                " capacity constraints was explicitly turned off, so this ends up"
+                " as a hard 0-capacity constraint, which is likely infeasible."
             )
 
 
@@ -1042,16 +1057,10 @@ class FlexContextSchema(SharedSchema):
             return data
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
-        # Both relax-soc-constraints and relax-constraints default to True, so an
-        # explicit relax-soc-constraints wins and otherwise the umbrella
-        # relax-constraints decides: setting either flag to False keeps
-        # SoC minima/maxima as hard constraints.
-        if "relax-soc-constraints" in original_data:
-            relax_soc_constraints = data["relax_soc_constraints"]
-        else:
-            relax_soc_constraints = data["relax_constraints"]
+        # An explicit relax-soc-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
+        # setting either flag to False keeps SoC minima/maxima as hard constraints.
         if (
-            relax_soc_constraints
+            self.relaxation_asked_for(data, "relax_soc_constraints")
             and data.get("soc_minima_breach_price") is None
             and data.get("soc_maxima_breach_price") is None
         ):
@@ -1078,8 +1087,10 @@ class FlexContextSchema(SharedSchema):
             )
 
         # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
+        # An explicit relax-site-capacity-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
+        # setting either flag to False keeps the site capacities as hard constraints.
         if (
-            (data["relax_site_capacity_constraints"] or data["relax_constraints"])
+            self.relaxation_asked_for(data, "relax_site_capacity_constraints")
             and data.get("ems_consumption_breach_price") is None
             and data.get("ems_production_breach_price") is None
         ):

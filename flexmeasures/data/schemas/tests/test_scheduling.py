@@ -615,7 +615,8 @@ def test_flex_context_schema_relaxes_soc_constraints_by_default():
     loaded_flex_context = FlexContextSchema().load({"consumption-price": "1 EUR/MWh"})
 
     assert loaded_flex_context["relax_constraints"] is True
-    assert loaded_flex_context["relax_soc_constraints"] is True
+    # The specific flag is not set, so the umbrella flag decides.
+    assert loaded_flex_context["relax_soc_constraints"] is None
     assert loaded_flex_context["soc_minima_breach_price"].to(
         "EUR/MWh"
     ).magnitude == pytest.approx(1_000_000)
@@ -633,7 +634,6 @@ def test_flex_context_schema_preserves_explicit_soc_breach_prices():
         }
     )
 
-    assert loaded_flex_context["relax_soc_constraints"] is True
     assert loaded_flex_context["soc_minima_breach_price"].to(
         "EUR/kWh"
     ).magnitude == pytest.approx(5)
@@ -674,6 +674,36 @@ def test_flex_context_schema_explicit_soc_relaxation_overrides_umbrella_opt_out(
 
     assert "soc_minima_breach_price" not in loaded_flex_context
     assert "soc_maxima_breach_price" not in loaded_flex_context
+
+
+def test_flex_context_schema_explicit_site_capacity_relaxation_overrides_umbrella():
+    """An explicit relax-site-capacity-constraints wins over relax-constraints, in both directions."""
+    # Explicit opt-out beats the umbrella default of True.
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "relax-site-capacity-constraints": False,
+        }
+    )
+
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+    assert "ems_production_breach_price" not in loaded_flex_context
+
+    # Explicit opt-in beats an explicit umbrella opt-out.
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "relax-constraints": False,
+            "relax-site-capacity-constraints": True,
+        }
+    )
+
+    assert loaded_flex_context["ems_consumption_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(10_000)
+    assert loaded_flex_context["ems_production_breach_price"].to(
+        "EUR/kW"
+    ).magnitude == pytest.approx(10_000)
 
 
 def test_db_flex_context_schema_does_not_relax_soc_constraints_by_default():

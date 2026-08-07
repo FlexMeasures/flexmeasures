@@ -209,19 +209,18 @@ RELAX_CONSTRAINTS = MetaData(
 1. Avoid breaching the site consumption/production capacity.
 2. Avoid not meeting SoC minima/maxima.
 
-SoC minima/maxima are also relaxed by default through ``relax-soc-constraints``.
+The specific ``relax-soc-constraints`` and ``relax-site-capacity-constraints`` flags follow this umbrella flag unless they are set explicitly, in which case they take precedence for their respective constraints.
 
 The device ``consumption-capacity`` and ``production-capacity`` are deliberately not part of this.
 A directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so making it breachable at a price has to name the thing being softened.
 Use ``relax-capacity-constraints``, or set ``consumption-breach-price`` or ``production-breach-price`` yourself, to relax device capacities.
-
 
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,
     example=True,
 )
 RELAX_SOC_CONSTRAINTS = MetaData(
-    description="If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Setting this field (or ``relax-constraints``) to False keeps SoC minima/maxima as hard constraints unless breach prices are supplied explicitly; an explicit ``relax-soc-constraints`` takes precedence over ``relax-constraints``.",
+    description="Whether to avoid not meeting SoC minima/maxima as relaxed (soft) constraints, by setting default breach prices. If not set, the umbrella ``relax-constraints`` flag (which defaults to True) decides, so SoC minima/maxima are relaxed by default. Setting this field explicitly takes precedence over ``relax-constraints``; setting either flag to False keeps SoC minima/maxima as hard constraints, unless breach prices are supplied explicitly.",
     example=True,
 )
 RELAX_CAPACITY_CONSTRAINTS = MetaData(
@@ -229,7 +228,7 @@ RELAX_CAPACITY_CONSTRAINTS = MetaData(
     example=True,
 )
 RELAX_SITE_CAPACITY_CONSTRAINTS = MetaData(
-    description="If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+    description="Whether to avoid breaching the site consumption/production capacity as relaxed (soft) constraints, by setting default breach prices. If not set, the umbrella ``relax-constraints`` flag (which defaults to True) decides, so the site capacities are relaxed by default. Setting this field explicitly takes precedence over ``relax-constraints``; setting either flag to False keeps the site capacities as hard constraints, unless breach prices are supplied explicitly.",
     example=True,
 )
 SITE_CONSUMPTION_BREACH_PRICE = MetaData(
@@ -340,7 +339,7 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 )
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
-The ``soc-minima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
+The ``soc-minima`` are soft constraints in the optimization problem by default, because SoC constraints are relaxed by default (see ``relax-soc-constraints``), which supplies a default ``soc-minima-breach-price``.
 Set ``relax-soc-constraints`` (or ``relax-constraints``) to ``False`` to keep them as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly [#maximum_overlap]_.
 Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
     example=[
@@ -354,7 +353,7 @@ Both single points in time and ranges are possible, see example. [#projecting_sc
 )
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
-The ``soc-maxima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
+The ``soc-maxima`` are soft constraints in the optimization problem by default, because SoC constraints are relaxed by default (see ``relax-soc-constraints``), which supplies a default ``soc-maxima-breach-price``.
 Set ``relax-soc-constraints`` (or ``relax-constraints``) to ``False`` to keep them as hard constraints unless ``soc-maxima-breach-price`` is supplied explicitly. [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
     example=[
         {
