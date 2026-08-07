@@ -204,13 +204,15 @@ It must use the same currency as the other price settings and cannot be negative
     example="10 EUR/kW",
 )
 RELAX_CONSTRAINTS = MetaData(
-    description="""If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
+    description="""If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
 
 1. Avoid breaching the site consumption/production capacity.
 2. Avoid not meeting SoC minima/maxima.
-3. Avoid breaching the desired device consumption/production capacity.
 
-We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+The device ``consumption-capacity`` and ``production-capacity`` are deliberately not part of this.
+A directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so making it breachable at a price has to name the thing being softened.
+Use ``relax-capacity-constraints``, or set ``consumption-breach-price`` or ``production-breach-price`` yourself, to relax device capacities.
+
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,
     example=True,
@@ -433,13 +435,13 @@ When exactly one of ``consumption-capacity`` or ``production-capacity`` is confi
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
-    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_",
+    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_ [#zero_capacity]_",
     example={"sensor": 56},
 )
 PRODUCTION_CAPACITY = MetaData(
     description="""Device-level power constraint on production.
 How much power can be supplied by this asset.
-For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
+For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_ [#zero_capacity]_
 """,
     example="0 kW",
 )
