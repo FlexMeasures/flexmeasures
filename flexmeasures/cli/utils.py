@@ -409,7 +409,8 @@ class NestedDictParamType(click.ParamType):
 
     Accepts both JSON double-quoted syntax (``{"key": "value"}``) and Python-literal
     single-quoted syntax (``{'key': 'value'}``).  Used for CLI options whose Marshmallow
-    field type is ``fields.List(fields.Nested(...))``.
+    field type is ``fields.List(fields.Nested(...))`` (one dict per occurrence) or
+    ``fields.Dict`` (a single dict).
     """
 
     name = "DICT"
@@ -418,16 +419,25 @@ class NestedDictParamType(click.ParamType):
         if isinstance(value, dict):
             return value
         try:
-            return json.loads(value)
+            parsed = json.loads(value)
         except json.JSONDecodeError:
             try:
-                return ast.literal_eval(value)
+                parsed = ast.literal_eval(value)
             except (ValueError, SyntaxError):
                 self.fail(
                     f"Cannot parse as a JSON object or Python-literal dict: {value!r}",
                     param,
                     ctx,
                 )
+        # A parsable non-object (e.g. a list or a number) would otherwise travel on,
+        # only to be rejected further downstream by Marshmallow with "Not a valid mapping type".
+        if not isinstance(parsed, dict):
+            self.fail(
+                f'Expected a mapping such as \'{{"key": "value"}}\', but got {type(parsed).__name__}: {value!r}',
+                param,
+                ctx,
+            )
+        return parsed
 
 
 class JSONOrFile(click.ParamType):
@@ -535,6 +545,9 @@ def add_cli_options_from_schema(schema):
                     kwargs["type"] = NestedDictParamType()
                 else:
                     kwargs["type"] = str
+            elif isinstance(field, fields.Dict):
+                # The value is a single dict string; parse it at the Click level.
+                kwargs["type"] = NestedDictParamType()
 
             command = click.option(*options, **kwargs)(command)
 
