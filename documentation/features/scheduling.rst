@@ -1,6 +1,6 @@
 .. _scheduling:
 
-Scheduling 
+Scheduling
 ===========
 
 Scheduling is the main value-drive of FlexMeasures. We have two major types of schedulers built-in, for storage devices (usually batteries or hot water storage) and processes (usually in industry).
@@ -40,6 +40,11 @@ The flex-context
 The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas). See :ref:`tut_multi_commodity` for a hands-on example.
+
+A *non-electricity* commodity that defines no energy prices and no capacity (grid-connection) fields in the flex-context (e.g. a heat or steam network without a grid connection) is treated as an internal node:
+its devices must balance each other at every time step, so everything produced into the node is consumed from it within the same time step.
+Electricity is the exception: it is always assumed to be grid-connected, so electricity without a price raises an error rather than becoming an internal node.
+Devices that convert between commodities (such as a CHP unit, gas boiler or electric heater) are described in the flex-model, one entry per commodity port, tied together by a ``coupling`` group. See :ref:`tut_converters` for a worked example flex-model.
 
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
@@ -229,6 +234,12 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``commodity``
      - |COMMODITY_FLEX_MODEL.example|
      - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
+   * - ``coupling``
+     - |COUPLING.example|
+     - .. include:: ../_autodoc/COUPLING.rst
+   * - ``coupling-coefficient``
+     - |COUPLING_COEFFICIENT.example|
+     - .. include:: ../_autodoc/COUPLING_COEFFICIENT.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst
@@ -307,11 +318,15 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
+.. [#soft_by_default] SoC minima and maxima are relaxed into soft constraints by default, receiving default breach prices, so the scheduler gets as close as possible to them when they cannot all be met. Setting ``relax-soc-constraints`` (or the umbrella ``relax-constraints``) to false keeps them hard, unless breach prices are supplied explicitly.
+
 .. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
 .. [#projecting_scheduling_constraints] Off-tick ``soc-targets``, ``soc-minima`` and ``soc-maxima`` are projected to the surrounding scheduling ticks. See :ref:`projecting_scheduling_constraints`.
+
+.. [#zero_capacity] A value of zero is read as a statement about the device rather than an economic limit, but only when it holds for the whole scheduling window. A capacity that is zero throughout says the device cannot flow in that direction at all (a heat pump cannot produce), and is enforced strictly, even where device capacity relaxation is in effect. A zero covering only part of the window says "not right now" (keeping an EV charger idle during a calendar car reservation, say), and remains breachable at the applicable breach price like any other limit.
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
@@ -355,7 +370,14 @@ The sensor-referenced form is convenient when you pass the whole flex-model in o
 
 Here, the battery and PV installation may each individually schedule up to 2 kW, but their combined power flowing through the shared inverter is hard-limited to 2.5 kW.
 
+.. _inflexible_devices_in_flex_model:
+
+Inflexible devices in the flex-model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Inflexible (measured) devices can be modelled in the flex-model too — for example, an unschedulable base load. To do so, model the inflexible device as its own asset and give its flex-model entry a single ``inflexible-consumption`` or ``inflexible-production`` reference to the sensor recording its power (the field name sets the sign convention, and source filters may be added). Such an entry carries no schedulable-device fields; it simply declares a fixed device whose power is accounted for. Like any device entry, it may set a ``commodity`` (defaulting to electricity), and its fixed power is then netted into that commodity's grid connection.
+
+There are two places to declare an inflexible device, and the choice is about *where* it belongs rather than *what* it does. Listing its sensor in the flex-context's ``inflexible-consumption``/``inflexible-production`` fields describes plain site base load, which is a property of the connection. Giving it its own flex-model entry describes a device that sits somewhere specific in the asset tree — under a particular inverter, feeder or commodity — which is a property of the device. Both net the same fixed power into the grid connection.
 
 The ``group`` field is optional on such an entry. Without it, the device is simply accounted for under the grid connection (just like listing its sensor in the flex-context's ``inflexible-consumption``/``inflexible-production`` fields, only declared on the asset instead). With it, the device *also* joins that group through the ordinary ``group`` field, exactly like a flexible member (the group's own flex-model entry, defining its capacities, must still be present), so that its fixed load or supply additionally counts towards the group's intermediate power constraint — for example, a base load sitting behind the same inverter or feeder as a battery.
 
@@ -375,13 +397,13 @@ However, here are some tips to model a buffer correctly:
 
    For a hands-on example of a heat buffer fed by multiple devices, see :ref:`tut_multi_feed_storage`.
 
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
-It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``.
-It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
-depending on the first target state of charge and the capabilities of the asset.
+If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
+By default, ``soc-minima`` and ``soc-maxima`` are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
+Setting either ``relax-soc-constraints`` or ``relax-constraints`` to ``false`` in the flex-context keeps them as hard constraints.
+Exact ``soc-targets``, physical ``soc-min`` / ``soc-max`` bounds, and ``power-capacity`` (in the flex-model) and ``site-power-capacity`` (in the flex-context) remain hard constraints.
+If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
-Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
+It is important to take note of these failures. Often, misconfigured flex models are the reason.
 
 For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_.
 For further hands-on examples, see :ref:`tut_multi_feed_storage` (multiple devices feeding one shared storage) and :ref:`tut_multi_commodity` (devices on different commodities scheduled together).
@@ -399,15 +421,15 @@ Some examples from practice (usually industry) could be:
 
 - A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
 - Production processes with a target amount of output until the end of the current shift. The target usually comes out of production planning.
-- Application of coating under hot temperature, with fixed number of times it needs to happen before some deadline.   
-   
+- Application of coating under hot temperature, with fixed number of times it needs to happen before some deadline.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 25 90
 
    * - Field
      - Example value
-     - Description 
+     - Description
    * - ``power``
      - ``"15kW"``
      - Nominal power of the load.
@@ -418,7 +440,7 @@ Some examples from practice (usually industry) could be:
      - ``"MAX"``
      - Objective of the scheduler, to maximize (``"MAX"``) or minimize (``"MIN"``).
    * - ``time_restrictions``
-     - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]`` 
+     - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]``
      - Time periods in which the load cannot be scheduled to run.
    * - ``process_type``
      - ``"INFLEXIBLE"``, ``"SHIFTABLE"`` or ``"BREAKABLE"``
@@ -651,8 +673,10 @@ The ``violation`` values tell you how much shortfall exists:
 
 If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
 
-.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler enforces them strictly by definition.
-          If a hard constraint cannot be met, the entire scheduling job will fail, not produce results with violations.
+.. note:: ``soc-targets`` are reported under ``unresolved`` only, and only while constraint relaxation is on.
+          A target is a two-sided constraint, so its reported violation is the absolute deviation from the target, in either direction,
+          and there is no headroom to report when a target is met.
+          With relaxation off, a target that cannot be met makes the entire scheduling job fail instead of producing results with violations.
 
 Work on other schedulers
 ---------------------------------------
@@ -668,5 +692,3 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
-
-

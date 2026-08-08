@@ -171,19 +171,23 @@ For large connections, this price is usually stated explicitly on the tariff she
 )
 SOC_MINIMA_BREACH_PRICE = MetaData(
     description="""This **penalty value** is used to discourage the violation of ``soc-minima`` constraints in the flex-model, which the scheduler will attempt to minimize.
+Together with ``soc-maxima-breach-price``, it also prices ``soc-targets``: falling short of a target is priced like a ``soc-minima`` breach.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.
+The same goes for the soc-targets, which need both breach prices to become soft. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
 SOC_MAXIMA_BREACH_PRICE = MetaData(
     description="""This **penalty value** is used to discourage the violation of ``soc-maxima`` constraints in the flex-model, which the scheduler will attempt to minimize.
+Together with ``soc-minima-breach-price``, it also prices ``soc-targets``: overshooting a target is priced like a ``soc-maxima`` breach.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an **internal nudge** to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.
+The same goes for the soc-targets, which need both breach prices to become soft. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
@@ -204,27 +208,28 @@ It must use the same currency as the other price settings and cannot be negative
     example="10 EUR/kW",
 )
 RELAX_CONSTRAINTS = MetaData(
-    description="""If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
+    description="""If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
 
 1. Avoid breaching the site consumption/production capacity.
 2. Avoid not meeting SoC minima/maxima.
-3. Avoid breaching the desired device consumption/production capacity.
 
-We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+The specific ``relax-soc-constraints`` and ``relax-site-capacity-constraints`` flags follow this flag unless they are set explicitly, in which case they take precedence.
+The device ``consumption-capacity`` and ``production-capacity`` are deliberately not covered; see ``relax-capacity-constraints``.
+
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,
     example=True,
 )
 RELAX_SOC_CONSTRAINTS = MetaData(
-    description="If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+    description="Whether to soften SoC minima/maxima with default breach prices. If not set, ``relax-constraints`` decides (so they are relaxed by default); an explicit value here takes precedence.",
     example=True,
 )
 RELAX_CAPACITY_CONSTRAINTS = MetaData(
-    description="If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+    description="If True, softens the device consumption/production capacities with default breach prices. Deliberately not covered by ``relax-constraints``: a directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so softening it has to name the thing being softened.",
     example=True,
 )
 RELAX_SITE_CAPACITY_CONSTRAINTS = MetaData(
-    description="If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+    description="Whether to soften the site consumption/production capacities with default breach prices. If not set, ``relax-constraints`` decides (so they are relaxed by default); an explicit value here takes precedence.",
     example=True,
 )
 SITE_CONSUMPTION_BREACH_PRICE = MetaData(
@@ -254,6 +259,25 @@ COMMODITY_FLEX_MODEL = MetaData(
 Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
+)
+COUPLING = MetaData(
+    description="""Name of the coupling group this device belongs to.
+Devices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.
+Use this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.
+For example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.
+Use together with ``coupling-coefficient`` to set the flow ratios.
+""",
+    example="chp",
+)
+COUPLING_COEFFICIENT = MetaData(
+    description="""Positive coupling magnitude for this device within its coupling group.
+The scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.
+The flow direction of each device is inferred from which directional capacity is set: a device given only a ``production-capacity`` is an output (producing) device, and a device given only a ``consumption-capacity`` is an input (consuming) device.
+The unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).
+For example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).
+Defaults to 1.
+""",
+    example=0.5,
 )
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.
@@ -316,8 +340,8 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 )
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
-If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
+Soft constraints by default (see ``relax-soc-constraints``). [#soft_by_default]_ [#maximum_overlap]_
+Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
     example=[
         {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
         {
@@ -329,8 +353,7 @@ Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points
 )
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
-If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
+Soft constraints by default (see ``relax-soc-constraints``). [#soft_by_default]_ [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
     example=[
         {
             "value": "51 kWh",
@@ -342,7 +365,9 @@ Otherwise, they become hard constraints. [#minimum_overlap]_ [#projecting_schedu
 SOC_TARGETS = MetaData(
     description="""
 Exact set point(s) of the storage's state of charge that the scheduler needs to realize.
-These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
+A target is two-sided, so if both a ``soc-minima-breach-price`` and a ``soc-maxima-breach-price`` are defined, the ``soc-targets`` become soft constraints in the optimization problem.
+Falling short of a target is then priced like a ``soc-minima`` breach, and overshooting it like a ``soc-maxima`` breach.
+Otherwise, they become hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
 """,
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
@@ -414,13 +439,13 @@ When exactly one of ``consumption-capacity`` or ``production-capacity`` is confi
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
-    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_",
+    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_ [#zero_capacity]_",
     example={"sensor": 56},
 )
 PRODUCTION_CAPACITY = MetaData(
     description="""Device-level power constraint on production.
 How much power can be supplied by this asset.
-For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
+For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_ [#zero_capacity]_
 """,
     example="0 kW",
 )

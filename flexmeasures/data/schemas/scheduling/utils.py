@@ -6,7 +6,6 @@ import pandas as pd
 
 from flexmeasures import Sensor
 
-
 SOC_TIMED_EVENT_FIELDS = ("soc-targets", "soc-minima", "soc-maxima")
 
 

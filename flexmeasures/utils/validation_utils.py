@@ -8,7 +8,6 @@ import limits
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.unit_utils import ur
 
-
 UNLIMITED_RATE_LIMIT = "unlimited"
 
 
