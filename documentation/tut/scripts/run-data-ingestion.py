@@ -106,6 +106,12 @@ async def run_tutorial(args: argparse.Namespace) -> None:
     if not args.file.is_file():
         raise FileNotFoundError(f"Example data file not found: {args.file}")
 
+    scheme = "https" if args.ssl else "http"
+    print(
+        f"Preparing FlexMeasures client for {scheme}://{args.host} "
+        f"as {args.email} (sensor {args.sensor_id}).",
+        flush=True,
+    )
     password = os.getenv("FLEXMEASURES_PASSWORD") or getpass.getpass(
         f"FlexMeasures password for {args.email}: "
     )
@@ -117,12 +123,14 @@ async def run_tutorial(args: argparse.Namespace) -> None:
     )
     try:
         # Start file upload example
+        print(f"Uploading spreadsheet: {args.file}", flush=True)
         await client.post_sensor_data(
             sensor_id=args.sensor_id,
             file_path=str(args.file),
             belief_time_measured_instantly=True,
         )
         # End file upload example
+        print("Spreadsheet upload accepted; verifying stored values ...", flush=True)
         await wait_for_values_and_verify(
             client,
             sensor_id=args.sensor_id,
@@ -133,8 +141,10 @@ async def run_tutorial(args: argparse.Namespace) -> None:
             expected_values=EXAMPLE_FILE_VALUES,
             timeout=args.timeout,
         )
+        print("Spreadsheet values verified.", flush=True)
 
         # Start export script example
+        print(f"Uploading {len(EXPORT_VALUES)} exported meter values ...", flush=True)
         await client.post_sensor_data(
             sensor_id=args.sensor_id,
             start=EXPORT_START,
@@ -143,6 +153,7 @@ async def run_tutorial(args: argparse.Namespace) -> None:
             unit=args.unit,
         )
         # End export script example
+        print("Exported values accepted; verifying stored values ...", flush=True)
         await wait_for_values_and_verify(
             client,
             sensor_id=args.sensor_id,
@@ -153,10 +164,11 @@ async def run_tutorial(args: argparse.Namespace) -> None:
             expected_values=EXPORT_VALUES,
             timeout=args.timeout,
         )
+        print("Exported meter values verified.", flush=True)
     finally:
         await client.close()
 
-    print("Data-ingestion tutorial completed successfully.")
+    print("Data-ingestion tutorial completed successfully.", flush=True)
 
 
 if __name__ == "__main__":
