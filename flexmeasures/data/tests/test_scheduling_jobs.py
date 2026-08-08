@@ -37,6 +37,7 @@ def test_scheduling_a_battery(
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
+    - the commitment costs reached the job meta stored in Redis — regression for #2418
     - success is logged once (not before compute) — regression for #2049
     """
 
@@ -94,50 +95,10 @@ def test_scheduling_a_battery(
         sum(v.event_value for v in power_values) < -0.5
     ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
 
-    # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
-    # Count only this job's message — the RQ worker may also process other queued jobs.
-    out = capsys.readouterr().out
-    assert out.count(f"Job {job.id} made schedule.") == 1, out
-
-
-def test_commitment_costs_are_persisted_on_job_meta(
-    fresh_db,
-    app,
-    add_battery_assets_fresh_db,
-    setup_fresh_test_data,
-    add_market_prices_fresh_db,
-):
-    """The commitment cost breakdown must survive into the job meta stored in Redis.
-
-    Regression test: the costs used to be written to ``rq_job.meta`` after the job's last ``save_meta()`` call,
-    and RQ persists a finishing job with ``include_meta=False``,
-    so they were computed and then silently lost — for every scheduling job.
-    Fetching a fresh Job instance is what makes this test see only what actually reached Redis,
-    rather than the worker's in-memory job object.
-    """
-    battery = next(
-        s
-        for s in add_battery_assets_fresh_db["Test battery"].sensors
-        if s.name == "power"
-    )
-    tz = pytz.timezone("Europe/Amsterdam")
-    start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
-
-    job = create_scheduling_job(
-        asset_or_sensor=battery,
-        start=start,
-        end=end,
-        belief_time=start,
-        resolution=timedelta(minutes=15),
-        flex_model={
-            "roundtrip-efficiency": "98%",
-            "storage-efficiency": 0.999,
-        },
-    )
-    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
-
-    # Fetch fresh from Redis: in-memory meta mutations on the worker's job object don't count.
+    # Regression #2418: the commitment costs used to be written to the job meta after the
+    # job's last save_meta() call, and RQ persists a finishing job with include_meta=False,
+    # so they were computed and then silently lost. Fetch a fresh Job to see only what
+    # actually reached Redis, rather than the worker's in-memory job object.
     finished_job = Job.fetch(job.id, connection=app.queues["scheduling"].connection)
     assert finished_job.is_finished
     commitment_costs = finished_job.meta["scheduler_info"]["commitment_costs"]
@@ -148,6 +109,11 @@ def test_commitment_costs_are_persisted_on_job_meta(
         isinstance(cost, float) and np.isfinite(cost)
         for cost in commitment_costs.values()
     )
+
+    # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
+    # Count only this job's message — the RQ worker may also process other queued jobs.
+    out = capsys.readouterr().out
+    assert out.count(f"Job {job.id} made schedule.") == 1, out
 
 
 scheduler_specs = {
