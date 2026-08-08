@@ -12,7 +12,6 @@ from time import monotonic
 
 from flexmeasures_client import FlexMeasuresClient
 
-
 EXAMPLE_FILE_VALUES = [1.0, 3.0, 9.0, 8.0, 7.0, 10.0]
 EXAMPLE_FILE_START = "2022-12-11T05:00:00+00:00"
 EXAMPLE_FILE_DURATION = "PT6H"
