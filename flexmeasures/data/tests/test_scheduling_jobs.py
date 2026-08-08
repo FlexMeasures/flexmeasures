@@ -100,6 +100,56 @@ def test_scheduling_a_battery(
     assert out.count(f"Job {job.id} made schedule.") == 1, out
 
 
+def test_commitment_costs_are_persisted_on_job_meta(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    setup_fresh_test_data,
+    add_market_prices_fresh_db,
+):
+    """The commitment cost breakdown must survive into the job meta stored in Redis.
+
+    Regression test: the costs used to be written to ``rq_job.meta`` after the job's last
+    ``save_meta()`` call, and RQ persists a finishing job with ``include_meta=False``,
+    so they were computed and then silently lost — for every scheduling job.
+    Fetching a fresh Job instance (rather than inspecting the worker's in-memory object)
+    is what makes this test see only what actually reached Redis.
+    """
+    battery = next(
+        s
+        for s in add_battery_assets_fresh_db["Test battery"].sensors
+        if s.name == "power"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+
+    job = create_scheduling_job(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=timedelta(minutes=15),
+        flex_model={
+            "roundtrip-efficiency": "98%",
+            "storage-efficiency": 0.999,
+        },
+    )
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    # Fetch fresh from Redis: in-memory meta mutations on the worker's job object don't count.
+    finished_job = Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    assert finished_job.is_finished
+    commitment_costs = finished_job.meta["scheduler_info"]["commitment_costs"]
+    assert (
+        commitment_costs
+    ), "the scheduler reported commitment costs, so the persisted job meta must carry them"
+    assert all(
+        isinstance(cost, float) and np.isfinite(cost)
+        for cost in commitment_costs.values()
+    )
+
+
 scheduler_specs = {
     "module": None,  # use make_module_descr, see below
     "class": "DummyScheduler",
