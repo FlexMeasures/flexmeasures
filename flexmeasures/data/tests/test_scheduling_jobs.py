@@ -109,11 +109,11 @@ def test_commitment_costs_are_persisted_on_job_meta(
 ):
     """The commitment cost breakdown must survive into the job meta stored in Redis.
 
-    Regression test: the costs used to be written to ``rq_job.meta`` after the job's last
-    ``save_meta()`` call, and RQ persists a finishing job with ``include_meta=False``,
+    Regression test: the costs used to be written to ``rq_job.meta`` after the job's last ``save_meta()`` call,
+    and RQ persists a finishing job with ``include_meta=False``,
     so they were computed and then silently lost — for every scheduling job.
-    Fetching a fresh Job instance (rather than inspecting the worker's in-memory object)
-    is what makes this test see only what actually reached Redis.
+    Fetching a fresh Job instance is what makes this test see only what actually reached Redis,
+    rather than the worker's in-memory job object.
     """
     battery = next(
         s
