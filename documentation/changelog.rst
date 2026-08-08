@@ -72,6 +72,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+
+* Add a hands-on data-ingestion tutorial with executable FlexMeasures Client examples for Excel and CSV uploads and export scripts [see `PR #2376 <https://www.github.com/FlexMeasures/flexmeasures/pull/2376>`_]
 * Add a ``FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT`` setting for spreading a host's Sentry error allowance across the month with a fail-open daily Redis counter, and send the startup error about the database schema not being at the Alembic head revision to Sentry at most once per UTC calendar day per pair of current and expected revisions (it is still logged in full on every start) [see `PR #2366 <https://www.github.com/FlexMeasures/flexmeasures/pull/2366>`_]
 * Shrink the scheduler's mixed-integer program for one-way devices: where a device can only consume or only produce, its power-sign binaries and their big-M constraints are dropped, as simultaneous consumption and production is already ruled out by the power bounds [see `PR #2412 <https://www.github.com/FlexMeasures/flexmeasures/pull/2412>`_]
 * ``uv run poe clean-db`` now works on macOS as well, takes its arguments as ``--db-name my-db --db-user my-user``, reads your answers to its prompts, and handles names containing a dash [see `PR #2408 <https://www.github.com/FlexMeasures/flexmeasures/pull/2408>`_]
@@ -105,6 +107,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Include the Excel reader in default installations so XLSX sensor-data uploads work outside test environments [see `PR #2376 <https://www.github.com/FlexMeasures/flexmeasures/pull/2376>`_]
 * In a multi-device flex-model, a device without a stock (e.g. a converter port or curtailable generator) silently disabled constraint validation for all devices after it; validation now covers every device, and also newly checks that each device's power bounds do not contradict each other, so a contradictory hard bound fails with a clear per-time-step message instead of a bare solver infeasibility [see `PR #2252 <https://www.github.com/FlexMeasures/flexmeasures/pull/2252>`_]
 * The scheduler now rejects a commitment that no constraint would bind — a stock commitment naming no device or known stock group, or a commodity commitment for a commodity that no commitment maps devices to — instead of silently dropping it from the problem, or letting a favourably priced deviation make the problem unbounded; the error names the commitment [see `PR #2410 <https://www.github.com/FlexMeasures/flexmeasures/pull/2410>`_ and `PR #2413 <https://www.github.com/FlexMeasures/flexmeasures/pull/2413>`_]
 * Show icons for more asset types in the UI's asset structure view, which previously fell back to a question mark: the ``wind``, ``process`` and ``heat-storage`` types that FlexMeasures seeds by default, and EV infrastructure under its various names (such as ``one-way_evse``, ``two-way_evse``, ``evse``, ``charging_station`` and ``charging_hub``) and building services equipment (``hvac``, ``ahu``, ``dhw``, ``heatpump``, ``chiller``, ``lighting`` and ``other-loads``). Asset type names are now matched ignoring case and separators, so an asset type named ``charge-point`` gets the same icon as ``chargepoint`` [see `PR #2391 <https://www.github.com/FlexMeasures/flexmeasures/pull/2391>`_]
