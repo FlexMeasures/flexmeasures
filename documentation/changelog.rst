@@ -73,6 +73,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* Move FlexMeasures-specific time-series, belief, flex-context, and flex-model concepts into dedicated top-level Concepts pages, with diagrams and examples explaining belief times and the ``prior`` and ``horizon`` fields, and add a concise configuration-to-schedule workflow to the Scheduling feature page.
 * Add a hands-on data-ingestion tutorial with executable FlexMeasures Client examples for Excel and CSV uploads and export scripts [see `PR #2376 <https://www.github.com/FlexMeasures/flexmeasures/pull/2376>`_]
 * Add a ``FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT`` setting for spreading a host's Sentry error allowance across the month with a fail-open daily Redis counter, and send the startup error about the database schema not being at the Alembic head revision to Sentry at most once per UTC calendar day per pair of current and expected revisions (it is still logged in full on every start) [see `PR #2366 <https://www.github.com/FlexMeasures/flexmeasures/pull/2366>`_]
 * Shrink the scheduler's mixed-integer program for one-way devices: where a device can only consume or only produce, its power-sign binaries and their big-M constraints are dropped, as simultaneous consumption and production is already ruled out by the power bounds [see `PR #2412 <https://www.github.com/FlexMeasures/flexmeasures/pull/2412>`_]

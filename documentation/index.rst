@@ -201,6 +201,8 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     concepts/flexibility
     concepts/data-model
+    concepts/time-series-and-beliefs
+    concepts/flexibility-configuration
     concepts/security_auth
     concepts/commitments
     concepts/device_scheduler
