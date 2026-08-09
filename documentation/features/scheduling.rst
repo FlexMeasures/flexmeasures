@@ -105,15 +105,21 @@ battery first charges gently, increases its charging power, and then becomes
 idle. The result also states the series start and duration, so a controller can
 apply each value at the scheduling resolution.
 
-The API response for this simplified schedule looks like this:
+After the scheduling job has finished, retrieving this simplified schedule
+through ``GET /api/v3_0/sensors/8/schedules/<uuid>`` returns JSON like this:
 
 .. code-block:: json
 
    {
+       "scheduler_info": {
+           "scheduler": "StorageScheduler"
+       },
        "values": [0.5, 1.0, 1.5, 0.0],
        "start": "2026-08-10T07:00:00+02:00",
        "duration": "PT4H",
-       "unit": "kW"
+       "unit": "kW",
+       "status": "PROCESSED",
+       "message": "StorageScheduler was used."
    }
 
 Together with the one-hour resolution requested above, this response describes
