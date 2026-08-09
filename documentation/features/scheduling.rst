@@ -12,6 +12,8 @@ We model a device as an asset with a consumption/production sensor recording pow
     :local:
     :depth: 1
 
+|
+
 
 Describing the optimization problem
 -----------------------------------
@@ -44,6 +46,11 @@ Here, sensor 8 is the power sensor on the battery asset and identifies the
 device to be scheduled. Sensor 7 supplies the electricity-price series against
 which the battery is optimized.
 
+More than one device can be scheduled in the same optimization: add one
+flex-model entry per flexible device. See
+:ref:`tut_toy_schedule_multiasset_curtailment` for a tutorial that jointly
+schedules a battery and curtailable PV.
+
 Configurations that change rarely can be stored on assets. A scheduling
 request can add or override the parts that are specific to that run. See
 :ref:`flexibility_configuration` for the complete flex-context and flex-model
@@ -55,7 +62,8 @@ Triggering a schedule computation
 
 To start a computation, select the asset whose energy system should be
 optimized and provide a scheduling window. If the configuration above is
-stored on the asset, an API request for a four-hour schedule can be this small:
+stored in the asset tree, an API request for a four-hour schedule can be this
+small:
 
 .. code-block:: http
 
@@ -68,6 +76,13 @@ stored on the asset, an API request for a four-hour schedule can be this small:
        "duration": "PT4H",
        "resolution": "PT1H"
    }
+
+Calling this endpoint makes asset 6 the root of the optimization. FlexMeasures
+collects stored flex-models from asset 6 and its descendants, and collects
+flex-context fields from asset 6 upwards through its ancestors. Nearer context
+values take precedence. Only devices represented by the collected flex-models
+are scheduled—not every descendant with a power sensor automatically—and they
+are considered together in one optimization problem.
 
 Alternatively, include ``flex-context`` and ``flex-model`` in this body to
 supply or override them for this computation. The endpoint returns
