@@ -137,19 +137,30 @@ When both are supplied, a belief must satisfy both conditions:
 ``belief_time <= prior AND belief_horizon >= horizon``
 
 The next example queries with ``prior=10:00`` and ``horizon=PT2H``. The three
-beliefs concern consecutive hourly events, and the timeline shows why only one
-is selected:
+beliefs concern consecutive hourly events. Each dotted block below is one
+belief and each thick-bordered block is one event. The two beliefs recorded at
+09:30 are stacked at the same position on the timeline:
 
 .. mermaid::
 
-   flowchart TB
-       T0930["09:30<br/><b>EXCLUDED</b>: 10 kWh belief; horizon 1 h 30 min<br/><b>SELECTED</b>: 20 kWh belief; horizon 2 h 30 min"]
-       T1000["10:00<br/><b>prior cutoff</b><br/>10 kWh event starts"]
-       T1030["10:30<br/><b>EXCLUDED</b>: 30 kWh belief; after prior"]
-       T1100["11:00<br/>10 kWh event ends<br/>20 kWh event starts"]
-       T1200["12:00<br/>20 kWh event ends<br/>30 kWh event starts"]
-       T1300["13:00<br/>30 kWh event ends"]
-       T0930 --> T1000 --> T1030 --> T1100 --> T1200 --> T1300
+   block-beta
+       columns 7
+       B10["<b>BELIEF: EXCLUDED</b><br/>belief time 09:30<br/>10 kWh for event 10:00–11:00<br/>horizon 1 h 30 min"] PRIOR1["<b>prior cutoff 10:00</b><br/>┃"] B30["<b>BELIEF: EXCLUDED</b><br/>belief time 10:30<br/>30 kWh for event 12:00–13:00<br/>horizon 2 h 30 min"] space:4
+       B20["<b>BELIEF: SELECTED</b><br/>belief time 09:30<br/>20 kWh for event 11:00–12:00<br/>horizon 2 h 30 min"] PRIOR2["┃"] space:5
+       space PRIOR3["┃"] space:5
+       space E10["<b>EVENT</b><br/>10 kWh<br/>10:00–11:00"] space E20["<b>EVENT</b><br/>20 kWh<br/>11:00–12:00"] E30["<b>EVENT</b><br/>30 kWh<br/>12:00–13:00"] space:2
+       AXIS["09:30　━　10:00　━　10:30　━━　11:00　━━　12:00　━━　13:00　━━▶ time"]:7
+
+       classDef excludedBelief fill:#f5f5f5,stroke:#666,stroke-width:2px,stroke-dasharray:5 5
+       classDef selectedBelief fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray:5 5
+       classDef event fill:#fff,stroke:#333,stroke-width:4px
+       classDef cutoff fill:transparent,stroke:transparent
+       classDef tick fill:transparent,stroke:transparent
+       class B10,B30 excludedBelief
+       class B20 selectedBelief
+       class E10,E20,E30 event
+       class PRIOR1,PRIOR2,PRIOR3 cutoff
+       class AXIS tick
 
 The 10 kWh belief was recorded before the prior cutoff, but its 1-hour-30-minute
 horizon is too short. The 20 kWh belief passes both filters. The 30 kWh belief
