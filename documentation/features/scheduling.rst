@@ -10,7 +10,7 @@ We model a device as an asset with a consumption/production sensor recording pow
 
 .. contents::
     :local:
-    :depth: 2
+    :depth: 1
 
 
 Describing the optimization problem
@@ -39,6 +39,10 @@ limits of a battery:
            }
        ]
    }
+
+Here, sensor 8 is the power sensor on the battery asset and identifies the
+device to be scheduled. Sensor 7 supplies the electricity-price series against
+which the battery is optimized.
 
 Configurations that change rarely can be stored on assets. A scheduling
 request can add or override the parts that are specific to that run. See
@@ -96,6 +100,10 @@ The API response for this simplified schedule looks like this:
        "duration": "PT4H",
        "unit": "kW"
    }
+
+Together with the one-hour resolution requested above, this response describes
+four hourly events: 07:00–08:00, 08:00–09:00, 09:00–10:00, and 10:00–11:00.
+The schedule therefore covers the four-hour period from 07:00 to 11:00.
 
 Schedules can be inspected alongside prices, forecasts, measurements, and
 state of charge in the FlexMeasures UI:
