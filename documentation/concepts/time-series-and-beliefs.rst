@@ -143,24 +143,48 @@ belief and each thick-bordered block is one event. The two beliefs recorded at
 
 .. mermaid::
 
-   block-beta
-       columns 7
-       B10["<b>BELIEF: EXCLUDED</b><br/>belief time 09:30<br/>10 kWh for event 10:00–11:00<br/>horizon 1 h 30 min"] PRIOR1["<b>prior cutoff 10:00</b><br/>┃"] B30["<b>BELIEF: EXCLUDED</b><br/>belief time 10:30<br/>30 kWh for event 12:00–13:00<br/>horizon 2 h 30 min"] space:4
-       B20["<b>BELIEF: SELECTED</b><br/>belief time 09:30<br/>20 kWh for event 11:00–12:00<br/>horizon 2 h 30 min"] PRIOR2["┃"] space:5
-       space PRIOR3["┃"] space:5
-       space E10["<b>EVENT</b><br/>10 kWh<br/>10:00–11:00"] space E20["<b>EVENT</b><br/>20 kWh<br/>11:00–12:00"] E30["<b>EVENT</b><br/>30 kWh<br/>12:00–13:00"] space:2
-       AXIS["09:30　━　10:00　━　10:30　━━　11:00　━━　12:00　━━　13:00　━━▶ time"]:7
+   flowchart TB
+       subgraph BELIEFS["Beliefs"]
+           direction LR
+           subgraph SAME_TIME["belief time 09:30"]
+               direction TB
+               B10["<b>BELIEF: EXCLUDED</b><br/>10 kWh<br/>event 10:00–11:00<br/>horizon 1 h 30 min"]
+               B20["<b>BELIEF: SELECTED</b><br/>20 kWh<br/>event 11:00–12:00<br/>horizon 2 h 30 min"]
+           end
+           PRIOR["<b>prior cutoff 10:00</b><br/>┃<br/>┃<br/>┃<br/>┃"]
+           B30["<b>BELIEF: EXCLUDED</b><br/>belief time 10:30<br/>30 kWh<br/>event 12:00–13:00<br/>horizon 2 h 30 min"]
+           B10 ~~~ PRIOR ~~~ B30
+           B20 ~~~ PRIOR
+       end
 
-       classDef excludedBelief fill:#f5f5f5,stroke:#666,stroke-width:2px,stroke-dasharray:5 5
-       classDef selectedBelief fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray:5 5
-       classDef event fill:#fff,stroke:#333,stroke-width:4px
-       classDef cutoff fill:transparent,stroke:transparent
-       classDef tick fill:transparent,stroke:transparent
+       subgraph EVENTS["Events"]
+           direction LR
+           E10["<b>EVENT</b><br/>10 kWh<br/>10:00–11:00"]
+           E20["<b>EVENT</b><br/>20 kWh<br/>11:00–12:00"]
+           E30["<b>EVENT</b><br/>30 kWh<br/>12:00–13:00"]
+           E10 ~~~ E20 ~~~ E30
+       end
+
+       subgraph TIMELINE[" "]
+           direction LR
+           T0930["09:30"] --- T1000["10:00"] --- T1030["10:30"] --- T1100["11:00"] --- T1200["12:00"] --- T1300["13:00"] --> TIME["time"]
+       end
+
+       classDef excludedBelief fill:#f5f5f5,stroke:#666,stroke-width:2px,stroke-dasharray:5 5,font-size:22px
+       classDef selectedBelief fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray:5 5,font-size:22px
+       classDef event fill:#fff,stroke:#333,stroke-width:4px,font-size:22px
+       classDef cutoff fill:transparent,stroke:transparent,font-size:20px
+       classDef tick fill:transparent,stroke:transparent,font-size:18px
        class B10,B30 excludedBelief
        class B20 selectedBelief
        class E10,E20,E30 event
-       class PRIOR1,PRIOR2,PRIOR3 cutoff
-       class AXIS tick
+       class PRIOR cutoff
+       class T0930,T1000,T1030,T1100,T1200,T1300,TIME tick
+       BELIEFS ~~~ EVENTS ~~~ TIMELINE
+       style BELIEFS fill:transparent,stroke:transparent
+       style SAME_TIME fill:transparent,stroke:transparent
+       style EVENTS fill:transparent,stroke:transparent
+       style TIMELINE fill:transparent,stroke:transparent
 
 The 10 kWh belief was recorded before the prior cutoff, but its 1-hour-30-minute
 horizon is too short. The 20 kWh belief passes both filters. The 30 kWh belief
