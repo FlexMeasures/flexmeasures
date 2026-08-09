@@ -61,7 +61,8 @@ stored on the asset, an API request for a four-hour schedule can be this small:
 
    {
        "start": "2026-08-10T07:00:00+02:00",
-       "duration": "PT4H"
+       "duration": "PT4H",
+       "resolution": "PT1H"
    }
 
 Alternatively, include ``flex-context`` and ``flex-model`` in this body to
@@ -84,6 +85,17 @@ flexible device, represented by its power sensor. For example, the values
 battery first charges gently, increases its charging power, and then becomes
 idle. The result also states the series start and duration, so a controller can
 apply each value at the scheduling resolution.
+
+The API response for this simplified schedule looks like this:
+
+.. code-block:: json
+
+   {
+       "values": [0.5, 1.0, 1.5, 0.0],
+       "start": "2026-08-10T07:00:00+02:00",
+       "duration": "PT4H",
+       "unit": "kW"
+   }
 
 Schedules can be inspected alongside prices, forecasts, measurements, and
 state of charge in the FlexMeasures UI:

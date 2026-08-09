@@ -97,7 +97,8 @@ while a negative horizon describes an *ex post* belief made after it. For an
 economic event, the knowledge time can instead be a gate-closure time.
 
 The following physical event starts at 13:00 and ends at 13:15. A belief
-recorded at 07:15 therefore has a six-hour belief horizon:
+recorded at 07:15 (in practice, that is a forecast) therefore has a six-hour
+belief horizon:
 
 .. mermaid::
 
@@ -111,7 +112,9 @@ recorded at 07:15 therefore has a six-hour belief horizon:
 
 Although ``event_start - belief_time`` is 5 hours and 45 minutes, the belief
 horizon is six hours because this physical event becomes fully knowable only
-at ``event_end``.
+at ``event_end``. For example, a kW meter that reads every minute can tell
+FlexMeasures the average kW over a 15-minute interval only after the whole
+interval has passed.
 
 .. note::
 
@@ -139,18 +142,14 @@ is selected:
 
 .. mermaid::
 
-   timeline
-       title Query with prior = 10:00 and horizon = PT2H
-       09:30 : EXCLUDED — 10 kWh event; horizon 1 h 30 min
-             : SELECTED — 20 kWh event; horizon 2 h 30 min
-       10:00 : prior cutoff
-             : 10 kWh event starts
-       10:30 : EXCLUDED — 30 kWh event; after prior
-       11:00 : 10 kWh event ends
-             : 20 kWh event starts
-       12:00 : 20 kWh event ends
-             : 30 kWh event starts
-       13:00 : 30 kWh event ends
+   flowchart TB
+       T0930["09:30<br/><b>EXCLUDED</b>: 10 kWh belief; horizon 1 h 30 min<br/><b>SELECTED</b>: 20 kWh belief; horizon 2 h 30 min"]
+       T1000["10:00<br/><b>prior cutoff</b><br/>10 kWh event starts"]
+       T1030["10:30<br/><b>EXCLUDED</b>: 30 kWh belief; after prior"]
+       T1100["11:00<br/>10 kWh event ends<br/>20 kWh event starts"]
+       T1200["12:00<br/>20 kWh event ends<br/>30 kWh event starts"]
+       T1300["13:00<br/>30 kWh event ends"]
+       T0930 --> T1000 --> T1030 --> T1100 --> T1200 --> T1300
 
 The 10 kWh belief was recorded before the prior cutoff, but its 1-hour-30-minute
 horizon is too short. The 20 kWh belief passes both filters. The 30 kWh belief
