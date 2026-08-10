@@ -276,6 +276,44 @@ def test_automation_sensors_with_source_filtered_regressor(
     )
 
 
+def test_automation_sensors_are_unknown_rather_than_empty(
+    app, fresh_db, setup_dummy_data
+):
+    """When the sensors cannot be worked out, only the display helper is allowed to report none.
+
+    Reporting no sensors to an access check would let the automation pass every check on the sensors it involves,
+    so the strict helper raises instead.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.services.automations import (
+        AutomationSensorsUnknown,
+        get_automation_sensors,
+        resolve_automation_sensors,
+    )
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags({"asset": 1, "name": "Broken forecasts", "sensor": sensor_id}),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Broken forecasts")
+    ).scalar_one()
+
+    # the parameters no longer load, as happens when a sensor referred to has been deleted
+    automation.parameters = {"sensor": "no-such-sensor"}
+    fresh_db.session.commit()
+
+    assert get_automation_sensors(automation) == {
+        "input_sensors": [],
+        "output_sensors": [],
+    }
+    with pytest.raises(AutomationSensorsUnknown):
+        resolve_automation_sensors(automation)
+
+
 def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     from flexmeasures.cli.data_add import add_automation
 

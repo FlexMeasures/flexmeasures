@@ -11,6 +11,7 @@ from typing import Any
 from cron_descriptor import get_description, Options
 from croniter import croniter
 from flask import current_app
+from marshmallow import ValidationError
 from sqlalchemy import select
 
 from flexmeasures import Forecaster
@@ -58,16 +59,27 @@ def get_due_automations(now: datetime | None = None) -> list[Automation]:
     ]
 
 
-def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
-    """Look up which sensors an automation reads from and writes to on each run.
+class AutomationSensorsUnknown(Exception):
+    """Raised when the sensors an automation involves cannot be worked out.
 
-    The sensors are derived from the data generator, configured with the automation's
-    own parameters. Automations whose data generator or parameters cannot be loaded
-    (e.g. because a sensor was deleted) report no sensors.
+    Callers that decide whether something is allowed must let this propagate rather than treat it as "no sensors",
+    because an automation with no known sensors would otherwise pass every check on the sensors it involves.
     """
-    no_sensors: dict[str, list[Sensor]] = {"input_sensors": [], "output_sensors": []}
+
+
+def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
+    """Work out which sensors an automation reads from and writes to on each run.
+
+    The sensors are derived from the data generator, configured with the automation's own parameters.
+    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because the automation has no data generator,
+    because its generator is not registered in this FlexMeasures instance,
+    or because its parameters no longer load (say, after a sensor was deleted).
+    Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
+    """
     if automation.generator is None:
-        return no_sensors
+        raise AutomationSensorsUnknown(
+            f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
+        )
     try:
         # Work on a copy, as the data generator is cached on the data source,
         # which may be shared by several automations.
@@ -79,11 +91,25 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
             "input_sensors": data_generator.input_sensors,
             "output_sensors": data_generator.output_sensors,
         }
-    except Exception as e:
-        current_app.logger.warning(
+    except (NotImplementedError, ValidationError) as e:
+        raise AutomationSensorsUnknown(
             f"Could not determine the sensors of automation {automation.id}: {e}"
-        )
-        return no_sensors
+        ) from e
+
+
+def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
+    """Look up which sensors an automation reads from and writes to on each run, for display purposes.
+
+    Automations whose sensors cannot be worked out report no sensors, so that one broken automation
+    does not keep a page or an API response from rendering.
+    Do not use this to decide whether something is permitted, as "no sensors" then reads as "nothing to check":
+    call `resolve_automation_sensors` instead and let its error propagate.
+    """
+    try:
+        return resolve_automation_sensors(automation)
+    except AutomationSensorsUnknown as e:
+        current_app.logger.warning(str(e))
+        return {"input_sensors": [], "output_sensors": []}
 
 
 def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
