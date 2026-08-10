@@ -128,6 +128,10 @@ def test_get_automation_details(
     assert response.json["scheduling_cursor"] == "2026-07-11T04:00:00+00:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
+    # the sensor to forecast is both read from (its history) and written to
+    sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
+    assert response.json["input_sensors"] == [sensor]
+    assert response.json["output_sensors"] == [sensor]
 
 
 @pytest.mark.parametrize(

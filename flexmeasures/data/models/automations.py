@@ -109,3 +109,21 @@ class Automation(db.Model, AuthModelMixin):
             self.asset_id,
             "active" if self.active else "inactive",
         )
+
+    @property
+    def input_sensors(self) -> list:
+        """The sensors that this automation reads data from on each run, as far as they can be worked out.
+
+        Reports no sensors if they cannot be, so do not use this to decide whether something is permitted;
+        see `resolve_automation_sensors` for that.
+        """
+        from flexmeasures.data.services.automations import get_automation_sensors
+
+        return get_automation_sensors(self)["input_sensors"]
+
+    @property
+    def output_sensors(self) -> list:
+        """The sensors that this automation writes data to on each run. See `input_sensors`."""
+        from flexmeasures.data.services.automations import get_automation_sensors
+
+        return get_automation_sensors(self)["output_sensors"]

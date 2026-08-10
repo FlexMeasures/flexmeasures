@@ -4,6 +4,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -11,6 +12,8 @@ from zoneinfo import ZoneInfo
 
 from cron_descriptor import get_description, Options
 from croniter import croniter
+from flask import current_app
+from marshmallow import ValidationError
 from sqlalchemy import or_, select, update
 
 from flexmeasures import Forecaster
@@ -215,13 +218,102 @@ def claim_due_automation(due_automation: DueAutomation) -> bool:
     return True
 
 
+class AutomationSensorsUnknown(Exception):
+    """Raised when the sensors an automation involves cannot be worked out.
+
+    Callers that decide whether something is allowed must let this propagate rather than treat it as "no sensors",
+    because an automation with no known sensors would otherwise pass every check on the sensors it involves.
+    """
+
+
+def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
+    """Work out which sensors an automation reads from and writes to on each run.
+
+    The sensors are derived from the data generator, configured with the automation's own parameters.
+    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because the automation has no data generator,
+    because its generator is not registered in this FlexMeasures instance,
+    or because its parameters no longer load (say, after a sensor was deleted).
+    Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
+    """
+    if automation.generator is None:
+        raise AutomationSensorsUnknown(
+            f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
+        )
+    try:
+        # Work on a copy, as the data generator is cached on the data source,
+        # which may be shared by several automations.
+        data_generator = copy(automation.generator.data_generator)
+        data_generator._parameters = data_generator._parameters_schema.load(
+            dict(automation.parameters or {})
+        )
+        return {
+            "input_sensors": data_generator.input_sensors,
+            "output_sensors": data_generator.output_sensors,
+        }
+    except (NotImplementedError, ValidationError) as e:
+        raise AutomationSensorsUnknown(
+            f"Could not determine the sensors of automation {automation.id}: {e}"
+        ) from e
+
+
+def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
+    """Look up which sensors an automation reads from and writes to on each run, for display purposes.
+
+    Automations whose sensors cannot be worked out report no sensors, so that one broken automation
+    does not keep a page or an API response from rendering.
+    Do not use this to decide whether something is permitted, as "no sensors" then reads as "nothing to check":
+    call `resolve_automation_sensors` instead and let its error propagate.
+    """
+    try:
+        return resolve_automation_sensors(automation)
+    except AutomationSensorsUnknown as e:
+        current_app.logger.warning(str(e))
+        return {"input_sensors": [], "output_sensors": []}
+
+
+def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
+    """Find the automations that write data to the given sensor.
+
+    Only automations on the sensor's own asset or on one of its ancestors are
+    considered, as an automation may only write to its asset's subtree
+    (see `validate_forecast_output_scope`). Working out the output sensors requires
+    setting up each candidate's data generator, so this keeps the work proportional
+    to the number of automations that could feed this sensor.
+
+    Note that this does not filter by permission: callers showing these to a user
+    should check read access on each automation (e.g. with `user_can_read`).
+    """
+    candidate_automations = db.session.scalars(
+        select(Automation).filter(
+            Automation.asset_id.in_(_asset_and_ancestor_ids(sensor.generic_asset_id))
+        )
+    ).unique()
+    return [
+        automation
+        for automation in candidate_automations
+        if sensor.id in [output.id for output in automation.output_sensors]
+    ]
+
+
+def _asset_and_ancestor_ids(asset_id: int | None) -> list[int]:
+    """List the given asset and all of its ancestors, nearest first."""
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    asset_ids: list[int] = []
+    while asset_id is not None and asset_id not in asset_ids:
+        asset_ids.append(asset_id)
+        asset = db.session.get(GenericAsset, asset_id)
+        if asset is None:
+            break
+        asset_id = asset.parent_asset_id
+    return asset_ids
+
+
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     """Count the jobs created by this automation, per job status.
 
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
-    from flask import current_app
-
     # Jobs are cached under the forecast target sensor(s), which may belong
     # to a different asset than the automation's own asset.
     sensor_ids = {sensor.id for sensor in automation.asset.sensors}
