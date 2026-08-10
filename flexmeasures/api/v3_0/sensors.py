@@ -297,7 +297,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
         format="iso",
         data_key="prior",
         metadata=dict(
-            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). "
             "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             example="2026-01-15T10:00+01:00",
         ),
@@ -773,8 +773,8 @@ class SensorAPI(FlaskView):
 
             Optional parameters:
 
-            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
-            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
+            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))
+            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time))
             - "prior" (the belief timing docs also apply here)
             - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
             - "source-account" (filter by the account ID linked to data sources)
