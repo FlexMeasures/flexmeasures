@@ -14,6 +14,7 @@ since v1.0.0 | July XX, 2026
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
 * Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset; for now, computing forecasts).
 * Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions. Run this command once per minute. It makes at most one queueing attempt per automation per minute, including when an attempt fails after partially queueing jobs.
+* Add ``--timezone`` to ``flexmeasures add automation`` and ``flexmeasures edit automation``. ``flexmeasures jobs run-automations`` now persists scheduling progress, catches up only the latest missed forecast occurrence, and handles skipped or repeated daylight-saving-time occurrences once. Failed or partially completed queueing attempts are still not retried automatically.
 
 since v0.33.0 | June 01, 2026
 =================================

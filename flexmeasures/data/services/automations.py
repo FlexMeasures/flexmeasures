@@ -5,21 +5,31 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 from __future__ import annotations
 
 from copy import copy
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from cron_descriptor import get_description, Options
 from croniter import croniter
 from flask import current_app
 from marshmallow import ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 
 from flexmeasures import Forecaster
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
-from flexmeasures.utils.time_utils import get_timezone, server_now
+from flexmeasures.utils.time_utils import server_now
+
+
+@dataclass(frozen=True)
+class DueAutomation:
+    """An automation together with the canonical occurrence it should handle."""
+
+    automation: Automation
+    scheduled_at: datetime
 
 
 def describe_cronstr(cronstr: str) -> str:
@@ -37,26 +47,175 @@ def describe_cronstr(cronstr: str) -> str:
 
 
 def floor_to_minute(dt: datetime) -> datetime:
-    """Floor a datetime to the minute, in the FLEXMEASURES_TIMEZONE."""
-    return dt.astimezone(get_timezone()).replace(second=0, microsecond=0)
+    """Floor a timezone-aware datetime to a UTC minute."""
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        raise ValueError("Automation scheduling requires a timezone-aware datetime.")
+    return dt.astimezone(timezone.utc).replace(second=0, microsecond=0)
 
 
-def get_due_automations(now: datetime | None = None) -> list[Automation]:
-    """Return active automations whose cron string matches the given (or current) minute.
+def _as_nominal_wall_time(dt: datetime) -> datetime:
+    """Represent local wall-clock fields on a transition-free UTC timeline."""
+    return datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, tzinfo=timezone.utc)
 
-    Cron strings are interpreted in the FLEXMEASURES_TIMEZONE.
+
+def _localize_nominal_time(
+    nominal_time: datetime, timezone_info: ZoneInfo, fold: int
+) -> datetime:
+    """Attach a real timezone to nominal wall-clock fields using the given fold."""
+    return datetime(
+        nominal_time.year,
+        nominal_time.month,
+        nominal_time.day,
+        nominal_time.hour,
+        nominal_time.minute,
+        tzinfo=timezone_info,
+        fold=fold,
+    )
+
+
+def _is_valid_local_time(
+    localized_time: datetime, nominal_time: datetime, timezone_info: ZoneInfo
+) -> bool:
+    """Return whether a localized time survives a UTC round trip unchanged."""
+    round_tripped = localized_time.astimezone(timezone.utc).astimezone(timezone_info)
+    return _as_nominal_wall_time(round_tripped) == nominal_time
+
+
+def _valid_localizations(
+    nominal_time: datetime, timezone_info: ZoneInfo
+) -> list[datetime]:
+    """Return the valid physical instants for a nominal wall-clock minute."""
+    localizations = [
+        _localize_nominal_time(nominal_time, timezone_info, fold=0),
+        _localize_nominal_time(nominal_time, timezone_info, fold=1),
+    ]
+    valid_localizations = [
+        localized_time
+        for localized_time in localizations
+        if _is_valid_local_time(localized_time, nominal_time, timezone_info)
+    ]
+    return list(
+        {
+            localized_time.astimezone(timezone.utc)
+            for localized_time in valid_localizations
+        }
+    )
+
+
+def _is_ambiguous_wall_time(nominal_time: datetime, timezone_info: ZoneInfo) -> bool:
+    """Return whether a wall-clock minute denotes two physical instants."""
+    return len(_valid_localizations(nominal_time, timezone_info)) == 2
+
+
+def _canonical_occurrence_time(
+    nominal_time: datetime, timezone_info: ZoneInfo
+) -> datetime:
+    """Map one wall-clock occurrence to its canonical effective UTC instant.
+
+    Ambiguous times use the earlier fold.
+    Nonexistent times become effective at the first valid minute after the clock jump.
     """
+    valid_localizations = _valid_localizations(nominal_time, timezone_info)
+    if valid_localizations:
+        return min(valid_localizations)
+
+    first_valid_nominal_time = nominal_time
+    for _ in range(60 * 48):
+        first_valid_nominal_time += timedelta(minutes=1)
+        valid_localizations = _valid_localizations(
+            first_valid_nominal_time, timezone_info
+        )
+        if valid_localizations:
+            return min(valid_localizations)
+    raise ValueError(
+        f"Could not find a valid local time after {nominal_time.isoformat()} in {timezone_info.key}."
+    )
+
+
+def _cron_evaluation_time(now: datetime, timezone_info: ZoneInfo) -> datetime:
+    """Return the nominal wall time through which cron occurrences have happened.
+
+    During the second fold of a repeated interval, the entire first fold has already happened.
+    Evaluate through the end of that repeated wall interval, so missed occurrences are coalesced instead of replayed minute by minute.
+    """
+    localized_now = now.astimezone(timezone_info)
+    nominal_now = _as_nominal_wall_time(localized_now)
+    if localized_now.fold != 1 or not _is_ambiguous_wall_time(
+        nominal_now, timezone_info
+    ):
+        return nominal_now
+
+    nominal_after_overlap = nominal_now
+    for _ in range(60 * 48):
+        nominal_after_overlap += timedelta(minutes=1)
+        if not _is_ambiguous_wall_time(nominal_after_overlap, timezone_info):
+            return nominal_after_overlap - timedelta(minutes=1)
+    raise ValueError(
+        f"Could not find the end of the repeated local-time interval in {timezone_info.key}."
+    )
+
+
+def get_latest_scheduled_occurrence(automation: Automation, now: datetime) -> datetime:
+    """Return the latest canonical occurrence for an automation through ``now``."""
+    now = floor_to_minute(now)
+    timezone_info = ZoneInfo(automation.timezone)
+    evaluation_time = _cron_evaluation_time(now, timezone_info)
+    if croniter.match(automation.cronstr, evaluation_time):
+        nominal_occurrence = evaluation_time
+    else:
+        nominal_occurrence = croniter(automation.cronstr, evaluation_time).get_prev(
+            datetime
+        )
+    scheduled_at = _canonical_occurrence_time(nominal_occurrence, timezone_info)
+    if scheduled_at > now:
+        raise ValueError(
+            f"Cron occurrence {nominal_occurrence.isoformat()} in {automation.timezone} resolves after {now.isoformat()}."
+        )
+    return scheduled_at
+
+
+def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
+    """Return the newest unhandled occurrence for each active automation."""
     if now is None:
         now = server_now()
     now = floor_to_minute(now)
     active_automations = (
         db.session.scalars(select(Automation).filter_by(active=True)).unique().all()
     )
-    return [
-        automation
-        for automation in active_automations
-        if croniter.match(automation.cronstr, now)
-    ]
+    due_automations = []
+    for automation in active_automations:
+        scheduled_at = get_latest_scheduled_occurrence(automation, now)
+        scheduling_cursor = automation.scheduling_cursor
+        if scheduling_cursor is None:
+            scheduling_cursor = floor_to_minute(automation.created_at) - timedelta(
+                minutes=1
+            )
+        if scheduled_at > scheduling_cursor:
+            due_automations.append(
+                DueAutomation(automation=automation, scheduled_at=scheduled_at)
+            )
+    return due_automations
+
+
+def claim_due_automation(due_automation: DueAutomation) -> bool:
+    """Persist an occurrence claim before its non-transactional queueing attempt."""
+    result = db.session.execute(
+        update(Automation)
+        .where(
+            Automation.id == due_automation.automation.id,
+            or_(
+                Automation.scheduling_cursor.is_(None),
+                Automation.scheduling_cursor < due_automation.scheduled_at,
+            ),
+        )
+        .values(scheduling_cursor=due_automation.scheduled_at)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return False
+    db.session.commit()
+    return True
 
 
 class AutomationSensorsUnknown(Exception):
