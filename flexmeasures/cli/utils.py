@@ -492,25 +492,16 @@ def split_commas(ctx, param, value):
     return list(set([x.strip() for x in result if x.strip()]))
 
 
-def make_cli_options_optional(*option_names):
-    """Decorator to relax the required flag on the named CLI options.
+def add_cli_options_from_schema(
+    schema, *, hidden: bool = False, force_optional: bool = False
+):
+    """Decorator to add CLI options based on a Marshmallow schema's fields.
 
-    Useful when schema-derived options (see add_cli_options_from_schema) are
-    only conditionally required; apply above the decorator that adds them,
-    and enforce requiredness in the command body (e.g. by schema validation).
+    Set hidden to keep the options out of the command's help text, which is useful for a command whose help should focus on its own options,
+    while still accepting the schema's options.
+    Set force_optional to let a field that the schema requires be omitted on the command line,
+    so it can be supplied by another route (such as a parameters file) and be validated by the schema itself.
     """
-
-    def decorator(command):
-        for param in getattr(command, "__click_params__", []):
-            if param.name in option_names:
-                param.required = False
-        return command
-
-    return decorator
-
-
-def add_cli_options_from_schema(schema):
-    """Decorator to add CLI options based on a Marshmallow schema's fields."""
 
     def decorator(command):
         for field_name, field in reversed(schema.fields.items()):
@@ -535,9 +526,11 @@ def add_cli_options_from_schema(schema):
 
             kwargs = {
                 "help": help_text,
-                "required": field.required,
+                "required": field.required and not force_optional,
                 # "default": field.load_default,
             }
+            if hidden:
+                kwargs["hidden"] = True
 
             if cli.get("is_flag"):
                 kwargs["is_flag"] = True

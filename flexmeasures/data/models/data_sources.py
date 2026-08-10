@@ -108,6 +108,52 @@ class DataGenerator:
         if automation_id is not None:
             self._job_trigger["automation_id"] = automation_id
 
+    @property
+    def input_sensors(self) -> list:
+        """The sensors that this data generator reads data from.
+
+        Overwrite in your data generator, deriving the sensors from its config and
+        parameters. Together with `output_sensors`, this describes the data flowing
+        through the data generator, which is used for linking to the sensors involved
+        (and, in the future, for checking access to them).
+        """
+        return []
+
+    @property
+    def output_sensors(self) -> list:
+        """The sensors that this data generator writes data to. See `input_sensors`."""
+        return []
+
+    @staticmethod
+    def _resolve_sensors(*values) -> list:
+        """Turn (lists of) sensors, sensor references or sensor IDs into a list of unique sensors.
+
+        A sensor reference contributes the sensor it wraps, as the source filters only narrow down
+        which beliefs are read from that sensor, not which sensor is involved.
+        Sensor IDs that cannot be found, and None values, are skipped.
+        """
+        from flexmeasures.data.models.time_series import Sensor
+        from flexmeasures.data.schemas.sensors import SensorReference
+
+        sensors: dict[int, Sensor] = {}
+        for value in values:
+            if value is None:
+                continue
+            for item in value if isinstance(value, (list, tuple, set)) else [value]:
+                if isinstance(item, SensorReference):
+                    sensor = item.sensor
+                elif isinstance(item, Sensor):
+                    sensor = item
+                elif isinstance(item, int) or (
+                    isinstance(item, str) and item.isdigit()
+                ):
+                    sensor = db.session.get(Sensor, int(item))
+                else:
+                    continue
+                if sensor is not None:
+                    sensors[sensor.id] = sensor
+        return list(sensors.values())
+
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your data generator.
 

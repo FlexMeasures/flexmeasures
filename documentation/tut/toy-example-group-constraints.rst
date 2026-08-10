@@ -1,7 +1,7 @@
 .. _tut_toy_schedule_group_constraints:
 
 
-Toy example IV: Intermediate power constraints (groups)
+Toy example VI: Intermediate power constraints (groups)
 ================================================================
 
 So far, our flexible devices (the battery and the PV inverter) have only ever been constrained directly by the building's own grid connection capacity.

@@ -53,6 +53,7 @@ from flexmeasures.data.schemas.automations import AutomationSchema
 from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_automation_job_stats,
+    get_automation_sensors,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import (
@@ -1389,7 +1390,7 @@ class AssetAPI(FlaskView):
             The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
-            and described in natural language.
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted and its persistent scheduling cursor.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1415,6 +1416,8 @@ class AssetAPI(FlaskView):
                             type: forecasts
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
+                            timezone: Europe/Amsterdam
+                            scheduling_cursor: "2026-07-11T04:00:00+00:00"
                             recurrence_description: "At 06:00"
                             active: true
             400:
@@ -1458,8 +1461,10 @@ class AssetAPI(FlaskView):
             In addition to the fields shown when listing automations, the response shows
             the automation's parameters (forecast parameters or a schedule trigger message),
             information about its data generator (null for schedule automations),
+            the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            The scheduling cursor is a UTC watermark: occurrences at or before it are ineligible for another automatic queueing attempt. It is not a successful-run timestamp.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1490,6 +1495,8 @@ class AssetAPI(FlaskView):
                         type: forecasts
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
+                        timezone: Europe/Amsterdam
+                        scheduling_cursor: "2026-07-11T04:00:00+00:00"
                         recurrence_description: "At 06:00"
                         active: true
                         parameters:
@@ -1497,6 +1504,14 @@ class AssetAPI(FlaskView):
                         generator:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
+                        input_sensors:
+                          - id: 2092
+                            name: power
+                          - id: 2093
+                            name: irradiance
+                        output_sensors:
+                          - id: 2092
+                            name: power
                         job_stats:
                           finished: 3
                           failed: 1
@@ -1530,6 +1545,12 @@ class AssetAPI(FlaskView):
             if automation.generator is not None
             else None
         )
+        automation_sensors = get_automation_sensors(automation)
+        for key in ("input_sensors", "output_sensors"):
+            automation_data[key] = [
+                {"id": sensor.id, "name": sensor.name}
+                for sensor in automation_sensors[key]
+            ]
         redis_connection_err = None
         try:
             automation_data["job_stats"] = get_automation_job_stats(automation)

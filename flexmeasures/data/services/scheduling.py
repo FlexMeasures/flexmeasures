@@ -903,6 +903,10 @@ def make_schedule(  # noqa: C901
             continue
         if rq_job and result.get("name") == "commitment_costs":
             rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
+            # Persist right away: this runs after the job's last save_meta() call,
+            # and RQ saves a finishing job with include_meta=False,
+            # so without an explicit save here the costs never reach Redis.
+            rq_job.save_meta()
             continue
         if "sensor" not in result:
             continue

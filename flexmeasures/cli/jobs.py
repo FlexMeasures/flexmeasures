@@ -33,6 +33,7 @@ import pandas as pd
 from flexmeasures.data import db
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.automations import (
+    claim_due_automation,
     floor_to_minute,
     get_due_automations,
     run_automation,
@@ -66,15 +67,15 @@ def run_automations():
     """
     Queue jobs for all automations that are due to run this minute.
 
-    An automation is due when its cron string (interpreted in the FLEXMEASURES_TIMEZONE)
-    matches the current minute. Run this command once per minute (e.g. via cron):
+    Each cron string is interpreted in the automation's timezone.
+    Missed forecast occurrences are caught up once, with several missed occurrences coalesced into the latest useful forecast.
+    Run this command once per minute (e.g. via cron):
 
     \b
         * * * * * flexmeasures jobs run-automations
 
-    A Redis-based guard allows at most one queueing attempt per automation per minute.
-    A failed attempt is not retried automatically because it may already have queued
-    some jobs.
+    A Redis-based guard allows at most one queueing attempt per scheduled occurrence.
+    A failed attempt is not retried automatically, because it may already have queued some jobs.
     """
     now = floor_to_minute(server_now())
     due_automations = get_due_automations(now)
@@ -85,13 +86,22 @@ def run_automations():
     connection = app.queues["forecasting"].connection
     n_run = 0
     n_failed = 0
-    for automation in due_automations:
-        # guard against running the same automation twice within the same minute
-        guard_key = f"automation-run:{automation.id}:{now.isoformat()}"
+    for due_automation in due_automations:
+        automation = due_automation.automation
+        # Guard the canonical occurrence, including catch-ups and repeated wall times.
+        guard_key = (
+            f"automation-run:{automation.id}:{due_automation.scheduled_at.isoformat()}"
+        )
         if not connection.set(guard_key, 1, nx=True, ex=120):
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') was already attempted at {now}. "
+                f"Automation {automation.id} ('{automation.name}') was already attempted for {due_automation.scheduled_at}. "
                 "Skipping to avoid duplicate jobs.",
+                **MsgStyle.WARN,
+            )
+            continue
+        if not claim_due_automation(due_automation):
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') occurrence {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
                 **MsgStyle.WARN,
             )
             continue

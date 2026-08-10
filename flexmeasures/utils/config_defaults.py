@@ -118,6 +118,7 @@ class Config(object):
     # you probably want to adjust this.
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
     FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY: bool = True
+    FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT: int | None = None
     FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS: list[str] = (
         []
     )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.

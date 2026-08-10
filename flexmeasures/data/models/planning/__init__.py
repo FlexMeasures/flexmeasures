@@ -555,7 +555,7 @@ class Commitment:
             print(tabulate(df, headers=df.columns, tablefmt="fancy_grid"))
 
     def to_frame(self) -> pd.DataFrame:
-        """Contains all info apart from the name."""
+        """Contains all info, including the name (so the solver can identify the commitment in error messages)."""
         df = pd.concat(
             [
                 self.device,
@@ -564,6 +564,7 @@ class Commitment:
                 self.downwards_deviation_price,
                 self.group,
                 pd.Series(self.__class__, index=self.index, name="class"),
+                pd.Series(self.name, index=self.index, name="name"),
             ],
             axis=1,
         )

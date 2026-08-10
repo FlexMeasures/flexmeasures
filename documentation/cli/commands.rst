@@ -41,7 +41,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ``flexmeasures add report``                       Create a report.
-``flexmeasures add automation``                   Add an automation: a recurring task (computing forecasts or schedules) on an asset.
+``flexmeasures add automation``                   Add an automation: a recurring task (computing forecasts or schedules) on an asset, with its own cron timezone.
 ================================================= =======================================
 
 
@@ -76,7 +76,7 @@ of which some are referred to in this documentation.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
-``flexmeasures edit automation``                  Edit the name, recurrence or activation status of an automation.
+``flexmeasures edit automation``                  Edit an automation's name, recurrence, timezone or activation status.
 ================================================= =======================================
 
 ``delete`` - Delete data
@@ -120,7 +120,7 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
 ``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
-``flexmeasures jobs run-automations``             Queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron).
+``flexmeasures jobs run-automations``             Handle due and missed forecast automation occurrences (run once per minute, e.g. via cron).
 ================================================= =======================================
 
 

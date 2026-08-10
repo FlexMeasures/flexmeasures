@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 import pytest
 from rq.job import Job
@@ -225,3 +225,18 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
     assert get_automation_job_stats(schedule_automation) == {"queued": 1}
+
+
+def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generator):
+    automation, _ = automation_with_generator
+
+    assert automation.timezone == "Asia/Seoul"
+    assert automation.scheduling_cursor.tzinfo is not None
+    assert automation.scheduling_cursor.utcoffset() == timezone.utc.utcoffset(None)
+
+
+def test_automation_rejects_invalid_timezone(automation_with_generator):
+    automation, _ = automation_with_generator
+
+    with pytest.raises(ValueError, match="does not exist"):
+        automation.timezone = "Europe/NotAmsterdam"
