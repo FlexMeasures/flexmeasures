@@ -37,6 +37,7 @@ def test_scheduling_a_battery(
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
+    - the commitment costs reached the job meta stored in Redis — regression for #2418
     - success is logged once (not before compute) — regression for #2049
     """
 
@@ -93,6 +94,21 @@ def test_scheduling_a_battery(
     assert (
         sum(v.event_value for v in power_values) < -0.5
     ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
+
+    # Regression #2418: the commitment costs used to be written to the job meta after the
+    # job's last save_meta() call, and RQ persists a finishing job with include_meta=False,
+    # so they were computed and then silently lost. Fetch a fresh Job to see only what
+    # actually reached Redis, rather than the worker's in-memory job object.
+    finished_job = Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    assert finished_job.is_finished
+    commitment_costs = finished_job.meta["scheduler_info"]["commitment_costs"]
+    assert (
+        commitment_costs
+    ), "the scheduler reported commitment costs, so the persisted job meta must carry them"
+    assert all(
+        isinstance(cost, float) and np.isfinite(cost)
+        for cost in commitment_costs.values()
+    )
 
     # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
     # Count only this job's message — the RQ worker may also process other queued jobs.

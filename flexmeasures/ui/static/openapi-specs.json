@@ -5030,6 +5030,11 @@
             "items": {
               "type": "integer"
             }
+          },
+          "default": {
+            "type": "string",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            "example": "0 kWh"
           }
         },
         "required": [
@@ -5039,11 +5044,25 @@
       },
       "TimeSeries": {
         "type": "array",
-        "description": "Time series specification containing a list of segments that together describe a variable quantity.",
+        "description": "Time series specification containing a list of segments that together describe a variable quantity. Each segment may specify either `datetime`, `start` and `end`, `start` and `duration`, or `end` and `duration`.",
         "example": [
           {
             "value": "23 kW",
-            "start": "2025-11-20T15:15+01",
+            "datetime": "2025-11-20T15:15+01"
+          },
+          {
+            "value": "24 kW",
+            "start": "2025-11-20T16:00+01",
+            "end": "2025-11-20T17:00+01"
+          },
+          {
+            "value": "25 kW",
+            "start": "2025-11-20T17:00+01",
+            "duration": "PT1H"
+          },
+          {
+            "value": "26 kW",
+            "end": "2025-11-20T19:00+01",
             "duration": "PT1H"
           }
         ],
@@ -5165,6 +5184,11 @@
             "items": {
               "type": "integer"
             }
+          },
+          "default": {
+            "type": "string",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            "example": "0 kWh"
           }
         },
         "required": [
