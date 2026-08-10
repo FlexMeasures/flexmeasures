@@ -149,7 +149,7 @@ below is one belief and the thick-bordered block is the event:
        columns 6
        B08["<b>SELECTED BELIEF</b><br/>08:00<br/>forecast: 8 kWh<br/>horizon 5 h"] space B10["<b>EXCLUDED BELIEF</b><br/>10:00<br/>forecast: 9 kWh<br/>horizon 3 h"] B11["<b>EXCLUDED BELIEF</b><br/>11:00<br/>forecast: 10 kWh<br/>horizon 2 h"] E["<b>EVENT</b><br/>energy use<br/>12:00–13:00"]:2
        %% Padding shifts the strokes from cell centres to the timeline ticks.
-       space HCUT["<b>horizon cutoff</b><br/>09:00<br/>┃&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<br/>┃&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;"] PCUT["<b>prior cutoff</b><br/>10:00<br/>┃&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<br/>┃&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;"] space:3
+       space HCUT["<b>horizon cutoff</b><br/>09:00<br/>┃    <br/>┃    "] PCUT["<b>prior cutoff</b><br/>10:00<br/>┃    <br/>┃    "] space:3
        T08["08:00 ━━━━━"] T09["09:00 ━━━━━"] T10["10:00 ━━━━━"] T11["11:00 ━━━━━"] T12["12:00 ━━━━━"] T13["13:00 ━━━▶ time"]
 
        classDef excludedBelief fill:#f5f5f5,stroke:#666,stroke-width:2px,stroke-dasharray:5 5,font-size:20px
