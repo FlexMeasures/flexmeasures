@@ -819,6 +819,25 @@ so without this filter, 404 errors can inflate Sentry error budgets unnecessaril
 Default: ``True``
 
 
+FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set a positive integer to limit the number of error events sent to Sentry per
+UTC calendar day. The event count is shared between FlexMeasures processes
+through Redis. If Redis is unavailable, events are sent without rate limiting.
+
+.. note::
+   This limit is applied before Sentry's error sampling. If ``sample_rate`` or
+   ``error_sampler`` is configured through ``FLEXMEASURES_SENTRY_CONFIG``,
+   events that are later sampled out still count towards the limit. The number
+   of events actually sent to Sentry may therefore be lower than the configured
+   limit.
+
+Default: ``None`` (no rate limit)
+
+.. note:: This setting is also recognized as environment variable.
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -994,7 +1013,9 @@ Default: ``None`` (defaults are set internally for each sunset API version, e.g.
 FLEXMEASURES_FALLBACK_REDIRECT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+Control how the API handles a failed scheduling job when a custom scheduler has computed a fallback schedule.
+
+FlexMeasures' built-in storage scheduler no longer computes fallback schedules, but custom schedulers may still define fallback schedulers.
 
 If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
 Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).

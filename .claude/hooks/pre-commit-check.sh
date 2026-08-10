@@ -11,4 +11,3 @@ if ! output=$(uv run pre-commit run --all-files 2>&1); then
     exit 2
   fi
   exit 0
-

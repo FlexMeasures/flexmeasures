@@ -421,10 +421,26 @@ def _format_sensor_plot(plot: dict) -> str:
     help="Whether to show the attributes of the DataSource.",
     is_flag=True,
 )
-def list_data_sources(source: DataSource | None = None, show_attributes: bool = False):
+@click.option(
+    "--show-sensors",
+    "show_sensors",
+    type=bool,
+    help="Whether to list the sensors which hold data recorded by the DataSource. Requires --id.",
+    is_flag=True,
+)
+def list_data_sources(
+    source: DataSource | None = None,
+    show_attributes: bool = False,
+    show_sensors: bool = False,
+):
     """
     Show available data sources
     """
+    if show_sensors and source is None:
+        # Looking up the sensors of a source queries the (potentially huge) timed_belief table,
+        # so we only do it for the single source the user asked about.
+        raise click.UsageError("--show-sensors requires --id.")
+
     if source is None:
         sources = db.session.scalars(
             select(DataSource)
@@ -440,7 +456,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         click.secho("No data sources created yet.", **MsgStyle.WARN)
         raise click.Abort()
 
-    headers = ["ID", "Name", "User ID", "Model", "Version"]
+    headers = ["ID", "Name", "Account ID", "User ID", "Model", "Version"]
 
     if show_attributes:
         headers.append("Attributes")
@@ -451,6 +467,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         row = [
             source.id,
             source.name,
+            source.account_id,
             source.user_id,
             source.model,
             source.version,
@@ -468,6 +485,37 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         click.echo("=" * len(ds_type))
         click.echo(tabulate(row, headers=headers))
         click.echo("\n")
+
+    if show_sensors:
+        # At this point we know there is exactly one source, as --show-sensors requires --id.
+        _list_sensors_of_source(sources[0])
+
+
+def _list_sensors_of_source(source: DataSource):
+    """List the sensors which hold data recorded by the given data source."""
+    sensors = sorted(source.sensors, key=lambda sensor: sensor.id)
+    if not sensors:
+        click.secho(
+            f"No sensors hold data recorded by data source {source.id}.",
+            **MsgStyle.WARN,
+        )
+        return
+
+    click.echo(f"Sensors with data from data source {source.id}:\n")
+    click.echo(
+        tabulate(
+            [
+                [
+                    sensor.id,
+                    sensor.name,
+                    sensor.unit,
+                    f"{sensor.generic_asset.name} (ID: {sensor.generic_asset.id})",
+                ]
+                for sensor in sensors
+            ],
+            headers=["ID", "Name", "Unit", "Asset"],
+        )
+    )
 
 
 @fm_show_data.command("chart")

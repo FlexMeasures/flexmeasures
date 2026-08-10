@@ -35,15 +35,15 @@ Unless stated otherwise, values of such fields can take one of the following for
          ]
      }
 
-- A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as usage forecasts.
+- A variable quantity defined for specific time ranges, to describe dynamic constraints/preferences such as minimum state-of-charge requirements.
 
   .. code-block:: json
 
      {
-         "soc-usage": [
-             {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kW"},
+         "soc-minima": [
+             {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kWh"},
              ...
-             {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kW"}
+             {"start": "2024-02-05T13:00:00+01:00", "end": "2024-02-05T13:15:00+01:00", "value": "10.3 kWh"}
          ]
      }
 
@@ -80,6 +80,23 @@ Unless stated otherwise, values of such fields can take one of the following for
   - ``source``: a single specific data source ID.
 
   This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
+
+A few fields don't hold a single variable quantity, but a *list* of them, whose values add up.
+The ``soc-gain`` and ``soc-usage`` fields of the flex-model work this way, so that separate components (say, two loads draining the same buffer) can be described independently.
+Each component takes any of the forms listed above, so a component defined for specific time ranges sits one level deeper than in those examples:
+
+.. code-block:: json
+
+   {
+       "soc-usage": [
+           "100 W",
+           {"sensor": 23},
+           [
+               {"start": "2024-02-05T08:00:00+01:00", "duration": "PT2H", "value": "10.1 kW"},
+               {"start": "2024-02-05T13:00:00+01:00", "duration": "PT2H", "value": "10.3 kW"}
+           ]
+       ]
+   }
 
 
 Timeseries
