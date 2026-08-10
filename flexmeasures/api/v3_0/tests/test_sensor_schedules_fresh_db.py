@@ -73,7 +73,16 @@ def test_trigger_and_get_schedule(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
+        assert (
+            trigger_schedule_response.json["job"]
+            == trigger_schedule_response.json["schedule"]
+        )
+        assert trigger_schedule_response.json["results-url"] == url_for(
+            "SensorAPI:get_schedule",
+            id=sensor.id,
+            uuid=trigger_schedule_response.json["schedule"],
+        )
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -81,6 +90,7 @@ def test_trigger_and_get_schedule(
         len(app.queues["scheduling"]) == 1
     )  # only 1 schedule should be made for 1 asset
     job = app.queues["scheduling"].jobs[0]
+    assert job.meta["trigger"] == {"origin": "API"}
     print(job.kwargs)
     assert job.kwargs["asset_or_sensor"]["id"] == sensor.id
     assert job.kwargs["start"] == parse_datetime(message["start"])
@@ -263,7 +273,7 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
@@ -481,7 +491,7 @@ def test_price_sensor_priority(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
 
     # Patch TimedBelief.search method
     with patch.object(
@@ -572,7 +582,7 @@ def test_inflexible_device_sensors_priority(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
 
     with patch(
         "flexmeasures.data.models.planning.storage.get_power_values",
@@ -653,7 +663,7 @@ def test_multiple_contracts(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
     # process the scheduling queue
@@ -860,7 +870,7 @@ def test_get_schedule_sign_convention_json_flex_model(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
@@ -967,7 +977,7 @@ def test_get_schedule_sign_convention_db_flex_model(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
@@ -1030,3 +1040,155 @@ def link_sensors(fresh_db, asset, sensors):
         [sensor.id for sensor in sensors]
     )
     fresh_db.session.add(asset)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_with_sign_explicit_inflexible_fields(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """Sign-explicit inflexible fields in the request are used by the scheduler,
+    shadowing any deprecated-key inflexible devices stored on the asset."""
+    message, asset_name = message_for_trigger_schedule(), "Test battery"
+    message["force_new_job_creation"] = True
+
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    other_asset = add_battery_assets_fresh_db["Test small battery"]
+    request_sensors = setup_inflexible_device_sensors(
+        fresh_db, other_asset, "sign-explicit sensors", 2
+    )
+    # The asset also has deprecated-key inflexible devices stored in the db,
+    # which the request's sign-explicit fields should shadow (same field family).
+    battery_asset = add_battery_assets_fresh_db[asset_name]
+    db_sensors = setup_inflexible_device_sensors(
+        fresh_db, battery_asset, "db-stored sensors", 3
+    )
+    link_sensors(fresh_db, battery_asset, db_sensors)
+
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+        "inflexible-consumption": [{"sensor": request_sensors[0].id}],
+        "inflexible-production": [
+            {"sensor": request_sensors[1].id, "exclude-source-types": ["scheduler"]}
+        ],
+    }
+
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 202
+
+    with patch(
+        "flexmeasures.data.models.planning.storage.get_power_values",
+        wraps=get_power_values,
+    ) as mock_storage_get_power_values:
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+        call_args = mock_storage_get_power_values.call_args_list
+        # Only the request's 2 sign-explicit sensors are used (not the 3 db-stored ones)
+        assert len(call_args) == 2
+        assert [call.kwargs["consumption_is_positive"] for call in call_args] == [
+            True,
+            False,
+        ]
+
+
+@pytest.mark.parametrize(
+    ["flex_context_extra", "expected_error"],
+    [
+        (
+            {
+                "inflexible-device-sensors": "PLACEHOLDER_ID_0",
+                "inflexible-production": "PLACEHOLDER_REF_1",
+            },
+            "Must pass either inflexible-device-sensors",
+        ),
+        (
+            {
+                "inflexible-consumption": "PLACEHOLDER_REF_0",
+                "inflexible-production": "PLACEHOLDER_REF_0",
+            },
+            "may only be listed once",
+        ),
+        (
+            {"inflexible-production": "PLACEHOLDER_REF_CONSUMPTION_ATTR"},
+            "conflicts with the sign convention",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_inflexible_conflicts(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    keep_scheduling_queue_empty,
+    flex_context_extra,
+    expected_error,
+    requesting_user,
+):
+    """Conflicting inflexible-device definitions are rejected with a 422."""
+    message, asset_name = message_for_trigger_schedule(), "Test battery"
+    message["force_new_job_creation"] = True
+
+    other_asset = add_battery_assets_fresh_db["Test small battery"]
+    plain_sensors = setup_inflexible_device_sensors(
+        fresh_db, other_asset, "conflict-test sensors", 2
+    )
+    consumption_attr_sensor = setup_inflexible_device_sensors(
+        fresh_db, other_asset, "consumption-positive sensor", 1
+    )[0]
+    consumption_attr_sensor.attributes["consumption_is_positive"] = True
+    fresh_db.session.commit()
+
+    placeholders = {
+        "PLACEHOLDER_ID_0": [plain_sensors[0].id],
+        "PLACEHOLDER_REF_0": [{"sensor": plain_sensors[0].id}],
+        "PLACEHOLDER_REF_1": [{"sensor": plain_sensors[1].id}],
+        "PLACEHOLDER_REF_CONSUMPTION_ATTR": [{"sensor": consumption_attr_sensor.id}],
+    }
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        **{
+            field: placeholders[placeholder]
+            for field, placeholder in flex_context_extra.items()
+        },
+    }
+
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == asset_name)
+        .one_or_none()
+    )
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 422
+        assert expected_error in str(trigger_schedule_response.json)

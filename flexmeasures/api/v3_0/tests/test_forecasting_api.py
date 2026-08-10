@@ -13,6 +13,7 @@ from flexmeasures.data.models.time_series import Sensor
     "regressor_field",
     ["future-regressors", "past-regressors", "regressors"],
 )
+@pytest.mark.parametrize("use_sensor_reference", [False, True])
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
@@ -22,26 +23,28 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     setup_accounts,
     requesting_user,
     regressor_field,
+    use_sensor_reference,
 ):
     """Triggering a forecast that uses a regressor the requesting user cannot read must return 403."""
 
     supplier_account = setup_accounts["Supplier"]
     prosumer_account = setup_accounts["Prosumer"]
 
+    reference_suffix = "reference" if use_sensor_reference else "id"
     asset_type = GenericAssetType(
-        name=f"test-asset-type-regressor-perm-{regressor_field}"
+        name=f"test-asset-type-regressor-perm-{regressor_field}-{reference_suffix}"
     )
     db.session.add(asset_type)
 
     # Target sensor: owned by Supplier account – requesting user has create-children here
     supplier_asset = GenericAsset(
-        name=f"supplier-target-asset-{regressor_field}",
+        name=f"supplier-target-asset-{regressor_field}-{reference_suffix}",
         generic_asset_type=asset_type,
         owner=supplier_account,
     )
     db.session.add(supplier_asset)
     target_sensor = Sensor(
-        name=f"supplier-target-sensor-{regressor_field}",
+        name=f"supplier-target-sensor-{regressor_field}-{reference_suffix}",
         unit="kW",
         event_resolution=timedelta(hours=1),
         generic_asset=supplier_asset,
@@ -50,13 +53,13 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
 
     # Regressor sensor: owned by Prosumer account – requesting user has no read access here
     prosumer_asset = GenericAsset(
-        name=f"prosumer-private-regressor-asset-{regressor_field}",
+        name=f"prosumer-private-regressor-asset-{regressor_field}-{reference_suffix}",
         generic_asset_type=asset_type,
         owner=prosumer_account,
     )
     db.session.add(prosumer_asset)
     private_regressor = Sensor(
-        name=f"prosumer-private-regressor-sensor-{regressor_field}",
+        name=f"prosumer-private-regressor-sensor-{regressor_field}-{reference_suffix}",
         unit="kW",
         event_resolution=timedelta(hours=1),
         generic_asset=prosumer_asset,
@@ -75,7 +78,16 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
         "config": {
             "train-start": "2025-01-01T00:00:00+00:00",
             "retrain-frequency": "PT1H",
-            regressor_field: [private_regressor.id],
+            regressor_field: [
+                (
+                    {
+                        "sensor": private_regressor.id,
+                        "source-types": ["forecaster"],
+                    }
+                    if use_sensor_reference
+                    else private_regressor.id
+                )
+            ],
         },
     }
 

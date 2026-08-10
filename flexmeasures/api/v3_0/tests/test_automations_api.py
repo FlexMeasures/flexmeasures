@@ -2,33 +2,45 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from flask import url_for
 from sqlalchemy import select
 
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
 
 @pytest.fixture(scope="module")
 def add_automations(db, add_battery_assets):
     battery = add_battery_assets["Test battery"]
+    generator = DataSource(
+        name="automations API test generator",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
     automations = [
         Automation(
             asset_id=battery.id,
+            generator=generator,
             type="forecasts",
             name="Day-ahead forecasts",
             cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            scheduling_cursor=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
             active=True,
             parameters={"sensor": battery.sensors[0].id},
         ),
         Automation(
             asset_id=battery.id,
+            generator=generator,
             type="forecasts",
             name="Intraday forecasts",
             cronstr="0 * * * *",
+            timezone="UTC",
+            scheduling_cursor=datetime(2026, 7, 11, 5, 0, tzinfo=timezone.utc),
             active=False,
             parameters={"sensor": battery.sensors[0].id},
         ),
@@ -82,6 +94,8 @@ def test_get_automations(
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
     assert day_ahead["type"] == "forecasts"
     assert day_ahead["cronstr"] == "0 6 * * *"
+    assert day_ahead["timezone"] == "Europe/Amsterdam"
+    assert day_ahead["scheduling_cursor"] == "2026-07-11T04:00:00+00:00"
     assert day_ahead["recurrence_description"] == "At 06:00"
     assert day_ahead["active"] is True
     assert day_ahead["created_at"] is not None
@@ -112,8 +126,14 @@ def test_get_automation_details(
         )
     assert response.status_code == 200
     assert response.json["name"] == "Day-ahead forecasts"
+    assert response.json["timezone"] == "Europe/Amsterdam"
+    assert response.json["scheduling_cursor"] == "2026-07-11T04:00:00+00:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
+    # the sensor to forecast is both read from (its history) and written to
+    sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
+    assert response.json["input_sensors"] == [sensor]
+    assert response.json["output_sensors"] == [sensor]
 
 
 @pytest.mark.parametrize(
@@ -377,6 +397,8 @@ def test_delete_automation(
     battery = add_battery_assets["Test battery"]
     automation = Automation(
         asset_id=battery.id,
+        # a forecast automation is required to have a data generator holding its forecaster config
+        generator=add_automations[0].generator,
         type="forecasts",
         name="To be deleted",
         cronstr="0 6 * * *",

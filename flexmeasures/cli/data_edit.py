@@ -9,9 +9,9 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, Plan, RateLimitKey
 from flexmeasures.data.schemas.account import AccountIdField
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
@@ -21,7 +21,11 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
-from flexmeasures.data.schemas.automations import AutomationIdField, CronField
+from flexmeasures.data.schemas.automations import (
+    AutomationIdField,
+    CronField,
+    TimezoneField,
+)
 from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
@@ -30,6 +34,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     abort,
+    validate_rate_limit_cli,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.secrets_utils import store_account_secret, store_asset_secret
@@ -77,7 +82,14 @@ def fm_edit_data():
     "cronstr",
     required=False,
     type=CronField(),
-    help='New recurrence of the automation as a cron string, e.g. "0 6 * * *".',
+    help="New recurrence as a standard five-field cron expression, interpreted in the automation timezone.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    required=False,
+    type=TimezoneField(),
+    help='New IANA timezone in which to interpret the cron recurrence, e.g. "Europe/Amsterdam".',
 )
 @click.option(
     "--activate/--deactivate",
@@ -89,11 +101,17 @@ def edit_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
+    timezone: str | None = None,
     active: bool | None = None,
 ):
-    """Edit the name, recurrence (cron string) or activation status of an automation."""
+    """Edit the name, recurrence, timezone or activation status of an automation."""
     changes = update_automation(
-        automation, name=name, cronstr=cronstr, active=active, origin="CLI"
+        automation,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        active=active,
+        origin="CLI",
     )
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
@@ -101,6 +119,126 @@ def edit_automation(
     db.session.commit()
     click.secho(
         f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
+        **MsgStyle.SUCCESS,
+    )
+
+
+# Plan fields which may be cleared back to NULL (meaning: server-wide behaviour applies)
+CLEARABLE_PLAN_FIELDS = [
+    "default-rate-limit",
+    "trigger-rate-limit",
+    "rate-limit-key",
+    "max-users",
+    "max-assets",
+    "max-clients",
+]
+
+
+@fm_edit_data.command("plan")
+@with_appcontext
+@click.option(
+    "--id",
+    "plan_id",
+    required=True,
+    type=int,
+    help="ID of the plan to edit (see `flexmeasures show plans`).",
+)
+@click.option("--name", help="Rename the plan to this name.")
+@click.option(
+    "--default-rate-limit",
+    callback=validate_rate_limit_cli,
+    help="How often accounts on this plan may call any API endpoint, e.g. '1000 per minute'."
+    " Pass 'unlimited' to exempt them.",
+)
+@click.option(
+    "--trigger-rate-limit",
+    callback=validate_rate_limit_cli,
+    help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
+    " Pass 'unlimited' to exempt them.",
+)
+@click.option(
+    "--rate-limit-key",
+    type=click.Choice([key.value for key in RateLimitKey]),
+    help="What the trigger rate limit is counted against.",
+)
+@click.option(
+    "--max-users", type=int, help="How many users an account on this plan may have."
+)
+@click.option(
+    "--max-assets", type=int, help="How many assets an account on this plan may have."
+)
+@click.option(
+    "--max-clients",
+    type=int,
+    help="How many client accounts a consultancy account on this plan may have.",
+)
+@click.option(
+    "--legacy/--no-legacy",
+    default=None,
+    help="Retire this plan (or bring it back). A legacy plan keeps applying to the accounts already on it,"
+    " but is no longer offered when assigning a plan.",
+)
+@click.option(
+    "--clear",
+    "fields_to_clear",
+    multiple=True,
+    type=click.Choice(CLEARABLE_PLAN_FIELDS),
+    help="Clear the given field, so that accounts on this plan fall back to the server-wide behaviour."
+    " Repeat to clear several fields.",
+)
+def edit_plan(
+    plan_id: int,
+    name: str | None,
+    default_rate_limit: str | None,
+    trigger_rate_limit: str | None,
+    rate_limit_key: str | None,
+    max_users: int | None,
+    max_assets: int | None,
+    max_clients: int | None,
+    legacy: bool | None,
+    fields_to_clear: tuple[str, ...],
+):
+    """
+    Edit a plan's name, rate limits and quotas, retire it, or clear fields back to the server defaults.
+
+    Only the fields you pass are changed. A plan usually reflects a contractual agreement,
+    so consider retiring a plan (--legacy) and creating a new one, rather than editing one
+    on which there are already accounts.
+    """
+    plan = db.session.get(Plan, plan_id)
+    if plan is None:
+        abort(f"Plan with ID {plan_id} does not exist.")
+    if name is not None and name != plan.name:
+        plan_with_that_name = db.session.execute(
+            select(Plan).filter_by(name=name)
+        ).scalar_one_or_none()
+        if plan_with_that_name is not None:
+            abort(f"Plan '{name}' (ID: {plan_with_that_name.id}) already exists.")
+
+    updates = {
+        "name": name,
+        "default_rate_limit": default_rate_limit,
+        "trigger_rate_limit": trigger_rate_limit,
+        "rate_limit_key": RateLimitKey(rate_limit_key) if rate_limit_key else None,
+        "max_users": max_users,
+        "max_assets": max_assets,
+        "max_clients": max_clients,
+        "legacy": legacy,
+    }
+    updates = {field: value for field, value in updates.items() if value is not None}
+    for field in fields_to_clear:
+        field_attr = field.replace("-", "_")
+        if field_attr in updates:
+            abort(f"Cannot both set and clear {field}.")
+        updates[field_attr] = None
+    if not updates:
+        abort("Nothing to edit. Pass at least one field to change.")
+    for field, value in updates.items():
+        setattr(plan, field, value)
+    db.session.commit()
+
+    click.secho(
+        f"Plan '{plan.name}' (ID: {plan.id}) successfully edited: {', '.join(updates)}.",
         **MsgStyle.SUCCESS,
     )
 

@@ -35,7 +35,11 @@ def function_name(param1: str, param2: int) -> bool:
 - Use `Example::` (double colon) to introduce a doctest block.
 - Complement type hints — don't duplicate them in the docstring text.
 - Use exactly one space after punctuation (no double spaces after periods).
-- Use line breaks only after punctuation (this facilitates review commenting and text searching).
+- Use line breaks only after punctuation (this facilitates review commenting and text searching). This applies to in-line comments as well, not only docstrings; keep in-line comments short. So never wrap a docstring or comment in the middle of a phrase; each physical line must end at a comma, semicolon, colon, or period. (E501 is ignored and `max-line-length` is 160, so a long clause on one line is preferred over a mid-phrase break.)
+
+## For code review (incl. automated reviewers)
+
+The line-break-after-punctuation rule above is a deliberate, load-bearing convention (stable review comments and text search), not a stylistic nicety. When reviewing a change, always report a docstring or comment that wraps mid-phrase as a review comment; do not treat such a finding as low-confidence, and do not omit or suppress it.
 
 ## Click CLI commands
 

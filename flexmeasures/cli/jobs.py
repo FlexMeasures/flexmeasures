@@ -33,6 +33,7 @@ import pandas as pd
 from flexmeasures.data import db
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.automations import (
+    claim_due_automation,
     floor_to_minute,
     get_due_automations,
     run_automation,
@@ -44,7 +45,6 @@ from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
-
 
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
@@ -67,14 +67,15 @@ def run_automations():
     """
     Queue jobs for all automations that are due to run this minute.
 
-    An automation is due when its cron string (interpreted in the FLEXMEASURES_TIMEZONE)
-    matches the current minute. Run this command once per minute (e.g. via cron):
+    Each cron string is interpreted in the automation's timezone.
+    Missed forecast occurrences are caught up once, with several missed occurrences coalesced into the latest useful forecast.
+    Run this command once per minute (e.g. via cron):
 
     \b
         * * * * * flexmeasures jobs run-automations
 
-    A Redis-based guard prevents queueing jobs twice if the command happens to run
-    more than once within the same minute.
+    A Redis-based guard allows at most one queueing attempt per scheduled occurrence.
+    A failed attempt is not retried automatically, because it may already have queued some jobs.
     """
     now = floor_to_minute(server_now())
     due_automations = get_due_automations(now)
@@ -85,12 +86,22 @@ def run_automations():
     connection = app.queues["forecasting"].connection
     n_run = 0
     n_failed = 0
-    for automation in due_automations:
-        # guard against running the same automation twice within the same minute
-        guard_key = f"automation-run:{automation.id}:{now.isoformat()}"
+    for due_automation in due_automations:
+        automation = due_automation.automation
+        # Guard the canonical occurrence, including catch-ups and repeated wall times.
+        guard_key = (
+            f"automation-run:{automation.id}:{due_automation.scheduled_at.isoformat()}"
+        )
         if not connection.set(guard_key, 1, nx=True, ex=120):
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') already ran at {now}. Skipping.",
+                f"Automation {automation.id} ('{automation.name}') was already attempted for {due_automation.scheduled_at}. "
+                "Skipping to avoid duplicate jobs.",
+                **MsgStyle.WARN,
+            )
+            continue
+        if not claim_due_automation(due_automation):
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') occurrence {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
                 **MsgStyle.WARN,
             )
             continue
@@ -107,8 +118,8 @@ def run_automations():
             n_run += 1
         except Exception as e:
             db.session.rollback()
-            # release the guard, so a retry within the same minute can still queue jobs
-            connection.delete(guard_key)
+            # Queueing a multi-cycle forecast is not transactional. Keep the guard
+            # because this attempt may have queued some jobs before failing.
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
                 **MsgStyle.ERROR,

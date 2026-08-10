@@ -84,6 +84,11 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Run data-ingestion tutorial
+        env:
+          FLEXMEASURES_CLIENT_PROJECT: ${{ github.workspace }}/flexmeasures-client
+        run: ./documentation/tut/scripts/run-data-ingestion-in-docker.sh
+
       - name: Create HEMS admin account and user
         run: |
           OUTPUT=$(docker compose exec -T server flexmeasures add account --name "HEMS Admin Org")

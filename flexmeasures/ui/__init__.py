@@ -2,7 +2,9 @@
 Backoffice user interface & charting support.
 """
 
+import json
 import os
+from datetime import date, datetime
 
 from flask import current_app, Flask, Blueprint, send_from_directory, request
 from flask_security import login_required, roles_accepted
@@ -83,7 +85,36 @@ def register_at(app: Flask):
     add_jinja_variables(app)
 
 
+def _tolerate_non_json_job_data():
+    """Let rq-dashboard render jobs whose meta data is not JSON-serializable.
+
+    rq-dashboard serializes a job's meta data with a plain ``json.dumps(job.get_meta())``
+    (no ``default=``), so a job carrying e.g. a datetime or an exception in its meta data
+    makes its detail page fail with a 500. We patch the module's ``json`` reference with a
+    shim that falls back to a readable representation instead.
+
+    See https://github.com/Parallels/rq-dashboard/issues/510
+    """
+
+    def default(value):
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        return str(value)
+
+    class TolerantJson:
+        def __getattr__(self, name):
+            return getattr(json, name)
+
+        @staticmethod
+        def dumps(obj, **kwargs):
+            kwargs.setdefault("default", default)
+            return json.dumps(obj, **kwargs)
+
+    rq_dashboard.web.json = TolerantJson()
+
+
 def register_rq_dashboard(app):
+    _tolerate_non_json_job_data()
     app.config.update(
         RQ_DASHBOARD_REDIS_URL=[
             "redis://:%s@%s:%s/%s"
@@ -131,6 +162,23 @@ def register_rq_dashboard(app):
 
 def add_jinja_filters(app):
     from flexmeasures.ui.utils.view_utils import asset_icon_name, username, accountname
+    from flexmeasures.data.models.charts.belief_charts import (
+        determine_shared_sensor_type,
+    )
+
+    def shared_sensor_type(sensors):
+        """Mirror the Vega-Lite y-axis title logic: if all sensors share a
+        sensor type use it, otherwise derive the dimension from the shared unit
+        (e.g. a group of kW sensors becomes "power").
+
+        ``sensor_type`` is normally set lazily inside the chart methods, so we
+        populate it here (as ``get_attribute("sensor_type", name)``) before
+        delegating to the shared helper.
+        """
+        sensors = list(sensors)
+        for sensor in sensors:
+            sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
+        return determine_shared_sensor_type(sensors)
 
     app.jinja_env.filters["zip"] = zip  # Allow zip function in templates
     app.jinja_env.add_extension(
@@ -143,6 +191,7 @@ def add_jinja_filters(app):
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["pluralize"] = pluralize
     app.jinja_env.filters["parameterize"] = parameterize
+    app.jinja_env.filters["shared_sensor_type"] = shared_sensor_type
     app.jinja_env.filters["isnull"] = pd.isnull
     app.jinja_env.filters["hide_nan_if_desired"] = lambda x: (
         ""
