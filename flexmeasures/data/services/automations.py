@@ -45,6 +45,12 @@ class DueAutomation:
 # the fields that decide which sensors those are: besides the power sensor of each device
 # in the flex-model, its state of charge and its consumption and production sensors, plus
 # the aggregates over all devices, which are defined in the flex-context.
+#
+# NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
+# A scheduler that starts returning results for a sensor named by some other field would write to a sensor
+# that was never checked against the creator's permissions, as this reads that sensor as an input instead.
+# Extend this list whenever a flex-model or flex-context field starts naming somewhere results are recorded.
+# Checking the sensors a scheduler actually returns, rather than the ones predicted here, would close the gap for good.
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
     "production",
@@ -555,6 +561,7 @@ def create_automation(
     parameters = parameters or {}
     warnings: list[str] = []
     generator_id = None
+    forecaster = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
     forecast_output_sensor: Sensor | None = None
@@ -579,11 +586,6 @@ def create_automation(
         )
         if forecaster is None:
             raise ValueError(f"Could not set up forecaster '{forecaster_class}'.")
-        generator = (
-            forecaster.data_source
-        )  # looks up or creates the data source storing the forecaster config
-        db.session.flush()
-        generator_id = generator.id
 
         # A forecast reads the history of the sensor to forecast, plus its regressors,
         # and records the forecast on the sensor to save to (the same sensor by default).
@@ -628,6 +630,13 @@ def create_automation(
     # so that this does not reveal where a sensor sits to someone who may not read it.
     if forecast_output_sensor is not None:
         validate_forecast_output_scope(asset.id, forecast_output_sensor)
+
+    if forecaster is not None:
+        # Look up or create the data source storing the forecaster config only now that the automation is going ahead,
+        # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
+        generator = forecaster.data_source
+        db.session.flush()
+        generator_id = generator.id
 
     automation_fields = dict(
         asset_id=asset.id,

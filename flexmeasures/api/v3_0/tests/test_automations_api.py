@@ -315,6 +315,7 @@ def test_post_automation_with_inaccessible_source_filtered_regressor(
     )
     db.session.add(someone_elses_sensor)
     db.session.flush()
+    data_sources_before = set(db.session.scalars(select(DataSource.id)).all())
 
     with app.test_client() as client:
         response = client.post(
@@ -344,6 +345,8 @@ def test_post_automation_with_inaccessible_source_filtered_regressor(
         ).scalar_one_or_none()
         is None
     )
+    # a refused request also leaves behind no data source for the forecaster it would have run
+    assert set(db.session.scalars(select(DataSource.id)).all()) == data_sources_before
 
 
 @pytest.mark.parametrize(
