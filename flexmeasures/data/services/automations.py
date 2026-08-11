@@ -152,7 +152,7 @@ def check_sensor_access(
                     exc,
                     "api_message",
                     f"You cannot set up an automation that would {action} sensor"
-                    f" {sensor.id} ({sensor.name}), because you cannot {action} it yourself.",
+                    f" {sensor.id}, because you cannot {action} it yourself.",
                 )
                 raise
 
