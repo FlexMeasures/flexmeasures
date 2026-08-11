@@ -214,7 +214,7 @@ class SensorAPI(FlaskView):
         - "end" (legacy alias: "event_ends_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). May be given alone, or paired with "duration" to derive "start".
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
-        - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
+        - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))
         - "most-recent-beliefs-only" (legacy alias: "most_recent_beliefs_only"; if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
         return sensor.search_beliefs(as_json=True, **kwargs)
