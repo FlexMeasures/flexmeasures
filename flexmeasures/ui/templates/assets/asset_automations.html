@@ -31,6 +31,12 @@ An active automation follows its cron recurrence in the timezone shown below. If
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
         </div>
 
+        <datalist id="automationTimezones">
+          {% for timezone in available_timezones %}
+          <option value="{{ timezone }}"></option>
+          {% endfor %}
+        </datalist>
+
         <!-- CREATE AUTOMATION MODAL -->
         <div class="modal fade" id="newAutomationModal" tabindex="-1" role="dialog">
           <div class="modal-dialog"><div class="modal-content">
@@ -54,7 +60,12 @@ An active automation follows its cron recurrence in the timezone shown below. If
                 <div class="mb-3">
                   <label for="automationCron" class="form-label">Recurrence (cron string)</label>
                   <input type="text" class="form-control" id="automationCron" placeholder="0 6 * * *" required>
-                  <div class="form-text">In the platform timezone, e.g. "0 6 * * *" for daily at 6:00.</div>
+                  <div class="form-text">For example, "0 6 * * *" means daily at 6:00 in the selected timezone.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="automationTimezone" class="form-label">Timezone</label>
+                  <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
+                  <div class="form-text">Choose the IANA timezone in which this recurrence should follow the local clock. The asset timezone is selected by default.</div>
                 </div>
                 <div class="mb-3">
                   <label for="automationParameters" class="form-label">Parameters (JSON)</label>
@@ -72,6 +83,44 @@ An active automation follows its cron recurrence in the timezone shown below. If
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create</button>
+              </div>
+            </form>
+          </div></div>
+        </div>
+
+        <!-- EDIT AUTOMATION MODAL -->
+        <div class="modal fade" id="editAutomationModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Edit automation</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editAutomationForm">
+              <div class="modal-body">
+                <input type="hidden" id="editAutomationId">
+                <div class="mb-3">
+                  <label for="editAutomationName" class="form-label">Name</label>
+                  <input type="text" class="form-control" id="editAutomationName" maxlength="80" required>
+                </div>
+                <div class="mb-3">
+                  <label for="editAutomationCron" class="form-label">Recurrence (cron string)</label>
+                  <input type="text" class="form-control" id="editAutomationCron" required>
+                  <div class="form-text">The next eligible occurrence is recalculated after changing the recurrence.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="editAutomationTimezone" class="form-label">Timezone</label>
+                  <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
+                  <div class="form-text">Changing the timezone changes how the recurrence follows the local clock.</div>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="editAutomationActive">
+                  <label class="form-check-label" for="editAutomationActive">Active</label>
+                </div>
+                <div class="alert alert-danger d-none" id="editAutomationErr"></div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
               </div>
             </form>
           </div></div>
@@ -111,6 +160,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
 <script>
   const assetId = "{{ asset.id }}";
   const userCanManage = {{ user_can_manage_automations | tojson }};
+  const automationsById = new Map();
 
   // Escape user-controlled strings before interpolating them into HTML
   function esc(value) {
@@ -174,6 +224,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
           </div></div>
         </div>`,
       actions: `
+        <button class="btn btn-sm btn-outline-primary automation-edit" data-id="${automation.id}">Edit</button>
         <button class="btn btn-sm btn-outline-secondary automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
           ${automation.active ? "Deactivate" : "Activate"}
         </button>
@@ -287,6 +338,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
       url: `/api/v3_0/assets/${assetId}/automations`,
       method: "GET",
       success: function (res) {
+        res.automations.forEach(automation => automationsById.set(automation.id, automation));
         for (const automationType of ["forecasts", "schedules"]) {
           makeAutomationsTable(
             automationType,
@@ -303,6 +355,42 @@ An active automation follows its cron recurrence in the timezone shown below. If
           `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
         );
       },
+    });
+
+    // Edit an automation's recurrence settings
+    $(document).on("click", ".automation-edit", function () {
+      const automation = automationsById.get(Number($(this).data("id")));
+      if (!automation) {
+        showToast("Could not find the automation to edit. Refresh the page to try again.", "error");
+        return;
+      }
+      $("#editAutomationId").val(automation.id);
+      $("#editAutomationName").val(automation.name);
+      $("#editAutomationCron").val(automation.cronstr);
+      $("#editAutomationTimezone").val(automation.timezone);
+      $("#editAutomationActive").prop("checked", automation.active);
+      $("#editAutomationErr").addClass("d-none").text("");
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
+    });
+
+    $("#editAutomationForm").submit(function (event) {
+      event.preventDefault();
+      const automationId = $("#editAutomationId").val();
+      $.ajax({
+        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        method: "PATCH",
+        contentType: "application/json",
+        data: JSON.stringify({
+          name: $("#editAutomationName").val(),
+          cronstr: $("#editAutomationCron").val(),
+          timezone: $("#editAutomationTimezone").val(),
+          active: $("#editAutomationActive").is(":checked"),
+        }),
+        success: () => location.reload(),
+        error: function (xhr) {
+          $("#editAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not update the automation."));
+        },
+      });
     });
 
     // (De)activate an automation
@@ -353,6 +441,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
           name: $("#automationName").val(),
           type: $("#automationType").val(),
           cronstr: $("#automationCron").val(),
+          timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
           parameters: parameters,
         }),
