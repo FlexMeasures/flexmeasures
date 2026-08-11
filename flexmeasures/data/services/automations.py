@@ -8,15 +8,16 @@ from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from cron_descriptor import get_description, Options
 from croniter import croniter
+from croniter.croniter import CroniterError
 import isodate
 from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
-from sqlalchemy import or_, select, update
+from sqlalchemy import select, update
 
 from flexmeasures import Forecaster
 from flexmeasures.data import db
@@ -32,6 +33,9 @@ class DueAutomation:
 
     automation: Automation
     scheduled_at: datetime
+    expected_cursor: datetime | None
+    expected_cronstr: str
+    expected_timezone: str
 
 
 def describe_cronstr(cronstr: str) -> str:
@@ -193,29 +197,49 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     )
     due_automations = []
     for automation in active_automations:
-        scheduled_at = get_latest_scheduled_occurrence(automation, now)
-        scheduling_cursor = automation.scheduling_cursor
+        try:
+            scheduled_at = get_latest_scheduled_occurrence(automation, now)
+        except (CroniterError, ValueError, ZoneInfoNotFoundError) as exc:
+            current_app.logger.error(
+                "Skipping automation %s (%r), because its next occurrence could not be calculated: %s",
+                automation.id,
+                automation.name,
+                exc,
+            )
+            continue
+        expected_cursor = automation.scheduling_cursor
+        scheduling_cursor = expected_cursor
         if scheduling_cursor is None:
             scheduling_cursor = floor_to_minute(automation.created_at) - timedelta(
                 minutes=1
             )
         if scheduled_at > scheduling_cursor:
             due_automations.append(
-                DueAutomation(automation=automation, scheduled_at=scheduled_at)
+                DueAutomation(
+                    automation=automation,
+                    scheduled_at=scheduled_at,
+                    expected_cursor=expected_cursor,
+                    expected_cronstr=automation.cronstr,
+                    expected_timezone=automation.timezone,
+                )
             )
     return due_automations
 
 
 def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist an occurrence claim before its non-transactional queueing attempt."""
+    """Persist an occurrence claim if its scheduling configuration is unchanged."""
+    if due_automation.expected_cursor is None:
+        cursor_matches = Automation.scheduling_cursor.is_(None)
+    else:
+        cursor_matches = Automation.scheduling_cursor == due_automation.expected_cursor
     result = db.session.execute(
         update(Automation)
         .where(
             Automation.id == due_automation.automation.id,
-            or_(
-                Automation.scheduling_cursor.is_(None),
-                Automation.scheduling_cursor < due_automation.scheduled_at,
-            ),
+            Automation.active.is_(True),
+            Automation.cronstr == due_automation.expected_cronstr,
+            Automation.timezone == due_automation.expected_timezone,
+            cursor_matches,
         )
         .values(scheduling_cursor=due_automation.scheduled_at)
         .execution_options(synchronize_session=False)

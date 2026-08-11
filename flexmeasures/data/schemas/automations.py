@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from croniter import croniter
+from croniter.croniter import CroniterBadDateError
 from marshmallow import fields, validates, ValidationError
 from pytz import all_timezones_set
 
@@ -25,6 +28,14 @@ class CronField(MarshmallowClickMixin, fields.Str):
             )
         if not croniter.is_valid(value):
             raise FMValidationError(f"'{value}' is not a valid cron string.")
+        try:
+            croniter(value, datetime(2000, 1, 1, tzinfo=timezone.utc)).get_next(
+                datetime
+            )
+        except CroniterBadDateError as exc:
+            raise FMValidationError(
+                f"'{value}' does not match any possible date."
+            ) from exc
         return value
 
 
