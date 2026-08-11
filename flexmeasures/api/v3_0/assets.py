@@ -55,11 +55,13 @@ from flexmeasures.data.schemas.automations import (
     AutomationUpdateSchema,
 )
 from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
     create_automation,
     delete_automation as remove_automation,
     describe_cronstr,
     get_automation_job_stats,
     get_automation_sensors,
+    resolve_automation_sensors,
     update_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -1552,7 +1554,17 @@ class AssetAPI(FlaskView):
             if automation.generator is not None
             else None
         )
-        automation_sensors = get_automation_sensors(automation)
+        try:
+            automation_sensors = resolve_automation_sensors(automation)
+        except AutomationSensorsUnknown:
+            automation_sensors = get_automation_sensors(automation)
+        else:
+            for sensor in {
+                sensor
+                for key in ("input_sensors", "output_sensors")
+                for sensor in automation_sensors[key]
+            }:
+                check_access(sensor, "read")
         for key in ("input_sensors", "output_sensors"):
             automation_data[key] = [
                 {"id": sensor.id, "name": sensor.name}

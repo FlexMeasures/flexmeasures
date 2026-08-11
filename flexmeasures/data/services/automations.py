@@ -8,15 +8,16 @@ from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from cron_descriptor import get_description, Options
 from croniter import croniter
+from croniter.croniter import CroniterError
 import isodate
 from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
-from sqlalchemy import or_, select, update
+from sqlalchemy import select, update
 
 from werkzeug.exceptions import Forbidden
 
@@ -38,6 +39,9 @@ class DueAutomation:
 
     automation: Automation
     scheduled_at: datetime
+    expected_cursor: datetime | None
+    expected_cronstr: str
+    expected_timezone: str
 
 
 # Fields naming a sensor that a scheduler records its results on, rather than reads from.
@@ -120,7 +124,9 @@ def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
         # each device's power sensor is what its schedule is recorded on
         collect_sensors(device.get("sensor"), sensors)
         collect_sensors(
-            device.get("sensor_flex_model"), sensors, only_under_output_field=True
+            device.get("sensor_flex_model", device),
+            sensors,
+            only_under_output_field=True,
         )
     collect_sensors(message.get("flex_context"), sensors, only_under_output_field=True)
     return list(sensors.values())
@@ -310,29 +316,49 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     )
     due_automations = []
     for automation in active_automations:
-        scheduled_at = get_latest_scheduled_occurrence(automation, now)
-        scheduling_cursor = automation.scheduling_cursor
+        try:
+            scheduled_at = get_latest_scheduled_occurrence(automation, now)
+        except (CroniterError, ValueError, ZoneInfoNotFoundError) as exc:
+            current_app.logger.error(
+                "Skipping automation %s (%r), because its next occurrence could not be calculated: %s",
+                automation.id,
+                automation.name,
+                exc,
+            )
+            continue
+        expected_cursor = automation.scheduling_cursor
+        scheduling_cursor = expected_cursor
         if scheduling_cursor is None:
             scheduling_cursor = floor_to_minute(automation.created_at) - timedelta(
                 minutes=1
             )
         if scheduled_at > scheduling_cursor:
             due_automations.append(
-                DueAutomation(automation=automation, scheduled_at=scheduled_at)
+                DueAutomation(
+                    automation=automation,
+                    scheduled_at=scheduled_at,
+                    expected_cursor=expected_cursor,
+                    expected_cronstr=automation.cronstr,
+                    expected_timezone=automation.timezone,
+                )
             )
     return due_automations
 
 
 def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist an occurrence claim before its non-transactional queueing attempt."""
+    """Persist an occurrence claim if its scheduling configuration is unchanged."""
+    if due_automation.expected_cursor is None:
+        cursor_matches = Automation.scheduling_cursor.is_(None)
+    else:
+        cursor_matches = Automation.scheduling_cursor == due_automation.expected_cursor
     result = db.session.execute(
         update(Automation)
         .where(
             Automation.id == due_automation.automation.id,
-            or_(
-                Automation.scheduling_cursor.is_(None),
-                Automation.scheduling_cursor < due_automation.scheduled_at,
-            ),
+            Automation.active.is_(True),
+            Automation.cronstr == due_automation.expected_cronstr,
+            Automation.timezone == due_automation.expected_timezone,
+            cursor_matches,
         )
         .values(scheduling_cursor=due_automation.scheduled_at)
         .execution_options(synchronize_session=False)
@@ -372,15 +398,70 @@ def resolve_data_generator_sensors(
     }
 
 
+def resolve_schedule_automation_sensors(
+    parameters: dict, asset_id: int
+) -> dict[str, list[Sensor]]:
+    """Resolve the sensors declared by a prepared schedule trigger."""
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+    from flexmeasures.data.services.scheduling import find_scheduler_class
+    from flexmeasures.data.services.utils import get_scheduler_instance
+
+    try:
+        trigger_data = AssetTriggerSchema().load(
+            prepare_schedule_trigger_message(parameters, asset_id)
+        )
+        start = trigger_data["start_of_schedule"]
+        scheduler_params = {
+            "start": start,
+            "end": start + trigger_data["duration"],
+            "belief_time": trigger_data.get("belief_time"),
+            "resolution": trigger_data.get("resolution"),
+            "flex_model": trigger_data["flex_model"],
+            "flex_context": trigger_data["flex_context"],
+        }
+        scheduler_class = find_scheduler_class(trigger_data["asset"])
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=trigger_data["asset"],
+            scheduler_params=scheduler_params,
+        )
+        scheduler.collect_flex_config()
+    except (NotImplementedError, ValidationError, ValueError) as exc:
+        raise AutomationSensorsUnknown(
+            f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
+        ) from exc
+
+    resolved_trigger = {
+        "flex_model": scheduler.flex_model,
+        "flex_context": scheduler.flex_context,
+    }
+    output_sensors = collect_schedule_output_sensors(resolved_trigger)
+    output_sensor_ids = {sensor.id for sensor in output_sensors}
+    input_sensors = [
+        sensor
+        for sensor in collect_sensors(resolved_trigger)
+        if sensor.id not in output_sensor_ids
+    ]
+    return {
+        "input_sensors": input_sensors,
+        "output_sensors": output_sensors,
+    }
+
+
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
-    The sensors are derived from the data generator, configured with the automation's own parameters.
-    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because the automation has no data generator,
+    Forecast sensors are derived from the data generator, while schedule sensors are
+    derived from the same prepared trigger message used to queue the scheduling job.
+    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because a forecast automation has no data generator,
     because its generator is not registered in this FlexMeasures instance,
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
+    if automation.type == "schedules":
+        return resolve_schedule_automation_sensors(
+            dict(automation.parameters or {}), automation.asset_id
+        )
     if automation.generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
@@ -597,22 +678,12 @@ def create_automation(
         output_sensors = forecast_sensors["output_sensors"]
         forecast_output_sensor = output_sensors[0] if output_sensors else None
     elif automation_type == "schedules":
-        from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
-
-        message = AssetTriggerSchema().load(
-            prepare_schedule_trigger_message(parameters, asset.id)
-        )
-
         # A schedule is recorded on the sensors that the scheduler returns its results
         # for, and reads whatever other sensors the flex-model and flex-context refer to
         # (such as price sensors and the sensors of inflexible devices).
-        output_sensors = collect_schedule_output_sensors(message)
-        output_sensor_ids = [sensor.id for sensor in output_sensors]
-        input_sensors = [
-            sensor
-            for sensor in collect_sensors(message)
-            if sensor.id not in output_sensor_ids
-        ]
+        schedule_sensors = resolve_schedule_automation_sensors(parameters, asset.id)
+        input_sensors = schedule_sensors["input_sensors"]
+        output_sensors = schedule_sensors["output_sensors"]
         if "start" in parameters:
             warnings.append(
                 "The schedule 'start' is fixed, so each run will compute the same period."
