@@ -12,7 +12,9 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.automations import (
+    get_automations_feeding_sensor,
     get_automation_job_stats,
+    resolve_automation_sensors,
     run_automation,
 )
 
@@ -172,6 +174,43 @@ def test_run_minimal_schedule_automation_with_stored_flex_config(
     else:
         assert returns["n_jobs"] == 1
         assert job.meta["asset_or_sensor"] == {"id": building.id, "class": "Asset"}
+
+
+def test_minimal_schedule_automation_reports_stored_flex_sensors(
+    fresh_db, add_battery_assets_fresh_db
+):
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    price_sensor = fresh_db.session.get(
+        Sensor, battery.flex_context["consumption-price"]["sensor"]
+    )
+    building.flex_context = {
+        **building.flex_context,
+        "consumption-price": {"sensor": price_sensor.id},
+    }
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-at-start": "2.5 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    automation = Automation(
+        asset=building,
+        type="schedules",
+        name="Minimal stored-flex sensor details",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT1H"},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    sensors = resolve_automation_sensors(automation)
+
+    assert sensors["output_sensors"] == [power_sensor]
+    assert price_sensor in sensors["input_sensors"]
+    assert get_automations_feeding_sensor(power_sensor) == [automation]
 
 
 def test_schedule_automation_stats_include_descendant_jobs_once(
