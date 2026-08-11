@@ -67,6 +67,13 @@ class AutomationCreationSchema(Schema):
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
     cronstr = CronField(required=True)
+    timezone = TimezoneField(
+        load_default=None,
+        metadata={
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the server's FLEXMEASURES_TIMEZONE.",
+            "example": "Europe/Amsterdam",
+        },
+    )
     active = fields.Bool(load_default=True)
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     forecaster = fields.Str(
@@ -83,10 +90,19 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, cron string and/or activation status."""
+    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+
+    The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
+    """
 
     name = fields.Str(validate=validate.Length(min=1, max=80))
     cronstr = CronField()
+    timezone = TimezoneField(
+        metadata={
+            "description": "IANA timezone in which the cron expression is interpreted.",
+            "example": "Europe/Amsterdam",
+        }
+    )
     active = fields.Bool()
 
 

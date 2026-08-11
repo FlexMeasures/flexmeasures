@@ -242,6 +242,60 @@ def test_post_automation_with_invalid_parameters(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
+def test_post_and_patch_automation_timezone(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """An automation's timezone can be set on creation and changed afterwards, as it can from the CLI."""
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Seoul forecasts",
+                "cronstr": "0 6 * * *",
+                "timezone": "Asia/Seoul",
+                "type": "forecasts",
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+    assert response.status_code == 201, response.json
+    assert response.json["timezone"] == "Asia/Seoul"
+    automation = db.session.execute(
+        select(Automation).filter_by(name="Seoul forecasts")
+    ).scalar_one()
+    assert automation.timezone == "Asia/Seoul"
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"timezone": "Europe/Amsterdam"},
+        )
+    assert response.status_code == 200, response.json
+    assert response.json["timezone"] == "Europe/Amsterdam"
+    assert automation.timezone == "Europe/Amsterdam"
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"timezone": "Europe/NotAmsterdam"},
+        )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_post_automation_with_inaccessible_source_filtered_regressor(
     app,
     db,

@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.2"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -6433,6 +6433,15 @@
           "cronstr": {
             "type": "string"
           },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the server's FLEXMEASURES_TIMEZONE.",
+            "example": "Europe/Amsterdam"
+          },
           "active": {
             "type": "boolean",
             "default": true
@@ -6468,6 +6477,11 @@
           },
           "cronstr": {
             "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone in which the cron expression is interpreted.",
+            "example": "Europe/Amsterdam"
           },
           "active": {
             "type": "boolean"

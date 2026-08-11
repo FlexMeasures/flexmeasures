@@ -1641,6 +1641,7 @@ class AssetAPI(FlaskView):
                 asset=asset,
                 name=automation_data["name"],
                 cronstr=automation_data["cronstr"],
+                timezone=automation_data["timezone"],
                 automation_type=automation_data["type"],
                 active=automation_data["active"],
                 parameters=automation_data["parameters"],
