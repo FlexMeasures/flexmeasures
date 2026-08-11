@@ -7,6 +7,7 @@ from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from marshmallow import ValidationError
+from pytz import all_timezones
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
@@ -256,6 +257,7 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_automations.html",
             asset=asset,
+            available_timezones=all_timezones,
             # managing automations requires the same principals that may delete the asset
             user_can_manage_automations=user_can_delete(asset),
             current_page="Automations",
