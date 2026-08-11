@@ -370,7 +370,7 @@
       },
       "get": {
         "summary": "Get sensor data",
-        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -421,7 +421,7 @@
           {
             "in": "query",
             "name": "prior",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             "schema": {
               "type": "string",
               "format": "date-time",
@@ -5030,6 +5030,11 @@
             "items": {
               "type": "integer"
             }
+          },
+          "default": {
+            "type": "string",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            "example": "0 kWh"
           }
         },
         "required": [
@@ -5039,11 +5044,25 @@
       },
       "TimeSeries": {
         "type": "array",
-        "description": "Time series specification containing a list of segments that together describe a variable quantity.",
+        "description": "Time series specification containing a list of segments that together describe a variable quantity. Each segment may specify either `datetime`, `start` and `end`, `start` and `duration`, or `end` and `duration`.",
         "example": [
           {
             "value": "23 kW",
-            "start": "2025-11-20T15:15+01",
+            "datetime": "2025-11-20T15:15+01"
+          },
+          {
+            "value": "24 kW",
+            "start": "2025-11-20T16:00+01",
+            "end": "2025-11-20T17:00+01"
+          },
+          {
+            "value": "25 kW",
+            "start": "2025-11-20T17:00+01",
+            "duration": "PT1H"
+          },
+          {
+            "value": "26 kW",
+            "end": "2025-11-20T19:00+01",
             "duration": "PT1H"
           }
         ],
@@ -5165,6 +5184,11 @@
             "items": {
               "type": "integer"
             }
+          },
+          "default": {
+            "type": "string",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            "example": "0 kWh"
           }
         },
         "required": [
@@ -5596,7 +5620,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "forecast-frequency": {
@@ -6735,7 +6759,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             "example": "2026-01-14T20:00+01:00"
           },
           "unit": {
@@ -6801,7 +6825,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "flex-model": {
@@ -7188,7 +7212,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "duration": {
