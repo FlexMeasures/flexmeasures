@@ -337,7 +337,8 @@ def test_automation_sensors_are_unknown_rather_than_empty(
         resolve_automation_sensors(automation)
 
 
-def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
+@pytest.mark.parametrize("cronstr", ["not a cron string", "0 0 31 2 *"])
+def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data, cronstr):
     from flexmeasures.cli.data_add import add_automation
 
     sensor_id = setup_dummy_data[0]
@@ -345,7 +346,7 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     cli_input = {
         "asset": 1,
         "name": "Test forecasts",
-        "cron": "not a cron string",
+        "cron": cronstr,
         "sensor": sensor_id,
     }
     result = runner.invoke(add_automation, to_flags(cli_input))
@@ -811,6 +812,9 @@ def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
     due_automation = DueAutomation(
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        expected_cursor=datetime(2026, 8, 5, 0, 0, tzinfo=timezone.utc),
+        expected_cronstr="0 * * * *",
+        expected_timezone="UTC",
     )
     mocker.patch(
         "flexmeasures.cli.jobs.get_due_automations", return_value=[due_automation]
