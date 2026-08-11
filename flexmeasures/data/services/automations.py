@@ -406,30 +406,25 @@ def resolve_schedule_automation_sensors(
     from flexmeasures.data.services.scheduling import find_scheduler_class
     from flexmeasures.data.services.utils import get_scheduler_instance
 
-    try:
-        trigger_data = AssetTriggerSchema().load(
-            prepare_schedule_trigger_message(parameters, asset_id)
-        )
-        start = trigger_data["start_of_schedule"]
-        scheduler_params = {
-            "start": start,
-            "end": start + trigger_data["duration"],
-            "belief_time": trigger_data.get("belief_time"),
-            "resolution": trigger_data.get("resolution"),
-            "flex_model": trigger_data["flex_model"],
-            "flex_context": trigger_data["flex_context"],
-        }
-        scheduler_class = find_scheduler_class(trigger_data["asset"])
-        scheduler = get_scheduler_instance(
-            scheduler_class=scheduler_class,
-            asset_or_sensor=trigger_data["asset"],
-            scheduler_params=scheduler_params,
-        )
-        scheduler.collect_flex_config()
-    except (NotImplementedError, ValidationError, ValueError) as exc:
-        raise AutomationSensorsUnknown(
-            f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
-        ) from exc
+    trigger_data = AssetTriggerSchema().load(
+        prepare_schedule_trigger_message(parameters, asset_id)
+    )
+    start = trigger_data["start_of_schedule"]
+    scheduler_params = {
+        "start": start,
+        "end": start + trigger_data["duration"],
+        "belief_time": trigger_data.get("belief_time"),
+        "resolution": trigger_data.get("resolution"),
+        "flex_model": trigger_data["flex_model"],
+        "flex_context": trigger_data["flex_context"],
+    }
+    scheduler_class = find_scheduler_class(trigger_data["asset"])
+    scheduler = get_scheduler_instance(
+        scheduler_class=scheduler_class,
+        asset_or_sensor=trigger_data["asset"],
+        scheduler_params=scheduler_params,
+    )
+    scheduler.collect_flex_config()
 
     resolved_trigger = {
         "flex_model": scheduler.flex_model,
@@ -459,9 +454,14 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
     if automation.type == "schedules":
-        return resolve_schedule_automation_sensors(
-            dict(automation.parameters or {}), automation.asset_id
-        )
+        try:
+            return resolve_schedule_automation_sensors(
+                dict(automation.parameters or {}), automation.asset_id
+            )
+        except (NotImplementedError, ValidationError, ValueError) as exc:
+            raise AutomationSensorsUnknown(
+                f"Could not determine the sensors of schedule automation {automation.id}: {exc}"
+            ) from exc
     if automation.generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
