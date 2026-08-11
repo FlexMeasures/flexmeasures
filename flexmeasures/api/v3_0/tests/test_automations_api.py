@@ -242,6 +242,59 @@ def test_post_automation_with_invalid_parameters(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
+def test_post_automation_with_inaccessible_source_filtered_regressor(
+    app,
+    db,
+    add_battery_assets,
+    setup_generic_assets,
+    requesting_user,
+):
+    """A regressor that filters on sources is a sensor reference, and still counts as a sensor read."""
+    battery = add_battery_assets["Test battery"]
+    someone_elses_sensor = Sensor(
+        name="wind speed for a filtered regressor",
+        generic_asset=setup_generic_assets[
+            "test_wind_turbine"
+        ],  # owned by the Supplier account
+        event_resolution=timedelta(minutes=15),
+        unit="m/s",
+    )
+    db.session.add(someone_elses_sensor)
+    db.session.flush()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts regressing on another account's sensor",
+                "cronstr": "0 6 * * *",
+                "type": "forecasts",
+                "parameters": {"sensor": battery.sensors[0].id},
+                "config": {
+                    "regressors": [
+                        {
+                            "sensor": someone_elses_sensor.id,
+                            "source-types": ["forecaster"],
+                        }
+                    ]
+                },
+            },
+        )
+    assert response.status_code == 403
+    assert str(someone_elses_sensor.id) in response.json["message"]
+    assert (
+        db.session.execute(
+            select(Automation).filter_by(
+                name="Forecasts regressing on another account's sensor"
+            )
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_post_automation_with_inaccessible_sensor(
     app,
     db,

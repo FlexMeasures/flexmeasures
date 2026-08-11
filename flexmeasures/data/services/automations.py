@@ -346,6 +346,26 @@ class AutomationSensorsUnknown(Exception):
     """
 
 
+def resolve_data_generator_sensors(
+    data_generator, deserialized_parameters: dict
+) -> dict[str, list[Sensor]]:
+    """Ask a data generator which sensors it would read from and write to, given these parameters.
+
+    A data generator derives this from its own config and parameters, so it also picks up a regressor that filters on sources,
+    which is a sensor reference rather than a plain sensor.
+    Work out the answer here rather than in each caller, so that displaying the sensors involved
+    and checking access to them can never disagree about what they are.
+    """
+    # Work on a copy, as the data generator is cached on the data source,
+    # which may be shared by several automations.
+    data_generator = copy(data_generator)
+    data_generator._parameters = deserialized_parameters
+    return {
+        "input_sensors": data_generator.input_sensors,
+        "output_sensors": data_generator.output_sensors,
+    }
+
+
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
@@ -360,16 +380,11 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
         )
     try:
-        # Work on a copy, as the data generator is cached on the data source,
-        # which may be shared by several automations.
-        data_generator = copy(automation.generator.data_generator)
-        data_generator._parameters = data_generator._parameters_schema.load(
-            dict(automation.parameters or {})
+        data_generator = automation.generator.data_generator
+        return resolve_data_generator_sensors(
+            data_generator,
+            data_generator._parameters_schema.load(dict(automation.parameters or {})),
         )
-        return {
-            "input_sensors": data_generator.input_sensors,
-            "output_sensors": data_generator.output_sensors,
-        }
     except (NotImplementedError, ValidationError) as e:
         raise AutomationSensorsUnknown(
             f"Could not determine the sensors of automation {automation.id}: {e}"
@@ -572,17 +587,13 @@ def create_automation(
 
         # A forecast reads the history of the sensor to forecast, plus its regressors,
         # and records the forecast on the sensor to save to (the same sensor by default).
-        output_sensor = deserialized_parameters.get("sensor_to_save") or sensor
-        forecast_output_sensor = output_sensor
-        output_sensors = collect_sensors(output_sensor)
-        input_sensors = collect_sensors(
-            [
-                sensor,
-                forecaster._config.get("past_regressors"),
-                forecaster._config.get("future_regressors"),
-                forecaster._config.get("regressors"),
-            ]
+        # The forecaster works this out from the same config and parameters it will run with.
+        forecast_sensors = resolve_data_generator_sensors(
+            forecaster, deserialized_parameters
         )
+        input_sensors = forecast_sensors["input_sensors"]
+        output_sensors = forecast_sensors["output_sensors"]
+        forecast_output_sensor = output_sensors[0] if output_sensors else None
     elif automation_type == "schedules":
         from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 
