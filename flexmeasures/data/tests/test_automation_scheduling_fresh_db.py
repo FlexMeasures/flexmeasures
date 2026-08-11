@@ -210,3 +210,114 @@ def test_inactive_automation_is_not_due(automation_factory):
 
     assert get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc)) == []
     assert automation.scheduling_cursor == cursor
+
+
+def test_invalid_cron_does_not_hide_other_due_automations(automation_factory, caplog):
+    cursor = datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc)
+    invalid = automation_factory(
+        name="Impossible date",
+        cronstr="0 0 31 2 *",
+        timezone_name="UTC",
+        cursor=cursor,
+    )
+    valid = automation_factory(
+        name="Valid recurrence",
+        cronstr="* * * * *",
+        timezone_name="UTC",
+        cursor=cursor,
+    )
+
+    due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))
+
+    assert [item.automation.id for item in due] == [valid.id]
+    assert f"Skipping automation {invalid.id}" in caplog.text
+
+
+def test_claim_rejects_automation_deactivated_after_discovery(
+    fresh_db, automation_factory
+):
+    cursor = datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc)
+    automation = automation_factory(
+        name="Deactivate race",
+        cronstr="* * * * *",
+        timezone_name="UTC",
+        cursor=cursor,
+    )
+    due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))[0]
+
+    automation.active = False
+    fresh_db.session.commit()
+
+    assert claim_due_automation(due) is False
+    assert automation.scheduling_cursor == cursor
+
+
+@pytest.mark.parametrize(
+    ("field", "new_value"),
+    (("cronstr", "0 11 * * *"), ("timezone", "Europe/Amsterdam")),
+)
+def test_claim_rejects_recurrence_edited_after_discovery(
+    fresh_db, automation_factory, field, new_value
+):
+    cursor = datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc)
+    automation = automation_factory(
+        name="Edit race",
+        cronstr="* * * * *",
+        timezone_name="UTC",
+        cursor=cursor,
+    )
+    due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))[0]
+
+    setattr(automation, field, new_value)
+    fresh_db.session.commit()
+
+    assert claim_due_automation(due) is False
+    assert automation.scheduling_cursor == cursor
+
+
+def test_claim_rejects_cursor_changed_after_discovery(fresh_db, automation_factory):
+    cursor = datetime(2026, 2, 1, 9, 58, tzinfo=timezone.utc)
+    automation = automation_factory(
+        name="Cursor race",
+        cronstr="* * * * *",
+        timezone_name="UTC",
+        cursor=cursor,
+    )
+    due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))[0]
+    newer_cursor = datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc)
+
+    automation.scheduling_cursor = newer_cursor
+    fresh_db.session.commit()
+
+    assert claim_due_automation(due) is False
+    assert automation.scheduling_cursor == newer_cursor
+
+
+def test_claim_allows_name_edit_after_discovery(fresh_db, automation_factory):
+    automation = automation_factory(
+        name="Old display name",
+        cronstr="* * * * *",
+        timezone_name="UTC",
+        cursor=datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc),
+    )
+    due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))[0]
+
+    automation.name = "New display name"
+    fresh_db.session.commit()
+
+    assert claim_due_automation(due) is True
+
+
+def test_claim_rejects_automation_deleted_after_discovery(fresh_db, automation_factory):
+    automation = automation_factory(
+        name="Delete race",
+        cronstr="* * * * *",
+        timezone_name="UTC",
+        cursor=datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc),
+    )
+    due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))[0]
+
+    fresh_db.session.delete(automation)
+    fresh_db.session.commit()
+
+    assert claim_due_automation(due) is False
