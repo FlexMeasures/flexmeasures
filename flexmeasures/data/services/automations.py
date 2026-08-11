@@ -38,6 +38,69 @@ class DueAutomation:
     expected_timezone: str
 
 
+# Fields naming sensors on which a scheduler records generated schedules.
+OUTPUT_SENSOR_FIELDS = (
+    "consumption",
+    "production",
+    "state-of-charge",
+    "state_of_charge",
+    "aggregate-consumption",
+    "aggregate_consumption",
+    "aggregate-production",
+    "aggregate_production",
+)
+
+
+def collect_sensors(
+    value: Any,
+    sensors: dict[int, Sensor] | None = None,
+    only_under_output_field: bool = False,
+    _under_output_field: bool = False,
+) -> list[Sensor]:
+    """Collect sensor objects and references from a nested scheduling structure."""
+    if sensors is None:
+        sensors = {}
+
+    def collect(sensor: Sensor | None):
+        if sensor is not None and (_under_output_field or not only_under_output_field):
+            sensors[sensor.id] = sensor
+
+    if isinstance(value, Sensor):
+        collect(value)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            under_output_field = _under_output_field or key in OUTPUT_SENSOR_FIELDS
+            if key == "sensor" and isinstance(item, (int, str)):
+                if str(item).isdigit():
+                    sensor = db.session.get(Sensor, int(item))
+                    if sensor is not None and (
+                        under_output_field or not only_under_output_field
+                    ):
+                        sensors[sensor.id] = sensor
+            else:
+                collect_sensors(
+                    item, sensors, only_under_output_field, under_output_field
+                )
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            collect_sensors(item, sensors, only_under_output_field, _under_output_field)
+    return list(sensors.values())
+
+
+def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
+    """Collect sensors on which the prepared schedule trigger records results."""
+    sensors: dict[int, Sensor] = {}
+    for device in message.get("flex_model") or []:
+        collect_sensors(device.get("sensor"), sensors)
+        collect_sensors(
+            device.get("sensor_flex_model", device),
+            sensors,
+            only_under_output_field=True,
+        )
+    collect_sensors(message.get("flex_context"), sensors, only_under_output_field=True)
+    return list(sensors.values())
+
+
 def describe_cronstr(cronstr: str) -> str:
     """Describe a cron string in natural language, e.g. "At 06:00".
 
@@ -259,15 +322,70 @@ class AutomationSensorsUnknown(Exception):
     """
 
 
+def resolve_schedule_automation_sensors(
+    parameters: dict, asset_id: int
+) -> dict[str, list[Sensor]]:
+    """Resolve the sensors declared by a prepared schedule trigger."""
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+    from flexmeasures.data.services.scheduling import find_scheduler_class
+    from flexmeasures.data.services.utils import get_scheduler_instance
+
+    try:
+        trigger_data = AssetTriggerSchema().load(
+            prepare_schedule_trigger_message(parameters, asset_id)
+        )
+        start = trigger_data["start_of_schedule"]
+        scheduler_params = {
+            "start": start,
+            "end": start + trigger_data["duration"],
+            "belief_time": trigger_data.get("belief_time"),
+            "resolution": trigger_data.get("resolution"),
+            "flex_model": trigger_data["flex_model"],
+            "flex_context": trigger_data["flex_context"],
+        }
+        scheduler_class = find_scheduler_class(trigger_data["asset"])
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=trigger_data["asset"],
+            scheduler_params=scheduler_params,
+        )
+        scheduler.collect_flex_config()
+    except (NotImplementedError, ValidationError, ValueError) as exc:
+        raise AutomationSensorsUnknown(
+            f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
+        ) from exc
+
+    resolved_trigger = {
+        "flex_model": scheduler.flex_model,
+        "flex_context": scheduler.flex_context,
+    }
+    output_sensors = collect_schedule_output_sensors(resolved_trigger)
+    output_sensor_ids = {sensor.id for sensor in output_sensors}
+    input_sensors = [
+        sensor
+        for sensor in collect_sensors(resolved_trigger)
+        if sensor.id not in output_sensor_ids
+    ]
+    return {
+        "input_sensors": input_sensors,
+        "output_sensors": output_sensors,
+    }
+
+
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
-    The sensors are derived from the data generator, configured with the automation's own parameters.
-    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because the automation has no data generator,
+    Forecast sensors are derived from the data generator, while schedule sensors are
+    derived from the same prepared trigger message used to queue the scheduling job.
+    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because a forecast automation has no data generator,
     because its generator is not registered in this FlexMeasures instance,
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
+    if automation.type == "schedules":
+        return resolve_schedule_automation_sensors(
+            dict(automation.parameters or {}), automation.asset_id
+        )
     if automation.generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
