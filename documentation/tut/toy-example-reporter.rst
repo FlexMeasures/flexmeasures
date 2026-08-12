@@ -28,7 +28,7 @@ Just as in previous sections, we need to run the command ``flexmeasures add toy-
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account --kind reporter
+    $ eval "$(flexmeasures add toy-account --kind reporter --shell-vars | grep '^FM_TOY_')"
 
 Under the hood, this command is adding the following entities:
     - A sensor that stores the capacity of the grid connection (with a resolution of one year, so storing just one value:) ).
@@ -36,7 +36,7 @@ Under the hood, this command is adding the following entities:
     - A `ProfitOrLossReporter` configured to use the prices that we set up in Tut. Part II.
     - Three sensors to register the profits/losses from running the three different processes of Tut. Part III.
 
-.. note:: The above command should also print out the IDs of these sensors. We will use these IDs verbatim in this tutorial.
+.. note:: The command above sets shell variables for the created IDs, so the next commands stay copy-pasteable on fresh installations.
 
 Let's check it out! 
 
@@ -45,9 +45,9 @@ Run the command below to show the values for our newly-created `grid connection 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ flexmeasures show beliefs --sensor 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
+    $ flexmeasures show beliefs --sensor ${FM_TOY_GRID_CAPACITY_SENSOR_ID} --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
       
-      Beliefs for Sensor 'grid connection capacity' (ID 7).
+      Beliefs for Sensor 'grid connection capacity' (ID 13).
       Data spans a day and starts at 2025-06-13 00:00:00+02:00.
       The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
@@ -55,41 +55,41 @@ Run the command below to show the values for our newly-created `grid connection 
     │                                                            │
     │                                                            │
     │                                                            │
-    │                                                            │ 1.0MW
+    │                                                            │ 500.5kW
     │                                                            │
     │                                                            │
     │                                                            │
-    │▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│ 0.5MW
+    │▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│ 500.0kW
     │                                                            │
     │                                                            │
     │                                                            │
-    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0.0MW
+    │                                                            │ 499.5kW
     │                                                            │
     │                                                            │
     │                                                            │
-    │                                                            │ -0.5MW
+    │                                                            │ 499.0kW
     └────────────────────────────────────────────────────────────┘
                        06:00           12:00           18:00
               ██ grid connection capacity (toy-building)
 
 
-Moreover, we can check the freshly created source `<Source id=6>`, which defines the `ProfitOrLossReporter` with the required configuration.
+Moreover, we can check the freshly created source `<Source id=3>`, which defines the `ProfitOrLossReporter` with the required configuration.
 You'll notice that the `config` is under the `data_generator` field.
 That's because reporters belong to a bigger category of classes that also contains the `Schedulers` and `Forecasters`.
 
 .. code-block:: bash
 
-    $ flexmeasures show data-sources --show-attributes --id 6
+    $ flexmeasures show data-sources --show-attributes --id 3
 
     type: reporter
     ========
 
      ID  Name          User ID    Model                 Version    Attributes
    ----  ------------  ---------  --------------------  ---------  ------------------------------------------
-      6  FlexMeasures             ProfitOrLossReporter             {
+      3  FlexMeasures             ProfitOrLossReporter             {
                                                                        "data_generator": {
                                                                            "config": {
-                                                                               "consumption_price_sensor": 1,
+                                                                               "consumption_price_sensor": 7,
                                                                                "loss_is_positive": true
                                                                            }
                                                                        }
@@ -119,14 +119,14 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $     'input': [{'name': 'grid connection capacity', 'sensor': 7},
-    $                {'name': 'PV', 'sensor': 3, 'sources': [4]}],
-    $     'output': [{'sensor': 8}]
+    $     'input': [{'name': 'grid connection capacity', 'sensor': ${FM_TOY_GRID_CAPACITY_SENSOR_ID}},
+    $                {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'sources': [2]}],
+    $     'output': [{'sensor': ${FM_TOY_HEADROOM_SENSOR_ID}}]
     $ }" > headroom-parameters.json
 
-The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
+The output sensor (ID: 14) is actually the one created just to store that information - the headroom our battery has when considering solar production.
 
-We limit the PV input to data with source 4, which is the one created when we added the toy account and is associated with our solar forecasts. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
+We limit the PV input to data with source 2, which is the one created for our solar forecasts. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
 
 Finally, we can create the report with the following command:
 
@@ -137,7 +137,7 @@ Finally, we can create the report with the following command:
        --start-offset DB,1D --end-offset DB,2D \
        --resolution PT15M
 
-Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8>`_, which should resemble the following image:
+Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/14>`_, which should resemble the following image:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
@@ -179,20 +179,20 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input': [{'sensor': 4}],
-    $     'output': [{'sensor': 9}]
+    $     'input': [{'sensor': ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID}}],
+    $     'output': [{'sensor': 15}]
     $ }" > inflexible-parameters.json
 
 Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
+    $ flexmeasures add report --source 3 \
        --parameters inflexible-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
 
-Check the results `here <http://localhost:5000/sensors/9>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/15>`_. The image should be similar to the one below.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-inflexible.png
     :align: center
@@ -207,19 +207,19 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input': [{'sensor': 5}],
-    $     'output': [{'sensor': 10}]
+    $     'input': [{'sensor': ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID}}],
+    $     'output': [{'sensor': 16}]
     $ }" > breakable-parameters.json
 
 Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
+    $ flexmeasures add report --source 3 \
        --parameters breakable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
-Check the results `here <http://localhost:5000/sensors/10>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/16>`_. The image should be similar to the one below.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-breakable.png
@@ -235,19 +235,19 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input': [{'sensor': 6}],
-    $     'output': [{'sensor': 11}]
+    $     'input': [{'sensor': ${FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID}}],
+    $     'output': [{'sensor': 17}]
     $ }" > shiftable-parameters.json
 
 Create report:
 
 .. code-block:: bash
 
-    $ flexmeasures add report --source 6 \
+    $ flexmeasures add report --source 3 \
        --parameters shiftable-parameters.json \
        --start-offset DB,1D --end-offset DB,2D
 
-Check the results `here <http://localhost:5000/sensors/11>`_. The image should be similar to the one below.
+Check the results `here <http://localhost:5000/sensors/17>`_. The image should be similar to the one below.
 
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-shiftable.png

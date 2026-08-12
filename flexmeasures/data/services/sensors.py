@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from flask import current_app
 from sqlalchemy import delete
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
@@ -21,16 +22,27 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
 
-
 _REMOVE = object()
+
+#: The keys a stored sensor reference may carry (see SensorReferenceSchema):
+#: a dict with the "sensor" key and no keys beyond these is a pure sensor reference.
+_SENSOR_REFERENCE_KEYS = {
+    "sensor",
+    "source-types",
+    "exclude-source-types",
+    "sources",
+    "source-account",
+}
 
 
 def _prune_flex_config_sensor_refs(
@@ -40,7 +52,8 @@ def _prune_flex_config_sensor_refs(
 
     This function handles deeply nested JSON objects and lists from flex_model and flex_context
     JSONB columns. It scans for sensor references in two forms:
-    - Direct objects: {"sensor": sensor_id_to_remove}
+    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filter keys
+      (e.g. entries of "inflexible-consumption"/"inflexible-production" lists)
     - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
 
     Args:
@@ -64,8 +77,12 @@ def _prune_flex_config_sensor_refs(
         True
     """
     if isinstance(value, dict):
-        # Direct sensor reference object (for example {"sensor": 12})
-        if set(value.keys()) == {"sensor"} and value.get("sensor") == sensor_id:
+        # Direct sensor reference object (for example {"sensor": 12}),
+        # optionally with source filter keys (see SensorReferenceSchema)
+        if (
+            value.get("sensor") == sensor_id
+            and set(value.keys()) <= _SENSOR_REFERENCE_KEYS
+        ):
             return _REMOVE, True
 
         changed = False
@@ -300,6 +317,9 @@ def cleanup_sensor_references_in_assets(
                     "$.**.sensor ? (@ == $sid)",
                     vars_json,
                 ),
+                # Also matches {"sensor": id} entries nested in lists, e.g. of the
+                # "inflexible-consumption"/"inflexible-production" keys (lax-mode
+                # jsonpath auto-unwraps arrays at every level of the $.** wildcard).
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_context,
                     "$.**.sensor ? (@ == $sid)",
@@ -651,7 +671,7 @@ def get_asset_sensors_metadata(
         field: Sensor.query.get(asset.flex_context[field]["sensor"])
         for field in asset.flex_context
         if isinstance(asset.flex_context[field], dict)
-        and field != "inflexible-device-sensors"
+        and field not in INFLEXIBLE_DEVICE_KEYS
     }
 
     # Get sensors to show using the validate_sensors_to_show method
@@ -696,7 +716,7 @@ def serialize_sensor_status_data(
         field: Sensor.query.get(asset.flex_context[field]["sensor"])
         for field in asset.flex_context
         if isinstance(asset.flex_context[field], dict)
-        and field != "inflexible-device-sensors"
+        and field not in INFLEXIBLE_DEVICE_KEYS
     }
     sensors = []
     for sensor_status in sensor_statuses:
@@ -720,6 +740,17 @@ def serialize_sensor_status_data(
         sensors.append(sensor_status)
 
     return sensors
+
+
+def _can_read_automation(automation: Automation | None) -> bool:
+    """Whether the current user may see an automation's identifying details."""
+    if automation is None:
+        return False
+    try:
+        check_access(automation, "read")
+    except (Forbidden, Unauthorized):
+        return False
+    return True
 
 
 def build_asset_jobs_data(
@@ -798,17 +829,19 @@ def build_asset_jobs_data(
             )
 
             # Show how the job was created (e.g. via the CLI, the API or an automation)
-            trigger = job.meta.get("trigger", {})
+            metadata_dict = {**job.meta, "job_id": job.id}
+            trigger = dict(job.meta.get("trigger", {}))
             created_via = trigger.get("origin", "")
             if trigger.get("automation_id") is not None:
                 automation = db.session.get(Automation, trigger["automation_id"])
-                created_via = (
-                    f"automation '{automation.name}' ({automation.id})"
-                    if automation is not None
-                    else f"automation {trigger['automation_id']} (deleted)"
-                )
+                if _can_read_automation(automation):
+                    created_via = f"automation '{automation.name}' ({automation.id})"
+                else:
+                    created_via = "automation"
+                    trigger.pop("automation_id")
+                    metadata_dict["trigger"] = trigger
 
-            metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
+            metadata = json.dumps(metadata_dict, default=str, indent=4)
             jobs_data.append(
                 {
                     "job_id": job.id,

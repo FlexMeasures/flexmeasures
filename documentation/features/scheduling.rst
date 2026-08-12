@@ -1,6 +1,6 @@
 .. _scheduling:
 
-Scheduling 
+Scheduling
 ===========
 
 Scheduling is the main value-drive of FlexMeasures. We have two major types of schedulers built-in, for storage devices (usually batteries or hot water storage) and processes (usually in industry).
@@ -10,339 +10,129 @@ We model a device as an asset with a consumption/production sensor recording pow
 
 .. contents::
     :local:
-    :depth: 2
-
-
-.. _describing_flexibility:
-
-Describing flexibility
-----------------------
-
-To compute a schedule, FlexMeasures first needs to assess the flexibility state of the system.
-This is described by:
-
-- :ref:`The flex-context <flex_context>` ― information about the system as a whole, in order to assess the value of activating flexibility.
-- :ref:`Flex-models <flex_models_and_schedulers>`  ― information about the state and possible actions of the flexible device. We will discuss these per scheduled device type.
-
-This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
-Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
-
-.. note:: You can also specify the **scheduling resolution** to control how often setpoints can change in the schedule. See :ref:`scheduling_resolution` for details on when and how to use custom resolutions.
-
-Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
-
-
-.. _flex_context:
-
-The flex-context
------------------
-
-The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
-With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
-For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas). See :ref:`tut_multi_commodity` for a hands-on example.
-
-Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
-The full list of flex-context fields follows below.
-For more details on the possible formats for field values, see :ref:`variable_quantities`.
-
-Where should you set these fields?
-Within requests to the API or by editing the relevant asset in the UI.
-If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the flex-context field of the asset.
-And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
-
-
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 25 90
-
-   * - Field
-     - Example value
-     - Description
-   * - ``commodity``
-     - |COMMODITY_FLEX_CONTEXT.example|
-     - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
-   * - ``inflexible-device-sensors``
-     - |INFLEXIBLE_DEVICE_SENSORS.example|
-     - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
-   * - ``aggregate-consumption``
-     - |AGGREGATE_CONSUMPTION.example|
-     - .. include:: ../_autodoc/AGGREGATE_CONSUMPTION.rst
-   * - ``aggregate-production``
-     - |AGGREGATE_PRODUCTION.example|
-     - .. include:: ../_autodoc/AGGREGATE_PRODUCTION.rst
-   * - ``aggregate-power``
-     - |AGGREGATE_POWER.example|
-     - .. include:: ../_autodoc/AGGREGATE_POWER.rst
-   * - ``consumption-price``
-     - |CONSUMPTION_PRICE.example|
-     - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
-   * - ``production-price``
-     - |PRODUCTION_PRICE.example|
-     - .. include:: ../_autodoc/PRODUCTION_PRICE.rst
-   * - ``site-power-capacity``
-     - |SITE_POWER_CAPACITY.example|
-     - .. include:: ../_autodoc/SITE_POWER_CAPACITY.rst
-   * - ``site-consumption-capacity``
-     - |SITE_CONSUMPTION_CAPACITY.example|
-     - .. include:: ../_autodoc/SITE_CONSUMPTION_CAPACITY.rst
-   * - ``site-production-capacity``
-     - |SITE_PRODUCTION_CAPACITY.example|
-     - .. include:: ../_autodoc/SITE_PRODUCTION_CAPACITY.rst
-   * - ``site-peak-consumption``
-     - |SITE_PEAK_CONSUMPTION.example|
-     - .. include:: ../_autodoc/SITE_PEAK_CONSUMPTION.rst
-   * - ``relax-constraints``
-     - |RELAX_CONSTRAINTS.example|
-     - .. include:: ../_autodoc/RELAX_CONSTRAINTS.rst
-   * - ``site-consumption-breach-price``
-     - |SITE_CONSUMPTION_BREACH_PRICE.example|
-     - .. include:: ../_autodoc/SITE_CONSUMPTION_BREACH_PRICE.rst
-   * - ``site-production-breach-price``
-     - |SITE_PRODUCTION_BREACH_PRICE.example|
-     - .. include:: ../_autodoc/SITE_PRODUCTION_BREACH_PRICE.rst
-   * - ``site-peak-consumption-price``
-     - |SITE_PEAK_CONSUMPTION_PRICE.example|
-     - .. include:: ../_autodoc/SITE_PEAK_CONSUMPTION_PRICE.rst
-   * - ``site-peak-production``
-     - |SITE_PEAK_PRODUCTION.example|
-     - .. include:: ../_autodoc/SITE_PEAK_PRODUCTION.rst
-   * - ``site-peak-production-price``
-     - |SITE_PEAK_PRODUCTION_PRICE.example|
-     - .. include:: ../_autodoc/SITE_PEAK_PRODUCTION_PRICE.rst
-   * - ``soc-minima-breach-price``
-     - |SOC_MINIMA_BREACH_PRICE.example|
-     - .. include:: ../_autodoc/SOC_MINIMA_BREACH_PRICE.rst
-   * - ``soc-maxima-breach-price``
-     - |SOC_MAXIMA_BREACH_PRICE.example|
-     - .. include:: ../_autodoc/SOC_MAXIMA_BREACH_PRICE.rst
-   * - ``consumption-breach-price``
-     - |CONSUMPTION_BREACH_PRICE.example|
-     - .. include:: ../_autodoc/CONSUMPTION_BREACH_PRICE.rst
-   * - ``production-breach-price``
-     - |PRODUCTION_BREACH_PRICE.example|
-     - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
-   * - ``commitments``
-     - |COMMITMENTS.example|
-     - .. include:: ../_autodoc/COMMITMENTS.rst
-
-.. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
-
-.. [#old_production_price_field] This field replaced the ``production-price-sensor`` field, which only accepted an integer (sensor ID).
-
-.. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
-
-.. [#minimum_capacity_overlap] In case this capacity field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
-
-.. [#consumption] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a consumption capacity (``site-consumption-capacity``) of 800 kW (active power), the scheduler will make sure that the grid outflow doesn't exceed 800 kW.
-
-.. [#penalty_field] Prices must share the same currency. Negative prices are not allowed (penalties only).
-
-.. [#production] Example: with a connection capacity (``site-power-capacity``) of 1 MVA (apparent power) and a production capacity (``site-production-capacity``) of 400 kW (active power), the scheduler will make sure that the grid inflow doesn't exceed 400 kW.
-
-.. [#breach_field] Breach prices are applied both to (the height of) the highest breach in the planning window and to (the area of) each breach that occurs.
-                   That means both high breaches and long breaches are penalized.
-                   For example, a :abbr:`SoC (state of charge)` breach price of 120 EUR/kWh is applied as a breach price of 120 EUR/kWh on the height of the highest breach, and as a breach price of 120 EUR/kWh/h on the area (kWh*h) of each breach.
-                   For a 5-minute resolution sensor, this would amount to applying a SoC breach price of 10 EUR/kWh for breaches measured every 5 minutes (in addition to the 120 EUR/kWh applied to the highest breach only).
-
-.. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
-          The flexible device can still have its own power limit defined in its flex-model.
-
-
-.. _flex_models_and_schedulers:
-
-The flex-models & corresponding schedulers
--------------------------------------------
-
-FlexMeasures comes with a storage scheduler and a process scheduler, which work with flex models for storages and loads, respectively.
-
-The storage scheduler is suitable for batteries and :abbr:`EV (electric vehicle)` chargers, and is automatically selected when scheduling an asset with one of the following asset types: ``"battery"``, ``"one-way_evse"`` and ``"two-way_evse"``.
-
-The process scheduler is suitable for shiftable, breakable and inflexible loads, and is automatically selected for asset types ``"process"`` and ``"load"``.
-
-
-We describe the respective flex models below.
-
-These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
-
-
-Storage
-^^^^^^^^
-
-For *storage* devices, the FlexMeasures scheduler deals with the state of charge (SoC) for an optimal outcome.
-You can do a lot with this ― examples for storage devices are:
-
-- batteries
-- :abbr:`EV (electric vehicle)` batteries connected to charge points
-- hot water storage ("heat batteries", where the SoC relates to the water temperature)
-- pumped hydro storage (SoC is the water level)
-- water basins (here, SoC is supposed to be low, as water is being pumped out)
-- buffers of energy-intensive chemicals that are needed in other industry processes
-
-
-The ``flex-model`` for storage devices describes to the scheduler what the flexible asset's state is,
-and what constraints or preferences should be taken into account.
-
-The full list of flex-model fields for the storage scheduler follows below.
-For more details on the possible formats for field values, see :ref:`variable_quantities`.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 40 80
-
-   * - Field
-     - Example value
-     - Description
-   * - ``commodity``
-     - |COMMODITY_FLEX_MODEL.example|
-     - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
-   * - ``consumption``
-     - |CONSUMPTION.example|
-     - .. include:: ../_autodoc/CONSUMPTION.rst
-   * - ``production``
-     - |PRODUCTION.example|
-     - .. include:: ../_autodoc/PRODUCTION.rst
-   * - ``state-of-charge``
-     - |STATE_OF_CHARGE.example|
-     - .. include:: ../_autodoc/STATE_OF_CHARGE.rst
-   * - ``soc-at-start``
-     - |SOC_AT_START.example|
-     - .. include:: ../_autodoc/SOC_AT_START.rst
-   * - ``soc-unit``
-     - |SOC_UNIT.example|
-     - .. include:: ../_autodoc/SOC_UNIT.rst
-   * - ``soc-min``
-     - |SOC_MIN.example|
-     - .. include:: ../_autodoc/SOC_MIN.rst
-   * - ``soc-max``
-     - |SOC_MAX.example|
-     - .. include:: ../_autodoc/SOC_MAX.rst
-   * - ``soc-minima``
-     - |SOC_MINIMA.example|
-     - .. include:: ../_autodoc/SOC_MINIMA.rst
-   * - ``soc-maxima``
-     - |SOC_MAXIMA.example|
-     - .. include:: ../_autodoc/SOC_MAXIMA.rst
-   * - ``soc-targets``
-     - |SOC_TARGETS.example|
-     - .. include:: ../_autodoc/SOC_TARGETS.rst
-   * - ``soc-gain``
-     - |SOC_GAIN.example|
-     - .. include:: ../_autodoc/SOC_GAIN.rst
-   * - ``soc-usage``
-     - |SOC_USAGE.example|
-     - .. include:: ../_autodoc/SOC_USAGE.rst
-   * - ``roundtrip-efficiency``
-     - |ROUNDTRIP_EFFICIENCY.example|
-     - .. include:: ../_autodoc/ROUNDTRIP_EFFICIENCY.rst
-   * - ``charging-efficiency``
-     - |CHARGING_EFFICIENCY.example|
-     - .. include:: ../_autodoc/CHARGING_EFFICIENCY.rst
-   * - ``discharging-efficiency``
-     - |DISCHARGING_EFFICIENCY.example|
-     - .. include:: ../_autodoc/DISCHARGING_EFFICIENCY.rst
-   * - ``storage-efficiency``
-     - |STORAGE_EFFICIENCY.example|
-     - .. include:: ../_autodoc/STORAGE_EFFICIENCY.rst
-   * - ``prefer-charging-sooner``
-     - |PREFER_CHARGING_SOONER.example|
-     - .. include:: ../_autodoc/PREFER_CHARGING_SOONER.rst
-   * - ``prefer-curtailing-later``
-     - |PREFER_CURTAILING_LATER.example|
-     - .. include:: ../_autodoc/PREFER_CURTAILING_LATER.rst
-   * - ``power-capacity``
-     - |POWER_CAPACITY.example|
-     - .. include:: ../_autodoc/POWER_CAPACITY.rst
-   * - ``consumption-capacity``
-     - |CONSUMPTION_CAPACITY.example|
-     - .. include:: ../_autodoc/CONSUMPTION_CAPACITY.rst
-   * - ``production-capacity``
-     - |PRODUCTION_CAPACITY.example| (only consumption)
-     - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
-
-.. [#quantity_field] Can only be set as a fixed quantity.
-
-.. [#maximum_overlap] In case this field defines partially overlapping time periods, the maximum value is selected. See :ref:`variable_quantities`.
-
-.. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
-
-For more details on the possible formats for field values, see :ref:`variable_quantities`.
-
-Usually, not the whole flexibility model is needed.
-FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
-
-You can add new storage schedules with the CLI command ``flexmeasures add schedule``.
-
-If you model devices that *buffer* energy (e.g. thermal energy storage systems connected to heat pumps), we can use the same flexibility parameters described above for storage devices.
-However, here are some tips to model a buffer correctly:
-
-   - Describe the thermal energy content in kWh or MWh.
-   - Set ``soc-minima`` to the accumulative usage forecast.
-   - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
-   - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
-
-   For a hands-on example of a heat buffer fed by multiple devices, see :ref:`tut_multi_feed_storage`.
-
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
-It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``.
-It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
-depending on the first target state of charge and the capabilities of the asset.
-
-Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
-
-For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_.
-For further hands-on examples, see :ref:`tut_multi_feed_storage` (multiple devices feeding one shared storage) and :ref:`tut_multi_commodity` (devices on different commodities scheduled together).
-
-Finally, are you interested in the linear programming details behind the storage scheduler?
-Then head over to :ref:`storage_device_scheduler`!
-You can also review the current flex-model for storage in the code, at ``flexmeasures.data.schemas.scheduling.storage.StorageFlexModelSchema``.
-
-
-Shiftable loads (processes)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For *processes* that can be shifted or interrupted, but have to happen at a constant rate (of consumption), FlexMeasures provides the ``ProcessScheduler``.
-Some examples from practice (usually industry) could be:
-
-- A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
-- Production processes with a target amount of output until the end of the current shift. The target usually comes out of production planning.
-- Application of coating under hot temperature, with fixed number of times it needs to happen before some deadline.   
-   
-.. list-table::
-   :header-rows: 1
-   :widths: 20 25 90
-
-   * - Field
-     - Example value
-     - Description 
-   * - ``power``
-     - ``"15kW"``
-     - Nominal power of the load.
-   * - ``duration``
-     - ``"PT4H"``
-     - Time that the load needs to lasts.
-   * - ``optimization_direction``
-     - ``"MAX"``
-     - Objective of the scheduler, to maximize (``"MAX"``) or minimize (``"MIN"``).
-   * - ``time_restrictions``
-     - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]`` 
-     - Time periods in which the load cannot be scheduled to run.
-   * - ``process_type``
-     - ``"INFLEXIBLE"``, ``"SHIFTABLE"`` or ``"BREAKABLE"``
-     - Is the load inflexible and should it run as soon as possible? Or can the process's start time be shifted? Or can it even be broken up into smaller segments?
-
-You can review the current flex-model for processes in the code, at ``flexmeasures.data.schemas.scheduling.process.ProcessSchedulerFlexModelSchema``.
-
-You can add new shiftable-process schedules with the CLI command ``flexmeasures add schedule``. Make sure to use the ``--scheduler ProcessScheduler`` option to use the in-built process scheduler.
-
-.. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
+    :depth: 1
+
+|
+
+
+Describing the optimization problem
+-----------------------------------
+
+Before FlexMeasures can compute a schedule, it needs a description of the
+available flexibility and its context. The ``flex-context`` describes the
+system-wide situation and objective, while each ``flex-model`` describes one
+flexible device. For example, this configuration tells FlexMeasures which
+sensor holds the electricity price and gives the current state and operating
+limits of a battery:
+
+.. code-block:: json
+
+   {
+       "flex-context": {
+           "consumption-price": {"sensor": 7}
+       },
+       "flex-model": [
+           {
+               "sensor": 8,
+               "soc-at-start": "50 kWh",
+               "soc-min": "10 kWh",
+               "soc-max": "100 kWh",
+               "power-capacity": "50 kW"
+           }
+       ]
+   }
+
+Here, sensor 8 is the power sensor on the battery asset and identifies the
+device to be scheduled. Sensor 7 supplies the electricity-price series against
+which the battery is optimized.
+
+More than one device can be scheduled in the same optimization: add one
+flex-model entry per flexible device. See
+:ref:`tut_toy_schedule_multiasset_curtailment` for a tutorial that jointly
+schedules a battery and curtailable PV.
+
+Configurations that change rarely can be stored on assets. A scheduling
+request can add or override the parts that are specific to that run. See
+:ref:`flexibility_configuration` for the complete flex-context and flex-model
+reference.
+
+
+Triggering a schedule computation
+---------------------------------
+
+To start a computation, select the asset whose energy system should be
+optimized and provide a scheduling window. If the configuration above is
+stored in the asset tree, an API request for a four-hour schedule can be this
+small:
+
+.. code-block:: http
+
+   POST /api/v3_0/assets/6/schedules/trigger
+
+.. code-block:: json
+
+   {
+       "start": "2026-08-10T07:00:00+02:00",
+       "duration": "PT4H",
+       "resolution": "PT1H"
+   }
+
+Calling this endpoint makes asset 6 the root of the optimization. FlexMeasures
+collects stored flex-models from asset 6 and its descendants, and collects
+flex-context fields from asset 6 upwards through its ancestors. Nearer context
+values take precedence. Only devices represented by the collected flex-models
+are scheduled—not every descendant with a power sensor automatically—and they
+are considered together in one optimization problem.
+
+Alternatively, include ``flex-context`` and ``flex-model`` in this body to
+supply or override them for this computation. The endpoint returns
+``202 Accepted`` with a ``job`` UUID. Poll
+``GET /api/v3_0/jobs/<uuid>`` until the job finishes, then retrieve each
+device's schedule from ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``. The same
+workflow is available through the CLI and FlexMeasures Client. See
+:ref:`tut_toy_schedule` for a short hands-on example and the
+`asset scheduling endpoint <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_
+for all request fields.
 
 
 The schedule
 ------------
 
-A schedule produced by FlexMeasures is a series of power values for each flexible device (represented by its power sensor), covering the scheduling window at the scheduling resolution.
+A schedule produced by FlexMeasures is a series of power setpoints for each
+flexible device, represented by its power sensor. For example, the values
+``[0.5, 1.0, 1.5, 0.0]`` in ``kW`` describe four consecutive setpoints: the
+battery first charges gently, increases its charging power, and then becomes
+idle. The result also states the series start and duration, so a controller can
+apply each value at the scheduling resolution.
+
+After the scheduling job has finished, retrieving this simplified schedule
+through ``GET /api/v3_0/sensors/8/schedules/<uuid>`` returns JSON like this:
+
+.. code-block:: json
+
+   {
+       "scheduler_info": {
+           "scheduler": "StorageScheduler"
+       },
+       "values": [0.5, 1.0, 1.5, 0.0],
+       "start": "2026-08-10T07:00:00+02:00",
+       "duration": "PT4H",
+       "unit": "kW",
+       "status": "PROCESSED",
+       "message": "StorageScheduler was used."
+   }
+
+Together with the one-hour resolution requested above, this response describes
+four hourly events: 07:00–08:00, 08:00–09:00, 09:00–10:00, and 10:00–11:00.
+The schedule therefore covers the four-hour period from 07:00 to 11:00.
+
+Schedules can be inspected alongside prices, forecasts, measurements, and
+state of charge in the FlexMeasures UI:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
+   :align: center
+
+*A battery schedule in the sensor data view.*
 
 For detailed constraint analysis (unresolved constraints and margins), use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about constraints organized by asset. See the :ref:`scheduling_constraint_results` section below for details.
 
@@ -559,8 +349,10 @@ The ``violation`` values tell you how much shortfall exists:
 
 If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
 
-.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler enforces them strictly by definition.
-          If a hard constraint cannot be met, the entire scheduling job will fail, not produce results with violations.
+.. note:: ``soc-targets`` are reported under ``unresolved`` only, and only while constraint relaxation is on.
+          A target is a two-sided constraint, so its reported violation is the absolute deviation from the target, in either direction,
+          and there is no headroom to report when a target is met.
+          With relaxation off, a target that cannot be met makes the entire scheduling job fail instead of producing results with violations.
 
 Work on other schedulers
 ---------------------------------------
@@ -578,16 +370,19 @@ Here are some thoughts on further innovation:
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
 
 
-
-
 .. _automating_schedules:
 
 Automating schedules
 --------------------
 
-Like forecasts, schedules can be computed on a recurring basis by an *automation* defined on the asset (see :ref:`automations` for the full concept, including how to manage and run automations).
-The automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html>`_ API endpoint (without the asset id).
-Omit the ``start`` field to schedule from the run time on each run (floored to the ``resolution`` field, if given).
+Like forecasts, schedules can be computed on a recurring basis by an *automation* defined on the asset (see :ref:`automating_forecasts` for the full introduction, including how to run automations).
+The automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ API endpoint (without the asset id).
+Use the canonical API field names, including ``flex-model``, ``flex-context`` and ``force-new-job-creation``.
+
+Omit the ``start`` field to calculate it afresh from the server time on each run.
+It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
+A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
+The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
 As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
 
 For example, this automation queues a scheduling job every hour, each time scheduling the next 12 hours:

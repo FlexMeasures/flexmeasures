@@ -16,7 +16,6 @@ from flask_login import current_user
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.utils.time_utils import naturalized_datetime_str
 
-
 EDITOR_BUTTON_MARKER = b"Open editor"
 EDITOR_MODAL_MARKER = b"jsonAttributesModal"
 SECRET_EXPIRES_AT = "2026-06-11T12:00:00+00:00"

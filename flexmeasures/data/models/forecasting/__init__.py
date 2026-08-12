@@ -30,6 +30,26 @@ class Forecaster(DataGenerator):
 
     _config_schema = ForecasterConfigSchema()
 
+    @property
+    def input_sensors(self) -> list:
+        """The regressors used to forecast, plus the history of the sensor being forecast."""
+        config = self._config or {}
+        parameters = self._parameters or {}
+        return self._resolve_sensors(
+            config.get("past_regressors"),
+            config.get("future_regressors"),
+            config.get("regressors"),
+            parameters.get("sensor"),
+        )
+
+    @property
+    def output_sensors(self) -> list:
+        """The sensor that the forecast is saved to, which defaults to the sensor being forecast."""
+        parameters = self._parameters or {}
+        return self._resolve_sensors(
+            parameters.get("sensor_to_save") or parameters.get("sensor")
+        )
+
     def _compute(
         self, check_output_resolution=True, as_job: bool = False, **kwargs
     ) -> list[dict[str, Any]]:

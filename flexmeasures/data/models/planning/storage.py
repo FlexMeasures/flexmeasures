@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import Type
 
 import pandas as pd
 import numpy as np
@@ -18,6 +17,12 @@ from flexmeasures.data.models.planning import (
     SchedulerOutputType,
     StockCommitment,
 )
+from flexmeasures.data.models.planning.devices import (
+    DeviceInventory,
+    _resolve_stock_key,
+    group_key_label,
+    resolve_group_reference,
+)
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     add_tiny_price_slope,
@@ -26,15 +31,27 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     initialize_df,
     get_power_values,
-    fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling.storage import (
+    OperationModeSchema,
+    StorageFlexModelSchema,
+)
 from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
+    SharedSchema,
+)
+from flexmeasures.data.models.planning.soc_projection import (
+    project_off_tick_soc_at_start,
+    project_off_tick_soc_constraints,
+)
+from flexmeasures.data.schemas.scheduling.utils import (
+    flex_model_has_off_tick_soc_constraints,
+    get_soc_constraint_resolution,
+    should_project_off_tick_soc_constraints,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
@@ -45,8 +62,8 @@ from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
 
-
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
+
 
 #: Key used to store and retrieve the ``SchedulingJobResult`` in RQ job metadata
 #: and in the multi-result list returned by ``StorageScheduler.compute()``.
@@ -127,123 +144,131 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
 
-        # For backwards compatibility with the single asset scheduler
-        # Track whether we started with a single dict (single-sensor mode) or a list
-        is_single_sensor_mode = not isinstance(self.flex_model, list)
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
+        # Look up the device inventory: every flex-model entry (and the flex-context's
+        # inflexible devices) classified once, as the single source of truth for
+        # device roles and canonical device indices. Tests may bypass deserialization
+        # (setting config_deserialized) with an already deserialized flex config,
+        # in which case we classify it here.
+        inventory = self.device_inventory
+        if inventory is None:
+            inventory = DeviceInventory.from_flex_config(
+                self.flex_model, self.flex_context, sensor=self.sensor
+            )
+            self.device_inventory = inventory
 
-        # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
-        self.stock_models = {}
-
-        device_models = []  # everything except stock models
-        stock_models = {}  # stock models only
-
-        missing_soc_sensor_i = -len(flex_model)
-        for fm in flex_model:
-
-            # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
-            # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
-            if (
-                not is_single_sensor_mode
-                and fm.get("sensor") is None
-                and (soc_sensor := fm.get("state_of_charge"))
-            ):
-                stock_models[
-                    soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                ] = fm
-                continue
-
-            """
-            [
-              {
-                "sensor": 1,
-                "charging-efficiency": 0.9,
-                "state-of-charge": {"sensor": 2},
-              },
-              {
-                "sensor": 3,
-                "charging-efficiency": 0.9,
-                "state-of-charge": {"sensor": 2},
-              },
-              {
-                "state-of-charge": {"sensor": 2},
-                "storage-efficiency": 0.99,
-              },
-            ]
-            """
-
-            # Check if this is a stock-only model (no power sensor)
-            # Stock-only entries have SOC parameters but no power sensor
-            # Only apply in multi-device mode; single-sensor mode devices have no "sensor" key by design
-            soc_sensor = fm.get("state_of_charge")
-            if (
-                not is_single_sensor_mode
-                and fm.get("sensor") is None
-                and soc_sensor is not None
-            ):
-                # This is a stock-only entry, add to stock_models only
-                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                stock_models[soc_id] = fm
-                continue
-
-            # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
-            device_models.append(fm)
-
-            # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
-            # also create a stock model entry so those parameters are properly captured
-            if soc_sensor is not None:
-                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                # Check if there are SOC parameters in this device entry
-                has_soc_params = any(
-                    param in fm
-                    for param in ["soc_at_start", "soc_min", "soc_max", "soc_targets"]
-                )
-                if has_soc_params:
-                    stock_models[soc_id] = fm
-            elif fm.get("state_of_charge") is None:
-                stock_models[missing_soc_sensor_i] = fm
-                missing_soc_sensor_i += 1
-
-        flex_model = device_models
-        self.stock_models = stock_models
+        device_models = inventory.device_flex_models
         self._device_models = (
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
+        self.stock_models = inventory.stock_entries
+        # The stock groups' device indices align with the device models
+        self.stock_groups = inventory.stock_groups
+        # Soft SoC constraints are attached to their stock (see StockCommitment.stock),
+        # so the solver couples them to the stock group rather than to a device index.
+        # Off-tick SoC relaxation scoping and starting-SoC projection also track
+        # stocks (not devices), so look up each device's stock key.
+        device_stock_key = {
+            d: stock_key
+            for stock_key, group_devices in self.stock_groups.items()
+            for d in group_devices
+        }
 
-        # Rebuild stock_groups using only device_models (which have sensors)
-        # This ensures the mapping aligns with the device indices
-        self.stock_groups = self._build_stock_groups(device_models)
+        # The coupling groups (converter ports sharing a coupling name) also derive from the inventory,
+        # with signed coefficients per canonical device index.
+        self.coupling_groups = inventory.coupling_groups
+
+        # Balance groups for internal commodity nodes (commodities without energy prices, i.e. without a grid connection)
+        # are derived further below, once the devices of each commodity are enumerated.
+        self.balance_groups: dict[str, list[int]] = {}
+
+        # Group entries (intermediate power constraints on groups of devices, e.g. a
+        # sub-EMS) come classified from the inventory, together with the resolved
+        # (leaf) group membership. Accessing `group_to_devices` also detects cyclic
+        # group references (raising a ValueError).
+        self._group_models = inventory.group_entries
+        self._group_to_devices = inventory.group_to_devices
+
+        if not skip_validation:
+            dangling = inventory.referenced_group_keys - set(
+                inventory.group_entries.keys()
+            )
+            if dangling:
+                raise ValueError(
+                    "The 'group' field references "
+                    f"{sorted(group_key_label(g) for g in dangling)}, but no "
+                    "flex-model entry was found for it. Add a flex-model entry for "
+                    "the group, carrying the group's power-capacity, "
+                    "consumption-capacity and/or production-capacity."
+                )
+            device_only_fields = (
+                "soc_at_start",
+                "soc_min",
+                "soc_max",
+                "soc_minima",
+                "soc_maxima",
+                "soc_targets",
+                "soc_gain",
+                "soc_usage",
+                "state_of_charge",
+                "storage_efficiency",
+                "charging_efficiency",
+                "discharging_efficiency",
+                "roundtrip_efficiency",
+            )
+            for gkey, group_entry in inventory.group_entries.items():
+                offending = [
+                    field for field in device_only_fields if group_entry.get(field)
+                ]
+                if offending:
+                    raise ValueError(
+                        f"Group entry for {group_key_label(gkey)} carries "
+                        f"device-only field(s) {offending}, which is not allowed: "
+                        "group entries only describe constraints on the group's "
+                        "aggregate power."
+                    )
+                if not any(
+                    group_entry.get(field) is not None
+                    for field in (
+                        "power_capacity_in_mw",
+                        "consumption_capacity",
+                        "production_capacity",
+                    )
+                ):
+                    raise ValueError(
+                        f"Group entry for {group_key_label(gkey)} defines none of "
+                        "'power-capacity', 'consumption-capacity' or "
+                        "'production-capacity'; such an entry has no effect."
+                    )
+            for gkey, leaves in inventory.group_to_devices.items():
+                if not leaves:
+                    raise ValueError(
+                        f"The 'group' field references {group_key_label(gkey)}, "
+                        "but no device in the flex-model belongs to that group."
+                    )
+                commodities = {inventory.by_index(d).commodity for d in leaves}
+                if len(commodities) > 1:
+                    raise ValueError(
+                        f"All member devices of group {group_key_label(gkey)} must "
+                        f"share the same commodity; found {sorted(commodities)}."
+                    )
 
         # List the asset(s) and sensor(s) being scheduled
+        sensors: list[Sensor | None] = inventory.power_sensors
+        assets: list[Asset | None] = inventory.assets
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
                 self.flex_model = [self.flex_model]
-            sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
-            assets: list[Asset | None] = [  # noqa: F841
-                s.asset if s is not None else flex_model_d.get("asset")
-                for s, flex_model_d in zip(sensors, self.flex_model)
-            ]
             if resolution is None:
                 # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
                 resolution = determine_minimum_resampling_resolution(
                     [s.event_resolution for s in sensors if s is not None],
                     fallback_resolution=self.default_resolution,
                 )
-            asset = self.asset
-        else:
-            # For backwards compatibility with the single asset scheduler
-            sensors = [self.sensor]
-            asset = self.sensor.generic_asset
-            assets = [asset]  # noqa: F841
 
-        # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
-        else:
-            flex_model = [flex_model_d.copy() for flex_model_d in flex_model]
+        # Work on copies of the device flex-models (aligned with the device indices,
+        # unlike the unfiltered self.flex_model), so the defaults applied here don't
+        # leak back into the inventory's raw entries.
+        flex_model = [flex_model_d.copy() for flex_model_d in device_models]
         for flex_model_d in flex_model:
             self._default_missing_directional_capacity_to_zero(flex_model_d)
         num_flexible_devices = len(device_models)
@@ -270,6 +295,18 @@ class MetaStorageScheduler(Scheduler):
             d0 = devices[0]
 
             soc_at_start[d0] = stock_model.get("soc_at_start")
+            # In multi-device mode, the soc-at-start of a stock is not resolved during deserialization
+            # (unlike single-sensor mode's ensure_soc_at_start()).
+            # If the stock's owning entry carries a state-of-charge sensor (or time series) but no explicit soc-at-start,
+            # resolve the starting stock from it here.
+            # Without this, soc_at_start stays None and the scheduler applies no stock constraints,
+            # so the device could discharge more energy than its store holds.
+            if soc_at_start[d0] is None:
+                resolved_soc_at_start = self._resolve_stock_soc_at_start(
+                    stock_model, sensor=sensors[d0], stock_key=stock_id
+                )
+                if resolved_soc_at_start is not None:
+                    soc_at_start[d0] = resolved_soc_at_start
             soc_targets[d0] = stock_model.get("soc_targets")
             soc_min[d0] = stock_model.get("soc_min")
             soc_max[d0] = stock_model.get("soc_max")
@@ -280,10 +317,37 @@ class MetaStorageScheduler(Scheduler):
             prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
             prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
-        # todo: move storage-efficiency into a shared parameter for the first device belonging to a shared storage
         storage_efficiency = [
             flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
         ]
+        # The storage efficiency is a property of the stock, not of a connected device:
+        # for shared stocks, it may be defined on the entry holding the stock's SoC
+        # parameters or on a single member device, and applies to all members.
+        for stock_id, stock_devices in self.stock_groups.items():
+            if len(stock_devices) <= 1:
+                continue
+            definitions = []
+            stock_model = self.stock_models.get(stock_id)
+            if (
+                stock_model is not None
+                and stock_model.get("storage_efficiency") is not None
+            ):
+                definitions.append(stock_model["storage_efficiency"])
+            definitions.extend(
+                storage_efficiency[d]
+                for d in stock_devices
+                if storage_efficiency[d] is not None
+            )
+            if len(set(map(id, definitions))) > 1:
+                raise ValueError(
+                    f"Multiple flex-model entries define a storage-efficiency for the same"
+                    f" stock (state-of-charge sensor {stock_id}). The storage efficiency"
+                    f" is a property of the shared stock, so please define it on a single"
+                    f" entry."
+                )
+            shared_efficiency = definitions[0] if definitions else None
+            for d in stock_devices:
+                storage_efficiency[d] = shared_efficiency
         consumption = [flex_model_d.get("consumption") for flex_model_d in flex_model]
         production = [flex_model_d.get("production") for flex_model_d in flex_model]
         consumption_capacity = [
@@ -292,18 +356,15 @@ class MetaStorageScheduler(Scheduler):
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
         ]
+        operation_modes = [
+            flex_model_d.get("operation_modes") for flex_model_d in flex_model
+        ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
         ]
         discharging_efficiency = [
             flex_model_d.get("discharging_efficiency") for flex_model_d in flex_model
         ]
-
-        # Get info from flex-context
-        # (normalize to a list; tests may pass e.g. dict_values when bypassing the schema)
-        inflexible_device_sensors = list(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
 
         # Fetch the device's power capacity (required to keep the optimization problem bounded)
         power_capacity_in_mw = self._get_device_power_capacity(
@@ -323,7 +384,6 @@ class MetaStorageScheduler(Scheduler):
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
-            flex_model=flex_model,
         )
 
         index = initialize_index(start, end, resolution)
@@ -348,41 +408,12 @@ class MetaStorageScheduler(Scheduler):
         ) -> pd.Series:
             return pd.Series([tuple(devices)] * len(index), index=index, name="device")
 
-        # Enumerate only device models (not stock entries), so device indices line up
-        # with the sensors and device_constraints lists.
-        commodity_to_devices = {}
-        for d, flex_model_d in enumerate(device_models):
-            commodity = flex_model_d.get("commodity", "electricity")
-            commodity_to_devices.setdefault(commodity, []).append(d)
-
-        # inflexible devices are electricity by default
-        number_flexible_devices = len(device_models)
-        number_inflexible_devices = len(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
-        commodity_to_devices.setdefault("electricity", []).extend(
-            range(
-                number_flexible_devices,
-                number_flexible_devices + number_inflexible_devices,
-            )
-        )
-
-        # Per-commodity inflexible-device-sensors, enumerated after the top-level
-        # (electricity) inflexible devices, in the order the commodity contexts are
-        # given. This mirrors the enumeration that
-        # `_compute_commodity_aggregate_schedules` already assumes.
-        commodity_context_inflexible_sensors: list[Sensor] = []
-        num_devices = number_flexible_devices + number_inflexible_devices
-        for commodity_context in self.flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            commodity_inflexible_sensors = commodity_context.get(
-                "inflexible_device_sensors", []
-            )
-            commodity_to_devices.setdefault(commodity, []).extend(
-                range(num_devices, num_devices + len(commodity_inflexible_sensors))
-            )
-            commodity_context_inflexible_sensors.extend(commodity_inflexible_sensors)
-            num_devices += len(commodity_inflexible_sensors)
+        # The canonical device enumeration comes from the inventory: flexible devices
+        # (indices lining up with the sensors and device_constraints lists), then
+        # top-level (electricity) inflexible devices, then each commodity context's
+        # own inflexible devices. This is the same enumeration that
+        # `_compute_commodity_aggregate_schedules` relies on.
+        commodity_to_devices = inventory.commodity_to_devices
 
         commodity_contexts = self._get_commodity_contexts()
         price_frames_by_commodity = {}
@@ -410,10 +441,34 @@ class MetaStorageScheduler(Scheduler):
             if production_price is None:
                 production_price = consumption_price
 
-            if consumption_price is None:
-                raise ValueError(
-                    f"Missing consumption price for commodity '{commodity}'."
+            # A context is an internal node only when the user gave no grid-connection signal at all --
+            # neither prices nor capacity fields.
+            # See CommodityFlexContextSchema.fill_grid_connection_defaults, which flags this with is_internal_node.
+            # A commodity given a capacity but no price still carries smart-defaulted zero prices,
+            # yet it declares a grid connection, so it must not be treated as an internal node.
+            is_internal_node = consumption_price is None or (
+                commodity_context.get("is_internal_node", False)
+                and consumption_price_sensor is None
+                and production_price_sensor is None
+            )
+
+            if is_internal_node:
+                if commodity == "electricity":
+                    # Electricity is assumed to be grid-connected,
+                    # so a missing price is treated as a configuration error rather than as an internal node.
+                    raise ValueError(
+                        f"Missing consumption price for commodity '{commodity}'."
+                    )
+                # A non-electricity commodity without energy prices is treated as an internal node,
+                # e.g. a heat or steam network without a grid connection:
+                # its devices must balance each other at every time step,
+                # and it needs no commitments or EMS-level capacity constraints.
+                current_app.logger.debug(
+                    f"Commodity '{commodity}' has no energy prices; treating it as an "
+                    f"internal node whose devices (indices {devices}) balance each other."
                 )
+                self.balance_groups[commodity] = list(devices)
+                continue
 
             # Energy prices for this commodity.
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -708,6 +763,153 @@ class MetaStorageScheduler(Scheduler):
             ems_constraints.append(commodity_ems_constraints)
             ems_constraint_groups.append(list(devices))
 
+        # Intermediate power constraints on groups of devices (sub-EMS's), declared via
+        # the `group` field on flex-model entries. See MetaStorageScheduler._prepare
+        # docstring notes on groups above.
+        default_group_breach_price = ur.Quantity(
+            f"10000 {self.flex_context['shared_currency_unit']}/kW"
+        )
+        for group_key, leaf_members in self._group_to_devices.items():
+            if not leaf_members:
+                continue
+            group_entry = self._group_models[group_key]
+            group_label = f"{group_key[0]}:{group_key[1]}"
+            group_commodity = inventory.by_index(leaf_members[0]).commodity
+            group_devices = device_list_series(leaf_members, index)
+
+            group_power_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("power_capacity_in_mw"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                resolve_overlaps="min",
+            )
+            group_consumption_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("consumption_capacity"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=group_power_capacity,
+                resolve_overlaps="min",
+            )
+            group_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("production_capacity"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=group_power_capacity,
+                resolve_overlaps="min",
+            )
+
+            # Hard bound: the group's summed power may never exceed its (physical)
+            # power capacity, in either direction.
+            group_ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            group_ems_constraints["derivative max"] = group_power_capacity
+            group_ems_constraints["derivative min"] = -group_power_capacity
+            ems_constraints.append(group_ems_constraints)
+            ems_constraint_groups.append(list(leaf_members))
+
+            currency_unit = self.flex_context["shared_currency_unit"]
+
+            # Soft bound: directional (consumption/production) capacities on the group
+            # are enforced via breach commitments with default breach prices (no
+            # user-set prices are supported for groups), mirroring the site-level
+            # ems_consumption_breach_price / ems_production_breach_price pattern.
+            if group_entry.get("consumption_capacity") is not None:
+                any_group_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_group_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW*h",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} any consumption breach",
+                        quantity=group_consumption_capacity,
+                        upwards_deviation_price=any_group_consumption_breach_price,
+                        _type="any",
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} all consumption breaches",
+                        quantity=group_consumption_capacity,
+                        upwards_deviation_price=all_group_consumption_breach_price,
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+
+            if group_entry.get("production_capacity") is not None:
+                any_group_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_group_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW*h",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} any production breach",
+                        quantity=group_production_capacity,
+                        downwards_deviation_price=-any_group_production_breach_price,
+                        _type="any",
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} all production breaches",
+                        quantity=group_production_capacity,
+                        downwards_deviation_price=-all_group_production_breach_price,
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+
         # Keep one price frame for later preference logic.
         # The existing "prefer charging sooner" code uses `up_deviation_prices`.
         # Prefer electricity prices if available, otherwise use the first commodity price.
@@ -751,29 +953,26 @@ class MetaStorageScheduler(Scheduler):
                     downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
         # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1),
         # plus the forecasted top-level (electricity) inflexible devices, plus each commodity
-        # context's own inflexible devices, in that order.
+        # context's own inflexible devices, in that order (the inventory's canonical order).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(
-                num_flexible_devices
-                + len(inflexible_device_sensors)
-                + len(commodity_context_inflexible_sensors)
-            )
+            for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(
-            inflexible_device_sensors + commodity_context_inflexible_sensors
-        ):
+        for i, inflexible_device in enumerate(inventory.inflexible_devices):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    sensor=inflexible_sensor,
+                    sensor=inflexible_device.sensor_reference
+                    or inflexible_device.power_sensor,
+                    consumption_is_positive=inflexible_device.consumption_is_positive,
                 )
             )
 
@@ -804,70 +1003,6 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
                 )
-            if (
-                self.flex_context.get("soc_minima_breach_price") is not None
-                and soc_minima[d] is not None
-            ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"]
-                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                # Set up commitments DataFrame
-                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
-                soc_minima_d = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima[d],
-                    unit="MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    as_instantaneous_events=True,
-                    resolve_overlaps="max",
-                )
-                # shift soc minima by one resolution (they define a state at a certain time,
-                # while the commitment defines what the total stock should be at the end of a time slot,
-                # where the time slot is indexed by its starting time)
-                soc_minima_d = soc_minima_d.shift(-1, freq=resolution) * (
-                    timedelta(hours=1) / resolution
-                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
-
-                commitment = StockCommitment(
-                    name="any soc minima",
-                    quantity=soc_minima_d,
-                    # negative price because breaching in the downwards (shortage) direction is penalized
-                    downwards_deviation_price=-any_soc_minima_breach_price,
-                    index=index,
-                    _type="any",
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                commitment = StockCommitment(
-                    name="all soc minima",
-                    quantity=soc_minima_d,
-                    # negative price because breaching in the downwards (shortage) direction is penalized
-                    downwards_deviation_price=-all_soc_minima_breach_price,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_minima[d] = None
-
             if isinstance(soc_maxima[d], (Sensor, SensorReference)):
                 soc_maxima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
@@ -878,93 +1013,6 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
                 )
-            if (
-                self.flex_context.get("soc_maxima_breach_price") is not None
-                and soc_maxima[d] is not None
-            ):
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
-                any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"]
-                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                # Set up commitments DataFrame
-                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
-                soc_maxima_d = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima[d],
-                    unit="MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    as_instantaneous_events=True,
-                    resolve_overlaps="min",
-                )
-                # shift soc maxima by one resolution (they define a state at a certain time,
-                # while the commitment defines what the total stock should be at the end of a time slot,
-                # where the time slot is indexed by its starting time)
-                soc_maxima_d = soc_maxima_d.shift(-1, freq=resolution) * (
-                    timedelta(hours=1) / resolution
-                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
-
-                commitment = StockCommitment(
-                    name="any soc maxima",
-                    quantity=soc_maxima_d,
-                    # positive price because breaching in the upwards (surplus) direction is penalized
-                    upwards_deviation_price=any_soc_maxima_breach_price,
-                    index=index,
-                    _type="any",
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                commitment = StockCommitment(
-                    name="all soc maxima",
-                    quantity=soc_maxima_d,
-                    # positive price because breaching in the upwards (surplus) direction is penalized
-                    upwards_deviation_price=all_soc_maxima_breach_price,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_maxima[d] = None
-
-            # only apply SOC constraints to the first device of a shared stock
-            apply_soc_constraints = True
-
-            for stock_id, devices in self.stock_groups.items():
-                if d in devices and d != devices[0]:
-                    apply_soc_constraints = False
-                    break
-
-            if soc_at_start[d] is not None and apply_soc_constraints:
-                device_constraints[d] = add_storage_constraints(
-                    start,
-                    end,
-                    resolution,
-                    soc_at_start[d],
-                    soc_targets[d],
-                    soc_maxima[d],
-                    soc_minima[d],
-                    soc_max[d],
-                    soc_min[d],
-                )
-            else:
-                # No need to validate non-existing storage constraints
-                skip_validation = True
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -978,9 +1026,19 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
 
+            # Power bands (S2 operation modes): carried on the constraints frame,
+            # in signed MW (positive is consumption), for the device scheduler.
+            if operation_modes[d]:
+                device_constraints[d].attrs["operation_modes"] = [
+                    OperationModeSchema.signed_band(mode) for mode in operation_modes[d]
+                ]
+
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
             ):
+                production_capacity_d = pd.Series(
+                    0, index=power_capacity_in_mw[d].index
+                )
                 device_constraints[d]["derivative min"] = 0
             else:
                 production_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -993,11 +1051,16 @@ class MetaStorageScheduler(Scheduler):
                     min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
+                # Explicit zero production capacity is a physical impossibility (e.g.
+                # a heat pump), not an economic limit — keep it hard even when
+                # relax-constraints injects production-breach-price. Non-zero
+                # production capacities may still be softened. See issue #2323.
                 if (
                     self.flex_context.get("production_breach_price") is not None
                     and production_capacity[d] is not None
+                    and production_capacity_d.max() > 0
                 ):
-                    # consumption-capacity will become a soft constraint
+                    # production-capacity will become a soft constraint
                     production_breach_price = self.flex_context[
                         "production_breach_price"
                     ]
@@ -1044,11 +1107,14 @@ class MetaStorageScheduler(Scheduler):
                     )
                     commitments.append(commitment)
                 else:
-                    # consumption-capacity will become a hard constraint
+                    # production-capacity will become a hard constraint
                     device_constraints[d]["derivative min"] = -production_capacity_d
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_negative"
             ):
+                consumption_capacity_d = pd.Series(
+                    0, index=power_capacity_in_mw[d].index
+                )
                 device_constraints[d]["derivative max"] = 0
             else:
                 consumption_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -1061,9 +1127,14 @@ class MetaStorageScheduler(Scheduler):
                     max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
                 )
+                # Explicit zero consumption capacity is a physical impossibility
+                # (e.g. a pure generator), not an economic limit — keep it hard
+                # even when relax-constraints injects consumption-breach-price.
+                # Non-zero consumption capacities may still be softened. See #2323.
                 if (
                     self.flex_context.get("consumption_breach_price") is not None
                     and consumption_capacity[d] is not None
+                    and consumption_capacity_d.max() > 0
                 ):
                     # consumption-capacity will become a soft constraint
                     consumption_breach_price = self.flex_context[
@@ -1113,38 +1184,6 @@ class MetaStorageScheduler(Scheduler):
                     # consumption-capacity will become a hard constraint
                     device_constraints[d]["derivative max"] = consumption_capacity_d
 
-            all_stock_delta = []
-
-            for is_usage, soc_delta in zip([False, True], [soc_gain[d], soc_usage[d]]):
-                if soc_delta is None:
-                    # Try to get fallback
-                    soc_delta = [None]
-
-                for component in soc_delta:
-                    stock_delta_series = get_continuous_series_sensor_or_quantity(
-                        variable_quantity=component,
-                        unit="MW",
-                        query_window=(start, end),
-                        resolution=resolution,
-                        beliefs_before=belief_time,
-                    )
-
-                    # example: 4 MW sustained over 15 minutes gives 1 MWh
-                    stock_delta_series *= resolution / timedelta(
-                        hours=1
-                    )  # MW -> MWh / resolution
-
-                    if is_usage:
-                        stock_delta_series *= -1
-
-                    all_stock_delta.append(stock_delta_series)
-
-            if len(all_stock_delta) > 0:
-                all_stock_delta = pd.concat(all_stock_delta, axis=1)
-
-                device_constraints[d]["stock delta"] = all_stock_delta.sum(1)
-                device_constraints[d]["stock delta"] *= timedelta(hours=1) / resolution
-
             # Apply round-trip efficiency evenly to charging and discharging
             charging_efficiency[d] = (
                 get_continuous_series_sensor_or_quantity(
@@ -1181,6 +1220,343 @@ class MetaStorageScheduler(Scheduler):
             ):
                 charging_efficiency[d] = roundtrip_efficiency**0.5
                 discharging_efficiency[d] = roundtrip_efficiency**0.5
+
+            # Project off-tick point-like SoC constraints onto the scheduling ticks
+            # before they are turned into soft commitments or hard constraints,
+            # so that both paths consume on-tick events.
+            if should_project_off_tick_soc_constraints(sensor_d):
+                # A starting SoC known at an off-tick time within the first
+                # scheduling interval bounds the SoC on the next tick. The timing
+                # is tracked per stock; a None key covers the single-sensor case
+                # where the stock key cannot be resolved at record time.
+                soc_at_start_datetimes = getattr(self, "soc_at_start_datetimes", {})
+                soc_at_start_time = soc_at_start_datetimes.get(device_stock_key.get(d))
+                if soc_at_start_time is None:
+                    soc_at_start_time = soc_at_start_datetimes.get(None)
+                if soc_at_start_time is not None and soc_at_start[d] is not None:
+                    soc_maxima[d], soc_minima[d] = project_off_tick_soc_at_start(
+                        soc_at_start_time,
+                        soc_at_start[d],
+                        soc_maxima[d],
+                        soc_minima[d],
+                        start,
+                        consumption_capacity_d,
+                        production_capacity_d,
+                        resolution,
+                        soc_min[d],
+                        soc_max[d],
+                        charging_efficiency=charging_efficiency[d],
+                        discharging_efficiency=discharging_efficiency[d],
+                    )
+                (
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                ) = project_off_tick_soc_constraints(
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    consumption_capacity_d,
+                    production_capacity_d,
+                    resolution,
+                    soc_min[d],
+                    soc_max[d],
+                    charging_efficiency=charging_efficiency[d],
+                    discharging_efficiency=discharging_efficiency[d],
+                )
+
+            if (
+                self.flex_context.get("soc_minima_breach_price") is not None
+                and soc_minima[d] is not None
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
+                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_minima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="max",
+                )
+                # shift soc minima by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_minima_d = soc_minima_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc minima",
+                    quantity=soc_minima_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-any_soc_minima_breach_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc minima",
+                    quantity=soc_minima_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-all_soc_minima_breach_price,
+                    index=index,
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_minima[d] = None
+
+            if (
+                self.flex_context.get("soc_maxima_breach_price") is not None
+                and soc_maxima[d] is not None
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
+                any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_maxima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="min",
+                )
+                # shift soc maxima by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_maxima_d = soc_maxima_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc maxima",
+                    quantity=soc_maxima_d,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=any_soc_maxima_breach_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc maxima",
+                    quantity=soc_maxima_d,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=all_soc_maxima_breach_price,
+                    index=index,
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_maxima[d] = None
+
+            # A soc target is a two-sided constraint: falling short of it is a shortage
+            # (priced like a soc-minima breach) and overshooting it is a surplus (priced
+            # like a soc-maxima breach). We therefore relax targets only when both breach
+            # prices are available, which is the case whenever SoC relaxation is on, since
+            # the two default prices are filled in as a pair.
+            if (
+                self.flex_context.get("soc_minima_breach_price") is not None
+                and self.flex_context.get("soc_maxima_breach_price") is not None
+                and soc_targets[d] is not None
+                and soc_at_start[d] is not None
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
+                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
+                any_soc_target_shortage_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=soc_minima_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                        query_window=(start + resolution, end + resolution),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    ).shift(-1, freq=resolution)
+                )
+                all_soc_target_shortage_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=soc_minima_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                        query_window=(start + resolution, end + resolution),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    ).shift(-1, freq=resolution)
+                )
+                any_soc_target_surplus_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_target_surplus_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_targets_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_targets_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_targets[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="first",
+                )
+                # shift soc targets by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_targets_d = soc_targets_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc targets",
+                    quantity=soc_targets_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-any_soc_target_shortage_price,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=any_soc_target_surplus_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc targets",
+                    quantity=soc_targets_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-all_soc_target_shortage_price,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=all_soc_target_surplus_price,
+                    index=index,
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                # soc-targets will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_targets[d] = None
+
+            # only apply SOC constraints to the first device of a shared stock
+            apply_soc_constraints = True
+            for stock_id, devices in self.stock_groups.items():
+                if d in devices and d != devices[0]:
+                    apply_soc_constraints = False
+                    break
+
+            validate_stock_constraints = not skip_validation
+            if soc_at_start[d] is not None and apply_soc_constraints:
+                storage_constraints = add_storage_constraints(
+                    start,
+                    end,
+                    resolution,
+                    soc_at_start[d],
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    soc_max[d],
+                    soc_min[d],
+                )
+                for column in ("equals", "min", "max"):
+                    device_constraints[d][column] = storage_constraints[column]
+            else:
+                # No need to validate non-existing storage constraints for this device.
+                # Only skip them for this device; other devices must still be validated.
+                validate_stock_constraints = False
+
+            all_stock_delta = []
+
+            for is_usage, soc_delta in zip([False, True], [soc_gain[d], soc_usage[d]]):
+                if soc_delta is None:
+                    # Try to get fallback
+                    soc_delta = [None]
+
+                for component in soc_delta:
+                    stock_delta_series = get_continuous_series_sensor_or_quantity(
+                        variable_quantity=component,
+                        unit="MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                    )
+
+                    # example: 4 MW sustained over 15 minutes gives 1 MWh
+                    stock_delta_series *= resolution / timedelta(
+                        hours=1
+                    )  # MW -> MWh / resolution
+
+                    if is_usage:
+                        stock_delta_series *= -1
+
+                    all_stock_delta.append(stock_delta_series)
+
+            if len(all_stock_delta) > 0:
+                all_stock_delta = pd.concat(all_stock_delta, axis=1)
+
+                device_constraints[d]["stock delta"] = all_stock_delta.sum(1)
+                device_constraints[d]["stock delta"] *= timedelta(hours=1) / resolution
 
             device_constraints[d]["derivative down efficiency"] = (
                 discharging_efficiency[d]
@@ -1243,15 +1619,19 @@ class MetaStorageScheduler(Scheduler):
                     "and the scheduler will assume their resolution is the one to use.",
                 )
 
-            # check that storage constraints are fulfilled
+            # check that device constraints are fulfilled
             if not skip_validation:
-                constraint_violations = validate_storage_constraints(
+                constraint_violations = validate_power_constraints(
                     constraints=device_constraints[d],
-                    soc_at_start=soc_at_start[d],
-                    soc_min=soc_min[d],
-                    soc_max=soc_max[d],
-                    resolution=resolution,
                 )
+                if validate_stock_constraints:
+                    constraint_violations += validate_storage_constraints(
+                        constraints=device_constraints[d],
+                        soc_at_start=soc_at_start[d],
+                        soc_min=soc_min[d],
+                        soc_max=soc_max[d],
+                        resolution=resolution,
+                    )
 
                 if len(constraint_violations) > 0:
                     # TODO: include hints from constraint_violations into the error message
@@ -1310,20 +1690,131 @@ class MetaStorageScheduler(Scheduler):
             commitments,
         )
 
+    def _resolve_commitment_scope(
+        self, scoped_sensors, scoped_group
+    ) -> tuple[list[int], str]:
+        """Resolve a scoped commitment's device set to canonical solver indices.
+
+        Both scopes include a device whether it is flexible or inflexible:
+        a ``group`` scope yields the group's (leaf) members,
+        and a ``sensors`` scope yields the devices recording the listed power sensors.
+        So listing a group's member sensors resolves to the same set as scoping by that group.
+        Canonical indices always come from the device inventory,
+        never from re-enumerating raw flex-model lists.
+
+        The commitment then binds the *net signed* aggregate of these devices' flow (consumption positive, production negative),
+        so consumers add, producers subtract, and any inflexible (fixed) member contributes its fixed signed power.
+
+        :returns: A ``(sorted device indices, human-readable scope description)`` pair.
+        """
+        if scoped_group is not None:
+            group_key = resolve_group_reference(scoped_group)
+            scoped_devices = sorted(
+                self.device_inventory.group_to_devices.get(group_key, [])
+            )
+            description = (
+                f"group {group_key_label(group_key)}"
+                if group_key is not None
+                else "an unresolved group reference"
+            )
+            return scoped_devices, description
+        scoped_sensor_ids = {
+            sensor.id if hasattr(sensor, "id") else sensor for sensor in scoped_sensors
+        }
+        scoped_devices = sorted(
+            device.index
+            for sensor_id in scoped_sensor_ids
+            for device in self.device_inventory.scheduled_devices_by_sensor_id(
+                sensor_id
+            )
+        )
+        return scoped_devices, f"sensors {sorted(scoped_sensor_ids)}"
+
+    def _build_scoped_commitment(
+        self, commitment_spec, scoped_sensors, scoped_group, commitment_index
+    ) -> "FlowCommitment | None":
+        """Build one aggregate-flow FlowCommitment for a scoped commitment.
+
+        Returns None (logged) when the scope matches no device in the flex-model,
+        so the commitment binds nothing rather than failing the whole schedule.
+
+        :raises ValueError: When the scoped devices span more than one commodity.
+        """
+        scoped_devices, scope_description = self._resolve_commitment_scope(
+            scoped_sensors, scoped_group
+        )
+        if not scoped_devices:
+            current_app.logger.warning(
+                f"Commitment '{commitment_spec.get('name')}' is scoped to"
+                f" {scope_description}, none of which appear in the flex-model."
+                " This commitment will not bind any device."
+            )
+            return None
+        commodities = {
+            self.device_inventory.by_index(d).commodity for d in scoped_devices
+        }
+        if len(commodities) > 1:
+            raise ValueError(
+                f"Commitment '{commitment_spec.get('name')}' is scoped to devices of"
+                f" more than one commodity ({sorted(commodities)}); a commitment binds"
+                " the aggregate flow of a single commodity."
+            )
+        # A scoped commitment's commodity is defined by its scope,
+        # so pin it to the scoped devices' (single) commodity;
+        # otherwise the commitment keeps the schema's electricity default (or a mismatching explicit value),
+        # and its cost would be misattributed to the wrong commodity.
+        commitment_spec["commodity"] = next(iter(commodities))
+        index = commitment_spec["index"]
+        # device_group maps device index -> group label;
+        # one shared label makes the engine bind the aggregate flow.
+        # The label is unique per commitment, so two scoped commitments never merge, even if they share a name.
+        group_label = f"scoped-commitment-{commitment_index}"
+        return FlowCommitment(
+            device=pd.Series([scoped_devices] * len(index), index=index),
+            device_group=pd.Series({d: group_label for d in scoped_devices}),
+            provenance="custom",
+            **commitment_spec,
+        )
+
     def convert_to_commitments(
         self,
-        flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
-        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
-        commitment_specs = self.flex_context.get("commitments", [])
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
+
+        Commitments are collected from the top-level flex-context and from each
+        commodity context; a commitment within a commodity context always binds that
+        context's commodity (matching how the UI editor scopes commitments per
+        commodity tab).
+
+        An unscoped commitment binds the aggregate flow of all its commodity's devices;
+        a scoped commitment (a ``sensors`` list or ``group`` reference) binds a subset.
+        Device indices come from the device inventory, never from the raw flex-model list.
+
+        User-given commitment names are kept as is, but the resulting commitments are
+        tagged with provenance "custom", so cost reporting can tell them apart from the
+        commitments the scheduler sets up internally (e.g. "electricity net energy").
+        """
+        commitment_specs = [
+            dict(spec) for spec in self.flex_context.get("commitments", []) or []
+        ]
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            for spec in commodity_context.get("commitments", []) or []:
+                spec = dict(spec)
+                # A commitment in a commodity context binds that commodity
+                # (overriding the schema's electricity default on the field).
+                spec["commodity"] = commodity_context.get("commodity", "electricity")
+                commitment_specs.append(spec)
         if len(commitment_specs) == 0:
             return []
 
         start, end = timing_kwargs["query_window"]
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
-        for commitment_spec in commitment_specs:
+        # The specs were copied above, so converting (which pops fields) does not
+        # mutate self.flex_context and repeated conversions see the original specs.
+        for commitment_index, commitment_spec in enumerate(commitment_specs):
+
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
@@ -1351,16 +1842,51 @@ class MetaStorageScheduler(Scheduler):
                 start, end, timing_kwargs["resolution"]
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
-            for d, flex_model_d in enumerate(flex_model):
-                device_commodity = flex_model_d.get("commodity", "electricity")
-                if device_commodity != commitment_commodity:
-                    continue
-                commitment = FlowCommitment(
-                    device=d,
-                    device_group=device_commodity,
+
+            # A commitment scoped to a subset of devices binds the *aggregate* flow of those devices as one commitment,
+            # rather than each device separately.
+            # The scope is given either as a raw list of power `sensors` (a cherry-pick that may span electrical groups,
+            # e.g. an aFRR band on a site's e-heaters),
+            # or as a `group` reference (the members of an electrical group, reusing its already-resolved membership);
+            # the schema allows at most one of the two.
+            scoped_sensors = commitment_spec.pop("sensors", None)
+            scoped_group = commitment_spec.pop("group", None)
+            if scoped_sensors is not None or scoped_group is not None:
+                scoped = self._build_scoped_commitment(
+                    commitment_spec, scoped_sensors, scoped_group, commitment_index
+                )
+                if scoped is not None:
+                    commitments.append(scoped)
+                continue
+            # A regular (unscoped) commitment binds the *aggregate* flow of all the commitment commodity's devices as one commitment (issue #2379),
+            # mirroring the internal "<commodity> net energy" commitment.
+            # Device indices come from the device inventory (canonical, and including the commodity's inflexible devices),
+            # never from re-enumerating the raw flex-model list.
+            commodity_devices = self.device_inventory.commodity_to_devices.get(
+                commitment_commodity, []
+            )
+            if not commodity_devices:
+                current_app.logger.warning(
+                    f"Commitment '{commitment_spec.get('name')}' has commodity"
+                    f" '{commitment_commodity}', which matches none of the devices"
+                    " in the flex-model. This commitment will not bind any device"
+                    " (check for a typo in the commitment's `commodity` field, or in"
+                    " a device's `commodity` field in the flex-model)."
+                )
+                continue
+            index = commitment_spec["index"]
+            commitments.append(
+                FlowCommitment(
+                    device=pd.Series(
+                        [tuple(commodity_devices)] * len(index),
+                        index=index,
+                        name="device",
+                    ),
+                    device_group=commitment_commodity,
+                    provenance="custom",
                     **commitment_spec,
                 )
-                commitments.append(commitment)
+            )
 
         return commitments
 
@@ -1394,8 +1920,26 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        self._deserialize_flex_context()
+        if self.flex_context is None:
+            self.flex_context = {}
+        #: Stock keys of stocks whose off-tick SoC constraints triggered automatic
+        #: relaxation (None marks an entry whose stock key cannot be resolved from
+        #: its serialized form, e.g. a state-of-charge time series).
+        self.off_tick_stock_keys: set = set()
+        #: Whether SoC constraint softening should apply only to those devices
+        #: (True when relaxation was enabled purely because of off-tick projection).
+        self.scope_soc_relaxation_to_off_tick_devices: bool = False
+        # The flex-model is deserialized first, because off-tick SoC constraints
+        # may enable relax-soc-constraints on the still-serialized flex-context.
         self._deserialize_flex_model()
+        self._deserialize_flex_context()
+
+        # Classify all flex-model entries (and the flex-context's inflexible devices)
+        # once; scheduling and result mapping rely on this inventory for device
+        # identity and canonical device indices.
+        self.device_inventory = DeviceInventory.from_flex_config(
+            self.flex_model, self.flex_context, sensor=self.sensor
+        )
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
@@ -1408,9 +1952,17 @@ class MetaStorageScheduler(Scheduler):
                     commodity_flex_context
                 )
 
-            # Ensure all flex-contexts share the same currency unit
+            # Ensure all flex-contexts share the same currency unit. Contexts with
+            # no user-given price fields at all (shared_currency_unit_is_default)
+            # only carry a fallback "EUR" currency, which isn't a real constraint,
+            # so they're skipped here and instead backfilled below, once a real
+            # portfolio currency is known.
             shared_currency_unit = None
+            default_currency_contexts = []
             for commodity_flex_context in self.flex_context:
+                if commodity_flex_context.get("shared_currency_unit_is_default"):
+                    default_currency_contexts.append(commodity_flex_context)
+                    continue
                 context_currency_unit = commodity_flex_context["shared_currency_unit"]
                 if shared_currency_unit is None:
                     shared_currency_unit = context_currency_unit
@@ -1420,6 +1972,20 @@ class MetaStorageScheduler(Scheduler):
                     raise ValidationError(
                         f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     )
+
+            # Let price-free contexts inherit the portfolio's actual currency,
+            # where determinable (i.e. when at least one other context set one).
+            if shared_currency_unit is not None:
+                for commodity_flex_context in default_currency_contexts:
+                    SharedSchema._rebase_default_context_currency(
+                        commodity_flex_context, shared_currency_unit
+                    )
+            elif default_currency_contexts:
+                # No context anywhere gave an explicit price: fall back to the
+                # (shared) default currency already stamped on each of them.
+                shared_currency_unit = default_currency_contexts[0][
+                    "shared_currency_unit"
+                ]
 
             # Nest the flex-contexts per commodity under the commodity_contexts field
             self.flex_context = dict(
@@ -1436,12 +2002,17 @@ class MetaStorageScheduler(Scheduler):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
 
+            self._possibly_relax_off_tick_soc_constraints(
+                self.flex_model, sensor=self.sensor, power_sensor=self.sensor
+            )
+
             # Now it's time to check if our flex configuration holds up to schemas
-            self.flex_model = StorageFlexModelSchema(
+            schema = StorageFlexModelSchema(
                 start=self.start,
                 sensor=self.sensor,
                 default_soc_unit=self.flex_model.get("soc-unit"),
-            ).load(self.flex_model)
+            )
+            self.flex_model = schema.load(self.flex_model)
 
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
@@ -1458,17 +2029,24 @@ class MetaStorageScheduler(Scheduler):
                 soc_sensor = None
                 if soc_sensor_id is not None:
                     soc_sensor = Sensor.query.filter_by(id=soc_sensor_id).first()
-                self.flex_model[d] = StorageFlexModelSchema(
+                sensor_d = (
+                    sensor_flex_model.get("sensor")
+                    if sensor_flex_model.get("sensor") is not None
+                    else soc_sensor
+                )
+                self._possibly_relax_off_tick_soc_constraints(
+                    sensor_flex_model["sensor_flex_model"],
+                    sensor=sensor_d,
+                    power_sensor=sensor_flex_model.get("sensor"),
+                )
+                schema = StorageFlexModelSchema(
                     start=self.start,
-                    sensor=(
-                        sensor_flex_model.get("sensor")
-                        if sensor_flex_model.get("sensor") is not None
-                        else soc_sensor
-                    ),
+                    sensor=sensor_d,
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
-                ).load(sensor_flex_model["sensor_flex_model"])
+                )
+                self.flex_model[d] = schema.load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
 
@@ -1477,14 +2055,133 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
-            self.stock_groups = self._build_stock_groups(self.flex_model)
-
         else:
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
             )
 
         return self.flex_model
+
+    def _possibly_relax_off_tick_soc_constraints(
+        self,
+        flex_model: dict,
+        sensor: Sensor | None,
+        power_sensor: Sensor | None = None,
+    ) -> None:
+        """Enable SoC constraint relaxation if the (serialized) flex-model contains off-tick SoC events.
+
+        The detection uses the scheduler's actual resolution (falling back to the
+        sensor's event resolution), matching the resolution later used to project
+        off-tick SoC constraints onto the scheduling ticks.
+
+        When relaxation is enabled purely because of off-tick projection (rather
+        than by the user's own flex-context settings), softening is scoped to the
+        stocks that actually use off-tick SoC constraints (tracked here by their
+        stock key, so all devices sharing the stock are covered). An entry without
+        a resolvable stock key is tracked by its power sensor instead (its stock
+        gets a synthetic key only later, when the device inventory is built).
+        """
+        if not should_project_off_tick_soc_constraints(sensor):
+            return
+        resolution = get_soc_constraint_resolution(
+            self.resolution, sensor, self.default_resolution
+        )
+        if flex_model_has_off_tick_soc_constraints(flex_model, resolution=resolution):
+            stock_key = _resolve_stock_key(flex_model.get("state-of-charge"))
+            if stock_key is None and power_sensor is not None:
+                stock_key = ("sensor", power_sensor.id)
+            self.off_tick_stock_keys.add(stock_key)
+            self.scope_soc_relaxation_to_off_tick_devices = (
+                not self._soc_relaxation_user_enabled()
+            )
+            self.enable_relax_soc_constraints()
+
+    def _soc_relaxation_user_enabled(self) -> bool:
+        """Whether the user's own (serialized) flex-context already softens SoC constraints.
+
+        That is the case when any context defines a SoC breach price explicitly,
+        sets ``relax-soc-constraints`` to ``True``, or leaves relaxation to the
+        general ``relax-constraints`` flag (which defaults to ``True``).
+        """
+        if isinstance(self.flex_context, dict):
+            contexts = [self.flex_context] + list(
+                self.flex_context.get("commodities", [])
+            )
+        elif isinstance(self.flex_context, list):
+            contexts = self.flex_context
+        else:
+            return True
+        for context in contexts:
+            if (
+                context.get("soc-minima-breach-price") is not None
+                or context.get("soc-maxima-breach-price") is not None
+            ):
+                return True
+            if context.get("relax-soc-constraints") is True:
+                return True
+            if context.get("relax-soc-constraints") is None and context.get(
+                "relax-constraints", True
+            ):
+                return True
+        return False
+
+    def _soc_relaxation_applies_to(
+        self, stock_key, sensor_d: Sensor | None = None
+    ) -> bool:
+        """Whether SoC constraint softening applies to the stock with this key.
+
+        Softening applies to all stocks, unless relaxation was auto-enabled purely
+        for off-tick SoC constraint projection, in which case it is scoped to the
+        stocks that use off-tick SoC constraints (covering all devices sharing them).
+        A stock tracked by power sensor (for lack of a resolvable stock key) is
+        matched via the device's power sensor.
+        """
+        if not getattr(self, "scope_soc_relaxation_to_off_tick_devices", False):
+            return True
+        off_tick_stock_keys = getattr(self, "off_tick_stock_keys", set())
+        if None in off_tick_stock_keys:
+            # An entry with neither a resolvable stock key nor a power sensor
+            # cannot be matched to a stock.
+            return True
+        if stock_key is not None and stock_key in off_tick_stock_keys:
+            return True
+        return sensor_d is not None and ("sensor", sensor_d.id) in off_tick_stock_keys
+
+    def enable_relax_soc_constraints(self) -> None:
+        """Relax SoC constraints when off-tick SoC events require scheduling-tick projection.
+
+        Projection can add bounds (and stricter combinations of bounds), which could
+        render the problem infeasible if they remain hard constraints. Therefore,
+        ``relax-soc-constraints`` is enabled unless the user explicitly disabled it,
+        in which case we respect that choice and only log a warning.
+        """
+
+        def _enable(context: dict) -> None:
+            if context.get("relax-soc-constraints") is False:
+                current_app.logger.warning(
+                    "Off-tick SoC constraints are projected onto the scheduling ticks, "
+                    "which can add bounds that render the scheduling problem infeasible, "
+                    "but 'relax-soc-constraints' is explicitly disabled. "
+                    "Keeping SoC constraints hard."
+                )
+                return
+            if context.get("relax-soc-constraints") is not True:
+                current_app.logger.info(
+                    "Enabling 'relax-soc-constraints' because off-tick SoC constraints "
+                    "are projected onto the scheduling ticks."
+                )
+            context["relax-soc-constraints"] = True
+
+        if self.flex_context is None:
+            self.flex_context = {}
+        if isinstance(self.flex_context, dict):
+            _enable(self.flex_context)
+            for commodity_context in self.flex_context.get("commodities", []):
+                _enable(commodity_context)
+            return
+        if isinstance(self.flex_context, list):
+            for commodity_context in self.flex_context:
+                _enable(commodity_context)
 
     def has_soc_at_start(self) -> bool:
         return (
@@ -1495,6 +2192,22 @@ class MetaStorageScheduler(Scheduler):
     @staticmethod
     def has_soc_at_start_in(flex_model: dict) -> bool:
         return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
+
+    def _record_soc_at_start_datetime(
+        self, stock_key, soc_datetime: datetime | None
+    ) -> None:
+        """Remember at which time a stock's starting state of charge is actually known.
+
+        Keyed by the stock key (a None key covers the single-sensor case where the
+        stock key cannot be resolved, e.g. a state-of-charge time series). Used to
+        project an off-tick starting SoC onto the next scheduling tick (see
+        :func:`flexmeasures.data.models.planning.soc_projection.project_off_tick_soc_at_start`).
+        """
+        if soc_datetime is None:
+            return
+        if not hasattr(self, "soc_at_start_datetimes"):
+            self.soc_at_start_datetimes: dict = {}
+        self.soc_at_start_datetimes[stock_key] = soc_datetime
 
     def _get_soc_lookup_radius(
         self, sensor: Sensor | None = None, slack_steps: int = 4
@@ -1621,6 +2334,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_df["time_distance"] == beliefs_df["time_distance"].min()
         ]
         nearest_belief = nearest_beliefs.loc[nearest_beliefs["event_start"].idxmax()]
+        self._record_soc_at_start_datetime(soc_sensor.id, nearest_belief["event_start"])
 
         return self._convert_soc_value_to_mwh(
             value=nearest_belief["event_value"],
@@ -1630,12 +2344,14 @@ class MetaStorageScheduler(Scheduler):
         )
 
     def _resolve_soc_at_start_from_time_series(
-        self, soc_time_series: list[dict], sensor: Sensor | None = None
+        self, soc_time_series: list[dict], sensor: Sensor | None = None, stock_key=None
     ) -> float:
         """Resolve ``soc-at-start`` from a ``state-of-charge`` time series.
 
         :param soc_time_series: SoC time series specification.
         :param sensor:          Optional scheduled power sensor.
+        :param stock_key:       Key of the stock whose SoC is being resolved, if known
+                                (a time series does not resolve to a stock key by itself).
         :returns:               Starting SoC in MWh.
         """
         lookup_radius = self._get_soc_lookup_radius(sensor)
@@ -1673,6 +2389,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
         _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
+        self._record_soc_at_start_datetime(stock_key, nearest_segment["start"])
         return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
 
     def _resolve_soc_at_start_from_state_of_charge(
@@ -1723,6 +2440,40 @@ class MetaStorageScheduler(Scheduler):
             )
         return None
 
+    def _resolve_stock_soc_at_start(
+        self, stock_model: dict, sensor: Sensor | None = None, stock_key=None
+    ) -> float | None:
+        """Resolve a stock's soc-at-start (in MWh) from its (deserialized) state-of-charge.
+
+        Used in multi-device mode, where soc-at-start is not resolved during deserialization.
+        Operates on the deserialized stock-owning entry,
+        whose ``state_of_charge`` is a :class:`Sensor`, :class:`SensorReference` or time series.
+
+        In line with single-sensor mode's ``ensure_soc_at_start()``,
+        a state of charge that is given but cannot be resolved fails the schedule:
+        a ``ValueError`` is raised, e.g. for a state-of-charge sensor without a recent value.
+
+        :param stock_model: The deserialized flex-model entry owning the stock's SoC parameters.
+        :param sensor:      The stock's (first) device power sensor, used for the SoC lookup radius.
+        :returns:           Starting stock in MWh, or None if the entry defines no state of charge.
+        """
+        state_of_charge = stock_model.get("state_of_charge")
+        if isinstance(state_of_charge, (Sensor, SensorReference)):
+            # The percent-conversion helpers expect a pre-deserialization (hyphenated) flex model,
+            # while the stock-owning entry is already deserialized (underscored keys, values in MWh).
+            percent_conversion_model = {
+                "soc-max": stock_model.get("soc_max"),
+                "soc-unit": "MWh",
+            }
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge, percent_conversion_model, sensor
+            )
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(
+                state_of_charge, sensor, stock_key=stock_key
+            )
+        return None
+
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
@@ -1737,6 +2488,15 @@ class MetaStorageScheduler(Scheduler):
 
         if soc_targets and not isinstance(soc_targets, (Sensor, SensorReference)):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
+            # Off-tick target times are preserved during deserialization, and their
+            # projection moves the target to the next scheduling tick. Ceil to the
+            # scheduling resolution, so the projected target still falls within the
+            # schedule (instead of being disregarded as beyond its end).
+            resolution = self.resolution or sensor.event_resolution
+            if resolution not in (None, timedelta(0)):
+                max_target_datetime = (
+                    pd.Timestamp(max_target_datetime).ceil(resolution).to_pydatetime()
+                )
             if max_target_datetime > self.end:
                 max_server_horizon = get_max_planning_horizon(sensor.event_resolution)
                 if max_server_horizon:
@@ -1963,80 +2723,9 @@ class MetaStorageScheduler(Scheduler):
         return q
 
 
-class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "3"
-    __author__ = "Seita"
-
-    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
-        """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
-           depending on the first target state of charge and the capabilities of the Charge Point.
-           For the resulting consumption schedule, consumption is defined as positive values.
-
-           Note that this ignores any cause of the infeasibility.
-
-        :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
-        """
-
-        (
-            sensors,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            device_constraints,
-            ems_constraints,
-            commitments,
-        ) = self._prepare(skip_validation=skip_validation)
-
-        # Fallback policy if the problem was unsolvable
-        storage_schedule = {
-            sensor: fallback_charging_policy(
-                sensor, device_constraints[d], start, end, resolution
-            )
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
-
-        # Convert each device schedule to the unit of the device's power sensor
-        storage_schedule = {
-            sensor: convert_units(
-                storage_schedule[sensor],
-                "MW",
-                sensor.unit,
-                event_resolution=sensor.event_resolution,
-            )
-            for sensor in sensors
-            if sensor is not None
-        }
-
-        # Round schedule
-        if self.round_to_decimals:
-            storage_schedule = {
-                sensor: storage_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
-                if sensor is not None
-            }
-
-        if self.return_multiple:
-            return [
-                {
-                    "name": "storage_schedule",
-                    "sensor": sensor,
-                    "data": storage_schedule[sensor],
-                }
-                for sensor in sensors
-                if sensor is not None
-            ]
-        else:
-            return storage_schedule[sensors[0]]
-
-
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "8"
+    __version__ = "9"
     __author__ = "Seita"
-
-    fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
     @staticmethod
     def _build_soc_schedule(  # noqa: C901
@@ -2183,6 +2872,52 @@ class StorageScheduler(MetaStorageScheduler):
                 )
 
         return soc_schedule, soc_schedule_mwh
+
+    def _soc_target_violations(
+        self,
+        soc_targets,
+        soc_mwh: pd.Series,
+        start: datetime,
+        end: datetime,
+        resolution: timedelta,
+        precision: int,
+        most_relevant_only: bool,
+    ) -> list[dict]:
+        """Report time slots where the scheduled state of charge misses a soc target.
+
+        A target is a two-sided constraint, so a violation is the absolute deviation from
+        the target, in either direction. There is no headroom to report when a target is
+        met, so targets never produce a "resolved" entry.
+        """
+        if soc_targets is None:
+            return []
+        soc_targets_series = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_targets,
+            unit="MWh",
+            query_window=(start + resolution, end + resolution),
+            resolution=resolution,
+            beliefs_before=self.belief_time,
+            as_instantaneous_events=True,
+            resolve_overlaps="first",
+        )
+        defined_targets = soc_targets_series.dropna()
+        if len(defined_targets) == 0:
+            return []
+        deviations = (soc_mwh.reindex(defined_targets.index) - defined_targets).abs()
+        # Ignore deviations that would round away at the reporting precision.
+        violations = deviations[deviations.mul(1000).round(precision) > 0]
+        if violations.empty:
+            return []
+        violation_times = (
+            [violations.index[0]] if most_relevant_only else violations.index
+        )
+        return [
+            {
+                "datetime": t.tz_convert("UTC").isoformat(),
+                "violation": f"{round(float(violations[t]) * 1000, precision)} kWh",
+            }
+            for t in violation_times
+        ]
 
     def _compute_unresolved_targets(
         self,
@@ -2354,6 +3089,18 @@ class StorageScheduler(MetaStorageScheduler):
                             for t in margin_times
                         ]
 
+            target_violations = self._soc_target_violations(
+                soc_targets=flex_model_d.get("soc_targets"),
+                soc_mwh=soc_mwh,
+                start=start,
+                end=end,
+                resolution=resolution,
+                precision=precision,
+                most_relevant_only=most_relevant_only,
+            )
+            if target_violations:
+                device_violations["soc-targets"] = target_violations
+
             if device_violations:
                 violation_entry = {"asset": asset_id}
                 violation_entry.update(device_violations)
@@ -2400,120 +3147,114 @@ class StorageScheduler(MetaStorageScheduler):
         """
         schedules: dict = {}
         for d, flex_model_d in enumerate(flex_model):
-            consumption_field = flex_model_d.get("consumption")
-            production_field = flex_model_d.get("production")
-            consumption_sensor = (
-                consumption_field["sensor"]
-                if isinstance(consumption_field, dict) and "sensor" in consumption_field
-                else None
-            )
-            production_sensor = (
-                production_field["sensor"]
-                if isinstance(production_field, dict) and "sensor" in production_field
-                else None
-            )
-            if consumption_sensor is None and production_sensor is None:
-                continue
             power_series = ems_schedule[d]  # in MW; consumption is positive
-            if consumption_sensor is not None and production_sensor is None:
-                # Full power profile on the consumption sensor (consumption positive, production negative).
-                schedules[consumption_sensor] = convert_units(
-                    power_series,
-                    "MW",
-                    consumption_sensor.unit,
-                    event_resolution=consumption_sensor.event_resolution,
-                )
-            elif production_sensor is not None and consumption_sensor is None:
-                # Full power profile on the production sensor in native scheduler convention.
-                # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
-                schedules[production_sensor] = convert_units(
-                    power_series,
-                    "MW",
-                    production_sensor.unit,
-                    event_resolution=production_sensor.event_resolution,
-                )
-            else:
-                # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
-                # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
-                schedules[consumption_sensor] = convert_units(
-                    power_series.clip(lower=0),
-                    "MW",
-                    consumption_sensor.unit,
-                    event_resolution=consumption_sensor.event_resolution,
-                )
-                schedules[production_sensor] = convert_units(
-                    power_series.clip(upper=0),
-                    "MW",
-                    production_sensor.unit,
-                    event_resolution=production_sensor.event_resolution,
-                )
+            StorageScheduler._split_schedule_over_output_sensors(
+                flex_model_d, power_series, schedules
+            )
         return schedules
 
-    def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
-        """Reconstruct the mapping of commodity -> device indices as enumerated by `_prepare()`.
+    @staticmethod
+    def _split_schedule_over_output_sensors(
+        flex_model_d: dict,
+        power_series: pd.Series,
+        schedules: dict,
+    ) -> None:
+        """Save a power schedule (in MW, consumption positive) to the output sensor(s)
+        (``consumption``/``production``) defined on a single flex-model entry, in-place
+        on ``schedules`` (mapping output sensor -> power schedule).
 
-        Device enumeration order:
-            1. flexible devices (from the flex-model), in order,
-            2. top-level (electricity) inflexible-device-sensors, in order,
-            3. each commodity context's own inflexible-device-sensors, in the order the
-               commodity contexts are given.
+        Follows the same conventions as :func:`_build_consumption_production_schedules`:
 
-        This mirrors `_prepare()`'s device enumeration exactly, so the returned device
-        indices line up with entries of `ems_schedule` / `device_constraints`.
+        - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
+          sensor using the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` applies no further sign change because the sensor already
+          has ``consumption_is_positive=True``.
+        - **Only** ``production`` **sensor defined**: the full power schedule is written to that
+          sensor in the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` inverts the sign based on the sensor's
+          ``consumption_is_positive=False`` attribute so that production is stored as positive values.
+        - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
+          part of the schedule (charging / consuming) is written to the consumption sensor, and only
+          the non-positive part (discharging / producing, still as negative values) is written to
+          the production sensor. ``make_schedule`` inverts the sign for the production sensor.
+
+        Unit conversion from MW to each sensor's unit is applied.
         """
-        # Get the device models to reconstruct commodity_to_devices mapping
-        flex_model = getattr(self, "_device_models", None)
-        if flex_model is None:
-            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
-            flex_model = (
-                self.flex_model.copy()
-                if isinstance(self.flex_model, dict)
-                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
-            )
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
-
-        # Reconstruct commodity_to_devices mapping
-        commodity_to_devices: dict[str, list[int]] = {}
-        for d, flex_model_d in enumerate(flex_model):
-            commodity = flex_model_d.get("commodity", "electricity")
-            commodity_to_devices.setdefault(commodity, []).append(d)
-
-        # Add inflexible devices to commodities, mirroring _prepare()'s device
-        # enumeration so the device indices line up with ems_schedule:
-        #   - top-level inflexible-device-sensors go to electricity (backwards compat),
-        #   - then each commodity context's own inflexible-device-sensors are appended to
-        #     that commodity, in the order the commodity contexts are given.
-        # Without this, a commodity's inflexible demand (e.g. a heat load) is left
-        # out of its aggregate schedule, so an aggregate-consumption sensor only reflects
-        # the flexible devices of that commodity.
-        inflexible_device_sensors = self.flex_context.get(
-            "inflexible_device_sensors", []
+        consumption_field = flex_model_d.get("consumption")
+        production_field = flex_model_d.get("production")
+        consumption_sensor = (
+            consumption_field["sensor"]
+            if isinstance(consumption_field, dict) and "sensor" in consumption_field
+            else None
         )
-        number_flexible_devices = len(flex_model)
-        commodity_to_devices.setdefault("electricity", []).extend(
-            range(
-                number_flexible_devices,
-                number_flexible_devices + len(inflexible_device_sensors),
-            )
+        production_sensor = (
+            production_field["sensor"]
+            if isinstance(production_field, dict) and "sensor" in production_field
+            else None
         )
-
-        # Per-commodity inflexible devices, enumerated after the top-level ones.
-        num_devices = number_flexible_devices + len(inflexible_device_sensors)
-        for commodity_context in self.flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            commodity_inflexible_device_sensors = commodity_context.get(
-                "inflexible_device_sensors", []
+        if consumption_sensor is None and production_sensor is None:
+            return
+        if consumption_sensor is not None and production_sensor is None:
+            # Full power profile on the consumption sensor (consumption positive, production negative).
+            schedules[consumption_sensor] = convert_units(
+                power_series,
+                "MW",
+                consumption_sensor.unit,
+                event_resolution=consumption_sensor.event_resolution,
             )
-            commodity_to_devices.setdefault(commodity, []).extend(
-                range(
-                    num_devices,
-                    num_devices + len(commodity_inflexible_device_sensors),
+        elif production_sensor is not None and consumption_sensor is None:
+            # Full power profile on the production sensor in native scheduler convention.
+            # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
+            schedules[production_sensor] = convert_units(
+                power_series,
+                "MW",
+                production_sensor.unit,
+                event_resolution=production_sensor.event_resolution,
+            )
+        else:
+            # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
+            # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
+            schedules[consumption_sensor] = convert_units(
+                power_series.clip(lower=0),
+                "MW",
+                consumption_sensor.unit,
+                event_resolution=consumption_sensor.event_resolution,
+            )
+            schedules[production_sensor] = convert_units(
+                power_series.clip(upper=0),
+                "MW",
+                production_sensor.unit,
+                event_resolution=production_sensor.event_resolution,
+            )
+
+    def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
+        """Return the mapping of commodity -> device indices, as enumerated by the device inventory.
+
+        Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
+            1. flexible devices (from the flex-model), in order,
+            2. top-level (electricity) inflexible devices, in order,
+            3. each commodity context's own inflexible devices, in the order the
+               commodity contexts are given
+               (within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order).
+
+        The returned device indices line up with entries of `ems_schedule` /
+        `device_constraints`.
+        """
+        inventory = self.device_inventory
+        if inventory is None:
+            # Fallback (e.g. bare schedulers in tests): classify the stored device
+            # models, or failing that, the flex-model itself.
+            flex_model = getattr(self, "_device_models", None)
+            if flex_model is None:
+                flex_model = (
+                    self.flex_model.copy()
+                    if isinstance(self.flex_model, dict)
+                    else [fm for fm in self.flex_model if fm.get("sensor") is not None]
                 )
+            inventory = DeviceInventory.from_flex_config(
+                flex_model, self.flex_context, sensor=getattr(self, "sensor", None)
             )
-            num_devices += len(commodity_inflexible_device_sensors)
-
-        return commodity_to_devices
+        return inventory.commodity_to_devices
 
     def _electricity_device_indices(self) -> list[int]:
         """Return the device indices (flexible and inflexible) belonging to the electricity commodity."""
@@ -2614,6 +3355,70 @@ class StorageScheduler(MetaStorageScheduler):
                     commodity_aggregate.clip(upper=0)
                 )
 
+    @staticmethod
+    def _merge_group_output_schedules(
+        consumption_production_schedule: dict, group_output_schedules: dict
+    ) -> None:
+        """Merge group output schedules (already unit-converted) into
+        ``consumption_production_schedule`` in-place, avoiding overwrite of a device's
+        own output sensor with a group's."""
+        for out_sensor, out_schedule in group_output_schedules.items():
+            if out_sensor in consumption_production_schedule:
+                raise ValueError(
+                    f"Sensor {out_sensor.id} is used as an output sensor both by a "
+                    "device and by a group; a sensor cannot be both."
+                )
+            consumption_production_schedule[out_sensor] = out_schedule
+
+    def _add_group_schedules(
+        self, storage_schedule: dict, ems_schedule: list[pd.Series]
+    ) -> dict:
+        """Compute each group's aggregate power schedule.
+
+        - Sensor-referenced groups: the aggregate is recorded under the group's own power
+          sensor (as before), added in-place to ``storage_schedule`` (still in MW,
+          native scheduler convention; unit conversion happens later, alongside other
+          device sensors).
+        - Asset-referenced groups: the group entry defines no power sensor of its own;
+          instead, the aggregate is recorded via the group entry's own ``consumption``/
+          ``production`` output sensors, if defined.
+        - Either kind of group may additionally define ``consumption``/``production``
+          output sensors, in which case the aggregate is also split and recorded there.
+
+        The ``consumption``/``production`` output schedules are returned separately
+        (already unit-converted, like ``_build_consumption_production_schedules``)
+        rather than added to ``storage_schedule``, to avoid double unit conversion.
+
+        :returns: Dict mapping each group output sensor to its power schedule.
+        """
+        group_models = getattr(self, "_group_models", None) or {}
+        group_to_devices = getattr(self, "_group_to_devices", None) or {}
+        group_output_schedules: dict = {}
+        for group_key, leaf_members in group_to_devices.items():
+            group_entry = group_models.get(group_key)
+            if group_entry is None or not leaf_members:
+                continue
+            group_aggregate = pd.concat(
+                [ems_schedule[d] for d in leaf_members],
+                axis=1,
+            ).sum(axis=1)
+
+            group_sensor = group_entry.get("sensor")
+            if group_sensor is not None:
+                if group_sensor in storage_schedule:
+                    raise ValueError(
+                        f"Sensor {group_sensor.id} is used both as a device sensor "
+                        "and as a group sensor; a sensor cannot be both."
+                    )
+                storage_schedule[group_sensor] = group_aggregate
+
+            # For both sensor-ref and asset-ref groups, also honor any consumption/
+            # production output sensors defined on the group entry itself.
+            self._split_schedule_over_output_sensors(
+                group_entry, group_aggregate, group_output_schedules
+            )
+        return group_output_schedules
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -2651,6 +3456,11 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            coupling_groups=self.coupling_groups if self.coupling_groups else None,
+            balance_groups=getattr(self, "balance_groups", None) or None,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
@@ -2663,6 +3473,10 @@ class StorageScheduler(MetaStorageScheduler):
                 storage_schedule[sensor] = ems_schedule[d]
             elif sensor is not None and sensor in storage_schedule:
                 storage_schedule[sensor] += ems_schedule[d]
+
+        group_output_schedules = self._add_group_schedules(
+            storage_schedule, ems_schedule
+        )
 
         # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         # Restricted to electricity devices (flexible and inflexible), per decision.
@@ -2714,6 +3528,9 @@ class StorageScheduler(MetaStorageScheduler):
         consumption_production_schedule = self._build_consumption_production_schedules(
             flex_model_for_soc, ems_schedule
         )
+        self._merge_group_output_schedules(
+            consumption_production_schedule, group_output_schedules
+        )
 
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
@@ -2759,6 +3576,22 @@ class StorageScheduler(MetaStorageScheduler):
             unresolved, resolved = self._compute_unresolved_targets(
                 flex_model_for_soc, soc_schedule_mwh, start, end, resolution
             )
+            # A device's power sensor may itself be one of its declared consumption/
+            # production output sensors — for example, a flex-model entry that
+            # references its power sensor only via a nested output reference, like
+            # {"consumption": {"sensor": ...}} (see _resolve_power_sensor). Such a
+            # sensor already receives its schedule via the consumption/production
+            # outputs below, which is the semantically correct single entry to keep:
+            # the sign conventions for output sensors are defined on that path (see
+            # _build_consumption_production_schedules), and the scheduling service
+            # resolves the sign via the consumption_is_positive attribute set on
+            # output sensors. Emitting a second ("storage_schedule") entry for the
+            # same sensor would save duplicate beliefs within one scheduling-job
+            # transaction, violating the timed_belief primary key and failing the
+            # whole job.
+            output_sensor_ids = {
+                sensor.id for sensor in consumption_production_schedule.keys()
+            }
             storage_schedules = [
                 {
                     "name": "storage_schedule",
@@ -2767,17 +3600,14 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in storage_schedule.keys()
-                if sensor is not None
+                if sensor is not None and sensor.id not in output_sensor_ids
             ]
             commitment_costs = [
                 {
                     "name": "commitment_costs",
-                    "data": {
-                        c.name: costs
-                        for c, costs in zip(
-                            commitments, model.commitment_costs.values()
-                        )
-                    },
+                    "data": report_commitment_costs_by_name(
+                        commitments, model.commitment_costs.values()
+                    ),
                     "unit": self.flex_context["shared_currency_unit"],
                 },
             ]
@@ -2791,9 +3621,11 @@ class StorageScheduler(MetaStorageScheduler):
                 for sensor, soc in soc_schedule.items()
             ]
             # Determine which sensors are consumption vs. production output sensors
+            group_models_for_output = getattr(self, "_group_models", None) or {}
             consumption_output_sensors = {
                 flex_model_d["consumption"]["sensor"]
-                for flex_model_d in flex_model_for_soc
+                for flex_model_d in list(flex_model_for_soc)
+                + list(group_models_for_output.values())
                 if isinstance(flex_model_d.get("consumption"), dict)
                 and "sensor" in flex_model_d["consumption"]
             }
@@ -2819,7 +3651,7 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                 }
             ]
-            return (
+            return self._deduplicate_outputs(
                 storage_schedules
                 + commitment_costs
                 + soc_schedules
@@ -2828,6 +3660,30 @@ class StorageScheduler(MetaStorageScheduler):
             )
         else:
             return storage_schedule[sensors[0]]
+
+    @staticmethod
+    def _deduplicate_outputs(outputs: list[dict]) -> list[dict]:
+        """Safety net: never let one sensor appear in multiple outputs.
+
+        All outputs are saved with identical belief coordinates in the same
+        scheduling-job transaction, so a duplicate sensor is guaranteed to
+        violate the timed_belief primary key and fail the whole job.
+        Keep the first entry for a sensor and drop (with a warning) any later one.
+        """
+        seen_sensor_ids: set[int] = set()
+        deduplicated_outputs = []
+        for output in outputs:
+            output_sensor = output.get("sensor")
+            if output_sensor is not None:
+                if output_sensor.id in seen_sensor_ids:
+                    current_app.logger.warning(
+                        f"Dropping duplicate '{output.get('name')}' output for {output_sensor}: "
+                        f"another output already saves a schedule to this sensor."
+                    )
+                    continue
+                seen_sensor_ids.add(output_sensor.id)
+            deduplicated_outputs.append(output)
+        return deduplicated_outputs
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:
@@ -2915,6 +3771,20 @@ def build_device_soc_values(
                 disregarded_periods += [(soc_constraint_start, soc_constraint_end)]
                 if soc_constraint_start <= end_of_schedule:
                     device_values.loc[soc_constraint_start:end_of_schedule] = soc
+                continue
+
+            if (
+                soc_constraint_start == soc_constraint_end
+                and soc_constraint_start not in device_values.index
+            ):
+                # Point-like events between scheduling ticks match no index entry.
+                # This can happen when off-tick projection is disabled through the
+                # sensor's floor_datetimes_to_resolution attribute.
+                current_app.logger.warning(
+                    f"Disregarding off-tick SoC constraint at {soc_constraint_start} "
+                    f"(value: {soc}): it does not fall on the scheduling ticks and "
+                    f"off-tick projection is disabled for this sensor."
+                )
                 continue
 
             device_values.loc[soc_constraint_start:soc_constraint_end] = soc
@@ -3044,6 +3914,80 @@ def add_storage_constraints(
     )
 
     return storage_device_constraints
+
+
+def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
+    """Key commitment costs by commitment name.
+
+    Costs of same-named commitments of the same provenance are summed (e.g. one
+    custom commitment bound per device). A custom commitment whose name collides
+    with a scheduler-internal one is reported under "<name> (custom)" instead,
+    to keep both cost entries readable.
+    """
+    scheduler_commitment_names = {
+        c.name for c in commitments if c.provenance == "scheduler"
+    }
+    costs_by_name: dict[str, float] = {}
+    colliding_names = set()
+    for c, cost in zip(commitments, costs):
+        key = c.name
+        if c.provenance == "custom" and key in scheduler_commitment_names:
+            key = f"{c.name} (custom)"
+            colliding_names.add(c.name)
+        costs_by_name[key] = costs_by_name.get(key, 0) + cost
+    # Warn once per colliding name (custom commitments are bound per device).
+    for name in sorted(colliding_names):
+        current_app.logger.warning(
+            f"Custom commitment '{name}' shares its name with a commitment"
+            f" the scheduler sets up internally; reporting its costs as"
+            f" '{name} (custom)'. Consider renaming the commitment."
+        )
+    return costs_by_name
+
+
+def validate_power_constraints(constraints: pd.DataFrame) -> list[dict]:
+    """Check that the power constraints of a device are consistent, e.g. derivative min <= derivative max.
+
+    D. Power validation in the same time frame
+        D.1) derivative min <= derivative max
+        D.2) derivative min <= derivative equals
+        D.3) derivative equals <= derivative max
+
+    These checks apply to any device, including devices without a stock, for which the stock-based validation of validate_storage_constraints does not apply.
+    Time steps where any involved constraint is unset are skipped.
+
+    :param constraints: dataframe containing the constraints of a device.
+    :returns:           List of constraint violations, specifying their time, constraint and violation.
+    """
+    # get a copy of the constraints to make sure the dataframe doesn't get updated
+    _constraints = constraints.copy()
+
+    _constraints = _constraints.rename(
+        columns={
+            columns_name: columns_name.replace(" ", "_")
+            + "(t)"  # replace spaces with underscore and add time index
+            for columns_name in _constraints.columns
+        }
+    )
+
+    constraint_violations = []
+
+    # 1) derivative min <= derivative max
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t)", "<=", "derivative_max(t)"
+    )
+
+    # 2) derivative min <= derivative equals
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t)", "<=", "derivative_equals(t)"
+    )
+
+    # 3) derivative equals <= derivative max
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_equals(t)", "<=", "derivative_max(t)"
+    )
+
+    return constraint_violations
 
 
 def validate_storage_constraints(

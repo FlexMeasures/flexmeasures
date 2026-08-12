@@ -42,6 +42,24 @@ def as_dummy_account_admin(client):
     logout(client)
 
 
+@pytest.fixture(scope="function")
+def as_consultant(client):
+    """Login the consultant user and log them out afterwards."""
+    login(client, "test_consultant@seita.nl", "testtest")
+    yield
+    logout(client)
+
+
+@pytest.fixture(scope="function")
+def as_consultancy_user_without_consultant_access(client):
+    """Login consultancy user without consultant role and log them out afterwards."""
+    login(
+        client, "test_consultancy_user_without_consultant_access@seita.nl", "testtest"
+    )
+    yield
+    logout(client)
+
+
 @pytest.fixture
 def public_asset(db, setup_generic_asset_types):
     """A public asset with no owner account, readable by any logged-in user."""

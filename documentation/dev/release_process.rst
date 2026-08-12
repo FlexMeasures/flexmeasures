@@ -53,7 +53,9 @@ Publishing the GitHub Release (step 3) triggers two workflows:
 Check the Actions tab for both workflow runs to confirm they succeeded; also spot-check that the new version shows up on `PyPI <https://pypi.org/project/flexmeasures>`_, `Docker Hub <https://hub.docker.com/r/lfenergy/flexmeasures>`_, and that the ReadTheDocs build for the new tag completed.
 
 .. note::
-   The ``docker-publish.yml`` workflow can also be re-run manually (``workflow_dispatch``, with a ``tag`` input) if a run needs to be retried.
+   The ``docker-publish.yml`` workflow can also be run manually (``workflow_dispatch``, with a ``tag`` input) if a run needs to be retried, or to build an image from a tag that has no GitHub Release (e.g. a pre-release image for a downstream plugin).
+   A manual run only pushes ``lfenergy/flexmeasures:<tag>``; it claims ``latest`` solely when you tick the ``latest`` input, which you should do only when re-running a *stable* release.
+   Note that ``workflow_dispatch`` reads the workflow file from the ref you pick in the "Use workflow from" dropdown, whereas the ``tag`` input determines which ref is checked out and built.
 
 5. Announce (manual)
 ----------------------

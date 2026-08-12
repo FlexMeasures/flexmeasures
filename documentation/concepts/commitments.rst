@@ -115,7 +115,7 @@ It is possible to define what group of schedule values is expected to not deviat
 
 The ``'device'`` attribute already lets us reduce from the values for all devices to just one.
 The ``' _type'``attribute offers more powerful grouping options.
-For now, this extra grouping can happen across different definitions of time slots, soon also per groups of devices.
+For now, this extra grouping can happen across different definitions of time slots, and, for some cases, across groups of devices (see below).
 
 - ``_type == 'each'``: penalise deviations per time slot (this is the default for time series).
 - ``_type == 'any'``: treat the whole commitment horizon as one group (useful
@@ -124,10 +124,7 @@ For now, this extra grouping can happen across different definitions of time slo
 
 .. note::
 
-   Near-term feature: support for **grouping over devices** is planned and
-   will be documented here. When enabled, grouping over devices lets you express
-   soft constraints that aggregate deviations across a set of devices,
-   for example, an intermediate capacity constraint from a feeder shared by a group of devices (via **flow commitments**), or multiple power-to-heat devices that feed a shared thermal buffer (via **stock commitments**).
+   Grouping over devices is now partly supported. An intermediate power constraint from a feeder or shared inverter can be modelled by adding a ``group`` field to the relevant devices' storage flex-model entries, referencing a power sensor for the group; the group's ``power-capacity`` is enforced as a hard constraint, while its ``consumption-capacity``/``production-capacity`` are enforced as soft constraints with default breach prices (via **flow commitments**). See :ref:`scheduling` for details. Multiple devices feeding a shared storage (e.g. power-to-heat devices feeding a shared thermal buffer) are also supported, via multiple feeder sensors on one storage flex-model. Fuller, more general support for grouping deviations across arbitrary sets of devices in commitments (including custom breach prices per group, and stock commitments over device groups) remains planned and will be documented here as it lands.
 
 
 How flex-context fields are converted into commitments
