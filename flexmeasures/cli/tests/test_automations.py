@@ -949,6 +949,31 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     assert pd.Timestamp(message["end"]) == now
 
+    # The fallback cron period is interpreted in the automation timezone and
+    # ends at the claimed occurrence rather than at a delayed runner's wall time.
+    scheduled_at = datetime(2026, 1, 1, 16, 0, tzinfo=timezone.utc)
+    message = prepare_report_parameters(
+        {},
+        "0 1 * * *",
+        now=datetime(2026, 1, 2, 0, 30, tzinfo=timezone.utc),
+        cron_timezone="Asia/Seoul",
+        scheduled_at=scheduled_at,
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2025-12-31T16:00:00+00:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp(scheduled_at)
+
+    # A cron occurrence in Amsterdam's spring gap is canonicalized to 03:00,
+    # while its report starts at the prior day's real 02:30 occurrence.
+    spring_occurrence = datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc)
+    message = prepare_report_parameters(
+        {},
+        "30 2 * * *",
+        cron_timezone="Europe/Amsterdam",
+        scheduled_at=spring_occurrence,
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-03-28T01:30:00+00:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp(spring_occurrence)
+
     # with a known actual last run, the window starts there instead
     app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
     try:
@@ -988,7 +1013,12 @@ def test_prepare_report_parameters(app):
 
 
 def _report_automation_cli_input(
-    tmp_path, sensor1_id, sensor2_id, report_sensor_id, parameters_extra=None
+    tmp_path,
+    sensor1_id,
+    sensor2_id,
+    report_sensor_id,
+    parameters_extra=None,
+    asset_id=1,
 ):
     """CLI input for a report automation using a simple PandasReporter aggregation."""
     reporter_config = dict(
@@ -1017,7 +1047,7 @@ def _report_automation_cli_input(
     parameters_file = tmp_path / "parameters.yml"
     parameters_file.write_text(yaml.dump(parameters))
     return [
-        "--asset", "1",
+        "--asset", str(asset_id),
         "--name", "Aggregation report",
         "--cron", "0 1 * * *",
         "--type", "reports",
@@ -1032,6 +1062,9 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
     from flexmeasures.cli.data_add import add_automation
 
     sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    from flexmeasures.data.models.time_series import Sensor
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     runner = app.test_cli_runner()
     result = runner.invoke(
         add_automation,
@@ -1041,6 +1074,7 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
             sensor2_id,
             report_sensor_id,
             parameters_extra={"start-offset": "-1D,DB", "end-offset": "DB"},
+            asset_id=report_sensor.generic_asset_id,
         ),
     )
     assert "Successfully created" in result.output, result.output
@@ -1088,6 +1122,7 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
     from flexmeasures.utils.job_utils import work_on_rq
 
     sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     runner = app.test_cli_runner()
     cli_input = _report_automation_cli_input(
         tmp_path,
@@ -1099,6 +1134,7 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
             "start": "2023-04-10T00:00:00+00:00",
             "end": "2023-04-10T10:00:00+00:00",
         },
+        asset_id=report_sensor.generic_asset_id,
     )
     cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
     result = runner.invoke(add_automation, cli_input)
@@ -1263,7 +1299,7 @@ def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
     )
     mocker.patch("flexmeasures.cli.jobs.claim_due_automation", return_value=True)
 
-    def queue_then_fail(_automation):
+    def queue_then_fail(_automation, **_kwargs):
         app.queues["forecasting"].enqueue("flexmeasures.utils.time_utils.server_now")
         raise RuntimeError("failed after queueing")
 

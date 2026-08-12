@@ -476,6 +476,7 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
                 parameters,
                 automation.cronstr,
                 automation_id=automation.id,
+                cron_timezone=automation.timezone,
             )
         return resolve_data_generator_sensors(
             data_generator,
@@ -619,6 +620,8 @@ def prepare_report_parameters(
     cronstr: str,
     now: datetime | None = None,
     automation_id: int | None = None,
+    cron_timezone: str | None = None,
+    scheduled_at: datetime | None = None,
 ) -> dict:
     """Complete stored report parameters into a message for the ReporterParametersSchema.
 
@@ -633,10 +636,9 @@ def prepare_report_parameters(
       first run).
     """
     message = dict(parameters)
-    if now is None:
-        now = server_now()
-    # Cron strings are interpreted in the platform timezone (like the runner does)
-    platform_now = floor_to_minute(now)
+    if scheduled_at is None:
+        scheduled_at = now if now is not None else server_now()
+    scheduled_at = floor_to_minute(scheduled_at)
 
     # Compute the run time in the timezone local to the first output sensor
     # (matching `flexmeasures add report`), falling back to the platform timezone.
@@ -655,7 +657,7 @@ def prepare_report_parameters(
             output_sensor = None
         if output_sensor is not None:
             tz = pytz.timezone(output_sensor.timezone)
-    now = platform_now.astimezone(tz)
+    now = scheduled_at.astimezone(tz)
 
     start_offset = message.pop("start-offset", None)
     end_offset = message.pop("end-offset", None)
@@ -680,9 +682,29 @@ def prepare_report_parameters(
             if automation_id is not None
             else None
         )
-        # NB the cron fallback uses the platform timezone, matching how the runner
-        # decides when the automation fires
-        start = last_run or croniter(cronstr, platform_now).get_prev(datetime)
+        if last_run is not None:
+            start = last_run
+        else:
+            cron_tz = (
+                ZoneInfo(cron_timezone)
+                if cron_timezone is not None
+                else ZoneInfo(str(get_timezone()))
+            )
+            nominal_scheduled_at = _as_nominal_wall_time(
+                scheduled_at.astimezone(cron_tz)
+            )
+            previous_nominal = croniter(cronstr, nominal_scheduled_at).get_prev(
+                datetime
+            )
+            start = _canonical_occurrence_time(previous_nominal, cron_tz)
+            # A skipped wall time can canonicalize to the first valid instant after
+            # the gap, which may be the current occurrence. Step back once more so
+            # the first report still covers a non-empty cron period.
+            if start >= scheduled_at:
+                previous_nominal = croniter(cronstr, previous_nominal).get_prev(
+                    datetime
+                )
+                start = _canonical_occurrence_time(previous_nominal, cron_tz)
     if end is None:
         end = now
 
@@ -1090,7 +1112,9 @@ def validate_automation_output_scope(
         )
 
 
-def run_automation(automation: Automation) -> dict[str, Any] | None:
+def run_automation(
+    automation: Automation, scheduled_at: datetime | None = None
+) -> dict[str, Any] | None:
     """Queue the jobs for one run of an automation.
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
@@ -1104,7 +1128,7 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
         # NB the reporting job itself records the end of the report window upon
         # success (see run_report_job), so failed jobs do not create gaps in the
         # reported periods.
-        return _run_report_automation(automation, now=now)
+        return _run_report_automation(automation, now=now, scheduled_at=scheduled_at)
     else:
         raise NotImplementedError(
             f"Automations of type '{automation.type}' cannot be run yet."
@@ -1135,7 +1159,9 @@ def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
 
 
 def _run_report_automation(
-    automation: Automation, now: datetime | None = None
+    automation: Automation,
+    now: datetime | None = None,
+    scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
     if automation.generator is None:
         raise ValueError(
@@ -1151,6 +1177,8 @@ def _run_report_automation(
         automation.cronstr,
         now=now,
         automation_id=automation.id,
+        cron_timezone=automation.timezone,
+        scheduled_at=scheduled_at,
     )
     report_sensors = resolve_data_generator_sensors(
         reporter, reporter._parameters_schema.load(parameters)

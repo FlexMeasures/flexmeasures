@@ -106,7 +106,9 @@ def run_automations():
             )
             continue
         try:
-            returns = run_automation(automation)
+            returns = run_automation(
+                automation, scheduled_at=due_automation.scheduled_at
+            )
             n_jobs = returns.get("n_jobs") if returns else 0
             queue_name = {
                 "forecasts": "forecasting",
