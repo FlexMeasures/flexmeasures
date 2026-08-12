@@ -74,6 +74,21 @@ def test_automation_requires_generator(fresh_db, automation_with_generator):
         fresh_db.session.commit()
 
 
+def test_report_automation_requires_generator(fresh_db, automation_with_generator):
+    forecast_automation, _ = automation_with_generator
+    report_automation = Automation(
+        asset=forecast_automation.asset,
+        type="reports",
+        name="generator-free report",
+        cronstr="0 1 * * *",
+        parameters={},
+    )
+    fresh_db.session.add(report_automation)
+
+    with pytest.raises(IntegrityError):
+        fresh_db.session.commit()
+
+
 def test_schedule_automation_does_not_require_generator(
     fresh_db, automation_with_generator
 ):
