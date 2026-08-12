@@ -325,6 +325,7 @@ def test_post_report_automation_with_foreign_config_sensor(
         ).scalar_one_or_none()
         is None
     )
+    db.session.commit()
 
 
 @pytest.mark.parametrize(
@@ -376,6 +377,7 @@ def test_post_report_automation_rejects_output_outside_asset_subtree(
 
     assert response.status_code == 422
     assert "must belong to asset" in response.text
+    db.session.commit()
 
 
 @pytest.mark.parametrize(
