@@ -29,3 +29,14 @@ repos:
         pass_filenames: false
         language: system
         entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (uv run poe generate-open-api-specs)'
+  - repo: local
+    hooks:
+      - id: no-image-files
+        name: Block image files from being committed
+        language: fail
+        entry: >-
+          Image files must not be committed to this repo (they bloat .git forever).
+          Put screenshots in the FlexMeasures/screenshots repo, or leave them
+          untracked and attach them to the PR/issue manually.
+        files: '\.(png|jpe?g|gif|bmp|tiff?|webp|ico|psd)$'
+        exclude: '^(flexmeasures/ui/static/|documentation/)'

@@ -4,6 +4,8 @@ from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
+from flask import current_app
+
 from marshmallow import (
     Schema,
     fields,
@@ -23,9 +25,12 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
+    InflexibleDeviceSchema,
     OutputSensorReferenceSchema,
+    PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.scheduling.groups import GroupReferenceSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
@@ -70,14 +75,75 @@ class NoTimeSeriesSpecs(Schema):
 
 
 class CommitmentSchema(Schema):
-    name = fields.Str(required=True, data_key="name")
-    baseline = VariableQuantityField("MW", required=False, data_key="baseline")
-    up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
-    down_price = VariableQuantityField(
+    name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
+    # Optional scoping: bind this commitment to the aggregate flow of a subset of devices,
+    # rather than binding each device of the commodity separately.
+    # Give either a list of power `sensors` (a cherry-pick that may span electrical groups,
+    # e.g. an aFRR band on a site's e-heaters),
+    # or a `group` reference (the members of an electrical group); at most one of the two.
+    # Either scope includes a device whether flexible or inflexible,
+    # so listing a group's member sensors resolves to the same set as scoping by that group.
+    # The commitment binds the net signed aggregate of the scoped devices (consumption positive, production negative),
+    # so consumers add, producers subtract,
+    # and any inflexible (fixed) member contributes its fixed signed power (see StorageScheduler._resolve_commitment_scope).
+    sensors = fields.List(
+        SensorIdField(),
+        required=False,
+        data_key="sensors",
+    )
+    group = fields.Nested(
+        GroupReferenceSchema,
+        required=False,
+        data_key="group",
+    )
+    # Not described in UI_FLEX_CONTEXT_SCHEMA or the Sphinx docs (it does show up
+    # in the generated OpenAPI schema, without being promoted in field descriptions).
+    # Internal bookkeeping only: not the documented way to associate a commitment
+    # with a commodity. API users should instead place the commitment under the
+    # relevant entry of the multi-commodity `commodities` list (one flex-context
+    # per commodity) -- see StorageScheduler.convert_to_commitments, which matches
+    # this field against each device's own `commodity`, defaulting to
+    # "electricity" as well.
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+    )
+    baseline = VariableQuantityField(
+        "MW",
+        required=True,
+        data_key="baseline",
+        error_messages={"required": "A commitment requires a baseline."},
+    )
+    up_price = PriceField("/MW", required=False, data_key="up-price")
+    down_price = PriceField(
         "/MW",
         required=False,
         data_key="down-price",
     )
+
+    @validates_schema
+    def forbid_scope_conflict(self, commitment, **kwargs):
+        """A commitment's scope is a sensor list or a group reference, not both."""
+        if "sensors" in commitment and "group" in commitment:
+            raise ValidationError(
+                "A commitment may be scoped by 'sensors' or by 'group', not both.",
+                field_name="sensors",
+            )
+
+    @validates_schema
+    def require_a_price(self, commitment, **kwargs):
+        """A commitment is worthless without at least one deviation price.
+
+        The baseline requirement is enforced at the field level (required=True),
+        so it also shows up in the generated OpenAPI schema; the either/or price
+        requirement cannot be expressed per field.
+        """
+        if "up_price" not in commitment and "down_price" not in commitment:
+            raise ValidationError(
+                "A commitment requires at least one deviation price (up-price and/or down-price).",
+                field_name="up-price",
+            )
 
     @validates_schema
     def check_units(self, commitment, **kwargs):
@@ -147,7 +213,7 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
 class SharedSchema(Schema):
     """Shared schema for fields common across commodities in flex-context and commodity-context."""
 
-    consumption_price = VariableQuantityField(
+    consumption_price = PriceField(
         "/MWh",
         required=False,
         data_key="consumption-price",
@@ -155,7 +221,7 @@ class SharedSchema(Schema):
         metadata=metadata.CONSUMPTION_PRICE.to_dict(),
     )
 
-    production_price = VariableQuantityField(
+    production_price = PriceField(
         "/MWh",
         required=False,
         data_key="production-price",
@@ -187,7 +253,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
     )
 
-    ems_consumption_breach_price = VariableQuantityField(
+    ems_consumption_breach_price = PriceField(
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
@@ -195,7 +261,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
     )
 
-    ems_production_breach_price = VariableQuantityField(
+    ems_production_breach_price = PriceField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
@@ -212,7 +278,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
     )
 
-    ems_peak_consumption_price = VariableQuantityField(
+    ems_peak_consumption_price = PriceField(
         "/MW",
         data_key="site-peak-consumption-price",
         required=False,
@@ -229,7 +295,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
     )
 
-    ems_peak_production_price = VariableQuantityField(
+    ems_peak_production_price = PriceField(
         "/MW",
         data_key="site-peak-production-price",
         required=False,
@@ -238,28 +304,28 @@ class SharedSchema(Schema):
     )
 
     # Breach prices for device capacity constraints
-    consumption_breach_price = VariableQuantityField(
+    consumption_breach_price = PriceField(
         "/MW",
         data_key="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.CONSUMPTION_BREACH_PRICE.to_dict(),
     )
-    production_breach_price = VariableQuantityField(
+    production_breach_price = PriceField(
         "/MW",
         data_key="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.PRODUCTION_BREACH_PRICE.to_dict(),
     )
-    soc_minima_breach_price = VariableQuantityField(
+    soc_minima_breach_price = PriceField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MINIMA_BREACH_PRICE.to_dict(),
     )
-    soc_maxima_breach_price = VariableQuantityField(
+    soc_maxima_breach_price = PriceField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
@@ -273,9 +339,10 @@ class SharedSchema(Schema):
         load_default=True,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
+    # The None default means "not set", in which case the umbrella relax-constraints flag decides (see relaxation_asked_for).
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
-        load_default=False,
+        load_default=None,
         metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
     )
     relax_capacity_constraints = fields.Bool(
@@ -283,9 +350,10 @@ class SharedSchema(Schema):
         load_default=False,
         metadata=metadata.RELAX_CAPACITY_CONSTRAINTS.to_dict(),
     )
+    # The None default means "not set", in which case the umbrella relax-constraints flag decides (see relaxation_asked_for).
     relax_site_capacity_constraints = fields.Bool(
         data_key="relax-site-capacity-constraints",
-        load_default=False,
+        load_default=None,
         metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
@@ -297,10 +365,22 @@ class SharedSchema(Schema):
         metadata=metadata.COMMITMENTS.to_dict(),
     )
 
+    # todo: deprecated since flexmeasures==1.0
     inflexible_device_sensors = fields.List(
         SensorIdField(),
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
+    )
+
+    inflexible_consumption = fields.List(
+        fields.Nested(InflexibleDeviceSchema),
+        data_key="inflexible-consumption",
+        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    )
+    inflexible_production = fields.List(
+        fields.Nested(InflexibleDeviceSchema),
+        data_key="inflexible-production",
+        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
     )
 
     # Aggregate output sensors
@@ -317,14 +397,80 @@ class SharedSchema(Schema):
         metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
     )
 
+    @validates_schema
+    def check_inflexible_devices(self, data: dict, **kwargs):
+        """Check assumptions about inflexible devices.
+
+        1. The deprecated ``inflexible-device-sensors`` field must not be mixed with
+           ``inflexible-consumption``/``inflexible-production``.
+        2. Each sensor may be listed at most once across the two new fields.
+        3. A sensor's explicit ``consumption_is_positive`` attribute must not contradict
+           the sign convention of the field it is listed under. Note the deliberate
+           asymmetry with the legacy read path: here only the sensor's own explicitly
+           set attribute counts (as in the flex-model's consumption/production output
+           sensors), whereas ``inflexible-device-sensors`` entries defer to
+           ``Sensor.get_attribute`` (which falls back to the sensor's asset).
+        """
+        if "inflexible_device_sensors" in data and (
+            "inflexible_consumption" in data or "inflexible_production" in data
+        ):
+            raise ValidationError(
+                "Must pass either inflexible-device-sensors (deprecated) or inflexible-consumption/inflexible-production.",
+                field_name="inflexible-device-sensors",
+            )
+
+        seen_sensor_ids = set()
+        for field, data_key, consumption_is_positive in (
+            ("inflexible_consumption", "inflexible-consumption", True),
+            ("inflexible_production", "inflexible-production", False),
+        ):
+            for entry in data.get(field, []):
+                sensor = entry.sensor if isinstance(entry, SensorReference) else entry
+                if sensor.id in seen_sensor_ids:
+                    raise ValidationError(
+                        f"Sensor {sensor.id} may only be listed once across inflexible-consumption and inflexible-production.",
+                        field_name=data_key,
+                    )
+                seen_sensor_ids.add(sensor.id)
+                explicit_attribute = (sensor.attributes or {}).get(
+                    "consumption_is_positive"
+                )
+                if (
+                    explicit_attribute is not None
+                    and explicit_attribute != consumption_is_positive
+                ):
+                    raise ValidationError(
+                        f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`, which conflicts with the sign convention of the `{data_key}` field.",
+                        field_name=data_key,
+                    )
+
+    @staticmethod
+    def relaxation_asked_for(data: dict, specific_field: str) -> bool:
+        """Resolve a specific relax flag, falling back to the umbrella flag when the specific flag is not set.
+
+        An explicitly set specific flag (e.g. ``relax-soc-constraints``) takes precedence;
+        otherwise, the umbrella ``relax-constraints`` flag (which defaults to True) decides.
+
+        :param data:            The deserialized (snake_case) flex-context data.
+        :param specific_field:  Name of the specific relax flag to resolve, e.g. "relax_soc_constraints".
+        :returns:               Whether the given kind of constraint relaxation is asked for.
+        """
+        specific = data.get(specific_field)
+        if specific is None:
+            return bool(data.get("relax_constraints", True))
+        return specific
+
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
     ):
-        """Fill in default breach prices.
+        """Fill in default breach prices, for fields without an explicitly set price.
 
         This relies on _try_to_convert_price_units to run first, setting a shared currency unit.
         """
         for field in fields:
+            if data.get(field) is not None:
+                # An explicitly set breach price is never overwritten.
+                continue
             # use the same denominator as defined in the field
             data[field] = price.to(
                 data["shared_currency_unit"]
@@ -340,7 +486,7 @@ class SharedSchema(Schema):
         shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
-            if field[-5:] == "price" and field in data:
+            if isinstance(self.declared_fields[field], PriceField) and field in data:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
                 currency_unit = str(
@@ -363,6 +509,13 @@ class SharedSchema(Schema):
                     if shared_currency_unit not in price_unit:
                         error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     raise ValidationError(error_message, field_name=field_name)
+        # Also hold the nested commitment prices to the shared currency
+        shared_currency_unit, previous_field_name = (
+            self._validate_commitment_price_units(
+                data, shared_currency_unit, previous_field_name
+            )
+        )
+
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif sensor := data.get("consumption_price_sensor"):
@@ -370,8 +523,97 @@ class SharedSchema(Schema):
         elif sensor := data.get("production_price_sensor"):
             data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
         else:
+            # No user-given price fields at all: fall back to "EUR", but flag this
+            # as a default (not user-given), so cross-context/cross-schema currency
+            # comparisons can skip it (a price-free context should never trip a
+            # currency-mismatch error against the rest of a differently-currencied
+            # portfolio; see CommodityFlexContextSchema.fill_grid_connection_defaults
+            # and FlexContextSchema.validate_commodity_contexts_shared_currency).
             data["shared_currency_unit"] = "EUR"
+            data["shared_currency_unit_is_default"] = True
         return data
+
+    def _validate_commitment_price_units(
+        self,
+        data: dict,
+        shared_currency_unit: str | None,
+        previous_field_name: str | None,
+    ) -> tuple[str | None, str | None]:
+        """Hold the nested commitment prices to the shared currency."""
+        for commitment in data.get("commitments", []):
+            for field, price_field in CommitmentSchema._declared_fields.items():
+                if not isinstance(price_field, PriceField) or field not in commitment:
+                    continue
+                price_unit = price_field._get_unit(commitment[field])
+                currency_unit = self._extract_currency_unit(price_unit)
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
+                    previous_field_name = price_field.data_key
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    field_name = price_field.data_key
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit}/MWh' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field of commitment '{commitment.get('name')}'. Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name="commitments")
+        return shared_currency_unit, previous_field_name
+
+    @staticmethod
+    def _extract_currency_unit(price_unit: str) -> str:
+        """Obtain the currency part of a price unit, whose denominator may vary.
+
+        >>> FlexContextSchema()._extract_currency_unit("EUR/MWh")
+        'EUR'
+        >>> FlexContextSchema()._extract_currency_unit("USD/MW")
+        'USD'
+        """
+        q = ur.Quantity(f"1 {price_unit}")
+        for denominator in ("MWh", "MW"):
+            candidate = str((q * ur.Quantity(f"1 {denominator}")).to_base_units().units)
+            if is_currency_unit(candidate):
+                return candidate
+        return str(q.units)
+
+    @classmethod
+    def _currency_denominated_fields(cls) -> tuple[str, ...]:
+        """Names of the schema's currency-denominated fields, selected by type (PriceField).
+
+        These are the fields that CommodityFlexContextSchema's smart defaults
+        (fill_grid_connection_defaults) may fill with a fallback "EUR" price/breach
+        price when a context has no user-given price fields at all.
+
+        >>> FlexContextSchema._currency_denominated_fields()[:2]
+        ('consumption_price', 'production_price')
+        """
+        return tuple(
+            name
+            for name, field in cls._declared_fields.items()
+            if isinstance(field, PriceField)
+        )
+
+    @classmethod
+    def _rebase_default_context_currency(cls, context: dict, new_currency: str):
+        """Re-express a price-free context's fallback-currency fields in another currency.
+
+        Only called for a commodity context that had no user-given price fields
+        (``shared_currency_unit_is_default`` is True), once a real portfolio
+        currency becomes known (e.g. from the top-level flex-context, or from a
+        sibling commodity context). All of that context's currency-denominated
+        fields were filled with plain quantities in a fallback "EUR", so their
+        magnitudes carry over unchanged under the new currency label (no FX
+        conversion is implied or attempted).
+        """
+        for field in cls._currency_denominated_fields():
+            value = context.get(field)
+            if not isinstance(value, ur.Quantity):
+                continue
+            old_units = str(value.units)
+            denominator = old_units.split("/", 1)[1] if "/" in old_units else None
+            new_unit = (
+                new_currency if denominator is None else f"{new_currency}/{denominator}"
+            )
+            context[field] = ur.Quantity(value.magnitude, new_unit)
+        context["shared_currency_unit"] = new_currency
+        context["shared_currency_unit_is_default"] = False
 
     @staticmethod
     def _to_currency_per_mwh(price_unit: str) -> str:
@@ -402,9 +644,175 @@ class CommodityFlexContextSchema(SharedSchema):
             [("commodity", commodity_field), *self.fields.items()]
         )
 
+    @post_load(pass_original=True)
+    def fill_grid_connection_defaults(self, data: dict, original_data: dict, **kwargs):
+        """Fill in smarter defaults for a commodity context's grid-connection fields.
+
+        A commodity context (an entry of the top-level `commodities` list) may omit
+        some or all of the grid-connection fields (`consumption-price`,
+        `production-price`, `site-consumption-capacity`, `site-production-capacity`,
+        `site-power-capacity`). Rather than leaving those simply unset (which, for
+        `consumption-price`, would make the scheduler fail, since it requires one),
+        we derive sensible defaults from *which* of those five fields were explicitly
+        given (inspecting the original input, not post-default-fill presence).
+
+        A price given for a direction (consumption or production) implies a grid
+        connection in that direction, with an unlimited capacity unless a capacity
+        is also given; a capacity given for a direction (without a price) implies a
+        0 price in that direction; and anything not implied by a given field
+        defaults to "no connection" (0 capacity, as a soft constraint). The
+        exception is `site-power-capacity` given on its own, which sets a *hard*
+        (symmetric) capacity limit instead. See :ref:`commodity_context_defaults`
+        for the full user-facing explanation, including worked examples.
+
+        Precedence (single-field triggers):
+
+        1. None of the five given (e.g. just `{"commodity": "gas"}`): no grid
+           connection at all. `site-consumption-capacity` and
+           `site-production-capacity` default to 0, as *soft* constraints (a default
+           breach price is filled in, so breaching is possible but penalized -- this
+           relies on `relax-constraints`/`relax-site-capacity-constraints`, which
+           default to True). `site-power-capacity` is left unlimited (unset).
+        2. Only `consumption-price` given: assume a grid connection for consumption.
+           `site-power-capacity` and `site-consumption-capacity` stay unlimited.
+           `site-production-capacity` defaults to 0 (soft).
+        3. Only `production-price` given: the mirror image of (2), for production.
+        4. Only `site-consumption-capacity` given: `site-power-capacity` stays
+           unlimited; `consumption-price` defaults to 0; `site-production-capacity`
+           (and, transitively, `production-price`) default to 0.
+        5. Only `site-production-capacity` given: the mirror image of (4).
+        6. Only `site-power-capacity` given: a *hard* constraint at that capacity.
+           `site-consumption-capacity` and `site-production-capacity` are both set
+           equal to it (no breach price is filled in, so the constraint stays hard);
+           `consumption-price` and `production-price` default to 0.
+
+        As a safety net (since the scheduler requires a resolvable consumption
+        price), `consumption-price` defaults to 0 if still unset after applying the
+        rules above (`production-price` already falls back to `consumption-price`
+        at the scheduler level, so no separate safety net is needed for it).
+
+        A commodity context with no user-given price fields does not trip a spurious cross-currency error against a differently-currencied portfolio;
+        its 0-price/breach-price fields instead inherit the portfolio's real currency where determinable (from a top-level price or a sibling commodity context).
+        """
+
+        has_consumption_price = "consumption-price" in original_data
+        has_production_price = "production-price" in original_data
+        has_consumption_capacity = "site-consumption-capacity" in original_data
+        has_production_capacity = "site-production-capacity" in original_data
+        has_power_capacity = "site-power-capacity" in original_data
+
+        any_given = (
+            has_consumption_price
+            or has_production_price
+            or has_consumption_capacity
+            or has_production_capacity
+            or has_power_capacity
+        )
+
+        # Record durably whether this commodity carries no user-given grid-connection signal at all --
+        # neither prices nor capacity fields.
+        # Only then may the scheduler treat it as an internal node (devices balancing each other).
+        # A capacity field (cases 4-6) declares a grid connection,
+        # so a commodity with a capacity but no price is NOT an internal node,
+        # even though its prices get smart-defaulted to zero here.
+        data["is_internal_node"] = not any_given
+
+        currency = data.get("shared_currency_unit") or "EUR"
+        zero_price = ur.Quantity(f"0 {currency}/MWh")
+        zero_capacity = ur.Quantity("0 MW")
+
+        # Case 6: site-power-capacity is the only field given -> hard constraint.
+        if has_power_capacity and not (
+            has_consumption_price
+            or has_production_price
+            or has_consumption_capacity
+            or has_production_capacity
+        ):
+            power_capacity = data["ems_power_capacity_in_mw"]
+            data.setdefault("ems_consumption_capacity_in_mw", power_capacity)
+            data.setdefault("ems_production_capacity_in_mw", power_capacity)
+            data.setdefault("consumption_price", zero_price)
+            data.setdefault("production_price", zero_price)
+            return data
+
+        # Case 1: nothing given at all -> fully disconnected commodity.
+        if not any_given:
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_consumption_capacity_in_mw", zero_capacity
+            )
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_production_capacity_in_mw", zero_capacity
+            )
+            data.setdefault("consumption_price", zero_price)
+            return data
+
+        # Cases 2-5 and combinations thereof: fill in what's still missing, per
+        # direction (consumption/production), independently.
+        if not has_consumption_price and not has_consumption_capacity:
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_consumption_capacity_in_mw", zero_capacity
+            )
+        if has_consumption_capacity and not has_consumption_price:
+            data.setdefault("consumption_price", zero_price)
+
+        if not has_production_price and not has_production_capacity:
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_production_capacity_in_mw", zero_capacity
+            )
+        if has_production_capacity and not has_production_price:
+            data.setdefault("production_price", zero_price)
+
+        # Safety net: the scheduler requires a resolvable consumption price.
+        data.setdefault("consumption_price", zero_price)
+
+        return data
+
+    def _default_zero_capacity_as_soft_constraint(
+        self, data: dict, field: str, zero_capacity: ur.Quantity
+    ):
+        """Default a site capacity field to 0, as a *soft* constraint.
+
+        Also fills in a default breach price for that direction (unless one was
+        already set), so the 0 capacity is enforced as a soft constraint (breaching
+        is possible, but penalized) rather than a hard, potentially infeasible, one.
+        This mirrors FlexContextSchema.check_prices, but scoped to a single
+        commodity context, and only fired for capacities defaulted here (not for
+        capacities the caller explicitly set to 0).
+        """
+        if field in data:
+            # Already set (e.g. by an earlier rule in this method); leave it as-is.
+            return
+        data[field] = zero_capacity
+
+        breach_price_field = {
+            "ems_consumption_capacity_in_mw": "ems_consumption_breach_price",
+            "ems_production_capacity_in_mw": "ems_production_breach_price",
+        }[field]
+        if self.relaxation_asked_for(data, "relax_site_capacity_constraints"):
+            currency = data.get("shared_currency_unit") or "EUR"
+            shared_currency = ur.Quantity(currency)
+            self.set_default_breach_prices(
+                data,
+                fields=[breach_price_field],
+                price=10000 * shared_currency / ur.Quantity("kW"),
+            )
+        else:
+            # Both relax flags default to relaxation being on, so ending up here can only be an explicit user choice:
+            # either 'relax-site-capacity-constraints' or the umbrella 'relax-constraints' was explicitly set to False.
+            # This 0 capacity thus ends up as a *hard* constraint, which is likely infeasible for any commodity with actual devices/flow.
+            current_app.logger.warning(
+                f"Commodity context '{data.get('commodity', 'electricity')}' has"
+                f" its '{field}' defaulted to a 0 capacity, and relaxing site"
+                " capacity constraints was explicitly turned off, so this ends up"
+                " as a hard 0-capacity constraint, which is likely infeasible."
+            )
+
 
 class FlexContextSchema(SharedSchema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
+
+    # Whether loading fills in the default breach prices implied by the relax flags (see check_prices).
+    fill_default_breach_prices = True
 
     # The single-dict flex-context form only supports the electricity commodity.
     # Other commodities must be defined via the `commodities` list.
@@ -496,6 +904,11 @@ class FlexContextSchema(SharedSchema):
         shared_currency_unit = None
 
         for context in commodity_contexts:
+            if context.get("shared_currency_unit_is_default"):
+                # No user-given price fields in this context: its "EUR" currency is
+                # just a fallback, not a real constraint, so don't let it clash with
+                # a differently-currencied portfolio.
+                continue
             context_currency_unit = context.get("shared_currency_unit")
             if context_currency_unit is None:
                 continue
@@ -516,25 +929,44 @@ class FlexContextSchema(SharedSchema):
     # serve as the electricity context only when the commodities list has no
     # electricity entry (see _get_commodity_contexts in storage.py).
 
-    @validates_schema(pass_original=True)
-    def check_prices(self, data: dict, original_data: dict, **kwargs):
-        """Check assumptions about prices.
+    def _reconcile_commodity_context_currencies(self, data: dict) -> str:
+        """Backfill price-free contexts' currency with the portfolio's real currency.
 
-        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
-        2. All prices must share the same currency.
+        Determines the portfolio's real (user-given) shared currency, if any: the
+        top-level one, unless it's itself just a fallback (no user-given price
+        fields at the top level), in which case falls back to the first
+        non-default commodity context's currency, if any. Then rebases any
+        price-free ("default currency") commodity context onto that real currency,
+        so their 0-price/breach-price fills inherit it. Returns the (possibly
+        just-updated) top-level `shared_currency_unit`.
         """
+        commodity_contexts = data.get("commodity_contexts", []) or []
+        real_shared_currency_unit = None
+        if not data.get("shared_currency_unit_is_default"):
+            real_shared_currency_unit = data["shared_currency_unit"]
+        else:
+            for context in commodity_contexts:
+                if not context.get("shared_currency_unit_is_default"):
+                    real_shared_currency_unit = context["shared_currency_unit"]
+                    break
 
-        # The flex-context must contain at most 1 consumption price and at most 1 production price field
-        if "consumption_price_sensor" in data and "consumption_price" in data:
-            raise ValidationError(
-                "Must pass either consumption-price or consumption-price-sensor."
-            )
-        if "production_price_sensor" in data and "production_price" in data:
-            raise ValidationError(
-                "Must pass either production-price or production-price-sensor."
-            )
+        if real_shared_currency_unit is not None and data.get(
+            "shared_currency_unit_is_default"
+        ):
+            data["shared_currency_unit"] = real_shared_currency_unit
+            data["shared_currency_unit_is_default"] = False
 
-        # New price fields can only be used after updating to the new consumption-price and production-price fields
+        if real_shared_currency_unit is not None:
+            for context in commodity_contexts:
+                if context.get("shared_currency_unit_is_default"):
+                    self._rebase_default_context_currency(
+                        context, real_shared_currency_unit
+                    )
+
+        return data["shared_currency_unit"]
+
+    def _check_deprecated_price_sensor_migration(self, data: dict, original_data: dict):
+        """New price fields can only be used after updating to consumption-price/production-price."""
         field_map = {
             field.data_key: field_var
             for field_var, field in self.declared_fields.items()
@@ -567,14 +999,41 @@ class FlexContextSchema(SharedSchema):
                     f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
                 )
 
+    @validates_schema(pass_original=True)
+    def check_prices(self, data: dict, original_data: dict, **kwargs):
+        """Check assumptions about prices.
+
+        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
+        2. All prices must share the same currency.
+        """
+
+        # The flex-context must contain at most 1 consumption price and at most 1 production price field
+        if "consumption_price_sensor" in data and "consumption_price" in data:
+            raise ValidationError(
+                "Must pass either consumption-price or consumption-price-sensor."
+            )
+        if "production_price_sensor" in data and "production_price" in data:
+            raise ValidationError(
+                "Must pass either production-price or production-price-sensor."
+            )
+
+        self._check_deprecated_price_sensor_migration(data, original_data)
+
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data, original_data)
-        shared_currency = ur.Quantity(data["shared_currency_unit"])
+        shared_currency = ur.Quantity(
+            self._reconcile_commodity_context_currencies(data)
+        )
 
         # Also check that top-level prices share their currency with any per-commodity contexts
         for context in data.get("commodity_contexts", []) or []:
+            if context.get("shared_currency_unit_is_default"):
+                # Already reconciled (or left as a harmless fallback, if no real
+                # currency was determinable anywhere) by
+                # _reconcile_commodity_context_currencies above.
+                continue
             context_currency_unit = context.get("shared_currency_unit")
             if context_currency_unit is None:
                 continue
@@ -589,38 +1048,41 @@ class FlexContextSchema(SharedSchema):
                 )
 
         # Skip filling default breach prices when:
-        # - the deprecated price sensor fields are used (those predate relaxation
-        #   support; filling defaults would silently change legacy behaviour), or
-        # - the shared currency is not an actual currency (e.g. a mis-united price
-        #   field slipped through _try_to_convert_price_units); filling defaults in a
-        #   nonsense currency would misattribute unit errors to the breach price
-        #   fields in downstream validation (e.g. DBFlexContextSchema).
+        # - this schema does not fill them at all (see fill_default_breach_prices),
+        # - the deprecated price sensor fields are used (those predate relaxation support;
+        #   filling defaults would silently change legacy behaviour), or
+        # - the shared currency is not an actual currency (e.g. a mis-united price field slipped through _try_to_convert_price_units);
+        #   filling defaults in a nonsense currency would misattribute unit errors to the breach price fields in downstream validation (e.g. DBFlexContextSchema).
         if (
-            "consumption_price_sensor" in data
+            not self.fill_default_breach_prices
+            or "consumption_price_sensor" in data
             or "production_price_sensor" in data
             or not is_currency_unit(data["shared_currency_unit"])
         ):
             return data
 
-        # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
-        if (
-            data["relax_soc_constraints"]
-            or data["relax_constraints"]
-            and not data.get("soc_minima_breach_price")
-            and not data.get("soc_maxima_breach_price")
-        ):
+        # Fill in default soc breach prices when asked to relax SoC constraints, for any breach price not already set explicitly.
+        # An explicit relax-soc-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
+        # setting either flag to False keeps SoC minima/maxima as hard constraints.
+        if self.relaxation_asked_for(data, "relax_soc_constraints"):
             self.set_default_breach_prices(
                 data,
                 fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
                 price=1000 * shared_currency / ur.Quantity("kWh"),
             )
 
-        # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
+        # Fill in default capacity breach prices when asked to relax capacity constraints, unless the caller already priced a breach themselves.
+        # Note that the blanket 'relax-constraints' does not cover device capacities.
+        # A directional capacity can state a physical impossibility (a heat pump that cannot produce),
+        # rather than an economic limit, so softening it has to name the thing being softened.
+        # That leaves 'relax-capacity-constraints', or setting the device breach prices directly.
+        # Unlike the SoC and site capacity pairs (which are relaxed by default and filled per field),
+        # pricing one direction explicitly here puts the caller in charge of both directions,
+        # rather than mixing their price with our default (see test_explicit_device_breach_price_is_not_overwritten).
         if (
             data["relax_capacity_constraints"]
-            or data["relax_constraints"]
-            and not data.get("consumption_breach_price")
-            and not data.get("production_breach_price")
+            and data.get("consumption_breach_price") is None
+            and data.get("production_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
@@ -628,13 +1090,10 @@ class FlexContextSchema(SharedSchema):
                 price=100 * shared_currency / ur.Quantity("kW"),
             )
 
-        # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
-        if (
-            data["relax_site_capacity_constraints"]
-            or data["relax_constraints"]
-            and not data.get("ems_consumption_breach_price")
-            and not data.get("ems_production_breach_price")
-        ):
+        # Fill in default site capacity breach prices when asked to relax site capacity constraints, for any breach price not already set explicitly.
+        # An explicit relax-site-capacity-constraints takes precedence and otherwise the umbrella relax-constraints (which defaults to True) decides:
+        # setting either flag to False keeps the site capacities as hard constraints.
+        if self.relaxation_asked_for(data, "relax_site_capacity_constraints"):
             self.set_default_breach_prices(
                 data,
                 fields=["ems_consumption_breach_price", "ems_production_breach_price"],
@@ -658,21 +1117,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "aggregate-consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
-        # todo: the field type is defined in asset_context.html in 3 places?
-        # "types": {
-        #     "backend": "typeTwo",
-        #     "ui": "A sensor which records the scheduled aggregate consumption.",
-        # },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "aggregate-production": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
-        # todo: the field type is defined in asset_context.html in 3 places?
-        # "types": {
-        #     "backend": "typeTwo",
-        #     "ui": "A sensor which records the scheduled aggregate production.",
-        # },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "consumption-price": {
@@ -754,9 +1203,14 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
-    "inflexible-device-sensors": {
+    "inflexible-consumption": {
         "default": [],
-        "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
+        "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-production": {
+        "default": [],
+        "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "commitments": {
@@ -771,7 +1225,26 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
 }
 
-UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
+# Mark which flex-context fields can also be set within each entry of the
+# commodities list (i.e. which fields CommodityFlexContextSchema shares),
+# so the UI editor can offer the right fields per commodity tab.
+_COMMODITY_CONTEXT_DATA_KEYS = {
+    schema_field.data_key or field_name
+    for field_name, schema_field in CommodityFlexContextSchema().fields.items()
+}
+for _field_name, _entry in UI_FLEX_CONTEXT_SCHEMA.items():
+    _entry["per-commodity"] = _field_name in _COMMODITY_CONTEXT_DATA_KEYS
+
+# Per-field UI presentation info for the storage flex-model editor.
+#
+# This registry does NOT define which flex-model fields exist: the field/key set
+# is derived from ``DBStorageFlexModelSchema`` (the single source of truth) by
+# ``_build_ui_flex_model_schema`` below. This registry only supplies the UI
+# presentation values (default, description, editor type token + help string, and
+# example units) for each field. Adding a field to the DB schema without a matching
+# entry here therefore fails loudly at import time (see the builder), instead of
+# silently breaking DB<->UI parity and only surfacing in a full CI run.
+_UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
     "consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.CONSUMPTION.description),
@@ -943,6 +1416,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "group": {
+        "default": None,
+        "description": rst_to_openapi(metadata.GROUP.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A power sensor or an asset representing a group of devices; a sensor-referenced group also records the group's scheduled aggregate power, while an asset-referenced group records it via its own consumption/production output sensors.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "commodity": {
         "default": "electricity",
         "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
@@ -952,10 +1434,88 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
+    "coupling": {
+        "default": None,
+        "description": rst_to_openapi(metadata.COUPLING.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a coupling-group name shared by a converter's commodity ports).",
+        },
+        "example-units": ['a coupling-group name, e.g. "CHP"'],
+    },
+    "coupling-coefficient": {
+        "default": 1.0,
+        "description": rst_to_openapi(metadata.COUPLING_COEFFICIENT.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a positive number).",
+        },
+        "example-units": ["a number, e.g. 0.5"],
+    },
+    "inflexible-consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor recording this inflexible device's power (positive is consumption).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor recording this inflexible device's power (positive is production).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
 }
 
 
+def _build_ui_flex_model_schema() -> Dict[str, Dict[str, Any]]:
+    """Build the UI flex-model schema from the DB storage flex-model schema.
+
+    ``DBStorageFlexModelSchema`` is the single source of truth for which flex-model
+    fields exist. For each of its fields we look up the UI presentation info in
+    ``_UI_FLEX_MODEL_PRESENTATION``. If a DB field has no presentation entry, we
+    raise right here (at import time), so a newly added flex-model field can no
+    longer silently break DB<->UI parity (it fails immediately, with a clear
+    message pointing at the fix, rather than only in a full CI run).
+    """
+    # Imported lazily to avoid an import cycle at module load time.
+    from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
+
+    schema: Dict[str, Dict[str, Any]] = {}
+    missing: list[str] = []
+    for field_name, field in DBStorageFlexModelSchema().fields.items():
+        key = field.data_key or field_name
+        entry = _UI_FLEX_MODEL_PRESENTATION.get(key)
+        if entry is None:
+            missing.append(key)
+            continue
+        schema[key] = entry
+    if missing:
+        raise ValueError(
+            "Missing UI presentation info for DBStorageFlexModelSchema field(s): "
+            f"{missing}. Add an entry for each in `_UI_FLEX_MODEL_PRESENTATION` "
+            "(flexmeasures/data/schemas/scheduling/__init__.py) so the UI flex-model "
+            "editor stays in sync with the DB flex-model schema."
+        )
+    return schema
+
+
+# Derived from the DB schema, so the DB schema is the single source of truth for
+# which flex-model fields the UI editor exposes (see _build_ui_flex_model_schema).
+UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = _build_ui_flex_model_schema()
+
+
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+    # A stored asset flex-context is only validated here (never scheduled directly),
+    # so it should not silently bake in the default breach prices implied by the relax flags.
+    # Those defaults are applied at scheduling time instead,
+    # after the stored flex-context is merged with the one passed in the scheduling request.
+    fill_default_breach_prices = False
 
     commitments = fields.Nested(
         DBCommitmentSchema, data_key="commitments", required=False, many=True
@@ -1033,13 +1593,17 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                 )
 
     def _validate_inflexible_device_sensors(self, data: dict):
-        """Validate inflexible device sensors."""
-        if "inflexible_device_sensors" in data:
-            for sensor in data["inflexible_device_sensors"]:
+        """Validate inflexible device sensors (both Sensor and SensorReference entries)."""
+        for field in (
+            "inflexible_device_sensors",
+            "inflexible_consumption",
+            "inflexible_production",
+        ):
+            for sensor in data.get(field, []):
                 if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
                     raise ValidationError(
                         f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
-                        field_name="inflexible-device-sensors",
+                        field_name=self.mapped_schema_keys[field],
                     )
 
     def _forbid_fixed_prices(self, data: dict, **kwargs):
@@ -1062,6 +1626,55 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                 "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
                 field_name="production-price",
             )
+
+
+# One UI description per backend type token (same tokens as UI_FLEX_MODEL_SCHEMA uses).
+UI_TYPE_DESCRIPTIONS: Dict[str, str] = {
+    "typeOne": "One fixed value only.",
+    "typeTwo": "One dynamic signal (via a sensor) only.",
+    "typeThree": "One fixed value or a dynamic signal (via a sensor).",
+    "typeFour": "A list of sensors.",
+    "typeFive": "One fixed string value only.",
+    "typeSix": "A list of structured entries.",
+}
+
+
+def _derive_backend_type(schema_field: fields.Field) -> str:
+    """Derive the UI editor's backend type token from a marshmallow field."""
+    if isinstance(schema_field, fields.Bool):
+        return "typeOne"
+    if isinstance(schema_field, fields.List):
+        return "typeFour"
+    if isinstance(schema_field, fields.Nested):
+        return "typeSix" if schema_field.many else "typeTwo"
+    if isinstance(schema_field, VariableQuantityField):
+        return "typeThree"
+    if isinstance(schema_field, fields.Str):
+        return "typeFive"
+    raise NotImplementedError(
+        f"Cannot derive a UI type for field {schema_field.data_key}."
+    )
+
+
+# Fill in the "types" of each UI flex-context schema entry by deriving them
+# from the corresponding DBFlexContextSchema field, so the UI editor stays in
+# sync with what the DB schema actually accepts.
+_db_flex_context_fields: Dict[str, fields.Field] = {
+    schema_field.data_key or field_name: schema_field
+    for field_name, schema_field in DBFlexContextSchema().fields.items()
+}
+for _field_name, _entry in UI_FLEX_CONTEXT_SCHEMA.items():
+    _backend_type = _derive_backend_type(_db_flex_context_fields[_field_name])
+    if _field_name in ("consumption-price", "production-price", "aggregate-power"):
+        # Fixed prices are forbidden when storing the flex-context in the DB
+        # (see DBFlexContextSchema._forbid_fixed_prices), and aggregate-power
+        # must reference a sensor (see validate_aggregate_power_is_sensor),
+        # so the editor only offers a sensor for these fields.
+        _backend_type = "typeTwo"
+    _entry["types"] = {
+        "backend": _backend_type,
+        "ui": UI_TYPE_DESCRIPTIONS[_backend_type],
+    }
 
 
 class MultiSensorFlexModelSchema(Schema):
@@ -1147,6 +1760,14 @@ class AssetTriggerSchema(Schema):
             },
         ]
     }
+
+    This schema is also used outside of the (versioned) API, e.g. by the CLI,
+    so it stays canonical (no legacy field-name aliasing here). API-version-
+    specific backward compatibility, such as accepting the legacy
+    `force_new_job_creation` field name, is layered on top in
+    `flexmeasures/api/v3_0/assets.py` (`AssetTriggerSchemaV3`), so it can be
+    deleted in one place once v3_0 is sunset, without touching this shared
+    domain schema.
     """
 
     asset = GenericAssetIdField(
@@ -1167,7 +1788,7 @@ class AssetTriggerSchema(Schema):
     belief_time = AwareDateTimeField(
         format="iso",
         data_key="prior",
-        description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+        description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). "
         "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
         example="2026-01-15T10:00+01:00",
     )
@@ -1209,6 +1830,26 @@ class AssetTriggerSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+    @validates_schema
+    def validate_schedule_durations(self, data, **kwargs):
+        """Require a positive horizon and a positive fixed resolution."""
+        start = data["start_of_schedule"]
+        duration = DurationField.ground_from(data["duration"], start)
+        if duration <= timedelta(0):
+            raise ValidationError(
+                "Schedule duration must be positive.", field_name="duration"
+            )
+        data["duration"] = duration
+
+        resolution = data.get("resolution")
+        if resolution is not None and (
+            not isinstance(resolution, timedelta) or resolution <= timedelta(0)
+        ):
+            raise ValidationError(
+                "Schedule resolution must be a positive, fixed duration.",
+                field_name="resolution",
+            )
 
     @pre_load
     def normalize_flex_context_format(self, data, **kwargs):
@@ -1256,7 +1897,11 @@ class AssetTriggerSchema(Schema):
         asset = data["asset"]
         sensors = []
         for sensor_flex_model in data.get("flex_model", []):
-            sensor = sensor_flex_model["sensor"]
+            sensor = sensor_flex_model.get("sensor")
+            if sensor is None:
+                # Asset-only entries (e.g. an asset-referenced `group` entry) carry no
+                # sensor of their own; nothing to check here.
+                continue
             if sensor in sensors:
                 raise FMValidationError(
                     f"Sensor {sensor_flex_model['sensor'].id} should not occur more than once in the flex-model"

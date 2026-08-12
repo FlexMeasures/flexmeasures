@@ -20,8 +20,7 @@ depends_on = None
 
 def upgrade():
     op.alter_column("data_sources", "label", new_column_name="name", nullable=False)
-    op.execute(
-        """
+    op.execute("""
         update data_sources set type = 'crawling script' where name = 'data retrieved from KEPCO';
         update data_sources set name = 'KEPCO' where name = 'data retrieved from KEPCO';
         update data_sources set type = 'demo script' where name = 'data entered for demonstration purposes';
@@ -36,13 +35,11 @@ def upgrade():
         update data_sources set name = 'Seita (naive model v1)' where name = 'forecast by Seita (naive model (v1))' and type = 'forecasting script';
         update data_sources set name = 'DarkSky' where name = 'forecast by DarkSky for the Jeju region' and type = 'forecasting script';
         update data_sources set name = bvp_users.username from bvp_users where data_sources.user_id = bvp_users.id;
-        """
-    )
+        """)
 
 
 def downgrade():
-    op.execute(
-        """
+    op.execute("""
         update data_sources set name = concat('data entered by user ', bvp_users.username) from bvp_users where data_sources.user_id = bvp_users.id;
         update data_sources set name = 'forecast by DarkSky for the Jeju region' where name = 'DarkSky' and type = 'forecasting script';
         update data_sources set name = 'forecast by Seita (naive model (v1))' where name = 'Seita (naive model v1)' and type = 'forecasting script';
@@ -55,6 +52,5 @@ def downgrade():
         update data_sources set type = 'script' where name = 'data entered for demonstration purposes';
         update data_sources set name = 'data retrieved from KEPCO' where name = 'KEPCO';
         update data_sources set type = 'script' where name = 'data retrieved from KEPCO';
-        """
-    )
+        """)
     op.alter_column("data_sources", "name", new_column_name="label", nullable=True)

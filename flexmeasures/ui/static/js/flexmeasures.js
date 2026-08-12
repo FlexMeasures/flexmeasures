@@ -245,7 +245,11 @@ function ready() {
 
     // Table behaviour
 
-    $('table').floatThead({
+    // Skip DataTables-managed tables: floatThead's cloned header intercepts
+    // pointer events over the real (DataTables-bound) header cells, making
+    // sort clicks fail silently. DataTables tables get the "dataTable" class
+    // synchronously on init, and their own scripts run before this one.
+    $('table').not('.dataTable').floatThead({
         position: 'absolute',
         top: $('#topnavbar').height(),
         scrollContainer: true
@@ -694,6 +698,71 @@ function updateStatsTable(stats, tableBody) {
     });
 }
 
+function sourceIdFromKey(sourceKey) {
+    // Source keys are shown as "<description> (ID: <id>)"
+    const idMatch = String(sourceKey).match(/\(ID:\s*(\d+)\)$/);
+    return idMatch ? idMatch[1] : null;
+}
+
+function preselectedSourceId() {
+    // The sensor page passes on the source query parameter, if given
+    const preselected = document.getElementById('sensorPageData')?.dataset.preselectedSourceId;
+    return preselected ? String(preselected) : null;
+}
+
+function setUpSourceDetailsButton(sourceKey) {
+    // Let the button next to the source selector show the details of the selected source
+    const detailsButton = document.getElementById('sourceDetailsButton');
+    if (!detailsButton) { return; }
+    const sourceId = sourceIdFromKey(sourceKey);
+    if (!sourceId) {
+        detailsButton.classList.add('d-none');
+        return;
+    }
+    detailsButton.classList.remove('d-none');
+    detailsButton.dataset.sourceId = sourceId;
+}
+
+function showSourceDetails(sourceId) {
+    const title = document.getElementById('SourceDetailsTitle');
+    const body = document.getElementById('SourceDetailsBody');
+    if (!body) { return; }
+    title.textContent = `Data source ${sourceId}`;
+    body.textContent = 'Loading ...';
+    fetch(`/api/v3_0/sources/${encodeURIComponent(sourceId)}`)
+    .then(response => {
+        if (!response.ok) { throw new Error(`status ${response.status}`); }
+        return response.json();
+    })
+    .then(source => {
+        title.textContent = `Data source ${source.id}: ${source.description}`;
+        const table = document.createElement('table');
+        table.className = 'table table-striped';
+        Object.entries(source).forEach(([field, value]) => {
+            const row = document.createElement('tr');
+            const fieldCell = document.createElement('th');
+            fieldCell.textContent = field;
+            const valueCell = document.createElement('td');
+            if (value !== null && typeof value === 'object') {
+                const pre = document.createElement('pre');
+                pre.className = 'mb-0';
+                pre.textContent = JSON.stringify(value, null, 4);
+                valueCell.appendChild(pre);
+            } else {
+                valueCell.textContent = value === null ? '—' : String(value);
+            }
+            row.appendChild(fieldCell);
+            row.appendChild(valueCell);
+            table.appendChild(row);
+        });
+        body.innerHTML = '';
+        body.appendChild(table);
+    })
+    .catch(error => {
+        body.textContent = `Could not load the details of this data source (${error.message}).`;
+    });
+}
+
 function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fresh=false) {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
@@ -756,16 +825,22 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
                     const selectedSourceKey = event.target.dataset.sourceKey;
                     dropdownButton.textContent = selectedSourceKey;
                     updateStatsTable(data[selectedSourceKey], tableBody);
+                    setUpSourceDetailsButton(selectedSourceKey);
                 });
 
                 dropdownItem.appendChild(dropdownLink);
                 dropdownMenu.appendChild(dropdownItem);
             });
 
-            // Update the table with the first sourceKey's data by default
-            const firstSourceKey = getLatestBeliefName(data);
+            // Show the source pre-selected via the source query parameter (e.g. when
+            // arriving here from an automation), or else the most recently updated one
+            const preselectedSourceKey = Object.keys(data).find(
+                sourceKey => sourceIdFromKey(sourceKey) === preselectedSourceId()
+            );
+            const firstSourceKey = preselectedSourceKey || getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+            setUpSourceDetailsButton(firstSourceKey);
 
             // Populate the "Delete data" source dropdown if it exists on the page,
             // re-using the stats data already fetched to avoid a duplicate API call.

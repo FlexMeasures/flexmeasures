@@ -26,6 +26,7 @@ The image below shows an example architecture, and you can see that this allows 
     :align: center
 ..    :scale: 40%
 
+|
 
 See also :ref:`docker-compose` for inspiration, though docker compose is more commonly used for development or for hobbyist production systems.
 
@@ -88,25 +89,19 @@ Install the linear solver on the server
 ---------------------------------------
 
 To compute schedules, FlexMeasures uses the `HiGHS <https://highs.dev/>`_ mixed integer linear optimization solver (FlexMeasures solver by default) or `Cbc <https://github.com/coin-or/Cbc>`_.
-Solvers are used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
+By default, HiGHS is used directly through its Python API (``highspy``, which is installed together with FlexMeasures), so no extra installation is needed.
+Solvers can also be used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
 
 You tell FlexMeasures with the config setting :ref:`solver-config` which solver to use.
-
-However, the solver also needs to be installed - in addition to FlexMeasures (the Docker image already has it). Here is advice on how to install the two solvers we test internally:
-
 
 .. note:: We default to HiGHS, as it seems more powerful
 
 
-HiGHS can be installed using pip:
-
-.. code-block:: bash
-
-   $ pip install highspy
-
+Both HiGHS-based solver choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package, which is installed together with FlexMeasures — nothing more to do.
 More information on `the HiGHS website <https://highs.dev/>`_.
 
-Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
+An external solver, on the other hand, needs to be installed in addition to FlexMeasures (the Docker image already has it).
+For example, Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc`` command.
 
 You can install it on Debian like this:
 

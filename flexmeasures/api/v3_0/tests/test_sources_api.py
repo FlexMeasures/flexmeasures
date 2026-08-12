@@ -300,3 +300,69 @@ def test_get_sources_only_latest_tie_break_by_id(
     # Higher id must win the tie
     assert source_higher_id.id in latest_ids
     assert source_lower_id.id not in latest_ids
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_source(client, setup_api_test_data, requesting_user, db):
+    """One data source can be looked up in full, including its attributes."""
+    prosumer_user = find_user_by_email("test_prosumer_user@seita.nl")
+    source = DataSource(
+        name="SomeForecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        version="1",
+        account=prosumer_user.account,
+        attributes={"data_generator": {"config": {"model": "CustomLGBM"}}},
+    )
+    db.session.add(source)
+    db.session.flush()
+
+    response = client.get(url_for("SourceAPI:get", id=source.id))
+    assert response.status_code == 200
+    assert response.json["id"] == source.id
+    assert response.json["name"] == "SomeForecaster"
+    assert response.json["model"] == "TrainPredictPipeline"
+    assert response.json["user_id"] is None  # unset fields are shown, too
+    assert response.json["attributes"] == {
+        "data_generator": {"config": {"model": "CustomLGBM"}}
+    }
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        (None, 401),  # not logged in
+        ("test_prosumer_user@seita.nl", 403),  # different account
+        ("test_admin_user@seita.nl", 200),  # admins see all sources
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_source_auth(
+    client, setup_api_test_data, requesting_user, expected_status_code, db
+):
+    """A data source of another account cannot be looked up."""
+    supplier_user = find_user_by_email("test_supplier_user_4@seita.nl")
+    source = DataSource(
+        name="PrivateSupplierSource",
+        type="demo script",
+        account=supplier_user.account,
+    )
+    db.session.add(source)
+    db.session.flush()
+
+    response = client.get(url_for("SourceAPI:get", id=source.id))
+    assert response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_nonexistent_source(client, setup_api_test_data, requesting_user):
+    response = client.get(url_for("SourceAPI:get", id=99999))
+    assert response.status_code == 404

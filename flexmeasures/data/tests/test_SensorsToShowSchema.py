@@ -151,3 +151,132 @@ def test_dict_with_sensors_as_int():
         ValidationError, match="'sensors' value must be a list of integers."
     ):
         schema.deserialize(input_value)
+
+
+@pytest.mark.parametrize(
+    "y_axis_input, y_axis_output",
+    [
+        ("data", "data"),
+        ([10, 20], [10, 20]),
+        ([10.5, 20.5], [10.5, 20.5]),
+        ({"min": 10, "max": 20}, {"min": 10, "max": 20}),
+    ],
+)
+def test_y_axis_survives_deserialize_plots_shorthand(y_axis_input, y_axis_output):
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
+    ]
+    expected_output = [
+        {"title": "Prices", "y-axis": y_axis_output, "plots": [{"sensors": [3, 4]}]}
+    ]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_y_axis_survives_deserialize_sensor_shorthand():
+    schema = SensorsToShowSchema()
+    input_value = [{"title": "Prices", "y-axis": "data", "sensor": 42}]
+    expected_output = [{"title": "Prices", "y-axis": "data", "plots": [{"sensor": 42}]}]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_y_axis_survives_deserialize_sensors_shorthand():
+    schema = SensorsToShowSchema()
+    input_value = [{"title": "Prices", "y-axis": [10, 20], "sensors": [3, 4]}]
+    expected_output = [
+        {"title": "Prices", "y-axis": [10, 20], "plots": [{"sensors": [3, 4]}]}
+    ]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_y_axis_zero_is_not_stored():
+    """The explicit string 'zero' is accepted but normalized away (it's the default)."""
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": "zero", "plots": [{"sensors": [3, 4]}]}
+    ]
+    expected_output = [{"title": "Prices", "plots": [{"sensors": [3, 4]}]}]
+    assert schema.deserialize(input_value) == expected_output
+
+
+@pytest.mark.parametrize(
+    "invalid_y_axis",
+    [
+        "yes",
+        42,
+        [1],
+        [1, 2, 3],
+        [True, 2],
+        [1, True],
+        ["a", "b"],
+        {"min": 1},
+        {"min": 1, "max": 2, "extra": 3},
+        {"min": True, "max": 2},
+        {"min": "a", "max": "b"},
+    ],
+)
+def test_y_axis_invalid_value_raises(invalid_y_axis):
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": invalid_y_axis, "plots": [{"sensors": [3, 4]}]}
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' must be 'zero', 'data', a \\[min, max\\] list of two numbers, or a \\{'min': min, 'max': max\\} dict.",
+    ):
+        schema.deserialize(input_value)
+
+
+@pytest.mark.parametrize(
+    "y_axis_input",
+    [
+        [20, 10],
+        {"min": 20, "max": 10},
+    ],
+)
+def test_y_axis_min_greater_than_max_raises(y_axis_input):
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' domain minimum cannot exceed its maximum.",
+    ):
+        schema.deserialize(input_value)
+
+
+def test_y_axis_floor_min_equal_max_is_allowed():
+    """A degenerate floor domain is a valid way to always keep one specific value in view."""
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
+    ]
+    expected_output = [
+        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
+    ]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_y_axis_strict_min_equal_max_raises():
+    """Unlike the floor domain, a strict domain hard-bounds the axis, so a degenerate
+    range would clamp all data to a single pixel - not useful."""
+    schema = SensorsToShowSchema()
+    input_value = [
+        {
+            "title": "Prices",
+            "y-axis": {"min": 10, "max": 10},
+            "plots": [{"sensors": [3, 4]}],
+        }
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' strict domain minimum and maximum cannot be equal.",
+    ):
+        schema.deserialize(input_value)
+
+
+def test_flatten_ignores_y_axis():
+    schema = SensorsToShowSchema()
+    input_value = [{"y-axis": "data", "plots": [{"sensors": [1, 2]}]}]
+    assert schema.flatten(input_value) == [1, 2]

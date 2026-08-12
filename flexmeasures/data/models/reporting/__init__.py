@@ -19,6 +19,28 @@ class Reporter(DataGenerator):
     _parameters_schema = ReporterParametersSchema()
     _config_schema = ReporterConfigSchema()
 
+    @property
+    def input_sensors(self) -> list:
+        """The sensors from which the report reads its input data."""
+        parameters = self._parameters or {}
+        return self._resolve_sensors(
+            [
+                input_description.get("sensor")
+                for input_description in parameters.get("input", [])
+            ]
+        )
+
+    @property
+    def output_sensors(self) -> list:
+        """The sensors on which the report records its results."""
+        parameters = self._parameters or {}
+        return self._resolve_sensors(
+            [
+                output_description.get("sensor")
+                for output_description in parameters.get("output", [])
+            ]
+        )
+
     def _compute(
         self, check_output_resolution=True, as_job: bool = False, **kwargs
     ) -> list[dict[str, Any]] | dict[str, Any]:

@@ -257,6 +257,47 @@ The commitment-cost result keeps these as separate entries — ``electricity net
 
 .. note:: This same pattern extends to more devices and more commodities. Add further entries to the ``flex-model`` list (each with its ``commodity``) and a matching entry in the ``flex-context`` ``commodities`` list. As long as all commodities share one currency, FlexMeasures optimises them together and reports each commodity's cost on its own.
 
+
+.. _tut_converters:
+
+Converters between commodities
+==============================
+
+A **converter** turns one commodity into another — a CHP unit (gas → electricity + steam), a gas boiler (gas → heat) or an electric heater (electricity → heat).
+In the ``flex-model`` a converter is not a single device but **one entry per commodity port**, tied together by a shared ``coupling`` name.
+The ``coupling-coefficient`` on each port fixes the conversion ratio relative to the shared coupling variable, so the ports always move together.
+
+For example, a CHP that turns gas into steam and electricity:
+
+.. code-block:: json
+
+    [
+      {"sensor": 6, "commodity": "gas",         "coupling": "chp", "coupling-coefficient": 1.0, "consumption-capacity": "20 kW"},
+      {"sensor": 7, "commodity": "steam",       "coupling": "chp", "coupling-coefficient": 0.5, "production-capacity": "10 kW"},
+      {"sensor": 8, "commodity": "electricity", "coupling": "chp", "coupling-coefficient": 0.3, "production-capacity": "6 kW"}
+    ]
+
+Here each kW of gas input produces 0.5 kW of steam and 0.3 kW of electricity.
+Each port gives exactly one directional capacity, and that is what marks its direction:
+the gas port only consumes, and the steam and electricity ports only produce.
+The opposite direction defaults to zero, so it does not need to be written out.
+
+Note that the capacities agree with the coefficients:
+20 kW of gas is the most the unit can burn, which is what caps steam at 10 kW and electricity at 6 kW.
+
+**Internal nodes.** A *non-electricity* commodity that lists no energy price and no capacity (grid-connection) field in the ``flex-context`` (e.g. a steam or heat network with no grid connection) is treated as an **internal node**: its devices must balance each other at every time step, so everything converters produce into the node must be consumed from it within the same step.
+You can still create a flex-context entry for such a commodity to define ``inflexible-consumption`` and/or ``inflexible-production`` (its fixed demand and supply) without FlexMeasures assuming a grid connection is available.
+Alternatively, omit it from the ``flex-context`` entirely (fixed demand and supply can also be set up with flex-models of their own, see :ref:`inflexible_devices_in_flex_model`).
+Electricity is the exception: it is always assumed to be grid-connected, so missing electricity prices raise an error rather than turning electricity into an internal node.
+
+Coupled converters and internal nodes compose, which is what lets these two features reach beyond the single unit shown above.
+Chain a few of them and you can describe an industrial site: converters feeding internal nodes, those nodes feeding further converters, and only the priced commodities meeting the grid.
+Nothing extra is needed to get there — no new fields, just more entries of the kinds already shown.
+We do not walk through such a site here, and yours will not look like anyone else's, but the pieces are the ones on this page.
+
+**Pricing what flows through a node.** An internal node's flows sum to zero by construction, so a commitment scoped to the node itself would bind nothing: there is no net flow to price.
+To put a cost on throughput — pipe wear, say, or a conversion levy — scope the commitment to the devices *producing* into the node, whose summed flow is what actually passes through it.
+
 We hope this demonstration helped to illustrate multi-commodity scheduling.
 To revisit scheduling several devices that share a single commodity and stock, head back to :ref:`tut_multi_feed_storage`.
 Next, in :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.

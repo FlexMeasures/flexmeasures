@@ -65,9 +65,11 @@ The final entry (without a power ``sensor``) carries the constraints that apply 
                 "soc-min": 20.0,
                 "soc-max": 22.0,
                 "soc-usage": [
-                    {"start": "2024-01-01T00:00:00+01:00", "duration": "PT7H", "value": "4 kW"},
-                    {"start": "2024-01-01T07:00:00+01:00", "duration": "PT2H", "value": "18 kW"},
-                    {"start": "2024-01-01T09:00:00+01:00", "duration": "PT15H", "value": "4 kW"}
+                    [
+                        {"start": "2024-01-01T00:00:00+01:00", "duration": "PT7H", "value": "4 kW"},
+                        {"start": "2024-01-01T07:00:00+01:00", "duration": "PT2H", "value": "18 kW"},
+                        {"start": "2024-01-01T09:00:00+01:00", "duration": "PT15H", "value": "4 kW"}
+                    ]
                 ]
             }
         ]
@@ -81,6 +83,7 @@ A few things to note:
 - **The shared-storage entry has no power ``sensor``.** It only carries the storage-level fields (``soc-at-start``, ``soc-min``, ``soc-max``, ``soc-usage``), which describe the buffer as a whole and must therefore not be repeated per feeder.
 - **Per-device efficiencies live in the device entries.** The heat pump's ``charging-efficiency`` of ``300%`` reflects its COP of 3 (1 kWh in yields 3 kWh of heat), while the resistive heater converts electricity to heat one-to-one at ``100%``. ``production-capacity`` of ``0 kW`` on both feeders means neither can extract heat back out of the buffer — they only ever charge it.
 - **``soc-usage`` models the continuous heat demand.** Unlike a one-off ``soc-targets`` entry, it drains the buffer throughout the horizon, so the scheduler must keep feeding it rather than just reach a target once. Here it steps from a 4 kW baseline up to 18 kW for a two-hour morning peak.
+- **``soc-usage`` takes a list of usage components,** which add up to the total drain, so a single component that varies over time is itself a list — hence the two levels of nesting above. Each component can just as well be a fixed quantity (``"4 kW"``) or a sensor reference (``{"sensor": 4}``).
 - **The narrow gap between ``soc-min`` and ``soc-max``** leaves the buffer only 2 kWh of slack, so it cannot simply pre-heat well ahead of the morning peak. It also means that once the heat pump's power capacity is exhausted during the peak, the buffer has almost nowhere else to draw from — which is what forces the resistive heater into action.
 
 .. note:: The ``state-of-charge`` sensor should have an instantaneous resolution (``PT0M``), since it records a stock value at a point in time rather than a quantity accumulated over an interval. See the ``state-of-charge`` field in :ref:`flex_models_and_schedulers`.
@@ -147,9 +150,11 @@ We schedule on the **heat buffer asset**, so that FlexMeasures considers both fe
                         "soc-min": 20.0,
                         "soc-max": 22.0,
                         "soc-usage": [
-                            {"start": "2024-01-01T00:00:00+01:00", "duration": "PT7H", "value": "4 kW"},
-                            {"start": "2024-01-01T07:00:00+01:00", "duration": "PT2H", "value": "18 kW"},
-                            {"start": "2024-01-01T09:00:00+01:00", "duration": "PT15H", "value": "4 kW"}
+                            [
+                                {"start": "2024-01-01T00:00:00+01:00", "duration": "PT7H", "value": "4 kW"},
+                                {"start": "2024-01-01T07:00:00+01:00", "duration": "PT2H", "value": "18 kW"},
+                                {"start": "2024-01-01T09:00:00+01:00", "duration": "PT15H", "value": "4 kW"}
+                            ]
                         ]
                     }
                 ],
@@ -190,9 +195,11 @@ We schedule on the **heat buffer asset**, so that FlexMeasures considers both fe
                         "soc-min": 20.0,
                         "soc-max": 22.0,
                         "soc-usage": [
-                            {"start": "2024-01-01T00:00:00+01:00", "duration": "PT7H", "value": "4 kW"},
-                            {"start": "2024-01-01T07:00:00+01:00", "duration": "PT2H", "value": "18 kW"},
-                            {"start": "2024-01-01T09:00:00+01:00", "duration": "PT15H", "value": "4 kW"},
+                            [
+                                {"start": "2024-01-01T00:00:00+01:00", "duration": "PT7H", "value": "4 kW"},
+                                {"start": "2024-01-01T07:00:00+01:00", "duration": "PT2H", "value": "18 kW"},
+                                {"start": "2024-01-01T09:00:00+01:00", "duration": "PT15H", "value": "4 kW"},
+                            ]
                         ],
                     },
                 ],
