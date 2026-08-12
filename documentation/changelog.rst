@@ -73,6 +73,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* Run the HEMS release QA example in play mode so simulation loops are not blocked by API rate limits [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Add a ``FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT`` setting for spreading a host's Sentry error allowance across the month with a fail-open daily Redis counter, and send the startup error about the database schema not being at the Alembic head revision to Sentry at most once per UTC calendar day per pair of current and expected revisions (it is still logged in full on every start) [see `PR #2366 <https://www.github.com/FlexMeasures/flexmeasures/pull/2366>`_]
 * Shrink the scheduler's mixed-integer program for one-way devices: where a device can only consume or only produce, its power-sign binaries and their big-M constraints are dropped, as simultaneous consumption and production is already ruled out by the power bounds [see `PR #2412 <https://www.github.com/FlexMeasures/flexmeasures/pull/2412>`_]
 * ``uv run poe clean-db`` now works on macOS as well, takes its arguments as ``--db-name my-db --db-user my-user``, reads your answers to its prompts, and handles names containing a dash [see `PR #2408 <https://www.github.com/FlexMeasures/flexmeasures/pull/2408>`_]
