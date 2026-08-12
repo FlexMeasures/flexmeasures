@@ -173,7 +173,8 @@ def get_power_values(
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
     beliefs_before: datetime | None,
-    sensor: Sensor,
+    sensor: Sensor | SensorReference,
+    consumption_is_positive: bool | None = None,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
@@ -184,18 +185,41 @@ def get_power_values(
     :param query_window:    datetime window within which events occur (equal to the scheduling window)
     :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
     :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
-    :param sensor:          power sensor representing an energy flow out of the device
+    :param sensor:          power sensor representing an energy flow out of the device,
+                            or a SensorReference wrapping such a sensor with source filters
+    :param consumption_is_positive: sign convention of the sensor's data, as determined by
+                            the flex-context field the device was listed under
+                            (``inflexible-consumption`` → True, ``inflexible-production`` → False);
+                            None means the sign convention is read from the sensor's
+                            ``consumption_is_positive`` attribute (the deprecated
+                            ``inflexible-device-sensors`` field's behavior)
     :returns:               power measurements or forecasts (consumption is positive, production is negative)
     """
+    if isinstance(sensor, SensorReference):
+        underlying_sensor = sensor.sensor
+        source_filters = dict(
+            source_types=sensor.source_types,
+            exclude_source_types=sensor.exclude_source_types,
+            source=sensor.sources,
+            source_account_ids=(
+                [account.id for account in sensor.source_account]
+                if sensor.source_account
+                else None
+            ),
+        )
+    else:
+        underlying_sensor = sensor
+        source_filters = {}
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
-        sensor,
+        underlying_sensor,
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
         beliefs_before=beliefs_before,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
-    )  # consumption is negative, production is positive
+        **source_filters,
+    )
     df = simplify_index(bdf)
     df = df.reindex(initialize_index(query_window[0], query_window[1], resolution))
     nan_values = df.isnull().values
@@ -212,89 +236,15 @@ def get_power_values(
         event_resolution=sensor.event_resolution,
     )
 
-    if sensor.get_attribute(
-        "consumption_is_positive", False
-    ):  # FlexMeasures default is to store consumption as negative power values
+    if consumption_is_positive is None:
+        # FlexMeasures default is to store consumption as negative power values
+        consumption_is_positive = underlying_sensor.get_attribute(
+            "consumption_is_positive", False
+        )
+    if consumption_is_positive:
         return series
 
     return -series
-
-
-def fallback_charging_policy(
-    sensor: Sensor,
-    device_constraints: pd.DataFrame,
-    start: datetime,
-    end: datetime,
-    resolution: timedelta,
-) -> pd.Series:
-    """This fallback charging policy is to just start charging or discharging, or do neither,
-    depending on the first target state of charge and the capabilities of the Charge Point.
-    Note that this ignores any cause of the infeasibility and,
-    while probably a decent policy for Charge Points,
-    should not be considered a robust policy for other asset types.
-    """
-    max_charge_capacity = (
-        device_constraints[["derivative max", "derivative equals"]].min().min()
-    )
-    max_discharge_capacity = (
-        -device_constraints[["derivative min", "derivative equals"]].max().max()
-    )
-    charge_power = max_charge_capacity if sensor.get_attribute("is_consumer") else 0
-    discharge_power = (
-        -max_discharge_capacity if sensor.get_attribute("is_producer") else 0
-    )
-
-    charge_schedule = initialize_series(charge_power, start, end, resolution)
-    discharge_schedule = initialize_series(discharge_power, start, end, resolution)
-    idle_schedule = initialize_series(0, start, end, resolution)
-    if (
-        device_constraints["equals"].first_valid_index() is not None
-        and device_constraints["equals"][
-            device_constraints["equals"].first_valid_index()
-        ]
-        > 0
-    ):
-        # start charging to get as close as possible to the next target
-        return idle_after_reaching_target(charge_schedule, device_constraints["equals"])
-    if (
-        device_constraints["equals"].first_valid_index() is not None
-        and device_constraints["equals"][
-            device_constraints["equals"].first_valid_index()
-        ]
-        < 0
-    ):
-        # start discharging to get as close as possible to the next target
-        return idle_after_reaching_target(
-            discharge_schedule, device_constraints["equals"]
-        )
-    if (
-        device_constraints["max"].first_valid_index() is not None
-        and device_constraints["max"][device_constraints["max"].first_valid_index()] < 0
-    ):
-        # start discharging to try and bring back the soc below the next max constraint
-        return idle_after_reaching_target(discharge_schedule, device_constraints["max"])
-    if (
-        device_constraints["min"].first_valid_index() is not None
-        and device_constraints["min"][device_constraints["min"].first_valid_index()] > 0
-    ):
-        # start charging to try and bring back the soc above the next min constraint
-        return idle_after_reaching_target(charge_schedule, device_constraints["min"])
-    # stand idle
-    return idle_schedule
-
-
-def idle_after_reaching_target(
-    schedule: pd.Series,
-    target: pd.Series,
-    initial_state: float = 0,
-) -> pd.Series:
-    """Stop planned (dis)charging after target is reached (or constraint is met)."""
-    first_target = target[target.first_valid_index()]
-    if first_target > initial_state:
-        schedule[schedule.cumsum() > first_target] = 0
-    else:
-        schedule[schedule.cumsum() < first_target] = 0
-    return schedule
 
 
 def get_series_from_quantity_or_sensor(
@@ -376,6 +326,14 @@ def get_series_from_quantity_or_sensor(
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
+        if variable_quantity.default is not None:
+            default_value = convert_units(
+                variable_quantity.default.magnitude,
+                str(variable_quantity.default.units),
+                unit,
+                resolution,
+            )
+            time_series = time_series.fillna(default_value)
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             variable_quantity,

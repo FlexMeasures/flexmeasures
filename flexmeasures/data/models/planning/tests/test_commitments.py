@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.utils.unit_utils import ur
 from flexmeasures.data.models.planning import (
     Commitment,
     StockCommitment,
@@ -1365,7 +1366,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "electricity",
             "production-capacity": "0 kW",
-            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
         },
         {
             "sensor": boiler_power.id,
@@ -1374,7 +1374,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "gas",
             "production-capacity": "0 kW",
-            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
         },
         {
             # "sensor": tank_power.id,
@@ -1386,7 +1385,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             # ],
             "state-of-charge": {"sensor": buffer_soc.id},
             "soc-usage": [{"sensor": buffer_soc_usage.id}],
-            "storage-efficiency": 0.9,  # todo: does not work yet
+            "storage-efficiency": "99%",  # the buffer leaks 1% of its stock every 15 minutes
             # todo: consider assigning this to the heat commodity, maybe we can derive some useful (costs?) KPI from it
         },
     ]
@@ -1450,7 +1449,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         for schedule in schedules
         if schedule.get("sensor") == boiler_power
     )
-    # The electric heater should only be active in the cheap-electricity window.
     # In local time, electricity is cheaper from 12:00 to 16:00.
     # During this period, the dynamic electricity site capacity is only 60 kW.
     # Therefore, the electric heater is expected to run at 60 kW, not its full
@@ -1473,15 +1471,18 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         ),
     )
 
-    # When electricity is cheaper than gas, the gas boiler should stay off.
-    # The heat demand is then supplied by the electric heater instead.
+    # When electricity is cheaper than gas, the gas boiler should stay off,
+    # with the heat demand supplied by the electric heater instead. Only near
+    # the end of the window does the boiler top up the heat buffer: the 60 kW
+    # electricity capacity cannot cover demand plus the buffer's storage losses
+    # for the whole window, and topping up as late as possible leaks the least.
     pd.testing.assert_series_equal(
-        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T13:45:00+00:00"],
         pd.Series(
             0.0,
             index=pd.date_range(
                 "2026-04-07T11:00:00+00:00",
-                "2026-04-07T14:45:00+00:00",
+                "2026-04-07T13:45:00+00:00",
                 freq="15min",
             ),
             dtype="float64",
@@ -1491,6 +1492,12 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "gas boiler dispatch during cheap-electricity window on day 1; "
             "expected 0 kW because electricity is cheaper than gas"
         ),
+    )
+    np.testing.assert_allclose(
+        boiler_schedule.loc["2026-04-07T14:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        60.044743,
+        atol=1e-3,
+        err_msg="Gas boiler should top up the heat buffer in the final hour of the cheap-electricity window on day 1.",
     )
 
     pd.testing.assert_series_equal(
@@ -1512,12 +1519,12 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
     )
 
     pd.testing.assert_series_equal(
-        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T13:45:00+00:00"],
         pd.Series(
             0.0,
             index=pd.date_range(
                 "2026-04-08T11:00:00+00:00",
-                "2026-04-08T14:45:00+00:00",
+                "2026-04-08T13:45:00+00:00",
                 freq="15min",
             ),
             dtype="float64",
@@ -1528,32 +1535,729 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "expected 0 kW because electricity is cheaper than gas"
         ),
     )
+    np.testing.assert_allclose(
+        boiler_schedule.loc["2026-04-08T14:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        60.044743,
+        atol=1e-3,
+        err_msg="Gas boiler should top up the heat buffer in the final hour of the cheap-electricity window on day 2.",
+    )
 
     # Outside the cheap-electricity window, gas is cheaper than electricity.
     # Therefore, the gas boiler should become the preferred heat source and run
-    # at full 100 kW capacity, while the electric heater should remain off.
+    # at full 100 kW capacity. The pricier electric heater cannot switch off
+    # entirely, though: the buffer's storage losses push the total heat need
+    # beyond the boiler's capacity, so the heater covers the remainder.
     assert boiler_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
         100.0
     ), "Gas boiler should run at full capacity after the cheap-electricity window on day 1."
 
     assert heater_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
-        0.0
-    ), "Electric heater should be off after the cheap-electricity window because gas is cheaper."
+        20.044743, abs=1e-3
+    ), "Electric heater should only cover what the maxed-out gas boiler cannot, after the cheap-electricity window on day 1."
 
     assert boiler_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
         100.0
     ), "Gas boiler should run at full capacity after the cheap-electricity window on day 2."
 
     assert heater_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
-        0.0
-    ), "Electric heater should be off after the cheap-electricity window on day 2 because gas is cheaper."
+        20.044743, abs=1e-3
+    ), "Electric heater should only cover what the maxed-out gas boiler cannot, after the cheap-electricity window on day 2."
 
-    # Before the first cheap-electricity window, the optimizer uses a partial
-    # 80 kW electric-heater step to prepare the heat buffer. This is part of the
-    # expected optimal schedule and protects against accidental dispatch changes.
-    assert heater_schedule.loc["2026-04-07T08:00:00+00:00"] == pytest.approx(
-        80.0
-    ), "Electric heater should have one expected partial 80 kW dispatch step before the first cheap-electricity window."
+    # Before the first cheap-electricity window, the optimizer ramps up the
+    # electric heater (one partial step, then full 100 kW capacity) to prepare
+    # the heat buffer. This is part of the expected optimal schedule and
+    # protects against accidental dispatch changes.
+    assert heater_schedule.loc["2026-04-07T08:15:00+00:00"] == pytest.approx(
+        25.713284, abs=1e-3
+    ), "Electric heater should have one expected partial dispatch step before ramping up to prepare for the first cheap-electricity window."
+    assert heater_schedule.loc["2026-04-07T08:30:00+00:00"] == pytest.approx(
+        100.0
+    ), "Electric heater should charge the heat buffer at full capacity just before the first cheap-electricity window."
+
+
+def test_chp_coupling():
+    """Test that coupling_groups enforces fixed flow ratios between CHP devices.
+
+    Models a Combined Heat and Power unit with three pure flow devices:
+
+    - d=0  gas input:    can only consume gas          (derivative_min=0)
+    - d=1  heat output:  can only produce heat          (derivative_max=0)
+    - d=2  power output: can only produce electricity   (derivative_max=0)
+
+    The coupling group ``"chp"`` is specified with coefficients
+    ``[(0, 1.0), (1, -0.5), (2, -0.3)]``, introducing a decision variable ``alpha``
+    and enforcing ``P[d] == coeff * alpha`` for each device:
+
+        P_gas   =  1.0 * alpha   (input,  coeff =  1.0)
+        P_heat  = -0.5 * alpha   (output, coeff = -0.5, heat efficiency 50%)
+        P_power = -0.3 * alpha   (output, coeff = -0.3, power efficiency 30%)
+
+    Heat production is forced to exactly 10 kW via ``derivative equals = -10``
+    on device 1. Substituting ``P_heat = -10`` gives ``alpha = 20``, so:
+
+        P_gas   =  20 kW         (gas consumed)
+        P_heat  = -10 kW         (heat produced, forced)
+        P_power =  20 kW * -0.3
+                ≈  -6 kW         (electricity produced)
+
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    # d=0: gas input — can only consume (derivative_min=0), capacity 100 kW.
+    # NaN stock bounds mean no cumulative-stock constraint (pure flow device).
+    gas_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 100.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    # d=1: heat output — can only produce (derivative_max=0).
+    # Forced to exactly -10 kW via derivative equals.
+    heat_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": -100.0,
+            "derivative max": 0.0,
+            "derivative equals": -10.0,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    # d=2: power output — can only produce (derivative_max=0), capacity 100 kW.
+    # Flow is free; the coupling constraint will determine its value.
+    power_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": -100.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -200.0, "derivative max": 200.0},
+        index=index,
+    )
+
+    # Coupling group: one reference device (gas, coeff 1.0) and two coupled
+    # devices (heat with coeff -0.5, power with coeff -0.3).
+    coupling_groups = {"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
+
+    # Gas-price commitment gives the objective a finite value and models the
+    # cost of consuming gas. With quantity=0 and both prices set the
+    # commitment acts as a two-sided soft equality: any upward deviation
+    # (gas consumption) incurs a cost of 1 EUR/kW.
+    gas_price_commitment = FlowCommitment(
+        name="gas cost",
+        index=index,
+        quantity=pd.Series(0.0, index=index),
+        upwards_deviation_price=pd.Series(1.0, index=index),
+        downwards_deviation_price=pd.Series(0.0, index=index),
+        device=pd.Series(0, index=index),
+    )
+
+    schedules, planned_costs, results, model = device_scheduler(
+        device_constraints=[gas_constraints, heat_constraints, power_constraints],
+        ems_constraints=ems_constraints,
+        commitments=[gas_price_commitment],
+        coupling_groups=coupling_groups,
+    )
+
+    assert (
+        results.solver.termination_condition == "optimal"
+    ), "Solver did not find an optimal solution."
+
+    # Heat is fixed to -10 kW by derivative_equals.
+    pd.testing.assert_series_equal(
+        schedules[1],
+        pd.Series(-10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="heat output forced to -10 kW by derivative_equals",
+    )
+
+    # Coupling: P_gas / 1.0 == P_heat / -0.5  →  P_gas = -10 / -0.5 = 20 kW
+    pd.testing.assert_series_equal(
+        schedules[0],
+        pd.Series(20.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="gas consumption determined by coupling (20 kW from 10 kW heat at coeff -0.5)",
+    )
+
+    # Coupling: P_gas / 1.0 == P_power / -0.3  →  P_power = 20 / -0.3 = -6 kW
+    pd.testing.assert_series_equal(
+        schedules[2],
+        pd.Series(-6.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="power output determined by coupling (-0.3 * alpha = -0.3 * 20 = -6 kW)",
+    )
+
+
+def test_dual_fuel_chp_coupling():
+    """Test coupling_groups with two input devices (dual-fuel CHP).
+
+    Models a CHP unit that consumes equal parts natural gas and hydrogen,
+    producing heat and electricity:
+
+    - d=0  gas input:      can only consume gas           (derivative_min=0)
+    - d=1  hydrogen input: can only consume hydrogen      (derivative_min=0)
+    - d=2  heat output:    can only produce heat          (derivative_max=0)
+    - d=3  power output:   can only produce electricity   (derivative_max=0)
+
+    Coupling group ``"chp"`` with coefficients
+    ``[(0, 0.5), (1, 0.5), (2, -0.5), (3, -0.3)]`` introduces a free variable
+    ``alpha`` and enforces ``P[d] == coeff * alpha``:
+
+        P_gas      =  0.5 * alpha   (50% of total fuel from gas)
+        P_hydrogen =  0.5 * alpha   (50% of total fuel from hydrogen)
+        P_heat     = -0.5 * alpha   (heat efficiency 50% of total fuel)
+        P_power    = -0.3 * alpha   (power efficiency 30% of total fuel)
+
+    Because gas and hydrogen share the same coefficient the two fuel flows are
+    always equal, confirming that device order does not affect the result.
+
+    Heat production is forced to exactly 10 kW via ``derivative equals = -10`` on device 2.
+    Substituting ``P_heat = -10`` gives ``alpha = 20``, so:
+
+        P_gas      =  10 kW   (equal gas input)
+        P_hydrogen =  10 kW   (equal hydrogen input)
+        P_heat     = -10 kW   (heat produced, forced)
+        P_power    =  -6 kW   (electricity produced)
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    def _flow_df(**kwargs) -> pd.DataFrame:
+        defaults = {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        }
+        defaults.update(kwargs)
+        return pd.DataFrame(defaults, index=index)
+
+    # d=0: gas input — can only consume, capacity 100 kW
+    gas_constraints = _flow_df(**{"derivative max": 100.0})
+    # d=1: hydrogen input — can only consume, capacity 100 kW
+    hydrogen_constraints = _flow_df(**{"derivative max": 100.0})
+    # d=2: heat output — can only produce, forced to -10 kW
+    heat_constraints = _flow_df(
+        **{"derivative min": -100.0, "derivative equals": -10.0}
+    )
+    # d=3: power output — can only produce, free (coupling determines value)
+    power_constraints = _flow_df(**{"derivative min": -100.0})
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -200.0, "derivative max": 200.0},
+        index=index,
+    )
+
+    # Both fuel inputs share coefficient 0.5, so they receive identical flows.
+    # Outputs have negative coefficients equal to their efficiency fractions.
+    coupling_groups = {"chp": [(0, 0.5), (1, 0.5), (2, -0.5), (3, -0.3)]}
+
+    # Gas-price commitment for device 0 just to give the objective a finite value
+    # Even though hydrogen is free, it will still be used because its consumption is coupled to gas.
+    fuel_cost_commitment = FlowCommitment(
+        name="fuel cost",
+        index=index,
+        quantity=pd.Series(0.0, index=index),
+        upwards_deviation_price=pd.Series(1.0, index=index),
+        downwards_deviation_price=pd.Series(0.0, index=index),
+        device=pd.Series(0, index=index),
+    )
+
+    schedules, _costs, results, _model = device_scheduler(
+        device_constraints=[
+            gas_constraints,
+            hydrogen_constraints,
+            heat_constraints,
+            power_constraints,
+        ],
+        ems_constraints=ems_constraints,
+        commitments=[fuel_cost_commitment],
+        coupling_groups=coupling_groups,
+    )
+
+    assert (
+        results.solver.termination_condition == "optimal"
+    ), "Solver did not find an optimal solution."
+
+    # Heat is fixed to -10 kW; alpha = -10 / -0.5 = 20.
+    pd.testing.assert_series_equal(
+        schedules[2],
+        pd.Series(-10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="heat output forced to -10 kW by derivative_equals",
+    )
+
+    # Coupling: P_gas = 0.5 * alpha = 0.5 * 20 = 10 kW
+    pd.testing.assert_series_equal(
+        schedules[0],
+        pd.Series(10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="gas input = 0.5 * alpha = 10 kW",
+    )
+
+    # Coupling: P_hydrogen = 0.5 * alpha = 10 kW (equal to gas)
+    pd.testing.assert_series_equal(
+        schedules[1],
+        pd.Series(10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="hydrogen input = 0.5 * alpha = 10 kW (equal to gas input)",
+    )
+
+    # Coupling: P_power = -0.3 * alpha = -0.3 * 20 = -6 kW
+    pd.testing.assert_series_equal(
+        schedules[3],
+        pd.Series(-6.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="power output = -0.3 * alpha = -6 kW",
+    )
+
+
+def _run_factory_scenario(
+    gas_price: float,
+    elec_price: float,
+    use_balance_groups: bool = False,
+) -> tuple:
+    """Run the simplified factory scenario and return the 7 device schedules.
+
+    With ``use_balance_groups=False``,
+    the heat and steam nodes are balanced via shared stock groups whose first ("reference") device carries min=max=0 stock bounds.
+    With ``use_balance_groups=True``,
+    the same nodes are expressed directly as ``balance_groups``, needing neither stock groups nor reference-device bounds.
+
+    Devices
+    ~~~~~~~
+    d=0  e-heater       electricity   → heat coupling (ems_power ≥ 0, i.e. consumes electricity)
+    d=1  gas boiler     gas           → heat coupling (ems_power ≥ 0, i.e. consumes gas)
+    d=2  steamer        heat coupling → steam         (ems_power ≤ 0, i.e. produces steam)
+    d=3  CHP gas input  gas           → chp coupling  (ems_power ≥ 0, i.e. consumes gas, coupling member = alpha)
+    d=4  CHP heat out   chp coupling  → steam         (ems_power ≤ 0, i.e. produces steam, coupling member = -0.5 alpha)
+    d=5  CHP power out  chp coupling  → electricity   (ems_power ≤ 0, i.e. produces electricity, coupling member = -0.3 alpha)
+    d=6  steam demand   steam         → fixed flow    (ems_power = 15, i.e. consumes steam)
+
+    CHP coupling coefficients
+    ~~~~~~~~~~~~~~~~~~~~~~~~~
+    The coupling constraint introduces a free variable ``alpha`` (the normalised gas flow)
+    and enforces ``P[d_i] == coeff_i * alpha`` for every device in the group.
+    Choosing thermal efficiency η_heat = 0.5 and power efficiency η_power = 0.3,
+    the coefficients simply become the signed efficiency fractions::
+
+        P_gas   =  1.0   * alpha   (input,  coeff = 1.0)
+        P_heat  = -0.5   * alpha   (output, coeff = η_heat  = -0.5)
+        P_power = -0.3   * alpha   (output, coeff = η_power = −0.3)
+
+    """
+    ETA_HEAT = 0.5  # fraction of CHP gas input that becomes heat
+    ETA_POWER = 0.3  # fraction of CHP gas input that becomes power
+    STEAM_DEMAND = 15.0  # kW, constant heat drain representing steam production
+    CHP_GAS_MAX = 20.0  # kW, maximum gas input to CHP
+    BOILER_GAS_MAX = 10.0  # kW, maximum gas input to gas boiler
+    HEATER_POWER_MAX = 100.0  # kW, maximum electricity input to e-heater
+
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    def _df(**kwargs) -> pd.DataFrame:
+        """Build a device-constraints DataFrame with defaults for unused columns."""
+        defaults = {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+            "stock delta": 0.0,
+        }
+        defaults.update(kwargs)
+        return pd.DataFrame(defaults, index=index)
+
+    # With balance groups, no reference device needs min=max=0 stock bounds.
+    node_bounds = {} if use_balance_groups else {"min": 0.0, "max": 0.0}
+
+    device_constraints = [
+        # d=0  e-heater: heat-node reference device. The min=max=0 forces the heat
+        #       node to balance at every step (zero-capacity flow node), making
+        #       the per-step dispatch deterministic despite flat prices.
+        _df(**node_bounds, **{"derivative max": HEATER_POWER_MAX}),
+        # d=1  gas boiler: up to 100 kW gas → 100 kW heat (efficiency 1 for clean maths in test)
+        _df(**{"derivative max": BOILER_GAS_MAX, "commodity": "gas"}),
+        # d=2  steamer: can only produce steam (negative ems_power).
+        # The lower bound is finite to avoid unbounded model messages while still
+        # being looser than the upstream heat-supply limits.
+        _df(
+            **{
+                "derivative min": -(HEATER_POWER_MAX + BOILER_GAS_MAX),
+                "derivative max": 0.0,
+                "commodity": "steam",
+            }
+        ),
+        # d=3  CHP gas input: up to CHP_GAS_MAX kW gas
+        _df(**{"derivative max": CHP_GAS_MAX, "commodity": "gas"}),
+        # d=4  CHP heat output: positive ems_power adds heat to the steam node.
+        #      The min=max=0 forces the steam node to balance at every step.
+        _df(
+            **node_bounds,
+            **{
+                "derivative min": -CHP_GAS_MAX * ETA_HEAT,
+                "derivative max": 0.0,
+                "commodity": "steam",
+            },
+        ),
+        # d=5  CHP power output: negative ems_power only (production)
+        _df(**{"derivative min": -CHP_GAS_MAX * ETA_POWER, "derivative max": 0.0}),
+        # d=6  steam demand: fixed steam consumption at STEAM_DEMAND kW.
+        _df(
+            **{
+                "derivative min": STEAM_DEMAND,
+                "derivative max": STEAM_DEMAND,
+                "commodity": "steam",
+            }
+        ),
+    ]
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -300.0, "derivative max": 300.0},
+        index=index,
+    )
+
+    # Node membership: the steamer (d=2) converts heat to steam,
+    # so it belongs to both nodes (its single flow drains heat and feeds steam).
+    heat_node = [0, 1, 2]
+    steam_node = [2, 4, 6]
+    if use_balance_groups:
+        stock_groups = None
+        balance_groups = {"heat": heat_node, "steam": steam_node}
+    else:
+        # stock group: all heat-buffer devices share the same stock.
+        # Keys 0 and 1 are arbitrary group ids, not device indices.
+        stock_groups = {0: heat_node, 1: steam_node}
+        balance_groups = None
+
+    # CHP coupling: coefficients are signed efficiency fractions.
+    # coeff_heat  = -η_heat  = -0.5 →  P_heat = -0.5 * alpha = -0.5 * P_gas
+    # coeff_power = -η_power = -0.3 → P_power = -0.3 * alpha = -0.3 * P_gas
+    coupling_groups = {
+        "chp": [
+            (3, 1.0),
+            (4, -ETA_HEAT),  # = -0.5
+            (5, -ETA_POWER),  # = -0.3
+        ]
+    }
+
+    # --- energy-price commitments -------------------------------------------
+    # Gas price applies to gas boiler (d=1) and CHP gas input (d=3).
+    # Electricity price applies to e-heater (d=0) and CHP power output (d=5).
+    # Using both upwards and downwards prices makes each commitment a two-sided
+    # soft equality (quantity = 0):
+    #   • upward deviation  = consuming more than 0  → positive cost
+    #   • downward deviation = producing (negative flow) → negative cost (revenue)
+    gas_p = pd.Series(gas_price, index=index)
+    elec_p = pd.Series(elec_price, index=index)
+
+    commitments = []
+    for d, price in [(1, gas_p), (3, gas_p), (0, elec_p), (5, elec_p)]:
+        commitments.append(
+            FlowCommitment(
+                name="gas cost" if d in (1, 3) else "electricity cost",
+                index=index,
+                quantity=pd.Series(0.0, index=index),
+                upwards_deviation_price=price,
+                downwards_deviation_price=price,
+                device=pd.Series(d, index=index),
+            )
+        )
+
+    schedules, _costs, results, _model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        stock_groups=stock_groups,
+        coupling_groups=coupling_groups,
+        balance_groups=balance_groups,
+    )
+
+    assert results.solver.termination_condition == "optimal", (
+        f"Solver did not find an optimal solution "
+        f"(gas_price={gas_price}, elec_price={elec_price})"
+    )
+    return tuple(schedules)
+
+
+@pytest.mark.parametrize("use_balance_groups", [False, True])
+def test_factory_chp_dispatch(use_balance_groups):
+    """Factory: CHP + gas boiler + e-heater competing to meet a fixed steam demand.
+
+    The heat and steam nodes are balanced either via shared stock groups with a min=max=0 reference device (``use_balance_groups=False``),
+    or via explicit ``balance_groups`` (``use_balance_groups=True``) — both must yield the same dispatch.
+    The steam node is drained at a constant rate of 15 kW by the steam demand device.
+    Two price scenarios verify that the optimizer correctly chooses the cheapest heat source.
+
+    Scenario A — gas cheaper than electricity
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 20 EUR/kW, electricity = 50 EUR/kW.
+
+    Effective cost per kW of heat delivered:
+    - CHP:       gas_cost − power_revenue  = (20·20 − 50·6) / 10 = 10 EUR/kW
+    - gas boiler: 20 EUR/kW  (efficiency = 1)
+    - e-heater:   50 EUR/kW  (efficiency = 1)
+
+    Merit order: CHP ≪ gas boiler ≪ e-heater.
+
+    With CHP at maximum (20 kW gas → 10 kW heat + 6 kW power):
+    - remaining heat demand = 15 − 10 = 5 kW → gas boiler
+    - e-heater not needed
+
+    Scenario B — electricity cheaper than gas
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 100 EUR/kW, electricity = 10 EUR/kW.
+
+    Effective cost per kW of heat:
+    - CHP:       (100·20 − 10·6) / 10 = 194 EUR/kW
+    - gas boiler: 100 EUR/kW
+    - e-heater:   10 EUR/kW
+
+    Merit order: e-heater ≪ gas boiler ≪ CHP.
+
+    All 15 kW steam demand is met by the e-heater; CHP and gas boiler are off.
+
+    Scenario C — gas slightly cheaper
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 50 EUR/kW, electricity = 55 EUR/kW.
+
+    Effective cost per kW of heat delivered:
+    - CHP:       gas_cost − power_revenue  = (50·20 − 55·6) / 10 = 67 EUR/kW
+    - gas boiler: 50 EUR/kW
+    - e-heater:   55 EUR/kW
+
+    Merit order: gas boiler ≪ e-heater ≪ CHP.
+
+    With gas boiler at maximum (10 kW gas → 10 kW heat):
+    - remaining heat demand = 15 − 10 = 5 kW → e-heater
+    - CHP not needed
+    """
+    # ------------------------------------------------------------------ #
+    # Scenario A: gas cheaper — CHP at max, gas boiler fills the rest    #
+    # ------------------------------------------------------------------ #
+    e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand = (
+        _run_factory_scenario(
+            gas_price=20.0, elec_price=50.0, use_balance_groups=use_balance_groups
+        )
+    )
+
+    expected_chp_gas = pd.Series(20.0, index=e_heater.index)
+    expected_chp_heat = pd.Series(-10.0, index=e_heater.index)  # -0.5 * 20
+    expected_chp_power = pd.Series(-6.0, index=e_heater.index)  # -0.3 * 20
+    expected_boiler = pd.Series(5.0, index=e_heater.index)  # fills 15-10 kW gap
+    expected_steamer = pd.Series(-5.0, index=e_heater.index)
+    expected_demand = pd.Series(15.0, index=e_heater.index)
+    expected_eheater = pd.Series(0.0, index=e_heater.index)
+
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_chp_gas,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: CHP gas input at maximum (20 kW)",
+    )
+    pd.testing.assert_series_equal(
+        chp_heat,
+        expected_chp_heat,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: CHP heat output = 0.5 × gas input (10 kW)",
+    )
+    pd.testing.assert_series_equal(
+        chp_power,
+        expected_chp_power,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: CHP power output = −0.3 × gas input (−6 kW)",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_boiler,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: gas boiler fills remaining 5 kW heat demand",
+    )
+    pd.testing.assert_series_equal(
+        steamer,
+        expected_steamer,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: steamer supplies remaining 5 kW steam",
+    )
+    pd.testing.assert_series_equal(
+        demand,
+        expected_demand,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: steam demand fixed at 15 kW",
+    )
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario A: e-heater not used (gas is cheapest)",
+    )
+
+    # ------------------------------------------------------------------ #
+    # Scenario B: electricity cheaper — e-heater meets all demand        #
+    # ------------------------------------------------------------------ #
+    e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand = (
+        _run_factory_scenario(
+            gas_price=100.0, elec_price=10.0, use_balance_groups=use_balance_groups
+        )
+    )
+
+    expected_eheater_b = pd.Series(15.0, index=e_heater.index)
+    expected_zero = pd.Series(0.0, index=e_heater.index)
+    expected_steamer_b = pd.Series(-15.0, index=e_heater.index)
+    expected_demand_b = pd.Series(15.0, index=e_heater.index)
+
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater_b,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario B: e-heater meets all 15 kW steam demand",
+    )
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_zero,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario B: CHP not used (electricity is cheapest)",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_zero,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario B: gas boiler not used (electricity is cheapest)",
+    )
+    pd.testing.assert_series_equal(
+        steamer,
+        expected_steamer_b,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario B: steamer supplies all 15 kW steam",
+    )
+    pd.testing.assert_series_equal(
+        demand,
+        expected_demand_b,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario B: steam demand fixed at 15 kW",
+    )
+
+    # --------------------------------------------------------------------------------- #
+    # Scenario C: gas slightly cheaper — gas boiler at max, e-heater fills the rest     #
+    # --------------------------------------------------------------------------------- #
+    e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand = (
+        _run_factory_scenario(
+            gas_price=50.0, elec_price=55.0, use_balance_groups=use_balance_groups
+        )
+    )
+
+    expected_chp_gas = pd.Series(0.0, index=e_heater.index)
+    expected_chp_heat = pd.Series(0.0, index=e_heater.index)
+    expected_chp_power = pd.Series(0.0, index=e_heater.index)
+    expected_boiler = pd.Series(10.0, index=e_heater.index)
+    expected_steamer = pd.Series(-15.0, index=e_heater.index)
+    expected_demand = pd.Series(15.0, index=e_heater.index)
+    expected_eheater = pd.Series(5.0, index=e_heater.index)  # fills 15-10 kW gap
+
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_chp_gas,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        chp_heat,
+        expected_chp_heat,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        chp_power,
+        expected_chp_power,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_boiler,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: gas boiler at maximum (10 kW)",
+    )
+    pd.testing.assert_series_equal(
+        steamer,
+        expected_steamer,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: steamer supplies all 15 kW steam",
+    )
+    pd.testing.assert_series_equal(
+        demand,
+        expected_demand,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: steam demand fixed at 15 kW",
+    )
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario C: e-heater fills remaining 5 kW heat demand",
+    )
 
 
 def test_all_gas_flex_model_without_electricity_device(app, db):
@@ -1782,3 +2486,817 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert mapping["electricity"] == [0, 2, 3, 4]
     assert mapping["gas"] == [1, 5]
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
+
+
+def test_user_commitment_names_and_provenance(app):
+    """User-given commitment names are kept as is, and the resulting commitments are
+    tagged with provenance "custom" (used to disambiguate the name-keyed cost report
+    when a user name collides with a scheduler-internal commitment name).
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T04:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                # Deliberately shadowing an internal commitment name
+                "name": "electricity net energy",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("100 EUR/MWh"),
+            },
+        ],
+    }
+    flex_model = [{"commodity": "electricity"}]
+
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+    commitments = scheduler.convert_to_commitments(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    assert commitments[0].name == "electricity net energy"
+    assert commitments[0].provenance == "custom"
+
+    # Converting must not mutate the original specs (e.g. on repeated conversions).
+    assert scheduler.flex_context["commitments"][0]["name"] == "electricity net energy"
+    assert "baseline" in scheduler.flex_context["commitments"][0]
+
+
+def _shared_stock_scheduler(db, flex_model, label):
+    """Set up a battery with two inverter power sensors and one SoC sensor.
+
+    The passed flex_model receives the sensor references via format placeholders
+    ``power_1``, ``power_2`` and ``soc``.
+    """
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("15m")
+
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    inverter_type = get_or_create_model(GenericAssetType, name="inverter")
+    battery = GenericAsset(
+        name=f"storage-efficiency test battery {label}", generic_asset_type=battery_type
+    )
+    inverter_1 = GenericAsset(
+        name=f"storage-efficiency test inverter 1 {label}",
+        generic_asset_type=inverter_type,
+    )
+    inverter_2 = GenericAsset(
+        name=f"storage-efficiency test inverter 2 {label}",
+        generic_asset_type=inverter_type,
+    )
+    db.session.add_all([battery, inverter_1, inverter_2])
+    power_1 = Sensor(
+        name="power", unit="kW", event_resolution=resolution, generic_asset=inverter_1
+    )
+    power_2 = Sensor(
+        name="power", unit="kW", event_resolution=resolution, generic_asset=inverter_2
+    )
+    soc = Sensor(
+        name="state-of-charge",
+        unit="kWh",
+        event_resolution=pd.Timedelta(0),
+        generic_asset=battery,
+    )
+    db.session.add_all([power_1, power_2, soc])
+    db.session.commit()
+
+    power_sensors = {"power_1": power_1.id, "power_2": power_2.id}
+    for entry in flex_model:
+        if "sensor" in entry:
+            entry["sensor"] = power_sensors[entry["sensor"]]
+        if "state-of-charge" in entry:
+            entry["state-of-charge"] = {"sensor": soc.id}
+
+    return StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "100 EUR/MWh",
+        },
+        return_multiple=True,
+    )
+
+
+def test_shared_stock_storage_efficiency_applies_to_all_members(db):
+    """A storage-efficiency defined on the stock's SoC-parameters entry applies to every member device."""
+    scheduler = _shared_stock_scheduler(
+        db,
+        [
+            {"sensor": "power_1", "state-of-charge": "soc", "power-capacity": "20 kW"},
+            {"sensor": "power_2", "state-of-charge": "soc", "power-capacity": "20 kW"},
+            {
+                "state-of-charge": "soc",
+                "soc-at-start": 20.0,
+                "soc-min": 10,
+                "soc-max": 200.0,
+                "storage-efficiency": "99%",
+            },
+        ],
+        label="propagate",
+    )
+    device_constraints = scheduler._prepare(skip_validation=True)[5]
+    assert (device_constraints[0]["efficiency"] == 0.99).all()
+    assert device_constraints[1]["efficiency"].equals(
+        device_constraints[0]["efficiency"]
+    )
+
+
+def test_shared_stock_storage_efficiency_defined_twice_fails(db):
+    """Two entries defining a storage-efficiency for the same stock are rejected."""
+    scheduler = _shared_stock_scheduler(
+        db,
+        [
+            {
+                "sensor": "power_1",
+                "state-of-charge": "soc",
+                "power-capacity": "20 kW",
+                "storage-efficiency": "99%",
+            },
+            {
+                "sensor": "power_2",
+                "state-of-charge": "soc",
+                "power-capacity": "20 kW",
+                "storage-efficiency": "99%",
+            },
+            {
+                "state-of-charge": "soc",
+                "soc-at-start": 20.0,
+                "soc-min": 10,
+                "soc-max": 200.0,
+            },
+        ],
+        label="conflict",
+    )
+    with pytest.raises(ValueError, match="define it on a single entry"):
+        scheduler._prepare(skip_validation=True)
+
+
+@pytest.mark.parametrize("named_device", [0, 1])
+def test_stock_scoped_commitment_binds_group_stock(named_device):
+    """A stock-scoped StockCommitment binds its stock group as a whole,
+    regardless of which member device index it names."""
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-01T04:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    device_constraints = [
+        pd.DataFrame(
+            {
+                "min": 0.0,
+                "max": 100.0,
+                "equals": np.nan,
+                "derivative min": 0.0,
+                "derivative max": 10.0,
+                "derivative equals": np.nan,
+                "derivative down efficiency": 1.0,
+                "derivative up efficiency": 1.0,
+            },
+            index=index,
+        )
+        for _ in range(2)
+    ]
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -100, "derivative max": 100}, index=index
+    )
+
+    # Require the shared stock to hold 20 units at the end of the horizon.
+    min_stock = pd.Series(0.0, index=index)
+    min_stock.iloc[-1] = 20.0
+
+    commitments = [
+        StockCommitment(
+            name="soc minimum",
+            index=index,
+            quantity=min_stock,
+            downwards_deviation_price=-1000,
+            device=named_device,
+            stock=7,
+        ),
+    ] + [
+        FlowCommitment(
+            name=f"energy device {d}",
+            index=index,
+            quantity=0,
+            upwards_deviation_price=10,
+            downwards_deviation_price=10,
+            device=pd.Series(d, index=index),
+        )
+        for d in (0, 1)
+    ]
+
+    planned_power, planned_costs, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=0,
+        stock_groups={7: [0, 1]},
+    )
+
+    assert results.solver.termination_condition == "optimal"
+    # Charging just enough to meet the stock minimum beats paying the breach price,
+    # so the group's total stock change reaches exactly 20 - no matter whether the
+    # commitment named the group's first or second device.
+    total_energy = sum(schedule.sum() for schedule in planned_power)
+    np.testing.assert_allclose(total_energy, 20.0, atol=1e-6)
+
+
+def test_ems_flow_commitment_binds_all_devices():
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-01T01:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    device_constraints = [
+        pd.DataFrame(
+            {
+                "min": -100.0,
+                "max": 100.0,
+                "equals": np.nan,
+                "derivative min": -10.0,
+                "derivative max": 10.0,
+                "derivative equals": np.nan,
+                "derivative down efficiency": 1.0,
+                "derivative up efficiency": 1.0,
+            },
+            index=index,
+        )
+        for _ in range(2)
+    ]
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -100.0, "derivative max": 100.0}, index=index
+    )
+    commitments = [
+        FlowCommitment(
+            name="EMS target",
+            index=index,
+            quantity=5,
+            upwards_deviation_price=10,
+            downwards_deviation_price=-10,
+        )
+    ]
+
+    planned_power, planned_costs, results, _ = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=0,
+    )
+
+    assert results.solver.termination_condition == "optimal"
+    np.testing.assert_allclose(
+        sum(schedule.iloc[0] for schedule in planned_power), 5.0, atol=1e-6
+    )
+    assert planned_costs == pytest.approx(0)
+
+
+def test_commitment_commodity_does_not_bind_other_commodity_devices():
+    """A commitment
+    listed under the flex-context's `commitments` should only bind devices of its own
+    `commodity` (defaulting to "electricity", like devices do). A gas commitment
+    should therefore not create a FlowCommitment against an electricity device, and
+    vice versa.
+
+    This is a DB-free, unit-level test of StorageScheduler.convert_to_commitments.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "gas commitment",
+                "commodity": "gas",
+                "baseline": ur.Quantity("1 MW"),
+            },
+            {
+                # No `commodity` given: defaults to "electricity", like devices do.
+                "name": "electricity commitment",
+                "baseline": ur.Quantity("2 MW"),
+            },
+        ],
+    }
+    # Flexible devices: 0 = electricity, 1 = gas.
+    flex_model = [
+        {"commodity": "electricity"},
+        {"commodity": "gas"},
+    ]
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+    commitments = scheduler.convert_to_commitments(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+    )
+
+    assert len(commitments) == 2
+
+    gas_commitment = next(c for c in commitments if c.name == "gas commitment")
+    electricity_commitment = next(
+        c for c in commitments if c.name == "electricity commitment"
+    )
+
+    # The gas commitment binds only the gas device (index 1), not the electricity
+    # device (index 0).
+    assert set(gas_commitment.device.iloc[0]) == {1}
+    assert set(gas_commitment.device_group.unique()) == {"gas"}
+
+    # The electricity commitment (commodity defaulting to "electricity") binds only
+    # the electricity device (index 0), not the gas device (index 1).
+    assert set(electricity_commitment.device.iloc[0]) == {0}
+    assert set(electricity_commitment.device_group.unique()) == {"electricity"}
+
+
+def test_unscoped_commitment_binds_commodity_aggregate(app, db):
+    """Regression (#2379): a regular (unscoped) commitment binds the *aggregate* flow of its commodity's devices,
+    not each device individually.
+    Two 8 MW heaters under a 10 MW baseline reach a combined 10 MW (a level neither could carry alone);
+    a per-device binding would instead hold each heater to 10 MW, pushing each to its 8 MW cap (combined 16).
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(
+        name="Aggregate commitment site", generic_asset_type=heater_type
+    )
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("aggregate heater 1")
+    heater_2 = sensor("aggregate heater 2")
+    db.session.flush()
+
+    flex_model = [
+        {
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                # Unscoped: binds the aggregate of the electricity devices.
+                "name": "aggregate band",
+                "baseline": "10 MW",
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # Aggregate binding: the two heaters together reach exactly the 10 MW baseline.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
+    """A commitment scoped to specific sensors (here: two e-heaters) binds their aggregate flow as one commitment:
+    a baseline of 10 MW with a steep penalty on downward deviation keeps their combined consumption at 10 MW,
+    even though a cheaper allocation (0 MW) exists.
+
+    "Band" (as in the "reserved band" commitment name) means a committed power level the aggregate is held to,
+    by penalising deviation from the baseline;
+    here only downward deviation is priced, so the band acts as a floor rather than a two-sided range.
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(
+        name="Band site (scoped commitment test)", generic_asset_type=heater_type
+    )
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("band heater 1")
+    heater_2 = sensor("band heater 2")
+    db.session.flush()
+
+    flex_model = [
+        {
+            # Heaters burn money at the consumption price;
+            # without the band commitment the optimum is to stay off.
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                "name": "reserved band",
+                "sensors": [heater_1.id, heater_2.id],
+                "baseline": "10 MW",
+                # Steep penalty for consuming less than the band (negative price penalizes downward deviation);
+                # consuming more is free.
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # The band keeps the aggregate at 10 MW (cheapest way to avoid the penalty),
+    # even though each heater alone (8 MW max) could not carry it.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_commitment_scope_sensors_and_group_are_mutually_exclusive(app, db):
+    """A commitment's scope is either a sensor list or a group reference, not both."""
+    from flexmeasures.data.schemas.scheduling import CommitmentSchema
+    from marshmallow import ValidationError
+
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(name="scope-conflict site", generic_asset_type=heater_type)
+    db.session.add(site)
+    db.session.flush()
+    power = Sensor(
+        name="scope-conflict power",
+        unit="MW",
+        event_resolution=pd.Timedelta("1h"),
+        generic_asset=site,
+    )
+    db.session.add(power)
+    db.session.flush()
+
+    with pytest.raises(ValidationError, match="not both"):
+        CommitmentSchema().load(
+            {
+                "name": "conflicted",
+                "baseline": "1 MW",
+                "up-price": "1 EUR/MWh",
+                "sensors": [power.id],
+                "group": {"sensor": power.id},
+            }
+        )
+
+
+def test_group_scoped_commitment_binds_group_aggregate(app, db):
+    """A commitment scoped to a ``group`` reference binds the aggregate flow of that group's members,
+    reusing the group's resolved membership;
+    the same band effect as listing the members' sensors, but pointing at the group instead.
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(name="Group-scoped band site", generic_asset_type=heater_type)
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("group band heater 1")
+    heater_2 = sensor("group band heater 2")
+    group_sensor = sensor("group aggregate sensor")
+    db.session.flush()
+
+    flex_model = [
+        {
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+            "group": {"sensor": group_sensor.id},
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+            "group": {"sensor": group_sensor.id},
+        },
+        # The group entry (a loose cap so it does not itself bind the aggregate).
+        {"sensor": group_sensor.id, "power-capacity": "1 GW"},
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                "name": "reserved band on the group",
+                "group": {"sensor": group_sensor.id},
+                "baseline": "10 MW",
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # The band on the group keeps its members' aggregate at 10 MW.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_sensor_scope_includes_inflexible_and_matches_group_scope(app):
+    """A sensors scope includes an inflexible device (by its power sensor),
+    so listing a group's member sensors binds the same device set as scoping by that group.
+    """
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    def mk(sid, name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset_id=1
+        )
+        s.id = sid
+        return s
+
+    battery = mk(1, "scope battery")
+    load = mk(12, "scope fixed load")
+    group_sensor = mk(10, "scope group sensor")
+
+    flex_model = [
+        {"sensor": battery, "group": {"sensor": group_sensor}},
+        {
+            "asset": object(),
+            "inflexible_consumption": load,
+            "group": {"sensor": group_sensor},
+        },
+        {"sensor": group_sensor, "power_capacity_in_mw": ur.Quantity("1 GW")},
+    ]
+
+    def commitment_devices(scope):
+        scheduler.flex_context = {
+            "shared_currency_unit": "EUR",
+            "commitments": [
+                {
+                    "name": "band",
+                    "baseline": ur.Quantity("1 MW"),
+                    "up_price": ur.Quantity("1 EUR/MWh"),
+                    **scope,
+                }
+            ],
+        }
+        scheduler.device_inventory = DeviceInventory.from_flex_config(
+            flex_model, scheduler.flex_context
+        )
+        commitments = scheduler.convert_to_commitments(
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=start,
+        )
+        # FlowCommitment.device is a Series of (identical) device-index lists.
+        return set(commitments[0].device.iloc[0])
+
+    by_sensors = commitment_devices({"sensors": [battery, load]})
+    by_group = commitment_devices({"group": {"sensor": group_sensor}})
+
+    assert by_sensors == by_group  # listing the members == scoping the group
+    assert by_sensors == {0, 1}  # the flexible battery (0) and the inflexible load (1)
+
+
+def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
+    """A scoped commitment's commodity follows its scoped devices,
+    overriding the schema's electricity default, so its cost is attributed to the right commodity.
+    """
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_load = Sensor(
+        name="scoped gas load",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset_id=1,
+    )
+    gas_load.id = 12
+    flex_model = [{"sensor": gas_load, "commodity": "gas"}]
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "gas band",
+                "commodity": "electricity",  # as the schema's electricity default supplies
+                "sensors": [gas_load],
+                "baseline": ur.Quantity("1 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            }
+        ],
+    }
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+
+    commitments = scheduler.convert_to_commitments(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    # Pinned to the scoped device's commodity, not the "electricity" default.
+    assert commitments[0].commodity == "gas"
+
+
+def test_scoped_commitment_with_no_matching_devices_warns_and_binds_nothing(
+    app, caplog
+):
+    """A scope that matches no device in the flex-model logs a warning and binds nothing,
+    rather than failing the whole schedule."""
+    import logging
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    present = Sensor(
+        name="present device",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset_id=1,
+    )
+    present.id = 1
+    flex_model = [{"sensor": present, "commodity": "electricity"}]
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "orphan band",
+                "sensors": [999],  # no device in the flex-model records this sensor
+                "baseline": ur.Quantity("1 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            }
+        ],
+    }
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+
+    with caplog.at_level(logging.WARNING):
+        commitments = scheduler.convert_to_commitments(
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=start,
+        )
+    assert commitments == []  # bound nothing, did not raise
+    assert "will not bind any device" in caplog.text
+
+
+def test_commitments_in_commodity_contexts_are_converted(app):
+    """Commitments saved within a commodity context (as the UI editor does per
+    commodity tab) are picked up by the scheduler and bind that context's commodity.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "top-level commitment",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            },
+        ],
+        "commodity_contexts": [
+            {
+                "commodity": "gas",
+                "commitments": [
+                    {
+                        "name": "gas context commitment",
+                        # Even the schema's electricity default gets overridden
+                        # by the surrounding context's commodity.
+                        "commodity": "electricity",
+                        "baseline": ur.Quantity("1 MW"),
+                        "up_price": ur.Quantity("2 EUR/MWh"),
+                    },
+                ],
+            },
+        ],
+    }
+    # Flexible devices: 0 = electricity, 1 = gas.
+    flex_model = [{"commodity": "electricity"}, {"commodity": "gas"}]
+
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+    commitments = scheduler.convert_to_commitments(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 2
+    gas_commitment = next(c for c in commitments if c.name == "gas context commitment")
+    assert set(gas_commitment.device.iloc[0]) == {1}
+    assert set(gas_commitment.device_group.unique()) == {"gas"}
+
+    # The original specs (including the nested ones) are not mutated.
+    nested_spec = scheduler.flex_context["commodity_contexts"][0]["commitments"][0]
+    assert "baseline" in nested_spec
+    assert nested_spec["commodity"] == "electricity"

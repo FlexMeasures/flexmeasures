@@ -7,6 +7,9 @@ flexmeasures.log*
 # Ignore locally made docs
 flexmeasures/ui/static/documentation
 
+# Checked out separately by Docker CI for host-side client integration tests
+flexmeasures-client
+
 # Ignore all forecasting artifacts (models, predictions, etc.)
 flexmeasures/data/models/forecasting/**/artifacts/
 flexmeasures/data/models/forecasting/**/*.pkl

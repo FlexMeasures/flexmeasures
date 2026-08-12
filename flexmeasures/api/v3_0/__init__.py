@@ -5,6 +5,7 @@ FlexMeasures API v3
 from pathlib import Path
 from typing import Any, Type
 import inspect
+import re
 
 from flask import Flask
 import json
@@ -16,6 +17,7 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from marshmallow import Schema, fields
 
 from flexmeasures import __version__ as fm_version
+from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.api.v3_0.sensors import (
     SensorAPI,
     forecasting_trigger_schema_openAPI,
@@ -45,10 +47,32 @@ from flexmeasures.data.schemas.automations import (
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
-from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.account import (
+    AccountSchema,
+    AccountCreateSchema,
+    AccountPatchSchema,
+)
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
+from flexmeasures.api.common.rate_limiting import (
+    EXEMPT_PATH_PREFIXES,
+    TRIGGER_LIMITED_VIEWS,
+)
 from flexmeasures.utils.doc_utils import rst_to_openapi
+
+OPENAPI_DOCSTRING_REPLACEMENTS = {
+    "{{CONSULTANCY_ACCOUNT_ROLE}}": CONSULTANCY_ACCOUNT_ROLE,
+}
+
+DEFAULT_RATE_LIMIT_DESCRIPTION = (
+    "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows."
+    " Wait for as long as the Retry-After header says, then try again."
+)
+TRIGGER_RATE_LIMIT_DESCRIPTION = (
+    "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your"
+    " rate limits allow. Triggering endpoints share a stricter limit than the rest of the API."
+    " Wait for as long as the Retry-After header says, then try again."
+)
 
 
 def register_at(app: Flask):
@@ -96,6 +120,47 @@ def collapse_schema_to_field(
     spec.components.schemas[component_name] = field_schema
 
     return field_schema
+
+
+def flask_rule_to_openapi_path(rule: str) -> str:
+    """Turn a Flask rule like "/api/v3_0/assets/<id>/data" into its OpenAPI path."""
+    return re.sub(r"<(?:[^:<>]+:)?([^<>]+)>", r"{\1}", rule)
+
+
+def trigger_limited_operations_of(rule, view) -> set[tuple]:
+    """The (OpenAPI path, method) pairs of this rule, if its view is under the trigger limit."""
+    if view.__qualname__ not in TRIGGER_LIMITED_VIEWS:
+        return set()
+    openapi_path = flask_rule_to_openapi_path(rule.rule)
+    return {
+        (openapi_path, method.lower())
+        for method in rule.methods or ()
+        if method not in ("HEAD", "OPTIONS")
+    }
+
+
+def document_rate_limits(spec_dict: dict, trigger_limited_operations: set[tuple]):
+    """Document the 429 response on every endpoint the rate limiter guards.
+
+    Rate limiting is applied by the limiter rather than by the views themselves
+    (see ``flexmeasures.api.common.rate_limiting``), so no view docstring declares this
+    response. We add it here, so that the published contract keeps matching what the
+    limiter does, without every docstring having to remember to say so.
+    """
+    for path, operations in spec_dict.get("paths", {}).items():
+        if not path.startswith("/api/") or path.startswith(EXEMPT_PATH_PREFIXES):
+            continue
+        for method, operation in operations.items():
+            if method.lower() not in ("get", "post", "patch", "put", "delete"):
+                continue  # e.g. a shared "parameters" list
+            description = (
+                TRIGGER_RATE_LIMIT_DESCRIPTION
+                if (path, method.lower()) in trigger_limited_operations
+                else DEFAULT_RATE_LIMIT_DESCRIPTION
+            )
+            operation.setdefault("responses", {}).setdefault(
+                "429", {"description": description}
+            )
 
 
 def create_openapi_specs(app: Flask):
@@ -166,6 +231,8 @@ def create_openapi_specs(app: Flask):
         ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
+        ("AccountCreateSchema", AccountCreateSchema()),
+        ("AccountPatchSchema", AccountPatchSchema()),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),
         ("AuthRequestSchema", AuthRequestSchema),
     ]
@@ -178,6 +245,7 @@ def create_openapi_specs(app: Flask):
     register_path_id_field(spec, param_name="AssetIdPath", field=field)
 
     last_exception = None
+    trigger_limited_operations: set[tuple] = set()
     with app.test_request_context():
         documented_endpoints_counter = 0
 
@@ -194,6 +262,12 @@ def create_openapi_specs(app: Flask):
                 target = view_function.__func__
             if target.__doc__:
                 target.__doc__ = rst_to_openapi(target.__doc__)
+                for placeholder, value in OPENAPI_DOCSTRING_REPLACEMENTS.items():
+                    target.__doc__ = target.__doc__.replace(placeholder, value)
+
+            trigger_limited_operations.update(
+                trigger_limited_operations_of(rule, target)
+            )
 
             # Document all API endpoints under /api or root /
             if rule.rule.startswith("/api/") or rule.rule == "/":
@@ -208,11 +282,23 @@ def create_openapi_specs(app: Flask):
     collapse_schema_to_field(spec, QuantitySchema, "quantity")
     collapse_schema_to_field(spec, TimeSeriesSchema, "timeseries")
 
+    # An operation mode must declare at least one of its two ranges
+    # (checked by OperationModeSchema.check_ranges); express that in the
+    # published contract, which apispec cannot derive from the validator.
+    if "OperationMode" in spec.components.schemas:
+        spec.components.schemas["OperationMode"]["anyOf"] = [
+            {"required": ["consumption-range"]},
+            {"required": ["production-range"]},
+        ]
+
     output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    spec_dict = spec.to_dict()
+    document_rate_limits(spec_dict, trigger_limited_operations)
+
     with open(output_path, "w") as f:
-        json.dump(spec.to_dict(), f, indent=2)
+        json.dump(spec_dict, f, indent=2)
 
     print(f"✅ Documented {documented_endpoints_counter} endpoints to {output_path}")
     if last_exception:

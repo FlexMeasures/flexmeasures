@@ -54,6 +54,16 @@
                             {% endfor %}
                         </div>
                     </div>
+                    <div class="form-group">
+                        {{ asset_form.description.label(class="col-md-6 control-label") }}
+                        <div class="col-md-6">
+                            <small>{{ asset_form.description.description }}</small>
+                            {{ asset_form.description(class_="form-control", rows="3") }}
+                            {% for error in asset_form.errors.description %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
                     {% if asset_form.account_id %}
                     <div class="form-group">
                         {{ asset_form.account_id.label(class="col-md-6 control-label") }}
@@ -136,7 +146,7 @@
             <div class="row mb-3 mt-3">
                 <div class="col-md-5">
                     <input type="text" id="copySearchInput" class="form-control"
-                        placeholder="Search assets…" value="">
+                        placeholder="Search assets…" value="Template">
                 </div>
                 <div class="col-md-3">
                     <select id="copyAssetTypeSelect" class="form-select">
@@ -255,6 +265,8 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
     let totalPages = 0;
     let activeSearchToken = 0;
     const accountNameCache = new Map();
+    const defaultCopySearchValue = "Template";
+    const copySearchHintMessage = "You can search for any accessible asset here. We start by showing templates.";
 
     const spinner = document.getElementById("copyAssetsSpinner");
     const results = document.getElementById("copyAssetsResults");
@@ -296,6 +308,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
 
         const params = new URLSearchParams({ page: page, per_page: perPage });
         params.set("all_accessible", true);
+        params.set("fields", "id|name|account_id|generic_asset_type|description|attributes");
         if (filter) params.set("filter", filter);
         if (assetTypeId) params.set("asset_type", assetTypeId);
         if (includePublic) params.set("include_public", "true");
@@ -363,13 +376,44 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
             const accountLabel = asset.account_id
                 ? "Organisation #" + asset.account_id
                 : "Public";
+            const assetTypeName = asset.generic_asset_type && asset.generic_asset_type.name
+                ? asset.generic_asset_type.name
+                : "Unknown type";
+            const description = asset.description
+                ? escapeHtml(asset.description)
+                : "";
+            const parsedAttributes = parseJsonField(asset.attributes);
+            const templateMeta = parsedAttributes && parsedAttributes.template
+                ? parsedAttributes.template
+                : null;
+            const badges = [];
+            if (templateMeta) {
+                badges.push('<span class="badge text-bg-info me-1">Template</span>');
+                if (templateMeta.kind) {
+                    badges.push(
+                        '<span class="badge text-bg-light me-1 border">' +
+                        escapeHtml(templateMeta.kind) +
+                        '</span>'
+                    );
+                }
+                if (templateMeta.has_scenarios) {
+                    badges.push('<span class="badge text-bg-warning text-dark">Scenarios</span>');
+                }
+            }
             col.innerHTML =
-                '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">' +
-                '<div class="me-2 text-truncate">' +
-                '<div class="fw-semibold text-truncate" title="View Asset"> <a href="/assets/' + asset.id + '" class="text-reset">' + escapeHtml(asset.name) + ' (ID:' + asset.id + ')</a></div>' +
-                '<div class="text-muted small text-truncate js-account-label">' + accountLabel + '</div>' +
+                '<div class="h-100 border rounded px-3 py-2 d-flex justify-content-between gap-2">' +
+                '<div class="me-2 flex-grow-1">' +
+                '<div class="fw-semibold" title="View Asset"><a href="/assets/' + asset.id + '" class="text-reset">' + escapeHtml(asset.name) + ' (ID:' + asset.id + ')</a></div>' +
+                '<div class="small text-muted js-account-label">' + accountLabel + '</div>' +
+                '<div class="small mt-1"><strong>Type:</strong> ' + escapeHtml(assetTypeName) + '</div>' +
+                (badges.length
+                    ? '<div class="mt-2">' + badges.join("") + '</div>'
+                    : '') +
+                (description
+                    ? '<div class="small mt-2">' + description + '</div>'
+                    : '') +
                 '</div>' +
-                '<button class="btn btn-sm btn-primary js-copy-from-tab-btn"' +
+                '<button class="btn btn-sm btn-primary js-copy-from-tab-btn align-self-start"' +
                 ' data-asset-id="' + asset.id + '">Copy</button>' +
                 '</div>';
             container.appendChild(col);
@@ -516,7 +560,41 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
         return d.innerHTML;
     }
 
-    document.getElementById("copySearchInput").addEventListener("input", triggerNewSearch);
+    function parseJsonField(value) {
+        if (typeof value !== "string") {
+            return value;
+        }
+        try {
+            return JSON.parse(value);
+        } catch (_error) {
+            return value;
+        }
+    }
+
+    function dismissCopySearchHintToast() {
+        const matchingToast = Array.from(document.querySelectorAll("#toast-container .toast")).find(
+            function (toast) {
+                const body = toast.querySelector(".toast-body");
+                return body && body.dataset.originalMessage === copySearchHintMessage;
+            }
+        );
+        if (!matchingToast) {
+            return;
+        }
+        const toastInstance = bootstrap.Toast.getInstance(matchingToast);
+        if (toastInstance) {
+            toastInstance.hide();
+        } else {
+            matchingToast.remove();
+        }
+    }
+
+    document.getElementById("copySearchInput").addEventListener("input", function () {
+        if (document.getElementById("copySearchInput").value !== defaultCopySearchValue) {
+            dismissCopySearchHintToast();
+        }
+        triggerNewSearch();
+    });
     document.getElementById("copyAssetTypeSelect").addEventListener("change", triggerNewSearch);
     document.getElementById("copyIncludePublic").addEventListener("change", triggerNewSearch);
     nextButton.addEventListener("click", function () {
@@ -531,6 +609,9 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
     document.getElementById("copy-asset-tab").addEventListener("shown.bs.tab", function () {
         if (!hasInitializedCopyTab) {
             hasInitializedCopyTab = true;
+            if (document.getElementById("copySearchInput").value === defaultCopySearchValue) {
+                showToast(copySearchHintMessage, "info", { delay: 7000, highlightDuplicates: false });
+            }
             searchAssetsForCopy(true);
         }
     });

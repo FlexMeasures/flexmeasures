@@ -156,13 +156,13 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     # )
 
 
-def test_create_sequential_jobs_fallback(
+def test_create_sequential_jobs_without_storage_fallback(
     db, app, flex_description_sequential, smart_building
 ):
-    """Test fallback scheduler in a chain of sequential scheduling (sub)jobs.
+    """Test an infeasible first subjob in a chain of sequential scheduling jobs.
 
-    Checks execution of a sequential scheduling job, where 1 of the subjobs is set up to fail and trigger its fallback.
-    The deferred subjobs should still succeed after the fallback succeeds, even though the first subjob fails.
+    Checks that no storage fallback job is created. The deferred subjobs should remain
+    deferred because the first subjob failed.
     """
     assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
@@ -181,53 +181,116 @@ def test_create_sequential_jobs_fallback(
     storage_module = "flexmeasures.data.models.planning.storage"
 
     with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
-        with patch(f"{storage_module}.StorageFallbackScheduler.persist_flex_model"):
-            with patch(
-                f"{storage_module}.StorageScheduler.compute",
-                side_effect=iter([InfeasibleProblemException(), [], []]),
-            ):
-                create_sequential_scheduling_job(
-                    asset=assets["Test Site"],
-                    scheduler_specs=scheduler_specs,
-                    enqueue=True,
-                    force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
-                    **flex_description_sequential,
-                )
+        with patch(
+            f"{storage_module}.StorageScheduler.compute",
+            side_effect=InfeasibleProblemException(),
+        ):
+            create_sequential_scheduling_job(
+                asset=assets["Test Site"],
+                scheduler_specs=scheduler_specs,
+                enqueue=True,
+                force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+                **flex_description_sequential,
+            )
 
-                # There should be 3 jobs:
-                # 2 jobs scheduling the 2 flexible devices in the flex-model, plus 1 'done job' to wrap things up
-                queued_jobs = app.queues["scheduling"].jobs
-                deferred_jobs = [
-                    Job.fetch(job_id, connection=queue.connection)
-                    for job_id in app.queues[
-                        "scheduling"
-                    ].deferred_job_registry.get_job_ids()
-                ]
-                # Sort deferred_jobs by their created_at attribute
-                deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
-                assert (
-                    len(queued_jobs) == 1
-                ), "Only the job for scheduling the first device sequentially should be queued."
-                assert (
-                    len(deferred_jobs) == 2
-                ), "The job for scheduling the second device, and the wrap-up job, should be deferred."
+            # There should be 3 jobs:
+            # 2 jobs scheduling the 2 flexible devices in the flex-model, plus 1 'done job' to wrap things up
+            queued_jobs = app.queues["scheduling"].jobs
+            deferred_jobs = [
+                Job.fetch(job_id, connection=queue.connection)
+                for job_id in app.queues[
+                    "scheduling"
+                ].deferred_job_registry.get_job_ids()
+            ]
+            # Sort deferred_jobs by their created_at attribute
+            deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
+            assert (
+                len(queued_jobs) == 1
+            ), "Only the job for scheduling the first device sequentially should be queued."
+            assert (
+                len(deferred_jobs) == 2
+            ), "The job for scheduling the second device, and the wrap-up job, should be deferred."
 
-                # Work on jobs
-                work_on_rq(queue, exc_handler=handle_scheduling_exception)
+            # Work on jobs
+            work_on_rq(queue, exc_handler=handle_scheduling_exception)
 
-                # Refresh jobs so that the fallback_job_id (which should be set by now) can be read
-                for job in queued_jobs:
-                    job.refresh()
+            for job in queued_jobs:
+                job.refresh()
+            for job in deferred_jobs:
+                job.refresh()
 
-                finished_jobs = queue.finished_job_registry.get_job_ids()
-                failed_jobs = queue.failed_job_registry.get_job_ids()
+            finished_jobs = queue.finished_job_registry.get_job_ids()
+            failed_jobs = queue.failed_job_registry.get_job_ids()
 
-                # Original job failed
-                assert queued_jobs[0].id in failed_jobs
+            # Original job failed and no fallback job was created
+            assert queued_jobs[0].id in failed_jobs
+            assert queued_jobs[0].meta.get("fallback_job_id") is None
 
-                # The fallback job ran successfully
-                assert queued_jobs[0].meta["fallback_job_id"] in finished_jobs
+            # The deferred jobs should not run when their dependency fails without fallback
+            assert deferred_jobs[0].id not in finished_jobs
+            assert deferred_jobs[1].id not in finished_jobs
 
-                # The deferred jobs ran successfully
-                assert deferred_jobs[0].id in finished_jobs
-                assert deferred_jobs[1].id in finished_jobs
+    # Without a fallback to unblock the chain, the deferred subjobs stay deferred
+    # for good, so clear them here rather than leaking them into the next test.
+    for deferred_job_id in queue.deferred_job_registry.get_job_ids():
+        queue.deferred_job_registry.remove(deferred_job_id)
+    queue.empty()
+
+
+def test_create_sequential_jobs_with_sign_explicit_context(
+    db, app, flex_description_sequential, smart_building
+):
+    """When the site's flex-context uses the sign-explicit inflexible fields,
+    previously scheduled sensors are injected as sensor references, routed by
+    their consumption_is_positive attribute (all fixture sensors default to
+    production-positive), without touching the deprecated field.
+    """
+    assets, sensors, soc_sensors = smart_building
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_description_sequential["start"] = start
+    flex_description_sequential["end"] = end
+    flex_context = flex_description_sequential["flex_context"]
+    inflexible_sensor_ids = flex_context.pop("inflexible-device-sensors")
+    flex_context["inflexible-production"] = [
+        {"sensor": sensor_id} for sensor_id in inflexible_sensor_ids
+    ]
+
+    create_sequential_scheduling_job(
+        asset=assets["Test Site"],
+        scheduler_specs=scheduler_specs,
+        enqueue=True,
+        **flex_description_sequential,
+    )
+
+    queued_jobs = app.queues["scheduling"].jobs
+    deferred_jobs = [
+        Job.fetch(job_id, connection=queue.connection)
+        for job_id in app.queues["scheduling"].deferred_job_registry.get_job_ids()
+    ]
+    deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
+
+    # The EV is scheduled firstly, using only the user-given inflexible devices.
+    assert queued_jobs[0].kwargs["flex_context"]["inflexible-production"] == [
+        {"sensor": sensors["Test Solar"].id},
+        {"sensor": sensors["Test Building"].id},
+    ]
+    assert "inflexible-device-sensors" not in queued_jobs[0].kwargs["flex_context"]
+
+    # The Battery is scheduled secondly, with the EV's sensor injected as an
+    # inflexible device (production-positive: the EV sensor carries no
+    # consumption_is_positive attribute).
+    assert deferred_jobs[0].kwargs["flex_context"]["inflexible-production"] == [
+        {"sensor": sensors["Test Solar"].id},
+        {"sensor": sensors["Test Building"].id},
+        {"sensor": sensors["Test EV"].id},
+    ]
+    assert "inflexible-device-sensors" not in deferred_jobs[0].kwargs["flex_context"]

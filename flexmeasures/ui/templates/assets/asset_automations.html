@@ -17,18 +17,25 @@
           <span class="fa fa-info-circle" title="
           This table shows the automations defined on this asset: recurring tasks, such as computing forecasts, schedules and reports.
 
-An active automation runs whenever its recurrence (a cron string) matches the current time. Each run queues jobs.
+An active automation follows its cron recurrence in the timezone shown below. If the runner misses forecast occurrences, it coalesces them into one current forecast when it resumes.
           "></span>
         </h4>
         <p>
           Recent jobs created by these automations are listed on the
           <a href="/assets/{{ asset.id }}/status">status page</a>.
+          During daylight-saving-time changes, a skipped local occurrence runs once after the clock moves forward, and a repeated local occurrence runs only once.
         </p>
 
         {% if user_can_manage_automations %}
         <div class="mb-2 text-end">
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
         </div>
+
+        <datalist id="automationTimezones">
+          {% for timezone in available_timezones %}
+          <option value="{{ timezone }}"></option>
+          {% endfor %}
+        </datalist>
 
         <!-- CREATE AUTOMATION MODAL -->
         <div class="modal fade" id="newAutomationModal" tabindex="-1" role="dialog">
@@ -54,7 +61,12 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
                 <div class="mb-3">
                   <label for="automationCron" class="form-label">Recurrence (cron string)</label>
                   <input type="text" class="form-control" id="automationCron" placeholder="0 6 * * *" required>
-                  <div class="form-text">In the platform timezone, e.g. "0 6 * * *" for daily at 6:00.</div>
+                  <div class="form-text">For example, "0 6 * * *" means daily at 6:00 in the selected timezone.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="automationTimezone" class="form-label">Timezone</label>
+                  <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
+                  <div class="form-text">Choose the IANA timezone in which this recurrence should follow the local clock. The asset timezone is selected by default.</div>
                 </div>
                 <div class="mb-3">
                   <label for="automationGenerator" class="form-label">Data generator</label>
@@ -87,14 +99,52 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
             </form>
           </div></div>
         </div>
+
+        <!-- EDIT AUTOMATION MODAL -->
+        <div class="modal fade" id="editAutomationModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Edit automation</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editAutomationForm">
+              <div class="modal-body">
+                <input type="hidden" id="editAutomationId">
+                <div class="mb-3">
+                  <label for="editAutomationName" class="form-label">Name</label>
+                  <input type="text" class="form-control" id="editAutomationName" maxlength="80" required>
+                </div>
+                <div class="mb-3">
+                  <label for="editAutomationCron" class="form-label">Recurrence (cron string)</label>
+                  <input type="text" class="form-control" id="editAutomationCron" required>
+                  <div class="form-text">The next eligible occurrence is recalculated after changing the recurrence.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="editAutomationTimezone" class="form-label">Timezone</label>
+                  <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
+                  <div class="form-text">Changing the timezone changes how the recurrence follows the local clock.</div>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="editAutomationActive">
+                  <label class="form-check-label" for="editAutomationActive">Active</label>
+                </div>
+                <div class="alert alert-danger d-none" id="editAutomationErr"></div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+              </div>
+            </form>
+          </div></div>
+        </div>
         {% endif %}
 
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab">Forecasts</button>
+            <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab" aria-controls="forecasts-tab-pane" aria-selected="true">Forecasts</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab">Schedules</button>
+            <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab" aria-controls="schedules-tab-pane" aria-selected="false">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-tab-pane" type="button" role="tab">Reports</button>
@@ -127,6 +177,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 <script>
   const assetId = "{{ asset.id }}";
   const userCanManage = {{ user_can_manage_automations | tojson }};
+  const automationsById = new Map();
 
   // Escape user-controlled strings before interpolating them into HTML
   function esc(value) {
@@ -135,18 +186,49 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
     }[c]));
   }
 
+  // Columns that show rendered HTML sort on a separate value (see renderSortable)
+  function sortable(order, display) {
+    return { order: order, display: display };
+  }
+
+  function renderSortable(data, type) {
+    return type === "display" ? data.display : data.order;
+  }
+
+  function automationAjaxErrorMessage(xhr) {
+    const responseMessage = xhr.responseJSON?.message;
+    if (typeof responseMessage === "string" && responseMessage) {
+      return responseMessage;
+    }
+    if (responseMessage) {
+      return JSON.stringify(responseMessage);
+    }
+    return xhr.status ? `HTTP ${xhr.status}` : "unknown error";
+  }
+
+  function showAutomationsError(message) {
+    $("#automations_err").removeClass("d-none").text(message);
+  }
+
   function AutomationRow(automation) {
     const createdAt = automation.created_at;
     return {
       id: automation.id,
       name: esc(automation.name),
-      created_at: `
+      created_at: sortable(createdAt || "", `
         <span title="${esc(createdAt)}">
           ${createdAt ? esc(getHumanFriendlyDeltaOrTimeStr(createdAt)) : "Unknown"}
         </span>
-      `,
-      active: `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`,
-      recurrence: `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`,
+      `),
+      active: sortable(
+        automation.active ? 1 : 0,
+        `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
+      ),
+      recurrence: sortable(
+        automation.cronstr,
+        `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`
+      ),
+      timezone: esc(automation.timezone),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
       details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
@@ -159,12 +241,24 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           </div></div>
         </div>`,
       actions: `
+        <button class="btn btn-sm btn-outline-primary automation-edit" data-id="${automation.id}">Edit</button>
         <button class="btn btn-sm btn-outline-secondary automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
           ${automation.active ? "Deactivate" : "Activate"}
         </button>
         <button class="btn btn-sm btn-outline-danger automation-delete" data-id="${automation.id}" data-name="${esc(automation.name)}">Delete</button>
       `,
     };
+  }
+
+  // Link to each sensor's page, with the automation's data source pre-selected there
+  function sensorLinks(sensors, generator) {
+    if (!sensors || !sensors.length) {
+      return "None";
+    }
+    const sourceParam = generator ? `?source=${encodeURIComponent(generator.id)}` : "";
+    return sensors.map(sensor =>
+      `<a href="/sensors/${encodeURIComponent(sensor.id)}${sourceParam}">${esc(sensor.name)} (${esc(sensor.id)})</a>`
+    ).join(", ");
   }
 
   function loadAutomationDetails(automationId) {
@@ -184,8 +278,16 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           ? `${res.generator.description} (data source ${res.generator.id})`
           : "None";
         $(`#AutomationDetailsBody-${automationId}`).html(`
+          <h6>Timezone</h6>
+          <p>${esc(res.timezone)}</p>
+          <h6>Scheduling cursor (UTC)</h6>
+          <p title="Occurrences at or before this UTC watermark are ineligible for another automatic queueing attempt; this does not indicate successful queueing or job completion.">${esc(res.scheduling_cursor || "Not initialized yet")}</p>
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
+          <h6>Reads from</h6>
+          <p>${sensorLinks(res.input_sensors, res.generator)}</p>
+          <h6>Writes to</h6>
+          <p>${sensorLinks(res.output_sensors, res.generator)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Recently created jobs</h6>
@@ -198,6 +300,9 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       error: function (xhr) {
         $(`#automation-jobs-${automationId}`).text("unknown");
         $(`#AutomationDetailsBody-${automationId}`).text("Could not load details.");
+        showAutomationsError(
+          `Could not load automation details: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
+        );
       },
     });
   }
@@ -207,19 +312,21 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       searching: false,
       paging: false,
       info: false,
-      ordering: false,
+      ordering: true,
+      order: [[1, "desc"]],  // most recently created first
       language: {
         emptyTable: `No ${automationType} automations have been defined on this asset yet.`
           + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
       },
       columns: [
         { data: "name", title: "Name" },
-        { data: "created_at", title: "Created At" },
-        { data: "active", title: "Active" },
-        { data: "recurrence", title: "Recurrence" },
-        { data: "jobs", title: "Jobs" },
-        { data: "details", title: "", className: "text-right" },
-        ...(userCanManage ? [{ data: "actions", title: "", className: "text-right" }] : []),
+        { data: "created_at", title: "Created At", render: renderSortable },
+        { data: "active", title: "Active", render: renderSortable },
+        { data: "recurrence", title: "Recurrence", render: renderSortable },
+        { data: "timezone", title: "Timezone" },
+        { data: "jobs", title: "Jobs", orderable: false },
+        { data: "details", title: "", className: "text-right", orderable: false },
+        ...(userCanManage ? [{ data: "actions", title: "", className: "text-right", orderable: false }] : []),
       ],
       data: automations.map(AutomationRow),
     });
@@ -238,10 +345,17 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
+    $('button[data-bs-toggle="tab"]').on("shown.bs.tab", function () {
+      const table = $($(this).attr("data-bs-target")).find("table");
+      if ($.fn.dataTable.isDataTable(table)) {
+        table.DataTable().columns.adjust();
+      }
+    });
     $.ajax({
       url: `/api/v3_0/assets/${assetId}/automations`,
       method: "GET",
       success: function (res) {
+        res.automations.forEach(automation => automationsById.set(automation.id, automation));
         for (const automationType of ["forecasts", "schedules", "reports"]) {
           makeAutomationsTable(
             automationType,
@@ -253,8 +367,48 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
         console.error("Error fetching automations:", xhr);
         for (const automationType of ["forecasts", "schedules", "reports"]) {
           makeAutomationsTable(automationType, []);
+          $(`#automationsTable-${automationType}`).hide();
         }
+        showAutomationsError(
+          `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
+        );
       },
+    });
+
+    // Edit an automation's recurrence settings
+    $(document).on("click", ".automation-edit", function () {
+      const automation = automationsById.get(Number($(this).data("id")));
+      if (!automation) {
+        showToast("Could not find the automation to edit. Refresh the page to try again.", "error");
+        return;
+      }
+      $("#editAutomationId").val(automation.id);
+      $("#editAutomationName").val(automation.name);
+      $("#editAutomationCron").val(automation.cronstr);
+      $("#editAutomationTimezone").val(automation.timezone);
+      $("#editAutomationActive").prop("checked", automation.active);
+      $("#editAutomationErr").addClass("d-none").text("");
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
+    });
+
+    $("#editAutomationForm").submit(function (event) {
+      event.preventDefault();
+      const automationId = $("#editAutomationId").val();
+      $.ajax({
+        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        method: "PATCH",
+        contentType: "application/json",
+        data: JSON.stringify({
+          name: $("#editAutomationName").val(),
+          cronstr: $("#editAutomationCron").val(),
+          timezone: $("#editAutomationTimezone").val(),
+          active: $("#editAutomationActive").is(":checked"),
+        }),
+        success: () => location.reload(),
+        error: function (xhr) {
+          $("#editAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not update the automation."));
+        },
+      });
     });
 
     // (De)activate an automation
@@ -315,6 +469,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           name: $("#automationName").val(),
           type: $("#automationType").val(),
           cronstr: $("#automationCron").val(),
+          timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
           generator: $("#automationGenerator").val().trim() || null,
           config: config,

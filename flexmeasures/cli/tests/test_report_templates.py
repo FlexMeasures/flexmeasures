@@ -160,7 +160,7 @@ def test_add_and_run_report_automation_with_template(
     result = runner.invoke(
         add_automation,
         [
-            "--asset", "1",
+            "--asset", str(daily_sensor.generic_asset_id),
             "--name", "Daily self-consumption",
             "--cron", "* * * * *",  # due every minute
             "--type", "reports",
