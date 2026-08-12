@@ -7,7 +7,7 @@ API change log
 
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
-- Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off reporting job (to be picked up by a worker processing the ``reporting`` queue), mirroring how forecasts and schedules are triggered. The job status can be polled via ``GET /api/v3_0/jobs/<uuid>``.
+- Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off reporting job (to be picked up by a worker processing the ``reporting`` queue), mirroring how forecasts and schedules are triggered. The caller must be able to read every input sensor (including sensors referenced by the reporter configuration) and record data on every output sensor, which must belong to the URL asset or one of its descendants. The accepted response uses the canonical ``job`` and ``job-url`` fields, and the job status can be polled via ``GET /api/v3_0/jobs/<uuid>``.
 - Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
 - Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
 - Automation responses now include ``timezone`` and ``scheduling_cursor``. The cursor is an offset-aware UTC scheduling watermark: occurrences at or before it are ineligible for another automatic queueing attempt; it is not a successful-run timestamp.
