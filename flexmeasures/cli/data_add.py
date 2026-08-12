@@ -1550,6 +1550,17 @@ def _apply_report_template(
     return reporter_class, config, parameters
 
 
+def _reject_source_with_report_template(
+    source: DataSource | None, template_name: str | None
+) -> None:
+    """Reject two competing sources of reporter identity and configuration."""
+    if source is not None and template_name is not None:
+        raise click.UsageError(
+            "--source cannot be combined with --template: a source already determines"
+            " the reporter and its configuration. Omit --source to use the prepared template."
+        )
+
+
 def _abort_on_unfilled_placeholders(config: dict, parameters: dict):
     """Abort with a clear validation error if template placeholders were left unfilled."""
     placeholders = [f"config: {path}" for path in find_placeholders(config)] + [
@@ -1798,6 +1809,7 @@ def add_forecast(  # noqa: C901
     type=click.STRING,
     help="Name of a prepared report template to use as defaults for the reporter, config and parameters"
     " (only used for --type reports). Any --config/--parameters files and other options override it."
+    " Cannot be combined with --source, which already determines the reporter and configuration."
     " Use the command `flexmeasures show report-templates` to list all the available templates.",
 )
 @click.option(
@@ -1883,17 +1895,19 @@ def add_automation(
     if forecaster_class is None:
         forecaster_class = "TrainPredictPipeline"
 
+    if template_name is not None and automation_type != "reports":
+        click.secho(
+            "The --template option is only supported for report automations (--type reports).",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    _reject_source_with_report_template(source, template_name)
+
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
     )
 
     if template_name is not None:
-        if automation_type != "reports":
-            click.secho(
-                "The --template option is only supported for report automations (--type reports).",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
         reporter_class, config, parameters = _apply_report_template(
             template_name, reporter_class, config, parameters
         )
@@ -2170,6 +2184,7 @@ def add_schedule(  # noqa C901
     type=click.STRING,
     help="Name of a prepared report template to use as defaults for the reporter, config and parameters."
     " Any --config/--parameters files and other options override it."
+    " Cannot be combined with --source, which already determines the reporter and configuration."
     " Use the command `flexmeasures show report-templates` to list all the available templates.",
 )
 @click.option(
@@ -2277,6 +2292,8 @@ def add_report(  # noqa: C901
     Create a new report using the Reporter class and save the results
     to the database or export them as CSV or Excel file.
     """
+    _reject_source_with_report_template(source, template_name)
+
     if as_job and (dry_run or output_file_pattern):
         click.secho(
             "The --as-job flag cannot be combined with --dry-run or --output-file:"
@@ -2295,18 +2312,22 @@ def add_report(  # noqa: C901
     config = dict()
 
     if config_file:
-        config = yaml.safe_load(config_file)
+        config = _load_yaml_mapping(config_file, "--config")
 
     if edit_config:
-        config = launch_editor("/tmp/config.yml")
+        config = _normalize_yaml_mapping(
+            launch_editor("/tmp/config.yml"), "--edit-config"
+        )
 
     parameters = dict()
 
     if parameters_file:
-        parameters = yaml.safe_load(parameters_file)
+        parameters = _load_yaml_mapping(parameters_file, "--parameters")
 
     if edit_parameters:
-        parameters = launch_editor("/tmp/parameters.yml")
+        parameters = _normalize_yaml_mapping(
+            launch_editor("/tmp/parameters.yml"), "--edit-parameters"
+        )
 
     if template_name is not None:
         reporter_class, config, parameters = _apply_report_template(
