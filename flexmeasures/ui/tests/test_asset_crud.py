@@ -72,8 +72,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
         assert "Schedules".encode() in asset_page.data
+        assert "Reports".encode() in asset_page.data
         assert b'id="automationsTable-forecasts"' in asset_page.data
         assert b'id="automationsTable-schedules"' in asset_page.data
+        assert b'id="automationsTable-reports"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
         assert b"No ${automationType} automations" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
