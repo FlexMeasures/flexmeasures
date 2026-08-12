@@ -817,8 +817,8 @@ def _prepare_report_automation(
     generator_class: str | None,
     config: dict | None,
     source,
-) -> tuple[int, list[str]]:
-    """Validate report automation parameters and set up the reporter's data source."""
+) -> tuple[Reporter, dict, list[str]]:
+    """Validate report automation parameters without creating a data source."""
     from marshmallow import ValidationError
 
     from flexmeasures.data.services.data_sources import get_data_generator
@@ -845,7 +845,9 @@ def _prepare_report_automation(
         raise ValueError(f"Could not set up reporter '{generator_class}'.")
     # Validate with the chosen reporter's own parameters schema,
     # which may extend the base ReporterParametersSchema.
-    reporter._parameters_schema.load(prepare_report_parameters(parameters, cronstr))
+    deserialized_parameters = reporter._parameters_schema.load(
+        prepare_report_parameters(parameters, cronstr)
+    )
     if (
         "start" in parameters or "end" in parameters
     ) and "start-offset" not in parameters:
@@ -854,11 +856,7 @@ def _prepare_report_automation(
             " Use 'start-offset'/'end-offset' (Pandas offsets applied to the run time),"
             " or omit timing fields to report on the period since the last run instead."
         )
-    generator = (
-        reporter.data_source
-    )  # looks up or creates the data source storing the reporter config
-    db.session.flush()
-    return generator.id, warnings
+    return reporter, deserialized_parameters, warnings
 
 
 def create_automation(
@@ -897,7 +895,7 @@ def create_automation(
     parameters = parameters or {}
     warnings: list[str] = []
     generator_id = None
-    forecaster = None
+    data_generator = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
     forecast_output_sensor: Sensor | None = None
@@ -922,6 +920,7 @@ def create_automation(
         )
         if forecaster is None:
             raise ValueError(f"Could not set up forecaster '{generator_class}'.")
+        data_generator = forecaster
 
         # A forecast reads the history of the sensor to forecast, plus its regressors,
         # and records the forecast on the sensor to save to (the same sensor by default).
@@ -945,9 +944,15 @@ def create_automation(
                 " Omit 'start' to schedule from the run time instead."
             )
     elif automation_type == "reports":
-        generator_id, warnings = _prepare_report_automation(
+        reporter, deserialized_parameters, warnings = _prepare_report_automation(
             parameters, cronstr, generator_class, config, source
         )
+        data_generator = reporter
+        report_sensors = resolve_data_generator_sensors(
+            reporter, deserialized_parameters
+        )
+        input_sensors = report_sensors["input_sensors"]
+        output_sensors = report_sensors["output_sensors"]
     else:
         raise ValidationError(
             f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
@@ -961,10 +966,10 @@ def create_automation(
     if forecast_output_sensor is not None:
         validate_forecast_output_scope(asset.id, forecast_output_sensor)
 
-    if forecaster is not None:
-        # Look up or create the data source storing the forecaster config only now that the automation is going ahead,
+    if data_generator is not None:
+        # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
-        generator = forecaster.data_source
+        generator = data_generator.data_source
         db.session.flush()
         generator_id = generator.id
 

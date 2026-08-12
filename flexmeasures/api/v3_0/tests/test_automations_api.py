@@ -268,6 +268,68 @@ def test_post_automation_with_foreign_sensor(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
+def test_post_report_automation_with_foreign_config_sensor(
+    app,
+    db,
+    setup_accounts,
+    add_battery_assets,
+    requesting_user,
+):
+    """Reporter configuration may not read a sensor outside the caller's reach."""
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    battery = add_battery_assets["Test battery"]
+    foreign_asset = GenericAsset(
+        name="Foreign price asset",
+        generic_asset_type=battery.generic_asset_type,
+        owner=setup_accounts["Dummy"],
+    )
+    foreign_price_sensor = Sensor(
+        "private foreign price",
+        generic_asset=foreign_asset,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+    )
+    report_sensor = Sensor(
+        "profit report",
+        generic_asset=battery,
+        event_resolution=timedelta(hours=1),
+        unit="EUR",
+    )
+    db.session.add_all([foreign_price_sensor, report_sensor])
+    db.session.flush()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Cross-organisation profit report",
+                "cronstr": "0 1 * * *",
+                "type": "reports",
+                "generator": "ProfitOrLossReporter",
+                "config": {
+                    "consumption_price_sensor": foreign_price_sensor.id,
+                },
+                "parameters": {
+                    "input": [{"sensor": battery.sensors[0].id}],
+                    "output": [{"sensor": report_sensor.id}],
+                },
+            },
+        )
+
+    assert response.status_code == 403
+    assert foreign_price_sensor.name not in response.text
+    assert (
+        db.session.execute(
+            select(Automation).filter_by(name="Cross-organisation profit report")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_post_automation_with_invalid_parameters(
     app,
     add_battery_assets_fresh_db,
