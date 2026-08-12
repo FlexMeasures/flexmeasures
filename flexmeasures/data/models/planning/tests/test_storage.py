@@ -2734,25 +2734,22 @@ def test_multiple_sessions_same_sensor_accumulate_schedules(db, charge_point):
     np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
 
 
-def test_multiple_sessions_different_connectors_share_charge_point_capacity(
+def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
     db, charge_point
 ):
-    """Overlapping sessions on different connectors still share the site cap.
+    """Overlapping sessions live on different connectors and pre-split capacity.
 
-    Companion to ``test_multiple_sessions_same_sensor_accumulate_schedules``. Two
-    EV sessions cannot overlap on the *same* connector - a connector serves one
-    car at a time - so overlap is only physically meaningful across two
-    *different* connectors of the same charge point (#2344 review). Each
-    connector gets its own power sensor; the charge point's site-power-capacity
-    is the shared constraint the two connectors compete for while both sessions
-    are active.
+    Companion to ``test_multiple_sessions_same_sensor_accumulate_schedules``.
+    Two EV sessions cannot overlap on the same connector, so overlap is only
+    meaningful across two connectors of one charge point (#2344 review). Each
+    connector has its own power sensor. During the shared hours the available
+    power is pre-allocated in each flex-model (each connector's power-capacity
+    is decreased), which is the modeling Flix6x described on #1947.
 
-    Setup: two sessions, one per connector, each with its own 1 kW nominal
-    connector capacity, each needing 2 kWh over a 4-hour window. An hourly
-    soc-minima ramp (0.5 kWh/hour for both) forces them to draw power in the
-    same hours. The charge point's site-power-capacity is capped at 1 kW total
-    - exactly the combined minimum required each hour - so the shared cap pins
-    each connector to 0.5 kW per hour, half of its own nominal capacity.
+    Setup: session A on hours 0-3, session B on hours 1-4. Both run at 1 kW
+    when alone and at 0.5 kW in the two overlapping hours. Each still needs
+    2 kWh. Site capacity is left slack so the binding limits are the
+    per-connector pre-split windows.
     """
     resolution = timedelta(hours=1)
     start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
@@ -2765,22 +2762,21 @@ def test_multiple_sessions_different_connectors_share_charge_point_capacity(
         db, charge_point, resolution, name="connector B power"
     )
 
-    # Both sessions must show 0.5 kWh of cumulative progress every hour, which
-    # (combined with the 1 kW site cap) pins both to exactly 0.5 kW per hour.
-    ramp = [
-        {"datetime": (start + n * resolution).isoformat(), "value": f"{0.5 * n} kWh"}
-        for n in range(1, 5)
-    ]
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    # A: 1 kW, then 0.5 + 0.5 kW in the overlap, then unplugged.
+    # B: unplugged, then 0.5 + 0.5 kW in the overlap, then 1 kW.
+    cap_a = pd.Series([1.0, 0.5, 0.5, 0.0], index=index)
+    cap_b = pd.Series([0.0, 0.5, 0.5, 1.0], index=index)
 
-    def session_flex_model(sensor):
+    def session_flex_model(sensor, capacity, soc_deadline):
         return {
             "sensor": sensor.id,
             "soc-at-start": "0 kWh",
             "soc-min": "0 kWh",
             "soc-max": "100 kWh",
-            "soc-minima": ramp,
-            "power-capacity": "1 kW",
-            "consumption-capacity": "1 kW",
+            "soc-minima": [{"datetime": soc_deadline.isoformat(), "value": "2 kWh"}],
+            "power-capacity": series_to_ts_specs(capacity, unit="kW"),
+            "consumption-capacity": series_to_ts_specs(capacity, unit="kW"),
             "production-capacity": "0 kW",
         }
 
@@ -2790,13 +2786,13 @@ def test_multiple_sessions_different_connectors_share_charge_point_capacity(
         end=end,
         resolution=resolution,
         flex_model=[
-            session_flex_model(connector_a),
-            session_flex_model(connector_b),
+            session_flex_model(connector_a, cap_a, start + 3 * resolution),
+            session_flex_model(connector_b, cap_b, end),
         ],
         flex_context={
             "consumption-price": "100 EUR/MWh",
             "production-price": "0 EUR/MWh",
-            "site-power-capacity": "1 kW",
+            "site-power-capacity": "10 kW",
             "soc-minima-breach-price": "6000 EUR/kWh",
         },
         return_multiple=True,
@@ -2805,14 +2801,12 @@ def test_multiple_sessions_different_connectors_share_charge_point_capacity(
     schedule_a = _storage_schedule_for_sensor(results, connector_a)
     schedule_b = _storage_schedule_for_sensor(results, connector_b)
 
-    # Each connector is pinned to 0.5 kW/hour - half its own 1 kW nominal
-    # capacity - because the two connectors share the charge point's 1 kW cap.
-    np.testing.assert_allclose(schedule_a.values, [0.5, 0.5, 0.5, 0.5], atol=1e-3)
-    np.testing.assert_allclose(schedule_b.values, [0.5, 0.5, 0.5, 0.5], atol=1e-3)
-    # The combined draw never exceeds the charge point's site-power-capacity.
+    # Each connector follows its pre-split window, not the other's.
+    np.testing.assert_allclose(schedule_a.values, [1.0, 0.5, 0.5, 0.0], atol=1e-3)
+    np.testing.assert_allclose(schedule_b.values, [0.0, 0.5, 0.5, 1.0], atol=1e-3)
+    # Combined draw in the overlap hours is the sum of the decreased capacities.
     np.testing.assert_allclose(
         schedule_a.values + schedule_b.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3
     )
-    # Each session still gets its full 2 kWh despite the shared cap.
     np.testing.assert_allclose(schedule_a.sum(), 2.0, atol=1e-3)
     np.testing.assert_allclose(schedule_b.sum(), 2.0, atol=1e-3)
