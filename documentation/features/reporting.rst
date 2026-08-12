@@ -180,6 +180,8 @@ The templates also recommend a rolling reporting window (``start-offset``/``end-
 You can pass a template directly to ``flexmeasures add report`` or ``flexmeasures add automation --type reports`` with the ``--template`` option.
 The template then acts as defaults: an explicitly given ``--reporter`` and any top-level keys in your ``--config``/``--parameters`` files override it,
 and if you provide any timing fields yourself (``start``/``end``/offsets, in the parameters or as CLI options), the template's recommended timing fields are dropped.
+Do not combine ``--template`` with ``--source``: an existing source already determines the reporter and its stored configuration.
+The self-consumption ratio is undefined for a reporting period without production, so the template leaves that period's value missing instead of reporting 0% or 100%.
 For example, this sets up a daily self-consumption report in which only the sensors needed to be filled in:
 
 .. code-block:: bash

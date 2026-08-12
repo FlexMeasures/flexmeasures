@@ -34,6 +34,7 @@ config:
       df_output: self-consumption
       method: div
       args: ["@total-production"]
+      # If total production is zero, the ratio is undefined and remains missing.
 parameters:
   input:
     # The sensor recording produced power/energy (positive values).
