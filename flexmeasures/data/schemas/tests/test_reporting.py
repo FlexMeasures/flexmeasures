@@ -199,6 +199,22 @@ end = "2023-01-02T00:00:00+01:00"
             },
             True,
         ),
+        (  # missing required input
+            {
+                "output": [{"sensor": 3}],
+                "start": start,
+                "end": end,
+            },
+            False,
+        ),
+        (  # missing required output
+            {
+                "input": [{"sensor": 4}],
+                "start": start,
+                "end": end,
+            },
+            False,
+        ),
         (  # wrong output unit
             {
                 "input": [{"sensor": 4}],  # unit: MW
