@@ -4,7 +4,7 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v1.0.0 | July XX, 2026
+since v1.0.0 | August 11, 2026
 =================================
 
 * ``flexmeasures add user --roles`` now parses comma-separated role lists and accepts repeated ``--roles`` options.

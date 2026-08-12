@@ -47,8 +47,13 @@ jobs:
           ref: ${{ inputs.flexmeasures-client-ref }}
           path: flexmeasures-client
 
-      - name: Add compose override to mount the HEMS configs directory
+      - name: Prepare HEMS Compose override and server config
         run: |
+          # Create the bind-mounted instance directory before Compose does, so
+          # the runner can update this config later without ownership issues.
+          mkdir -p flexmeasures-instance
+          printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
+
           cat > qa-hems-override.yml <<EOF
           services:
             server:
@@ -96,6 +101,11 @@ jobs:
           ACCOUNT_ID=$(echo "$OUTPUT" | grep -oP '(?<=ID: )\d+')
           docker compose exec -T server bash -c \
             "printf 'admin\nadmin\n' | flexmeasures add user --username admin --email admin@admin.com --account $ACCOUNT_ID --roles admin"
+
+      - name: Switch the server to play mode for HEMS
+        run: |
+          printf '%s\n' 'FLEXMEASURES_MODE = "play"' > flexmeasures-instance/flexmeasures.cfg
+          docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
 
       - name: Run the HEMS example against the running stack
         working-directory: flexmeasures-client
