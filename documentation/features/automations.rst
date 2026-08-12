@@ -9,7 +9,7 @@ Hosts and users often want the three main FlexMeasures features — :ref:`foreca
 An automation consists of:
 
 - a **type**: ``forecasts``, ``schedules`` or ``reports``;
-- a **recurrence**: a cron string (e.g. ``"0 6 * * *"`` for daily at 6 AM), interpreted in the ``FLEXMEASURES_TIMEZONE``;
+- a **recurrence**: a cron string (e.g. ``"0 6 * * *"`` for daily at 6 AM), interpreted in the automation's own IANA timezone;
 - a **data generator** (for forecasts and reports): the forecaster or reporter class and its configuration, stored on a data source.
   The data source stays the same across runs, so all results the automation produces attribute to one steady source;
 - **parameters**: what to compute on each run, validated by the same schema the CLI and API use for one-off runs.
@@ -22,18 +22,18 @@ Managing automations
 
 Automations can be managed in three ways:
 
-- **CLI**: ``flexmeasures add automation``, ``flexmeasures edit automation`` (name, cron string, activation status) and ``flexmeasures delete automation``.
+- **CLI**: ``flexmeasures add automation``, ``flexmeasures edit automation`` (name, cron string, timezone and activation status) and ``flexmeasures delete automation``.
 - **API**: list and inspect with ``[GET] /assets/(id)/automations`` and ``[GET] /assets/(id)/automations/(automation_id)``;
   create, update and delete with ``[POST|PATCH|DELETE]`` on the same paths (see the `API documentation <../api/v3_0.html>`_).
 - **UI**: each asset has an *Automations* page (in the breadcrumbs dropdown), with a tab per automation type.
-  It lists each automation's recurrence and recent job counts, and lets you create, (de)activate and delete automations.
+  It lists each automation's recurrence and recent job counts, and lets you create, edit, (de)activate and delete automations.
 
 Creating, updating and deleting automations requires account admin or consultant rights, and is recorded in the asset's audit log.
 
 Running automations
 --------------------
 
-An automation is due whenever its cron string matches the current minute. To actually run due automations, let a cron job execute the following command once per minute:
+An automation is due whenever its cron string matches the current minute in its configured timezone. To actually run due automations, let a cron job execute the following command once per minute:
 
 .. code-block:: bash
 
@@ -53,4 +53,4 @@ The parameters stored on an automation follow the same schemas as one-off CLI/AP
 - :ref:`automating_forecasts` — forecast parameters; the forecast start defaults to the run time.
 - :ref:`automating_schedules` — a schedule trigger message; omit ``start`` to schedule from the run time.
 - :ref:`automating_reports` — report parameters; use ``start-offset``/``end-offset`` (Pandas offsets) for a rolling window,
-  or omit timing fields to report on the period since the automation's actual last run.
+  or omit timing fields to report on the period since the last successfully covered report window.

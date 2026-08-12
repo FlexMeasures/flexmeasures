@@ -312,9 +312,10 @@ Below are some additional steps you might consider.
 Add time series data (beliefs)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are three ways to add data:
+For a complete walkthrough from a first UI upload to an automated pipeline, see :ref:`tut_posting_data`.
+The main ingestion routes are the FlexMeasures Client and the API; hosts can also import files directly with the CLI.
 
-First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` :ref:`cli`:
+To load data from a CSV or Excel file on the server, use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block:: bash
    
@@ -323,11 +324,11 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 For instance, to add data as forecasts, use the ``--beliefcol`` parameter, to say precisely when these forecasts were made. Or add  ``--horizon`` for rolling forecasts if they all share the same horizon.
 
-Second, you can use the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_ endpoint in the FlexMeasures API to send meter data.
+For automated pipelines running elsewhere, use the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client/>`_ or call the `POST /api/v3_0/sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_ and file-upload endpoints directly.
 
 You can also use the API to send forecast data. Similar to the ``add beliefs`` commands, you would use here the fields ``prior`` (to denote time of knowledge of data) or ``horizon`` (for rolling forecast data with equal horizon). Consult the documentation at :ref:`posting_sensor_data`.
 
-Finally, you can tell FlexMeasures to compute forecasts based on existing meter data with the ``flexmeasures add forecasts`` command, here is an example:
+After ingesting meter data, you can tell FlexMeasures to compute forecasts with the ``flexmeasures add forecasts`` command, here is an example:
 
 .. code-block:: bash
 
@@ -360,13 +361,9 @@ Install an LP solver
 
 For computing schedules, the FlexMeasures platform uses a linear program solver. Currently that is the HiGHS or CBC solvers.
 
-It's already installed in the Docker image. For yourself, you can simply install it like this:
+The default solver (HiGHS, used directly via its Python API) is installed together with FlexMeasures, so there is nothing to do here.
 
-.. code-block:: bash
-
-   $ pip install highspy
-
-Read more on solvers (e.g. how to install a different one) at :ref:`installing-a-solver`.
+Read more on solvers (e.g. how to install a different one, such as CBC) at :ref:`installing-a-solver`.
 
 
 
@@ -391,6 +388,8 @@ Then, start workers in a console (or some other method to keep a long-running pr
 You can go to `http://localhost:5000/tasks/` and see the state of job queues and find individual jobs (and investigate why they failed, for instance).
 You need to set ``FLEXMEASURES_REDIS_PASSWORD="fm-redis-pass"`` in your `~/.flexmeasures.cfg` config file for this to work. 
 
+
+.. _installation_two_factor:
 
 Two-factor authentication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

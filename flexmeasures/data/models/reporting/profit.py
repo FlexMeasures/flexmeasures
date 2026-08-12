@@ -47,6 +47,15 @@ class ProfitOrLossReporter(Reporter):
     weights: dict
     method: str
 
+    @property
+    def input_sensors(self) -> list:
+        """The flow input and price sensors read to compute profit or loss."""
+        return self._resolve_sensors(
+            super().input_sensors,
+            self._config.get("consumption_price_sensor"),
+            self._config.get("production_price_sensor"),
+        )
+
     def _compute_report(
         self,
         start: datetime,

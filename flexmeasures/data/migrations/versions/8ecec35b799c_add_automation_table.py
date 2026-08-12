@@ -1,7 +1,7 @@
 """add automation table
 
 Revision ID: 8ecec35b799c
-Revises: 55d8936a55f9
+Revises: 3c2f9e5a1d47
 Create Date: 2026-07-11 10:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "8ecec35b799c"
-down_revision = "55d8936a55f9"
+down_revision = "3c2f9e5a1d47"
 branch_labels = None
 depends_on = None
 
@@ -27,7 +27,7 @@ def upgrade():
         sa.Column("name", sa.String(length=80), nullable=False),
         sa.Column("cronstr", sa.String(length=80), nullable=False),
         sa.Column("active", sa.Boolean(), nullable=False),
-        sa.Column("generator_id", sa.Integer(), nullable=True),
+        sa.Column("generator_id", sa.Integer(), nullable=False),
         sa.Column(
             "parameters",
             postgresql.JSONB(astext_type=sa.Text()),
@@ -43,7 +43,6 @@ def upgrade():
             ["generator_id"],
             ["data_source.id"],
             name=op.f("automation_generator_id_data_source_fkey"),
-            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("automation_pkey")),
     )

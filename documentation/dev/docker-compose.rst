@@ -99,7 +99,7 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule --sensor 2 \
+    $ flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
         --flex-model '{"soc-min": "50 kWh"}' --as-job
 
@@ -116,14 +116,14 @@ We'll not go into the server container this time, but simply send a command:
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+    $ docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
 
 The charging/discharging schedule should be there:
 
 .. code-block:: bash
 
     ┌────────────────────────────────────────────────────────────┐
-    │   ▐            ▐▀▀▌                                     ▛▀▀│ 0.5MW
+    │   ▐            ▐▀▀▌                                     ▛▀▀│ 500kW
     │   ▞▌           ▌  ▌                                     ▌  │
     │   ▌▌           ▌  ▐                                    ▗▘  │
     │   ▌▌           ▌  ▐                                    ▐   │
@@ -131,7 +131,7 @@ The charging/discharging schedule should be there:
     │  ▐ ▐          ▐   ▝▖                                   ▞   │
     │  ▌ ▐          ▐    ▌                                   ▌   │
     │ ▐  ▝▖         ▌    ▌                                   ▌   │
-    │▀▘───▀▀▀▀▖─────▌────▀▀▀▀▀▀▀▀▀▌─────▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▘───│ 0.0MW
+    │▀▘───▀▀▀▀▖─────▌────▀▀▀▀▀▀▀▀▀▌─────▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▘───│ 0kW
     │         ▌    ▐              ▚     ▌                        │
     │         ▌    ▞              ▐    ▗▘                        │
     │         ▌    ▌              ▐    ▞                         │
@@ -139,7 +139,7 @@ The charging/discharging schedule should be there:
     │         ▐   ▐                ▌  ▗▘                         │
     │         ▐   ▌                ▌  ▐                          │
     │         ▝▖  ▌                ▌  ▞                          │
-    │          ▙▄▟                 ▐▄▄▌                          │ -0.5MW
+    │          ▙▄▟                 ▐▄▄▌                          │ -500kW
     └────────────────────────────────────────────────────────────┘
                10           20           30          40
                             ██ discharging

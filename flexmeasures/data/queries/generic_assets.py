@@ -17,6 +17,23 @@ from flexmeasures.data.queries.utils import (
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
+def asset_is_in_subtree(root_asset_id: int, candidate_asset_id: int) -> bool:
+    """Return whether an asset is the given root or one of its descendants."""
+    current_asset_id = candidate_asset_id
+    visited: set[int] = set()
+
+    while current_asset_id is not None and current_asset_id not in visited:
+        if current_asset_id == root_asset_id:
+            return True
+        visited.add(current_asset_id)
+        current_asset = db.session.get(GenericAsset, current_asset_id)
+        if current_asset is None:
+            return False
+        current_asset_id = current_asset.parent_asset_id
+
+    return False
+
+
 def query_assets_by_type(
     type_names: list[str] | str,
     account_id: int | None = None,
@@ -183,10 +200,19 @@ def query_assets_by_search_terms(
 ) -> Select:
     select_statement = select(GenericAsset)
 
+    # Sorting by "owner" uses a correlated scalar subquery (rather than a join)
+    # so it doesn't change the query's FROM clause, which filter_assets_under_root
+    # relies on being just the (aliased) GenericAsset table.
+    account_name_subquery = (
+        select(Account.name)
+        .where(Account.id == GenericAsset.account_id)
+        .correlate(GenericAsset)
+        .scalar_subquery()
+    )
     valid_sort_columns = {
         "id": GenericAsset.id,
         "name": GenericAsset.name,
-        "owner": GenericAsset.account_id,
+        "owner": account_name_subquery,
     }
 
     # Initialize base query
@@ -219,20 +245,6 @@ def query_assets_by_search_terms(
             )
         )
 
-        if sort_by is not None and sort_dir is not None:
-            if sort_by in valid_sort_columns:
-                order_by_clause = (
-                    valid_sort_columns[sort_by].asc()
-                    if sort_dir == "asc"
-                    else valid_sort_columns[sort_by].desc()
-                )
-                private_select_statement = private_select_statement.order_by(
-                    order_by_clause
-                )
-                public_select_statement = public_select_statement.order_by(
-                    order_by_clause
-                )
-
         # Combine private and public queries
         subquery = union_all(
             private_select_statement.where(private_filter_statement),
@@ -241,6 +253,28 @@ def query_assets_by_search_terms(
 
         asset_alias = aliased(GenericAsset, subquery)
         query = select(asset_alias)
+
+        # Ordering must be applied to the outer query, not to the individual
+        # UNION ALL members: ORDER BY on a union member isn't guaranteed to
+        # survive in the combined result.
+        if sort_by is not None and sort_dir is not None:
+            if sort_by == "owner":
+                order_by_column = (
+                    select(Account.name)
+                    .where(Account.id == asset_alias.account_id)
+                    .correlate(asset_alias)
+                    .scalar_subquery()
+                )
+            elif sort_by in valid_sort_columns:
+                order_by_column = getattr(asset_alias, sort_by)
+            else:
+                order_by_column = None
+            if order_by_column is not None:
+                query = query.order_by(
+                    order_by_column.asc()
+                    if sort_dir == "asc"
+                    else order_by_column.desc()
+                )
 
     else:
         query = query.where(filter_statement)

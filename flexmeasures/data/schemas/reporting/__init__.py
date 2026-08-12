@@ -29,7 +29,9 @@ class ReporterParametersSchema(Schema):
         validate=validate.Length(min=1),
     )
 
-    output = fields.List(fields.Nested(Output()), validate=validate.Length(min=1))
+    output = fields.List(
+        fields.Nested(Output()), required=True, validate=validate.Length(min=1)
+    )
 
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)

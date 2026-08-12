@@ -9,7 +9,6 @@ Create Date: 2018-10-12 11:12:03.525000
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = "50cf294e007d"
 down_revision = "db1f67336324"
@@ -25,22 +24,18 @@ def upgrade():
         "asset",
         sa.Column("unit", sa.String(length=80), nullable=False, server_default=""),
     )
-    op.execute(
-        """
+    op.execute("""
         update asset set unit = 'MW';
-        """
-    )
+        """)
     op.add_column(
         "weather_sensor",
         sa.Column("unit", sa.String(length=80), nullable=False, server_default=""),
     )
-    op.execute(
-        """
+    op.execute("""
         update weather_sensor set unit = '°C' where weather_sensor_type_name = 'temperature';
         update weather_sensor set unit = 'm/s' where weather_sensor_type_name = 'wind_speed';
         update weather_sensor set unit = 'kW/m²' where weather_sensor_type_name = 'radiation';
-        """
-    )
+        """)
 
     # All generic assets and generic asset types should specify a display name.
     op.add_column(
@@ -49,28 +44,24 @@ def upgrade():
             "display_name", sa.String(length=80), nullable=False, server_default=""
         ),
     )
-    op.execute(
-        """
+    op.execute("""
         update market_type set display_name = 'day-ahead market' where name = 'day_ahead';
         update market set display_name = 'EPEX SPOT' where display_name = 'EPEX SPOT day-ahead market';
         update market set display_name = 'KPX' where display_name = 'KPX day-ahead market';
-        """
-    )
+        """)
     op.add_column(
         "asset_type",
         sa.Column(
             "display_name", sa.String(length=80), nullable=False, server_default=""
         ),
     )
-    op.execute(
-        """
+    op.execute("""
         update asset_type set display_name = 'solar panel' where name = 'solar';
         update asset_type set display_name = 'wind turbine' where name = 'wind';
         update asset_type set display_name = 'charging station' where name = 'charging_station';
         update asset_type set display_name = 'stationary battery' where name = 'battery';
         update asset_type set display_name = 'building' where name = 'building';
-        """
-    )
+        """)
     op.add_column(
         "weather_sensor_type",
         sa.Column(
@@ -83,13 +74,11 @@ def upgrade():
             "display_name", sa.String(length=80), nullable=True, server_default=""
         ),
     )
-    op.execute(
-        """
+    op.execute("""
         update weather_sensor_type set display_name = 'ambient temperature' where name = 'temperature';
         update weather_sensor_type set display_name = 'wind speed' where name = 'wind_speed';
         update weather_sensor_type set display_name = 'solar irradiation' where name = 'radiation';
-        """
-    )
+        """)
     op.create_unique_constraint(
         "market_type_display_name_key", "market_type", ["display_name"]
     )

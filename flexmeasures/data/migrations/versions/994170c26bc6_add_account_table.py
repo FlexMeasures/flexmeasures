@@ -18,7 +18,6 @@ import inflection
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.time_series import Sensor
 
-
 # revision identifiers, used by Alembic.
 revision = "994170c26bc6"
 down_revision = "b6d49ed7cceb"
