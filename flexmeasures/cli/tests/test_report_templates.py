@@ -3,14 +3,17 @@
 from copy import deepcopy
 from datetime import timedelta
 
+import pandas as pd
 import pytest
 import yaml
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.automations import prepare_report_parameters
 from flexmeasures.data.services.report_templates import (
     find_placeholders,
@@ -256,3 +259,97 @@ def test_report_template_placeholders_must_be_filled(app, fresh_db, setup_dummy_
     )  # fmt: skip
     assert result.exit_code != 0
     assert "only supported for report automations" in result.output
+
+
+def test_report_template_cannot_be_combined_with_source(
+    app, fresh_db, setup_dummy_data
+):
+    """A stored reporter source and a report template cannot both define the reporter configuration."""
+    from flexmeasures.cli.data_add import add_automation, add_report
+
+    source_id = fresh_db.session.execute(select(DataSource.id).limit(1)).scalar_one()
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        add_report,
+        ["--source", str(source_id), "--template", "self-consumption"],
+    )
+    assert result.exit_code != 0
+    assert "--source cannot be combined with --template" in result.output
+
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Ambiguous report configuration",
+            "--type",
+            "reports",
+            "--source",
+            str(source_id),
+            "--template",
+            "self-consumption",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--source cannot be combined with --template" in result.output
+
+
+@pytest.mark.parametrize("option", ["--config", "--parameters"])
+def test_add_report_template_rejects_non_mapping_override(
+    app, fresh_db, tmp_path, option
+):
+    """Template override files must be mappings instead of producing an internal merge error."""
+    from flexmeasures.cli.data_add import add_report
+
+    override_file = tmp_path / "override.yaml"
+    override_file.write_text("- not\n- a\n- mapping\n")
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        ["--template", "self-consumption", option, str(override_file)],
+    )
+
+    assert result.exit_code != 0
+    assert f"The {option} file must contain a YAML or JSON object" in result.output
+
+
+def test_self_consumption_is_undefined_without_production(
+    app, fresh_db, setup_dummy_data
+):
+    """The self-consumption ratio is missing when a reporting period has no production."""
+    production_id, consumption_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    daily_sensor = Sensor(
+        "daily self-consumption with zero production",
+        generic_asset=report_sensor.generic_asset,
+        event_resolution=timedelta(days=1),
+    )
+    fresh_db.session.add(daily_sensor)
+    fresh_db.session.execute(
+        update(TimedBelief)
+        .where(
+            TimedBelief.sensor_id == production_id,
+            TimedBelief.event_start < "2023-04-11T00:00:00+00:00",
+        )
+        .values(event_value=0)
+    )
+    fresh_db.session.commit()
+
+    template = get_report_template("self-consumption")
+    report = PandasReporter(config=template["config"]).compute(
+        parameters={
+            "input": [
+                {"name": "production", "sensor": production_id},
+                {"name": "consumption", "sensor": consumption_id},
+            ],
+            "output": [{"name": "self-consumption", "sensor": daily_sensor.id}],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-12T00:00:00+00:00",
+        }
+    )[0]["data"]
+
+    assert len(report) == 2
+    assert pd.isna(report.values[0, 0])
+    assert report.values[1, 0] == pytest.approx(1)
