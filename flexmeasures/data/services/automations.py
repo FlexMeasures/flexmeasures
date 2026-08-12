@@ -448,8 +448,8 @@ def resolve_schedule_automation_sensors(
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
-    Forecast sensors are derived from the data generator, while schedule sensors are
-    derived from the same prepared trigger message used to queue the scheduling job.
+    Forecast and report sensors are derived from the data generator, while schedule sensors
+    are derived from the same prepared trigger message used to queue the scheduling job.
     Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because a forecast automation has no data generator,
     because its generator is not registered in this FlexMeasures instance,
     or because its parameters no longer load (say, after a sensor was deleted).
@@ -470,9 +470,16 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
         )
     try:
         data_generator = automation.generator.data_generator
+        parameters = dict(automation.parameters or {})
+        if automation.type == "reports":
+            parameters = prepare_report_parameters(
+                parameters,
+                automation.cronstr,
+                automation_id=automation.id,
+            )
         return resolve_data_generator_sensors(
             data_generator,
-            data_generator._parameters_schema.load(dict(automation.parameters or {})),
+            data_generator._parameters_schema.load(parameters),
         )
     except (NotImplementedError, ValidationError) as e:
         raise AutomationSensorsUnknown(
@@ -500,7 +507,7 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
 
     Only automations on the sensor's own asset or on one of its ancestors are
     considered, as an automation may only write to its asset's subtree
-    (see `validate_forecast_output_scope`). Working out the output sensors requires
+    (see `validate_automation_output_scope`). Working out the output sensors requires
     setting up each candidate's data generator, so this keeps the work proportional
     to the number of automations that could feed this sensor.
 
@@ -898,7 +905,6 @@ def create_automation(
     data_generator = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
-    forecast_output_sensor: Sensor | None = None
     if automation_type == "forecasts":
         from flexmeasures.data.services.data_sources import get_data_generator
         from flexmeasures.data.schemas.forecasting.pipeline import (
@@ -930,7 +936,6 @@ def create_automation(
         )
         input_sensors = forecast_sensors["input_sensors"]
         output_sensors = forecast_sensors["output_sensors"]
-        forecast_output_sensor = output_sensors[0] if output_sensors else None
     elif automation_type == "schedules":
         # A schedule is recorded on the sensors that the scheduler returns its results
         # for, and reads whatever other sensors the flex-model and flex-context refer to
@@ -963,8 +968,9 @@ def create_automation(
 
     # Only once the sensors are known to be the user's to involve do we say anything about them,
     # so that this does not reveal where a sensor sits to someone who may not read it.
-    if forecast_output_sensor is not None:
-        validate_forecast_output_scope(asset.id, forecast_output_sensor)
+    if automation_type in ("forecasts", "reports"):
+        for output_sensor in output_sensors:
+            validate_automation_output_scope(asset.id, output_sensor, automation_type)
 
     if data_generator is not None:
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
@@ -1073,11 +1079,13 @@ def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
     return sensor
 
 
-def validate_forecast_output_scope(asset_id: int, output_sensor: Sensor) -> None:
-    """Require forecast output on the automation asset or a descendant."""
+def validate_automation_output_scope(
+    asset_id: int, output_sensor: Sensor, automation_type: str
+) -> None:
+    """Require generated output on the automation asset or a descendant."""
     if not asset_is_in_subtree(asset_id, output_sensor.generic_asset_id):
         raise ValueError(
-            f"Forecast automation output sensor {output_sensor.id} must belong to asset "
+            f"{automation_type.capitalize()} automation output sensor {output_sensor.id} must belong to asset "
             f"{asset_id} or one of its descendants."
         )
 
@@ -1116,7 +1124,9 @@ def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
         )
     output_sensor = get_forecast_output_sensor(automation.parameters or {})
-    validate_forecast_output_scope(automation.asset_id, output_sensor)
+    validate_automation_output_scope(
+        automation.asset_id, output_sensor, automation.type
+    )
     # The data generator instance is cached on the data source, which may be shared
     # by several automations, so wipe any parameter state from a previous run.
     forecaster._parameters = None
@@ -1136,16 +1146,23 @@ def _run_report_automation(
         raise ValueError(
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Reporter."
         )
-    # The data generator instance is cached on the data source, which may be shared
-    # by several automations, so wipe any parameter state from a previous run.
-    reporter._parameters = None
-    reporter.set_job_trigger("automation", automation_id=automation.id)
     parameters = prepare_report_parameters(
         dict(automation.parameters),
         automation.cronstr,
         now=now,
         automation_id=automation.id,
     )
+    report_sensors = resolve_data_generator_sensors(
+        reporter, reporter._parameters_schema.load(parameters)
+    )
+    for output_sensor in report_sensors["output_sensors"]:
+        validate_automation_output_scope(
+            automation.asset_id, output_sensor, automation.type
+        )
+    # The data generator instance is cached on the data source, which may be shared
+    # by several automations, so wipe any parameter state from a previous run.
+    reporter._parameters = None
+    reporter.set_job_trigger("automation", automation_id=automation.id)
     return reporter.compute(as_job=True, parameters=parameters)
 
 

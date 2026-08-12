@@ -330,6 +330,57 @@ def test_post_report_automation_with_foreign_config_sensor(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
+def test_post_report_automation_rejects_output_outside_asset_subtree(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """Report output must stay on the automation asset or a descendant."""
+    battery = add_battery_assets["Test battery"]
+    sibling_battery = add_battery_assets["Test small battery"]
+    report_sensor = Sensor(
+        "sibling report output",
+        generic_asset=sibling_battery,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    db.session.add(report_sensor)
+    db.session.flush()
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Misplaced report output",
+                "cronstr": "0 1 * * *",
+                "type": "reports",
+                "generator": "PandasReporter",
+                "config": {
+                    "required_input": [{"name": "flow"}],
+                    "required_output": [{"name": "copied_flow"}],
+                    "transformations": [
+                        {
+                            "df_input": "flow",
+                            "df_output": "copied_flow",
+                            "method": "copy",
+                        }
+                    ],
+                },
+                "parameters": {
+                    "input": [{"name": "flow", "sensor": battery.sensors[0].id}],
+                    "output": [{"name": "copied_flow", "sensor": report_sensor.id}],
+                },
+            },
+        )
+
+    assert response.status_code == 422
+    assert "must belong to asset" in response.text
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
 def test_post_automation_with_invalid_parameters(
     app,
     add_battery_assets_fresh_db,
