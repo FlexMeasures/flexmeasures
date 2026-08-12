@@ -847,8 +847,44 @@ def test_add_schedule_automation_rejects_forecast_config(
     )
 
     assert result.exit_code == 2
-    assert "Forecaster options" in result.output
+    assert "--regressors cannot be combined with --type schedules" in result.output
     assert "Traceback" not in result.output
+
+
+def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
+    app, fresh_db, setup_dummy_data
+):
+    """Naming the default forecaster is still naming a forecaster, so it is refused.
+
+    The check asks whether the option was given, rather than comparing its value against the default,
+    which would let the default pass silently and leave the user thinking it applied.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule naming the default forecaster",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "schedules",
+            "--forecaster",
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--forecaster cannot be combined with --type schedules" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Schedule naming the default forecaster")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dummy_data):

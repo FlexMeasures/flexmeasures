@@ -1808,21 +1808,23 @@ def add_automation(
         kwargs, source, config_file, parameters_file
     )
 
-    has_forecast_config = any(
-        value is not None
-        and value is not False
-        and not (isinstance(value, (dict, list, tuple)) and not value)
-        for value in config.values()
-    )
-    if automation_type == "schedules" and (
-        source is not None
-        or config_file is not None
-        or forecaster_class != "TrainPredictPipeline"
-        or has_forecast_config
-    ):
-        raise click.UsageError(
-            "Forecaster options (--forecaster, --source, --config and forecasting configuration fields) cannot be used with --type schedules."
+    if automation_type == "schedules":
+        # Only options actually given on the command line count: the forecaster and the
+        # configuration options that were left out still show up here, with their defaults.
+        forecast_options = _find_options_given_on_command_line(
+            {
+                "forecaster_class": "--forecaster",
+                "source": "--source",
+                "config_file": "--config",
+                "edit_config": "--edit-config",
+            },
+            TrainPredictPipelineConfigSchema(),
         )
+        if forecast_options:
+            raise click.UsageError(
+                f"{flexmeasures_inflection.join_words_into_a_list(forecast_options)} cannot be"
+                " combined with --type schedules: a schedule automation is not computed by a forecaster."
+            )
 
     # Validate the parameters using the forecast parameters schema (we store them serialized)
     generator_id = None
