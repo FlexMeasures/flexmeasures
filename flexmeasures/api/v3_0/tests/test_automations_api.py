@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from flask import url_for
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy import select
 
 from flexmeasures.data.models.automations import Automation
@@ -104,6 +105,41 @@ def test_get_automations(
     assert "generator_id" not in day_ahead
     assert "generator" not in day_ahead
     assert "parameters" not in day_ahead
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_automations_when_redis_times_out(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+    monkeypatch,
+):
+    """The automation list remains available when Redis times out."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+
+    def raise_redis_timeout(asset):
+        raise RedisTimeoutError("Redis timed out at private-host.example")
+
+    monkeypatch.setattr(
+        "flexmeasures.api.v3_0.assets.get_asset_automations_job_stats",
+        raise_redis_timeout,
+    )
+
+    with app.test_client() as client:
+        response = client.get(url_for("AssetAPI:get_automations", id=battery.id))
+
+    assert response.status_code == 200
+    assert len(response.json["automations"]) == 2
+    assert all(
+        automation["job_stats"] == {} for automation in response.json["automations"]
+    )
+    assert response.json["redis_connection_err"] == (
+        "Redis is unavailable; job statistics could not be loaded."
+    )
+    assert "private-host.example" not in response.text
 
 
 @pytest.mark.parametrize(
