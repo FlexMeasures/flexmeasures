@@ -583,7 +583,7 @@ def _last_run_redis_key(automation_id: int) -> str:
     return f"automation-last-run:{automation_id}"
 
 
-def record_automation_run(automation_id: int, now: datetime | None = None):
+def record_automation_run(automation_id: int, now: datetime | None = None) -> bool:
     """Remember (in Redis) until when this automation's work is covered.
 
     For forecasts and schedules automations, this is the (enqueue) run time.
@@ -591,13 +591,36 @@ def record_automation_run(automation_id: int, now: datetime | None = None):
     instead, upon success (see run_report_job), so a failed report job does not
     create a permanent gap in the reported periods.
     """
-    from flask import current_app
+    from redis.exceptions import WatchError
 
     if now is None:
         now = server_now()
-    current_app.redis_connection.set(
-        _last_run_redis_key(automation_id), floor_to_minute(now).isoformat()
-    )
+    candidate = floor_to_minute(now)
+    key = _last_run_redis_key(automation_id)
+    connection = current_app.redis_connection
+    while True:
+        with connection.pipeline() as pipeline:
+            try:
+                pipeline.watch(key)
+                value = pipeline.get(key)
+                if value:
+                    if isinstance(value, bytes):
+                        value = value.decode()
+                    try:
+                        current = floor_to_minute(datetime.fromisoformat(value))
+                    except ValueError:
+                        current = None
+                    if current is not None and current >= candidate:
+                        pipeline.unwatch()
+                        return False
+                pipeline.multi()
+                pipeline.set(key, candidate.isoformat())
+                pipeline.execute()
+                return True
+            except WatchError:
+                # Another worker updated the coverage after our read. Re-read it
+                # and only advance from the new value.
+                continue
 
 
 def get_automation_last_run(automation_id: int) -> datetime | None:

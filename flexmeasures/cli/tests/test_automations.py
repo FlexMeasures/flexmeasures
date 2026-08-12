@@ -1012,6 +1012,21 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-01-02T00:00:00+01:00")
 
 
+def test_report_coverage_cannot_move_backwards(app, clean_redis):
+    """An older report finishing later may not reopen already covered periods."""
+    from flexmeasures.data.services.automations import (
+        get_automation_last_run,
+        record_automation_run,
+    )
+
+    later_end = datetime(2026, 1, 3, tzinfo=timezone.utc)
+    older_end = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+    assert record_automation_run(42, later_end) is True
+    assert record_automation_run(42, older_end) is False
+    assert get_automation_last_run(42) == later_end
+
+
 def _report_automation_cli_input(
     tmp_path,
     sensor1_id,
