@@ -31,7 +31,10 @@ from flexmeasures.data.models.automations import (
     get_initial_scheduling_cursor,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
+from flexmeasures.data.queries.generic_assets import (
+    asset_is_in_subtree,
+    descendants_cte,
+)
 from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
 
 
@@ -762,23 +765,29 @@ def _asset_and_ancestor_ids(asset_id: int | None) -> list[int]:
     return asset_ids
 
 
-def _job_cache_refs(automation: Automation) -> set[tuple[int, str, str]]:
+def _asset_subtree_sensor_ids(asset_id: int) -> set[int]:
+    """Return all sensor IDs on an asset and its descendants."""
+    tree = descendants_cte(root_asset_id=asset_id, max_depth=None)
+    return set(
+        db.session.scalars(
+            select(Sensor.id).where(Sensor.generic_asset_id.in_(select(tree.c.id)))
+        ).all()
+    )
+
+
+def _job_cache_refs(
+    automation: Automation, schedule_sensor_ids: set[int] | None = None
+) -> set[tuple[int, str, str]]:
     """Return the job-cache entries in which an automation's jobs may live."""
     parameters = automation.parameters or {}
     if automation.type == "schedules":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual device sensors (per-device jobs), which may belong
         # to child assets rather than the automation's own (site) asset.
-        sensor_ids = _relevant_sensor_ids(
-            automation,
-            [
-                entry.get("sensor")
-                for entry in parameters.get("flex-model", []) or []
-                if isinstance(entry, dict)
-            ],
-        )
+        if schedule_sensor_ids is None:
+            schedule_sensor_ids = _asset_subtree_sensor_ids(automation.asset_id)
         return {(automation.asset_id, "scheduling", "asset")} | {
-            (sensor_id, "scheduling", "sensor") for sensor_id in sensor_ids
+            (sensor_id, "scheduling", "sensor") for sensor_id in schedule_sensor_ids
         }
     elif automation.type == "reports":
         sensor_ids = _relevant_sensor_ids(
@@ -830,9 +839,14 @@ def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
     automations = asset.automations
     if not automations:
         return {}
+    schedule_sensor_ids = (
+        _asset_subtree_sensor_ids(asset.id)
+        if any(automation.type == "schedules" for automation in automations)
+        else None
+    )
     cache_refs: set[tuple[int, str, str]] = set()
     for automation in automations:
-        cache_refs |= _job_cache_refs(automation)
+        cache_refs |= _job_cache_refs(automation, schedule_sensor_ids)
     return _count_automation_jobs(
         cache_refs, {automation.id for automation in automations}
     )

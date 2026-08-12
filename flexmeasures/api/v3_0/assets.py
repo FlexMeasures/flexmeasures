@@ -13,6 +13,7 @@ from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
 from marshmallow import fields, post_load, ValidationError, Schema, validate
+from redis.exceptions import RedisError
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -1451,6 +1452,15 @@ class AssetAPI(FlaskView):
         except NoRedisConfigured as e:
             job_stats = {}
             redis_connection_err = e.args[0]
+        except RedisError:
+            current_app.logger.warning(
+                "Could not load automation job statistics because Redis is unavailable.",
+                exc_info=True,
+            )
+            job_stats = {}
+            redis_connection_err = (
+                "Redis is unavailable; job statistics could not be loaded."
+            )
         automations_data = []
         for automation in asset.automations:
             automation_data = automation_schema.dump(automation)
@@ -1591,6 +1601,15 @@ class AssetAPI(FlaskView):
         except NoRedisConfigured as e:
             automation_data["job_stats"] = {}
             redis_connection_err = e.args[0]
+        except RedisError:
+            current_app.logger.warning(
+                "Could not load automation job statistics because Redis is unavailable.",
+                exc_info=True,
+            )
+            automation_data["job_stats"] = {}
+            redis_connection_err = (
+                "Redis is unavailable; job statistics could not be loaded."
+            )
         automation_data["redis_connection_err"] = redis_connection_err
         return automation_data, 200
 
