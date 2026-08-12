@@ -135,10 +135,11 @@ and computed on a recurring basis by an *automation* defined on the asset (see :
 The reporter and its configuration are stored on a data source (steady across runs, so all report results attribute to the same source),
 while the report parameters are stored on the automation itself and their timing is resolved freshly on each run:
 
-- Use ``start-offset`` and/or ``end-offset`` fields (comma-separated Pandas offsets, like the CLI options above) for a rolling window relative to the run time,
+- Use ``start-offset`` and/or ``end-offset`` fields (comma-separated Pandas offsets, like the CLI options above) for a rolling window relative to the claimed cron occurrence,
   in the timezone of the first output sensor. For instance, ``"start-offset": "-1D,DB"`` with ``"end-offset": "DB"`` reports on the whole previous day.
-- Omit timing fields entirely to report on the period since the automation's actual last run
-  (falling back to the last cron period — from the previous cron fire time until the run time — when no last run is known, e.g. on the first run).
+- Omit timing fields entirely to report from the end of the latest successfully completed report window through the claimed cron occurrence.
+  When no completed window is known, such as on the first run, the start falls back to the previous cron occurrence in the automation's timezone.
+  The completion marker only moves forward, so concurrent reporting workers that finish out of order cannot reopen an already covered period.
 - Absolute ``start``/``end`` fields are also accepted, but draw a warning, as each run would then compute the same period.
 
 For example, this automation computes a report over each past day, every morning at 1 AM:
