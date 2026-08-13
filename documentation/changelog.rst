@@ -5,6 +5,15 @@ FlexMeasures Changelog
 
 
 
+v1.1.0 | August XX, 2026
+============================
+
+Infrastructure / Support
+----------------------
+
+* Official Docker images now report the version they were released as, instead of a development version that depended on how much git history was available when the image was built [see `PR #2425 <https://www.github.com/FlexMeasures/flexmeasures/pull/2425>`_]
+
+
 v1.0.0 | August 11, 2026
 ============================
 
