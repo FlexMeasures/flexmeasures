@@ -8,20 +8,6 @@ FROM ghcr.io/astral-sh/uv:${UV_MAJOR_VERSION}-python${PYTHON_VERSION}-${DEBIAN_V
 # Redeclare ARG after FROM to make it available in this stage
 ARG UV_COMPILE_BYTECODE=1
 
-# The version baked into the installed package metadata, which is what
-# `importlib.metadata.version("flexmeasures")` (and hence the UI footer)
-# reports at runtime. Leave empty to let hatch-vcs derive it from .git, or
-# pass an explicit PEP 440 version (e.g. 1.0.0) to pin it. Pinning it is
-# strongly preferred for released images: deriving from .git silently
-# produces a development version (e.g. 1.0.0.dev127+g3d251777) whenever the
-# build context lacks the full history and tags, such as after a shallow
-# `actions/checkout`.
-# NOTE: hatch-vcs delegates to setuptools_scm but does not pass the project
-# name through, so only the unscoped SETUPTOOLS_SCM_PRETEND_VERSION is
-# honoured here -- the SETUPTOOLS_SCM_PRETEND_VERSION_FOR_<NAME> form is not.
-ARG FLEXMEASURES_VERSION=
-ENV SETUPTOOLS_SCM_PRETEND_VERSION=${FLEXMEASURES_VERSION}
-
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive

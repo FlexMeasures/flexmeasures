@@ -142,7 +142,7 @@ Bugfixes
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
 * Fix queued train-predict forecasting jobs losing their resolved forecast window or failing on detached database objects in workers [see `PR #2035 <https://www.github.com/FlexMeasures/flexmeasures/pull/2035>`_]
-* Official Docker images now report the version they were released as, instead of a development version that depended on how much git history was available when the image was built [see `PR #2425 <https://www.github.com/FlexMeasures/flexmeasures/pull/2425>`_]
+* Docker publishing now verifies that official images report the version of their GitHub release tag [see `PR #2425 <https://www.github.com/FlexMeasures/flexmeasures/pull/2425>`_]
 
 
 v0.33.1 | July 1, 2026

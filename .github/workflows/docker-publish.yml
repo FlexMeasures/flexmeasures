@@ -43,12 +43,8 @@ jobs:
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-          # The PEP 440 version baked into the image, passed to the build as
-          # FLEXMEASURES_VERSION. Git tags carry a leading `v` that is not part
-          # of the version itself, exactly as hatch-vcs would strip it.
-          # Deriving this from the tag we are already releasing makes the
-          # version in the image correct by construction, instead of depending
-          # on the checkout below having fetched enough history.
+          # The PEP 440 version expected in the installed package metadata.
+          # Git tags carry a leading `v` that hatch-vcs strips from the version.
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
           # `github.event.release.prerelease` is a boolean field GitHub sets
@@ -106,13 +102,10 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ steps.version.outputs.image-tags }}
-          build-args: |
-            FLEXMEASURES_VERSION=${{ steps.version.outputs.version }}
 
       - name: Verify the version baked into the image
-        # The UI footer and the API's Server header both read this metadata,
-        # so a wrong value here ships a mislabelled release. Checking the
-        # pushed image turns that from a silent mistake into a failed build.
+        # The UI footer and FlexMeasures-Version response header read this
+        # metadata. Verify that hatch-vcs derived the release tag as expected.
         run: |
           BAKED=$(docker run --rm "lfenergy/flexmeasures:${{ steps.version.outputs.tag }}" \
             python -c "from importlib.metadata import version; print(version('flexmeasures'))")
