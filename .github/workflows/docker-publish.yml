@@ -43,6 +43,14 @@ jobs:
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
+          # The PEP 440 version baked into the image, passed to the build as
+          # FLEXMEASURES_VERSION. Git tags carry a leading `v` that is not part
+          # of the version itself, exactly as hatch-vcs would strip it.
+          # Deriving this from the tag we are already releasing makes the
+          # version in the image correct by construction, instead of depending
+          # on the checkout below having fetched enough history.
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
           # `github.event.release.prerelease` is a boolean field GitHub sets
           # on the `release` webhook payload, reflecting whether the "Set as
           # a pre-release" checkbox was ticked when the GitHub Release was
@@ -98,7 +106,23 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ steps.version.outputs.image-tags }}
+          build-args: |
+            FLEXMEASURES_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Verify the version baked into the image
+        # The UI footer and the API's Server header both read this metadata,
+        # so a wrong value here ships a mislabelled release. Checking the
+        # pushed image turns that from a silent mistake into a failed build.
+        run: |
+          BAKED=$(docker run --rm "lfenergy/flexmeasures:${{ steps.version.outputs.tag }}" \
+            python -c "from importlib.metadata import version; print(version('flexmeasures'))")
+          echo "Image reports version: ${BAKED}"
+          if [ "$BAKED" != "${{ steps.version.outputs.version }}" ]; then
+            echo "Expected ${{ steps.version.outputs.version }}, got ${BAKED}." >&2
+            exit 1
+          fi
 
       - name: Summary
         run: |
           echo "Pushed: ${{ steps.version.outputs.image-tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version: ${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
