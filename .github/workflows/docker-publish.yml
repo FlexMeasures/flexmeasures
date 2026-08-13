@@ -102,6 +102,8 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ steps.version.outputs.image-tags }}
+          build-args: |
+            FLEXMEASURES_VERSION=${{ steps.version.outputs.version }}
 
       - name: Verify the version baked into the image
         # The UI footer and FlexMeasures-Version response header read this
