@@ -18,7 +18,7 @@ Bugfixes
 -----------
 
 
-v1.0.0 | August 13, 2026
+v1.0.0 | August 14, 2026
 ============================
 
 .. warning:: As of this release we standardize asynchronous job responses to use the ``job`` field and return HTTP ``202 Accepted`` while a background job is queued or running. See :ref:`api_background_jobs` for the response format and polling flow. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to ``job`` (see the Infrastructure / Support section below for migration details).
