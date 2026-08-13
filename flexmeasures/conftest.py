@@ -11,7 +11,7 @@ from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, Flask
+from flask import request, jsonify, Flask, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
@@ -90,6 +90,13 @@ def app():
         yield test_app
 
     print("DONE WITH APP FIXTURE")
+
+
+@pytest.fixture(autouse=True)
+def clear_flask_login_cache(app):
+    """Prevent flask-login's cached user from leaking between tests."""
+    yield
+    g.pop("_login_user", None)
 
 
 @pytest.fixture(scope="module")

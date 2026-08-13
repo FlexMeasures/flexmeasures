@@ -109,6 +109,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Clear flask-login's cached user after each test so authentication state cannot leak between tests [see `issue #2417 <https://github.com/FlexMeasures/flexmeasures/issues/2417>`_]
 * Include the Excel reader in default installations so XLSX sensor-data uploads work outside test environments [see `PR #2376 <https://www.github.com/FlexMeasures/flexmeasures/pull/2376>`_]
 * In a multi-device flex-model, a device without a stock (e.g. a converter port or curtailable generator) silently disabled constraint validation for all devices after it; validation now covers every device, and also newly checks that each device's power bounds do not contradict each other, so a contradictory hard bound fails with a clear per-time-step message instead of a bare solver infeasibility [see `PR #2252 <https://www.github.com/FlexMeasures/flexmeasures/pull/2252>`_]
 * The scheduler now rejects a commitment that no constraint would bind — a stock commitment naming no device or known stock group, or a commodity commitment for a commodity that no commitment maps devices to — instead of silently dropping it from the problem, or letting a favourably priced deviation make the problem unbounded; the error names the commitment [see `PR #2410 <https://www.github.com/FlexMeasures/flexmeasures/pull/2410>`_ and `PR #2413 <https://www.github.com/FlexMeasures/flexmeasures/pull/2413>`_]
