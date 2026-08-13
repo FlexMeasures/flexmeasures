@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import Type
 
 import pandas as pd
 import numpy as np
@@ -32,7 +31,6 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     initialize_df,
     get_power_values,
-    fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
@@ -1053,11 +1051,16 @@ class MetaStorageScheduler(Scheduler):
                     min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
+                # Explicit zero production capacity is a physical impossibility (e.g.
+                # a heat pump), not an economic limit — keep it hard even when
+                # relax-constraints injects production-breach-price. Non-zero
+                # production capacities may still be softened. See issue #2323.
                 if (
                     self.flex_context.get("production_breach_price") is not None
                     and production_capacity[d] is not None
+                    and production_capacity_d.max() > 0
                 ):
-                    # consumption-capacity will become a soft constraint
+                    # production-capacity will become a soft constraint
                     production_breach_price = self.flex_context[
                         "production_breach_price"
                     ]
@@ -1104,7 +1107,7 @@ class MetaStorageScheduler(Scheduler):
                     )
                     commitments.append(commitment)
                 else:
-                    # consumption-capacity will become a hard constraint
+                    # production-capacity will become a hard constraint
                     device_constraints[d]["derivative min"] = -production_capacity_d
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_negative"
@@ -1124,9 +1127,14 @@ class MetaStorageScheduler(Scheduler):
                     max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
                 )
+                # Explicit zero consumption capacity is a physical impossibility
+                # (e.g. a pure generator), not an economic limit — keep it hard
+                # even when relax-constraints injects consumption-breach-price.
+                # Non-zero consumption capacities may still be softened. See #2323.
                 if (
                     self.flex_context.get("consumption_breach_price") is not None
                     and consumption_capacity[d] is not None
+                    and consumption_capacity_d.max() > 0
                 ):
                     # consumption-capacity will become a soft constraint
                     consumption_breach_price = self.flex_context[
@@ -1391,6 +1399,106 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
+            # A soc target is a two-sided constraint: falling short of it is a shortage
+            # (priced like a soc-minima breach) and overshooting it is a surplus (priced
+            # like a soc-maxima breach). We therefore relax targets only when both breach
+            # prices are available, which is the case whenever SoC relaxation is on, since
+            # the two default prices are filled in as a pair.
+            if (
+                self.flex_context.get("soc_minima_breach_price") is not None
+                and self.flex_context.get("soc_maxima_breach_price") is not None
+                and soc_targets[d] is not None
+                and soc_at_start[d] is not None
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
+                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
+                any_soc_target_shortage_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=soc_minima_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                        query_window=(start + resolution, end + resolution),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    ).shift(-1, freq=resolution)
+                )
+                all_soc_target_shortage_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=soc_minima_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                        query_window=(start + resolution, end + resolution),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    ).shift(-1, freq=resolution)
+                )
+                any_soc_target_surplus_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_target_surplus_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_targets_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_targets_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_targets[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="first",
+                )
+                # shift soc targets by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_targets_d = soc_targets_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc targets",
+                    quantity=soc_targets_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-any_soc_target_shortage_price,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=any_soc_target_surplus_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc targets",
+                    quantity=soc_targets_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-all_soc_target_shortage_price,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=all_soc_target_surplus_price,
+                    index=index,
+                    device=d,
+                    stock=device_stock_key.get(d),
+                )
+                commitments.append(commitment)
+
+                # soc-targets will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_targets[d] = None
+
             # only apply SOC constraints to the first device of a shared stock
             apply_soc_constraints = True
             for stock_id, devices in self.stock_groups.items():
@@ -1398,6 +1506,7 @@ class MetaStorageScheduler(Scheduler):
                     apply_soc_constraints = False
                     break
 
+            validate_stock_constraints = not skip_validation
             if soc_at_start[d] is not None and apply_soc_constraints:
                 storage_constraints = add_storage_constraints(
                     start,
@@ -1413,8 +1522,9 @@ class MetaStorageScheduler(Scheduler):
                 for column in ("equals", "min", "max"):
                     device_constraints[d][column] = storage_constraints[column]
             else:
-                # No need to validate non-existing storage constraints
-                skip_validation = True
+                # No need to validate non-existing storage constraints for this device.
+                # Only skip them for this device; other devices must still be validated.
+                validate_stock_constraints = False
 
             all_stock_delta = []
 
@@ -1509,15 +1619,19 @@ class MetaStorageScheduler(Scheduler):
                     "and the scheduler will assume their resolution is the one to use.",
                 )
 
-            # check that storage constraints are fulfilled
+            # check that device constraints are fulfilled
             if not skip_validation:
-                constraint_violations = validate_storage_constraints(
+                constraint_violations = validate_power_constraints(
                     constraints=device_constraints[d],
-                    soc_at_start=soc_at_start[d],
-                    soc_min=soc_min[d],
-                    soc_max=soc_max[d],
-                    resolution=resolution,
                 )
+                if validate_stock_constraints:
+                    constraint_violations += validate_storage_constraints(
+                        constraints=device_constraints[d],
+                        soc_at_start=soc_at_start[d],
+                        soc_min=soc_min[d],
+                        soc_max=soc_max[d],
+                        resolution=resolution,
+                    )
 
                 if len(constraint_violations) > 0:
                     # TODO: include hints from constraint_violations into the error message
@@ -2609,82 +2723,9 @@ class MetaStorageScheduler(Scheduler):
         return q
 
 
-class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "3"
-    __author__ = "Seita"
-
-    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
-        """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
-           depending on the first target state of charge and the capabilities of the Charge Point.
-           For the resulting consumption schedule, consumption is defined as positive values.
-
-           Note that this ignores any cause of the infeasibility.
-
-        :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
-        """
-
-        (
-            sensors,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            device_constraints,
-            ems_constraints,
-            commitments,
-        ) = self._prepare(skip_validation=skip_validation)
-
-        # Fallback policy if the problem was unsolvable
-        storage_schedule = {
-            sensor: fallback_charging_policy(
-                sensor, device_constraints[d], start, end, resolution
-            )
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
-
-        # Convert each device schedule to the unit of the device's power sensor
-        storage_schedule = {
-            sensor: convert_units(
-                storage_schedule[sensor],
-                "MW",
-                sensor.unit,
-                event_resolution=sensor.event_resolution,
-            )
-            for sensor in sensors
-            if sensor is not None
-        }
-
-        # Round schedule
-        if self.round_to_decimals:
-            storage_schedule = {
-                sensor: storage_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
-                if sensor is not None
-            }
-
-        if self.return_multiple:
-            # Iterate over the dict keys (not the sensors list, which may hold the
-            # same sensor for multiple devices), so no sensor is emitted twice.
-            return [
-                {
-                    "name": "storage_schedule",
-                    "sensor": sensor,
-                    "data": storage_schedule[sensor],
-                }
-                for sensor in storage_schedule.keys()
-                if sensor is not None
-            ]
-        else:
-            return storage_schedule[sensors[0]]
-
-
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "8"
+    __version__ = "9"
     __author__ = "Seita"
-
-    fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
     @staticmethod
     def _build_soc_schedule(  # noqa: C901
@@ -2831,6 +2872,52 @@ class StorageScheduler(MetaStorageScheduler):
                 )
 
         return soc_schedule, soc_schedule_mwh
+
+    def _soc_target_violations(
+        self,
+        soc_targets,
+        soc_mwh: pd.Series,
+        start: datetime,
+        end: datetime,
+        resolution: timedelta,
+        precision: int,
+        most_relevant_only: bool,
+    ) -> list[dict]:
+        """Report time slots where the scheduled state of charge misses a soc target.
+
+        A target is a two-sided constraint, so a violation is the absolute deviation from
+        the target, in either direction. There is no headroom to report when a target is
+        met, so targets never produce a "resolved" entry.
+        """
+        if soc_targets is None:
+            return []
+        soc_targets_series = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_targets,
+            unit="MWh",
+            query_window=(start + resolution, end + resolution),
+            resolution=resolution,
+            beliefs_before=self.belief_time,
+            as_instantaneous_events=True,
+            resolve_overlaps="first",
+        )
+        defined_targets = soc_targets_series.dropna()
+        if len(defined_targets) == 0:
+            return []
+        deviations = (soc_mwh.reindex(defined_targets.index) - defined_targets).abs()
+        # Ignore deviations that would round away at the reporting precision.
+        violations = deviations[deviations.mul(1000).round(precision) > 0]
+        if violations.empty:
+            return []
+        violation_times = (
+            [violations.index[0]] if most_relevant_only else violations.index
+        )
+        return [
+            {
+                "datetime": t.tz_convert("UTC").isoformat(),
+                "violation": f"{round(float(violations[t]) * 1000, precision)} kWh",
+            }
+            for t in violation_times
+        ]
 
     def _compute_unresolved_targets(
         self,
@@ -3001,6 +3088,18 @@ class StorageScheduler(MetaStorageScheduler):
                             }
                             for t in margin_times
                         ]
+
+            target_violations = self._soc_target_violations(
+                soc_targets=flex_model_d.get("soc_targets"),
+                soc_mwh=soc_mwh,
+                start=start,
+                end=end,
+                resolution=resolution,
+                precision=precision,
+                most_relevant_only=most_relevant_only,
+            )
+            if target_violations:
+                device_violations["soc-targets"] = target_violations
 
             if device_violations:
                 violation_entry = {"asset": asset_id}
@@ -3844,6 +3943,51 @@ def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
             f" '{name} (custom)'. Consider renaming the commitment."
         )
     return costs_by_name
+
+
+def validate_power_constraints(constraints: pd.DataFrame) -> list[dict]:
+    """Check that the power constraints of a device are consistent, e.g. derivative min <= derivative max.
+
+    D. Power validation in the same time frame
+        D.1) derivative min <= derivative max
+        D.2) derivative min <= derivative equals
+        D.3) derivative equals <= derivative max
+
+    These checks apply to any device, including devices without a stock, for which the stock-based validation of validate_storage_constraints does not apply.
+    Time steps where any involved constraint is unset are skipped.
+
+    :param constraints: dataframe containing the constraints of a device.
+    :returns:           List of constraint violations, specifying their time, constraint and violation.
+    """
+    # get a copy of the constraints to make sure the dataframe doesn't get updated
+    _constraints = constraints.copy()
+
+    _constraints = _constraints.rename(
+        columns={
+            columns_name: columns_name.replace(" ", "_")
+            + "(t)"  # replace spaces with underscore and add time index
+            for columns_name in _constraints.columns
+        }
+    )
+
+    constraint_violations = []
+
+    # 1) derivative min <= derivative max
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t)", "<=", "derivative_max(t)"
+    )
+
+    # 2) derivative min <= derivative equals
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_min(t)", "<=", "derivative_equals(t)"
+    )
+
+    # 3) derivative equals <= derivative max
+    constraint_violations += validate_constraint(
+        _constraints, "derivative_equals(t)", "<=", "derivative_max(t)"
+    )
+
+    return constraint_violations
 
 
 def validate_storage_constraints(

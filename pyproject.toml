@@ -37,6 +37,7 @@ dependencies = [
     "py-moneyed>=3.0",
     "iso8601>=2.1.0",
     "xlrd>=2.0.2",
+    "openpyxl>=3.1.5",
     "workalendar>=17.0.0",
     "holidays>=0.57",
     "inflection>=0.5.1",
@@ -152,9 +153,16 @@ script = "flexmeasures.data.scripts.visualize_data_model"
 
 [tool.poe.tasks.clean-db]
 help = "Clean the database."
-shell = "flexmeasures/data/scripts/clean_database.sh"
+# This is a "cmd" and not a "shell" task on purpose.
+# Poe feeds the content of a shell task to the interpreter over stdin,
+# which leaves the script without a terminal to read from,
+# so its password and confirmation prompts would silently read empty.
+# A cmd task runs the script directly and lets it inherit our stdin.
+# The arguments have to be named explicitly, because poe otherwise only exposes them as environment variables.
+cmd = "flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}"
+use_exec = true
 args = [
-    {name = "db-name", help = "The name of the database to clean."},
+    {name = "db-name", required = true, help = "The name of the database to clean."},
     {name = "db-user", help = "The user to clean the database for."},
 ]
 
@@ -263,7 +271,6 @@ test = [
     # required with fakeredis, maybe because we use rq
     "lupa>=2.6",
     "pytest-mock>=3.15.1",
-    "openpyxl>=3.1.5",
     "pytest-runner>=6.0.1",
 ]
 
