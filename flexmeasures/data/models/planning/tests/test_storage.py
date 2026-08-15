@@ -2660,11 +2660,10 @@ def _storage_schedule_for_sensor(results, power_sensor):
 def test_multiple_sessions_same_sensor_accumulate_schedules(db, charge_point):
     """Two flex-model sessions on one power sensor must sum schedules (not overwrite).
 
-    Regression for https://github.com/FlexMeasures/flexmeasures/issues/1947
-    (core fix in #1948). Multiple independent storage entries may share a power
-    sensor (e.g. two EV sessions plugged into the same charge point connector,
-    one after the other). Their device schedules must be accumulated into a
-    single sensor schedule.
+    Multiple independent storage entries may share a power sensor (e.g. two EV
+    sessions plugged into the same charge point connector, one after the
+    other). Their device schedules must be accumulated into a single sensor
+    schedule.
 
     Setup: two non-overlapping sessions, each needing 2 kWh at 1 kW over a 2-hour
     window. Overwrite behaviour would keep only the second session (~2 kWh total,
@@ -2741,10 +2740,10 @@ def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
 
     Companion to ``test_multiple_sessions_same_sensor_accumulate_schedules``.
     Two EV sessions cannot overlap on the same connector, so overlap is only
-    meaningful across two connectors of one charge point (#2344 review). Each
-    connector has its own power sensor. During the shared hours the available
-    power is pre-allocated in each flex-model (each connector's power-capacity
-    is decreased), which is the modeling Flix6x described on #1947.
+    meaningful across two connectors of one charge point. Each connector has
+    its own power sensor. During the shared hours the available power is
+    pre-allocated in each flex-model (each connector's power-capacity is
+    decreased).
 
     Setup: session A on hours 0-3, session B on hours 1-4. Both run at 1 kW
     when alone and at 0.5 kW in the two overlapping hours. Each still needs
