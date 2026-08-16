@@ -92,11 +92,18 @@ def app():
     print("DONE WITH APP FIXTURE")
 
 
+# Authentication state that flask-login and flask-security cache on the app context's `g`.
+# The app fixture holds one app context open for the whole session, so anything left here is visible to later tests.
+# The keys must be cleared together: flask-security's request loader short-circuits on `fs_authn_via` and then returns `g._login_user` unguarded, so clearing only one of them makes the next token-authenticated request raise AttributeError.
+CACHED_AUTH_STATE_KEYS = ("_login_user", "fs_authn_via", "fs_paa", "csrf_valid")
+
+
 @pytest.fixture(autouse=True)
 def clear_flask_login_cache(app):
-    """Prevent flask-login's cached user from leaking between tests."""
+    """Prevent cached authentication state from leaking between tests."""
     yield
-    g.pop("_login_user", None)
+    for key in CACHED_AUTH_STATE_KEYS:
+        g.pop(key, None)
 
 
 @pytest.fixture(scope="module")
