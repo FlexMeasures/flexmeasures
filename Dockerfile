@@ -38,9 +38,14 @@ COPY flexmeasures ./flexmeasures
 COPY .git ./.git
 COPY .flaskenv wsgi.py ./
 
-# Install FlexMeasures itself in the virtual environment
+# Install FlexMeasures itself in the virtual environment. Released images pass
+# their tag-derived version explicitly because the partial tracked working tree
+# copied above appears dirty to hatch-vcs. An empty value preserves Git-derived
+# versions for local builds.
+ARG FLEXMEASURES_VERSION=
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
+    uv sync --frozen --reinstall-package flexmeasures
 
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
