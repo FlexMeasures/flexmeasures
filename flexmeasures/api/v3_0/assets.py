@@ -49,13 +49,21 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
+    asset_is_in_subtree,
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.schemas.reporting import ReportTriggerSchema
+from flexmeasures.data.services.data_generators import (
+    check_sensor_access,
+    resolve_data_generator_sensors,
+)
+from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -1570,6 +1578,101 @@ class AssetAPI(FlaskView):
         return {
             "message": "Default legend position updated successfully.",
         }, 200
+
+    @route("/<id>/reports/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_report(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a one-off reporting job for this asset.
+        ---
+        post:
+          summary: Trigger a one-off reporting job for this asset.
+          description: |
+            Queue a one-off report for a worker processing the `reporting` queue.
+            The caller must be able to read every input/configuration sensor and
+            record data on every output sensor. Each output must belong to the
+            asset in the URL or one of its descendants.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              $ref: '#/components/parameters/AssetIdPath'
+          requestBody:
+            content:
+              application/json:
+                schema: ReportTriggerSchema
+          responses:
+            202:
+              description: ACCEPTED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            report_data = ReportTriggerSchema().load(body)
+        except ValidationError as exc:
+            return unprocessable_entity(exc.messages)
+
+        try:
+            reporter = get_data_generator(
+                source=None,
+                model=report_data["reporter"],
+                config=report_data["config"],
+                save_config=True,
+                data_generator_type=Reporter,
+            )
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"config": exc.messages})
+        if reporter is None:
+            db.session.rollback()
+            return unprocessable_entity(
+                f"Reporter class `{report_data['reporter']}` not available."
+            )
+
+        parameters = report_data["parameters"]
+        try:
+            deserialized_parameters = reporter._parameters_schema.load(parameters)
+            report_sensors = resolve_data_generator_sensors(
+                reporter, deserialized_parameters
+            )
+            check_sensor_access(
+                report_sensors["input_sensors"], report_sensors["output_sensors"]
+            )
+            for output_sensor in report_sensors["output_sensors"]:
+                if not asset_is_in_subtree(asset.id, output_sensor.generic_asset_id):
+                    raise ValueError(
+                        f"Report output sensor {output_sensor.id} must belong to asset"
+                        f" {asset.id} or one of its descendants."
+                    )
+            reporter.set_job_trigger("API")
+            returns = reporter.compute(as_job=True, parameters=parameters)
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"parameters": exc.messages})
+        except ValueError as exc:
+            db.session.rollback()
+            return unprocessable_entity(str(exc))
+        except Forbidden:
+            db.session.rollback()
+            raise
+
+        return request_accepted_for_processing(returns["job_id"])
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @limit_triggers()

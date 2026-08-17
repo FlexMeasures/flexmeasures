@@ -17,6 +17,23 @@ from flexmeasures.data.queries.utils import (
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
+def asset_is_in_subtree(root_asset_id: int, candidate_asset_id: int) -> bool:
+    """Return whether an asset is the given root or one of its descendants."""
+    current_asset_id = candidate_asset_id
+    visited: set[int] = set()
+
+    while current_asset_id is not None and current_asset_id not in visited:
+        if current_asset_id == root_asset_id:
+            return True
+        visited.add(current_asset_id)
+        current_asset = db.session.get(GenericAsset, current_asset_id)
+        if current_asset is None:
+            return False
+        current_asset_id = current_asset.parent_asset_id
+
+    return False
+
+
 def query_assets_by_type(
     type_names: list[str] | str,
     account_id: int | None = None,

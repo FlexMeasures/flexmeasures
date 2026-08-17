@@ -29,7 +29,9 @@ class ReporterParametersSchema(Schema):
         validate=validate.Length(min=1),
     )
 
-    output = fields.List(fields.Nested(Output()), validate=validate.Length(min=1))
+    output = fields.List(
+        fields.Nested(Output()), required=True, validate=validate.Length(min=1)
+    )
 
     start = AwareDateTimeField(required=True)
     end = AwareDateTimeField(required=True)
@@ -38,6 +40,18 @@ class ReporterParametersSchema(Schema):
     belief_time = AwareDateTimeField(required=False)
     check_output_resolution = fields.Bool(required=False)
     belief_horizon = DurationField(required=False)
+
+
+class ReportTriggerSchema(Schema):
+    """Validate the request envelope for a one-off reporting job.
+
+    The selected reporter subsequently validates ``config`` and ``parameters``
+    with its concrete configuration and parameter schemas.
+    """
+
+    reporter = fields.Str(required=True)
+    config = fields.Dict(keys=fields.Str(), load_default=dict)
+    parameters = fields.Dict(keys=fields.Str(), required=True)
 
 
 class BeliefsSearchConfigSchema(Schema):
