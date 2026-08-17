@@ -14,7 +14,9 @@ class ReporterWithoutDataflow:
 
     @property
     def data_source(self):
-        raise AssertionError("The data source was accessed before parameter validation.")
+        raise AssertionError(
+            "The data source was accessed before parameter validation."
+        )
 
 
 def test_create_reporting_job_validates_dataflow_before_accessing_source():
