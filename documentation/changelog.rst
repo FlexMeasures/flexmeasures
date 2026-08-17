@@ -11,6 +11,8 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_ and `issue #2426 <https://github.com/FlexMeasures/flexmeasures/issues/2426>`_]
+
 Infrastructure / Support
 -------------------------
 
