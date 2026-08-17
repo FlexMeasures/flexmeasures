@@ -31,6 +31,7 @@ class DataGenerator:
 
     _config: dict = None
     _parameters: dict = None
+    _job_trigger: dict | None = None
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
@@ -97,6 +98,45 @@ class DataGenerator:
             self._config = self._config_schema.load(config)
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
+
+    def set_job_trigger(self, origin: str):
+        """Record how a queued job was created, for storage in its metadata."""
+        self._job_trigger = {"origin": origin}
+
+    @property
+    def input_sensors(self) -> list:
+        """Return the sensors from which this data generator reads data."""
+        return []
+
+    @property
+    def output_sensors(self) -> list:
+        """Return the sensors on which this data generator records data."""
+        return []
+
+    @staticmethod
+    def _resolve_sensors(*values) -> list:
+        """Turn sensors, sensor references or sensor IDs into unique sensors."""
+        from flexmeasures.data.models.time_series import Sensor
+        from flexmeasures.data.schemas.sensors import SensorReference
+
+        sensors: dict[int, Sensor] = {}
+        for value in values:
+            if value is None:
+                continue
+            for item in value if isinstance(value, (list, tuple, set)) else [value]:
+                if isinstance(item, SensorReference):
+                    sensor = item.sensor
+                elif isinstance(item, Sensor):
+                    sensor = item
+                elif isinstance(item, int) or (
+                    isinstance(item, str) and item.isdigit()
+                ):
+                    sensor = db.session.get(Sensor, int(item))
+                else:
+                    continue
+                if sensor is not None:
+                    sensors[sensor.id] = sensor
+        return list(sensors.values())
 
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your data generator.

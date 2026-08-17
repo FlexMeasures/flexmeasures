@@ -207,7 +207,7 @@ def new_account_role(name: str, description: str):
 @click.option(
     "--trigger-rate-limit",
     callback=validate_rate_limit_cli,
-    help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
+    help="How often accounts on this plan may trigger a schedule, forecast or report, e.g. '60 per 5 minutes'."
     " Defaults to the FLEXMEASURES_API_TRIGGER_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
 )
 @click.option(
@@ -1834,6 +1834,12 @@ def add_schedule(  # noqa C901
     is_flag=True,
     help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
 )
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a reporting job instead of computing directly. "
+    "Process it with a worker on the 'reporting' queue.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
     source: DataSource | None = None,
@@ -1850,11 +1856,25 @@ def add_report(  # noqa: C901
     edit_parameters: bool = False,
     save_config: bool = False,
     timezone: str | None = None,
+    as_job: bool = False,
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as CSV or Excel file.
     """
+    if as_job and (dry_run or output_file_pattern):
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run or --output-file:"
+            " the job saves the report to the database only.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if as_job and not save_config:
+        click.secho(
+            "Saving the reporter config to its data source (required for --as-job).",
+            **MsgStyle.WARN,
+        )
+        save_config = True
 
     config = dict()
 
@@ -1956,6 +1976,16 @@ def add_report(  # noqa: C901
         parameters["end"] = end.isoformat()
     if ("resolution" not in parameters) and (resolution is not None):
         parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
+    reporter.set_job_trigger("CLI")
+
+    if as_job:
+        returns = reporter.compute(as_job=True, parameters=parameters)
+        click.secho(
+            f"Created reporting job {returns['job_id']} (the report will be saved to the database once processed).",
+            **MsgStyle.SUCCESS,
+        )
+        return
 
     click.echo("Report computation is running...")
 
