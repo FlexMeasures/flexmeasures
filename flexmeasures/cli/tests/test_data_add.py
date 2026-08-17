@@ -209,6 +209,64 @@ def test_cli_help(app):
         assert "Usage" in result.output
 
 
+def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+    """The report CLI can persist its reporter and queue work for a worker."""
+    from flexmeasures.cli.data_add import add_report
+
+    input_1, input_2, output, _ = setup_dummy_data
+    config_file = tmp_path / "report-config.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "required_input": [{"name": "one"}, {"name": "two"}],
+                "required_output": [{"name": "sum"}],
+                "transformations": [
+                    {
+                        "df_input": "one",
+                        "method": "add",
+                        "args": ["@two"],
+                        "df_output": "sum",
+                    }
+                ],
+            }
+        )
+    )
+    parameters_file = tmp_path / "report-parameters.json"
+    parameters_file.write_text(
+        json.dumps(
+            {
+                "input": [
+                    {"name": "one", "sensor": input_1},
+                    {"name": "two", "sensor": input_2},
+                ],
+                "output": [{"name": "sum", "sensor": output}],
+            }
+        )
+    )
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        [
+            "--config",
+            str(config_file),
+            "--parameters",
+            str(parameters_file),
+            "--start",
+            "2023-04-10T00:00:00+00:00",
+            "--end",
+            "2023-04-10T10:00:00+00:00",
+            "--as-job",
+        ],
+    )
+
+    check_command_ran_without_error(result)
+    assert "Created reporting job" in result.output
+    job = app.queues["reporting"].jobs[0]
+    assert job.meta["trigger"] == {"origin": "CLI"}
+    source = fresh_db.session.get(DataSource, job.kwargs["data_source_id"])
+    assert source.attributes["data_generator"]["config"]["required_input"]
+
+
 def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
     app,
     fresh_db,
