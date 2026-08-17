@@ -925,9 +925,8 @@ Default: ``"500 per minute"``
 FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may trigger a schedule or a forecast. This is the expensive work, so this limit is stricter
-than the default one. The trigger endpoints share this budget, so triggering a forecast and triggering a schedule
-draw on the same one.
+How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
+than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
 
 Default: ``"10 per 5 minutes"``
 

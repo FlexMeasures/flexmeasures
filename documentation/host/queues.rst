@@ -24,7 +24,7 @@ Here is how to run one worker for each kind of job (in separate terminals):
 
 .. code-block:: bash
 
-   $ flexmeasures jobs run-worker --name our-only-worker --queue forecasting|scheduling|ingestion
+   $ flexmeasures jobs run-worker --name our-only-worker --queue forecasting|scheduling|ingestion|reporting
 
 Running multiple workers in parallel might be a great idea.
 
@@ -33,6 +33,7 @@ Running multiple workers in parallel might be a great idea.
    $ flexmeasures jobs run-worker --name forecaster --queue forecasting
    $ flexmeasures jobs run-worker --name scheduler --queue scheduling
    $ flexmeasures jobs run-worker --name ingester --queue ingestion
+   $ flexmeasures jobs run-worker --name reporter --queue reporting
 
 You can also clear the job queues:
 
@@ -41,6 +42,7 @@ You can also clear the job queues:
    $ flexmeasures jobs clear-queue --queue forecasting
    $ flexmeasures jobs clear-queue --queue scheduling
    $ flexmeasures jobs clear-queue --queue ingestion
+   $ flexmeasures jobs clear-queue --queue reporting
 
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
