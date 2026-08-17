@@ -9,6 +9,7 @@ from flask import current_app
 from rq.job import Job
 
 from flexmeasures.data import db
+from flexmeasures.data.schemas.reporting import ReporterParametersSchema
 from flexmeasures.data.utils import save_to_db
 
 if TYPE_CHECKING:
@@ -17,13 +18,21 @@ if TYPE_CHECKING:
 
 def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     """Queue a job that computes a report and stores its results."""
+    parameters = reporter._parameters_schema.dump(reporter._parameters)
+    ReporterParametersSchema(only=("input", "output")).load(
+        {
+            field: parameters[field]
+            for field in ("input", "output")
+            if field in parameters
+        }
+    )
+    output_sensor_ids = [output["sensor"] for output in parameters["output"]]
+
     reporter._data_source = db.session.merge(reporter.data_source)
     db.session.flush()
     data_source_id = reporter._data_source.id
     db.session.commit()
 
-    parameters = reporter._parameters_schema.dump(reporter._parameters)
-    output_sensor_ids = [output["sensor"] for output in parameters["output"]]
     job_metadata = {
         "data_source_info": {"id": data_source_id},
         "start": parameters.get("start"),
