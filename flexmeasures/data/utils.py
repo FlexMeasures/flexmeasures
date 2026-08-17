@@ -5,6 +5,7 @@ Utils around the data models and db sessions
 from __future__ import annotations
 
 from alembic.config import Config as AlembicConfig
+from alembic.script.revision import RevisionError
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from dataclasses import dataclass
@@ -84,6 +85,38 @@ def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
         current_heads=current_heads,
         expected_heads=expected_heads,
     )
+
+
+def database_schema_has_revision(app, required_revision: str) -> bool:
+    """Return whether the connected database includes a specific Alembic revision."""
+    revision_status = get_database_schema_revision_status(app)
+    if (
+        revision_status.inspection_error is not None
+        or not revision_status.current_heads
+    ):
+        return False
+
+    migrate_extension = app.extensions.get("migrate")
+    if migrate_extension is None:
+        return False
+
+    alembic_config = AlembicConfig()
+    alembic_config.set_main_option("script_location", migrate_extension.directory)
+    script = ScriptDirectory.from_config(alembic_config)
+
+    for current_head in revision_status.current_heads:
+        try:
+            revisions = script.revision_map.iterate_revisions(
+                current_head,
+                required_revision,
+                inclusive=True,
+                assert_relative_length=False,
+            )
+        except RevisionError:
+            continue
+        if any(revision.revision == required_revision for revision in revisions):
+            return True
+    return False
 
 
 def format_database_schema_revision_status(
