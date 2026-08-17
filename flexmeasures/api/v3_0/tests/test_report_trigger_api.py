@@ -42,6 +42,12 @@ def setup_report_sensors(
         event_resolution=timedelta(hours=2),
         unit="EUR",
     )
+    local_price = Sensor(
+        "local price",
+        generic_asset=battery,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/kWh",
+    )
     sibling = GenericAsset(
         name="Sibling battery",
         generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
@@ -74,6 +80,7 @@ def setup_report_sensors(
             input_2,
             output,
             cost_output,
+            local_price,
             sibling,
             sibling_output,
             foreign,
@@ -88,6 +95,7 @@ def setup_report_sensors(
         "input_2": input_2,
         "output": output,
         "cost_output": cost_output,
+        "local_price": local_price,
         "sibling_output": sibling_output,
         "foreign_input": foreign_input,
         "foreign_price": foreign_price,
@@ -248,6 +256,54 @@ def test_trigger_report_rejects_invalid_requests(
         )
     assert response.status_code == 422
     assert expected_text.casefold() in str(response.json).casefold()
+    assert app.queues["reporting"].jobs == []
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("reporter", ["AggregatorReporter", "ProfitOrLossReporter"])
+def test_trigger_report_rejects_missing_specialized_dataflow_fields_without_side_effects(
+    app,
+    fresh_db,
+    setup_report_sensors,
+    clean_redis,
+    requesting_user,
+    reporter,
+):
+    sensors = setup_report_sensors
+    if reporter == "AggregatorReporter":
+        missing_field = "output"
+        message = {
+            "reporter": reporter,
+            "config": {"method": "sum"},
+            "parameters": {
+                "input": [{"sensor": sensors["input_1"].id}],
+                "start": "2023-04-10T00:00:00+00:00",
+                "end": "2023-04-10T10:00:00+00:00",
+            },
+        }
+    else:
+        missing_field = "input"
+        message = {
+            "reporter": reporter,
+            "config": {"consumption_price_sensor": sensors["local_price"].id},
+            "parameters": {
+                "output": [{"sensor": sensors["cost_output"].id}],
+                "start": "2023-04-10T00:00:00+00:00",
+                "end": "2023-04-10T10:00:00+00:00",
+            },
+        }
+
+    source_count = reporter_source_count(fresh_db)
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:trigger_report", id=sensors["asset"].id), json=message
+        )
+
+    assert response.status_code == 422
+    assert missing_field in str(response.json)
+    assert reporter_source_count(fresh_db) == source_count
     assert app.queues["reporting"].jobs == []
 
 
