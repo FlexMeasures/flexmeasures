@@ -263,6 +263,7 @@ def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_pat
     check_command_ran_without_error(result)
     assert "Created reporting job" in result.output
     job = app.queues["reporting"].jobs[0]
+    assert job.timeout == app.queues["reporting"]._default_timeout
     assert job.meta["trigger"] == {"origin": "CLI"}
     source = fresh_db.session.get(DataSource, job.kwargs["data_source_id"])
     assert source.attributes["data_generator"]["config"]["required_input"]
