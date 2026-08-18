@@ -4322,7 +4322,46 @@
         },
         "responses": {
           "202": {
-            "description": "ACCEPTED"
+            "description": "ACCEPTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "message",
+                    "job",
+                    "job-url"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACCEPTED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "job": {
+                      "type": "string",
+                      "description": "UUID of the queued reporting job."
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ACCEPTED",
+                  "message": "Request has been accepted for processing.",
+                  "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                  "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                }
+              }
+            }
           },
           "400": {
             "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
