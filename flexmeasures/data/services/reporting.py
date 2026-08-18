@@ -57,7 +57,6 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
             ).total_seconds()
         ),
         meta=job_metadata,
-        timeout=60 * 60,
     )
     current_app.queues[queue].enqueue_job(job)
     for sensor_id in output_sensor_ids:
