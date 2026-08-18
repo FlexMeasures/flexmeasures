@@ -809,7 +809,7 @@ def build_asset_jobs_data(
                 ),
             )
             job_err = (
-                f"Scheduling job failed with {type(e).__name__}: {e}"
+                f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
                 if job.is_failed
                 else None
             )
