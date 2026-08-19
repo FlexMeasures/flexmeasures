@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import re
+from packaging.version import InvalidVersion, Version
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
@@ -60,6 +61,48 @@ def upsample_values(
         else:
             value_groups = list(array(value_groups).repeat(n))
     return value_groups
+
+
+def use_legacy_schedule_accepted_status(asset: GenericAsset) -> bool:
+    version_attribute = current_app.config.get(
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_CLIENT_VERSION_ATTRIBUTE"
+    )
+    if not version_attribute:
+        return False
+
+    client_version, attribute_asset = _get_asset_attribute_from_nearby_hierarchy(
+        asset, version_attribute
+    )
+    if client_version is None or attribute_asset is None:
+        return False
+    try:
+        return Version(str(client_version)) <= Version(
+            str(
+                current_app.config[
+                    "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION"
+                ]
+            )
+        )
+    except InvalidVersion:
+        current_app.logger.warning(
+            "Ignoring invalid schedule client version %r on asset %s.",
+            client_version,
+            attribute_asset.id,
+        )
+        return False
+
+
+def _get_asset_attribute_from_nearby_hierarchy(
+    asset: GenericAsset, attribute: str, max_parent_depth: int = 2
+) -> tuple[object | None, GenericAsset | None]:
+    current_asset = asset
+    for _ in range(max_parent_depth + 1):
+        if attribute in (current_asset.attributes or {}):
+            return current_asset.attributes[attribute], current_asset
+        if current_asset.parent_asset is None:
+            break
+        current_asset = current_asset.parent_asset
+    return None, None
 
 
 def unique_ever_seen(iterable: Sequence, selector: Sequence):

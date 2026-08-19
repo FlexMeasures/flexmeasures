@@ -1024,6 +1024,31 @@ If ``False``, the API transparently follows the fallback job and returns the fal
 
 Default: ``False``
 
+
+.. _legacy-schedule-client-config:
+
+FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_CLIENT_VERSION_ATTRIBUTE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Backwards-compatibility switch for scheduling-related endpoints in API v3.
+
+Name of a version-valued asset attribute used to identify clients that still expect schedule trigger requests to return ``HTTP status 200 (OK)`` and unfinished schedule requests to return ``HTTP status 400`` with a message about the scheduling job "waiting to be processed".
+FlexMeasures checks the scheduled asset itself, its parent asset, and its grandparent asset for this attribute.
+When unset, all clients receive the standard ``202 Accepted`` response for accepted trigger requests and unfinished schedule requests.
+
+For example: "v2g-liberty-version"
+
+Default: ``None``
+
+FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Maximum client version that receives the legacy schedule responses.
+Assets whose configured client-version attribute contains this version or a lower version receive the legacy schedule responses.
+
+Default: ``"0.9.1"``
+
+
 .. _reporters-config:
 
 Reporters
