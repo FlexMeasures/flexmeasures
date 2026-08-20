@@ -65,6 +65,25 @@ from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertib
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
 
+ABSOLUTE_SOC_CONSTRAINT_FIELDS = (
+    "soc_min",
+    "soc_max",
+    "soc_minima",
+    "soc_maxima",
+    "soc_targets",
+)
+
+
+def _has_absolute_soc_constraints(flex_model: dict) -> bool:
+    """Return whether a serialized or deserialized model constrains absolute SoC.
+
+    SoC gain and usage describe flows. Without a bound or target, they do not make
+    the stock's absolute starting level relevant to the optimization.
+    """
+    normalized_fields = {field.replace("-", "_") for field in flex_model}
+    return any(field in normalized_fields for field in ABSOLUTE_SOC_CONSTRAINT_FIELDS)
+
+
 #: Key used to store and retrieve the ``SchedulingJobResult`` in RQ job metadata
 #: and in the multi-result list returned by ``StorageScheduler.compute()``.
 SCHEDULING_RESULT_KEY = "scheduling_result"
@@ -2481,16 +2500,8 @@ class MetaStorageScheduler(Scheduler):
             ):
                 return sensor.get_attribute("soc_in_mwh")
 
-        if any(
-            field in stock_model
-            for field in (
-                "soc_min",
-                "soc_max",
-                "soc_minima",
-                "soc_maxima",
-                "soc_targets",
-            )
-        ):
+        # Keep the historical empty-stock fallback when absolute SoC matters.
+        if _has_absolute_soc_constraints(stock_model):
             return 0
         return None
 
@@ -2554,15 +2565,8 @@ class MetaStorageScheduler(Scheduler):
                 and sensor.get_attribute("soc_in_mwh") is not None
             ):
                 flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
-        if not self.has_soc_at_start_in(flex_model) and any(
-            field in flex_model
-            for field in (
-                "soc-min",
-                "soc-max",
-                "soc-minima",
-                "soc-maxima",
-                "soc-targets",
-            )
+        if not self.has_soc_at_start_in(flex_model) and _has_absolute_soc_constraints(
+            flex_model
         ):
             flex_model["soc-at-start"] = 0
 
