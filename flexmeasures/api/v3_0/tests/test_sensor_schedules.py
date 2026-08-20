@@ -12,16 +12,18 @@ from flexmeasures.api.common.responses import (
     unknown_schedule,
     unrecognized_event,
 )
+from flexmeasures.api.common.utils.api_utils import use_legacy_schedule_accepted_status
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import (
     get_sensor_by_name,
     message_for_trigger_schedule,
 )
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -343,18 +345,149 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     assert "prices unknown" in get_schedule_response.json["message"].lower()
 
 
+@pytest.mark.parametrize("version_attribute_level", ["asset", "parent", "grandparent"])
+def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
+    app,
+    add_battery_assets,
+    monkeypatch,
+    version_attribute_level,
+):
+    battery = add_battery_assets["Test battery"]
+    building = add_battery_assets["Test building"]
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"other-client-version": "1.0.0", version_attribute: "0.9.1"},
+    )
+    battery.attributes = {
+        key: value
+        for key, value in (battery.attributes or {}).items()
+        if key != version_attribute
+    }
+    building.attributes = {
+        key: value
+        for key, value in (building.attributes or {}).items()
+        if key != version_attribute
+    }
+
+    if version_attribute_level == "asset":
+        battery.attributes = {**(battery.attributes or {}), version_attribute: "0.7.0"}
+    elif version_attribute_level == "parent":
+        building.attributes = {
+            **(building.attributes or {}),
+            version_attribute: "0.7.0",
+        }
+    else:
+        site = GenericAsset(
+            name="schedule client version site",
+            generic_asset_type=building.generic_asset_type,
+            owner=building.owner,
+            attributes={version_attribute: "0.7.0"},
+        )
+        monkeypatch.setattr(building, "parent_asset", site)
+
+    assert use_legacy_schedule_accepted_status(battery)
+
+
+@pytest.mark.parametrize("shadowing_value", [None, ""])
+def test_legacy_schedule_accepted_status_looks_past_empty_attribute_value(
+    app,
+    add_battery_assets,
+    monkeypatch,
+    shadowing_value,
+):
+    """A null or empty value on the asset should not hide a version set on its parent."""
+    battery = add_battery_assets["Test battery"]
+    building = add_battery_assets["Test building"]
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    battery.attributes = {
+        **(battery.attributes or {}),
+        version_attribute: shadowing_value,
+    }
+    building.attributes = {**(building.attributes or {}), version_attribute: "0.7.0"}
+
+    assert use_legacy_schedule_accepted_status(battery)
+
+
+def test_legacy_schedule_accepted_status_ignores_non_mapping_config(
+    app,
+    add_battery_assets,
+    monkeypatch,
+    caplog,
+):
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "0.9.1",
+    )
+
+    assert not use_legacy_schedule_accepted_status(add_battery_assets["Test battery"])
+    assert "expected a mapping of asset attribute names" in caplog.text
+
+
+@pytest.mark.parametrize("trigger_endpoint", ["sensor", "asset"])
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_get_schedule_unfinished_job_returns_202_when_sunset_active(
+def test_trigger_schedule_returns_200_for_legacy_schedule_accepted_status(
     app,
+    db,
     add_battery_assets,
     keep_scheduling_queue_empty,
+    monkeypatch,
+    requesting_user,
+    trigger_endpoint,
+):
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    sensor.generic_asset.attributes = {
+        **(sensor.generic_asset.attributes or {}),
+        version_attribute: "0.7.0",
+    }
+    db.session.commit()
+
+    message = message_for_trigger_schedule()
+    if trigger_endpoint == "asset":
+        message["flex-model"] = [{**message["flex-model"], "sensor": sensor.id}]
+        url = url_for("AssetAPI:trigger_schedule", id=sensor.generic_asset.id)
+    else:
+        url = url_for("SensorAPI:trigger_schedule", id=sensor.id)
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(url, json=message)
+
+    assert trigger_schedule_response.status_code == 200
+    assert (
+        trigger_schedule_response.json["job"]
+        == trigger_schedule_response.json["schedule"]
+    )
+    assert len(app.queues["scheduling"]) == 1
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_unfinished_job_returns_202_by_default(
+    app,
+    db,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    monkeypatch,
     requesting_user,
 ):
     sensor = add_battery_assets["Test battery"].sensors[0]
-    original_sunset_active = app.config.get("FLEXMEASURES_API_SUNSET_ACTIVE")
-    app.config["FLEXMEASURES_API_SUNSET_ACTIVE"] = True
+    monkeypatch.setitem(app.config, "FLEXMEASURES_API_SUNSET_ACTIVE", False)
 
     with app.test_client() as client:
         trigger_schedule_response = client.post(
@@ -372,16 +505,47 @@ def test_get_schedule_unfinished_job_returns_202_when_sunset_active(
     assert get_schedule_response.json["status"] in {"QUEUED", "STARTED", "DEFERRED"}
     assert "message" in get_schedule_response.json
 
-    app.config["FLEXMEASURES_API_SUNSET_ACTIVE"] = False
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    sensor.generic_asset.attributes = {
+        **(sensor.generic_asset.attributes or {}),
+        version_attribute: "0.9.1",
+    }
+    db.session.commit()
+
     with app.test_client() as client:
-        get_schedule_response_old = client.get(
+        get_schedule_response_legacy_client = client.get(
             url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         )
 
-    app.config["FLEXMEASURES_API_SUNSET_ACTIVE"] = original_sunset_active
+    assert get_schedule_response_legacy_client.status_code == 400
+    # Legacy flexmeasures-client releases retry HTTP 400 responses whose
+    # message contains this exact, long-standing substring.
+    assert (
+        "Scheduling job waiting" in get_schedule_response_legacy_client.json["message"]
+    )
+    assert get_schedule_response_legacy_client.json["status"] in {
+        "QUEUED",
+        "STARTED",
+        "DEFERRED",
+    }
 
-    assert get_schedule_response_old.status_code == 400
-    assert get_schedule_response_old.json["status"] == unknown_schedule()[0]["status"]
+    sensor.generic_asset.attributes = {
+        **(sensor.generic_asset.attributes or {}),
+        version_attribute: "0.9.2",
+    }
+    db.session.commit()
+
+    with app.test_client() as client:
+        get_schedule_response_compatible_client = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        )
+
+    assert get_schedule_response_compatible_client.status_code == 202
 
 
 @pytest.mark.parametrize(

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 import json
 import re
+from packaging.version import InvalidVersion, Version
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
@@ -60,6 +62,57 @@ def upsample_values(
         else:
             value_groups = list(array(value_groups).repeat(n))
     return value_groups
+
+
+def use_legacy_schedule_accepted_status(asset: GenericAsset) -> bool:
+    version_limits = current_app.config.get(
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {},
+    )
+    if not isinstance(version_limits, Mapping):
+        current_app.logger.warning(
+            "Invalid FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_"
+            "CLIENT_VERSION %r: expected a mapping of asset attribute names to "
+            "maximum incompatible client versions. Ignoring compatibility setting.",
+            version_limits,
+        )
+        return False
+
+    for version_attribute, max_version in version_limits.items():
+        client_version, attribute_asset = _get_asset_attribute_from_nearby_hierarchy(
+            asset, version_attribute
+        )
+        if client_version is None or attribute_asset is None:
+            continue
+        try:
+            if Version(str(client_version)) <= Version(str(max_version)):
+                return True
+        except InvalidVersion:
+            current_app.logger.warning(
+                "Ignoring invalid schedule client version %r or maximum incompatible "
+                "version %r for attribute %r on asset %s.",
+                client_version,
+                max_version,
+                version_attribute,
+                attribute_asset.id,
+            )
+    return False
+
+
+def _get_asset_attribute_from_nearby_hierarchy(
+    asset: GenericAsset, attribute: str, max_parent_depth: int = 2
+) -> tuple[object | None, GenericAsset | None]:
+    current_asset = asset
+    for _ in range(max_parent_depth + 1):
+        # A null or empty value means the attribute is not set here, so keep looking up the hierarchy.
+        # Stopping on mere key presence would let such a value on a device shadow a version set on its site.
+        value = (current_asset.attributes or {}).get(attribute)
+        if value:
+            return value, current_asset
+        if current_asset.parent_asset is None:
+            break
+        current_asset = current_asset.parent_asset
+    return None, None
 
 
 def unique_ever_seen(iterable: Sequence, selector: Sequence):

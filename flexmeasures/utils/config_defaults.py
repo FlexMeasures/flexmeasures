@@ -210,6 +210,9 @@ class Config(object):
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
+    FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION: dict[
+        str, str
+    ] = {}
 
     # Custom sunset switches
     FLEXMEASURES_API_SUNSET_ACTIVE: bool = (
