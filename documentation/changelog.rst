@@ -17,6 +17,8 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* Restore the default empty starting state of charge for constrained storage when neither ``soc-at-start`` nor ``state-of-charge`` is provided [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+
 
 v1.0.0 | August 14, 2026
 ============================
