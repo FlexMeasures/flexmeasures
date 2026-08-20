@@ -104,8 +104,11 @@ def _get_asset_attribute_from_nearby_hierarchy(
 ) -> tuple[object | None, GenericAsset | None]:
     current_asset = asset
     for _ in range(max_parent_depth + 1):
-        if attribute in (current_asset.attributes or {}):
-            return current_asset.attributes[attribute], current_asset
+        # A null or empty value means the attribute is not set here, so keep looking up the hierarchy.
+        # Stopping on mere key presence would let such a value on a device shadow a version set on its site.
+        value = (current_asset.attributes or {}).get(attribute)
+        if value:
+            return value, current_asset
         if current_asset.parent_asset is None:
             break
         current_asset = current_asset.parent_asset

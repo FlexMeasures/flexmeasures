@@ -390,6 +390,31 @@ def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
     assert use_legacy_schedule_accepted_status(battery)
 
 
+@pytest.mark.parametrize("shadowing_value", [None, ""])
+def test_legacy_schedule_accepted_status_looks_past_empty_attribute_value(
+    app,
+    add_battery_assets,
+    monkeypatch,
+    shadowing_value,
+):
+    """A null or empty value on the asset should not hide a version set on its parent."""
+    battery = add_battery_assets["Test battery"]
+    building = add_battery_assets["Test building"]
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    battery.attributes = {
+        **(battery.attributes or {}),
+        version_attribute: shadowing_value,
+    }
+    building.attributes = {**(building.attributes or {}), version_attribute: "0.7.0"}
+
+    assert use_legacy_schedule_accepted_status(battery)
+
+
 def test_legacy_schedule_accepted_status_ignores_non_mapping_config(
     app,
     add_battery_assets,
