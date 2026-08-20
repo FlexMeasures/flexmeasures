@@ -357,13 +357,8 @@ def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_CLIENT_VERSION_ATTRIBUTE",
-        version_attribute,
-    )
-    monkeypatch.setitem(
-        app.config,
         "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        "0.9.1",
+        {"other-client-version": "1.0.0", version_attribute: "0.9.1"},
     )
     battery.attributes = {
         key: value
@@ -395,6 +390,22 @@ def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
     assert use_legacy_schedule_accepted_status(battery)
 
 
+def test_legacy_schedule_accepted_status_ignores_non_mapping_config(
+    app,
+    add_battery_assets,
+    monkeypatch,
+    caplog,
+):
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "0.9.1",
+    )
+
+    assert not use_legacy_schedule_accepted_status(add_battery_assets["Test battery"])
+    assert "expected a mapping of asset attribute names" in caplog.text
+
+
 @pytest.mark.parametrize("trigger_endpoint", ["sensor", "asset"])
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
@@ -412,13 +423,8 @@ def test_trigger_schedule_returns_200_for_legacy_schedule_accepted_status(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_CLIENT_VERSION_ATTRIBUTE",
-        version_attribute,
-    )
-    monkeypatch.setitem(
-        app.config,
         "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        "0.9.1",
+        {version_attribute: "0.9.1"},
     )
     sensor.generic_asset.attributes = {
         **(sensor.generic_asset.attributes or {}),
@@ -477,13 +483,8 @@ def test_get_schedule_unfinished_job_returns_202_by_default(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_CLIENT_VERSION_ATTRIBUTE",
-        version_attribute,
-    )
-    monkeypatch.setitem(
-        app.config,
         "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        "0.9.1",
+        {version_attribute: "0.9.1"},
     )
     sensor.generic_asset.attributes = {
         **(sensor.generic_asset.attributes or {}),

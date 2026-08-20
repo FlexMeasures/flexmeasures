@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 import json
 import re
@@ -64,32 +65,38 @@ def upsample_values(
 
 
 def use_legacy_schedule_accepted_status(asset: GenericAsset) -> bool:
-    version_attribute = current_app.config.get(
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_CLIENT_VERSION_ATTRIBUTE"
+    version_limits = current_app.config.get(
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {},
     )
-    if not version_attribute:
+    if not isinstance(version_limits, Mapping):
+        current_app.logger.warning(
+            "Invalid FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_"
+            "CLIENT_VERSION %r: expected a mapping of asset attribute names to "
+            "maximum incompatible client versions. Ignoring compatibility setting.",
+            version_limits,
+        )
         return False
 
-    client_version, attribute_asset = _get_asset_attribute_from_nearby_hierarchy(
-        asset, version_attribute
-    )
-    if client_version is None or attribute_asset is None:
-        return False
-    try:
-        return Version(str(client_version)) <= Version(
-            str(
-                current_app.config[
-                    "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION"
-                ]
+    for version_attribute, max_version in version_limits.items():
+        client_version, attribute_asset = _get_asset_attribute_from_nearby_hierarchy(
+            asset, version_attribute
+        )
+        if client_version is None or attribute_asset is None:
+            continue
+        try:
+            if Version(str(client_version)) <= Version(str(max_version)):
+                return True
+        except InvalidVersion:
+            current_app.logger.warning(
+                "Ignoring invalid schedule client version %r or maximum incompatible "
+                "version %r for attribute %r on asset %s.",
+                client_version,
+                max_version,
+                version_attribute,
+                attribute_asset.id,
             )
-        )
-    except InvalidVersion:
-        current_app.logger.warning(
-            "Ignoring invalid schedule client version %r on asset %s.",
-            client_version,
-            attribute_asset.id,
-        )
-        return False
+    return False
 
 
 def _get_asset_attribute_from_nearby_hierarchy(
