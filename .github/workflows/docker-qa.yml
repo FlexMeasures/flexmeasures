@@ -47,6 +47,54 @@ jobs:
           ref: ${{ inputs.flexmeasures-client-ref }}
           path: flexmeasures-client
 
+      - name: Determine client QA capabilities
+        id: client-qa
+        env:
+          CLIENT_REF: ${{ inputs.flexmeasures-client-ref }}
+        run: |
+          # The ingestion tutorial requires client 0.9.4 or newer. HEMS was
+          # introduced in 0.8.0, and release tags should use the matching PyPI
+          # package because older checkouts are not all uv-installable projects.
+          run_ingestion=true
+          run_hems=false
+          use_pypi_client=false
+          client_version=
+
+          if [[ "$CLIENT_REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            major=${BASH_REMATCH[1]}
+            minor=${BASH_REMATCH[2]}
+            patch=${BASH_REMATCH[3]}
+            client_version="${major}.${minor}.${patch}"
+            use_pypi_client=true
+
+            if (( major > 0 || minor > 9 || (minor == 9 && patch >= 4) )); then
+              run_ingestion=true
+            else
+              run_ingestion=false
+            fi
+
+            if (( major > 0 || minor > 8 || (minor == 8 && patch >= 0) )); then
+              run_hems=true
+            fi
+          else
+            # Branches, commits, and main are assumed to contain the current
+            # examples and package layout; the checkout itself is used there.
+            run_ingestion=true
+            run_hems=true
+          fi
+
+          if [[ ! -f flexmeasures-client/examples/HEMS/HEMS_setup.py || \
+                ! -d flexmeasures-client/examples/HEMS/configs ]]; then
+            run_hems=false
+          fi
+
+          {
+            echo "run_ingestion=$run_ingestion"
+            echo "run_hems=$run_hems"
+            echo "use_pypi_client=$use_pypi_client"
+            echo "client_version=$client_version"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare HEMS Compose override and server config
         run: |
           # Create the bind-mounted instance directory before Compose does, so
@@ -54,12 +102,16 @@ jobs:
           mkdir -p flexmeasures-instance
           printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
 
-          cat > qa-hems-override.yml <<EOF
-          services:
-            server:
-              volumes:
-                - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro
-          EOF
+          if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
+            cat > qa-hems-override.yml <<EOF
+            services:
+              server:
+                volumes:
+                  - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro
+            EOF
+          else
+            printf '%s\n' 'services: {}' > qa-hems-override.yml
+          fi
 
       # Runs before the docker compose stack comes up, since `docker compose up`
       # bind-mounts docker-compose-data/dev-db, which the dev-db container then
@@ -90,6 +142,7 @@ jobs:
           done
 
       - name: Run data-ingestion tutorial
+        if: steps.client-qa.outputs.run_ingestion == 'true'
         env:
           FLEXMEASURES_CLIENT_PROJECT: ${{ github.workspace }}/flexmeasures-client
         run: ./documentation/tut/scripts/run-data-ingestion-in-docker.sh
@@ -108,6 +161,7 @@ jobs:
           docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
 
       - name: Run the HEMS example against the running stack
+        if: steps.client-qa.outputs.run_hems == 'true'
         working-directory: flexmeasures-client
         env:
           # Absolute -f paths, since this subprocess runs from
@@ -116,9 +170,15 @@ jobs:
           FLEXMEASURES_CLI_CMD: "docker compose -f ${{ github.workspace }}/docker-compose.yml -f ${{ github.workspace }}/qa-hems-override.yml exec -T server flexmeasures"
           FLEXMEASURES_CLI_CONFIG_DIR: "/hems-configs"
         run: |
-          uv sync
           cd examples/HEMS
-          uv run --project .. python3 HEMS_setup.py
+          if [[ "${{ steps.client-qa.outputs.use_pypi_client }}" == true ]]; then
+            uv run --no-project \
+              --with "flexmeasures-client==${{ steps.client-qa.outputs.client_version }}" \
+              python3 HEMS_setup.py
+          else
+            uv sync
+            uv run --project .. python3 HEMS_setup.py
+          fi
 
       - name: Show stack logs on failure
         if: failure()

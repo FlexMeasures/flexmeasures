@@ -14,6 +14,8 @@ New features
 Infrastructure / Support
 -------------------------
 
+* Make release QA select the applicable client tutorials and installation method for the chosen client version
+
 Bugfixes
 -----------
 
