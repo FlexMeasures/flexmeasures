@@ -103,12 +103,12 @@ jobs:
           printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
 
           if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
-            cat > qa-hems-override.yml <<EOF
-            services:
-              server:
-                volumes:
-                  - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro
-            EOF
+            printf '%s\n' \
+              'services:' \
+              '  server:' \
+              '    volumes:' \
+              '      - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro' \
+              > qa-hems-override.yml
           else
             printf '%s\n' 'services: {}' > qa-hems-override.yml
           fi
