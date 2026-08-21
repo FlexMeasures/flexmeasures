@@ -1048,6 +1048,17 @@ For example:
 Default: ``{}``
 
 
+FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+QA-only override that makes schedule-related endpoints use the legacy response
+status codes for the configured client version. This is intended for automated
+backward-compatibility testing when the test client creates its assets itself;
+production deployments should use the asset-based setting above instead.
+
+Default: ``None``
+
+
 .. _reporters-config:
 
 Reporters

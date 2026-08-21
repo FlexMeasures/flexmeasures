@@ -18,8 +18,12 @@ curl --fail --silent --show-error \
     "http://localhost:5000/api/v3_0/health/ready" >/dev/null
 
 if [[ -z "${FM_TOY_BATTERY_SENSOR_ID:-}" ]]; then
+    TOY_ACCOUNT_ARGS=(--kind battery --shell-vars)
+    if [[ -n "${FLEXMEASURES_CLIENT_VERSION:-}" ]]; then
+        TOY_ACCOUNT_ARGS+=(--client-version "${FLEXMEASURES_CLIENT_VERSION}")
+    fi
     eval "$(docker exec -i "${CONTAINER_NAME}" flexmeasures add toy-account \
-        --kind battery --shell-vars | grep '^FM_TOY_')"
+        "${TOY_ACCOUNT_ARGS[@]}" | grep '^FM_TOY_')"
 fi
 
 if [[ -n "${FLEXMEASURES_CLIENT_PROJECT:-}" ]]; then

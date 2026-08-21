@@ -390,6 +390,18 @@ def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
     assert use_legacy_schedule_accepted_status(battery)
 
 
+def test_legacy_schedule_accepted_status_assumes_configured_client_version(
+    app, add_battery_assets, monkeypatch
+):
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION",
+        "0.8.1",
+    )
+
+    assert use_legacy_schedule_accepted_status(add_battery_assets["Test battery"])
+
+
 @pytest.mark.parametrize("shadowing_value", [None, ""])
 def test_legacy_schedule_accepted_status_looks_past_empty_attribute_value(
     app,

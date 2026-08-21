@@ -65,6 +65,26 @@ def upsample_values(
 
 
 def use_legacy_schedule_accepted_status(asset: GenericAsset) -> bool:
+    """Whether schedule endpoints should use legacy response status codes.
+
+    The QA-only assumed client version applies globally. Production deployments
+    can instead configure maximum incompatible client versions keyed by asset
+    attributes, which are looked up on the asset and its nearby parent hierarchy.
+    """
+    assumed_client_version = current_app.config.get(
+        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION"
+    )
+    if assumed_client_version:
+        try:
+            Version(str(assumed_client_version))
+        except InvalidVersion:
+            current_app.logger.warning(
+                "Ignoring invalid assumed legacy client version %r.",
+                assumed_client_version,
+            )
+        else:
+            return True
+
     version_limits = current_app.config.get(
         "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
         {},

@@ -106,16 +106,7 @@ jobs:
           # Create the bind-mounted instance directory before Compose does, so
           # the runner can update this config later without ownership issues.
           mkdir -p flexmeasures-instance
-          if [[ "${{ steps.client-qa.outputs.use_legacy_schedule_responses }}" == true ]]; then
-            printf '%s\n' \
-              'FLEXMEASURES_MODE = "development"' \
-              'FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION = {' \
-              '    "flexmeasures-client-version": "0.9.1",' \
-              '}' \
-              > flexmeasures-instance/flexmeasures.cfg
-          else
-            printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
-          fi
+          printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
 
           if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
             printf '%s\n' \
@@ -160,6 +151,7 @@ jobs:
         if: steps.client-qa.outputs.run_ingestion == 'true'
         env:
           FLEXMEASURES_CLIENT_PROJECT: ${{ github.workspace }}/flexmeasures-client
+          FLEXMEASURES_CLIENT_VERSION: ${{ steps.client-qa.outputs.client_version }}
         run: ./documentation/tut/scripts/run-data-ingestion-in-docker.sh
 
       - name: Create HEMS admin account and user
@@ -175,9 +167,7 @@ jobs:
           if [[ "${{ steps.client-qa.outputs.use_legacy_schedule_responses }}" == true ]]; then
             printf '%s\n' \
               'FLEXMEASURES_MODE = "play"' \
-              'FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION = {' \
-              '    "flexmeasures-client-version": "0.9.1",' \
-              '}' \
+              'FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION = "${{ steps.client-qa.outputs.client_version }}"' \
               > flexmeasures-instance/flexmeasures.cfg
           else
             printf '%s\n' 'FLEXMEASURES_MODE = "play"' > flexmeasures-instance/flexmeasures.cfg
