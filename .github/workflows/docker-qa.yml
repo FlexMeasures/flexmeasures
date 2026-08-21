@@ -58,6 +58,7 @@ jobs:
           run_ingestion=true
           run_hems=false
           use_pypi_client=false
+          use_legacy_schedule_responses=false
           client_version=
 
           if [[ "$CLIENT_REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -76,6 +77,10 @@ jobs:
             if (( major > 0 || minor > 8 || (minor == 8 && patch >= 0) )); then
               run_hems=true
             fi
+
+            if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 1)) )); then
+              use_legacy_schedule_responses=true
+            fi
           else
             # Branches, commits, and main are assumed to contain the current
             # examples and package layout; the checkout itself is used there.
@@ -92,6 +97,7 @@ jobs:
             echo "run_ingestion=$run_ingestion"
             echo "run_hems=$run_hems"
             echo "use_pypi_client=$use_pypi_client"
+            echo "use_legacy_schedule_responses=$use_legacy_schedule_responses"
             echo "client_version=$client_version"
           } >> "$GITHUB_OUTPUT"
 
@@ -100,7 +106,16 @@ jobs:
           # Create the bind-mounted instance directory before Compose does, so
           # the runner can update this config later without ownership issues.
           mkdir -p flexmeasures-instance
-          printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
+          if [[ "${{ steps.client-qa.outputs.use_legacy_schedule_responses }}" == true ]]; then
+            printf '%s\n' \
+              'FLEXMEASURES_MODE = "development"' \
+              'FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION = {' \
+              '    "flexmeasures-client-version": "0.9.1",' \
+              '}' \
+              > flexmeasures-instance/flexmeasures.cfg
+          else
+            printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
+          fi
 
           if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
             printf '%s\n' \
@@ -157,7 +172,16 @@ jobs:
 
       - name: Switch the server to play mode for HEMS
         run: |
-          printf '%s\n' 'FLEXMEASURES_MODE = "play"' > flexmeasures-instance/flexmeasures.cfg
+          if [[ "${{ steps.client-qa.outputs.use_legacy_schedule_responses }}" == true ]]; then
+            printf '%s\n' \
+              'FLEXMEASURES_MODE = "play"' \
+              'FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION = {' \
+              '    "flexmeasures-client-version": "0.9.1",' \
+              '}' \
+              > flexmeasures-instance/flexmeasures.cfg
+          else
+            printf '%s\n' 'FLEXMEASURES_MODE = "play"' > flexmeasures-instance/flexmeasures.cfg
+          fi
           docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
 
       - name: Run the HEMS example against the running stack
@@ -169,15 +193,26 @@ jobs:
           # COMPOSE_FILE's relative paths would otherwise resolve.
           FLEXMEASURES_CLI_CMD: "docker compose -f ${{ github.workspace }}/docker-compose.yml -f ${{ github.workspace }}/qa-hems-override.yml exec -T server flexmeasures"
           FLEXMEASURES_CLI_CONFIG_DIR: "/hems-configs"
+          FLEXMEASURES_CLIENT_VERSION: ${{ steps.client-qa.outputs.client_version }}
         run: |
           cd examples/HEMS
           if [[ "${{ steps.client-qa.outputs.use_pypi_client }}" == true ]]; then
-            uv run --no-project \
+            HEMS_COMMAND=(uv run --no-project \
               --with "flexmeasures-client==${{ steps.client-qa.outputs.client_version }}" \
-              python3 HEMS_setup.py
+              python3 HEMS_setup.py)
           else
             uv sync
-            uv run --project .. python3 HEMS_setup.py
+            HEMS_COMMAND=(uv run --project .. python3 HEMS_setup.py)
+          fi
+
+          set -o pipefail
+          "${HEMS_COMMAND[@]}" 2>&1 | tee "$RUNNER_TEMP/hems-output.log"
+
+          # Older HEMS scripts catch per-file upload failures and continue,
+          # which otherwise makes this step appear successful to Actions.
+          if grep -qE 'Failed to ' "$RUNNER_TEMP/hems-output.log"; then
+            echo "HEMS reported one or more failed operations"
+            exit 1
           fi
 
       - name: Show stack logs on failure
