@@ -11,11 +11,15 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_ and `issue #101 <https://github.com/FlexMeasures/flexmeasures/issues/101>`_]
+
 Infrastructure / Support
 -------------------------
 
 Bugfixes
 -----------
+
+* On an asset page showing KPIs, the chart's selected end date was pushed a day forward on every date selection, and the chart failed to load at all on the first visit [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 v1.0.0 | August 14, 2026
