@@ -28,6 +28,7 @@
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-source.js') }}?v={{ flexmeasures_version }}";
+    import { fetchWindowReusingPrevious } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
@@ -998,7 +999,9 @@
             // and this endDate is the very object held by storeEndDate and previousResult.end.
             getAssetKPIs(new Date(startDate), new Date(endDate));
             {% endif %}
-            return fetchChartData(dataPath, { start: startDate, end: endDate, signal: signal });
+            // Reuse the overlap with the previously loaded window, so stepping or extending
+            // the selection only fetches the days that are actually new (issue #101).
+            return fetchWindowReusingPrevious(dataPath, { start: startDate, end: endDate, signal: signal }, previousResult);
         }
     }
 
