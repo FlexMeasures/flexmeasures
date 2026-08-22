@@ -26,7 +26,8 @@
     import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { decompressChartData, checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-source.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
@@ -40,8 +41,6 @@
     let vegaView;
     let previousResult;
     let previousPlaybackResult;
-    let queryStartDate;
-    let queryEndDate;
     let storeStartDate;
     let storeEndDate;
     let replaySpeed = 100;
@@ -441,13 +440,7 @@
         }
         {% endif %}
         $("#spinner").show();
-        let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-            signal: signal,
-        })
-            .then(function (response) { return response.json(); })
-            .then(data => decompressChartData(data));
+        let newData = fetchChartData(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
         newData = await Promise.all([
             newData,
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
@@ -490,18 +483,14 @@
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
+    // The module body is evaluated before the DOMContentLoaded handler that assigns storeStartDate/storeEndDate, so derive the initial window here.
+    const initialStartDate = new Date('{{ event_starts_after }}');
+    const initialEndDate = new Date('{{ event_ends_before }}');
     {% if active_subpage == "asset_graph" and has_kpis %}
-    // This runs while the module body is evaluated, which is before the DOMContentLoaded handler that assigns storeStartDate/storeEndDate.
     // Pass copies, because getAssetKPIs advances the end date it is given by a day.
-    getAssetKPIs(new Date('{{ event_starts_after }}'), new Date('{{ event_ends_before }}'));
+    getAssetKPIs(new Date(initialStartDate), new Date(initialEndDate));
     {% endif %}
-    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        signal: signal,
-    })
-        .then(function (response) { return response.json(); })
-        .then(data => decompressChartData(data));
+    const initialData = fetchChartData(dataPath, { start: initialStartDate, end: initialEndDate, signal: signal });
     let fetchedInitialData = await Promise.all([
         initialData,
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
@@ -694,14 +683,9 @@
     $("#spinner").show();
     checkDSTTransitions(startDate, endDate)
     Promise.all([
-        fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
+        fetchGraphDataAndKPIs(previousResult, startDate, endDate),
         // Fetch annotations
-        fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-            method: "GET",
-            headers: {"Content-Type": "application/json"},
-            signal: signal,
-        })
-        .then(function(response) { return response.json(); }),
+        fetchChartAnnotations(dataPath, { start: startDate, end: endDate, signal: signal }),
 
         // Embed chart
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
@@ -915,8 +899,6 @@
         toggle.classList.add('playing');
         var beliefTime = new Date(storeStartDate);
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
-        queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
-        queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
         const spinner = document.getElementById('spinner');
         if (!playBackDataLoadedForKnownDateRange) {
             spinner.hidden = false;
@@ -925,13 +907,7 @@
         Promise.all([
             playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
                 // Fetch time series data (all data, not only the most recent beliefs)
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
-                    method: "GET",
-                    headers: { "Content-Type": "application/json" },
-                    signal: signal,
-                })
-                    .then(function (response) { return response.json(); })
-                    .then(data => decompressChartData(data)),
+                fetchChartData(dataPath, { start: storeStartDate, end: storeEndDate, mostRecentBeliefsOnly: false, signal: signal }),
         ]).then(function (result) {
             previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
@@ -1013,7 +989,7 @@
         }
     }
 
-    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate) {
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) {
             return Promise.resolve(previousResult.data);
         } else {
@@ -1022,13 +998,7 @@
             // and this endDate is the very object held by storeEndDate and previousResult.end.
             getAssetKPIs(new Date(startDate), new Date(endDate));
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-                signal: signal,
-            })
-                .then(response => response.json())
-                .then(data => decompressChartData(data));
+            return fetchChartData(dataPath, { start: startDate, end: endDate, signal: signal });
         }
     }
 
