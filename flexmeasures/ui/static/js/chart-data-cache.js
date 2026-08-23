@@ -38,22 +38,74 @@ export function missingRanges(start, end, loaded) {
 }
 
 /**
- * Keep only the records for events that start inside the given window.
+ * The resolution, in milliseconds, that the loaded events are actually spaced on.
  *
- * This matches the API's own filtering, which returns events starting at or after
- * `event_starts_after`, so trimming here yields what a fetch would have returned.
+ * The API resamples every sensor with a non-zero resolution to the finest resolution
+ * among the sensors requested, but still reports each sensor's own resolution, so the
+ * spacing has to be derived rather than read off a record.
+ * Instantaneous sensors (resolution zero) are never resampled and are excluded here.
+ *
+ * @param {Object[]} records - Belief records carrying `sensor.event_resolution` in seconds.
+ * @returns {number} - The resolution in milliseconds, or 0 if every sensor is instantaneous.
+ */
+export function effectiveResolutionMs(records) {
+  let finest = 0;
+  for (const record of records || []) {
+    const seconds = record.sensor ? record.sensor.event_resolution : 0;
+    if (seconds > 0 && (finest === 0 || seconds < finest)) finest = seconds;
+  }
+  return finest * 1000;
+}
+
+/**
+ * Is a window on the same resampling grid as the span already loaded?
+ *
+ * The API anchors its resampling at the start of the window asked for, so a window
+ * offset from the loaded span by a fraction of the resolution comes back on shifted
+ * timestamps, which cannot be reconciled with what is held.
+ * Whole-day selections of sensors whose resolution divides a day are always aligned;
+ * this guards the rest, such as a 7-minute sensor shown alongside an hourly one.
+ *
+ * @param {Date} loadedStart - Start of the loaded span.
+ * @param {Date} start - Start of the window being selected.
+ * @param {Date} end - End of the window being selected.
+ * @param {number} resolutionMs - Resolution the loaded events are spaced on.
+ * @returns {boolean} - Whether the loaded records can be reused for this window.
+ */
+export function onSameResamplingGrid(loadedStart, start, end, resolutionMs) {
+  if (!resolutionMs) return true;
+  const base = loadedStart.getTime();
+  return (
+    (start.getTime() - base) % resolutionMs === 0 &&
+    (end.getTime() - base) % resolutionMs === 0
+  );
+}
+
+/**
+ * Keep the records that a direct fetch of this window would have returned.
+ *
+ * The API selects events that *overlap* the window rather than events that start
+ * inside it, so an event running across the window's start belongs in the result.
+ * Filtering on `event_start` alone would drop it, and the chart would then be missing
+ * its leading event whenever the resolution does not line up with the window's edge.
+ * Instantaneous events are matched inclusively on both edges, as the API does.
  *
  * @param {Object[]} records - Belief records, each with an `event_start` in milliseconds.
- * @param {Date} start - Start of the window (inclusive).
- * @param {Date} end - End of the window (exclusive).
- * @returns {Object[]} - The records falling inside the window.
+ * @param {Date} start - Start of the window.
+ * @param {Date} end - End of the window.
+ * @param {number} resolutionMs - Resolution the records are spaced on.
+ * @returns {Object[]} - The records belonging to the window.
  */
-export function clipToWindow(records, start, end) {
+export function clipToWindow(records, start, end, resolutionMs) {
   const from = start.getTime();
   const until = end.getTime();
-  return (records || []).filter(
-    (record) => record.event_start >= from && record.event_start < until
-  );
+  return (records || []).filter((record) => {
+    const isInstantaneous = !record.sensor || !record.sensor.event_resolution;
+    if (isInstantaneous) {
+      return record.event_start >= from && record.event_start <= until;
+    }
+    return record.event_start < until && record.event_start + resolutionMs > from;
+  });
 }
 
 /**
@@ -119,8 +171,14 @@ export function createChartDataCache() {
      */
     async load(dataPath, options) {
       const { start, end, mostRecentBeliefsOnly, signal } = options;
-      const overlapping = cached !== null && end > cached.start && start < cached.end;
-      const ranges = missingRanges(start, end, overlapping ? cached : null);
+      const resolutionMs = cached ? effectiveResolutionMs(cached.data) : 0;
+      // Reuse only what a direct fetch would have returned identically.
+      const reusable =
+        cached !== null &&
+        end > cached.start &&
+        start < cached.end &&
+        onSameResamplingGrid(cached.start, start, end, resolutionMs);
+      const ranges = missingRanges(start, end, reusable ? cached : null);
 
       if (ranges.length > 0) {
         const fetched = await Promise.all(
@@ -133,7 +191,7 @@ export function createChartDataCache() {
             })
           )
         );
-        if (overlapping) {
+        if (reusable) {
           cached = {
             start: start < cached.start ? start : cached.start,
             end: end > cached.end ? end : cached.end,
@@ -144,7 +202,7 @@ export function createChartDataCache() {
         }
       }
 
-      return clipToWindow(cached.data, start, end);
+      return clipToWindow(cached.data, start, end, effectiveResolutionMs(cached.data));
     },
   };
 }
