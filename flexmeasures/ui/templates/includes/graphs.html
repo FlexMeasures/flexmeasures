@@ -494,8 +494,7 @@
     const initialStartDate = new Date('{{ event_starts_after }}');
     const initialEndDate = new Date('{{ event_ends_before }}');
     {% if active_subpage == "asset_graph" and has_kpis %}
-    // Pass copies, because getAssetKPIs advances the end date it is given by a day.
-    getAssetKPIs(new Date(initialStartDate), new Date(initialEndDate));
+    getAssetKPIs(initialStartDate, initialEndDate);
     {% endif %}
     // Through the cache, so that the very first date change already only fetches the days it adds.
     const initialData = chartDataCache.load(dataPath, { start: initialStartDate, end: initialEndDate, signal: signal });
@@ -665,7 +664,7 @@
 
             storeStartDate = startDate;
             storeEndDate = endDate;
-            // Capture the window as primitives, so later mutation of these Date objects cannot affect the rendered x-axis.
+            // Capture the window as primitives, fixing the fast chart's x-axis to the selection made here.
             fastChartWindow = { start: startDate.getTime(), end: endDate.getTime() };
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
@@ -1002,9 +1001,7 @@
             return Promise.resolve(previousResult.data);
         } else {
             {% if active_subpage == "asset_graph" and has_kpis %}
-            // Pass copies: getAssetKPIs advances the end date it is given by a day,
-            // and this endDate is the very object held by storeEndDate and previousResult.end.
-            getAssetKPIs(new Date(startDate), new Date(endDate));
+            getAssetKPIs(startDate, endDate);
             {% endif %}
             // Only the days not already held are fetched (issue #101).
             return chartDataCache.load(dataPath, { start: startDate, end: endDate, signal: signal });
@@ -1014,8 +1011,10 @@
     {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs(startDate, endDate) {
         const start = encodeURIComponent(toIsoStringWithOffset(startDate));
-        endDate.setDate(endDate.getDate() + 1);  // make the end date inclusive
-        const end = encodeURIComponent(toIsoStringWithOffset(endDate));
+        // Advance a copy, so that callers can pass the Date objects holding the chart's own window.
+        const inclusiveEnd = new Date(endDate);
+        inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);  // make the end date inclusive
+        const end = encodeURIComponent(toIsoStringWithOffset(inclusiveEnd));
         const kpiCards = document.querySelector('#kpi-cards');
         return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + end, {
             method: 'GET',
