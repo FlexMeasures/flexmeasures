@@ -18,8 +18,10 @@ import { fetchChartData } from "./chart-data-fetch.js";
 /**
  * Work out which parts of a newly selected window are not covered by the loaded one.
  *
- * Both windows are half-open, [start, end), matching how the API treats
- * `event_starts_after` and `event_ends_before`.
+ * Both windows are half-open, [start, end), for sensors that have a resolution.
+ * Instantaneous sensors are the exception: the API matches those on both edges inclusively,
+ * so an instant falling exactly on a boundary belongs to the windows on either side of it.
+ * That costs nothing here, because such an instant is fetched by both and then de-duplicated.
  *
  * @param {Date} start - Start of the newly selected window.
  * @param {Date} end - End of the newly selected window.
@@ -173,10 +175,12 @@ export function createChartDataCache() {
       const { start, end, mostRecentBeliefsOnly, signal } = options;
       const resolutionMs = cached ? effectiveResolutionMs(cached.data) : 0;
       // Reuse only what a direct fetch would have returned identically.
+      // Windows that merely touch still form one contiguous span, so they extend the cache
+      // rather than replace it: stepping a selection on by exactly its own width keeps both.
       const reusable =
         cached !== null &&
-        end > cached.start &&
-        start < cached.end &&
+        end >= cached.start &&
+        start <= cached.end &&
         onSameResamplingGrid(cached.start, start, end, resolutionMs);
       const ranges = missingRanges(start, end, reusable ? cached : null);
 
