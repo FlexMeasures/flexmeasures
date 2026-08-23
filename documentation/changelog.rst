@@ -11,7 +11,7 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
-* Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_ and `issue #101 <https://github.com/FlexMeasures/flexmeasures/issues/101>`_]
+* Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
 -------------------------
