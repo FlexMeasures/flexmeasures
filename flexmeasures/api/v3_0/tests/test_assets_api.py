@@ -1798,7 +1798,6 @@ def test_kpi_window_end_is_exclusive(
     from pytz import utc
 
     from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-    from flexmeasures.data.models.user import Account
     from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
     window_start = datetime(2022, 1, 1, tzinfo=utc)
@@ -1812,7 +1811,7 @@ def test_kpi_window_end_is_exclusive(
     asset = GenericAsset(
         name="kpi window asset",
         generic_asset_type=asset_type,
-        account_id=db.session.query(Account).first().id,
+        account_id=requesting_user.account_id,
     )
     db.session.add(asset)
     db.session.flush()
