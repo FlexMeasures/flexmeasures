@@ -503,6 +503,8 @@
     {% if active_subpage == "asset_graph" and has_kpis %}
     getAssetKPIs(storeStartDate, storeEndDate);
     {% endif %}
+    // The picker is already on the page, so a range can be selected while this first load is still running.
+    const thisInitialLoad = ++shownWindowGeneration;
     // Through the cache, so that the very first date change already only fetches the days it adds.
     const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
     let fetchedInitialData = await Promise.all([
@@ -510,19 +512,22 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
     ]).then(function (result) { return result[0] }).catch(console.error);
     $("#spinner").hide();
-    if (!fastRenderActive() && vegaView) {
-        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+    // A window has been selected while this was loading, so it is already on screen and this answer is stale.
+    if (thisInitialLoad === shownWindowGeneration) {
+        if (!fastRenderActive() && vegaView) {
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+        }
+        previousResult = {
+            start: new Date('{{ event_starts_after }}'),
+            end: new Date('{{ event_ends_before }}'),
+            data: fetchedInitialData
+        };
+        updateFastChart();
+        checkSourceMasking(previousResult.data);
+        {% if active_page == "assets" %}
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
     }
-    previousResult = {
-        start: new Date('{{ event_starts_after }}'),
-        end: new Date('{{ event_ends_before }}'),
-        data: fetchedInitialData
-    };
-    updateFastChart();
-    checkSourceMasking(previousResult.data);
-    {% if active_page == "assets" %}
-    checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
-    {% endif %}
     var timerangeNotSetYet = false;
     {% else %}
     var timerangeNotSetYet = true;
