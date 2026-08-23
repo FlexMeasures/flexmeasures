@@ -58,6 +58,7 @@ jobs:
           run_ingestion=true
           run_hems=false
           use_pypi_client=false
+          use_legacy_cli_wrapper=false
           use_legacy_schedule_responses=false
           client_version=
 
@@ -81,6 +82,10 @@ jobs:
             if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 1)) )); then
               use_legacy_schedule_responses=true
             fi
+
+            if (( major == 0 && minor < 9 )); then
+              use_legacy_cli_wrapper=true
+            fi
           else
             # Branches, commits, and main are assumed to contain the current
             # examples and package layout; the checkout itself is used there.
@@ -97,6 +102,7 @@ jobs:
             echo "run_ingestion=$run_ingestion"
             echo "run_hems=$run_hems"
             echo "use_pypi_client=$use_pypi_client"
+            echo "use_legacy_cli_wrapper=$use_legacy_cli_wrapper"
             echo "use_legacy_schedule_responses=$use_legacy_schedule_responses"
             echo "client_version=$client_version"
           } >> "$GITHUB_OUTPUT"
@@ -202,6 +208,19 @@ jobs:
           FLEXMEASURES_CLIENT_VERSION: ${{ steps.client-qa.outputs.client_version }}
         run: |
           cd examples/HEMS
+          # Older client releases do not support FLEXMEASURES_CLI_CMD. They
+          # look for a flexmeasures executable directly, so provide a wrapper
+          # that forwards the CLI invocation to the server container.
+          if [[ "${{ steps.client-qa.outputs.use_legacy_cli_wrapper }}" == true ]]; then
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'set -euo pipefail' \
+              'exec docker compose -f "$GITHUB_WORKSPACE/docker-compose.yml" -f "$GITHUB_WORKSPACE/qa-hems-override.yml" exec -T server flexmeasures "$@"' \
+              > "$RUNNER_TEMP/flexmeasures"
+            chmod +x "$RUNNER_TEMP/flexmeasures"
+            export PATH="$RUNNER_TEMP:$PATH"
+          fi
+
           if [[ "${{ steps.client-qa.outputs.use_pypi_client }}" == true ]]; then
             HEMS_COMMAND=(uv run --no-project \
               --with "flexmeasures-client==${{ steps.client-qa.outputs.client_version }}" \
