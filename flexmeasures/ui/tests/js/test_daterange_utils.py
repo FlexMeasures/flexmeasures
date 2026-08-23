@@ -7,8 +7,7 @@ def test_to_iso_string_with_offset_keeps_the_instant(assert_js):
     The KPI window is sent to the API through this function,
     so an instant that shifts by the local offset asks for the wrong days.
     """
-    assert_js(
-        """
+    assert_js("""
         import { toIsoStringWithOffset } from "/js/daterange-utils.js";
         for (const date of [new Date(2022, 9, 2), new Date(2022, 0, 15, 13, 45, 30), new Date(2022, 6, 1)]) {
             const formatted = toIsoStringWithOffset(date);
@@ -20,20 +19,17 @@ def test_to_iso_string_with_offset_keeps_the_instant(assert_js):
               toIsoStringWithOffset(new Date(2022, 9, 2)));
         eq("the local clock time is written, not the UTC one",
            toIsoStringWithOffset(new Date(2022, 9, 2)).slice(0, 19), "2022-10-02T00:00:00");
-        """
-    )
+        """)
 
 
 def test_subtract_counts_whole_days(assert_js):
-    assert_js(
-        """
+    assert_js("""
         import { subtract } from "/js/daterange-utils.js";
         const from = new Date(2022, 0, 10);
         const back = subtract(from, 3);
         eq("subtracting three days lands on the 7th", back.getDate(), 7);
         eq("the original is untouched", from.getDate(), 10);
-        """
-    )
+        """)
 
 
 def test_count_dst_transitions(assert_js):
