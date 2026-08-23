@@ -185,9 +185,12 @@ export function computeSimulationRanges(startDate, endDate, minRes = "hour") {
 }
 
 /**
- * Takes a Date object and returns an ISO string with the timezone offset appended
+ * Takes a Date object and returns an ISO string with the timezone offset appended.
+ *
+ * The date and time written are the local clock ones, so the string names the same instant as the Date.
+ *
  * @param {Date} date - The date to format
- * @returns {string} An ISO string with the timezone offset appended, e.g. "2022-08-23T15:04:05.000+02:00"
+ * @returns {string} The local clock time with its offset, e.g. "2022-08-23T15:04:05.000+02:00" for 15:04 local in +02:00
  */
 export function toIsoStringWithOffset(date) {
     const offset = date.getTimezoneOffset();

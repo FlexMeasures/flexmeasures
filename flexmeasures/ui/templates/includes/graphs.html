@@ -67,9 +67,9 @@
     // rebuild the groupSpec client-side (with y-axis titles) after an in-browser
     // sensors_to_show save without a page reload.
     let sensorTypeById = new Map();
-    // The current query window as plain epoch-ms {start, end}, captured before any
-    // later mutation of the shared Date objects (getAssetKPIs bumps storeEndDate by
-    // +1 day). Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
+    // The current query window as plain epoch-ms {start, end},
+    // captured so that later changes to the shared Date objects cannot move it.
+    // Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
     let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
@@ -666,7 +666,7 @@
 
             storeStartDate = startDate;
             storeEndDate = endDate;
-            // Capture the window as primitives now, before getAssetKPIs mutates endDate (+1 day).
+            // Capture the window as primitives, fixing the fast chart's x-axis to the selection made here.
             fastChartWindow = { start: startDate.getTime(), end: endDate.getTime() };
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
@@ -1031,8 +1031,9 @@
     {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs(startDate, endDate) {
         const start = encodeURIComponent(toIsoStringWithOffset(startDate));
-        // The endpoint ends its window before `end`, exactly as the chart does,
+        // The endpoint ends its window before `end`, as the chart does for the daily, midnight-aligned sensors it documents this for,
         // so the chart's own end date is passed through unchanged.
+        // The two predicates are not identical: the chart keeps events whose end falls on the window's end, the endpoint keeps events whose start falls before it.
         // Advancing it by a day here was right while this function read picker.getEndDate(), which is the last day selected;
         // PR #1909 changed the callers to pass the chart's exclusive end, at which point the advance became one day too many.
         const end = encodeURIComponent(toIsoStringWithOffset(endDate));
