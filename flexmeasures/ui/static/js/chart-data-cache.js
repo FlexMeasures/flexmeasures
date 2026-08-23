@@ -13,7 +13,7 @@
  * hours across a daylight saving time transition.
  */
 
-import { fetchChartData } from "./chart-data-source.js";
+import { fetchChartData } from "./chart-data-fetch.js";
 
 /**
  * Work out which parts of a newly selected window are not covered by the loaded one.
