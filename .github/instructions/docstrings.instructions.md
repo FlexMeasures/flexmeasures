@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.py,**/*.js,**/*.html"
+applyTo: "**"
 ---
 # Docstrings and comments
 
