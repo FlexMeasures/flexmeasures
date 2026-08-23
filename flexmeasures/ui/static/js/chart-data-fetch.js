@@ -22,7 +22,7 @@ import { decompressChartData } from "./chart-data-utils.js";
  * @param {boolean} [options.mostRecentBeliefsOnly] - Pass false to get every recorded belief, as the replay does.
  * @returns {string} - The URL to fetch.
  */
-export function buildChartDataUrl(dataPath, { start, end, mostRecentBeliefsOnly } = {}) {
+export function buildChartDataUrl(dataPath, { start, end, mostRecentBeliefsOnly }) {
   let url =
     dataPath +
     "/chart_data?event_starts_after=" +
@@ -43,7 +43,7 @@ export function buildChartDataUrl(dataPath, { start, end, mostRecentBeliefsOnly 
  * @param {AbortSignal} [options.signal] - Signal used to abort in-flight requests.
  * @returns {Promise<Object[]>} - Belief records in the format the charts expect.
  */
-export function fetchChartData(dataPath, options = {}) {
+export function fetchChartData(dataPath, options) {
   return fetch(buildChartDataUrl(dataPath, options), {
     method: "GET",
     headers: { "Content-Type": "application/json" },
@@ -63,7 +63,7 @@ export function fetchChartData(dataPath, options = {}) {
  * @param {AbortSignal} [options.signal] - Signal used to abort in-flight requests.
  * @returns {Promise<Object[]>} - Annotation records.
  */
-export function fetchChartAnnotations(dataPath, { start, end, signal } = {}) {
+export function fetchChartAnnotations(dataPath, { start, end, signal }) {
   const url =
     dataPath +
     "/chart_annotations?event_starts_after=" +
