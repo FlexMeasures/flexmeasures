@@ -195,12 +195,15 @@ export function toIsoStringWithOffset(date) {
     const offsetHours = Math.floor(Math.abs(offset) / 60);
     const offsetMinutes = Math.abs(offset) % 60;
 
-    const isoString = date.toISOString();
-    
-    const formattedIsoString = isoString.replace('Z', 
-        `${(offset <= 0 ? '+' : '-')}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`);
-    
-    return formattedIsoString;
+    // Write the local clock time, not the UTC one.
+    // Appending a local offset to date.toISOString(), which is UTC, would name a different instant,
+    // one that is wrong by exactly the offset.
+    const pad = (value, width = 2) => String(value).padStart(width, '0');
+    const localIsoString = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+        + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+
+    return localIsoString
+        + `${(offset <= 0 ? '+' : '-')}${pad(offsetHours)}:${pad(offsetMinutes)}`;
 }
 
 /**
