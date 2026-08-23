@@ -1782,3 +1782,76 @@ def test_get_asset_chart_session_vars_with_canonical_params(
     with client.session_transaction() as sess:
         assert sess.get("event_starts_after") == "2025-05-01T00:00:00+02:00"
         assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_end_is_exclusive(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """The KPI window ends before `end`, as the chart's own window does.
+
+    The asset page derives the KPI window from the chart's,
+    so the two have to agree on whether the end is part of the window.
+    """
+    from datetime import datetime, timedelta
+
+    from pytz import utc
+
+    from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+    from flexmeasures.data.models.user import Account
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+    window_start = datetime(2022, 1, 1, tzinfo=utc)
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    if asset_type is None:
+        asset_type = GenericAssetType(name="battery")
+        db.session.add(asset_type)
+        db.session.flush()
+    asset = GenericAsset(
+        name="kpi window asset",
+        generic_asset_type=asset_type,
+        account_id=db.session.query(Account).first().id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi window sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="MWh",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    source = list(setup_sources.values())[0]
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=window_start + timedelta(days=day),
+                belief_horizon=timedelta(0),
+                event_value=1.0,
+                sensor_id=sensor.id,
+                source_id=source.id,
+                cumulative_probability=0.5,
+            )
+            for day in range(5)
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Total", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    response = client.get(
+        url_for("AssetAPI:get_kpis", id=asset.id),
+        query_string={
+            "start": window_start.isoformat(),
+            "end": (window_start + timedelta(days=3)).isoformat(),
+        },
+    )
+    assert response.status_code == 200
+    assert (
+        response.json["data"][0]["downsample_value"] == 3.0
+    ), "a three-day window must total three daily values, not four"
