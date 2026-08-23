@@ -24,6 +24,7 @@ def test_get_unique_values_survives_a_falsy_entry(assert_js):
         const data = [{source: {id: 4}}, null, {source: {id: 5}}];
         const values = getUniqueValues(data, "source.id");
         check("values after a null entry are still seen", values.includes(5), JSON.stringify(values));
+        eq("the missing record contributes nothing", values, [4, 5]);
         """
     )
 
@@ -50,5 +51,22 @@ def test_get_unique_values_handles_names_that_exist_on_every_object(assert_js):
         const data = [{source: {name: "constructor"}}, {source: {name: "toString"}}, {source: {name: "solar"}}];
         const values = getUniqueValues(data, "source.name");
         eq("every distinct name is returned", values.sort(), ["constructor", "solar", "toString"].sort());
+        """
+    )
+
+
+def test_get_unique_values_ignores_records_without_the_key(assert_js):
+    """A record with no source is not a source.
+
+    checkSourceMasking counts these to decide whether data is being masked,
+    so an absent value must not be counted as one more source.
+    """
+    assert_js(
+        """
+        import { getUniqueValues } from "/js/data-utils.js";
+        eq("a record without a source is not counted",
+           getUniqueValues([{source: {id: 4}}, {event_value: 1}], "source.id"), [4]);
+        eq("only records without the key means nothing to report",
+           getUniqueValues([{event_value: 1}], "source.id"), []);
         """
     )

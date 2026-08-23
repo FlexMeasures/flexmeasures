@@ -28,6 +28,11 @@ export function getUniqueValues(data, key) {
     for (let i = 0; i < data.length; i++) {
         const val = getValueByNestedKey(data[i], key);
 
+        // A record that lacks the key has no value to report.
+        // Counting it would make callers such as checkSourceMasking see one source more than there are.
+        if (val === undefined) {
+            continue;
+        }
         if (!seen.has(val)) {
             seen.add(val);
             results.push(val);
