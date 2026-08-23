@@ -126,8 +126,8 @@ def js_runner():
     def run(body: str, timezone: str | None = None) -> list[dict]:
         """Run a snippet, optionally pretending the browser sits in a given timezone.
 
-        Overriding the timezone keeps tests that depend on one, such as daylight saving
-        transitions, independent of the machine running them.
+        Overriding the timezone keeps tests that depend on one independent of the machine running them,
+        such as those covering daylight saving transitions.
         """
         _Handler.page_body = body
         # "" restores the host timezone, so one test cannot leak its override into the next.
