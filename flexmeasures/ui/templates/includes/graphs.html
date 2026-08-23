@@ -513,11 +513,9 @@
     if (!fastRenderActive() && vegaView) {
         vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
     }
-    var sessionStart = new Date('{{ event_starts_after }}');
-    var sessionEnd = new Date('{{ event_ends_before }}');
     previousResult = {
-        start: sessionStart,
-        end: sessionEnd,
+        start: new Date('{{ event_starts_after }}'),
+        end: new Date('{{ event_ends_before }}'),
         data: fetchedInitialData
     };
     updateFastChart();
