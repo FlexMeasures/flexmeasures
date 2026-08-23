@@ -20,7 +20,6 @@ Bugfixes
 -----------
 
 * On an asset page showing KPIs, the chart's selected end date was pushed a day forward on every date selection [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
-* KPIs on the asset page counted one day more than the selected time range [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 
 v1.0.0 | August 14, 2026
