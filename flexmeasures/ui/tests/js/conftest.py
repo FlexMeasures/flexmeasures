@@ -96,7 +96,8 @@ def js_runner():
     The snippet may import from `/js/<module>.js` and should call `check(...)` or `eq(...)`.
     """
     selenium = pytest.importorskip(
-        "selenium", reason="install the test dependency group to run the JavaScript tests"
+        "selenium",
+        reason="install the test dependency group to run the JavaScript tests",
     )
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
@@ -106,7 +107,12 @@ def js_runner():
     del selenium
 
     options = Options()
-    for flag in ("--headless=new", "--disable-gpu", "--no-sandbox", "--window-size=1200,800"):
+    for flag in (
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--window-size=1200,800",
+    ):
         options.add_argument(flag)
     try:
         driver = webdriver.Chrome(options=options)
@@ -148,9 +154,7 @@ def assert_js(js_runner):
         checks = js_runner(body, timezone)
         assert checks, "the JavaScript module produced no checks"
         failures = [c for c in checks if not c["passed"]]
-        assert not failures, "\n".join(
-            f"{c['label']}: {c['detail']}" for c in failures
-        )
+        assert not failures, "\n".join(f"{c['label']}: {c['detail']}" for c in failures)
         return checks
 
     return _assert
