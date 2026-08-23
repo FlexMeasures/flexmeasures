@@ -45,6 +45,10 @@
     // so that re-selecting a span we just moved away from costs no request.
     // Reset whenever the data itself may have changed.
     const chartDataCache = createChartDataCache();
+    // Counts how often the shown window has been changed.
+    // Selections are not serialised and their requests are not aborted,
+    // so a slow earlier one can answer after a quick later one and draw the wrong range.
+    let shownWindowGeneration = 0;
     let previousPlaybackResult;
     let storeStartDate;
     let storeEndDate;
@@ -448,6 +452,8 @@
         // The sensors shown, or the data itself, may have changed, so nothing held is still trustworthy.
         // Reloading through the emptied cache refills it, rather than leaving it empty for the next selection.
         chartDataCache.reset();
+        // This reload supersedes any selection still in flight, whose answer is now out of date.
+        shownWindowGeneration++;
         let newData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
         newData = await Promise.all([
             newData,
@@ -685,6 +691,7 @@
 
     stopReplay()
 
+    const thisSelection = ++shownWindowGeneration;
     $("#spinner").show();
     checkDSTTransitions(startDate, endDate)
     Promise.all([
@@ -696,6 +703,9 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
     ]).then(function (result) {
         $("#spinner").hide();
+        // Another window has been shown since this one was asked for, so this answer is stale.
+        // Drawing it would put a range on screen that the picker and the URL no longer name.
+        if (thisSelection !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
         }
