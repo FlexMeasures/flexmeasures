@@ -41,8 +41,9 @@
     let picker;
     let vegaView;
     let previousResult;
-    // Holds the widest contiguous span fetched so far, so that re-selecting a span we
-    // just moved away from costs no request. Reset whenever the data itself may have changed.
+    // Holds the widest contiguous span fetched so far,
+    // so that re-selecting a span we just moved away from costs no request.
+    // Reset whenever the data itself may have changed.
     const chartDataCache = createChartDataCache();
     let previousPlaybackResult;
     let storeStartDate;

@@ -1,8 +1,8 @@
 /**
  * Single place where the asset/sensor pages fetch time series data for their charts.
  *
- * Before this module, four call sites in graphs.html each built the same
- * `/chart_data` query string and repeated the same response handling.
+ * Before this module, four call sites in graphs.html each built the same `/chart_data` query string,
+ * and repeated the same response handling.
  * Keeping that in one place means the request shape is defined once,
  * and it gives the interval cache (see chart-data-cache.js) a single point to hook into.
  *
