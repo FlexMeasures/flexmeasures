@@ -396,7 +396,7 @@
                 showToast("An error occurred: " + error.message, "error");
                 finishUploadStatus();
             });
-    });
+        });
     {% endif %}
 
 
@@ -491,16 +491,11 @@
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
-    // Derive the initial window from the template values, rather than from storeStartDate/storeEndDate.
-    // The closing brace of the DOMContentLoaded handler sits inside a Jinja conditional (the sensor upload block),
-    // so whether this code runs within that handler, with those globals already assigned, differs per page.
-    const initialStartDate = new Date('{{ event_starts_after }}');
-    const initialEndDate = new Date('{{ event_ends_before }}');
     {% if active_subpage == "asset_graph" and has_kpis %}
-    getAssetKPIs(initialStartDate, initialEndDate);
+    getAssetKPIs(storeStartDate, storeEndDate);
     {% endif %}
     // Through the cache, so that the very first date change already only fetches the days it adds.
-    const initialData = chartDataCache.load(dataPath, { start: initialStartDate, end: initialEndDate, signal: signal });
+    const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
     let fetchedInitialData = await Promise.all([
         initialData,
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
