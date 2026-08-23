@@ -173,18 +173,24 @@ export function createChartDataCache() {
      */
     async load(dataPath, options) {
       const { start, end, mostRecentBeliefsOnly, signal } = options;
-      const resolutionMs = cached ? effectiveResolutionMs(cached.data) : 0;
+      // Work from a snapshot throughout.
+      // Selections are not serialised and their requests are not aborted,
+      // so a second selection can replace what is held while this one is still awaiting its data.
+      // Merging against the snapshot keeps each result's span and records describing the same thing.
+      const held = cached;
+      const resolutionMs = held ? effectiveResolutionMs(held.data) : 0;
       // Reuse only what a direct fetch would have returned identically.
       // Windows that merely touch still form one contiguous span,
       // so they extend the cache rather than replace it:
       // stepping a selection on by exactly its own width keeps both.
       const reusable =
-        cached !== null &&
-        end >= cached.start &&
-        start <= cached.end &&
-        onSameResamplingGrid(cached.start, start, end, resolutionMs);
-      const ranges = missingRanges(start, end, reusable ? cached : null);
+        held !== null &&
+        end >= held.start &&
+        start <= held.end &&
+        onSameResamplingGrid(held.start, start, end, resolutionMs);
+      const ranges = missingRanges(start, end, reusable ? held : null);
 
+      let assembled = held;
       if (ranges.length > 0) {
         const fetched = await Promise.all(
           ranges.map((range) =>
@@ -196,18 +202,19 @@ export function createChartDataCache() {
             })
           )
         );
-        if (reusable) {
-          cached = {
-            start: start < cached.start ? start : cached.start,
-            end: end > cached.end ? end : cached.end,
-            data: dedupeRecords(cached.data.concat(...fetched)),
-          };
-        } else {
-          cached = { start: start, end: end, data: [].concat(...fetched) };
-        }
+        assembled = reusable
+          ? {
+              start: start < held.start ? start : held.start,
+              end: end > held.end ? end : held.end,
+              data: dedupeRecords(held.data.concat(...fetched)),
+            }
+          : { start: start, end: end, data: [].concat(...fetched) };
+        // Whichever selection finishes last decides what is held.
+        // Both spans are self-consistent, so the worst case is a later selection re-fetching.
+        cached = assembled;
       }
 
-      return clipToWindow(cached.data, start, end, effectiveResolutionMs(cached.data));
+      return clipToWindow(assembled.data, start, end, effectiveResolutionMs(assembled.data));
     },
   };
 }
