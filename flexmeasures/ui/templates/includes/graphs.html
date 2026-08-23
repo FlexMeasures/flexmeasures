@@ -1012,10 +1012,9 @@
     {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs(startDate, endDate) {
         const start = encodeURIComponent(toIsoStringWithOffset(startDate));
-        // Advance a copy, so that callers can pass the Date objects holding the chart's own window.
-        const inclusiveEnd = new Date(endDate);
-        inclusiveEnd.setDate(inclusiveEnd.getDate() + 1);  // make the end date inclusive
-        const end = encodeURIComponent(toIsoStringWithOffset(inclusiveEnd));
+        // The endpoint ends its window before `end`, exactly as the chart does,
+        // so the chart's own end date is passed through unchanged.
+        const end = encodeURIComponent(toIsoStringWithOffset(endDate));
         const kpiCards = document.querySelector('#kpi-cards');
         return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + end, {
             method: 'GET',
