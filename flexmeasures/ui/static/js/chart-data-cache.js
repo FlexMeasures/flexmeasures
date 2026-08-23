@@ -2,7 +2,7 @@
  * Reuse of already-fetched chart data when the selected time window changes.
  *
  * Selecting a new window usually keeps most of the old one: stepping a week forward by
- * a day, or extending a year by a day, changes only a sliver.
+ * a day, extending a year by a day, or zooming back out to a span just left behind.
  * Rather than re-querying the whole window, we keep the records we already have and
  * fetch only the parts that are new (FlexMeasures issue #101).
  *
@@ -80,41 +80,71 @@ export function dedupeRecords(records) {
 }
 
 /**
- * Fetch the data for a window, reusing whatever the previous window already provides.
+ * Create a cache that serves chart data for a window, fetching only what it lacks.
  *
- * Falls back to fetching the whole window whenever there is nothing to reuse, so the
- * caller does not need to distinguish the cases.
+ * The cache holds the widest contiguous span loaded so far, not just the span on
+ * display, so narrowing the selection and widening it again costs nothing.
+ * Its size is therefore bounded by the widest contiguous span the user has browsed,
+ * which is what selecting that span in one go would have loaded anyway.
+ *
+ * Selecting a window that does not touch the cached span replaces it, keeping the
+ * cached span contiguous.
  *
  * The merged records are deliberately not re-sorted: the fast chart sorts each series
  * by time itself, and Vega-Lite sorts line and area marks by their x channel.
  *
- * @param {string} dataPath - Base path of the asset or sensor.
- * @param {Object} options
- * @param {Date} options.start - Start of the newly selected window.
- * @param {Date} options.end - End of the newly selected window.
- * @param {boolean} [options.mostRecentBeliefsOnly] - Pass false to get every recorded belief.
- * @param {AbortSignal} [options.signal] - Signal used to abort in-flight requests.
- * @param {?Object} previous - Previously loaded {start, end, data}, or null.
- * @returns {Promise<Object[]>} - Belief records covering the whole newly selected window.
+ * @returns {Object} - A cache with `load(dataPath, options)` and `reset()`.
  */
-export async function fetchWindowReusingPrevious(dataPath, options, previous) {
-  const { start, end, mostRecentBeliefsOnly, signal } = options;
-  const ranges = missingRanges(start, end, previous);
-  const reused = previous ? clipToWindow(previous.data, start, end) : [];
+export function createChartDataCache() {
+  let cached = null;
 
-  // The new window is fully covered by what we already have (e.g. zooming back in).
-  if (ranges.length === 0) return dedupeRecords(reused);
+  return {
+    /**
+     * Forget everything held, e.g. because the underlying data changed.
+     */
+    reset() {
+      cached = null;
+    },
 
-  const fetched = await Promise.all(
-    ranges.map((range) =>
-      fetchChartData(dataPath, {
-        start: range.start,
-        end: range.end,
-        mostRecentBeliefsOnly: mostRecentBeliefsOnly,
-        signal: signal,
-      })
-    )
-  );
-  if (reused.length === 0) return [].concat(...fetched);
-  return dedupeRecords(reused.concat(...fetched));
+    /**
+     * Return the records for a window, fetching only the parts not already held.
+     *
+     * @param {string} dataPath - Base path of the asset or sensor.
+     * @param {Object} options
+     * @param {Date} options.start - Start of the newly selected window.
+     * @param {Date} options.end - End of the newly selected window.
+     * @param {boolean} [options.mostRecentBeliefsOnly] - Pass false to get every recorded belief.
+     * @param {AbortSignal} [options.signal] - Signal used to abort in-flight requests.
+     * @returns {Promise<Object[]>} - Belief records covering exactly the newly selected window.
+     */
+    async load(dataPath, options) {
+      const { start, end, mostRecentBeliefsOnly, signal } = options;
+      const overlapping = cached !== null && end > cached.start && start < cached.end;
+      const ranges = missingRanges(start, end, overlapping ? cached : null);
+
+      if (ranges.length > 0) {
+        const fetched = await Promise.all(
+          ranges.map((range) =>
+            fetchChartData(dataPath, {
+              start: range.start,
+              end: range.end,
+              mostRecentBeliefsOnly: mostRecentBeliefsOnly,
+              signal: signal,
+            })
+          )
+        );
+        if (overlapping) {
+          cached = {
+            start: start < cached.start ? start : cached.start,
+            end: end > cached.end ? end : cached.end,
+            data: dedupeRecords(cached.data.concat(...fetched)),
+          };
+        } else {
+          cached = { start: start, end: end, data: [].concat(...fetched) };
+        }
+      }
+
+      return clipToWindow(cached.data, start, end);
+    },
+  };
 }
