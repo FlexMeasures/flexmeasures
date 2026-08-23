@@ -1033,6 +1033,8 @@
         const start = encodeURIComponent(toIsoStringWithOffset(startDate));
         // The endpoint ends its window before `end`, exactly as the chart does,
         // so the chart's own end date is passed through unchanged.
+        // Advancing it by a day here was right while this function read picker.getEndDate(), which is the last day selected;
+        // PR #1909 changed the callers to pass the chart's exclusive end, at which point the advance became one day too many.
         const end = encodeURIComponent(toIsoStringWithOffset(endDate));
         const kpiCards = document.querySelector('#kpi-cards');
         return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + end, {
