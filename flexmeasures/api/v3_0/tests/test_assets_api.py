@@ -1784,21 +1784,18 @@ def test_get_asset_chart_session_vars_with_canonical_params(
         assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"
 
 
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_kpi_window_end_is_exclusive(
-    db, client, setup_api_test_data, setup_sources, requesting_user
-):
-    """The KPI window ends before `end`, as the chart's own window does.
+def _asset_with_daily_kpi(db, requesting_user, setup_sources, days: int):
+    """Build an asset whose KPI sums a distinct value per day.
 
-    The asset page derives the KPI window from the chart's,
-    so the two have to agree on whether the end is part of the window.
+    The values differ per day, so that a window covering the wrong days totals differently,
+    rather than merely covering the same number of days.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     from pytz import utc
 
-    from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+    from flexmeasures.data.models.generic_assets import GenericAssetType
+    from flexmeasures.data.models.time_series import TimedBelief
 
     window_start = datetime(2022, 1, 1, tzinfo=utc)
     asset_type = (
@@ -1809,14 +1806,14 @@ def test_kpi_window_end_is_exclusive(
         db.session.add(asset_type)
         db.session.flush()
     asset = GenericAsset(
-        name="kpi window asset",
+        name=f"kpi window asset ({days} days)",
         generic_asset_type=asset_type,
         account_id=requesting_user.account_id,
     )
     db.session.add(asset)
     db.session.flush()
     sensor = Sensor(
-        name="kpi window sensor",
+        name=f"kpi window sensor ({days} days)",
         generic_asset=asset,
         event_resolution=timedelta(days=1),
         unit="MWh",
@@ -1830,27 +1827,85 @@ def test_kpi_window_end_is_exclusive(
             dict(
                 event_start=window_start + timedelta(days=day),
                 belief_horizon=timedelta(0),
-                event_value=1.0,
+                event_value=float(day + 1),
                 sensor_id=sensor.id,
                 source_id=source.id,
                 cumulative_probability=0.5,
             )
-            for day in range(5)
+            for day in range(days)
         ],
     )
     asset.sensors_to_show_as_kpis = [
         {"title": "Total", "sensor": sensor.id, "function": "sum"}
     ]
     db.session.flush()
+    return asset, window_start
 
+
+def _kpi_total(client, asset, start, end):
+    """Ask the KPI endpoint for one window and return its single value."""
     response = client.get(
         url_for("AssetAPI:get_kpis", id=asset.id),
-        query_string={
-            "start": window_start.isoformat(),
-            "end": (window_start + timedelta(days=3)).isoformat(),
-        },
+        query_string={"start": start, "end": end},
     )
-    assert response.status_code == 200
-    assert (
-        response.json["data"][0]["downsample_value"] == 3.0
-    ), "a three-day window must total three daily values, not four"
+    assert response.status_code == 200, response.json
+    kpis = response.json["data"]
+    assert len(kpis) == 1, f"expected exactly one KPI, got {kpis}"
+    return kpis[0]["downsample_value"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_end_is_exclusive(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """The KPI window ends before `end`, as the chart's own window does.
+
+    The asset page derives the KPI window from the chart's,
+    so the two have to agree on whether the end is part of the window.
+    """
+    asset, window_start = _asset_with_daily_kpi(
+        db, requesting_user, setup_sources, days=5
+    )
+
+    # Days one to five carry the values 1 to 5, so the first three total six.
+    # Treating the end as inclusive would add the fourth day and total ten.
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=3)).isoformat(),
+    )
+    assert total == pytest.approx(
+        6.0
+    ), "the window must end before its end date, not on it"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_honours_the_offset_it_is_given(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A window written with a UTC offset names the instants that offset implies.
+
+    The asset page sends its window as local clock times carrying an offset,
+    so the endpoint has to read the offset rather than the clock time alone.
+    """
+    asset, _ = _asset_with_daily_kpi(db, requesting_user, setup_sources, days=6)
+
+    # Midnight UTC on the first, written as one o'clock in +01:00.
+    # These are the first three days, worth 1 + 2 + 3.
+    total = _kpi_total(
+        client, asset, "2022-01-01T01:00:00+01:00", "2022-01-04T01:00:00+01:00"
+    )
+    assert total == pytest.approx(
+        6.0
+    ), "the offset must be read, not just the clock time"
+
+    # The same clock times read as UTC name instants an hour later,
+    # which drops the first day and picks up the fourth, worth 2 + 3 + 4.
+    shifted = _kpi_total(
+        client, asset, "2022-01-01T01:00:00+00:00", "2022-01-04T01:00:00+00:00"
+    )
+    assert shifted == pytest.approx(
+        9.0
+    ), "an hour later is a different three days, so the two windows must not agree"
+    assert total != shifted, "the assertion above only means something if these differ"
