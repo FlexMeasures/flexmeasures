@@ -452,14 +452,17 @@
         // The sensors shown, or the data itself, may have changed, so nothing held is still trustworthy.
         // Reloading through the emptied cache refills it, rather than leaving it empty for the next selection.
         chartDataCache.reset();
-        // This reload supersedes any selection still in flight, whose answer is now out of date.
-        shownWindowGeneration++;
+        // This reload supersedes any selection still in flight, whose answer is now out of date,
+        // and claims a count of its own, so that a selection made while it runs supersedes it in turn.
+        const thisReload = ++shownWindowGeneration;
         let newData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
         newData = await Promise.all([
             newData,
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
         ]).then(function (result) { return result[0] }).catch(console.error);
         $("#spinner").hide();
+        // A window has been shown since this reload was started, so its answer is stale.
+        if (thisReload !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
         }
