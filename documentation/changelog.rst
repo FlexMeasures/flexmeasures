@@ -17,7 +17,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-* KPIs on the asset page counted one day more than the selected time range [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 
 
 v1.0.0 | August 14, 2026
