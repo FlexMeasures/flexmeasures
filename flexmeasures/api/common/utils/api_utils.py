@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from copy import deepcopy
 import json
 import re
-from packaging.version import InvalidVersion, Version
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
@@ -62,89 +60,6 @@ def upsample_values(
         else:
             value_groups = list(array(value_groups).repeat(n))
     return value_groups
-
-
-def use_legacy_job_responses(asset: GenericAsset) -> bool:
-    """Whether job-related API endpoints should use legacy response behaviour.
-
-    Production deployments configure maximum incompatible client versions keyed
-    by asset attributes, which are looked up on the asset and its nearby parent
-    hierarchy.
-
-    Legacy behaviour means synchronous sensor-data ingestion, HTTP 200 from
-    accepted scheduling and forecasting triggers, and HTTP 400 while polling an
-    unfinished schedule.
-
-    For QA, an assumed-version mapping can supply a version when the relevant
-    asset hierarchy does not define that attribute itself.
-    """
-    version_limits = current_app.config.get(
-        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        {},
-    )
-    if not isinstance(version_limits, Mapping):
-        current_app.logger.warning(
-            "Invalid FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_"
-            "CLIENT_VERSION %r: expected a mapping of asset attribute names to "
-            "maximum incompatible client versions. Ignoring compatibility setting.",
-            version_limits,
-        )
-        return False
-
-    assumed_client_versions = current_app.config.get(
-        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION", {}
-    )
-    if not isinstance(assumed_client_versions, Mapping):
-        current_app.logger.warning(
-            "Invalid FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION "
-            "%r: expected a mapping of asset attribute names to assumed client "
-            "versions. Ignoring QA compatibility setting.",
-            assumed_client_versions,
-        )
-        assumed_client_versions = {}
-
-    for version_attribute, max_version in version_limits.items():
-        client_version, attribute_asset = _get_asset_attribute_from_nearby_hierarchy(
-            asset, version_attribute
-        )
-        if client_version is None:
-            client_version = assumed_client_versions.get(version_attribute)
-        if client_version is None:
-            continue
-        try:
-            if Version(str(client_version)) <= Version(str(max_version)):
-                return True
-        except InvalidVersion:
-            version_source = (
-                f"on asset {attribute_asset.id}"
-                if attribute_asset is not None
-                else "in the QA compatibility setting"
-            )
-            current_app.logger.warning(
-                "Ignoring invalid client version %r or maximum incompatible "
-                "version %r for attribute %r %s.",
-                client_version,
-                max_version,
-                version_attribute,
-                version_source,
-            )
-    return False
-
-
-def _get_asset_attribute_from_nearby_hierarchy(
-    asset: GenericAsset, attribute: str, max_parent_depth: int = 2
-) -> tuple[object | None, GenericAsset | None]:
-    current_asset = asset
-    for _ in range(max_parent_depth + 1):
-        # A null or empty value means the attribute is not set here, so keep looking up the hierarchy.
-        # Stopping on mere key presence would let such a value on a device shadow a version set on its site.
-        value = (current_asset.attributes or {}).get(attribute)
-        if value:
-            return value, current_asset
-        if current_asset.parent_asset is None:
-            break
-        current_asset = current_asset.parent_asset
-    return None, None
 
 
 def unique_ever_seen(iterable: Sequence, selector: Sequence):
@@ -216,23 +131,25 @@ def queue_has_connected_workers(queue: Queue) -> bool:
 def process_sensor_data_ingestion(
     sensor_id: int,
     user_id: int,
-    asset: GenericAsset,
     sensor_data: dict | None = None,
     uploaded_files: list[dict] | None = None,
     upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
+    force_synchronous: bool = False,
 ) -> ResponseTuple:
     """Process sensor data ingestion asynchronously when possible.
 
     If an ingestion queue with connected workers is available, enqueue a background
     job and return ``202 Accepted``. If no worker is available, process the data
     synchronously and return the resulting ingestion response. As a compatibility
-    exception, configured legacy clients are always processed synchronously.
+    exception, callers can force synchronous processing for compatibility purposes.
     """
     ingestion_queue = current_app.queues.get("ingestion")
-    if use_legacy_job_responses(asset):
-        current_app.logger.info("Processing sensor data directly for a legacy client.")
+    if force_synchronous:
+        current_app.logger.info(
+            "Processing sensor data directly as requested by caller."
+        )
     elif ingestion_queue is None:
         current_app.logger.warning(
             "No ingestion queue configured. Processing sensor data directly."

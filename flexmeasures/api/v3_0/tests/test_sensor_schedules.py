@@ -12,7 +12,7 @@ from flexmeasures.api.common.responses import (
     unknown_schedule,
     unrecognized_event,
 )
-from flexmeasures.api.common.utils.api_utils import use_legacy_job_responses
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import (
     get_sensor_by_name,

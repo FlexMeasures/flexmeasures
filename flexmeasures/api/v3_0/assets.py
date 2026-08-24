@@ -72,8 +72,8 @@ from flexmeasures.data.services.scheduling import (
 from flexmeasures.api.common.utils.api_utils import (
     get_accessible_accounts,
     copy_asset,
-    use_legacy_job_responses,
 )
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_accepted_for_processing,
