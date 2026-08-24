@@ -200,6 +200,8 @@ jobs:
           # that forwards the CLI invocation to the server container. Their
           # v0.8.0 report commands also use relative config paths, which the
           # wrapper translates to the config directory mounted in the container.
+          # The v0.8.x forecasting command uses --ensure-positive as a flag,
+          # whereas the current CLI expects an explicit Boolean value.
           if [[ "${{ steps.client-qa.outputs.use_legacy_cli_wrapper }}" == true ]]; then
             printf '%s\n' \
               '#!/usr/bin/env bash' \
@@ -210,6 +212,9 @@ jobs:
               '    configs/*) arg="/hems-configs/${arg#configs/}" ;;' \
               '  esac' \
               '  translated_args+=("$arg")' \
+              '  if [[ "$arg" == "--ensure-positive" && "${FLEXMEASURES_CLIENT_VERSION:-}" == 0.8.* ]]; then' \
+              '    translated_args+=("true")' \
+              '  fi' \
               'done' \
               'exec docker compose -f "$GITHUB_WORKSPACE/docker-compose.yml" -f "$GITHUB_WORKSPACE/qa-hems-override.yml" exec -T server flexmeasures "${translated_args[@]}"' \
               > "$RUNNER_TEMP/flexmeasures"
