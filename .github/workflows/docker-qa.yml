@@ -197,12 +197,21 @@ jobs:
           cd examples/HEMS
           # Older client releases do not support FLEXMEASURES_CLI_CMD. They
           # look for a flexmeasures executable directly, so provide a wrapper
-          # that forwards the CLI invocation to the server container.
+          # that forwards the CLI invocation to the server container. Their
+          # v0.8.0 report commands also use relative config paths, which the
+          # wrapper translates to the config directory mounted in the container.
           if [[ "${{ steps.client-qa.outputs.use_legacy_cli_wrapper }}" == true ]]; then
             printf '%s\n' \
               '#!/usr/bin/env bash' \
               'set -euo pipefail' \
-              'exec docker compose -f "$GITHUB_WORKSPACE/docker-compose.yml" -f "$GITHUB_WORKSPACE/qa-hems-override.yml" exec -T server flexmeasures "$@"' \
+              'translated_args=()' \
+              'for arg in "$@"; do' \
+              '  case "$arg" in' \
+              '    configs/*) arg="/hems-configs/${arg#configs/}" ;;' \
+              '  esac' \
+              '  translated_args+=("$arg")' \
+              'done' \
+              'exec docker compose -f "$GITHUB_WORKSPACE/docker-compose.yml" -f "$GITHUB_WORKSPACE/qa-hems-override.yml" exec -T server flexmeasures "${translated_args[@]}"' \
               > "$RUNNER_TEMP/flexmeasures"
             chmod +x "$RUNNER_TEMP/flexmeasures"
             export PATH="$RUNNER_TEMP:$PATH"
