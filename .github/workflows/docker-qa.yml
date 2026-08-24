@@ -103,20 +103,32 @@ jobs:
             run_hems=false
           fi
 
+          ingestion_api_support="yes (file and JSON uploads)"
+          forecasting_api_support="yes"
+          scheduling_api_support="yes"
+          reporting_api_support="no (planned for FlexMeasures 1.1)"
           ingestion_coverage="not tested with this client"
           forecasting_coverage="not tested with this client"
           scheduling_coverage="not tested with this client"
           reporting_coverage="not tested with this client"
+
+          if [[ "$client_version" == 0.7.* ]]; then
+            ingestion_api_support="partial (JSON via post_measurements; no file upload)"
+            forecasting_api_support="no"
+          elif [[ "$client_version" == 0.8.* ]]; then
+            forecasting_api_support="no"
+          fi
+
           if [[ "$run_ingestion" == true ]]; then
             ingestion_coverage="API (data-ingestion tutorial)"
           elif [[ "$run_hems" == true ]]; then
-            ingestion_coverage="API (HEMS)"
+            ingestion_coverage="API file uploads (HEMS)"
           fi
           if [[ "$run_hems" == true ]]; then
             scheduling_coverage="API (HEMS)"
-            reporting_coverage="CLI (HEMS)"
+            reporting_coverage="server CLI (HEMS; no client API)"
             if [[ "$client_version" == 0.8.* ]]; then
-              forecasting_coverage="CLI (HEMS)"
+              forecasting_coverage="server CLI (HEMS; no client API)"
             else
               forecasting_coverage="API (HEMS)"
             fi
@@ -131,9 +143,13 @@ jobs:
             'HEMS example:' "$run_hems" \
             'Legacy job responses:' "$use_legacy_job_responses" \
             'Legacy CLI wrapper:' "$use_legacy_cli_wrapper" \
+            'Ingestion API support:' "$ingestion_api_support" \
             'Planned client ingestion:' "$ingestion_coverage" \
+            'Forecasting API support:' "$forecasting_api_support" \
             'Planned client forecasting:' "$forecasting_coverage" \
+            'Scheduling API support:' "$scheduling_api_support" \
             'Planned client scheduling:' "$scheduling_coverage" \
+            'Reporting API support:' "$reporting_api_support" \
             'Planned client reporting:' "$reporting_coverage" \
             'Server CLI tutorials 1-5:' 'run (not client-specific)'
           printf '==============================\n\n'
