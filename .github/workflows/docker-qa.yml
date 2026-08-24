@@ -83,7 +83,9 @@ jobs:
               use_legacy_job_responses=true
             fi
 
-            if (( major == 0 && minor < 9 )); then
+            # FLEXMEASURES_CLI_CMD was introduced in client 0.9.4. Older HEMS
+            # scripts invoke `flexmeasures` directly and need the PATH wrapper.
+            if (( major == 0 && (minor < 9 || (minor == 9 && patch < 4)) )); then
               use_legacy_cli_wrapper=true
             fi
           else
