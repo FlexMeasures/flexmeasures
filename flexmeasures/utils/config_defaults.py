@@ -210,13 +210,11 @@ class Config(object):
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
-    FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION: dict[
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION: dict[
         str, str
     ] = {}
     # QA-only override for exercising legacy clients without modifying assets.
-    FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION: (
-        str | None
-    ) = None
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION: dict[str, str] = {}
 
     # Custom sunset switches
     FLEXMEASURES_API_SUNSET_ACTIVE: bool = (

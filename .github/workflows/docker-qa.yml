@@ -59,7 +59,7 @@ jobs:
           run_hems=false
           use_pypi_client=false
           use_legacy_cli_wrapper=false
-          use_legacy_schedule_responses=false
+          use_legacy_job_responses=false
           client_version=
 
           if [[ "$CLIENT_REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -80,7 +80,7 @@ jobs:
             fi
 
             if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 1)) )); then
-              use_legacy_schedule_responses=true
+              use_legacy_job_responses=true
             fi
 
             if (( major == 0 && minor < 9 )); then
@@ -103,7 +103,7 @@ jobs:
             echo "run_hems=$run_hems"
             echo "use_pypi_client=$use_pypi_client"
             echo "use_legacy_cli_wrapper=$use_legacy_cli_wrapper"
-            echo "use_legacy_schedule_responses=$use_legacy_schedule_responses"
+            echo "use_legacy_job_responses=$use_legacy_job_responses"
             echo "client_version=$client_version"
           } >> "$GITHUB_OUTPUT"
 
@@ -115,7 +115,7 @@ jobs:
           printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
 
           if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
-            if [[ "${{ steps.client-qa.outputs.use_legacy_schedule_responses }}" == true ]]; then
+            if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
               printf '%s\n' \
                 'services:' \
                 '  server:' \
@@ -186,10 +186,11 @@ jobs:
 
       - name: Switch the server to play mode for HEMS
         run: |
-          if [[ "${{ steps.client-qa.outputs.use_legacy_schedule_responses }}" == true ]]; then
+          if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
             printf '%s\n' \
               'FLEXMEASURES_MODE = "play"' \
-              'FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION = "${{ steps.client-qa.outputs.client_version }}"' \
+              'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.1"}' \
+              'FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {"flexmeasures-client-version": "${{ steps.client-qa.outputs.client_version }}"}' \
               > flexmeasures-instance/flexmeasures.cfg
           else
             printf '%s\n' 'FLEXMEASURES_MODE = "play"' > flexmeasures-instance/flexmeasures.cfg

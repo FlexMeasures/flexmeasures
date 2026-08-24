@@ -64,57 +64,69 @@ def upsample_values(
     return value_groups
 
 
-def use_legacy_schedule_accepted_status(asset: GenericAsset) -> bool:
-    """Whether schedule endpoints should use legacy response status codes.
+def use_legacy_job_responses(asset: GenericAsset) -> bool:
+    """Whether job-related API endpoints should use legacy response behaviour.
 
-    The QA-only assumed client version applies globally. Production deployments
-    can instead configure maximum incompatible client versions keyed by asset
-    attributes, which are looked up on the asset and its nearby parent hierarchy.
+    Production deployments configure maximum incompatible client versions keyed
+    by asset attributes, which are looked up on the asset and its nearby parent
+    hierarchy.
+
+    Legacy behaviour means synchronous sensor-data ingestion, HTTP 200 from
+    accepted scheduling and forecasting triggers, and HTTP 400 while polling an
+    unfinished schedule.
+
+    For QA, an assumed-version mapping can supply a version when the relevant
+    asset hierarchy does not define that attribute itself.
     """
-    assumed_client_version = current_app.config.get(
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION"
-    )
-    if assumed_client_version:
-        try:
-            Version(str(assumed_client_version))
-        except InvalidVersion:
-            current_app.logger.warning(
-                "Ignoring invalid assumed legacy client version %r.",
-                assumed_client_version,
-            )
-        else:
-            return True
-
     version_limits = current_app.config.get(
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
         {},
     )
     if not isinstance(version_limits, Mapping):
         current_app.logger.warning(
-            "Invalid FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_"
+            "Invalid FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_"
             "CLIENT_VERSION %r: expected a mapping of asset attribute names to "
             "maximum incompatible client versions. Ignoring compatibility setting.",
             version_limits,
         )
         return False
 
+    assumed_client_versions = current_app.config.get(
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION", {}
+    )
+    if not isinstance(assumed_client_versions, Mapping):
+        current_app.logger.warning(
+            "Invalid FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION "
+            "%r: expected a mapping of asset attribute names to assumed client "
+            "versions. Ignoring QA compatibility setting.",
+            assumed_client_versions,
+        )
+        assumed_client_versions = {}
+
     for version_attribute, max_version in version_limits.items():
         client_version, attribute_asset = _get_asset_attribute_from_nearby_hierarchy(
             asset, version_attribute
         )
-        if client_version is None or attribute_asset is None:
+        if client_version is None:
+            client_version = assumed_client_versions.get(version_attribute)
+        if client_version is None:
             continue
         try:
             if Version(str(client_version)) <= Version(str(max_version)):
                 return True
         except InvalidVersion:
+            version_source = (
+                f"on asset {attribute_asset.id}"
+                if attribute_asset is not None
+                else "in the QA compatibility setting"
+            )
             current_app.logger.warning(
-                "Ignoring invalid schedule client version %r or maximum incompatible "
-                "version %r for attribute %r on asset %s.",
+                "Ignoring invalid client version %r or maximum incompatible "
+                "version %r for attribute %r %s.",
                 client_version,
                 max_version,
                 version_attribute,
-                attribute_asset.id,
+                version_source,
             )
     return False
 
@@ -204,6 +216,7 @@ def queue_has_connected_workers(queue: Queue) -> bool:
 def process_sensor_data_ingestion(
     sensor_id: int,
     user_id: int,
+    asset: GenericAsset,
     sensor_data: dict | None = None,
     uploaded_files: list[dict] | None = None,
     upload_data: dict | None = None,
@@ -213,11 +226,14 @@ def process_sensor_data_ingestion(
     """Process sensor data ingestion asynchronously when possible.
 
     If an ingestion queue with connected workers is available, enqueue a background
-    job and return ``202 Accepted``. Otherwise, process the data synchronously and
-    return the resulting ingestion response.
+    job and return ``202 Accepted``. If no worker is available, process the data
+    synchronously and return the resulting ingestion response. As a compatibility
+    exception, configured legacy clients are always processed synchronously.
     """
     ingestion_queue = current_app.queues.get("ingestion")
-    if ingestion_queue is None:
+    if use_legacy_job_responses(asset):
+        current_app.logger.info("Processing sensor data directly for a legacy client.")
+    elif ingestion_queue is None:
         current_app.logger.warning(
             "No ingestion queue configured. Processing sensor data directly."
         )

@@ -12,7 +12,7 @@ from flexmeasures.api.common.responses import (
     unknown_schedule,
     unrecognized_event,
 )
-from flexmeasures.api.common.utils.api_utils import use_legacy_schedule_accepted_status
+from flexmeasures.api.common.utils.api_utils import use_legacy_job_responses
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import (
     get_sensor_by_name,
@@ -346,7 +346,7 @@ def test_trigger_and_get_schedule_with_unknown_prices(
 
 
 @pytest.mark.parametrize("version_attribute_level", ["asset", "parent", "grandparent"])
-def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
+def test_legacy_job_responses_checks_nearby_asset_hierarchy(
     app,
     add_battery_assets,
     monkeypatch,
@@ -357,7 +357,7 @@ def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
         {"other-client-version": "1.0.0", version_attribute: "0.9.1"},
     )
     battery.attributes = {
@@ -387,23 +387,71 @@ def test_legacy_schedule_accepted_status_checks_nearby_asset_hierarchy(
         )
         monkeypatch.setattr(building, "parent_asset", site)
 
-    assert use_legacy_schedule_accepted_status(battery)
+    assert use_legacy_job_responses(battery)
 
 
-def test_legacy_schedule_accepted_status_assumes_configured_client_version(
+def test_legacy_job_responses_assumes_configured_client_version(
     app, add_battery_assets, monkeypatch
 ):
+    version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_ASSUME_THIS_CLIENT_VERSION",
-        "0.8.1",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {version_attribute: "0.8.1"},
     )
 
-    assert use_legacy_schedule_accepted_status(add_battery_assets["Test battery"])
+    assert use_legacy_job_responses(add_battery_assets["Test battery"])
+
+
+def test_legacy_job_responses_compares_assumed_client_version(
+    app, add_battery_assets, monkeypatch
+):
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {version_attribute: "0.9.2"},
+    )
+
+    assert not use_legacy_job_responses(add_battery_assets["Test battery"])
+
+
+def test_legacy_job_responses_prefers_asset_version_over_assumed_version(
+    app, add_battery_assets, monkeypatch
+):
+    battery = add_battery_assets["Test battery"]
+    version_attribute = "flexmeasures-client-version"
+    monkeypatch.setattr(
+        battery,
+        "attributes",
+        {**(battery.attributes or {}), version_attribute: "0.9.2"},
+    )
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {version_attribute: "0.9.1"},
+    )
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {version_attribute: "0.8.1"},
+    )
+
+    assert not use_legacy_job_responses(battery)
 
 
 @pytest.mark.parametrize("shadowing_value", [None, ""])
-def test_legacy_schedule_accepted_status_looks_past_empty_attribute_value(
+def test_legacy_job_responses_looks_past_empty_attribute_value(
     app,
     add_battery_assets,
     monkeypatch,
@@ -415,7 +463,7 @@ def test_legacy_schedule_accepted_status_looks_past_empty_attribute_value(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
         {version_attribute: "0.9.1"},
     )
     battery.attributes = {
@@ -424,10 +472,10 @@ def test_legacy_schedule_accepted_status_looks_past_empty_attribute_value(
     }
     building.attributes = {**(building.attributes or {}), version_attribute: "0.7.0"}
 
-    assert use_legacy_schedule_accepted_status(battery)
+    assert use_legacy_job_responses(battery)
 
 
-def test_legacy_schedule_accepted_status_ignores_non_mapping_config(
+def test_legacy_job_responses_ignores_non_mapping_config(
     app,
     add_battery_assets,
     monkeypatch,
@@ -435,11 +483,32 @@ def test_legacy_schedule_accepted_status_ignores_non_mapping_config(
 ):
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
         "0.9.1",
     )
 
-    assert not use_legacy_schedule_accepted_status(add_battery_assets["Test battery"])
+    assert not use_legacy_job_responses(add_battery_assets["Test battery"])
+    assert "expected a mapping of asset attribute names" in caplog.text
+
+
+def test_legacy_job_responses_ignores_non_mapping_assumed_version_config(
+    app,
+    add_battery_assets,
+    monkeypatch,
+    caplog,
+):
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"qa-client-version": "0.9.1"},
+    )
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        "0.8.1",
+    )
+
+    assert not use_legacy_job_responses(add_battery_assets["Test battery"])
     assert "expected a mapping of asset attribute names" in caplog.text
 
 
@@ -447,7 +516,7 @@ def test_legacy_schedule_accepted_status_ignores_non_mapping_config(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_schedule_returns_200_for_legacy_schedule_accepted_status(
+def test_trigger_schedule_returns_200_for_legacy_job_responses(
     app,
     db,
     add_battery_assets,
@@ -460,7 +529,7 @@ def test_trigger_schedule_returns_200_for_legacy_schedule_accepted_status(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
         {version_attribute: "0.9.1"},
     )
     sensor.generic_asset.attributes = {
@@ -520,7 +589,7 @@ def test_get_schedule_unfinished_job_returns_202_by_default(
     version_attribute = "flexmeasures-client-version"
     monkeypatch.setitem(
         app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
         {version_attribute: "0.9.1"},
     )
     sensor.generic_asset.attributes = {

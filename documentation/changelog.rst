@@ -14,16 +14,18 @@ New features
 Infrastructure / Support
 -------------------------
 
-* Make release QA select the applicable client tutorials and installation method for the chosen client version
+* Make release QA select the applicable client tutorials and installation method for the chosen client version [see `PR #2432 <https://github.com/FlexMeasures/flexmeasures/pull/2432>`_]
 
 Bugfixes
 -----------
+
+* Keep sensor-data ingestion synchronous and job-trigger status codes compatible for configured legacy clients [see `PR #2432 <https://github.com/FlexMeasures/flexmeasures/pull/2432>`_]
 
 
 v1.0.0 | August 14, 2026
 ============================
 
-.. warning:: As of this release we standardize asynchronous job responses to use the ``job`` field and return HTTP ``202 Accepted`` while a background job is queued or running. See :ref:`api_background_jobs` for the response format and polling flow. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to ``job`` (see the Infrastructure / Support section below for migration details). To receive legacy status codes (e.g. for older clients), hosts can use :ref:`legacy-schedule-client-config`.
+.. warning:: As of this release we standardize asynchronous job responses to use the ``job`` field and return HTTP ``202 Accepted`` while a background job is queued or running. See :ref:`api_background_jobs` for the response format and polling flow. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to ``job`` (see the Infrastructure / Support section below for migration details). To receive legacy job behaviour (e.g. for older clients), hosts can use :ref:`legacy-job-client-config`.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
@@ -89,7 +91,7 @@ Infrastructure / Support
 -------------------------
 
 * Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
-* Standardize job-trigger API responses to return ``202 Accepted`` and a canonical ``job`` field, and likewise return ``202 Accepted`` when polling a schedule whose job has not finished yet; legacy response fields such as ``schedule`` and ``forecast`` are preserved for backward-compatibility but marked deprecated with migration guidance in :ref:`api_background_jobs`. Hosts still serving clients that expect the previous status codes can opt individual assets back in, see :ref:`legacy-schedule-client-config` [see `PR #2224 <https://github.com/FlexMeasures/flexmeasures/pull/2224>`_ and `PR #2429 <https://github.com/FlexMeasures/flexmeasures/pull/2429>`_].
+* Standardize job-trigger API responses to return ``202 Accepted`` and a canonical ``job`` field, and likewise return ``202 Accepted`` when polling a schedule whose job has not finished yet; legacy response fields such as ``schedule`` and ``forecast`` are preserved for backward-compatibility but marked deprecated with migration guidance in :ref:`api_background_jobs`. Hosts still serving clients that require synchronous ingestion or the previous trigger and schedule-polling status codes can opt individual assets back in, see :ref:`legacy-job-client-config` [see `PR #2224 <https://github.com/FlexMeasures/flexmeasures/pull/2224>`_ and `PR #2429 <https://github.com/FlexMeasures/flexmeasures/pull/2429>`_].
 * Warn on startup when ``TRUSTED_HOSTS`` is unset, as that lets clients poison the URLs FlexMeasures generates, such as password reset links; the setting can now also be given as a comma-separated environment variable, and the ``development`` environment trusts loopback hosts by default (so reaching a development server by its LAN address or through a tunnel now means listing that host) [see `PR #2389 <https://www.github.com/FlexMeasures/flexmeasures/pull/2389>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_, `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_, `PR #2348 <https://www.github.com/FlexMeasures/flexmeasures/pull/2348>`_ and `PR #2388 <https://www.github.com/FlexMeasures/flexmeasures/pull/2388>`_]
 * Add a ``FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT`` setting for spreading a host's Sentry error allowance across the month with a fail-open daily Redis counter, and send the startup error about the database schema not being at the Alembic head revision to Sentry at most once per UTC calendar day per pair of current and expected revisions (it is still logged in full on every start) [see `PR #2366 <https://www.github.com/FlexMeasures/flexmeasures/pull/2366>`_]
