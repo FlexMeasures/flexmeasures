@@ -52,15 +52,17 @@ jobs:
         env:
           CLIENT_REF: ${{ inputs.flexmeasures-client-ref }}
         run: |
-          # The ingestion tutorial requires client 0.9.4 or newer. HEMS was
-          # introduced in 0.8.0, and release tags should use the matching PyPI
-          # package because older checkouts are not all uv-installable projects.
+          # The workflow currently runs the ingestion tutorial with client 0.9.4
+          # or newer. HEMS was introduced in 0.8.0, and release tags should use
+          # the matching PyPI package because older checkouts are not all
+          # uv-installable projects.
           run_ingestion=true
           run_hems=false
           use_pypi_client=false
           use_legacy_cli_wrapper=false
           use_legacy_job_responses=false
           client_version=
+          client_source="checked-out project"
 
           if [[ "$CLIENT_REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             major=${BASH_REMATCH[1]}
@@ -68,6 +70,7 @@ jobs:
             patch=${BASH_REMATCH[3]}
             client_version="${major}.${minor}.${patch}"
             use_pypi_client=true
+            client_source="PyPI release package"
 
             if (( major > 0 || minor > 9 || (minor == 9 && patch >= 4) )); then
               run_ingestion=true
@@ -99,6 +102,41 @@ jobs:
                 ! -d flexmeasures-client/examples/HEMS/configs ]]; then
             run_hems=false
           fi
+
+          ingestion_coverage="not tested with this client"
+          forecasting_coverage="not tested with this client"
+          scheduling_coverage="not tested with this client"
+          reporting_coverage="not tested with this client"
+          if [[ "$run_ingestion" == true ]]; then
+            ingestion_coverage="API (data-ingestion tutorial)"
+          elif [[ "$run_hems" == true ]]; then
+            ingestion_coverage="API (HEMS)"
+          fi
+          if [[ "$run_hems" == true ]]; then
+            scheduling_coverage="API (HEMS)"
+            reporting_coverage="CLI (HEMS)"
+            if [[ "$client_version" == 0.8.* ]]; then
+              forecasting_coverage="CLI (HEMS)"
+            else
+              forecasting_coverage="API (HEMS)"
+            fi
+          fi
+
+          printf '\n=== Client QA plan ===\n'
+          printf '%-34s %s\n' \
+            'Requested client ref:' "$CLIENT_REF" \
+            'Resolved client version:' "${client_version:-not pinned}" \
+            'Client source:' "$client_source" \
+            'Data-ingestion tutorial:' "$run_ingestion" \
+            'HEMS example:' "$run_hems" \
+            'Legacy job responses:' "$use_legacy_job_responses" \
+            'Legacy CLI wrapper:' "$use_legacy_cli_wrapper" \
+            'Planned client ingestion:' "$ingestion_coverage" \
+            'Planned client forecasting:' "$forecasting_coverage" \
+            'Planned client scheduling:' "$scheduling_coverage" \
+            'Planned client reporting:' "$reporting_coverage" \
+            'Server CLI tutorials 1-5:' 'run (not client-specific)'
+          printf '==============================\n\n'
 
           {
             echo "run_ingestion=$run_ingestion"
