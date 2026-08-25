@@ -277,7 +277,9 @@ jobs:
             # to January of the next calendar year.
             qa_hems_year=$(date -u -d '+1 year' +%Y)
             mapfile -t dated_hems_files < <(
-              rg -l '2026-' . -g '*.py' -g '*.csv' -g '*.json'
+              find . -type f \( \
+                -name '*.py' -o -name '*.csv' -o -name '*.json' \
+              \) -exec grep -l '2026-' {} +
             )
             if (( ${#dated_hems_files[@]} == 0 )); then
               echo "Could not find v0.8.0 HEMS fixture dates to update"
