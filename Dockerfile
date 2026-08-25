@@ -23,10 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Sync dependencies without installing the project itself (creates .venv)
+# --no-dev excludes the dev dependency-group (mypy, black, flake8, ...).
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --no-dev
 
 # Ensure subsequent commands use the virtual environment
 ENV VIRTUAL_ENV=/app/.venv \
@@ -45,11 +46,15 @@ COPY .flaskenv wsgi.py ./
 ARG FLEXMEASURES_VERSION=
 RUN --mount=type=cache,target=/root/.cache/uv \
     SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
-    uv sync --frozen --reinstall-package flexmeasures
+    uv sync --frozen --reinstall-package flexmeasures --no-dev
 
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install gunicorn==25.0.3
+
+# sktime (and its scikit-base dependency) ship docs/ and examples/ as stray top-level directories. See: https://github.com/sktime/sktime/issues/10891
+RUN rm -rf "${VIRTUAL_ENV}"/lib/python*/site-packages/docs \
+           "${VIRTUAL_ENV}"/lib/python*/site-packages/examples
 
 # Use a separate runtime image to run the code
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS runtime

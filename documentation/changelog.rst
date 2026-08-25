@@ -13,6 +13,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Shrink the Docker image by excluding dev-only dependencies and pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891) [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_]
 
 Bugfixes
 -----------
@@ -1425,7 +1426,7 @@ Infrastructure / Support
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_) to make new schedules will (in v0.13) sunset the storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
 .. warning:: The CLI command ``flexmeasures monitor tasks`` has been deprecated (it's being renamed to ``flexmeasures monitor last-run``). The old name will be sunset in version 0.13.
-    
+
 .. warning:: The CLI command ``flexmeasures add schedule`` has been renamed to ``flexmeasures add schedule for-storage``. The old name will be sunset in version 0.13.
 
 
