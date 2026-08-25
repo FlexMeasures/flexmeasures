@@ -60,6 +60,7 @@ jobs:
           use_pypi_client=false
           use_legacy_cli_wrapper=false
           use_legacy_job_responses=false
+          adapt_v080_hems_simulation=false
           client_version=
           client_source="checked-out project"
 
@@ -83,6 +84,12 @@ jobs:
 
             if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 1)) )); then
               use_legacy_job_responses=true
+            fi
+
+            # Client 0.8.0's HEMS simulation uses static 2026 fixtures and
+            # replaces simulated values during its play-mode loop.
+            if (( major == 0 && minor == 8 && patch == 0 )); then
+              adapt_v080_hems_simulation=true
             fi
 
             # FLEXMEASURES_CLI_CMD was introduced in client 0.9.4. Older HEMS
@@ -128,7 +135,7 @@ jobs:
             ingestion_coverage="API file uploads (HEMS)"
           fi
           if [[ "$run_hems" == true ]]; then
-            scheduling_coverage="API (HEMS)"
+            scheduling_coverage="API trigger and power/SoC retrieval (HEMS)"
             reporting_coverage="server CLI (HEMS; no client API)"
             if [[ "$client_version" == 0.8.* ]]; then
               forecasting_coverage="server CLI (HEMS; no client API)"
@@ -146,6 +153,7 @@ jobs:
             'HEMS example:' "$run_hems" \
             'Legacy job responses:' "$use_legacy_job_responses" \
             'Legacy CLI wrapper:' "$use_legacy_cli_wrapper" \
+            'v0.8.0 HEMS simulation shim:' "$adapt_v080_hems_simulation" \
             'Ingestion API support:' "$ingestion_api_support" \
             'Planned client ingestion:' "$ingestion_coverage" \
             'Forecasting API support:' "$forecasting_api_support" \
@@ -163,6 +171,7 @@ jobs:
             echo "use_pypi_client=$use_pypi_client"
             echo "use_legacy_cli_wrapper=$use_legacy_cli_wrapper"
             echo "use_legacy_job_responses=$use_legacy_job_responses"
+            echo "adapt_v080_hems_simulation=$adapt_v080_hems_simulation"
             echo "client_version=$client_version"
           } >> "$GITHUB_OUTPUT"
 
@@ -236,15 +245,17 @@ jobs:
 
       - name: Switch the server to play mode for HEMS
         run: |
-          if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
-            printf '%s\n' \
-              'FLEXMEASURES_MODE = "play"' \
-              'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.1"}' \
-              'FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {"flexmeasures-client-version": "${{ steps.client-qa.outputs.client_version }}"}' \
-              > flexmeasures-instance/flexmeasures.cfg
-          else
-            printf '%s\n' 'FLEXMEASURES_MODE = "play"' > flexmeasures-instance/flexmeasures.cfg
-          fi
+          {
+            printf '%s\n' 'FLEXMEASURES_MODE = "play"'
+            if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
+              printf '%s\n' \
+                'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.1"}' \
+                'FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {"flexmeasures-client-version": "${{ steps.client-qa.outputs.client_version }}"}'
+            fi
+            if [[ "${{ steps.client-qa.outputs.adapt_v080_hems_simulation }}" == true ]]; then
+              printf '%s\n' 'FLEXMEASURES_ALLOW_DATA_OVERWRITE = True'
+            fi
+          } > flexmeasures-instance/flexmeasures.cfg
           docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
 
       - name: Run the HEMS example against the running stack
@@ -259,6 +270,23 @@ jobs:
           FLEXMEASURES_CLIENT_VERSION: ${{ steps.client-qa.outputs.client_version }}
         run: |
           cd examples/HEMS
+          if [[ "${{ steps.client-qa.outputs.adapt_v080_hems_simulation }}" == true ]]; then
+            # The static 2026 simulation prior eventually predates the real
+            # upload time, hiding prices that were not yet known at that prior.
+            # Keep the simulation causal by moving all of its fixtures together
+            # to January of the next calendar year.
+            qa_hems_year=$(date -u -d '+1 year' +%Y)
+            mapfile -t dated_hems_files < <(
+              rg -l '2026-' . -g '*.py' -g '*.csv' -g '*.json'
+            )
+            if (( ${#dated_hems_files[@]} == 0 )); then
+              echo "Could not find v0.8.0 HEMS fixture dates to update"
+              exit 1
+            fi
+            sed -i "s/2026-/${qa_hems_year}-/g" "${dated_hems_files[@]}"
+            echo "Shifted v0.8.0 HEMS fixtures from 2026 to $qa_hems_year"
+          fi
+
           # Older client releases do not support FLEXMEASURES_CLI_CMD. They
           # look for a flexmeasures executable directly, so provide a wrapper
           # that forwards the CLI invocation to the server container. Their
@@ -298,10 +326,16 @@ jobs:
           set -o pipefail
           "${HEMS_COMMAND[@]}" 2>&1 | tee "$RUNNER_TEMP/hems-output.log"
 
-          # Older HEMS scripts catch per-file upload failures and continue,
+          # Older HEMS scripts catch upload and scheduling failures and continue,
           # which otherwise makes this step appear successful to Actions.
-          if grep -qE 'Failed to ' "$RUNNER_TEMP/hems-output.log"; then
+          if grep -qE 'Failed to |Scheduling failed:|Warning: Could not retrieve' \
+            "$RUNNER_TEMP/hems-output.log"; then
             echo "HEMS reported one or more failed operations"
+            exit 1
+          fi
+          if ! grep -q 'Multi-device power and SoC schedules retrieved successfully' \
+            "$RUNNER_TEMP/hems-output.log"; then
+            echo "HEMS did not confirm successful power and SoC schedule retrieval"
             exit 1
           fi
 
