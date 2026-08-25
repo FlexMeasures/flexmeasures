@@ -13,7 +13,7 @@ New features
 
 Infrastructure / Support
 -------------------------
-* Shrink the Docker image by excluding dev-only dependencies and pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891) [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Shrink the Docker image by excluding dev-only dependencies and pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891) [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_]
 
 Bugfixes
 -----------
