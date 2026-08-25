@@ -52,10 +52,9 @@ jobs:
         env:
           CLIENT_REF: ${{ inputs.flexmeasures-client-ref }}
         run: |
-          # The workflow currently runs the ingestion tutorial with client 0.9.4
-          # or newer. HEMS was introduced in 0.8.0, and release tags should use
-          # the matching PyPI package because older checkouts are not all
-          # uv-installable projects.
+          # The ingestion tutorial supports client 0.7.0 or newer. HEMS was
+          # introduced in 0.8.0, and release tags should use the matching PyPI
+          # package because older checkouts are not all uv-installable projects.
           run_ingestion=true
           run_hems=false
           use_pypi_client=false
@@ -72,7 +71,7 @@ jobs:
             use_pypi_client=true
             client_source="PyPI release package"
 
-            if (( major > 0 || minor > 9 || (minor == 9 && patch >= 4) )); then
+            if (( major > 0 || minor > 7 || (minor == 7 && patch >= 0) )); then
               run_ingestion=true
             else
               run_ingestion=false
@@ -120,7 +119,11 @@ jobs:
           fi
 
           if [[ "$run_ingestion" == true ]]; then
-            ingestion_coverage="API (data-ingestion tutorial)"
+            if [[ "$client_version" == 0.7.* ]]; then
+              ingestion_coverage="API JSON upload and read-back (tutorial)"
+            else
+              ingestion_coverage="API file and JSON uploads with read-back (tutorial)"
+            fi
           elif [[ "$run_hems" == true ]]; then
             ingestion_coverage="API file uploads (HEMS)"
           fi
@@ -168,7 +171,14 @@ jobs:
           # Create the bind-mounted instance directory before Compose does, so
           # the runner can update this config later without ownership issues.
           mkdir -p flexmeasures-instance
-          printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
+          if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
+            printf '%s\n' \
+              'FLEXMEASURES_MODE = "development"' \
+              'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.1"}' \
+              > flexmeasures-instance/flexmeasures.cfg
+          else
+            printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
+          fi
 
           if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
             printf '%s\n' \

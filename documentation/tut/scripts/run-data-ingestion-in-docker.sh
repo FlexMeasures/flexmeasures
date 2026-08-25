@@ -26,7 +26,9 @@ if [[ -z "${FM_TOY_BATTERY_SENSOR_ID:-}" ]]; then
         "${TOY_ACCOUNT_ARGS[@]}" | grep '^FM_TOY_')"
 fi
 
-if [[ -n "${FLEXMEASURES_CLIENT_PROJECT:-}" ]]; then
+if [[ -n "${FLEXMEASURES_CLIENT_VERSION:-}" ]]; then
+    CLIENT_COMMAND=(uv run --no-project --with "flexmeasures-client==${FLEXMEASURES_CLIENT_VERSION}")
+elif [[ -n "${FLEXMEASURES_CLIENT_PROJECT:-}" ]]; then
     CLIENT_COMMAND=(uv run --project "${FLEXMEASURES_CLIENT_PROJECT}")
 else
     CLIENT_COMMAND=(uv run --no-project --with "${CLIENT_REQUIREMENT}")
