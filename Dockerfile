@@ -58,9 +58,15 @@ RUN rm -rf "${VIRTUAL_ENV}"/lib/python*/site-packages/docs \
 
 # Most wheels ship their compiled extensions unstripped, carrying symbol tables and debug
 # info that nothing needs at runtime. Dropping them here (in the builder, so only the
-# stripped result reaches the runtime image) is worth ~130 MB, over a fifth of it openturns.
-# --strip-unneeded keeps everything dynamic linking uses, so the extensions stay loadable.
-RUN find "${VIRTUAL_ENV}" \( -name '*.so' -o -name '*.so.*' \) -type f \
+# stripped result reaches the runtime image) is worth ~130 MB, over a fifth of that from
+# openturns. --strip-unneeded keeps everything dynamic linking uses, so the extensions stay
+# loadable. strip comes from binutils, which the gcc install above pulls in; we check for it
+# rather than let the trailing `|| true` turn a missing binutils into a silent 130 MB
+# regression. That `|| true` is only there to tolerate individual files strip cannot handle.
+RUN command -v strip > /dev/null || { \
+        echo "strip not found: the builder stage needs binutils" >&2; exit 1; \
+    }; \
+    find "${VIRTUAL_ENV}" \( -name '*.so' -o -name '*.so.*' \) -type f \
     -exec strip --strip-unneeded {} + 2>/dev/null || true
 
 # Use a separate runtime image to run the code
