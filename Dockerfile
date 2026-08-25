@@ -56,6 +56,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN rm -rf "${VIRTUAL_ENV}"/lib/python*/site-packages/docs \
            "${VIRTUAL_ENV}"/lib/python*/site-packages/examples
 
+# Most wheels ship their compiled extensions unstripped, carrying symbol tables and debug
+# info that nothing needs at runtime. Dropping them here (in the builder, so only the
+# stripped result reaches the runtime image) is worth ~130 MB, over a fifth of it openturns.
+# --strip-unneeded keeps everything dynamic linking uses, so the extensions stay loadable.
+RUN find "${VIRTUAL_ENV}" \( -name '*.so' -o -name '*.so.*' \) -type f \
+    -exec strip --strip-unneeded {} + 2>/dev/null || true
+
 # Use a separate runtime image to run the code
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS runtime
 
