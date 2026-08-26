@@ -1045,10 +1045,6 @@ For example:
         "v2g-liberty-version": "0.9.1",
     }
 
-.. note:: This setting was called ``FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION`` before it also governed ingestion and forecasting.
-          The former name is still read, and logs a warning asking you to rename it.
-          It will be removed in a future version.
-
 Default: ``{}``
 
 

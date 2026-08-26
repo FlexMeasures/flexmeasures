@@ -475,59 +475,6 @@ def test_legacy_job_responses_looks_past_empty_attribute_value(
     assert use_legacy_job_responses(battery)
 
 
-def test_legacy_job_responses_falls_back_to_deprecated_setting(
-    app,
-    add_battery_assets,
-    monkeypatch,
-    caplog,
-):
-    """Hosts which still configure the pre-1.0 setting name keep their legacy behaviour."""
-    battery = add_battery_assets["Test battery"]
-    version_attribute = "flexmeasures-client-version"
-    monkeypatch.setattr(
-        battery,
-        "attributes",
-        {**(battery.attributes or {}), version_attribute: "0.9.0"},
-    )
-    monkeypatch.setitem(
-        app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        {version_attribute: "0.9.1"},
-    )
-    monkeypatch.setattr(
-        "flexmeasures.api.v3_0.utils._warned_about_deprecated_setting", False
-    )
-
-    assert use_legacy_job_responses(battery)
-    assert "is deprecated and will be removed" in caplog.text
-
-
-def test_legacy_job_responses_prefers_current_setting_over_deprecated_setting(
-    app,
-    add_battery_assets,
-    monkeypatch,
-):
-    battery = add_battery_assets["Test battery"]
-    version_attribute = "flexmeasures-client-version"
-    monkeypatch.setattr(
-        battery,
-        "attributes",
-        {**(battery.attributes or {}), version_attribute: "0.9.0"},
-    )
-    monkeypatch.setitem(
-        app.config,
-        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        {version_attribute: "0.8.0"},
-    )
-    monkeypatch.setitem(
-        app.config,
-        "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION",
-        {version_attribute: "0.9.1"},
-    )
-
-    assert not use_legacy_job_responses(battery)
-
-
 def test_legacy_job_responses_ignores_non_mapping_config(
     app,
     add_battery_assets,

@@ -5,45 +5,6 @@ from packaging.version import InvalidVersion, Version
 
 from flexmeasures.data.models.generic_assets import GenericAsset
 
-MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING = (
-    "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION"
-)
-# Pre-1.0 name of the setting above, still read so that hosts do not silently lose legacy behaviour on upgrade.
-DEPRECATED_MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING = (
-    "FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION"
-)
-
-_warned_about_deprecated_setting = False
-
-
-def _max_incompatible_client_versions() -> tuple[str, object]:
-    """Read the configured maximum incompatible client versions, and the name of the setting they came from.
-
-    The setting was renamed when it started to govern ingestion and forecasting as well, not just scheduling.
-    Hosts which still configure the former name keep their legacy behaviour, and are warned once per process about the rename.
-
-    :returns: The name of the setting which was read, and its value.
-    """
-    version_limits = current_app.config.get(MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING, {})
-    if version_limits:
-        return MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING, version_limits
-
-    deprecated_version_limits = current_app.config.get(
-        DEPRECATED_MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING, {}
-    )
-    if not deprecated_version_limits:
-        return MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING, version_limits
-
-    global _warned_about_deprecated_setting
-    if not _warned_about_deprecated_setting:
-        current_app.logger.warning(
-            "%s is deprecated and will be removed in a future version. Rename it to %s.",
-            DEPRECATED_MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING,
-            MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING,
-        )
-        _warned_about_deprecated_setting = True
-    return DEPRECATED_MAX_INCOMPATIBLE_CLIENT_VERSION_SETTING, deprecated_version_limits
-
 
 def use_legacy_job_responses(asset: GenericAsset) -> bool:
     """Whether API v3 job endpoints should use legacy response behaviour.
@@ -59,12 +20,15 @@ def use_legacy_job_responses(asset: GenericAsset) -> bool:
     For QA, an assumed-version mapping can supply a version when the relevant
     asset hierarchy does not define that attribute itself.
     """
-    setting_name, version_limits = _max_incompatible_client_versions()
+    version_limits = current_app.config.get(
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {},
+    )
     if not isinstance(version_limits, Mapping):
         current_app.logger.warning(
-            "Invalid %s %r: expected a mapping of asset attribute names to "
+            "Invalid FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_"
+            "CLIENT_VERSION %r: expected a mapping of asset attribute names to "
             "maximum incompatible client versions. Ignoring compatibility setting.",
-            setting_name,
             version_limits,
         )
         return False

@@ -213,10 +213,6 @@ class Config(object):
     FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION: dict[
         str, str
     ] = {}
-    # Deprecated. Use FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION instead.
-    FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION: dict[
-        str, str
-    ] = {}
     # QA-only override for exercising legacy clients without modifying assets.
     FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION: dict[str, str] = {}
 
