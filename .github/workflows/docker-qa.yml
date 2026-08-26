@@ -82,7 +82,10 @@ jobs:
               run_hems=true
             fi
 
-            if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 1)) )); then
+            # Client 0.9.4 is the first which treats any 2xx from a data upload as success.
+            # Older clients reject the 202 returned once an ingestion worker is connected,
+            # so they need the legacy job responses.
+            if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 3)) )); then
               use_legacy_job_responses=true
             fi
 
@@ -183,7 +186,7 @@ jobs:
           if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
             printf '%s\n' \
               'FLEXMEASURES_MODE = "development"' \
-              'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.1"}' \
+              'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.3"}' \
               > flexmeasures-instance/flexmeasures.cfg
           else
             printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
@@ -249,7 +252,7 @@ jobs:
             printf '%s\n' 'FLEXMEASURES_MODE = "play"'
             if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
               printf '%s\n' \
-                'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.1"}' \
+                'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.3"}' \
                 'FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {"flexmeasures-client-version": "${{ steps.client-qa.outputs.client_version }}"}'
             fi
             if [[ "${{ steps.client-qa.outputs.adapt_v080_hems_simulation }}" == true ]]; then
