@@ -294,9 +294,9 @@ jobs:
 
           # Older client releases do not support FLEXMEASURES_CLI_CMD. They
           # look for a flexmeasures executable directly, so provide a wrapper
-          # that forwards the CLI invocation to the server container. Their
-          # v0.8.0 report commands also use relative config paths, which the
-          # wrapper translates to the config directory mounted in the container.
+          # that forwards the CLI invocation to the server container. Legacy
+          # report commands use host-side config paths, which the wrapper
+          # translates to the config directory mounted in the container.
           # The v0.8.x forecasting command uses --ensure-positive as a flag,
           # whereas the current CLI expects an explicit Boolean value.
           if [[ "${{ steps.client-qa.outputs.use_legacy_cli_wrapper }}" == true ]]; then
@@ -307,6 +307,7 @@ jobs:
               'for arg in "$@"; do' \
               '  case "$arg" in' \
               '    configs/*) arg="/hems-configs/${arg#configs/}" ;;' \
+              '    */examples/HEMS/configs/*) arg="/hems-configs/${arg##*/examples/HEMS/configs/}" ;;' \
               '  esac' \
               '  translated_args+=("$arg")' \
               '  if [[ "$arg" == "--ensure-positive" && "${FLEXMEASURES_CLIENT_VERSION:-}" == 0.8.* ]]; then' \
