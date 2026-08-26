@@ -41,10 +41,8 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.rate_limiting import limit_triggers
-from flexmeasures.api.common.utils.api_utils import (
-    process_sensor_data_ingestion,
-    use_legacy_schedule_accepted_status,
-)
+from flexmeasures.api.common.utils.api_utils import process_sensor_data_ingestion
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.data.services.utils import job_status_description
 from flexmeasures.api.common.utils.deprecation_utils import (
     _add_headers as add_deprecation_header,
@@ -681,6 +679,7 @@ class SensorAPI(FlaskView):
             user_id=current_user.id,
             uploaded_files=files_for_job,
             upload_data=upload_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
 
@@ -755,6 +754,7 @@ class SensorAPI(FlaskView):
             sensor_id=sensor.id,
             user_id=current_user.id,
             sensor_data=sensor_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
 
@@ -1094,9 +1094,7 @@ class SensorAPI(FlaskView):
                 "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
             ),
             status_code=(
-                200
-                if use_legacy_schedule_accepted_status(sensor.generic_asset)
-                else 202
+                200 if use_legacy_job_responses(sensor.generic_asset) else 202
             ),
         )
 
@@ -1342,7 +1340,7 @@ class SensorAPI(FlaskView):
                 status=job_status_name,
                 message=job_status_description(job, scheduler_info_msg),
             )
-            if use_legacy_schedule_accepted_status(sensor.generic_asset):
+            if use_legacy_job_responses(sensor.generic_asset):
                 return response, 400
             return (
                 response,
@@ -2069,6 +2067,11 @@ class SensorAPI(FlaskView):
             legacy_key="forecast",
             job_results_url=url_for(
                 "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
+            ),
+            status_code=(
+                200
+                if use_legacy_job_responses(params["sensor_to_save"].generic_asset)
+                else 202
             ),
         )
 

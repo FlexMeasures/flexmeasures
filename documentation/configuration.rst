@@ -1025,24 +1025,49 @@ If ``False``, the API transparently follows the fallback job and returns the fal
 Default: ``False``
 
 
-.. _legacy-schedule-client-config:
+.. _legacy-job-client-config:
 
-FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Backwards-compatibility switch for scheduling-related endpoints in API v3.
+Backwards-compatibility switch for job-related endpoints in API v3.
 
-Mapping of version-valued asset attribute names to the maximum incompatible version for clients that still expect schedule trigger requests to return ``HTTP status 200 (OK)`` and unfinished schedule requests to return ``HTTP status 400`` with a message about the scheduling job "waiting to be processed".
-For each configured attribute, FlexMeasures checks the scheduled asset itself, its parent asset, and its grandparent asset.
-If any of these attributes contains its configured maximum version or a lower version, the client receives the legacy schedule responses.
-When empty, all clients receive the standard ``202 Accepted`` response for accepted trigger requests and unfinished schedule requests.
+Mapping of version-valued asset attribute names to the maximum incompatible client version.
+For each configured attribute, FlexMeasures checks the relevant asset itself, its parent asset, and its grandparent asset.
+When empty, ingestion uses a connected ingestion worker when available, accepted trigger requests return ``202 Accepted``, and unfinished schedule requests return ``202 Accepted``.
+As a compatibility exception, if an attribute contains its configured maximum version or a lower version, the client receives synchronous sensor-data ingestion, ``HTTP status 200 (OK)`` from accepted scheduling and forecasting triggers, and ``HTTP status 400`` while polling an unfinished schedule, with a message about the scheduling job "waiting to be processed".
 
 For example:
 
 .. code-block:: python
 
-    FLEXMEASURES_LEGACY_SCHEDULEACCEPTED_STATUS_MAX_INCOMPATIBLE_CLIENT_VERSION = {
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {
         "v2g-liberty-version": "0.9.1",
+    }
+
+Default: ``{}``
+
+
+FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+QA-only override that makes job-related endpoints use the legacy behaviour for
+an assumed client version. This setting has the same mapping format as
+``FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION``: keys are
+asset attribute names and values are client versions. FlexMeasures only compares
+an assumed version with a maximum incompatible version under the same key. An
+actual version found on the relevant asset hierarchy takes precedence over the
+assumed version.
+
+This is intended for automated backward-compatibility testing when the test
+client creates its assets itself; production deployments should use the
+asset-based setting above instead. For example, to test client version 0.8.1
+against the maximum version from the example above:
+
+.. code-block:: python
+
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {
+        "v2g-liberty-version": "0.8.1",
     }
 
 Default: ``{}``
