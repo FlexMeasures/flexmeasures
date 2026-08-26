@@ -120,7 +120,7 @@ The following call works for both CSV and Excel files:
     :language: python
     :start-after: # Start file upload example
     :end-before: # End file upload example
-    :dedent: 8
+    :dedent: 12
 
 ``belief_time_measured_instantly=True`` records each value as known when its event ended.
 Leave it at the default ``False`` when the values only became known at upload time.
