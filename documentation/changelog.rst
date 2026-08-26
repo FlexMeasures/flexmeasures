@@ -22,6 +22,8 @@ Bugfixes
 v1.0.0 | August 25, 2026
 ============================
 
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v100-commercial-industrial-sites/>`_.
+
 .. warning:: As of this release we standardize asynchronous job responses to use the ``job`` field and return HTTP ``202 Accepted`` while a background job is queued or running. See :ref:`api_background_jobs` for the response format and polling flow. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to ``job`` (see the Infrastructure / Support section below for migration details). To receive legacy job behaviour (e.g. for older clients), hosts can use :ref:`legacy-job-client-config`.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
