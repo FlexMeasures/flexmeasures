@@ -331,11 +331,24 @@ jobs:
           set -o pipefail
           "${HEMS_COMMAND[@]}" 2>&1 | tee "$RUNNER_TEMP/hems-output.log"
 
-          # Older HEMS scripts catch upload and scheduling failures and continue,
-          # which otherwise makes this step appear successful to Actions.
-          if grep -qE 'Failed to |Scheduling failed:|Warning: Could not retrieve' \
+          # Every released HEMS script reports failures and keeps going, which
+          # otherwise makes this step appear successful to Actions. Match any
+          # reported failure rather than named ones, since the wording differs
+          # per client release. A missing CLI is fatal here too, because that
+          # silently skips forecasting and reporting altogether.
+          if grep -qiE 'failed|could not find|could not retrieve|cli not found' \
             "$RUNNER_TEMP/hems-output.log"; then
             echo "HEMS reported one or more failed operations"
+            exit 1
+          fi
+
+          # Absence of failures is not enough, since a phase can be skipped
+          # without reporting anything. Require each phase to confirm itself.
+          # Clients up to 0.8.x forecast through the server CLI and report that
+          # differently from the client API used since 0.9.0.
+          if ! grep -qE 'Forecast job completed for|forecasts for .* generated successfully' \
+            "$RUNNER_TEMP/hems-output.log"; then
+            echo "HEMS did not confirm successful forecast generation"
             exit 1
           fi
           if ! grep -q 'Multi-device power and SoC schedules retrieved successfully' \
