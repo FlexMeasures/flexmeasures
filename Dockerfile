@@ -56,13 +56,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN rm -rf "${VIRTUAL_ENV}"/lib/python*/site-packages/docs \
            "${VIRTUAL_ENV}"/lib/python*/site-packages/examples
 
-# Most wheels ship their compiled extensions unstripped, carrying symbol tables and debug
-# info that nothing needs at runtime. Dropping them here (in the builder, so only the
-# stripped result reaches the runtime image) is worth ~130 MB, over a fifth of that from
-# openturns. --strip-unneeded keeps everything dynamic linking uses, so the extensions stay
-# loadable. strip comes from binutils, which the gcc install above pulls in; we check for it
-# rather than let the trailing `|| true` turn a missing binutils into a silent 130 MB
-# regression. That `|| true` is only there to tolerate individual files strip cannot handle.
+# Most wheels ship their compiled extensions unstripped, carrying symbol tables and debug info that nothing needs at runtime.
+# Stripping them here keeps ~130 MB out of the runtime image, which copies only the result of this stage.
+# --strip-unneeded leaves everything that dynamic linking uses, so the extensions stay loadable.
+# binutils only reaches this stage as a transitive of the gcc install above, so check for strip explicitly:
+# the trailing `|| true` is there for individual files strip cannot handle, and would otherwise hide a missing binutils.
 RUN command -v strip > /dev/null || { \
         echo "strip not found: the builder stage needs binutils" >&2; exit 1; \
     }; \
