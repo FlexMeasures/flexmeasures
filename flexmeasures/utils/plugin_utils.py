@@ -42,24 +42,39 @@ def register_plugins(app: Flask):  # noqa: C901
         return
     app.config["LOADED_PLUGINS"] = {}
     for plugin in plugins:
-        plugin_name = plugin.split("/")[-1]
+        is_explicit_path = (
+            os.path.isabs(plugin)
+            or "/" in plugin
+            or (os.sep in plugin and os.sep != "/")
+            or plugin.startswith(".")
+        )
+        plugin_name = (
+            os.path.basename(os.path.normpath(plugin))
+            if is_explicit_path
+            else plugin
+        )
         app.logger.info(f"Importing plugin {plugin_name} ...")
         module = None
-        if not os.path.exists(plugin):  # assume plugin is a package
-            pkg_name = os.path.split(plugin)[
-                -1
-            ]  # rule out attempts for relative package imports
+        if not is_explicit_path:
+            pkg_name = plugin
             app.logger.debug(
                 f"Attempting to import {pkg_name} as an installed package ..."
             )
             try:
                 module = importlib.import_module(pkg_name)
             except ModuleNotFoundError:
-                app.logger.error(
-                    f"Attempted to import module {pkg_name} (as it is not a valid file path), but it is not installed."
-                )
-                continue
-        else:  # assume plugin is a file path
+                if os.path.exists(plugin):
+                    app.logger.warning(
+                        f"Plugin '{plugin}' is not installed in the environment; falling back to loading from relative path '{plugin}'."
+                    )
+                    is_explicit_path = True
+                else:
+                    app.logger.error(
+                        f"Attempted to import module {pkg_name} (as it is not a valid file path), but it is not installed."
+                    )
+                    continue
+
+        if is_explicit_path:
             if not os.path.exists(os.path.join(plugin, "__init__.py")):
                 app.logger.error(
                     f"Plugin {plugin_name} is a valid file path, but does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
