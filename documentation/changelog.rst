@@ -17,6 +17,8 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Forecast automations now keep a durable record of every scheduled run, so a run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and how its jobs ended [see `issue #2393 <https://www.github.com/FlexMeasures/flexmeasures/issues/2393>`_]
+
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
