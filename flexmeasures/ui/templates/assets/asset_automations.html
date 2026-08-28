@@ -145,11 +145,27 @@ An active automation follows its cron recurrence in the timezone shown below. If
         const generator = res.generator
           ? `${res.generator.description} (data source ${res.generator.id})`
           : "None";
+        const runStats = res.run_stats || {};
+        const latestRun = runStats.latest_run;
+        const latestRunSummary = latestRun
+          ? {
+              id: latestRun.id,
+              scheduled_at: latestRun.scheduled_at,
+              dispatch_state: latestRun.dispatch_state,
+              execution_state: latestRun.execution_state,
+              attempt_count: latestRun.attempt_count,
+              intended_job_count: latestRun.intended_job_count,
+              queued_job_count: latestRun.queued_job_count,
+              last_error: latestRun.last_error,
+            }
+          : null;
         $(`#AutomationDetailsBody-${automationId}`).html(`
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
           <h6>Cursor (UTC)</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
+          <h6>Schedule revision</h6>
+          <p>${esc(res.schedule_revision)}</p>
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
           <h6>Reads from</h6>
@@ -158,6 +174,8 @@ An active automation follows its cron recurrence in the timezone shown below. If
           <p>${sensorLinks(res.output_sensors, res.generator)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
+          <h6>Durable runs</h6>
+          <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, latest_run: latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
