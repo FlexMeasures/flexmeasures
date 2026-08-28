@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from pytz import all_timezones_set
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import validates
 
 from flexmeasures.auth.policy import AuthModelMixin
@@ -68,6 +68,7 @@ class Automation(db.Model, AuthModelMixin):
         nullable=False,
         default=get_initial_cursor,
     )
+    schedule_revision = db.Column(db.Integer, nullable=False, default=1)
     active = db.Column(db.Boolean, nullable=False, default=True)
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
@@ -82,6 +83,14 @@ class Automation(db.Model, AuthModelMixin):
         ),
     )
     generator = db.relationship("DataSource", foreign_keys=[generator_id])
+    runs = db.relationship(
+        "AutomationRun",
+        back_populates="automation",
+        lazy=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="desc(AutomationRun.scheduled_at)",
+    )
 
     @validates("timezone")
     def validate_timezone(self, key: str, timezone: str) -> str:
@@ -131,3 +140,199 @@ class Automation(db.Model, AuthModelMixin):
         from flexmeasures.data.services.automations import get_automation_sensors
 
         return get_automation_sensors(self)["output_sensors"]
+
+
+class AutomationRun(db.Model):
+    """Durable execution record for one scheduled automation occurrence."""
+
+    __tablename__ = "automation_run"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "automation_id",
+            "scheduled_at",
+            "schedule_revision",
+            name="automation_run_occurrence_uq",
+        ),
+        db.CheckConstraint(
+            "dispatch_state IN ('pending', 'claimed', 'partially_queued', 'queued', 'failed')",
+            name="automation_run_dispatch_state_ck",
+        ),
+        db.CheckConstraint(
+            "execution_state IN ('pending', 'running', 'succeeded', 'failed', 'canceled')",
+            name="automation_run_execution_state_ck",
+        ),
+    )
+
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    automation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("automation.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=server_now
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=server_now,
+        onupdate=server_now,
+    )
+    scheduled_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    schedule_revision = db.Column(db.Integer, nullable=False)
+    automation_type = db.Column(db.String(80), nullable=False)
+    generator_id = db.Column(db.Integer, nullable=True)
+    dispatch_state = db.Column(db.String(32), nullable=False, default="pending")
+    execution_state = db.Column(db.String(32), nullable=False, default="pending")
+    claim_owner = db.Column(db.String(128), nullable=True)
+    claimed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    claim_expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    attempt_count = db.Column(db.Integer, nullable=False, default=0)
+    first_enqueued_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    dispatch_completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    execution_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    execution_completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_error_type = db.Column(db.String(160), nullable=True)
+    last_error_message = db.Column(db.Text, nullable=True)
+    parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
+    plan = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
+
+    automation = db.relationship("Automation", back_populates="runs")
+    attempts = db.relationship(
+        "AutomationRunAttempt",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="AutomationRunAttempt.attempt_no",
+    )
+    job_intents = db.relationship(
+        "AutomationRunJob",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="AutomationRunJob.logical_job_key",
+    )
+
+    @validates(
+        "scheduled_at",
+        "created_at",
+        "updated_at",
+        "claimed_at",
+        "claim_expires_at",
+        "first_enqueued_at",
+        "dispatch_completed_at",
+        "execution_started_at",
+        "execution_completed_at",
+    )
+    def validate_datetime_is_aware(
+        self, key: str, value: datetime | None
+    ) -> datetime | None:
+        """Store all automation run timestamps as timezone-aware UTC datetimes."""
+        if value is None:
+            return None
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"Automation run {key} must be timezone-aware.")
+        return value.astimezone(timezone.utc)
+
+    @property
+    def intended_job_count(self) -> int:
+        """Return the number of persisted logical job intents."""
+        return len(self.job_intents)
+
+    @property
+    def queued_job_count(self) -> int:
+        """Return the number of logical jobs durably marked as queued or later."""
+        return sum(
+            1
+            for intent in self.job_intents
+            if intent.status in ("queued", "running", "succeeded", "failed", "canceled")
+        )
+
+
+class AutomationRunAttempt(db.Model):
+    """One durable attempt to claim and dispatch an automation run."""
+
+    __tablename__ = "automation_run_attempt"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "run_id", "attempt_no", name="automation_run_attempt_no_uq"
+        ),
+    )
+
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    run_id = db.Column(
+        db.Integer,
+        db.ForeignKey("automation_run.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    attempt_no = db.Column(db.Integer, nullable=False)
+    owner = db.Column(db.String(128), nullable=False)
+    started_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=server_now
+    )
+    finished_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    outcome = db.Column(db.String(64), nullable=True)
+    queued_job_count = db.Column(db.Integer, nullable=False, default=0)
+    error_type = db.Column(db.String(160), nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+
+    run = db.relationship("AutomationRun", back_populates="attempts")
+
+    @validates("started_at", "finished_at")
+    def validate_datetime_is_aware(
+        self, key: str, value: datetime | None
+    ) -> datetime | None:
+        """Store all automation run attempt timestamps as timezone-aware UTC datetimes."""
+        if value is None:
+            return None
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"Automation run attempt {key} must be timezone-aware.")
+        return value.astimezone(timezone.utc)
+
+
+class AutomationRunJob(db.Model):
+    """Durable outbox record for one logical job in an automation run."""
+
+    __tablename__ = "automation_run_job"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "run_id", "logical_job_key", name="automation_run_job_logical_uq"
+        ),
+        db.UniqueConstraint("rq_job_id", name="automation_run_job_rq_job_uq"),
+        db.CheckConstraint(
+            "status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'canceled')",
+            name="automation_run_job_status_ck",
+        ),
+    )
+
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    run_id = db.Column(
+        db.Integer,
+        db.ForeignKey("automation_run.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    logical_job_key = db.Column(db.String(128), nullable=False)
+    rq_job_id = db.Column(db.String(191), nullable=False)
+    queue = db.Column(db.String(80), nullable=False, default="forecasting")
+    kind = db.Column(db.String(80), nullable=False)
+    status = db.Column(db.String(32), nullable=False, default="pending")
+    enqueued_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    finished_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_error_type = db.Column(db.String(160), nullable=True)
+    last_error_message = db.Column(db.Text, nullable=True)
+    depends_on = db.Column(MutableList.as_mutable(JSONB), nullable=False, default=list)
+    payload = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default=dict)
+
+    run = db.relationship("AutomationRun", back_populates="job_intents")
+
+    @validates("enqueued_at", "started_at", "finished_at")
+    def validate_datetime_is_aware(
+        self, key: str, value: datetime | None
+    ) -> datetime | None:
+        """Store all automation run job timestamps as timezone-aware UTC datetimes."""
+        if value is None:
+            return None
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"Automation run job {key} must be timezone-aware.")
+        return value.astimezone(timezone.utc)
