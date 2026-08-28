@@ -142,6 +142,16 @@ class Automation(db.Model, AuthModelMixin):
         return get_automation_sensors(self)["output_sensors"]
 
 
+# A job intent counts as dispatched from this status onwards: it is in Redis, whatever became of it since.
+AUTOMATION_RUN_JOB_QUEUED_OR_LATER = (
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "canceled",
+)
+
+
 class AutomationRun(db.Model):
     """Durable execution record for one scheduled automation occurrence."""
 
@@ -245,7 +255,7 @@ class AutomationRun(db.Model):
         return sum(
             1
             for intent in self.job_intents
-            if intent.status in ("queued", "running", "succeeded", "failed", "canceled")
+            if intent.status in AUTOMATION_RUN_JOB_QUEUED_OR_LATER
         )
 
 

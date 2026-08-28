@@ -20,7 +20,9 @@ depends_on = None
 def upgrade():
     op.add_column(
         "automation",
-        sa.Column("schedule_revision", sa.Integer(), nullable=False, server_default="1"),
+        sa.Column(
+            "schedule_revision", sa.Integer(), nullable=False, server_default="1"
+        ),
     )
     op.alter_column("automation", "schedule_revision", server_default=None)
 
@@ -46,7 +48,9 @@ def upgrade():
         sa.Column("execution_completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_error_type", sa.String(length=160), nullable=True),
         sa.Column("last_error_message", sa.Text(), nullable=True),
-        sa.Column("parameters", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "parameters", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
         sa.Column("plan", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.CheckConstraint(
             "dispatch_state IN ('pending', 'claimed', 'partially_queued', 'queued', 'failed')",
@@ -100,7 +104,9 @@ def upgrade():
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("automation_run_attempt_pkey")),
-        sa.UniqueConstraint("run_id", "attempt_no", name="automation_run_attempt_no_uq"),
+        sa.UniqueConstraint(
+            "run_id", "attempt_no", name="automation_run_attempt_no_uq"
+        ),
     )
 
     op.create_table(
@@ -117,7 +123,9 @@ def upgrade():
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_error_type", sa.String(length=160), nullable=True),
         sa.Column("last_error_message", sa.Text(), nullable=True),
-        sa.Column("depends_on", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "depends_on", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.CheckConstraint(
             "status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'canceled')",
@@ -131,7 +139,9 @@ def upgrade():
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("automation_run_job_pkey")),
         sa.UniqueConstraint("rq_job_id", name="automation_run_job_rq_job_uq"),
-        sa.UniqueConstraint("run_id", "logical_job_key", name="automation_run_job_logical_uq"),
+        sa.UniqueConstraint(
+            "run_id", "logical_job_key", name="automation_run_job_logical_uq"
+        ),
     )
     op.create_index(
         "automation_run_job_run_status_idx",

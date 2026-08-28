@@ -47,13 +47,6 @@ AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
     "queued",
     "failed",
 )
-AUTOMATION_RUN_JOB_QUEUED_OR_LATER = (
-    "queued",
-    "running",
-    "succeeded",
-    "failed",
-    "canceled",
-)
 
 
 @dataclass(frozen=True)
