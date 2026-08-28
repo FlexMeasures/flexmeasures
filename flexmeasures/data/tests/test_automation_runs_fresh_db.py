@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, text
+from sqlalchemy.exc import DatabaseError, IntegrityError
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.automations import (
@@ -626,3 +626,79 @@ def test_run_history_survives_a_new_session(
     assert run.attempts[0].error_message == "redis unavailable"
     assert run.queued_job_count == run.intended_job_count
     assert all(intent.status == "queued" for intent in run.job_intents)
+
+
+def test_job_failure_is_recorded_even_after_a_database_error(
+    app, fresh_db, clean_redis, due_forecast_automation
+):
+    """A job which fails on a database error still gets its failure recorded.
+
+    The failing statement leaves the session in an aborted transaction, in which every further statement is refused,
+    so recording the failure has to start by putting the session back in a usable state.
+    """
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.services.automations import record_automation_job_failed
+
+    runner = app.test_cli_runner()
+    assert runner.invoke(run_automations).exit_code == 0
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    run_id = run.id
+    logical_job_key = next(
+        i.logical_job_key for i in run.job_intents if i.kind == "forecast-cycle"
+    )
+
+    # Break the transaction the way a failing statement inside the job would.
+    with pytest.raises(DatabaseError):
+        fresh_db.session.execute(text("SELECT no_such_function_2393()"))
+
+    record_automation_job_failed(
+        run_id, logical_job_key, RuntimeError("the job hit a database error")
+    )
+
+    fresh_db.session.remove()
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    failed_intent = next(
+        i for i in run.job_intents if i.logical_job_key == logical_job_key
+    )
+    assert failed_intent.status == "failed"
+    assert failed_intent.last_error_type == "RuntimeError"
+    assert failed_intent.last_error_message == "the job hit a database error"
+    assert run.execution_state == "failed"
+    assert run.execution_completed_at is not None
+
+
+def test_a_later_success_does_not_hide_an_earlier_job_failure(
+    app, fresh_db, clean_redis, due_forecast_automation
+):
+    """A run whose job failed stays failed, even when its remaining jobs go on to succeed.
+
+    The wrap-up job succeeds whatever became of the cycle jobs it reports on, so it must not report the run as
+    merely still running and bury the failure an operator needs to see.
+    """
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.services.automations import (
+        record_automation_job_failed,
+        record_automation_job_succeeded,
+    )
+
+    runner = app.test_cli_runner()
+    assert runner.invoke(run_automations).exit_code == 0
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    cycles = [i for i in run.job_intents if i.kind == "forecast-cycle"]
+    wrap_up = next(i for i in run.job_intents if i.kind == "forecast-wrap-up")
+
+    record_automation_job_failed(
+        run.id, cycles[0].logical_job_key, RuntimeError("the cycle blew up")
+    )
+    for cycle in cycles[1:]:
+        record_automation_job_succeeded(run.id, cycle.logical_job_key)
+    record_automation_job_succeeded(run.id, wrap_up.logical_job_key)
+
+    fresh_db.session.remove()
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    assert run.execution_state == "failed"
+    assert run.execution_completed_at is not None
+    assert run.last_error_type == "RuntimeError"
+    assert sorted(i.status for i in run.job_intents) == sorted(
+        ["failed"] + ["succeeded"] * len(run.job_intents[1:])
+    )

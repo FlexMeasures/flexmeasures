@@ -411,6 +411,24 @@ def record_automation_job_started(
     db.session.commit()
 
 
+def _refresh_run_execution_state(run: AutomationRun, now: datetime) -> None:
+    """Derive a run's execution state from the state of all the jobs it created.
+
+    A failed job keeps the whole run failed: a later job succeeding, as the wrap-up job does whatever became of the
+    cycle jobs it reports on, must not put the run back to 'running' and bury the failure.
+    """
+    statuses = [job.status for job in run.job_intents]
+    finished = all(status in ("succeeded", "failed", "canceled") for status in statuses)
+    if "failed" in statuses:
+        run.execution_state = "failed"
+    elif finished and all(status == "succeeded" for status in statuses):
+        run.execution_state = "succeeded"
+    else:
+        run.execution_state = "running"
+    if finished or run.execution_state == "failed":
+        run.execution_completed_at = run.execution_completed_at or now
+
+
 def record_automation_job_succeeded(
     run_id: int | None, logical_job_key: str | None
 ) -> None:
@@ -427,12 +445,7 @@ def record_automation_job_succeeded(
         return
     intent.status = "succeeded"
     intent.finished_at = now
-    run = intent.run
-    if all(job.status == "succeeded" for job in run.job_intents):
-        run.execution_state = "succeeded"
-        run.execution_completed_at = now
-    else:
-        run.execution_state = "running"
+    _refresh_run_execution_state(intent.run, now)
     db.session.commit()
 
 
@@ -441,9 +454,15 @@ def record_automation_job_failed(
     logical_job_key: str | None,
     error: BaseException,
 ) -> None:
-    """Record that a worker failed an automation-created job."""
+    """Record that a worker failed an automation-created job.
+
+    The job may well have failed on the database itself, which leaves the session in an aborted transaction where
+    every further statement is refused. Roll back first, so that the failure is still recorded. The job's own
+    uncommitted work is lost either way, since it is failing.
+    """
     if run_id is None or logical_job_key is None:
         return
+    db.session.rollback()
     now = _now_utc()
     intent = db.session.scalars(
         select(AutomationRunJob).filter_by(
@@ -457,8 +476,7 @@ def record_automation_job_failed(
     intent.last_error_type = error.__class__.__name__
     intent.last_error_message = str(error)
     run = intent.run
-    run.execution_state = "failed"
-    run.execution_completed_at = now
+    _refresh_run_execution_state(run, now)
     run.last_error_type = error.__class__.__name__
     run.last_error_message = str(error)
     db.session.commit()
