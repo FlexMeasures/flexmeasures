@@ -33,10 +33,9 @@ import pandas as pd
 from flexmeasures.data import db
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.automations import (
-    claim_due_automation,
+    dispatch_automation_run,
     floor_to_minute,
-    get_due_automations,
-    run_automation,
+    get_dispatchable_automation_runs,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -74,51 +73,31 @@ def run_automations():
     \b
         * * * * * flexmeasures jobs run-automations
 
-    A Redis-based guard allows at most one queueing attempt per scheduled run.
-    A failed attempt is not retried automatically, because it may already have queued some jobs.
+    Durable automation run records claim each scheduled run and make queueing resumable.
+    Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
     """
     now = floor_to_minute(server_now())
-    due_automations = get_due_automations(now)
-    if not due_automations:
+    claimed_runs = get_dispatchable_automation_runs(now)
+    if not claimed_runs:
         click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
         return
 
-    connection = app.queues["forecasting"].connection
     n_run = 0
     n_failed = 0
-    for due_automation in due_automations:
-        automation = due_automation.automation
-        # Guard the canonical run, including catch-ups and repeated wall times.
-        guard_key = (
-            f"automation-run:{automation.id}:{due_automation.scheduled_at.isoformat()}"
-        )
-        if not connection.set(guard_key, 1, nx=True, ex=120):
-            click.secho(
-                f"Automation {automation.id} ('{automation.name}') was already attempted for {due_automation.scheduled_at}. "
-                "Skipping to avoid duplicate jobs.",
-                **MsgStyle.WARN,
-            )
-            continue
-        if not claim_due_automation(due_automation):
-            click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
-                **MsgStyle.WARN,
-            )
-            continue
+    for claimed_run in claimed_runs:
+        automation = claimed_run.run.automation
         try:
-            returns = run_automation(automation)
-            n_jobs = returns.get("n_jobs") if returns else 0
+            returns = dispatch_automation_run(claimed_run)
+            n_jobs = returns["n_jobs"]
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} forecasting job(s), scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
             )
             n_run += 1
         except Exception as e:
             db.session.rollback()
-            # Queueing a multi-cycle forecast is not transactional. Keep the guard
-            # because this attempt may have queued some jobs before failing.
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} failed while dispatching attempt {claimed_run.attempt.attempt_no}: {e}",
                 **MsgStyle.ERROR,
             )
             n_failed += 1

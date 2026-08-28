@@ -7,6 +7,8 @@ from __future__ import annotations
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import os
+import socket
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -14,18 +16,44 @@ from cron_descriptor import get_description, Options
 from croniter import croniter
 from croniter.croniter import CroniterError
 from flask import current_app
+import isodate
 from marshmallow import ValidationError
-from sqlalchemy import select, update
+from rq.job import Job
+from sqlalchemy import or_, select, update
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures import Forecaster
 from flexmeasures.data import db
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import (
+    Automation,
+    AutomationRun,
+    AutomationRunAttempt,
+    AutomationRunJob,
+)
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
     asset_is_in_subtree,
 )
 from flexmeasures.utils.time_utils import server_now
+
+AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
+# Dispatch is only finished once `dispatch_completed_at` is set, so every other dispatch state is resumable.
+# A run in one of these states is nevertheless off limits while another runner still holds a live claim on it.
+AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
+    "pending",
+    "claimed",
+    "partially_queued",
+    "queued",
+    "failed",
+)
+AUTOMATION_RUN_JOB_QUEUED_OR_LATER = (
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "canceled",
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +65,422 @@ class DueAutomation:
     expected_cursor: datetime | None
     expected_cronstr: str
     expected_timezone: str
+
+
+@dataclass(frozen=True)
+class ClaimedAutomationRun:
+    """An automation run and the attempt which currently owns its dispatch."""
+
+    run: AutomationRun
+    attempt: AutomationRunAttempt
+
+
+class AutomationRunClaimError(Exception):
+    """Raised when an automation occurrence cannot be claimed."""
+
+
+def _runner_owner() -> str:
+    """Return a short owner string for an automation-run claim lease."""
+    return f"{socket.gethostname()}:{os.getpid()}"
+
+
+def _now_utc() -> datetime:
+    """Return the current database-facing time as timezone-aware UTC."""
+    return server_now().astimezone(timezone.utc)
+
+
+def _claim_expires_at(now: datetime, lease: timedelta) -> datetime:
+    """Return the UTC timestamp at which a claim becomes stale."""
+    return now + lease
+
+
+def _claim_is_available(now: datetime):
+    """Return the criterion for a run whose claim is free to take at ``now``.
+
+    A claim is free when no runner holds it, or when the runner holding it let its lease expire, which is how a
+    runner that died mid-dispatch releases its occurrence.
+    """
+    return or_(
+        AutomationRun.claim_expires_at.is_(None),
+        AutomationRun.claim_expires_at <= now,
+    )
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert values from an RQ job payload to JSON-compatible diagnostics."""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat()
+    if isinstance(value, timedelta):
+        return isodate.duration_isoformat(value)
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
+def _run_snapshot(automation: Automation, scheduled_at: datetime) -> dict[str, Any]:
+    """Snapshot automation configuration for an immutable run plan."""
+    return {
+        "automation_id": automation.id,
+        "automation_type": automation.type,
+        "automation_name": automation.name,
+        "asset_id": automation.asset_id,
+        "scheduled_at": scheduled_at.astimezone(timezone.utc).isoformat(),
+        "schedule_revision": automation.schedule_revision,
+        "cronstr": automation.cronstr,
+        "timezone": automation.timezone,
+        "generator_id": automation.generator_id,
+    }
+
+
+def _new_attempt(run: AutomationRun, owner: str, now: datetime) -> AutomationRunAttempt:
+    """Append a durable dispatch attempt to a claimed automation run."""
+    attempt = AutomationRunAttempt(
+        run=run,
+        attempt_no=run.attempt_count,
+        owner=owner,
+        started_at=now,
+        queued_job_count=run.queued_job_count,
+    )
+    db.session.add(attempt)
+    return attempt
+
+
+def _finish_attempt(
+    attempt: AutomationRunAttempt | None,
+    outcome: str,
+    queued_job_count: int,
+    error: BaseException | None = None,
+) -> None:
+    """Record the result of a dispatch attempt."""
+    if attempt is None:
+        return
+    attempt.finished_at = _now_utc()
+    attempt.outcome = outcome
+    attempt.queued_job_count = queued_job_count
+    if error is not None:
+        attempt.error_type = error.__class__.__name__
+        attempt.error_message = str(error)
+
+
+def claim_due_automation_run(
+    due_automation: DueAutomation,
+    owner: str | None = None,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> ClaimedAutomationRun | None:
+    """Atomically claim a newly due occurrence and create its durable run."""
+    owner = owner or _runner_owner()
+    now = _now_utc()
+    if due_automation.expected_cursor is None:
+        cursor_matches = Automation.cursor.is_(None)
+    else:
+        cursor_matches = Automation.cursor == due_automation.expected_cursor
+    result = db.session.execute(
+        update(Automation)
+        .where(
+            Automation.id == due_automation.automation.id,
+            Automation.active.is_(True),
+            Automation.cronstr == due_automation.expected_cronstr,
+            Automation.timezone == due_automation.expected_timezone,
+            Automation.schedule_revision == due_automation.automation.schedule_revision,
+            cursor_matches,
+        )
+        .values(cursor=due_automation.scheduled_at)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return None
+
+    automation = due_automation.automation
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=due_automation.scheduled_at,
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        claim_owner=owner,
+        claimed_at=now,
+        claim_expires_at=_claim_expires_at(now, lease),
+        attempt_count=1,
+        parameters=dict(automation.parameters or {}),
+        plan=_run_snapshot(automation, due_automation.scheduled_at),
+    )
+    db.session.add(run)
+    db.session.flush()
+    attempt = _new_attempt(run, owner, now)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return None
+    return ClaimedAutomationRun(run=run, attempt=attempt)
+
+
+def claim_existing_automation_run(
+    run: AutomationRun,
+    owner: str | None = None,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> ClaimedAutomationRun | None:
+    """Claim a durable automation run whose dispatch is unfinished and unclaimed.
+
+    A run is only up for grabs once no other runner holds a live claim on it, because the dispatch state turns to
+    'partially_queued' while the owning runner is still queueing the rest of its jobs.
+    A runner which fails releases its own claim, so its run is immediately retryable.
+    """
+    owner = owner or _runner_owner()
+    now = _now_utc()
+    result = db.session.execute(
+        update(AutomationRun)
+        .where(
+            AutomationRun.id == run.id,
+            AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
+            AutomationRun.dispatch_completed_at.is_(None),
+            _claim_is_available(now),
+        )
+        .values(
+            dispatch_state="claimed",
+            claim_owner=owner,
+            claimed_at=now,
+            claim_expires_at=_claim_expires_at(now, lease),
+            attempt_count=AutomationRun.attempt_count + 1,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return None
+    db.session.flush()
+    claimed_run = db.session.get(AutomationRun, run.id)
+    assert claimed_run is not None
+    db.session.refresh(claimed_run)
+    attempt = _new_attempt(claimed_run, owner, now)
+    db.session.commit()
+    return ClaimedAutomationRun(run=claimed_run, attempt=attempt)
+
+
+def get_dispatchable_automation_runs(
+    now: datetime | None = None,
+    owner: str | None = None,
+) -> list[ClaimedAutomationRun]:
+    """Claim new due occurrences and resumable durable runs for dispatch."""
+    if now is None:
+        now = _now_utc()
+    now = floor_to_minute(now)
+    claimed_runs: list[ClaimedAutomationRun] = []
+    for due_automation in get_due_automations(now):
+        claimed = claim_due_automation_run(due_automation, owner=owner)
+        if claimed is not None:
+            claimed_runs.append(claimed)
+
+    resumable_runs = db.session.scalars(
+        select(AutomationRun)
+        .join(Automation)
+        .where(
+            Automation.active.is_(True),
+            AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
+            AutomationRun.dispatch_completed_at.is_(None),
+            _claim_is_available(now),
+        )
+        .order_by(AutomationRun.scheduled_at, AutomationRun.id)
+    ).all()
+    claimed_ids = {claimed.run.id for claimed in claimed_runs}
+    for run in resumable_runs:
+        if run.id in claimed_ids:
+            continue
+        claimed = claim_existing_automation_run(run, owner=owner)
+        if claimed is not None:
+            claimed_runs.append(claimed)
+    return claimed_runs
+
+
+def ensure_automation_run_job_intents(
+    run_id: int, job_specs: list[dict[str, Any]]
+) -> list[AutomationRunJob]:
+    """Persist immutable logical job intents before any Redis enqueue."""
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    existing_intents = {intent.logical_job_key: intent for intent in run.job_intents}
+    if existing_intents:
+        return [existing_intents[spec["logical_job_key"]] for spec in job_specs]
+
+    run.plan = {
+        **dict(run.plan or {}),
+        "jobs": [_json_safe(spec) for spec in job_specs],
+    }
+    intents = []
+    for spec in job_specs:
+        intent = AutomationRunJob(
+            run=run,
+            logical_job_key=spec["logical_job_key"],
+            rq_job_id=spec["rq_job_id"],
+            queue=spec.get("queue", "forecasting"),
+            kind=spec["kind"],
+            status="pending",
+            depends_on=list(spec.get("depends_on", [])),
+            payload=_json_safe(spec.get("payload", {})),
+        )
+        db.session.add(intent)
+        intents.append(intent)
+    db.session.commit()
+    return intents
+
+
+def mark_automation_job_queued(
+    run_id: int, logical_job_key: str, rq_job_id: str
+) -> None:
+    """Mark one logical job intent as queued in Redis."""
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one()
+    intent.status = "queued"
+    intent.rq_job_id = rq_job_id
+    intent.enqueued_at = intent.enqueued_at or now
+    run = intent.run
+    run.first_enqueued_at = run.first_enqueued_at or now
+    queued_count = run.queued_job_count
+    run.dispatch_state = (
+        "queued" if queued_count == run.intended_job_count else "partially_queued"
+    )
+    db.session.commit()
+
+
+def mark_automation_run_dispatch_queued(
+    run_id: int, attempt: AutomationRunAttempt | None = None
+) -> None:
+    """Mark an automation run as fully queued and release its dispatch claim."""
+    now = _now_utc()
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    run.dispatch_state = "queued"
+    run.dispatch_completed_at = now
+    run.claim_owner = None
+    run.claim_expires_at = None
+    _finish_attempt(attempt, "queued", run.queued_job_count)
+    db.session.commit()
+
+
+def mark_automation_run_dispatch_failed(
+    run_id: int,
+    attempt: AutomationRunAttempt | None,
+    error: BaseException,
+) -> None:
+    """Record a failed dispatch attempt and release the claim, so the run stays retryable.
+
+    The failure may have come from the database itself, so roll back first to get a usable session,
+    then re-read the run and the attempt through it.
+    """
+    db.session.rollback()
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    if attempt is not None:
+        attempt = db.session.get(AutomationRunAttempt, attempt.id)
+    queued_count = run.queued_job_count
+    run.dispatch_state = "partially_queued" if queued_count else "failed"
+    run.last_error_type = error.__class__.__name__
+    run.last_error_message = str(error)
+    # Hand the occurrence back rather than making the next runner wait out this attempt's lease.
+    run.claim_owner = None
+    run.claim_expires_at = None
+    _finish_attempt(attempt, run.dispatch_state, queued_count, error)
+    db.session.commit()
+
+
+def record_automation_job_started(
+    run_id: int | None, logical_job_key: str | None
+) -> None:
+    """Record that a worker started an automation-created job."""
+    if run_id is None or logical_job_key is None:
+        return
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one_or_none()
+    if intent is None:
+        return
+    intent.status = "running"
+    intent.started_at = intent.started_at or now
+    intent.run.execution_state = "running"
+    intent.run.execution_started_at = intent.run.execution_started_at or now
+    db.session.commit()
+
+
+def record_automation_job_succeeded(
+    run_id: int | None, logical_job_key: str | None
+) -> None:
+    """Record that a worker finished an automation-created job successfully."""
+    if run_id is None or logical_job_key is None:
+        return
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one_or_none()
+    if intent is None:
+        return
+    intent.status = "succeeded"
+    intent.finished_at = now
+    run = intent.run
+    if all(job.status == "succeeded" for job in run.job_intents):
+        run.execution_state = "succeeded"
+        run.execution_completed_at = now
+    else:
+        run.execution_state = "running"
+    db.session.commit()
+
+
+def record_automation_job_failed(
+    run_id: int | None,
+    logical_job_key: str | None,
+    error: BaseException,
+) -> None:
+    """Record that a worker failed an automation-created job."""
+    if run_id is None or logical_job_key is None:
+        return
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one_or_none()
+    if intent is None:
+        return
+    intent.status = "failed"
+    intent.finished_at = now
+    intent.last_error_type = error.__class__.__name__
+    intent.last_error_message = str(error)
+    run = intent.run
+    run.execution_state = "failed"
+    run.execution_completed_at = now
+    run.last_error_type = error.__class__.__name__
+    run.last_error_message = str(error)
+    db.session.commit()
+
+
+def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
+    """Return whether Redis already has the deterministic job for an intent."""
+    connection = current_app.queues[intent.queue].connection
+    if Job.exists(intent.rq_job_id, connection=connection):
+        if intent.status == "pending":
+            mark_automation_job_queued(
+                intent.run_id, intent.logical_job_key, intent.rq_job_id
+            )
+        return True
+    return False
 
 
 def describe_cronstr(cronstr: str) -> str:
@@ -214,31 +658,6 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     return due_automations
 
 
-def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist a run claim if its scheduling configuration is unchanged."""
-    if due_automation.expected_cursor is None:
-        cursor_matches = Automation.cursor.is_(None)
-    else:
-        cursor_matches = Automation.cursor == due_automation.expected_cursor
-    result = db.session.execute(
-        update(Automation)
-        .where(
-            Automation.id == due_automation.automation.id,
-            Automation.active.is_(True),
-            Automation.cronstr == due_automation.expected_cronstr,
-            Automation.timezone == due_automation.expected_timezone,
-            cursor_matches,
-        )
-        .values(cursor=due_automation.scheduled_at)
-        .execution_options(synchronize_session=False)
-    )
-    if result.rowcount != 1:
-        db.session.rollback()
-        return False
-    db.session.commit()
-    return True
-
-
 class AutomationSensorsUnknown(Exception):
     """Raised when the sensors an automation involves cannot be worked out.
 
@@ -365,6 +784,120 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
+    """Return operator-facing durable status for one automation run."""
+    latest_attempt = run.attempts[-1] if run.attempts else None
+    return {
+        "id": run.id,
+        "scheduled_at": run.scheduled_at.isoformat(),
+        "schedule_revision": run.schedule_revision,
+        "dispatch_state": run.dispatch_state,
+        "execution_state": run.execution_state,
+        "attempt_count": run.attempt_count,
+        "intended_job_count": run.intended_job_count,
+        "queued_job_count": run.queued_job_count,
+        "first_enqueued_at": (
+            run.first_enqueued_at.isoformat() if run.first_enqueued_at else None
+        ),
+        "dispatch_completed_at": (
+            run.dispatch_completed_at.isoformat() if run.dispatch_completed_at else None
+        ),
+        "execution_completed_at": (
+            run.execution_completed_at.isoformat()
+            if run.execution_completed_at
+            else None
+        ),
+        "claim_owner": run.claim_owner,
+        "claim_expires_at": (
+            run.claim_expires_at.isoformat() if run.claim_expires_at else None
+        ),
+        "last_error": (
+            {
+                "type": run.last_error_type,
+                "message": run.last_error_message,
+            }
+            if run.last_error_type or run.last_error_message
+            else None
+        ),
+        "latest_attempt": (
+            {
+                "attempt_no": latest_attempt.attempt_no,
+                "owner": latest_attempt.owner,
+                "started_at": latest_attempt.started_at.isoformat(),
+                "finished_at": (
+                    latest_attempt.finished_at.isoformat()
+                    if latest_attempt.finished_at
+                    else None
+                ),
+                "outcome": latest_attempt.outcome,
+                "queued_job_count": latest_attempt.queued_job_count,
+                "error": (
+                    {
+                        "type": latest_attempt.error_type,
+                        "message": latest_attempt.error_message,
+                    }
+                    if latest_attempt.error_type or latest_attempt.error_message
+                    else None
+                ),
+            }
+            if latest_attempt is not None
+            else None
+        ),
+        "jobs": [
+            {
+                "logical_job_key": intent.logical_job_key,
+                "rq_job_id": intent.rq_job_id,
+                "queue": intent.queue,
+                "kind": intent.kind,
+                "status": intent.status,
+                "depends_on": list(intent.depends_on or []),
+                "enqueued_at": (
+                    intent.enqueued_at.isoformat() if intent.enqueued_at else None
+                ),
+                "started_at": (
+                    intent.started_at.isoformat() if intent.started_at else None
+                ),
+                "finished_at": (
+                    intent.finished_at.isoformat() if intent.finished_at else None
+                ),
+                "last_error": (
+                    {
+                        "type": intent.last_error_type,
+                        "message": intent.last_error_message,
+                    }
+                    if intent.last_error_type or intent.last_error_message
+                    else None
+                ),
+            }
+            for intent in run.job_intents
+        ],
+    }
+
+
+def get_automation_run_stats(automation: Automation) -> dict[str, Any]:
+    """Summarize durable automation runs for API and UI status displays."""
+    runs = list(automation.runs)
+    dispatch_counts: dict[str, int] = {}
+    execution_counts: dict[str, int] = {}
+    for run in runs:
+        dispatch_counts[run.dispatch_state] = (
+            dispatch_counts.get(run.dispatch_state, 0) + 1
+        )
+        execution_counts[run.execution_state] = (
+            execution_counts.get(run.execution_state, 0) + 1
+        )
+    latest_run = runs[0] if runs else None
+    return {
+        "total": len(runs),
+        "dispatch": dispatch_counts,
+        "execution": execution_counts,
+        "latest_run": (
+            serialize_automation_run(latest_run) if latest_run is not None else None
+        ),
+        "recent_runs": [serialize_automation_run(run) for run in runs[:10]],
+    }
+
+
 def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
     """Resolve the sensor on which a forecast automation registers beliefs."""
     sensor_reference = parameters.get("sensor-to-save")
@@ -397,7 +930,28 @@ def validate_forecast_output_scope(asset_id: int, output_sensor: Sensor) -> None
         )
 
 
-def run_automation(automation: Automation) -> dict[str, Any] | None:
+def dispatch_automation_run(
+    claimed_run: ClaimedAutomationRun,
+) -> dict[str, Any]:
+    """Dispatch an already claimed automation run and record its attempt outcome."""
+    run = claimed_run.run
+    try:
+        returns = run_automation(run.automation, automation_run=run)
+    except Exception as exc:
+        mark_automation_run_dispatch_failed(run.id, claimed_run.attempt, exc)
+        raise
+    mark_automation_run_dispatch_queued(run.id, claimed_run.attempt)
+    return {
+        "run_id": run.id,
+        "job_id": returns.get("job_id") if returns else None,
+        "n_jobs": returns.get("n_jobs") if returns else 0,
+        "dispatch_state": "queued",
+    }
+
+
+def run_automation(
+    automation: Automation, automation_run: AutomationRun | None = None
+) -> dict[str, Any] | None:
     """Queue the jobs for one run of an automation.
 
     :returns: the data generator's return value, e.g. {"job_id": <uuid>, "n_jobs": <int>}
@@ -418,9 +972,18 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
         raise ValueError(
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
         )
-    output_sensor = get_forecast_output_sensor(automation.parameters or {})
+    parameters = (
+        dict(automation_run.parameters)
+        if automation_run is not None
+        else dict(automation.parameters)
+    )
+    output_sensor = get_forecast_output_sensor(parameters)
     validate_forecast_output_scope(automation.asset_id, output_sensor)
     # Wipe any parameter state the copy inherited from a previous run.
     forecaster._parameters = None
-    forecaster.set_job_trigger("automation", automation_id=automation.id)
-    return forecaster.compute(as_job=True, parameters=dict(automation.parameters))
+    forecaster.set_job_trigger(
+        "automation",
+        automation_id=automation.id,
+        automation_run_id=automation_run.id if automation_run is not None else None,
+    )
+    return forecaster.compute(as_job=True, parameters=parameters)

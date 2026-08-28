@@ -99,7 +99,12 @@ class DataGenerator:
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
 
-    def set_job_trigger(self, origin: str, automation_id: int | None = None):
+    def set_job_trigger(
+        self,
+        origin: str,
+        automation_id: int | None = None,
+        automation_run_id: int | None = None,
+    ):
         """Record how any queued jobs got created (e.g. via the CLI, the API or an automation).
 
         This information is stored on the jobs themselves (as job meta data).
@@ -107,6 +112,8 @@ class DataGenerator:
         self._job_trigger = {"origin": origin}
         if automation_id is not None:
             self._job_trigger["automation_id"] = automation_id
+        if automation_run_id is not None:
+            self._job_trigger["automation_run_id"] = automation_run_id
 
     @property
     def input_sensors(self) -> list:

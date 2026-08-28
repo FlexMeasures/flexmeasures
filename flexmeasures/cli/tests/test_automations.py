@@ -138,7 +138,7 @@ def test_add_automation_default_cron(
     """Without --cron, an automation recurs daily."""
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.data.services.automations import (
-        claim_due_automation,
+        claim_due_automation_run,
         get_due_automations,
     )
 
@@ -163,7 +163,7 @@ def test_add_automation_default_cron(
     assert [d.automation.id for d in due] == [automation.id]
 
     # and, once claimed, not handed out again an hour later
-    assert claim_due_automation(due[0])
+    assert claim_due_automation_run(due[0]) is not None
     assert get_due_automations(midnight + timedelta(hours=1)) == []
 
 
@@ -843,41 +843,33 @@ def test_run_automations_catches_up_once_after_downtime(
     assert automation.cursor == datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
 
 
-def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
-    """A failure after partial queueing must not duplicate that work on retry."""
+def test_run_automations_reports_durable_run_status(app, clean_redis, mocker):
+    """The automation runner reports durable run and retry-attempt identifiers."""
     from flexmeasures.cli.jobs import run_automations
-    from flexmeasures.data.services.automations import DueAutomation
 
     automation = SimpleNamespace(id=42, name="Partial run", asset_id=1)
-    due_automation = DueAutomation(
+    run = SimpleNamespace(
+        id=7,
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        expected_cursor=datetime(2026, 8, 5, 0, 0, tzinfo=timezone.utc),
-        expected_cronstr="0 * * * *",
-        expected_timezone="UTC",
+    )
+    attempt = SimpleNamespace(attempt_no=2)
+    claimed_run = SimpleNamespace(run=run, attempt=attempt)
+    mocker.patch(
+        "flexmeasures.cli.jobs.get_dispatchable_automation_runs",
+        return_value=[claimed_run],
     )
     mocker.patch(
-        "flexmeasures.cli.jobs.get_due_automations", return_value=[due_automation]
+        "flexmeasures.cli.jobs.dispatch_automation_run",
+        return_value={"run_id": 7, "job_id": "job-1", "n_jobs": 3},
     )
-    mocker.patch("flexmeasures.cli.jobs.claim_due_automation", return_value=True)
-
-    def queue_then_fail(_automation):
-        app.queues["forecasting"].enqueue("flexmeasures.utils.time_utils.server_now")
-        raise RuntimeError("failed after queueing")
-
-    mocker.patch("flexmeasures.cli.jobs.run_automation", side_effect=queue_then_fail)
     runner = app.test_cli_runner()
 
-    first_result = runner.invoke(run_automations)
-    assert first_result.exit_code == 1, first_result.output
-    assert "failed after queueing" in first_result.output
-    assert app.queues["forecasting"].count == 1
+    result = runner.invoke(run_automations)
 
-    retry_result = runner.invoke(run_automations)
-    assert retry_result.exit_code == 0, retry_result.output
-    assert "already attempted" in retry_result.output
-    assert "Skipping to avoid duplicate jobs" in retry_result.output
-    assert app.queues["forecasting"].count == 1
+    assert result.exit_code == 0, result.output
+    assert "run 7 queued 3 forecasting job(s)" in result.output
+    assert "scheduled for 2026-08-05 01:00:00+00:00" in result.output
 
 
 def test_run_automation_revalidates_output_scope(
