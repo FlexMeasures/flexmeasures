@@ -142,3 +142,59 @@ def test_user_creation_api(
     )
     print("Server responded with:\n%s" % user_creation_response.data)
     assert user_creation_response.status_code == status_code
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),
+        ("test_prosumer_user@seita.nl", 403),
+        ("test_prosumer_user_2@seita.nl", 200),
+        ("test_admin_user@seita.nl", 200),
+        ("inactive_user@seita.nl", 401),
+        ("inactive_admin@seita.nl", 401),
+    ],
+    indirect=["requesting_user"],
+)
+def test_user_reset_auth_token(
+    fresh_db, app, client, setup_inactive_user_fresh_db, requesting_user, status_code
+):
+    """
+    Reset the auth token of User 2.
+    Only the admin user and User 2 themselves are allowed to do that.
+    The session uniquifier (fs_uniquifier) must NOT change; only the token uniquifier
+    (fs_token_uniquifier) must rotate.
+    """
+    with UserContext("test_prosumer_user_2@seita.nl") as user2:
+        user2_id = user2.id
+        old_fs_uniquifier = user2.fs_uniquifier
+        old_token_uniquifier = user2.fs_token_uniquifier
+
+    response = client.patch(
+        url_for("UserAPI:reset_user_auth_token", id=user2_id),
+    )
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == status_code
+    if status_code != 200:
+        return
+
+    user2 = find_user_by_email("test_prosumer_user_2@seita.nl")
+
+    # The session uniquifier must NOT change (sessions stay valid)
+    assert user2.fs_uniquifier == old_fs_uniquifier
+
+    # The token uniquifier must have been rotated (tokens invalidated)
+    assert user2.fs_token_uniquifier != old_token_uniquifier
+
+    # An audit log entry must have been created
+    assert (
+        fresh_db.session.execute(
+            select(AuditLog).filter_by(
+                affected_user_id=user2.id,
+                event=f"Auth token reset for user {user2.username}",
+                active_user_id=requesting_user.id,
+            )
+        ).scalar_one_or_none()
+        is not None
+    )
