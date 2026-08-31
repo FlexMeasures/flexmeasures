@@ -245,21 +245,26 @@ The stored data generator is required while the automation exists, so its data s
 The forecaster and its configuration are stored on a data source.
 Pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 
-Each active automation stores a scheduling cursor in the database, so restarting the runner does not lose due occurrences.
-The cursor is a UTC scheduling watermark: occurrences at or before it are ineligible for another automatic queueing attempt.
-It does not indicate that queueing or forecast computation succeeded.
-A new automation starts scheduling from its creation minute and does not replay earlier occurrences.
-Changing its cron expression or timezone, or reactivating it, starts scheduling from the time of that change.
-Deactivated automations do not accumulate catch-up work.
-After upgrading an existing installation, historical occurrences before the migration watermark are not replayed.
+The runner is a stateless command, executed once a minute by cron (see below), so it needs a durable record of how far each automation has got.
+That record is one UTC timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
+Runs at or before the cursor are never queued again.
+Before queueing any jobs, the runner advances the cursor to the run it is about to queue, and saves it.
+The cursor therefore records that a run was claimed, not that queueing or the forecast itself succeeded.
 
-If the runner misses one occurrence, it queues that occurrence once when it resumes.
-If it misses several forecast occurrences, it queues only the latest one and marks the older occurrences handled instead of replaying stale forecasts.
+Keeping a single moving timestamp, rather than a record per run, is what makes the behaviour below fall out: a runner that has been down catches up by moving the cursor straight to the latest due run, and two runners started in the same minute cannot queue the same run twice, because the cursor is advanced with a conditional update that only one of them can win.
+
+A new automation starts from its creation minute and does not replay runs from before it existed.
+Changing its cron expression or timezone, or reactivating it, restarts from the time of that change.
+Deactivated automations do not accumulate catch-up work.
+After upgrading an existing installation, runs scheduled before the upgrade are not replayed.
+
+If the runner misses one run, it queues that run once when it resumes.
+If it misses several forecast runs, it queues only the latest one: moving the cursor straight to that run leaves the older ones behind, rather than replaying stale forecasts.
 Timing parameters that default to the run time are resolved when this catch-up run is actually queued, producing a current forecast.
 
 Daylight-saving-time transitions follow wall-clock semantics.
-If the clock skips a scheduled local time in spring, that occurrence is handled once at the transition boundary.
-If a scheduled local time occurs twice in autumn, the first instance is the canonical occurrence and the repeated instance is not queued again.
+If the clock skips a scheduled local time in spring, that run happens once at the transition boundary.
+If a scheduled local time occurs twice in autumn, the first instance is the canonical run and the repeated instance is not queued again.
 
 For automations to actually run, let a cron job execute the following command once per minute:
 
@@ -268,10 +273,9 @@ For automations to actually run, let a cron job execute the following command on
     * * * * * flexmeasures jobs run-automations
 
 Each due automation then queues its forecasting jobs.
-Each scheduled occurrence receives at most one automatic queueing attempt.
-The scheduling cursor is committed before queueing starts.
-If the process crashes, or queueing fails after creating some jobs, that occurrence is not retried automatically because a retry could duplicate partial work.
-Durable run records and safe retries are outside this feature.
+Each scheduled run receives at most one automatic queueing attempt.
+If the process crashes, or queueing fails after creating some jobs, that run is not retried automatically, because a retry could duplicate partial work.
+Recording each run and its outcome, which is what safe retries would need, is out of scope here (see `issue #2393 <https://github.com/FlexMeasures/flexmeasures/issues/2393>`_).
 The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
