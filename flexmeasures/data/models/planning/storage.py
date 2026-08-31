@@ -65,6 +65,25 @@ from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertib
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
 
+ABSOLUTE_SOC_CONSTRAINT_FIELDS = (
+    "soc_min",
+    "soc_max",
+    "soc_minima",
+    "soc_maxima",
+    "soc_targets",
+)
+
+
+def _has_absolute_soc_constraints(flex_model: dict) -> bool:
+    """Return whether a serialized or deserialized model constrains absolute SoC.
+
+    SoC gain and usage describe flows. Without a bound or target, they do not make
+    the stock's absolute starting level relevant to the optimization.
+    """
+    normalized_fields = {field.replace("-", "_") for field in flex_model}
+    return any(field in normalized_fields for field in ABSOLUTE_SOC_CONSTRAINT_FIELDS)
+
+
 #: Key used to store and retrieve the ``SchedulingJobResult`` in RQ job metadata
 #: and in the multi-result list returned by ``StorageScheduler.compute()``.
 SCHEDULING_RESULT_KEY = "scheduling_result"
@@ -2443,11 +2462,12 @@ class MetaStorageScheduler(Scheduler):
     def _resolve_stock_soc_at_start(
         self, stock_model: dict, sensor: Sensor | None = None, stock_key=None
     ) -> float | None:
-        """Resolve a stock's soc-at-start (in MWh) from its (deserialized) state-of-charge.
+        """Resolve or default a stock's soc-at-start (in MWh).
 
         Used in multi-device mode, where soc-at-start is not resolved during deserialization.
-        Operates on the deserialized stock-owning entry,
-        whose ``state_of_charge`` is a :class:`Sensor`, :class:`SensorReference` or time series.
+        This mirrors ``ensure_soc_at_start()`` for the deserialized stock-owning entry:
+        resolve a configured ``state_of_charge``, fall back to the legacy asset attribute,
+        and finally default constrained storage to an empty stock.
 
         In line with single-sensor mode's ``ensure_soc_at_start()``,
         a state of charge that is given but cannot be resolved fails the schedule:
@@ -2455,7 +2475,7 @@ class MetaStorageScheduler(Scheduler):
 
         :param stock_model: The deserialized flex-model entry owning the stock's SoC parameters.
         :param sensor:      The stock's (first) device power sensor, used for the SoC lookup radius.
-        :returns:           Starting stock in MWh, or None if the entry defines no state of charge.
+        :returns:           Starting stock in MWh, or None if the entry has no state-of-charge semantics.
         """
         state_of_charge = stock_model.get("state_of_charge")
         if isinstance(state_of_charge, (Sensor, SensorReference)):
@@ -2472,6 +2492,17 @@ class MetaStorageScheduler(Scheduler):
             return self._resolve_soc_at_start_from_time_series(
                 state_of_charge, sensor, stock_key=stock_key
             )
+
+        if sensor is not None:
+            if (
+                self.start == sensor.get_attribute("soc_datetime")
+                and sensor.get_attribute("soc_in_mwh") is not None
+            ):
+                return sensor.get_attribute("soc_in_mwh")
+
+        # Keep the historical empty-stock fallback when absolute SoC matters.
+        if _has_absolute_soc_constraints(stock_model):
+            return 0
         return None
 
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
@@ -2512,8 +2543,9 @@ class MetaStorageScheduler(Scheduler):
         Preferably, a starting soc is given.
         Otherwise, we try to retrieve the current state of charge from the configured ``state-of-charge`` field.
         If that doesn't work, we try the (old-style) asset attribute.
-        Finally, we default the starting soc to 0 (only if there are soc limits, though, as some assets don't use
-        the concept of a state of charge, and without soc targets and limits the starting soc doesn't matter).
+        Finally, we default the starting soc to 0 when there are soc constraints.
+        Some assets don't use the concept of a state of charge,
+        and without soc targets or bounds the starting soc doesn't matter.
         """
         if flex_model is None:
             flex_model = self.flex_model
@@ -2533,8 +2565,8 @@ class MetaStorageScheduler(Scheduler):
                 and sensor.get_attribute("soc_in_mwh") is not None
             ):
                 flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
-        if not self.has_soc_at_start_in(flex_model) and (
-            "soc-min" in flex_model or "soc-max" in flex_model
+        if not self.has_soc_at_start_in(flex_model) and _has_absolute_soc_constraints(
+            flex_model
         ):
             flex_model["soc-at-start"] = 0
 

@@ -4612,6 +4612,122 @@ def test_multi_device_battery_fails_on_unresolvable_soc_sensor(
         scheduler.compute()
 
 
+def test_asset_scheduler_charges_from_default_zero_soc(
+    db, building, setup_generic_asset_types
+):
+    """An asset-scheduled battery can meet a soft minimum without ``soc-at-start``.
+
+    Asset scheduling uses the list-based flex-model path even when only one power
+    sensor is scheduled. With no explicit or measured starting SoC, the battery
+    defaults to empty and charges 2 kWh to reach its soft minimum. This exercises
+    the commitment calculation that previously multiplied ``None`` by a float.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "default starting soc charging test site")
+    power_sensor, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "default starting soc charging battery",
+        with_soc_sensor=False,
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": power_sensor.id,
+                "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+                "power-capacity": "1 kW",
+                "consumption-capacity": "1 kW",
+                "production-capacity": "0 kW",
+            },
+        ],
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+            "soc-minima-breach-price": "1 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+
+    results = scheduler.compute()
+    schedule = next(
+        result["data"]
+        for result in results
+        if result.get("name") == "storage_schedule"
+        and result.get("sensor") is power_sensor
+    )
+    assert schedule.sum() == pytest.approx(2)
+
+
+def test_asset_scheduler_cannot_discharge_from_default_zero_soc(
+    db, building, setup_generic_asset_types
+):
+    """Hard SoC bounds remain active when an asset-scheduled battery defaults empty.
+
+    Discharging is financially attractive and charging is disabled. The resulting
+    idle schedule demonstrates that the default zero starting SoC is connected to
+    the hard lower bound; without stock constraints, the optimizer would discharge
+    energy that the battery does not hold.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "default starting soc safety test site")
+    power_sensor, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "default starting soc safety battery",
+        with_soc_sensor=False,
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": power_sensor.id,
+                "soc-min": "0 kWh",
+                "soc-max": "1 kWh",
+                "power-capacity": "1 kW",
+                "consumption-capacity": "0 kW",
+                "production-capacity": "1 kW",
+            }
+        ],
+        flex_context={
+            "consumption-price": "1000 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+
+    results = scheduler.compute()
+    schedule = next(
+        result["data"]
+        for result in results
+        if result.get("name") == "storage_schedule"
+        and result.get("sensor") is power_sensor
+    )
+    assert np.allclose(schedule, 0)
+
+
 def test_battery_solver_respects_operation_mode_bands(db, add_battery_assets):
     """StorageScheduler.compute() must actually wire "operation-modes" from the
     flex-model through to the LP's device power bands.
