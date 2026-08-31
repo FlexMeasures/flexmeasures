@@ -14,7 +14,7 @@ New features
 Infrastructure / Support
 -------------------------
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
-* Pin the required ``uv`` version in ``pyproject.toml``, contributor docs, the ``Dockerfile`` and the Read the Docs build, to keep ``uv.lock`` changes reproducible across local development and CI runs [see `PR #2451 <https://www.github.com/FlexMeasures/flexmeasures/pull/2451>`_]
+* Require an exact ``uv`` version (``0.12.7``) via ``[tool.uv].required-version``, which keeps ``uv.lock`` changes reproducible across local development, CI, Docker and Read the Docs, but does mean that anyone running ``uv`` in a FlexMeasures checkout — plugin developers and self-hosters included — needs that same version [see `PR #2451 <https://www.github.com/FlexMeasures/flexmeasures/pull/2451>`_]
 
 Bugfixes
 -----------

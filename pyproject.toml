@@ -292,11 +292,11 @@ markers = [
 # `uv sync --locked` to fail because the fork markers don't fully cover the
 # declared environment space.
 [tool.uv]
-# Contributors and CI should write uv.lock with the same uv, or its environment
-# markers get reformatted and small changes come out as huge diffs. This gates
-# every uv invocation, so bumping it means bumping the pins in our workflows,
-# Dockerfile and .readthedocs.yaml too. See documentation/dev/dependency-management.rst.
-required-version = "==0.10.9"
+# Contributors and CI should write uv.lock with the same uv version.
+# Otherwise, environment markers get reformatted, and a small dependency change comes out as a huge diff.
+# This gates every uv invocation, so bumping it means bumping the pins in our workflows, Dockerfile and .readthedocs.yaml, too.
+# See documentation/dev/dependency-management.rst.
+required-version = "==0.12.7"
 environments = [
     "sys_platform == 'linux'",
     "sys_platform == 'darwin'",

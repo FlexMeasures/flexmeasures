@@ -36,7 +36,7 @@ Then pin it to the version this project requires (see :ref:`dependency_managemen
 
 .. code-block:: bash
 
-   $ uv self update 0.10.9
+   $ uv self update 0.12.7
 
 Next, go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 

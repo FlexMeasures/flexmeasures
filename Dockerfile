@@ -1,6 +1,6 @@
-# Keep in sync with [tool.uv].required-version in pyproject.toml, which makes uv
-# refuse to run on any other version. See documentation/dev/dependency-management.rst.
-ARG UV_VERSION=0.10.9
+# Keep in sync with [tool.uv].required-version in pyproject.toml, which makes uv refuse to run on any other version.
+# See documentation/dev/dependency-management.rst.
+ARG UV_VERSION=0.12.7
 ARG PYTHON_VERSION=3.12
 ARG DEBIAN_VERSION=trixie
 

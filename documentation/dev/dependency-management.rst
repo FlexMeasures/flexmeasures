@@ -16,13 +16,13 @@ First, `install uv <https://docs.astral.sh/uv/getting-started/installation/>`_, 
 
 .. code-block:: bash
 
-    $ uv self update 0.10.9
+    $ uv self update 0.12.7
 
 We enforce this exact version through ``[tool.uv].required-version`` in ``pyproject.toml``, so that lockfile output is reproducible between contributors and CI.
 ``uv`` refuses to run at all on a version mismatch, so you will notice right away.
 
 .. note:: ``uv self update`` only works if you installed ``uv`` with its standalone installer.
-          If you installed it with ``pip`` or ``brew``, pin it there instead (e.g. ``pip install uv==0.10.9``).
+          If you installed it with ``pip`` or ``brew``, pin it there instead (e.g. ``pip install uv==0.12.7``).
 
 Now install the dependencies:
 
@@ -40,7 +40,7 @@ Upgrading ``uv`` itself is a deliberate step, which we take in the periodic ``ch
 Because ``required-version`` gates every ``uv`` invocation, and not just ``uv lock``, all the places where we pin ``uv`` have to move together, in one reviewed change:
 
 - ``[tool.uv].required-version`` in ``pyproject.toml``
-- the ``version`` input of ``astral-sh/setup-uv`` in ``.github/workflows/lint-and-test.yml``, ``.github/workflows/docker-qa.yml``, ``.github/workflows/pypi-publish.yml`` and ``.github/actions/setup-test-env/action.yml``
+- the ``version`` input of ``astral-sh/setup-uv`` in ``.github/workflows/lint-and-test.yml``, ``.github/workflows/docker-build.yml``, ``.github/workflows/docker-qa.yml``, ``.github/workflows/pypi-publish.yml`` and ``.github/actions/setup-test-env/action.yml``
 - ``ARG UV_VERSION`` in the ``Dockerfile`` (which selects the ``ghcr.io/astral-sh/uv`` base image)
 - the ``asdf`` commands under ``pre_create_environment`` in ``.readthedocs.yaml``
 
