@@ -15,8 +15,10 @@ Why this order:
 - ``sensor_id`` first, because virtually every query filters on a single sensor.
   A key that does not lead with it cannot serve those queries at all.
 - ``source_id`` second, so that ``(sensor_id, source_id, event_start, belief_horizon)`` is a *prefix* of the key.
-  Deployments carrying a separate composite index on exactly those columns no longer need it,
-  and this migration drops it (see below), typically the single largest win here.
+  Any index a deployment maintains on that prefix is made redundant by this reordering,
+  and can be dropped once the migration has run.
+  This migration does not drop it, because no index of that shape is part of FlexMeasures' schema:
+  only the deployment that created one knows it exists.
 - ``cumulative_probability`` last,
   because it is very nearly a constant (0.5 for every deterministic belief),
   and contributes no selectivity wherever it sits.
@@ -34,7 +36,6 @@ and it runs ``CONCURRENTLY`` inside an ``autocommit_block``,
 so reads and writes continue throughout.
 Only the swap itself takes an ACCESS EXCLUSIVE lock,
 and that is catalog-only (milliseconds) because the index already exists by then.
-The redundant composite index is dropped ``CONCURRENTLY`` too.
 
 The trade for staying online is that the concurrent steps are not transactional:
 if the migration fails partway, an unused ``timed_belief_pkey_new`` index may be left behind.
@@ -48,23 +49,8 @@ Create Date: 2026-08-03
 
 """
 
-import logging
-
 import sqlalchemy as sa
 from alembic import op
-
-logger = logging.getLogger("alembic.runtime.migration")
-
-
-def _report(message: str):
-    """Tell the operator which indexes this migration touched on their database.
-
-    Printed as well as logged, because FlexMeasures' logging setup does not surface the alembic logger,
-    and the upgrade output is the only record a deployment gets of what was dropped.
-    """
-    print(message, flush=True)
-    logger.info(message)
-
 
 # revision identifiers, used by Alembic.
 revision = "d4a7c1e93b52"
@@ -87,37 +73,6 @@ OLD_ORDER = [
     "cumulative_probability",
     "sensor_id",
 ]
-
-# Some deployments carry a hand-added composite index on exactly the first four columns of NEW_ORDER,
-# which the reordered primary key makes redundant.
-# Drop it only if it is present *and* matches that definition,
-# so we never drop an index that happens to share the name but covers something else.
-REDUNDANT_INDEX = "idx_tb_sensor_source_event_horizon"
-# Matched against the catalog rather than against indexdef text.
-# A LIKE on indexdef would also match an index that merely starts with these columns,
-# such as one carrying INCLUDE columns or a WHERE predicate,
-# and those are not redundant with the new primary key.
-# The check is a plain query rather than a DO block,
-# because DROP INDEX CONCURRENTLY cannot run inside one.
-IS_REDUNDANT_INDEX_PRESENT = """
-SELECT 1
-  FROM pg_index x
-  JOIN pg_class i ON i.oid = x.indexrelid
-  JOIN pg_class t ON t.oid = x.indrelid
-  JOIN pg_namespace n ON n.oid = t.relnamespace
- WHERE t.relname = 'timed_belief'
-   AND n.nspname = :schema
-   AND i.relname = :name
-   AND x.indnkeyatts = 4
-   AND x.indnatts = 4
-   AND x.indpred IS NULL
-   AND x.indexprs IS NULL
-   AND (
-       SELECT array_agg(a.attname::text ORDER BY k.ord)
-         FROM unnest(x.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord)
-         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
-   ) = ARRAY['sensor_id', 'source_id', 'event_start', 'belief_horizon']
-"""
 
 TEMP_INDEX = "timed_belief_pkey_new"
 
@@ -179,39 +134,7 @@ def _swap_primary_key(order: list[str]) -> None:
 
 def upgrade():
     _swap_primary_key(NEW_ORDER)
-    raw_schema, schema = _schema()
-    present = (
-        op.get_bind()
-        .execute(
-            sa.text(IS_REDUNDANT_INDEX_PRESENT),
-            {"name": REDUNDANT_INDEX, "schema": raw_schema},
-        )
-        .scalar()
-    )
-    if present:
-        with op.get_context().autocommit_block():
-            op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {schema}.{REDUNDANT_INDEX}")
-        _report(
-            f"Dropped {REDUNDANT_INDEX}, which the reordered primary key makes redundant."
-            f" A downgrade does not recreate it, as no FlexMeasures migration or model creates it;"
-            f" the downgrade prints the statement to restore it by hand."
-        )
 
 
 def downgrade():
-    # Deliberately does not recreate REDUNDANT_INDEX.
-    # No model or migration in this project creates it:
-    # where it exists, someone added it by hand.
-    # Recreating it here would hand the index to every database that downgrades,
-    # including the ones that never carried it,
-    # and creating schema the project does not define is worse than leaving it out.
-    # Whoever added it can add it back,
-    # and both the upgrade and this downgrade say so, with the statement to use.
     _swap_primary_key(OLD_ORDER)
-    _report(
-        f"Restored the previous primary key order on timed_belief."
-        f" The {REDUNDANT_INDEX} index is not recreated, because no FlexMeasures migration or model creates it."
-        f" If this database had it before upgrading and still wants it:"
-        f" CREATE INDEX CONCURRENTLY {REDUNDANT_INDEX}"
-        f" ON timed_belief (sensor_id, source_id, event_start, belief_horizon);"
-    )
