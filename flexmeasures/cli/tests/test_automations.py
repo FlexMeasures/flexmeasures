@@ -142,7 +142,7 @@ def test_add_automation_default_cron(
         get_due_automations,
     )
 
-    # create the automation before the midnight we check, as an automation does not replay occurrences from before it existed
+    # create the automation before the midnight we check, as an automation does not replay runs from before it existed
     midnight = get_timezone().localize(datetime(2026, 7, 11, 0, 0))
     freeze_server_now(midnight - timedelta(hours=3))
 
@@ -439,7 +439,7 @@ def test_add_and_edit_automation_reject_invalid_timezone(
         ["--activate"],
     ),
 )
-def test_edit_automation_rebases_scheduling_cursor(
+def test_edit_automation_rebases_cursor(
     app,
     fresh_db,
     setup_dummy_data,
@@ -476,9 +476,7 @@ def test_edit_automation_rebases_scheduling_cursor(
     )
 
     assert edit_result.exit_code == 0, edit_result.output
-    assert automation.scheduling_cursor == datetime(
-        2026, 1, 15, 9, 59, tzinfo=timezone.utc
-    )
+    assert automation.cursor == datetime(2026, 1, 15, 9, 59, tzinfo=timezone.utc)
 
 
 def test_add_automation_help_focuses_on_automation_options(app):
@@ -798,9 +796,7 @@ def test_run_automations_catches_up_once_after_downtime(
 
     automation = fresh_db.session.scalars(select(Automation)).one()
     assert automation.timezone == "Europe/Amsterdam"
-    assert automation.scheduling_cursor == datetime(
-        2026, 1, 15, 9, 0, tzinfo=timezone.utc
-    )
+    assert automation.cursor == datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
 
 
 def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):

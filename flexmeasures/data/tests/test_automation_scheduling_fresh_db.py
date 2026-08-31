@@ -1,4 +1,4 @@
-"""Regression tests for durable forecast automation occurrence calculation."""
+"""Regression tests for durable forecast automation run calculation."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def automation_factory(fresh_db):
             name=name,
             cronstr=cronstr,
             timezone=timezone_name,
-            scheduling_cursor=cursor,
+            cursor=cursor,
             active=active,
             parameters={},
         )
@@ -102,9 +102,7 @@ def test_automations_use_independent_timezones(fresh_db, automation_factory):
         ),
     ),
 )
-def test_missed_occurrences_are_coalesced(
-    automation_factory, cronstr, cursor, now, expected
-):
+def test_missed_runs_are_coalesced(automation_factory, cronstr, cursor, now, expected):
     automation = automation_factory(
         name="Catch-up",
         cronstr=cronstr,
@@ -119,7 +117,7 @@ def test_missed_occurrences_are_coalesced(
     ]
 
 
-def test_spring_forward_occurrence_runs_at_transition_boundary(
+def test_spring_forward_run_happens_at_transition_boundary(
     automation_factory,
 ):
     automation = automation_factory(
@@ -195,7 +193,7 @@ def test_persisted_cursor_survives_restart(fresh_db, automation_factory):
 
     assert get_due_automations(now) == []
     persisted = fresh_db.session.get(Automation, automation_id)
-    assert persisted.scheduling_cursor == now
+    assert persisted.cursor == now
 
 
 def test_inactive_automation_is_not_due(automation_factory):
@@ -209,7 +207,7 @@ def test_inactive_automation_is_not_due(automation_factory):
     )
 
     assert get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc)) == []
-    assert automation.scheduling_cursor == cursor
+    assert automation.cursor == cursor
 
 
 def test_invalid_cron_does_not_hide_other_due_automations(automation_factory, caplog):
@@ -249,7 +247,7 @@ def test_claim_rejects_automation_deactivated_after_discovery(
     fresh_db.session.commit()
 
     assert claim_due_automation(due) is False
-    assert automation.scheduling_cursor == cursor
+    assert automation.cursor == cursor
 
 
 @pytest.mark.parametrize(
@@ -272,7 +270,7 @@ def test_claim_rejects_recurrence_edited_after_discovery(
     fresh_db.session.commit()
 
     assert claim_due_automation(due) is False
-    assert automation.scheduling_cursor == cursor
+    assert automation.cursor == cursor
 
 
 def test_claim_rejects_cursor_changed_after_discovery(fresh_db, automation_factory):
@@ -286,11 +284,11 @@ def test_claim_rejects_cursor_changed_after_discovery(fresh_db, automation_facto
     due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))[0]
     newer_cursor = datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc)
 
-    automation.scheduling_cursor = newer_cursor
+    automation.cursor = newer_cursor
     fresh_db.session.commit()
 
     assert claim_due_automation(due) is False
-    assert automation.scheduling_cursor == newer_cursor
+    assert automation.cursor == newer_cursor
 
 
 def test_claim_allows_name_edit_after_discovery(fresh_db, automation_factory):
