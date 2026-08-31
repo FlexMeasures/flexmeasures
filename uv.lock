@@ -1282,7 +1282,7 @@ dependencies = [
     { name = "setuptools", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "sqlalchemy", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "tabulate", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "timely-beliefs", extra = ["forecast"], marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "timely-beliefs", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "tldextract", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "uniplot", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
@@ -1407,7 +1407,7 @@ requires-dist = [
     { name = "setuptools", specifier = ">=83.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
-    { name = "timely-beliefs", extras = ["forecast"], specifier = ">=3.5.5" },
+    { name = "timely-beliefs", specifier = ">=3.5.5" },
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "uniplot", specifier = ">=0.12.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
@@ -3698,15 +3698,6 @@ wheels = [
 ]
 
 [[package]]
-name = "scikit-base"
-version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2d/d6/ebcf140944069dd35d12492564188a5f92f03c2ed87cadcc7850081165ee/scikit_base-1.0.2.tar.gz", hash = "sha256:2bddbc77c3fe9d83dc692d3d3b6a0c7bf5443c2d4f703a08fb8559d2781c4246", size = 139550, upload-time = "2026-06-22T19:33:25.401Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/7a/24d871929849e61a245ee36806900ae6655b1820efd0dc096e49e88f43f9/scikit_base-1.0.2-py3-none-any.whl", hash = "sha256:4a1ba87a65a92d58f29d30620832c1c4304375b6140cb463eabb61a7e00fe024", size = 165251, upload-time = "2026-06-22T19:33:23.267Z" },
-]
-
-[[package]]
 name = "scikit-learn"
 version = "1.7.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4031,27 +4022,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
-]
-
-[[package]]
-name = "sktime"
-version = "1.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "joblib", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version != '3.11.*' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32')" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version == '3.11.*' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux') or (python_full_version >= '3.11' and sys_platform == 'win32')" },
-    { name = "packaging", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "pandas", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "scikit-base", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "scikit-learn", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32')" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version == '3.11.*' and sys_platform == 'darwin') or (python_full_version == '3.11.*' and sys_platform == 'linux') or (python_full_version == '3.11.*' and sys_platform == 'win32')" },
-    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and sys_platform == 'darwin') or (python_full_version >= '3.12' and sys_platform == 'linux') or (python_full_version >= '3.12' and sys_platform == 'win32')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/cc/39/9ecac07485950a6f428b1c2e69cb0f19434bd39115f0229fb509f3016d76/sktime-1.1.0.tar.gz", hash = "sha256:f5cf8b5d01a03af50e0d0fd915bd880e6528e6cd44027de1c5c4a4dac70cb07d", size = 36339689, upload-time = "2026-07-28T17:10:50.279Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/ef/46c8fe85a7d26c4a30bdb81d3b07f0fefb9640ff0d6ad6f054c9e2c15955/sktime-1.1.0-py3-none-any.whl", hash = "sha256:6af5430777aa56aa85b2a5c1c5363e7f4a468f666737aaf178ae3f941c3dd6c4", size = 37591916, upload-time = "2026-07-28T17:10:45.174Z" },
 ]
 
 [[package]]
@@ -4526,12 +4496,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/31/21909375dd54d9c883687c0f9ded62244abe6f992bcafdf2a188ff0b94b7/timely_beliefs-4.2.0-py2.py3-none-any.whl", hash = "sha256:d955b71a269aafe7380575a155850667d602649020235aedd4498b32cdacd85b", size = 817900, upload-time = "2026-08-03T10:28:34.991Z" },
 ]
 
-[package.optional-dependencies]
-forecast = [
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version != '3.11.*' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32')" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version == '3.11.*' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.11' and sys_platform == 'linux') or (python_full_version >= '3.11' and sys_platform == 'win32')" },
-    { name = "sktime", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
-]
 
 [[package]]
 name = "times"

@@ -387,6 +387,7 @@ def request_accepted_for_processing(
     message: str = "Request has been accepted for processing.",
     legacy_key: str | None = None,
     job_results_url: str | None = None,
+    status_code: int = 202,
 ) -> ResponseTuple:
     """
     Standard 202 response when a background job is accepted.
@@ -414,7 +415,7 @@ def request_accepted_for_processing(
         # keep legacy key for backwards compatibility; not (yet) deprecated, see docstring
         resp[legacy_key] = job_id
 
-    return resp, 202
+    return resp, status_code
 
 
 def request_too_large(message: str) -> ResponseTuple:
