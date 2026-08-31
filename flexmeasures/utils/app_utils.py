@@ -21,9 +21,16 @@ from flexmeasures.utils.sentry_utils import (
     _sentry_filter_notfound,
 )
 
+TEMPLATE_ASSETS_REQUIRED_MIGRATION = "4b0f2e9c1a6d"
+
 
 def provision_default_template_assets_on_startup(app: Flask) -> None:
     """Provision starter template assets when startup settings and schema allow it."""
+    from flexmeasures.data import is_running_database_command
+
+    if is_running_database_command():
+        return
+
     if (
         not app.config.get("FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", False)
         or app.testing
@@ -31,9 +38,12 @@ def provision_default_template_assets_on_startup(app: Flask) -> None:
     ):
         return
 
-    if not getattr(app, "database_schema_is_migrated_to_head", True):
+    from flexmeasures.data.utils import database_schema_has_revision
+
+    if not database_schema_has_revision(app, TEMPLATE_ASSETS_REQUIRED_MIGRATION):
         app.logger.info(
-            "Skipping startup template provisioning because the database schema is not at the Alembic head revision yet."
+            "Skipping startup template provisioning because the database schema is missing the required migration "
+            f"{TEMPLATE_ASSETS_REQUIRED_MIGRATION}."
         )
         return
 

@@ -11,6 +11,19 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
 
 
+def forecast_trigger_payload() -> dict:
+    return {
+        "start": "2025-01-05T00:00:00+00:00",
+        "end": "2025-01-05T02:00:00+00:00",
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "config": {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "retrain-frequency": "PT1H",
+        },
+    }
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_trigger_and_fetch_forecasts(
     app,
@@ -33,16 +46,7 @@ def test_trigger_and_fetch_forecasts(
     sensor_0 = setup_fresh_test_forecast_data["solar-sensor"]
 
     # Trigger job
-    payload = {
-        "start": "2025-01-05T00:00:00+00:00",
-        "end": "2025-01-05T02:00:00+00:00",
-        "max-forecast-horizon": "PT1H",
-        "forecast-frequency": "PT1H",
-        "config": {
-            "train-start": "2025-01-01T00:00:00+00:00",
-            "retrain-frequency": "PT1H",
-        },
-    }
+    payload = forecast_trigger_payload()
 
     trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor_0.id)
     trigger_res = client.post(
@@ -131,3 +135,35 @@ def test_trigger_and_fetch_forecasts(
 
         # API should return exactly these most-recent beliefs
         assert api_forecasts == expected_values
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_trigger_forecast_returns_200_for_legacy_client(
+    app,
+    setup_fresh_test_forecast_data,
+    setup_roles_users_fresh_db,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.1"},
+    )
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.0"},
+    )
+    client = app.test_client()
+    token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:trigger_forecast", id=sensor.id),
+        json=forecast_trigger_payload(),
+        headers={"Authorization": token},
+    )
+
+    assert response.status_code == 200
+    assert response.json["job"] == response.json["forecast"]

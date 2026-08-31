@@ -7,6 +7,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from flexmeasures.data import db, register_at
 from flexmeasures.data.utils import (
     DatabaseSchemaRevisionStatus,
+    database_schema_has_revision,
     format_database_schema_revision_status,
     get_database_schema_revision_status,
 )
@@ -38,6 +39,25 @@ class _DummyScriptDirectory:
 
     def get_heads(self) -> tuple[str, ...]:
         return self._heads
+
+
+class _DummyRevision:
+    def __init__(self, revision: str):
+        self.revision = revision
+
+
+class _DummyRevisionMap:
+    def __init__(self, revisions: tuple[str, ...]):
+        self._revisions = revisions
+
+    def iterate_revisions(self, *args, **kwargs):
+        return (_DummyRevision(revision) for revision in self._revisions)
+
+
+class _DummyScriptDirectoryWithRevisionMap(_DummyScriptDirectory):
+    def __init__(self, heads: tuple[str, ...], revisions: tuple[str, ...]):
+        super().__init__(heads)
+        self.revision_map = _DummyRevisionMap(revisions)
 
 
 def test_schema_mismatch_log_record_is_deduplicated(
@@ -181,3 +201,39 @@ def test_database_schema_revision_status_records_connectivity_failure(app, monke
     assert status.expected_heads == ("head-a",)
     assert status.inspection_error is not None
     assert status.is_migrated_to_head is False
+
+
+def test_database_schema_has_revision_when_revision_is_in_current_history(
+    app, monkeypatch
+):
+    monkeypatch.setattr(db.engine, "connect", lambda: _DummyConnection())
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.MigrationContext.configure",
+        lambda connection: _DummyMigrationContext(("head-a",)),
+    )
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.ScriptDirectory.from_config",
+        lambda config: _DummyScriptDirectoryWithRevisionMap(
+            heads=("head-a",), revisions=("head-a", "required-a")
+        ),
+    )
+
+    assert database_schema_has_revision(app, "required-a") is True
+
+
+def test_database_schema_has_revision_false_when_revision_is_not_in_current_history(
+    app, monkeypatch
+):
+    monkeypatch.setattr(db.engine, "connect", lambda: _DummyConnection())
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.MigrationContext.configure",
+        lambda connection: _DummyMigrationContext(("old-a",)),
+    )
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.ScriptDirectory.from_config",
+        lambda config: _DummyScriptDirectoryWithRevisionMap(
+            heads=("head-a",), revisions=("old-a",)
+        ),
+    )
+
+    assert database_schema_has_revision(app, "required-a") is False
