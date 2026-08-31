@@ -27,7 +27,7 @@ from flexmeasures.utils.time_utils import server_now
 
 @dataclass(frozen=True)
 class DueAutomation:
-    """An automation together with the canonical occurrence it should handle."""
+    """An automation together with the canonical run it should handle."""
 
     automation: Automation
     scheduled_at: datetime
@@ -111,10 +111,8 @@ def _is_ambiguous_wall_time(nominal_time: datetime, timezone_info: ZoneInfo) -> 
     return len(_valid_localizations(nominal_time, timezone_info)) == 2
 
 
-def _canonical_occurrence_time(
-    nominal_time: datetime, timezone_info: ZoneInfo
-) -> datetime:
-    """Map one wall-clock occurrence to its canonical effective UTC instant.
+def _canonical_run_time(nominal_time: datetime, timezone_info: ZoneInfo) -> datetime:
+    """Map one wall-clock run to its canonical effective UTC instant.
 
     Ambiguous times use the earlier fold.
     Nonexistent times become effective at the first valid minute after the clock jump.
@@ -137,10 +135,10 @@ def _canonical_occurrence_time(
 
 
 def _cron_evaluation_time(now: datetime, timezone_info: ZoneInfo) -> datetime:
-    """Return the nominal wall time through which cron occurrences have happened.
+    """Return the nominal wall time through which cron runs have happened.
 
     During the second fold of a repeated interval, the entire first fold has already happened.
-    Evaluate through the end of that repeated wall interval, so missed occurrences are coalesced instead of replayed minute by minute.
+    Evaluate through the end of that repeated wall interval, so missed runs are coalesced instead of replayed minute by minute.
     """
     localized_now = now.astimezone(timezone_info)
     nominal_now = _as_nominal_wall_time(localized_now)
@@ -159,27 +157,25 @@ def _cron_evaluation_time(now: datetime, timezone_info: ZoneInfo) -> datetime:
     )
 
 
-def get_latest_scheduled_occurrence(automation: Automation, now: datetime) -> datetime:
-    """Return the latest canonical occurrence for an automation through ``now``."""
+def get_latest_scheduled_run(automation: Automation, now: datetime) -> datetime:
+    """Return the latest canonical run for an automation through ``now``."""
     now = floor_to_minute(now)
     timezone_info = ZoneInfo(automation.timezone)
     evaluation_time = _cron_evaluation_time(now, timezone_info)
     if croniter.match(automation.cronstr, evaluation_time):
-        nominal_occurrence = evaluation_time
+        nominal_run = evaluation_time
     else:
-        nominal_occurrence = croniter(automation.cronstr, evaluation_time).get_prev(
-            datetime
-        )
-    scheduled_at = _canonical_occurrence_time(nominal_occurrence, timezone_info)
+        nominal_run = croniter(automation.cronstr, evaluation_time).get_prev(datetime)
+    scheduled_at = _canonical_run_time(nominal_run, timezone_info)
     if scheduled_at > now:
         raise ValueError(
-            f"Cron occurrence {nominal_occurrence.isoformat()} in {automation.timezone} resolves after {now.isoformat()}."
+            f"Cron run {nominal_run.isoformat()} in {automation.timezone} resolves after {now.isoformat()}."
         )
     return scheduled_at
 
 
 def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
-    """Return the newest unhandled occurrence for each active automation."""
+    """Return the newest unhandled run for each active automation."""
     if now is None:
         now = server_now()
     now = floor_to_minute(now)
@@ -189,22 +185,20 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     due_automations = []
     for automation in active_automations:
         try:
-            scheduled_at = get_latest_scheduled_occurrence(automation, now)
+            scheduled_at = get_latest_scheduled_run(automation, now)
         except (CroniterError, ValueError, ZoneInfoNotFoundError) as exc:
             current_app.logger.error(
-                "Skipping automation %s (%r), because its next occurrence could not be calculated: %s",
+                "Skipping automation %s (%r), because its next run could not be calculated: %s",
                 automation.id,
                 automation.name,
                 exc,
             )
             continue
-        expected_cursor = automation.scheduling_cursor
-        scheduling_cursor = expected_cursor
-        if scheduling_cursor is None:
-            scheduling_cursor = floor_to_minute(automation.created_at) - timedelta(
-                minutes=1
-            )
-        if scheduled_at > scheduling_cursor:
+        expected_cursor = automation.cursor
+        cursor = expected_cursor
+        if cursor is None:
+            cursor = floor_to_minute(automation.created_at) - timedelta(minutes=1)
+        if scheduled_at > cursor:
             due_automations.append(
                 DueAutomation(
                     automation=automation,
@@ -218,11 +212,11 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
 
 
 def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist an occurrence claim if its scheduling configuration is unchanged."""
+    """Persist a run claim if its scheduling configuration is unchanged."""
     if due_automation.expected_cursor is None:
-        cursor_matches = Automation.scheduling_cursor.is_(None)
+        cursor_matches = Automation.cursor.is_(None)
     else:
-        cursor_matches = Automation.scheduling_cursor == due_automation.expected_cursor
+        cursor_matches = Automation.cursor == due_automation.expected_cursor
     result = db.session.execute(
         update(Automation)
         .where(
@@ -232,7 +226,7 @@ def claim_due_automation(due_automation: DueAutomation) -> bool:
             Automation.timezone == due_automation.expected_timezone,
             cursor_matches,
         )
-        .values(scheduling_cursor=due_automation.scheduled_at)
+        .values(cursor=due_automation.scheduled_at)
         .execution_options(synchronize_session=False)
     )
     if result.rowcount != 1:

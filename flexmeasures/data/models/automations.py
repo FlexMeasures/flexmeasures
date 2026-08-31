@@ -25,7 +25,7 @@ def get_default_automation_timezone() -> str:
     return timezone_name
 
 
-def get_initial_scheduling_cursor() -> datetime:
+def get_initial_cursor() -> datetime:
     """Return a cursor which keeps the automation's creation minute eligible."""
     return server_now().astimezone(timezone.utc).replace(
         second=0, microsecond=0
@@ -59,10 +59,13 @@ class Automation(db.Model, AuthModelMixin):
     timezone = db.Column(
         db.String(64), nullable=False, default=get_default_automation_timezone
     )
-    scheduling_cursor = db.Column(
+    # The scheduled time of the most recent run this automation committed to.
+    # Runs at or before it are never queued again, which is what makes catch-up after downtime queue only the latest missed run.
+    # It advances just before queueing, so it records that a run was claimed, not that queueing or the forecast itself succeeded.
+    cursor = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=get_initial_scheduling_cursor,
+        default=get_initial_cursor,
     )
     active = db.Column(db.Boolean, nullable=False, default=True)
     generator_id = db.Column(

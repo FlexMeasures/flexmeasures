@@ -68,13 +68,13 @@ def run_automations():
     Queue jobs for all automations that are due to run this minute.
 
     Each cron string is interpreted in the automation's timezone.
-    Missed forecast occurrences are caught up once, with several missed occurrences coalesced into the latest useful forecast.
+    Missed forecast runs are caught up once, with several missed runs coalesced into the latest useful forecast.
     Run this command once per minute (e.g. via cron):
 
     \b
         * * * * * flexmeasures jobs run-automations
 
-    A Redis-based guard allows at most one queueing attempt per scheduled occurrence.
+    A Redis-based guard allows at most one queueing attempt per scheduled run.
     A failed attempt is not retried automatically, because it may already have queued some jobs.
     """
     now = floor_to_minute(server_now())
@@ -88,7 +88,7 @@ def run_automations():
     n_failed = 0
     for due_automation in due_automations:
         automation = due_automation.automation
-        # Guard the canonical occurrence, including catch-ups and repeated wall times.
+        # Guard the canonical run, including catch-ups and repeated wall times.
         guard_key = (
             f"automation-run:{automation.id}:{due_automation.scheduled_at.isoformat()}"
         )
@@ -101,7 +101,7 @@ def run_automations():
             continue
         if not claim_due_automation(due_automation):
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') occurrence {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
+                f"Automation {automation.id} ('{automation.name}') run {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
                 **MsgStyle.WARN,
             )
             continue
