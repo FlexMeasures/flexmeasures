@@ -136,15 +136,21 @@ def process_sensor_data_ingestion(
     upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
+    force_synchronous: bool = False,
 ) -> ResponseTuple:
     """Process sensor data ingestion asynchronously when possible.
 
     If an ingestion queue with connected workers is available, enqueue a background
-    job and return ``202 Accepted``. Otherwise, process the data synchronously and
-    return the resulting ingestion response.
+    job and return ``202 Accepted``. If no worker is available, process the data
+    synchronously and return the resulting ingestion response. As a compatibility
+    exception, callers can force synchronous processing for compatibility purposes.
     """
     ingestion_queue = current_app.queues.get("ingestion")
-    if ingestion_queue is None:
+    if force_synchronous:
+        current_app.logger.info(
+            "Processing sensor data directly as requested by caller."
+        )
+    elif ingestion_queue is None:
         current_app.logger.warning(
             "No ingestion queue configured. Processing sensor data directly."
         )
