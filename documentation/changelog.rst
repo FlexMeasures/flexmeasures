@@ -8,6 +8,12 @@ FlexMeasures Changelog
 v1.1.0 | September XX, 2026
 ============================
 
+.. warning:: This release's migration drops indexes on ``timed_belief`` that its reordered primary key makes redundant, and which of them your database actually carries depends on its age and on the ``timely-beliefs`` version that first created the table.
+             The migration prints exactly which indexes it dropped, so keep that output if you maintain your own indexes on this table.
+             Two notes if you ever downgrade.
+             The single-column indexes on ``event_start`` and ``sensor_id`` are both recreated, because ``timely-beliefs`` declared them before 4.2.0, so a database that carried only one of them gains the other, which is safe to drop again.
+             An ``idx_tb_sensor_source_event_horizon`` added by hand is *not* recreated, because no FlexMeasures migration or model creates it; the downgrade prints the statement to restore it yourself.
+
 New features
 -------------
 
