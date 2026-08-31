@@ -15,6 +15,10 @@
 
 import { fetchChartData } from "./chart-data-fetch.js";
 
+// Long enough that stepping or widening a selection is answered from memory,
+// short enough that a window left open picks up data written elsewhere before long.
+const DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
+
 /**
  * Work out which parts of a newly selected window are not covered by the loaded one.
  *
@@ -147,9 +151,15 @@ export function dedupeRecords(records) {
  * the fast chart sorts each series by time itself,
  * and Vega-Lite sorts line and area marks by their x channel.
  *
+ * Records are held for a limited time.
+ * Data written elsewhere, by a report or by another user, raises no event in this tab,
+ * so without an age limit a window left open would keep answering from what was true when it was opened.
+ *
+ * @param {Object} [options]
+ * @param {number} [options.maxAgeMs] - How long records may be reused before being fetched again.
  * @returns {Object} - A cache with `load(dataPath, options)` and `reset()`.
  */
-export function createChartDataCache() {
+export function createChartDataCache({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
   let cached = null;
 
   return {
@@ -177,7 +187,9 @@ export function createChartDataCache() {
       // Selections are not serialised and their requests are not aborted,
       // so a second selection can replace what is held while this one is still awaiting its data.
       // Merging against the snapshot keeps each result's span and records describing the same thing.
-      const held = cached;
+      // Records past their age are treated as absent, so this window is fetched afresh.
+      const held =
+        cached !== null && Date.now() - cached.fetchedAt < maxAgeMs ? cached : null;
       const resolutionMs = held ? effectiveResolutionMs(held.data) : 0;
       // Reuse only what a direct fetch would have returned identically.
       // Windows that merely touch still form one contiguous span,
@@ -207,8 +219,10 @@ export function createChartDataCache() {
               start: start < held.start ? start : held.start,
               end: end > held.end ? end : held.end,
               data: dedupeRecords(held.data.concat(...fetched)),
+              // Extending keeps the original age, so a span cannot outlive the limit by being added to.
+              fetchedAt: held.fetchedAt,
             }
-          : { start: start, end: end, data: [].concat(...fetched) };
+          : { start: start, end: end, data: [].concat(...fetched), fetchedAt: Date.now() };
         // Whichever selection finishes last decides what is held.
         // Both spans are self-consistent, so the worst case is a later selection re-fetching.
         cached = assembled;
