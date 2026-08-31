@@ -10,6 +10,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* StorageScheduler now exports a ``commodity_costs`` breakdown alongside ``commitment_costs`` for multi-commodity or non-default commodity schedules and persists it in ``rq_job.meta["scheduler_info"]["commodity_costs"]`` [see `issue #2416 <https://github.com/FlexMeasures/flexmeasures/issues/2416>`_]
 
 Infrastructure / Support
 -------------------------
