@@ -12,7 +12,7 @@ v1.1.0 | September XX, 2026
              The migration prints exactly which of them it dropped, so keep that output if you maintain your own indexes on this table.
              On a downgrade both are recreated, because ``timely-beliefs`` declared both before 4.2.0, so a database that carried only one of them gains the other, which is safe to drop again.
              If you maintain indexes of your own on this table, note that the reordered primary key leads with ``(sensor_id, source_id, event_start, belief_horizon)``, so any index you keep on a prefix of that is now redundant and can be dropped once the migration has run.
-             FlexMeasures does not drop those itself, as it cannot know which ones you meant to keep.
+             The migration names the ones it finds and leaves them in place, as it cannot know which ones you meant to keep.
 
 New features
 -------------

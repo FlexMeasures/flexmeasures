@@ -18,7 +18,8 @@ Why this order:
   Any index a deployment maintains on that prefix is made redundant by this reordering,
   and can be dropped once the migration has run.
   This migration does not drop it, because no index of that shape is part of FlexMeasures' schema:
-  only the deployment that created one knows it exists.
+  only the deployment that created one knows what it was for.
+  The follow-up migration ``b7e5a2c40f18`` does name the ones it finds, so the operator can decide.
 - ``cumulative_probability`` last,
   because it is very nearly a constant (0.5 for every deterministic belief),
   and contributes no selectivity wherever it sits.
