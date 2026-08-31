@@ -26,6 +26,16 @@ The backfill reads every belief row once.
 It takes a plain ACCESS SHARE lock, so reads and writes continue,
 but on a large database expect it to take a few minutes.
 
+The function and trigger definitions come from
+``flexmeasures.data.models.time_series``, the same ones ``create_all()`` installs,
+rather than being written out again here.
+There is only one such trigger, not a history of versions to preserve,
+so nothing is lost by installing the current definition instead of a frozen one.
+That said, sharing the text does not make a future change to it reach an existing
+database on its own: like any other schema change,
+a changed trigger needs a new migration that installs it,
+because ``flexmeasures db upgrade`` only ever runs a migration once.
+
 Revision ID: f1c8a3d75e29
 Revises: b7e5a2c40f18
 Create Date: 2026-08-03
@@ -37,6 +47,10 @@ import logging
 from alembic import op
 import sqlalchemy as sa
 
+from flexmeasures.data.models.time_series import (
+    RECORD_SENSOR_DATA_SOURCES_FUNCTION,
+    RECORD_SENSOR_DATA_SOURCES_TRIGGER,
+)
 
 # revision identifiers, used by Alembic.
 revision = "f1c8a3d75e29"
@@ -46,26 +60,6 @@ depends_on = None
 
 logger = logging.getLogger("alembic.runtime.migration")
 
-
-CREATE_FUNCTION = """
-CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-    INSERT INTO sensor_data_source (sensor_id, source_id)
-    SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
-    ON CONFLICT DO NOTHING;
-    RETURN NULL;
-END;
-$$
-"""
-
-CREATE_TRIGGER = """
-CREATE TRIGGER timed_belief_record_sensor_data_sources
-AFTER INSERT ON timed_belief
-REFERENCING NEW TABLE AS inserted_beliefs
-FOR EACH STATEMENT
-EXECUTE FUNCTION record_sensor_data_sources()
-"""
 
 BACKFILL = """
 INSERT INTO sensor_data_source (sensor_id, source_id)
@@ -112,14 +106,14 @@ def upgrade():
     # With this order the two overlap instead of leaving a gap,
     # and ON CONFLICT DO NOTHING absorbs the overlap.
     with op.get_context().autocommit_block():
-        op.execute(sa.text(CREATE_FUNCTION))
+        op.execute(sa.text(RECORD_SENSOR_DATA_SOURCES_FUNCTION))
         op.execute(
             sa.text(
                 "DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources"
                 " ON timed_belief"
             )
         )
-        op.execute(sa.text(CREATE_TRIGGER))
+        op.execute(sa.text(RECORD_SENSOR_DATA_SOURCES_TRIGGER))
 
     # Backfill the beliefs that predate the trigger.
     # DISTINCT over the whole table is the one expensive step here,

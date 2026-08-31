@@ -1241,10 +1241,14 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 # transition table (named inserted_beliefs below).
 # So saving a million beliefs in one statement adds one small insert, not a million.
 #
-# Migration f1c8a3d75e29 creates the same function and trigger.
-# The statements are written out in both places rather than shared,
-# because a migration should keep doing what it did when it was written,
-# even if this file later changes.
+# Migration f1c8a3d75e29 imports these two constants and installs the same
+# function and trigger for databases built by Alembic rather than by create_all().
+# There is only one such trigger, not a history of versions to preserve,
+# so the migration installs the current definition instead of a frozen copy of its own.
+#
+# Sharing the text does not, on its own, make a later change to it reach an existing
+# database: like any other schema change, that needs a new migration,
+# because a migration that has already run will not run again.
 RECORD_SENSOR_DATA_SOURCES_FUNCTION = """
 CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
 LANGUAGE plpgsql AS $$

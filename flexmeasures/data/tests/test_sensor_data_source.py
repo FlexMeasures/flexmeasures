@@ -1,5 +1,7 @@
 """Tests for the sensor_data_source summary table."""
 
+from pathlib import Path
+
 import pandas as pd
 from sqlalchemy import func, select
 from timely_beliefs import BeliefsDataFrame
@@ -202,3 +204,35 @@ def test_time_filtered_source_search_still_reads_beliefs(setup_beliefs, db):
         event_starts_after=pd.Timestamp("2030-01-01 00:00:00+00:00")
     )
     assert source not in found
+
+
+def test_migration_installs_the_same_trigger_definition():
+    """Migration f1c8a3d75e29 must not carry its own copy of the trigger's SQL.
+
+    A second copy could drift from flexmeasures.data.models.time_series without
+    anyone noticing, which is exactly the kind of divergence between a migrated
+    database and one built by create_all() this table's design is meant to avoid.
+    Importing the same constants makes such drift structurally impossible,
+    rather than merely unlikely; this test only guards against the import being
+    replaced by a fresh copy-paste later on.
+    """
+    import importlib.util
+
+    from flexmeasures.data.models import time_series
+
+    spec = importlib.util.spec_from_file_location(
+        "f1c8a3d75e29",
+        Path(__file__).parents[1]
+        / "migrations"
+        / "versions"
+        / "f1c8a3d75e29_add_sensor_data_source_table.py",
+    )
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    assert migration.RECORD_SENSOR_DATA_SOURCES_FUNCTION is (
+        time_series.RECORD_SENSOR_DATA_SOURCES_FUNCTION
+    )
+    assert migration.RECORD_SENSOR_DATA_SOURCES_TRIGGER is (
+        time_series.RECORD_SENSOR_DATA_SOURCES_TRIGGER
+    )
