@@ -37,8 +37,23 @@ Create Date: 2026-08-03
 
 """
 
+import logging
+
 import sqlalchemy as sa
 from alembic import op
+
+logger = logging.getLogger("alembic.runtime.migration")
+
+
+def _report(message: str):
+    """Tell the operator which indexes this migration touched on their database.
+
+    Printed as well as logged, because FlexMeasures' logging setup does not surface the alembic logger,
+    and the upgrade output is the only record a deployment gets of what was dropped.
+    """
+    print(message, flush=True)
+    logger.info(message)
+
 
 # revision identifiers, used by Alembic.
 revision = "b7e5a2c40f18"
@@ -108,10 +123,32 @@ def upgrade():
         with op.get_context().autocommit_block():
             op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {qualified_name}")
 
+    # Which of the two a database carries varies with its age and the timely-beliefs version that built it,
+    # so say what was actually dropped here rather than what the migration can drop in general.
+    if names:
+        _report(
+            f"Dropped {len(names)} redundant single-column index(es) on timed_belief: {', '.join(names)}."
+            f" Note that a downgrade recreates the indexes on both {' and '.join(REDUNDANT_COLUMNS)},"
+            f" so a database that carried only one of them gains the other."
+        )
+    else:
+        _report(
+            "No redundant single-column indexes on timed_belief were present, so none were dropped."
+        )
+
 
 def downgrade():
     # Recreate under the naming convention this project's metadata uses.
     # The quoted form here, because it is interpolated into raw SQL.
+    #
+    # Both are recreated unconditionally, unlike the hand-added composite index in d4a7c1e93b52,
+    # and the difference is provenance.
+    # These two are FlexMeasures' own schema:
+    # timely-beliefs declared index=True on both columns before 4.2.0,
+    # so a database on the version being downgraded to would have had them.
+    # Restoring them is restoring our schema, not inventing schema for the operator.
+    # A database that carried only one of them does gain the other, which the message below points out,
+    # and dropping it again is a one-liner.
     _raw_schema, schema = op.get_bind().execute(sa.text(RESOLVE_SCHEMA)).one()
     for column in REDUNDANT_COLUMNS:
         with op.get_context().autocommit_block():
@@ -119,3 +156,10 @@ def downgrade():
                 f"CREATE INDEX CONCURRENTLY IF NOT EXISTS timed_belief_{column}_idx"
                 f" ON {schema}.timed_belief ({column})"
             )
+    _report(
+        f"Recreated the single-column indexes on timed_belief"
+        f" ({', '.join(f'timed_belief_{column}_idx' for column in REDUNDANT_COLUMNS)}),"
+        f" which timely-beliefs declared before 4.2.0."
+        f" If this database did not carry both of them before it was upgraded,"
+        f" it now has one it did not have, and dropping that again is safe."
+    )

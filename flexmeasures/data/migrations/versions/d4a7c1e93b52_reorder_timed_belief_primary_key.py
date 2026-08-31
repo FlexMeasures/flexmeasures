@@ -48,8 +48,23 @@ Create Date: 2026-08-03
 
 """
 
+import logging
+
 import sqlalchemy as sa
 from alembic import op
+
+logger = logging.getLogger("alembic.runtime.migration")
+
+
+def _report(message: str):
+    """Tell the operator which indexes this migration touched on their database.
+
+    Printed as well as logged, because FlexMeasures' logging setup does not surface the alembic logger,
+    and the upgrade output is the only record a deployment gets of what was dropped.
+    """
+    print(message, flush=True)
+    logger.info(message)
+
 
 # revision identifiers, used by Alembic.
 revision = "d4a7c1e93b52"
@@ -176,16 +191,27 @@ def upgrade():
     if present:
         with op.get_context().autocommit_block():
             op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {schema}.{REDUNDANT_INDEX}")
+        _report(
+            f"Dropped {REDUNDANT_INDEX}, which the reordered primary key makes redundant."
+            f" A downgrade does not recreate it, as no FlexMeasures migration or model creates it;"
+            f" the downgrade prints the statement to restore it by hand."
+        )
 
 
 def downgrade():
-    # Restore the composite index first,
-    # so the queries that relied on it are not left unserved in between.
-    _raw_schema, schema = _schema()
-    with op.get_context().autocommit_block():
-        op.execute(
-            f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {REDUNDANT_INDEX}"
-            f" ON {schema}.timed_belief"
-            f" (sensor_id, source_id, event_start, belief_horizon)"
-        )
+    # Deliberately does not recreate REDUNDANT_INDEX.
+    # No model or migration in this project creates it:
+    # where it exists, someone added it by hand.
+    # Recreating it here would hand the index to every database that downgrades,
+    # including the ones that never carried it,
+    # and creating schema the project does not define is worse than leaving it out.
+    # Whoever added it can add it back,
+    # and both the upgrade and this downgrade say so, with the statement to use.
     _swap_primary_key(OLD_ORDER)
+    _report(
+        f"Restored the previous primary key order on timed_belief."
+        f" The {REDUNDANT_INDEX} index is not recreated, because no FlexMeasures migration or model creates it."
+        f" If this database had it before upgrading and still wants it:"
+        f" CREATE INDEX CONCURRENTLY {REDUNDANT_INDEX}"
+        f" ON timed_belief (sensor_id, source_id, event_start, belief_horizon);"
+    )
