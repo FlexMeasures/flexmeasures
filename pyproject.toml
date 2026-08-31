@@ -292,6 +292,7 @@ markers = [
 # `uv sync --locked` to fail because the fork markers don't fully cover the
 # declared environment space.
 [tool.uv]
+required-version = "==0.10.9"
 environments = [
     "sys_platform == 'linux'",
     "sys_platform == 'darwin'",
