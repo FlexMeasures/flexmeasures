@@ -2102,6 +2102,12 @@ def get_or_create_toy_asset(
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
 @click.option(
+    "--client-version",
+    type=str,
+    default=None,
+    help="Set the flexmeasures-client-version attribute on the toy building asset.",
+)
+@click.option(
     "--shell-vars",
     is_flag=True,
     help=(
@@ -2110,7 +2116,7 @@ def get_or_create_toy_asset(
         '`eval "$(flexmeasures add toy-account --shell-vars)"`.'
     ),
 )
-def add_toy_account(kind: str, name: str, shell_vars: bool):
+def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars: bool):
     """
     Create a toy account, for tutorials and trying things.
     """
@@ -2162,7 +2168,7 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
             Sensor,
             name="day-ahead prices",
             generic_asset=nl_zone,
-            unit="EUR/MWh",
+            unit="EUR/kWh",
             timezone="Europe/Amsterdam",
             event_resolution=timedelta(minutes=60),
             knowledge_horizon=(
@@ -2185,7 +2191,7 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
             asset_name: str,
             asset_type: str,
             sensor_name: str,
-            unit: str = "MW",
+            unit: str = "kW",
             parent_asset_id: int | None = None,
             flex_context: dict | None = None,
             flex_model: dict | None = None,
@@ -2228,6 +2234,11 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
                 "consumption-price": {"sensor": day_ahead_sensor.id},
             },
         )
+        if client_version:
+            building_asset.attributes = {
+                **(building_asset.attributes or {}),
+                "flexmeasures-client-version": client_version,
+            }
         db.session.flush()
         shell_var_output["FM_TOY_BUILDING_ASSET_ID"] = building_asset.id
 
@@ -2361,7 +2372,7 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
                 generic_asset=building_asset,
                 timezone="Europe/Amsterdam",
                 event_resolution="P1Y",
-                unit="MW",
+                unit="kW",
             )
             db.session.commit()
 
@@ -2377,7 +2388,7 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
             belief = TimedBelief(
                 event_start=start_year,
                 belief_time=server_now(),
-                event_value=0.5,
+                event_value=500,
                 source=db.session.get(DataSource, 1),
                 sensor=grid_connection_capacity,
             )

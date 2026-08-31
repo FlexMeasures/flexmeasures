@@ -37,6 +37,7 @@ dependencies = [
     "py-moneyed>=3.0",
     "iso8601>=2.1.0",
     "xlrd>=2.0.2",
+    "openpyxl>=3.1.5",
     "workalendar>=17.0.0",
     "holidays>=0.57",
     "inflection>=0.5.1",
@@ -64,7 +65,7 @@ dependencies = [
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
     # 4.2.0: stopped declaring single-column indexes on event_start and sensor_id, which migration b7e5a2c40f18 drops.
-    "timely-beliefs[forecast]>=4.2.0",
+    "timely-beliefs>=4.2.0",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
@@ -81,6 +82,10 @@ dependencies = [
     "flask-swagger-ui>=5.21.0",
     # Note: the redis extra (used for rate-limit storage) currently pins redis<8
     "Flask-Limiter[redis]>=4.0",
+    # Flask-Limiter's rate-limit parser, which we also import directly (to validate rate limits),
+    # so we declare it rather than lean on it arriving transitively.
+    # The floor is Flask-Limiter's own, as we only use the long-standing limits.parse.
+    "limits>=3.13",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
     # See GH#1450 (failing tests on older Python versions)
@@ -148,9 +153,16 @@ script = "flexmeasures.data.scripts.visualize_data_model"
 
 [tool.poe.tasks.clean-db]
 help = "Clean the database."
-shell = "flexmeasures/data/scripts/clean_database.sh"
+# This is a "cmd" and not a "shell" task on purpose.
+# Poe feeds the content of a shell task to the interpreter over stdin,
+# which leaves the script without a terminal to read from,
+# so its password and confirmation prompts would silently read empty.
+# A cmd task runs the script directly and lets it inherit our stdin.
+# The arguments have to be named explicitly, because poe otherwise only exposes them as environment variables.
+cmd = "flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}"
+use_exec = true
 args = [
-    {name = "db-name", help = "The name of the database to clean."},
+    {name = "db-name", required = true, help = "The name of the database to clean."},
     {name = "db-user", help = "The user to clean the database for."},
 ]
 
@@ -207,7 +219,7 @@ args = [
 
 [dependency-groups]
 dev = [
-    "black==24.8.0",
+    "black==26.3.1",
     "flake8==7.1.1",
     "flake8-blind-except",
     "pytest-runner",
@@ -259,7 +271,6 @@ test = [
     # required with fakeredis, maybe because we use rq
     "lupa>=2.6",
     "pytest-mock>=3.15.1",
-    "openpyxl>=3.1.5",
     "pytest-runner>=6.0.1",
 ]
 

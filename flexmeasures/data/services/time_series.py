@@ -10,7 +10,6 @@ import timely_beliefs as tb
 
 from flexmeasures.data.queries.utils import simplify_index
 
-
 p = inflect.engine()
 
 

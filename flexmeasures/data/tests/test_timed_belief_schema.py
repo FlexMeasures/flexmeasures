@@ -84,6 +84,6 @@ def test_dropped_index_columns_still_lead_a_composite_index():
     leading = {list(index.columns)[0].name for index in TimedBelief.__table__.indexes}
     for column_name in ("event_start", "sensor_id"):
         assert column_name in leading, (
-            f"{column_name} no longer leads any index, so dropping its "
-            f"single-column index is no longer safe: {sorted(leading)}"
+            f"{column_name} no longer leads any index, "
+            f"so it would need a dedicated single-column index again: {sorted(leading)}"
         )

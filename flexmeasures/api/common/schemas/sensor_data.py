@@ -104,7 +104,7 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
         required=False,
         format="iso",
         metadata=dict(
-            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            description="All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             example="2026-01-14T20:00+01:00",
         ),
     )
