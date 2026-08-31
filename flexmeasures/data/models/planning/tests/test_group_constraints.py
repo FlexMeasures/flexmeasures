@@ -10,6 +10,9 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.utils.unit_utils import ur
 
+#: Run every test in this module under both scheduler backends (see conftest).
+RUN_UNDER_EACH_SOLVER = True
+
 
 def _unique_name(prefix: str) -> str:
     return f"{prefix} {uuid.uuid4().hex[:8]}"

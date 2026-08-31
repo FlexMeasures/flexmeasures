@@ -2,7 +2,16 @@ from sqlalchemy import func, select
 
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.scripts.data_gen import provision_default_template_assets
+from flexmeasures.data.scripts.data_gen import (
+    populate_initial_structure,
+    provision_default_template_assets,
+)
+
+
+class _FailingDb:
+    @property
+    def session(self):
+        raise AssertionError("Default data creation should not touch the database.")
 
 
 def test_provision_default_template_assets_creates_single_asset_templates(
@@ -63,6 +72,31 @@ def test_provision_default_template_assets_is_idempotent(fresh_db):
     sensor_count = fresh_db.session.scalar(select(func.count()).select_from(Sensor))
 
     provision_default_template_assets(fresh_db)
+    assert (
+        fresh_db.session.scalar(select(func.count()).select_from(GenericAsset))
+        == asset_count
+    )
+    assert (
+        fresh_db.session.scalar(select(func.count()).select_from(Sensor))
+        == sensor_count
+    )
+
+
+def test_initial_structure_creation_skips_database_commands(monkeypatch):
+    monkeypatch.setattr("flexmeasures.data.is_running_database_command", lambda: True)
+
+    populate_initial_structure(_FailingDb())
+
+
+def test_template_asset_provisioning_skips_database_commands(fresh_db, monkeypatch):
+    monkeypatch.setattr("flexmeasures.data.is_running_database_command", lambda: True)
+    asset_count = fresh_db.session.scalar(
+        select(func.count()).select_from(GenericAsset)
+    )
+    sensor_count = fresh_db.session.scalar(select(func.count()).select_from(Sensor))
+
+    provision_default_template_assets(fresh_db)
+
     assert (
         fresh_db.session.scalar(select(func.count()).select_from(GenericAsset))
         == asset_count

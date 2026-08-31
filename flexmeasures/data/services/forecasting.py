@@ -7,7 +7,6 @@ import logging
 import click
 from rq.timeouts import JobTimeoutException
 
-
 FORECASTING_JOB_TIMEOUT_HINT = (
     "Forecasting job timed out. "
     "Decrease max-forecast-horizon to reduce runtime per job. "

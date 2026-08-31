@@ -190,7 +190,7 @@ However, a test database (postgres) is needed to run these tests. If you have po
 
 .. code-block:: bash
 
-    $ uv run poe clean-db db-name=flexmeasures_test db-user=flexmeasures_test
+    $ uv run poe clean-db --db-name flexmeasures_test --db-user flexmeasures_test
     $ # the password for the db user is "flexmeasures_test"
 
 .. note:: The section :ref:`host-data` has more details on using postgres for FlexMeasures.

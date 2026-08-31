@@ -7,20 +7,25 @@ import pytest
 import numpy as np
 import pandas as pd
 
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
 )
-from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.models.planning.utils import initialize_index
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    validate_power_constraints,
+)
+from flexmeasures.data.models.planning.utils import initialize_df, initialize_index
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
     series_to_ts_specs,
 )
+from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 
 
@@ -196,7 +201,8 @@ def test_battery_relaxation(add_battery_assets, db):
     """Check that resolving SoC breaches is more important than resolving device power breaches.
 
     The battery is still charging with 25 kW between noon and 4 PM, when the consumption capacity is supposed to be 0.
-    It is still charging because resolving the still unmatched SoC minima takes precedence (via breach prices).
+    It is still charging because resolving the still unmatched SoC minima takes precedence
+    through the default SoC breach prices.
     """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
@@ -274,7 +280,6 @@ def test_battery_relaxation(add_battery_assets, db):
             "site-peak-production-price": series_to_ts_specs(
                 pd.Series(260, production_prices.index), unit="EUR/MW"
             ),
-            "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
             "consumption-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
             "production-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
         },
@@ -401,6 +406,87 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
 
     # No soc-maxima constraint defined, so resolved should be empty
     assert scheduling_result.resolved == []
+
+
+def test_unresolved_targets_soc_targets(add_battery_assets, db):
+    """Test that an unreachable soc-target is breached and reported, not made infeasible.
+
+    Same battery as ``test_unresolved_targets_soc_minima``: starting at 0.4 MWh with a
+    0.01 MW charging capacity, it can gain at most 0.24 MWh over 24 hours. A soc-target
+    of 0.9 MWh is therefore unreachable. Under the default constraint relaxation, the
+    scheduler should still produce a schedule and report the shortfall.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    # Constraint reporting reads the scheduled state of charge, which needs a SoC sensor.
+    soc_sensor = Sensor(
+        name="state-of-charge-targets-test",
+        generic_asset=battery.generic_asset,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.01 MVA",  # very limited: max gain 0.24 MWh over 24 h
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-02T00:00:00+01:00",
+                    "value": "0.9 MWh",  # unreachable
+                }
+            ],
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+    scheduling_result = scheduling_result_entry["data"]
+
+    asset_id = battery.generic_asset.id
+    entry = next(
+        (e for e in scheduling_result.unresolved if e["asset"] == asset_id), None
+    )
+    assert (
+        entry is not None
+    ), "an unreachable soc-target should be reported as unresolved"
+    assert "soc-targets" in entry
+    assert len(entry["soc-targets"]) == 1
+    # Charging at 0.01 MW for 24 h reaches 0.64 MWh, so the target is missed by 260 kWh.
+    assert entry["soc-targets"][0]["violation"] == "260.0 kWh"
+    # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
+    assert entry["soc-targets"][0]["datetime"] == "2015-01-01T23:00:00+00:00"
+
+    # A target is two-sided, so it never yields a margin to report.
+    assert all("soc-targets" not in e for e in scheduling_result.resolved)
 
 
 def test_unresolved_targets_none_when_met(add_battery_assets, db):
@@ -1378,7 +1464,9 @@ def test_off_tick_soc_target_extends_schedule_end_to_next_tick(add_battery_asset
             "consumption-price": "0 EUR/MWh",
             "production-price": "0 EUR/MWh",
             "site-power-capacity": "1 MW",
-            # keep SoC constraints hard, so we can assert the projected target directly
+            # Keep SoC constraints hard, so we can assert the projected target directly.
+            # An explicit "relax-soc-constraints" is needed (rather than only "relax-constraints"),
+            # because off-tick projection otherwise enables SoC relaxation automatically.
             "relax-soc-constraints": False,
         },
     )
@@ -1976,6 +2064,359 @@ def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
     )
 
 
+def test_storage_scheduler_chp_coupling(app, db):
+    """Test that the StorageScheduler enforces CHP coupling constraints between devices.
+
+    Models a Combined Heat and Power unit with three sensors.
+
+    In the flex-model, the coupling coefficients are entered as positive magnitudes::
+
+        gas input   -> 1.0
+        heat output -> 0.5
+        power output -> 0.3
+
+    Internally, the CHP is interpreted with the signed commodity-flow coefficients::
+
+        P_gas   ->  1.0
+        P_heat  -> -0.5
+        P_power -> -0.3
+
+    The returned storage schedule for the heat buffer is still positive, because this
+    test uses the storage sign convention for buffer charging.
+
+    - d=0  gas input:    CHP gas consumption
+    - d=1  heat output:  CHP heat -> heat buffer
+    - d=2  power output: CHP electricity production
+
+    The heat output is forced to exactly 5 kW per step by combining:
+    - ``production-capacity: "0 kW"``  (hard lower bound: derivative_min = 0)
+    - ``consumption-capacity: "5 kW"`` (hard upper bound: derivative_max = 0.005 MW)
+    - ``soc-targets`` requiring 20 kWh at the end of the 4-hour window
+
+    With soc_at_start = 0 and max 5 kW over 4 × 1-hour steps the only feasible
+    solution is P_heat = 5 kW every step. Substituting P_heat = 5 kW gives
+    alpha = 5 / 0.5 = 10 kW, so:
+
+        P_gas   =  1.0 × 10 kW = 10 kW
+        P_power = −0.3 × 10 kW = −3 kW
+    """
+    # ---- asset type + asset
+    chp_type = get_or_create_model(GenericAssetType, name="chp-plant")
+    chp = GenericAsset(name="CHP plant (coupling test)", generic_asset_type=chp_type)
+    db.session.add(chp)
+    db.session.flush()
+
+    # ---- schedule window
+    start = pd.Timestamp("2026-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00:00+01:00")
+    resolution = timedelta(hours=1)
+
+    # CHP efficiencies (same values as the factory scenario in test_commitments.py)
+    ETA_HEAT = 0.5  # fraction of gas input that becomes heat
+    ETA_POWER = 0.3  # fraction of gas input that becomes electricity
+
+    # ---- sensors
+    gas_input_sensor = Sensor(
+        name="CHP gas input (coupling test)",
+        generic_asset=chp,
+        unit="MW",
+        event_resolution=resolution,
+    )
+    heat_output_sensor = Sensor(
+        name="CHP heat output (coupling test)",
+        generic_asset=chp,
+        unit="MW",
+        event_resolution=resolution,
+    )
+    power_output_sensor = Sensor(
+        name="CHP power output (coupling test)",
+        generic_asset=chp,
+        unit="MW",
+        event_resolution=resolution,
+    )
+    db.session.add_all([gas_input_sensor, heat_output_sensor, power_output_sensor])
+    db.session.flush()
+
+    # ---- flex model
+    # Flex-model coupling-coefficients are user-facing positive magnitudes.
+    # The intended internal CHP coefficients are +1.0 for gas, -0.5 for heat,
+    # and -0.3 for power.
+    flex_model = [
+        {
+            # d=0: gas input — pure flow device (no SoC), can only consume gas.
+            "sensor": gas_input_sensor.id,
+            "power-capacity": "20 kW",
+            "production-capacity": "0 kW",  # derivative_min = 0
+            "coupling": "chp",
+            "coupling-coefficient": 1.0,
+        },
+        {
+            # d=1: heat output — tracks heat-buffer SoC, positive ems_power = heat
+            # added to buffer. The SoC target forces P_heat = 5 kW per step.
+            "sensor": heat_output_sensor.id,
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "0.02 MWh",  # 20 kWh — matches the SoC target
+            "soc-targets": [
+                {
+                    # Single target at the schedule end: cumulative heat = 20 kWh.
+                    # With max 5 kW and 4 × 1 h steps the only feasible solution
+                    # is 5 kW every step.
+                    "start": "2026-01-01T04:00:00+01:00",
+                    "duration": "PT1H",
+                    "value": "0.02 MWh",
+                }
+            ],
+            "power-capacity": "5 kW",
+            "consumption-capacity": "5 kW",
+            "production-capacity": "0 kW",  # can only add heat, not extract
+            "prefer-charging-sooner": True,
+            "coupling": "chp",
+            "coupling-coefficient": ETA_HEAT,  # = 0.5
+        },
+        {
+            # d=2: power output — pure flow device (no SoC), can only produce
+            # electricity (negative ems_power).
+            "sensor": power_output_sensor.id,
+            "power-capacity": "6 kW",
+            "consumption-capacity": "0 kW",  # derivative_max = 0
+            "coupling": "chp",
+            "coupling-coefficient": ETA_POWER,  # = 0.3 (sign inferred from capacities)
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 MW",  # large enough to avoid EMS constraints
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=chp,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    results = scheduler.compute(skip_validation=True)
+
+    # ---- extract storage schedules per sensor
+    storage_schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+
+    assert gas_input_sensor in storage_schedules, "Gas input schedule missing"
+    assert heat_output_sensor in storage_schedules, "Heat output schedule missing"
+    assert power_output_sensor in storage_schedules, "Power output schedule missing"
+
+    gas_schedule = storage_schedules[gas_input_sensor]
+    heat_schedule = storage_schedules[heat_output_sensor]
+    power_schedule = storage_schedules[power_output_sensor]
+
+    # The SoC target of 20 kWh is met after 4 × 1-hour steps at 5 kW.
+    # The schedule index runs from ``start`` to ``end`` inclusive (5 time slots),
+    # so the last slot has no binding SoC constraint and the CHP is idle there.
+    # All assertions therefore apply to the first four active slots only.
+    active_steps = slice(None, -1)  # exclude the final trailing idle slot
+
+    # Heat output is forced to exactly 5 kW per step by the SoC target.
+    # alpha = P_heat / ETA_HEAT = 0.005 / 0.5 = 0.010 MW
+    np.testing.assert_allclose(
+        heat_schedule.iloc[active_steps],
+        0.005,  # 5 kW expressed in MW
+        rtol=1e-4,
+        err_msg="Heat output should be exactly 5 kW per step (forced by SoC target)",
+    )
+
+    # Coupling: P_gas = 1.0 * alpha = 0.010 MW = 10 kW
+    np.testing.assert_allclose(
+        gas_schedule.iloc[active_steps],
+        0.010,  # 10 kW expressed in MW
+        rtol=1e-4,
+        err_msg="Gas input must be 10 kW — determined by coupling (1.0 * alpha)",
+    )
+
+    # Coupling: P_power = -ETA_POWER * alpha = -0.3 * 0.010 MW = -0.003 MW = -3 kW
+    np.testing.assert_allclose(
+        power_schedule.iloc[active_steps],
+        -0.003,  # -3 kW expressed in MW
+        rtol=1e-4,
+        err_msg="Power output must be -3 kW — determined by coupling (-0.3 * alpha)",
+    )
+
+
+def test_factory_chp_dispatch_through_storage_scheduler(app, db):
+    """The full factory scenario, scheduled end-to-end through ``StorageScheduler.compute()``.
+
+    That is a CHP, a gas boiler and an e-heater, together meeting a fixed steam demand.
+
+    Unlike the engine-level ``test_factory_chp_dispatch``, which passes balance groups to ``device_scheduler`` directly,
+    this test only supplies a flex-model and a flex-context.
+    Each converter is described as one device per commodity port, tied together by a coupling group.
+    The heat and steam commodities have no energy prices in the flex-context,
+    so the scheduler derives internal-node balance groups for them.
+
+    Topology (flex-model device indices)::
+
+        electricity (grid) --0--> [e-heater] --1--> heat
+        gas (grid)         --2--> [boiler]   --3--> heat
+        heat               --4--> [steamer]  --5--> steam
+        gas (grid)         --6--> [CHP]      --7--> steam
+                                             --8--> electricity (grid)
+        steam              --9--> fixed 15 kW demand (inflexible sensor)
+
+    Prices: gas 20 EUR/MWh, electricity 50 EUR/MWh.
+    Marginal cost per kW of steam: CHP (20·20 − 50·6) / 10 = 10, boiler-via-steamer 20, e-heater-via-steamer 50.
+    So the CHP runs at maximum (20 kW gas → 10 kW steam + 6 kW power),
+    and the boiler covers the remaining 5 kW of steam via the steamer;
+    the e-heater stays off.
+    """
+    factory_type = get_or_create_model(GenericAssetType, name="factory")
+    factory = GenericAsset(
+        name="Factory (end-to-end CHP dispatch)", generic_asset_type=factory_type
+    )
+    db.session.add(factory)
+    db.session.flush()
+
+    start = pd.Timestamp("2026-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00:00+01:00")
+    resolution = timedelta(hours=1)
+
+    def make_sensor(name: str) -> Sensor:
+        sensor = Sensor(
+            name=name, generic_asset=factory, unit="MW", event_resolution=resolution
+        )
+        db.session.add(sensor)
+        return sensor
+
+    eheater_elec_in = make_sensor("e-heater electricity input")
+    eheater_heat_out = make_sensor("e-heater heat output")
+    boiler_gas_in = make_sensor("boiler gas input")
+    boiler_heat_out = make_sensor("boiler heat output")
+    steamer_heat_in = make_sensor("steamer heat input")
+    steamer_steam_out = make_sensor("steamer steam output")
+    chp_gas_in = make_sensor("CHP gas input")
+    chp_steam_out = make_sensor("CHP steam output")
+    chp_power_out = make_sensor("CHP power output")
+    steam_demand = make_sensor("steam demand")
+    db.session.flush()
+
+    # A constant 15 kW steam demand, recorded as beliefs.
+    # By default, power sensors store consumption as negative values.
+    # (get_power_values flips the sign to the scheduler's consumption-positive convention.)
+    index = initialize_index(start, end, resolution)
+    source = get_or_create_model(DataSource, name="test source", type="forecaster")
+    db.session.add_all(
+        TimedBelief(
+            sensor=steam_demand,
+            source=source,
+            event_start=dt,
+            belief_time=start,
+            event_value=-15e-3,  # 15 kW in MW
+        )
+        for dt in index
+    )
+    db.session.commit()
+
+    def input_port(sensor: Sensor, commodity: str, coupling: str, max_power: str):
+        return {
+            "sensor": sensor.id,
+            "commodity": commodity,
+            "coupling": coupling,
+            "coupling-coefficient": 1.0,
+            "power-capacity": max_power,
+            "production-capacity": "0 kW",
+        }
+
+    def output_port(
+        sensor: Sensor, commodity: str, coupling: str, coefficient: float = 1.0
+    ):
+        return {
+            "sensor": sensor.id,
+            "commodity": commodity,
+            "coupling": coupling,
+            "coupling-coefficient": coefficient,
+            "power-capacity": "1 MW",
+            "consumption-capacity": "0 kW",
+        }
+
+    flex_model = [
+        input_port(eheater_elec_in, "electricity", "eheater", "100 kW"),
+        output_port(eheater_heat_out, "heat", "eheater"),
+        input_port(boiler_gas_in, "gas", "boiler", "10 kW"),
+        output_port(boiler_heat_out, "heat", "boiler"),
+        input_port(steamer_heat_in, "heat", "steamer", "1 MW"),
+        output_port(steamer_steam_out, "steam", "steamer"),
+        input_port(chp_gas_in, "gas", "chp", "20 kW"),
+        output_port(chp_steam_out, "steam", "chp", coefficient=0.5),
+        output_port(chp_power_out, "electricity", "chp", coefficient=0.3),
+    ]
+
+    flex_context = [
+        {
+            "commodity": "electricity",
+            "consumption-price": "50 EUR/MWh",
+            "production-price": "50 EUR/MWh",
+        },
+        {
+            "commodity": "gas",
+            "consumption-price": "20 EUR/MWh",
+            "production-price": "20 EUR/MWh",
+        },
+        {
+            # No prices: steam is an internal node. Its fixed demand is inflexible.
+            "commodity": "steam",
+            "inflexible-device-sensors": [steam_demand.id],
+        },
+        # The heat commodity has no context at all: also an internal node.
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=factory,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    results = scheduler.compute(skip_validation=True)
+
+    # The scheduler derived one balance group per priceless commodity:
+    # heat: e-heater out (1), boiler out (3), steamer in (4)
+    # steam: steamer out (5), CHP out (7), inflexible demand (9)
+    assert scheduler.balance_groups == {"heat": [1, 3, 4], "steam": [5, 7, 9]}
+
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+
+    expected_mw = {
+        eheater_elec_in: 0.0,
+        eheater_heat_out: 0.0,
+        boiler_gas_in: 0.005,
+        boiler_heat_out: -0.005,
+        steamer_heat_in: 0.005,
+        steamer_steam_out: -0.005,
+        chp_gas_in: 0.020,
+        chp_steam_out: -0.010,
+        chp_power_out: -0.006,
+    }
+    for sensor, expected_value in expected_mw.items():
+        np.testing.assert_allclose(
+            schedules[sensor],
+            expected_value,
+            rtol=1e-4,
+            atol=1e-9,
+            err_msg=f"Unexpected schedule for {sensor.name}",
+        )
+
+
 def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     add_battery_assets, db
 ):
@@ -2087,3 +2528,284 @@ def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     assert constraints_2.loc[start, "min"] == pytest.approx(
         4
     ), "the on-tick device's soc-minima should remain a hard constraint"
+
+
+def test_validate_power_constraints():
+    """Contradictory power bounds are reported as violations; unset (NaN) time steps are skipped."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 1, 1))
+    resolution = timedelta(minutes=15)
+    constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+
+    # A consistent frame yields no violations.
+    constraints["derivative min"] = -1
+    constraints["derivative max"] = 1
+    assert validate_power_constraints(constraints) == []
+
+    # Time steps where a bound is unset are skipped.
+    constraints["derivative equals"] = [2, None, None, None]
+    violations = validate_power_constraints(constraints)
+    assert len(violations) == 1
+    assert "derivative_equals(t) <= derivative_max(t)" in violations[0]["condition"]
+
+    # A lower bound above the upper bound is flagged for each affected time step.
+    constraints["derivative equals"] = None
+    constraints["derivative min"] = [2, 2, -1, -1]
+    violations = validate_power_constraints(constraints)
+    assert len(violations) == 2
+    assert all(
+        "derivative_min(t) <= derivative_max(t)" in v["condition"] for v in violations
+    )
+
+
+def test_multi_device_validation_survives_stockless_device(add_battery_assets, db):
+    """A stock-less device must not disable constraint validation for subsequent devices.
+
+    Device 0 has no stock (no soc-at-start), so its storage constraints are not validated.
+    Device 1 has an unreachable hard soc-target (above soc-max),
+    which validation should still report as a clear error, rather than passing it on to the solver.
+    """
+    template = add_battery_assets["Test battery"]
+    asset = GenericAsset(
+        name="Test stock-less device site",
+        generic_asset_type=template.generic_asset_type,
+        owner=template.owner,
+    )
+    sensor_0 = Sensor(
+        name="stock-less power",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    sensor_1 = Sensor(
+        name="battery power",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add_all([asset, sensor_0, sensor_1])
+    db.session.flush()
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        asset,
+        start,
+        end,
+        resolution,
+        flex_model=[
+            {
+                # A stock-less device (e.g. a PV curtailment or converter port): no soc-at-start.
+                "sensor": sensor_0.id,
+                "power-capacity": "1 MW",
+                "production-capacity": "1 MW",
+                "consumption-capacity": "0 MW",
+            },
+            {
+                "sensor": sensor_1.id,
+                "soc-at-start": "0 MWh",
+                "soc-min": "0 MWh",
+                "soc-max": "1 MWh",
+                "power-capacity": "0.04 MW",
+                "soc-targets": [
+                    {
+                        "datetime": "2015-01-01T12:00:00+01:00",
+                        # unreachable: above soc-max
+                        "value": "2 MWh",
+                    }
+                ],
+            },
+        ],
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "2 MW",
+            # Keep the target hard, so that validation has something to report.
+            # Relaxed targets are breached at a price instead, which is a schedule, not an error.
+            "relax-soc-constraints": False,
+        },
+    )
+
+    with pytest.raises(ValueError, match="Constraint validation"):
+        scheduler.compute()
+
+
+def _evse_power_sensor(db, asset, resolution, name):
+    power_sensor = Sensor(
+        name=name,
+        generic_asset=asset,
+        event_resolution=resolution,
+        unit="kW",
+    )
+    db.session.add(power_sensor)
+    db.session.commit()
+    return power_sensor
+
+
+def _storage_schedule_for_sensor(results, power_sensor):
+    storage_for_sensor = [
+        r
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+    ]
+    assert (
+        len(storage_for_sensor) == 1
+    ), "expected exactly one combined storage_schedule for this sensor"
+    return storage_for_sensor[0]["data"]
+
+
+def test_multiple_sessions_same_sensor_accumulate_schedules(db, charge_point):
+    """Two flex-model sessions on one power sensor must sum schedules (not overwrite).
+
+    Multiple independent storage entries may share a power sensor (e.g. two EV
+    sessions plugged into the same charge point connector, one after the
+    other). Their device schedules must be accumulated into a single sensor
+    schedule.
+
+    Setup: two non-overlapping sessions, each needing 2 kWh at 1 kW over a 2-hour
+    window. Overwrite behaviour would keep only the second session (~2 kWh total,
+    zeros in the first half); correct accumulation yields ~4 kWh with power in
+    both halves of the horizon.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    mid = start + 2 * resolution
+
+    power_sensor = _evse_power_sensor(
+        db, charge_point, resolution, name="connector power non-overlap"
+    )
+
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    # Pre-allocate capacity per session (required when sessions would otherwise
+    # compete for the same charger capacity; here they are non-overlapping).
+    session1_capacity = pd.Series([1.0, 1.0, 0.0, 0.0], index=index)
+    session2_capacity = pd.Series([0.0, 0.0, 1.0, 1.0], index=index)
+
+    flex_model = [
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": mid.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "1 kW",
+            "consumption-capacity": series_to_ts_specs(session1_capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "1 kW",
+            "consumption-capacity": series_to_ts_specs(session2_capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "10 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    schedule = _storage_schedule_for_sensor(results, power_sensor)
+
+    # Each session charges 2 kWh at 1 kW over its half window → [1, 1, 1, 1] kW.
+    np.testing.assert_allclose(schedule.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3)
+    # Overwrite would leave only the second session (zeros first half, ~2 kWh total).
+    np.testing.assert_allclose(schedule.iloc[:2].values, [1.0, 1.0], atol=1e-3)
+    np.testing.assert_allclose(schedule.iloc[2:].values, [1.0, 1.0], atol=1e-3)
+    np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
+
+
+def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
+    db, charge_point
+):
+    """Overlapping sessions live on different connectors and pre-split capacity.
+
+    Companion to ``test_multiple_sessions_same_sensor_accumulate_schedules``.
+    Two EV sessions cannot overlap on the same connector, so overlap is only
+    meaningful across two connectors of one charge point. Each connector has
+    its own power sensor. During the shared hours the available power is
+    pre-allocated in each flex-model (each connector's power-capacity is
+    decreased).
+
+    Setup: session A on hours 0-3, session B on hours 1-4. Both run at 1 kW
+    when alone and at 0.5 kW in the two overlapping hours. Each still needs
+    2 kWh. Site capacity is left slack so the binding limits are the
+    per-connector pre-split windows.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    connector_a = _evse_power_sensor(
+        db, charge_point, resolution, name="connector A power"
+    )
+    connector_b = _evse_power_sensor(
+        db, charge_point, resolution, name="connector B power"
+    )
+
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    # A: 1 kW, then 0.5 + 0.5 kW in the overlap, then unplugged.
+    # B: unplugged, then 0.5 + 0.5 kW in the overlap, then 1 kW.
+    cap_a = pd.Series([1.0, 0.5, 0.5, 0.0], index=index)
+    cap_b = pd.Series([0.0, 0.5, 0.5, 1.0], index=index)
+
+    def session_flex_model(sensor, capacity, soc_deadline):
+        return {
+            "sensor": sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": soc_deadline.isoformat(), "value": "2 kWh"}],
+            "power-capacity": series_to_ts_specs(capacity, unit="kW"),
+            "consumption-capacity": series_to_ts_specs(capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        }
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            session_flex_model(connector_a, cap_a, start + 3 * resolution),
+            session_flex_model(connector_b, cap_b, end),
+        ],
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "10 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    schedule_a = _storage_schedule_for_sensor(results, connector_a)
+    schedule_b = _storage_schedule_for_sensor(results, connector_b)
+
+    # Each connector follows its pre-split window, not the other's.
+    np.testing.assert_allclose(schedule_a.values, [1.0, 0.5, 0.5, 0.0], atol=1e-3)
+    np.testing.assert_allclose(schedule_b.values, [0.0, 0.5, 0.5, 1.0], atol=1e-3)
+    # Combined draw in the overlap hours is the sum of the decreased capacities.
+    np.testing.assert_allclose(
+        schedule_a.values + schedule_b.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3
+    )
+    np.testing.assert_allclose(schedule_a.sum(), 2.0, atol=1e-3)
+    np.testing.assert_allclose(schedule_b.sum(), 2.0, atol=1e-3)

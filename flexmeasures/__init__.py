@@ -20,7 +20,6 @@ from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.time_series import Sensor
 
-
 __version__ = "Unknown"
 
 # https://github.com/sqlalchemy/sqlalchemy/discussions/11712

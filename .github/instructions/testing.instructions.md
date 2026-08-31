@@ -75,6 +75,18 @@ Before changing a test that fails, investigate whether the test is intentionally
 
 A failing test often reveals a production bug, not a test bug.
 
+## Prove a new test can fail
+
+A test that never fails asserts nothing, and reads exactly like one that works.
+Before calling a new test done, break what it covers — comment out the constraint, invert the condition — and confirm it goes red, then restore.
+
+Watch for assertions that depend on the problem having a unique answer.
+An optimisation test over devices with no incentive to move has the same optimum with or without the constraint, so it passes either way.
+In `test_highspy_equivalence.py`, where two backends are compared, also disable the new code path on one side: a scenario that survives that is comparing two no-ops.
+Both traps have been hit — a balance-group scenario there passed with the constraint it was named after entirely disabled.
+
+Say in the PR description what you broke to prove it — a reviewer cannot tell a binding test from a vacuous one by reading it.
+
 ## Module-scoped fixture state
 
 Module-scoped fixtures are shared across tests. When modifying shared objects (e.g. `asset.sensors_to_show`), reset them to the column default — not to `None` — in teardown:

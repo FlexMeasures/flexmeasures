@@ -5,7 +5,7 @@ Error monitoring
 
 When you run a FlexMeasures server, you want to stay on top of things going wrong. We added two ways of doing that:
 
-- You can connect to Sentry, so that all errors will be sent to your Sentry account. Add the token you got from Sentry in the config setting :ref:`sentry_access_token` and you're up and running! 
+- You can connect FlexMeasures to Sentry, an error-monitoring service that collects and groups application errors, by setting :ref:`sentry_access_token`. To keep your Sentry plan from maxing out too fast, FlexMeasures filters 404 (Not Found) events by default, can apply a shared daily event limit, and reports repeated database-schema mismatches only once per UTC day; see :ref:`configuration` for details and configurable settings.
 - Another source of crucial errors are things that did not even happen! For instance, a (bot) user who is supposed to send data regularly, fails to connect with FlexMeasures. Or, a task to import prices from a day-ahead market, which you depend on later for scheduling, fails silently.
 
 

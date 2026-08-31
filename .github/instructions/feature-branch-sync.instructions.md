@@ -34,7 +34,7 @@ git commit -m "Merge origin/main into feature branch"
 ```
 
 This ensures your implementation starts from the latest state of the repository.
- 
+
 ## Why this matters
 
 - Merging later causes merge conflicts to compound
