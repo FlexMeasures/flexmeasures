@@ -23,7 +23,13 @@ jobs:
           version: "0.10.9"
       - name: Install dev dependencies
         run: uv sync --only-group dev --frozen
-      - uses: tox-dev/action-pre-commit-uv@v1
+      # We don't use tox-dev/action-pre-commit-uv here: it runs pre-commit with
+      # `--with pre-commit-uv`, which drags in the latest uv and puts it ahead of
+      # our pinned one on PATH, so the `uv run ...` hooks would trip over
+      # [tool.uv].required-version. All our hooks are `language: system`, so
+      # pre-commit-uv has no hook environments to speed up here anyway.
+      - name: Run pre-commit hooks
+        run: uv run --no-sync --with pre-commit pre-commit run --all-files --show-diff-on-failure --color=always
 
   test:
     needs: check

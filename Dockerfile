@@ -1,9 +1,11 @@
-ARG UV_MAJOR_VERSION=0.10
+# Keep in sync with [tool.uv].required-version in pyproject.toml, which makes uv
+# refuse to run on any other version. See documentation/dev/dependency-management.rst.
+ARG UV_VERSION=0.10.9
 ARG PYTHON_VERSION=3.12
 ARG DEBIAN_VERSION=trixie
 
 # Build the virtual environment using UV
-FROM ghcr.io/astral-sh/uv:${UV_MAJOR_VERSION}-python${PYTHON_VERSION}-${DEBIAN_VERSION}-slim AS builder
+FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-${DEBIAN_VERSION}-slim AS builder
 
 # Redeclare ARG after FROM to make it available in this stage
 ARG UV_COMPILE_BYTECODE=1
