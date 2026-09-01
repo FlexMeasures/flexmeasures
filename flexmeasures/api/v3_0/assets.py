@@ -54,7 +54,6 @@ from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     describe_cronstr,
     get_automation_job_stats,
-    get_automation_sensors,
     resolve_automation_sensors,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -1550,8 +1549,11 @@ class AssetAPI(FlaskView):
         )
         try:
             automation_sensors = resolve_automation_sensors(automation)
-        except AutomationSensorsUnknown:
-            automation_sensors = get_automation_sensors(automation)
+        except AutomationSensorsUnknown as e:
+            # One broken automation should not keep this response from rendering,
+            # and there are no sensors to check access on in this case.
+            current_app.logger.warning(str(e))
+            automation_sensors = {"input_sensors": [], "output_sensors": []}
         else:
             for sensor in {
                 sensor
