@@ -215,23 +215,20 @@ def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_pat
     from flexmeasures.cli.data_add import add_report
 
     input_1, input_2, output, _ = setup_dummy_data
-    config_file = tmp_path / "report-config.json"
-    config_file.write_text(
-        json.dumps(
+    reporter_config = {
+        "required_input": [{"name": "one"}, {"name": "two"}],
+        "required_output": [{"name": "sum"}],
+        "transformations": [
             {
-                "required_input": [{"name": "one"}, {"name": "two"}],
-                "required_output": [{"name": "sum"}],
-                "transformations": [
-                    {
-                        "df_input": "one",
-                        "method": "add",
-                        "args": ["@two"],
-                        "df_output": "sum",
-                    }
-                ],
+                "df_input": "one",
+                "method": "add",
+                "args": ["@two"],
+                "df_output": "sum",
             }
-        )
-    )
+        ],
+    }
+    config_file = tmp_path / "report-config.json"
+    config_file.write_text(json.dumps(reporter_config))
     parameters_file = tmp_path / "report-parameters.json"
     parameters_file.write_text(
         json.dumps(
@@ -266,7 +263,11 @@ def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_pat
     assert job.timeout == app.queues["reporting"]._default_timeout
     assert job.meta["trigger"] == {"origin": "CLI"}
     source = fresh_db.session.get(DataSource, job.kwargs["data_source_id"])
-    assert source.attributes["data_generator"]["config"]["required_input"]
+    assert source is not None
+    assert source.attributes["data_generator"]["config"] == {
+        **reporter_config,
+        "droplevels": False,
+    }
 
 
 def test_add_profit_report_as_job_requires_input(
