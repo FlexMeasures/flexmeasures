@@ -26,7 +26,6 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
-    get_sensor_stats,
 )
 from flexmeasures.api.common.schemas.scheduling import (
     flex_context_schema_openAPI,
