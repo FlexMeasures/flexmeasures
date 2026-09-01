@@ -52,6 +52,7 @@ class Automation(db.Model, AuthModelMixin):
         db.Integer,
         db.ForeignKey("generic_asset.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     type = db.Column(db.String(80), nullable=False, default="forecasts")
     name = db.Column(db.String(80), nullable=False)
