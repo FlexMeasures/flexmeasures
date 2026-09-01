@@ -17,13 +17,21 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
+
 Infrastructure / Support
 -------------------------
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
 
+* The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
+
 Bugfixes
 -----------
+
+* KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
+* KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
+* The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 
 
 
@@ -54,6 +62,9 @@ v1.0.0 | August 25, 2026
 New features
 -------------
 
+* Automations - first roundtrip for forecasts: recurring tasks defined per asset, managed with new CLI commands (``flexmeasures add|edit|delete automation``), run by ``flexmeasures jobs run-automations``, and viewable in a new UI page and API endpoints (``[GET] /assets/(id)/automations``); each automation interprets its recurrence in its own timezone, and runs missed while the runner was down are caught up once, coalesced into one current forecast; an automation's details link to the sensors it reads from and writes to, a sensor's page lists the automations feeding it, and deleting a sensor warns about the automations that use it; jobs now also record whether they were created via the CLI, the API or an automation [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_ and `PR #2396 <https://www.github.com/FlexMeasures/flexmeasures/pull/2396>`_]
+* In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
+* ``flexmeasures show data-sources`` now shows which organisation a data source belongs to, and can list the sensors holding data recorded by a given source [see `PR #2401 <https://www.github.com/FlexMeasures/flexmeasures/pull/2401>`_]
 * The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #1946 <https://www.github.com/FlexMeasures/flexmeasures/pull/1946>`_, `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_, `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_, `PR #2271 <https://www.github.com/FlexMeasures/flexmeasures/pull/2271>`_, `PR #2355 <https://www.github.com/FlexMeasures/flexmeasures/pull/2355>`_ and `PR #2380 <https://www.github.com/FlexMeasures/flexmeasures/pull/2380>`_]
 * Support multiple feeders to a shared storage [see `PR #2001 <https://www.github.com/FlexMeasures/flexmeasures/pull/2001>`_, `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_, `PR #2322 <https://www.github.com/FlexMeasures/flexmeasures/pull/2322>`_, `PR #2325 <https://www.github.com/FlexMeasures/flexmeasures/pull/2325>`_ and `PR #2431 <https://www.github.com/FlexMeasures/flexmeasures/pull/2431>`_]
 * Add support for intermediate power constraints on groups of devices, via a new ``group`` field in the storage flex-model [see `PR #2276 <https://www.github.com/FlexMeasures/flexmeasures/pull/2276>`_ and `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_]
