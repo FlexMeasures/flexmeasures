@@ -1033,10 +1033,8 @@
     {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs(startDate, endDate) {
         const start = encodeURIComponent(toIsoStringWithOffset(startDate));
-        // The endpoint ends its window before `end`, as the chart does for the daily, midnight-aligned sensors it documents this for,
-        // so the chart's own end date is passed through unchanged.
-        // The two predicates are not identical: the chart keeps events whose end falls on the window's end, the endpoint keeps events whose start falls before it.
-        // Advancing it by a day here was right while this function read picker.getEndDate(), which is the last day selected;
+        // The endpoint selects the same events as the chart, so the chart's own window is passed through unchanged.
+        // Advancing the end by a day here was right while this function read picker.getEndDate(), which is the last day selected;
         // PR #1909 changed the callers to pass the chart's exclusive end, at which point the advance became one day too many.
         const end = encodeURIComponent(toIsoStringWithOffset(endDate));
         const kpiCards = document.querySelector('#kpi-cards');

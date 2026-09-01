@@ -1,11 +1,15 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask import url_for
 import pytest
 from sqlalchemy import select, func
 
+from pytz import utc
+
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.generic_assets import GenericAssetType
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.users import find_user_by_email
@@ -1784,19 +1788,14 @@ def test_get_asset_chart_session_vars_with_canonical_params(
         assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"
 
 
-def _asset_with_daily_kpi(db, requesting_user, setup_sources, days: int):
+def _asset_with_daily_kpi(
+    db, requesting_user, setup_sources, days: int
+) -> tuple[GenericAsset, datetime]:
     """Build an asset whose KPI sums a distinct value per day.
 
     The values differ per day, so that a window covering the wrong days totals differently,
     rather than merely covering the same number of days.
     """
-    from datetime import datetime
-
-    from pytz import utc
-
-    from flexmeasures.data.models.generic_assets import GenericAssetType
-    from flexmeasures.data.models.time_series import TimedBelief
-
     window_start = datetime(2022, 1, 1, tzinfo=utc)
     asset_type = (
         db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
@@ -1842,7 +1841,7 @@ def _asset_with_daily_kpi(db, requesting_user, setup_sources, days: int):
     return asset, window_start
 
 
-def _kpi_total(client, asset, start, end):
+def _kpi_total(client, asset: GenericAsset, start: str, end: str) -> float:
     """Ask the KPI endpoint for one window and return its single value."""
     response = client.get(
         url_for("AssetAPI:get_kpis", id=asset.id),
@@ -1900,12 +1899,106 @@ def test_kpi_window_honours_the_offset_it_is_given(
         6.0
     ), "the offset must be read, not just the clock time"
 
-    # The same clock times read as UTC name instants an hour later,
-    # which drops the first day and picks up the fourth, worth 2 + 3 + 4.
+    # The same clock times read as UTC name instants an hour later.
+    # The window then overlaps a fourth day, and the KPI covers what the chart draws,
+    # which is every day the window touches: 1 + 2 + 3 + 4.
     shifted = _kpi_total(
         client, asset, "2022-01-01T01:00:00+00:00", "2022-01-04T01:00:00+00:00"
     )
     assert shifted == pytest.approx(
-        9.0
-    ), "an hour later is a different three days, so the two windows must not agree"
+        10.0
+    ), "an hour later is a different set of days, so the two windows must not agree"
     assert total != shifted, "the assertion above only means something if these differ"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_reports_what_the_chart_draws(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A KPI is read beside the chart, so it must describe the same beliefs.
+
+    Two ways that used to diverge: several sources reporting one sensor were counted separately,
+    and a revised belief was counted on top of the belief it revised.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi agrees with chart",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi agrees with chart sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    sources = list(setup_sources.values())
+    scheduled, uploaded = sources[0], sources[-1]
+    assert scheduled.id != uploaded.id, "this test needs two distinct sources"
+
+    window_start = datetime(2030, 1, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # One day per source, as when a single point is uploaded beside computed data.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(0),
+                event_value=122.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start + timedelta(days=1),
+                belief_horizon=timedelta(0),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=uploaded.id,
+                cumulative_probability=0.5,
+            ),
+            # A third day believed twice, the later belief revising the earlier one.
+            dict(
+                event_start=window_start + timedelta(days=2),
+                belief_horizon=timedelta(days=2),
+                event_value=50.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start + timedelta(days=2),
+                belief_horizon=timedelta(days=1),
+                event_value=7.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    window_end = window_start + timedelta(days=3)
+    total = _kpi_total(client, asset, window_start.isoformat(), window_end.isoformat())
+
+    drawn = sensor.search_beliefs(
+        event_starts_after=window_start,
+        event_ends_before=window_end,
+        most_recent_beliefs_only=True,
+    )
+    assert total == pytest.approx(
+        float(drawn["event_value"].sum())
+    ), "the KPI must total exactly the values the chart draws"
+    assert total == pytest.approx(
+        229.0
+    ), "122 from one source, 100 from another, and 7 revising 50, is 229"
