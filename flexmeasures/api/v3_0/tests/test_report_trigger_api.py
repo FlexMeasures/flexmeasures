@@ -225,6 +225,7 @@ def test_trigger_report_worker_stores_report_data(
         event_starts_after="2023-04-10T00:00:00+00:00",
         event_ends_before="2023-04-10T10:00:00+00:00",
     )
+    # Adding the two hourly 0-9 input series yields 0, 2, ..., 18; two-hour mean resampling yields 1, 5, 9, 13, 17.
     assert stored_report.values.T.tolist() == [[1, 5, 9, 13, 17]]
 
 
