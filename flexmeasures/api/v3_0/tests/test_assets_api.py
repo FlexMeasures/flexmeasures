@@ -1899,14 +1899,13 @@ def test_kpi_window_honours_the_offset_it_is_given(
         6.0
     ), "the offset must be read, not just the clock time"
 
-    # The same clock times read as UTC name instants an hour later.
-    # The window then overlaps a fourth day, and the KPI covers what the chart draws,
-    # which is every day the window touches: 1 + 2 + 3 + 4.
+    # The same clock times read as UTC name instants an hour later,
+    # which drops the first day and picks up the fourth: 2 + 3 + 4.
     shifted = _kpi_total(
         client, asset, "2022-01-01T01:00:00+00:00", "2022-01-04T01:00:00+00:00"
     )
     assert shifted == pytest.approx(
-        10.0
+        9.0
     ), "an hour later is a different set of days, so the two windows must not agree"
     assert total != shifted, "the assertion above only means something if these differ"
 
@@ -1996,9 +1995,78 @@ def test_kpi_reports_what_the_chart_draws(
         event_ends_before=window_end,
         most_recent_beliefs_only=True,
     )
+    starts = drawn.index.get_level_values("event_start")
+    within = drawn[(starts >= window_start) & (starts < window_end)]
     assert total == pytest.approx(
-        float(drawn["event_value"].sum())
-    ), "the KPI must total exactly the values the chart draws"
+        float(within["event_value"].sum())
+    ), "the KPI must total the values the chart draws, for the events this window owns"
     assert total == pytest.approx(
         229.0
     ), "122 from one source, 100 from another, and 7 revising 50, is 229"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_counts_each_event_under_one_day_only(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A day's KPI covers the events that day owns, not those merely overlapping it.
+
+    A daily sensor on the UTC grid, read from a timezone an hour ahead, has every event
+    straddling the boundary between two local days.
+    Counting an event under both would total it twice across neighbouring selections.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi owns its events",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi owns its events sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+        timezone="UTC",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    source = list(setup_sources.values())[0]
+
+    first = datetime(2030, 1, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=first + timedelta(days=offset),
+                belief_horizon=timedelta(0),
+                event_value=value,
+                sensor_id=sensor.id,
+                source_id=source.id,
+                cumulative_probability=0.5,
+            )
+            for offset, value in ((0, 122.0), (1, 100.0))
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    # Local days in +01:00, so each runs from 23:00 UTC to 23:00 UTC and straddles both events.
+    def local_day(day: int) -> str:
+        return f"2030-01-{day:02d}T00:00:00+01:00"
+
+    totals = {
+        day: _kpi_total(client, asset, local_day(day), local_day(day + 1))
+        for day in (15, 16, 17)
+    }
+    assert totals[15] == pytest.approx(122.0), "the 15th owns only its own event"
+    assert totals[16] == pytest.approx(100.0), "the 16th must not also count the 15th"
+    assert totals[17] == pytest.approx(0.0), "the 17th owns nothing"
+    assert sum(totals.values()) == pytest.approx(
+        222.0
+    ), "each event counts once across neighbouring days, not twice"

@@ -1894,6 +1894,11 @@ class AssetAPI(FlaskView):
                 event_ends_before=end,
                 most_recent_beliefs_only=True,
             )
+            # Count each event once, under the window it starts in.
+            # The search also returns events that merely overlap the window, which the chart draws,
+            # but a total that included them would count one event under two adjacent selections.
+            event_starts = beliefs.index.get_level_values("event_start")
+            beliefs = beliefs[(event_starts >= start) & (event_starts < end)]
             values = beliefs["event_value"].dropna()
 
             downsample_function, downsample_value = get_downsample_function_and_value(
