@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
+from flask import current_app
 
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
@@ -210,7 +211,7 @@ def test_inactive_automation_is_not_due(automation_factory):
     assert automation.cursor == cursor
 
 
-def test_invalid_cron_does_not_hide_other_due_automations(automation_factory, caplog):
+def test_invalid_cron_does_not_hide_other_due_automations(automation_factory, mocker):
     cursor = datetime(2026, 2, 1, 9, 59, tzinfo=timezone.utc)
     invalid = automation_factory(
         name="Impossible date",
@@ -225,10 +226,17 @@ def test_invalid_cron_does_not_hide_other_due_automations(automation_factory, ca
         cursor=cursor,
     )
 
+    # Assert on the logger rather than on caplog: building an app reconfigures logging and
+    # replaces the root handlers, so caplog stops capturing for the rest of the test session
+    # once any earlier test has built one.
+    log_error = mocker.patch.object(current_app.logger, "error")
+
     due = get_due_automations(datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc))
 
     assert [item.automation.id for item in due] == [valid.id]
-    assert f"Skipping automation {invalid.id}" in caplog.text
+    assert log_error.call_count == 1
+    assert log_error.call_args.args[0].startswith("Skipping automation")
+    assert log_error.call_args.args[1] == invalid.id
 
 
 def test_claim_rejects_automation_deactivated_after_discovery(

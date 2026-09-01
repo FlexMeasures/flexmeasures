@@ -265,6 +265,44 @@ def test_automation_sensors(app, fresh_db, setup_dummy_data):
     assert [a.id for a in get_automations_feeding_sensor(sensor)] == [automation.id]
 
 
+def test_delete_sensor_warns_about_automations_using_it(
+    app, fresh_db, setup_dummy_data
+):
+    """Deleting a sensor an automation uses is possible, but says which automations will break."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_delete import delete_sensor
+
+    sensor_id, regressor_id = setup_dummy_data[0], setup_dummy_data[1]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Test forecasts",
+                "sensor": sensor_id,
+                "regressors": regressor_id,
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+
+    # The regressor is only an input, so it is the case that get_automations_feeding_sensor misses.
+    result = runner.invoke(delete_sensor, to_flags({"id": regressor_id}), input="n\n")
+    assert "is used by automation 'Test forecasts'" in result.output, result.output
+
+    # A sensor no automation refers to is deleted without such a warning.
+    unrelated = Sensor(
+        name="unrelated",
+        generic_asset=fresh_db.session.get(Sensor, sensor_id).generic_asset,
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add(unrelated)
+    fresh_db.session.commit()
+    result = runner.invoke(delete_sensor, to_flags({"id": unrelated.id}), input="n\n")
+    assert "is used by automation" not in result.output, result.output
+
+
 def test_automation_sensors_with_source_filtered_regressor(
     app, fresh_db, setup_dummy_data
 ):
