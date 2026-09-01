@@ -11,7 +11,7 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
-* Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_ and `issue #2426 <https://github.com/FlexMeasures/flexmeasures/issues/2426>`_]
+* Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
