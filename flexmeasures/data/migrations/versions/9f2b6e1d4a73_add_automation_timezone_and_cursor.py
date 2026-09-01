@@ -51,8 +51,14 @@ def upgrade():
     )
     op.alter_column("automation", "timezone", nullable=False)
     op.alter_column("automation", "cursor", nullable=False)
+    # PostgreSQL does not index a foreign key by itself, and automations are looked up by asset
+    # (on an asset's automations page, and when finding the automations that feed a sensor).
+    op.create_index(
+        op.f("ix_automation_asset_id"), "automation", ["asset_id"], unique=False
+    )
 
 
 def downgrade():
+    op.drop_index(op.f("ix_automation_asset_id"), table_name="automation")
     op.drop_column("automation", "cursor")
     op.drop_column("automation", "timezone")
