@@ -92,7 +92,11 @@ def rst_to_openapi(text: str) -> str:
     text = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", text)
 
     # Handle italics
-    text = re.sub(r"\*(.*?)\*", r"<em>\1</em>", text)
+    text = re.sub(
+        r"(?<!\*)\*(?![\s*])(.+?)(?<![\s*])\*(?!\*)",
+        r"<em>\1</em>",
+        text,
+    )
 
     # Handle cross-references
     def ref_repl(match):

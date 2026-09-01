@@ -3346,6 +3346,182 @@
         ]
       }
     },
+    "/api/v3_0/assets/{id}/automations/{automation_id}": {
+      "get": {
+        "summary": "Get details of one automation defined on an asset.",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (for forecasts, these are the forecast parameters\nused on each run), information about the data generator that runs it,\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "automation": {
+                    "summary": "Automation details",
+                    "value": {
+                      "id": 1,
+                      "created_at": "2026-07-11T00:00:00+00:00",
+                      "asset_id": 1,
+                      "type": "forecasts",
+                      "name": "Day-ahead PV forecasts",
+                      "cronstr": "0 6 * * *",
+                      "timezone": "Europe/Amsterdam",
+                      "cursor": "2026-07-11T04:00:00+00:00",
+                      "recurrence_description": "At 06:00",
+                      "active": true,
+                      "parameters": {
+                        "sensor": 2092
+                      },
+                      "generator": {
+                        "id": 6,
+                        "description": "forecaster 'TrainPredictPipeline' (v1)"
+                      },
+                      "input_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        },
+                        {
+                          "id": 2093,
+                          "name": "irradiance"
+                        }
+                      ],
+                      "output_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        }
+                      ],
+                      "job_stats": {
+                        "finished": 3,
+                        "failed": 1
+                      },
+                      "redis_connection_err": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations": {
+      "get": {
+        "summary": "Get all automations defined on an asset.",
+        "description": "The response will be a list of automations: recurring tasks (for now, computing forecasts)\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to get the automations for.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "automations": {
+                    "summary": "List of automations",
+                    "value": {
+                      "automations": [
+                        {
+                          "id": 1,
+                          "created_at": "2026-07-11T00:00:00+00:00",
+                          "asset_id": 1,
+                          "type": "forecasts",
+                          "name": "Day-ahead PV forecasts",
+                          "cronstr": "0 6 * * *",
+                          "timezone": "Europe/Amsterdam",
+                          "cursor": "2026-07-11T04:00:00+00:00",
+                          "recurrence_description": "At 06:00",
+                          "active": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/{id}/chart": {
       "get": {
         "summary": "Download an embeddable chart with time series data",
@@ -3769,6 +3945,7 @@
                           "status": "finished",
                           "err": null,
                           "enqueued_at": "2023-10-01T00:00:00",
+                          "created_via": "API",
                           "metadata_hash": "abc123"
                         }
                       ],
@@ -4891,6 +5068,69 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
+    "/api/v3_0/sources/{id}": {
+      "get": {
+        "summary": "Get one data source.",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the data source.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 6,
+                  "name": "Seita",
+                  "type": "forecaster",
+                  "model": "TrainPredictPipeline",
+                  "version": "1",
+                  "description": "Seita's TrainPredictPipeline model v1",
+                  "account_id": 2,
+                  "user_id": null,
+                  "attributes": {
+                    "data_generator": {
+                      "config": {
+                        "model": "CustomLGBM"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",

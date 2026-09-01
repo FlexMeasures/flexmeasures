@@ -5,8 +5,13 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-33 | September 1, 2026
+"""""""""""""""""""""""""""
+- Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Each automation shows the IANA ``timezone`` in which its cron expression is interpreted, and a ``cursor``: the offset-aware UTC time of the most recent run it committed to. The cursor advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
+- Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
+
 v3.0-32 | August 11, 2026
-""""""""""""""""""""""""""
+"""""""""""""""""""""""""
 - API endpoints are now rate-limited. A request which exceeds a limit is answered with a ``429 (Too Many Requests)`` status code and a ``Retry-After`` header stating how many seconds to wait. Responses also carry ``X-RateLimit-*`` headers, describing the limit that applied, how much of it is left, and when it resets. A stricter limit applies to ``POST /assets/<id>/schedules/trigger``, ``POST /sensors/<id>/schedules/trigger`` and ``POST /sensors/<id>/forecasts/trigger`` than to other endpoints; the health endpoints are exempt. Per-account overrides are set by assigning the account a plan (a ``Plan`` database row), rather than through an account attribute.
 - Introduced the ``inflexible-consumption`` and ``inflexible-production`` flex-context fields, which make explicit how the sign of each inflexible device's power data should be read: positive values denote consumption resp. production. Each entry is a sensor reference (``{"sensor": <id>}``), optionally with source filters (``source-types``, ``exclude-source-types``, ``sources``, ``source-account``). Deprecated the ``inflexible-device-sensors`` field (a list of bare sensor IDs, whose sign convention is read from each sensor's ``consumption_is_positive`` attribute); it remains supported, but cannot be combined with the new fields in one flex-context.
 - Added a ``role`` query parameter to ``GET /api/v3_0/accounts`` for filtering accessible organisations by account role.

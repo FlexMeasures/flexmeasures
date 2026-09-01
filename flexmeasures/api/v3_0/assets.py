@@ -46,8 +46,16 @@ from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.schemas.automations import AutomationSchema
+from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
+    describe_cronstr,
+    get_automation_job_stats,
+    resolve_automation_sensors,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
@@ -94,6 +102,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
+automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -1365,6 +1374,208 @@ class AssetAPI(FlaskView):
 
         return response, 200
 
+    @route("/<id>/automations", methods=["GET"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automations(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get all automations defined on an asset.
+
+        ---
+        get:
+          summary: Get all automations defined on an asset.
+          description: |
+            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            defined on the asset. Each entry shows the automation's ID, when it was created,
+            its type, name, activation status, and its recurrence, both as a cron string
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to get the automations for.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automations:
+                      summary: List of automations
+                      value:
+                        automations:
+                          - id: 1
+                            created_at: "2026-07-11T00:00:00+00:00"
+                            asset_id: 1
+                            type: forecasts
+                            name: Day-ahead PV forecasts
+                            cronstr: "0 6 * * *"
+                            timezone: Europe/Amsterdam
+                            cursor: "2026-07-11T04:00:00+00:00"
+                            recurrence_description: "At 06:00"
+                            active: true
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automations_data = []
+        for automation in asset.automations:
+            automation_data = automation_schema.dump(automation)
+            automation_data["recurrence_description"] = describe_cronstr(
+                automation.cronstr
+            )
+            automations_data.append(automation_data)
+        return {"automations": automations_data}, 200
+
+    @route("/<id>/automations/<int:automation_id>", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get details of one automation defined on an asset.
+
+        ---
+        get:
+          summary: Get details of one automation defined on an asset.
+          description: |
+            In addition to the fields shown when listing automations, the response shows
+            the automation's parameters (for forecasts, these are the forecast parameters
+            used on each run), information about the data generator that runs it,
+            the sensors it reads from and writes to,
+            and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automation:
+                      summary: Automation details
+                      value:
+                        id: 1
+                        created_at: "2026-07-11T00:00:00+00:00"
+                        asset_id: 1
+                        type: forecasts
+                        name: Day-ahead PV forecasts
+                        cronstr: "0 6 * * *"
+                        timezone: Europe/Amsterdam
+                        cursor: "2026-07-11T04:00:00+00:00"
+                        recurrence_description: "At 06:00"
+                        active: true
+                        parameters:
+                          sensor: 2092
+                        generator:
+                          id: 6
+                          description: "forecaster 'TrainPredictPipeline' (v1)"
+                        input_sensors:
+                          - id: 2092
+                            name: power
+                          - id: 2093
+                            name: irradiance
+                        output_sensors:
+                          - id: 2092
+                            name: power
+                        job_stats:
+                          finished: 3
+                          failed: 1
+                        redis_connection_err: null
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        automation_data = automation_schema.dump(automation)
+        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["parameters"] = automation.parameters
+        automation_data["generator"] = (
+            {
+                "id": automation.generator.id,
+                "description": automation.generator.description,
+            }
+            if automation.generator is not None
+            else None
+        )
+        try:
+            automation_sensors = resolve_automation_sensors(automation)
+        except AutomationSensorsUnknown as e:
+            # One broken automation should not keep this response from rendering,
+            # and there are no sensors to check access on in this case.
+            current_app.logger.warning(str(e))
+            automation_sensors = {"input_sensors": [], "output_sensors": []}
+        else:
+            for sensor in {
+                sensor
+                for key in ("input_sensors", "output_sensors")
+                for sensor in automation_sensors[key]
+            }:
+                check_access(sensor, "read")
+        for key in ("input_sensors", "output_sensors"):
+            automation_data[key] = [
+                {"id": sensor.id, "name": sensor.name}
+                for sensor in automation_sensors[key]
+            ]
+        redis_connection_err = None
+        try:
+            automation_data["job_stats"] = get_automation_job_stats(automation)
+        except NoRedisConfigured as e:
+            automation_data["job_stats"] = {}
+            redis_connection_err = e.args[0]
+        automation_data["redis_connection_err"] = redis_connection_err
+        return automation_data, 200
+
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
@@ -1407,6 +1618,7 @@ class AssetAPI(FlaskView):
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
+                            created_via: API
                             metadata_hash: abc123
                         redis_connection_err: null
             400:
