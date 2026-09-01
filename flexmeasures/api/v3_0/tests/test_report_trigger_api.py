@@ -51,7 +51,7 @@ def setup_report_sensors(
     sibling = GenericAsset(
         name="Sibling battery",
         generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
-        owner=setup_accounts_fresh_db["Prosumer"],
+        owner=battery.owner,
         parent_asset=battery.parent_asset,
     )
     sibling_output = Sensor(
