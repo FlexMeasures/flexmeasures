@@ -1,5 +1,6 @@
 """Tests for POST /api/v3_0/assets/<id>/reports/trigger."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -189,7 +190,7 @@ def test_trigger_report_queues_canonical_job_response(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_trigger_report_worker_stores_report_data(
-    app, fresh_db, setup_report_sensors, clean_redis, requesting_user
+    app, fresh_db, setup_report_sensors, clean_redis, caplog, requesting_user
 ):
     """Exercise the API, reporting queue, worker function and persisted output."""
     sensors = setup_report_sensors
@@ -220,7 +221,13 @@ def test_trigger_report_worker_stores_report_data(
         )
     assert response.status_code == 202
 
-    work_on_rq(app.queues["reporting"])
+    with caplog.at_level(logging.INFO):
+        work_on_rq(app.queues["reporting"])
+    assert any(
+        "ran successfully" in record.message
+        and str(sensors["output"].id) in record.message
+        for record in caplog.records
+    )
     stored_report = sensors["output"].search_beliefs(
         event_starts_after="2023-04-10T00:00:00+00:00",
         event_ends_before="2023-04-10T10:00:00+00:00",

@@ -85,7 +85,16 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     for result in results:
         save_to_db(result["data"])
     db.session.commit()
-    return [
+    saved = [
         {"sensor_id": result["sensor"].id, "n_rows": len(result["data"])}
         for result in results
     ]
+    current_app.logger.info(
+        "Report by %s ran successfully, saving %s.",
+        source,
+        ", ".join(
+            f"{summary['n_rows']} values on sensor {summary['sensor_id']}"
+            for summary in saved
+        ),
+    )
+    return saved
