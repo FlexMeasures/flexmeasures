@@ -140,10 +140,10 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "Europe/Amsterdam",
         }
     )
-    scheduling_cursor = ma.auto_field(
+    cursor = ma.auto_field(
         dump_only=True,
         metadata={
-            "description": "UTC scheduling watermark. Occurrences at or before this timestamp are ineligible for another automatic queueing attempt; it is not a successful-run timestamp.",
+            "description": "UTC time of the most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.",
             "example": "2026-08-05T06:00:00+00:00",
         },
     )
