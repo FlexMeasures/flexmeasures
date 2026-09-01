@@ -1902,7 +1902,7 @@ class AssetAPI(FlaskView):
                         f" {asset.id} or one of its descendants."
                     )
             reporter.set_job_trigger("API")
-            returns = reporter.compute(as_job=True, parameters=parameters)
+            result = reporter.compute(as_job=True, parameters=parameters)
         except ValidationError as exc:
             db.session.rollback()
             return unprocessable_entity({"parameters": exc.messages})
@@ -1913,7 +1913,7 @@ class AssetAPI(FlaskView):
             db.session.rollback()
             raise
 
-        return request_accepted_for_processing(returns["job_id"])
+        return request_accepted_for_processing(result["job_id"])
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @limit_triggers()
