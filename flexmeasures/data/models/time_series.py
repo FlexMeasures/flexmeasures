@@ -9,7 +9,7 @@ from flask import current_app
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import exists, select
+from sqlalchemy import event, exists, select, text as sa_text
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -44,7 +44,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.annotations import filter_by_belief_time
@@ -717,7 +717,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         exclude_source_types: list[str] | None = None,
         check_exists: bool = False,
     ) -> list[DataSource] | bool:
-        """
+        """Find the data sources that have recorded beliefs for this sensor.
+
+        Where the answer comes from depends on whether time filters are given.
+        With them, the beliefs table is consulted, so the answer is exact for that window.
+        Without them, the ``sensor_data_source`` summary is read instead,
+        which avoids scanning the beliefs table but is a superset:
+        a source stays listed after its beliefs for this sensor are deleted.
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource`.
+
         :returns: list of Data Source objects, or, if check_exists, True if any such sources exist, False if none do.
         """
 
@@ -774,17 +782,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             q = select(DataSource).where(DataSource.id.in_(belief_q.distinct()))
         else:
-            # No time filters: retrieve distinct source IDs for this sensor via a
-            # lightweight index-only scan, then fetch those DataSource rows. This
-            # avoids a full join across potentially hundreds of millions of belief
-            # rows just to enumerate a handful of sources.
-            source_id_subq = (
-                select(TimedBelief.source_id)
-                .where(TimedBelief.sensor_id == self.id)
-                .distinct()
-                .subquery()
+            # No time filters: read the sensor_data_source summary instead of the beliefs table,
+            # which turns a scan over very many rows into a lookup of a handful.
+            # See SensorDataSource for the superset semantics this accepts.
+            q = select(DataSource).where(
+                DataSource.id.in_(
+                    select(SensorDataSource.source_id).where(
+                        SensorDataSource.sensor_id == self.id
+                    )
+                )
             )
-            q = select(DataSource).where(DataSource.id.in_(select(source_id_subq)))
 
         if source_types:
             q = q.where(DataSource.type.in_(source_types))
@@ -800,9 +807,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def data_sources(self) -> list[DataSource]:
         """Return all DataSource objects that have recorded beliefs for this sensor.
 
-        Uses a two-step subquery (distinct source IDs → DataSource rows) so that
-        it scales to very large timed_belief tables without fetching every belief row.
-        Equivalent to ``search_data_sources()`` with no filters.
+        Equivalent to ``search_data_sources()`` with no filters,
+        which reads the ``sensor_data_source`` summary rather than the beliefs table.
+
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource` for the superset semantics that implies:
+        a source stays listed after its beliefs for this sensor are deleted.
         """
         return self.search_data_sources()
 
@@ -1216,3 +1225,90 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
+
+
+# How the sensor_data_source summary is kept up to date.
+#
+# A database trigger does it, rather than FlexMeasures code.
+# The reason is that beliefs reach timed_belief by several routes:
+# save_to_db, bulk inserts, plugins, and raw SQL.
+# Code added to one of those routes would only ever see the beliefs that took it,
+# leaving the summary quietly incomplete for all the others.
+# A trigger sits on the table itself, so it sees every insert whatever the route.
+#
+# The trigger runs once per INSERT *statement* rather than once per row.
+# It reads that statement's new rows in one go, through what PostgreSQL calls a
+# transition table (named inserted_beliefs below).
+# So saving a million beliefs in one statement adds one small insert, not a million.
+#
+# Migration f1c8a3d75e29 imports these two constants and installs the same
+# function and trigger for databases built by Alembic rather than by create_all().
+# There is only one such trigger, not a history of versions to preserve,
+# so the migration installs the current definition instead of a frozen copy of its own.
+#
+# Sharing the text does not, on its own, make a later change to it reach an existing
+# database: like any other schema change, that needs a new migration,
+# because a migration that has already run will not run again.
+RECORD_SENSOR_DATA_SOURCES_FUNCTION = """
+CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO sensor_data_source (sensor_id, source_id)
+    SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
+    ON CONFLICT DO NOTHING;
+    RETURN NULL;
+END;
+$$
+"""
+
+RECORD_SENSOR_DATA_SOURCES_TRIGGER = """
+CREATE TRIGGER timed_belief_record_sensor_data_sources
+AFTER INSERT ON timed_belief
+REFERENCING NEW TABLE AS inserted_beliefs
+FOR EACH STATEMENT
+EXECUTE FUNCTION record_sensor_data_sources()
+"""
+
+
+def create_sensor_data_source_trigger(target, connection, **kwargs) -> None:
+    """Install the trigger, for databases whose schema is built by create_all().
+
+    A FlexMeasures database gets its schema in one of two ways,
+    and each needs its own route to the trigger:
+
+    - built by Alembic migrations, as in production:
+      migration f1c8a3d75e29 installs it there.
+    - built by ``db.create_all()``, as in the test suite and some development setups:
+      this function installs it there.
+
+    SQLAlchemy fires "after_create" whenever it has created something.
+    This listens for that on the whole metadata rather than on the timed_belief table,
+    so that it runs after *all* tables exist.
+    Listening on timed_belief alone would be a bet on creation order,
+    because the trigger's function reads sensor_data_source,
+    and nothing guarantees that table gets created first.
+    PostgreSQL would in fact tolerate the wrong order today,
+    since a function written in its procedural language does not look up the tables it names until it first runs,
+    but depending on that is fragile.
+
+    Does nothing unless the database is PostgreSQL and both tables are present,
+    so another backend, or a create_all() that made only some tables, is left alone.
+    """
+    if connection.dialect.name != "postgresql":
+        return
+    inspector = inspect(connection)
+    if not inspector.has_table("timed_belief") or not inspector.has_table(
+        "sensor_data_source"
+    ):
+        return
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_FUNCTION))
+    connection.execute(
+        sa_text(
+            "DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources"
+            " ON timed_belief"
+        )
+    )
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_TRIGGER))
+
+
+event.listen(db.metadata, "after_create", create_sensor_data_source_trigger)

@@ -22,6 +22,7 @@ New features
 Infrastructure / Support
 -------------------------
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
+* Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
 
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
