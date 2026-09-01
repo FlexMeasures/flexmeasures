@@ -8,8 +8,16 @@ FlexMeasures Changelog
 v1.1.0 | September XX, 2026
 ============================
 
+.. warning:: This release's migration drops the single-column indexes on ``timed_belief.event_start`` and ``timed_belief.sensor_id``, which its reordered primary key and the remaining composite indexes make redundant, and whether your database carries one, both or neither depends on its age and on the ``timely-beliefs`` version that first created the table.
+             The migration prints exactly which of them it dropped, so keep that output if you maintain your own indexes on this table.
+             On a downgrade both are recreated, because ``timely-beliefs`` declared both before 4.2.0, so a database that carried only one of them gains the other, which is safe to drop again.
+             If you maintain indexes of your own on this table, note that the reordered primary key leads with ``(sensor_id, source_id, event_start, belief_horizon)``, so any index you keep on a prefix of that is now redundant and can be dropped once the migration has run.
+             The migration names the ones it finds and leaves them in place, as it cannot know which ones you meant to keep.
+
 New features
 -------------
+
+* Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
 -------------------------
@@ -17,8 +25,14 @@ Infrastructure / Support
 * Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
 
+* The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
+
 Bugfixes
 -----------
+
+* KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
+* KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
+* The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 
 
 
@@ -49,6 +63,9 @@ v1.0.0 | August 25, 2026
 New features
 -------------
 
+* Automations - first roundtrip for forecasts: recurring tasks defined per asset, managed with new CLI commands (``flexmeasures add|edit|delete automation``), run by ``flexmeasures jobs run-automations``, and viewable in a new UI page and API endpoints (``[GET] /assets/(id)/automations``); each automation interprets its recurrence in its own timezone, and runs missed while the runner was down are caught up once, coalesced into one current forecast; an automation's details link to the sensors it reads from and writes to, a sensor's page lists the automations feeding it, and deleting a sensor warns about the automations that use it; jobs now also record whether they were created via the CLI, the API or an automation [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_ and `PR #2396 <https://www.github.com/FlexMeasures/flexmeasures/pull/2396>`_]
+* In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
+* ``flexmeasures show data-sources`` now shows which organisation a data source belongs to, and can list the sensors holding data recorded by a given source [see `PR #2401 <https://www.github.com/FlexMeasures/flexmeasures/pull/2401>`_]
 * The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #1946 <https://www.github.com/FlexMeasures/flexmeasures/pull/1946>`_, `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_, `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_, `PR #2271 <https://www.github.com/FlexMeasures/flexmeasures/pull/2271>`_, `PR #2355 <https://www.github.com/FlexMeasures/flexmeasures/pull/2355>`_ and `PR #2380 <https://www.github.com/FlexMeasures/flexmeasures/pull/2380>`_]
 * Support multiple feeders to a shared storage [see `PR #2001 <https://www.github.com/FlexMeasures/flexmeasures/pull/2001>`_, `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_, `PR #2322 <https://www.github.com/FlexMeasures/flexmeasures/pull/2322>`_, `PR #2325 <https://www.github.com/FlexMeasures/flexmeasures/pull/2325>`_ and `PR #2431 <https://www.github.com/FlexMeasures/flexmeasures/pull/2431>`_]
 * Add support for intermediate power constraints on groups of devices, via a new ``group`` field in the storage flex-model [see `PR #2276 <https://www.github.com/FlexMeasures/flexmeasures/pull/2276>`_ and `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_]
@@ -742,7 +759,7 @@ New features
 * Extending sensor CRUD functionality to the UI [see `PR #1394 <https://github.com/FlexMeasures/flexmeasures/pull/1394>`_ and `PR #1413 <https://github.com/FlexMeasures/flexmeasures/pull/1413>`_]
 * Marker clusters on the dashboard map expand in a tree to show the hierarchical relationship of the assets they represent [see `PR #1410 <https://github.com/FlexMeasures/flexmeasures/pull/1410>`_]
 * Load the sensors individually on the Sensors status page. Reload the jobs table using Ajax calls. Improve page performance and avoid timeouts [see `PR #1425 <https://github.com/FlexMeasures/flexmeasures/pull/1425>`_ and `PR #1466 <https://github.com/FlexMeasures/flexmeasures/pull/1466>`_]
-* New pages for `Properties`, `Graphs`, `Context`, `Status` and `Audit Log`. Simplified the main asset page [see `PR #1416 <https://github.com/FlexMeasures/flexmeasures/pull/1416>`_, `PR #1387 <https://github.com/FlexMeasures/flexmeasures/pull/1387>`_, `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_, `PR #1470 <https://github.com/FlexMeasures/flexmeasures/pull/1470>`_, `PR #1473 <https://github.com/FlexMeasures/flexmeasures/pull/1473>`_, `PR #1478 <https://github.com/FlexMeasures/flexmeasures/pull/1478>`_, `PR #1480<https://github.com/FlexMeasures/flexmeasures/pull/1480>`_ and `PR #1482 <https://github.com/FlexMeasures/flexmeasures/pull/1482>`_]
+* New pages for `Properties`, `Graphs`, `Context`, `Status` and `Audit Log`. Simplified the main asset page [see `PR #1416 <https://github.com/FlexMeasures/flexmeasures/pull/1416>`_, `PR #1387 <https://github.com/FlexMeasures/flexmeasures/pull/1387>`_, `PR #1442 <https://github.com/FlexMeasures/flexmeasures/pull/1442>`_, `PR #1470 <https://github.com/FlexMeasures/flexmeasures/pull/1470>`_, `PR #1473 <https://github.com/FlexMeasures/flexmeasures/pull/1473>`_, `PR #1478 <https://github.com/FlexMeasures/flexmeasures/pull/1478>`_, `PR #1480 <https://github.com/FlexMeasures/flexmeasures/pull/1480>`_ and `PR #1482 <https://github.com/FlexMeasures/flexmeasures/pull/1482>`_]
 * Only show important sensors statuses (flex-context and graph sensors) on the status page [see `PR #1439 <https://github.com/FlexMeasures/flexmeasures/pull/1439>`_]
 * Let the user interact with the breadcrumbs on asset graphs page when the graphs are loading [see `PR #1472 <https://github.com/FlexMeasures/flexmeasures/pull/1472>`_]
 * Added DB migrations to apply server defaults to ``generic_asset`` and ``data_sources`` tables [see `PR #1488 <https://github.com/FlexMeasures/flexmeasures/pull/1488>`_]

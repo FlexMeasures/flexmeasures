@@ -273,26 +273,31 @@ def save_to_db(
     return status
 
 
-def get_downsample_function_and_value(
-    kpi: dict, sensor: Sensor, sensor_stats: dict
-) -> tuple:
+def get_downsample_function_and_value(kpi: dict, sensor: Sensor, values) -> tuple:
+    """Reduce a sensor's values over a window to the single number a KPI shows.
+
+    :param kpi:     The `sensors_to_show_as_kpis` entry, which may name a function.
+    :param sensor:  The sensor the KPI describes, whose unit decides the default function.
+    :param values:  One value per event, as the chart draws them, rather than one row per belief.
+    :returns:       The function used, and the value it produced.
+    """
     downsample_function = kpi.get("function", None)
     if downsample_function is None:
         if sensor.unit == "%":
             downsample_function = "mean"
         else:
             downsample_function = "sum"
-    try:
-        if downsample_function == "mean":
-            downsample_value = dict(next(iter(sensor_stats.values())))["Mean value"]
-        elif downsample_function == "max":
-            downsample_value = dict(next(iter(sensor_stats.values())))["Max value"]
-        elif downsample_function == "min":
-            downsample_value = dict(next(iter(sensor_stats.values())))["Min value"]
-        else:
-            downsample_value = dict(next(iter(sensor_stats.values())))[
-                "Sum over values"
-            ]
-    except StopIteration:
-        downsample_value = 0
+
+    # An empty window has nothing to reduce, and sum() over none of it is not a KPI of zero cost.
+    if len(values) == 0:
+        return downsample_function, 0
+
+    if downsample_function == "mean":
+        downsample_value = values.mean()
+    elif downsample_function == "max":
+        downsample_value = values.max()
+    elif downsample_function == "min":
+        downsample_value = values.min()
+    else:
+        downsample_value = values.sum()
     return downsample_function, downsample_value
