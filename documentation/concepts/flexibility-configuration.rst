@@ -10,8 +10,8 @@ flexibility is available, what limits it, and what outcome the scheduler should
 optimize.
 
 This page defines these concepts independently of how they are configured. They
-can be persisted on assets, edited in the UI, or supplied when triggering a
-schedule through the API, client, or CLI.
+can be persisted on assets, :ref:`edited in the UI <view_asset-data>`, or supplied
+when triggering a schedule through the API, client, or CLI.
 
 
 .. _describing_flexibility:
@@ -143,6 +143,11 @@ Devices that convert between commodities (such as a CHP unit, gas boiler or elec
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
+
+.. figure:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editflexcontext.png
+   :align: center
+
+   You can edit these settings also in the UI.
 
 Where should you set these fields?
 Within requests to the API or by editing the relevant asset in the UI.
@@ -296,6 +301,11 @@ The process scheduler is suitable for shiftable, breakable and inflexible loads,
 We describe the respective flex models below.
 
 These fields can be configured in the UI editor on the asset properties page or sent through the API (one of the endpoints to trigger schedule computation, or using the FlexMeasures client) or through the CLI (the command to add schedules).
+
+.. figure:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
+   :align: center
+
+   You can edit these settings also in the UI.
 
 
 Storage

@@ -23,10 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Sync dependencies without installing the project itself (creates .venv)
+# --no-dev excludes the dev dependency-group (mypy, black, flake8, ...).
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --no-dev
 
 # Ensure subsequent commands use the virtual environment
 ENV VIRTUAL_ENV=/app/.venv \
@@ -38,13 +39,33 @@ COPY flexmeasures ./flexmeasures
 COPY .git ./.git
 COPY .flaskenv wsgi.py ./
 
-# Install FlexMeasures itself in the virtual environment
+# Install FlexMeasures itself in the virtual environment. Released images pass
+# their tag-derived version explicitly because the partial tracked working tree
+# copied above appears dirty to hatch-vcs. An empty value preserves Git-derived
+# versions for local builds.
+ARG FLEXMEASURES_VERSION=
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
+    uv sync --frozen --reinstall-package flexmeasures --no-dev
 
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install gunicorn==25.0.3
+
+# sktime (and its scikit-base dependency) ship docs/ and examples/ as stray top-level directories. See: https://github.com/sktime/sktime/issues/10891
+RUN rm -rf "${VIRTUAL_ENV}"/lib/python*/site-packages/docs \
+           "${VIRTUAL_ENV}"/lib/python*/site-packages/examples
+
+# Most wheels ship their compiled extensions unstripped, carrying symbol tables and debug info that nothing needs at runtime.
+# Stripping them here keeps ~130 MB out of the runtime image, which copies only the result of this stage.
+# --strip-unneeded leaves everything that dynamic linking uses, so the extensions stay loadable.
+# binutils only reaches this stage as a transitive of the gcc install above, so check for strip explicitly:
+# the trailing `|| true` is there for individual files strip cannot handle, and would otherwise hide a missing binutils.
+RUN command -v strip > /dev/null || { \
+        echo "strip not found: the builder stage needs binutils" >&2; exit 1; \
+    }; \
+    find "${VIRTUAL_ENV}" \( -name '*.so' -o -name '*.so.*' \) -type f \
+    -exec strip --strip-unneeded {} + 2>/dev/null || true
 
 # Use a separate runtime image to run the code
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS runtime
