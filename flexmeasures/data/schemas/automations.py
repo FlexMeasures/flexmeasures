@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from croniter import croniter
 from croniter.croniter import CroniterBadDateError
-from marshmallow import fields, validates, ValidationError
+from marshmallow import fields, validate, validates, Schema, ValidationError
 from pytz import all_timezones_set
 
 from flexmeasures.data import ma, db
@@ -64,6 +64,57 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, automation, attr, data, **kwargs):
         """Turn an Automation into an automation id."""
         return automation.id
+
+
+class AutomationCreationSchema(Schema):
+    """Request schema for creating an automation (the asset comes from the URL path).
+
+    The parameters are validated separately, by the schema matching the automation type.
+    """
+
+    type = fields.Str(
+        load_default="forecasts",
+        validate=validate.OneOf(Automation.SUPPORTED_TYPES),
+    )
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
+    cronstr = CronField(required=True)
+    timezone = TimezoneField(
+        load_default=None,
+        metadata={
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the server's FLEXMEASURES_TIMEZONE.",
+            "example": "Europe/Amsterdam",
+        },
+    )
+    active = fields.Bool(load_default=True)
+    parameters = fields.Dict(keys=fields.Str(), load_default=dict)
+    forecaster = fields.Str(
+        load_default="TrainPredictPipeline",
+        metadata={"description": "Forecaster class (only used for type 'forecasts')."},
+    )
+    config = fields.Dict(
+        keys=fields.Str(),
+        load_default=dict,
+        metadata={
+            "description": "Forecaster configuration (only used for type 'forecasts')."
+        },
+    )
+
+
+class AutomationUpdateSchema(Schema):
+    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+
+    The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
+    """
+
+    name = fields.Str(validate=validate.Length(min=1, max=80))
+    cronstr = CronField()
+    timezone = TimezoneField(
+        metadata={
+            "description": "IANA timezone in which the cron expression is interpreted.",
+            "example": "Europe/Amsterdam",
+        }
+    )
+    active = fields.Bool()
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
