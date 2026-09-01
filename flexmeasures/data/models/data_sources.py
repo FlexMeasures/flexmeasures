@@ -22,6 +22,7 @@ import hashlib
 from marshmallow import Schema
 
 if TYPE_CHECKING:
+    from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.models.user import User
 
 
