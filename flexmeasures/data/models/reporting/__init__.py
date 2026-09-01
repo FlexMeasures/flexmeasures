@@ -44,7 +44,9 @@ class Reporter(DataGenerator):
 
         :param check_output_resolution: If True, checks each output for whether the event_resolution
                                         matches that of the sensor it is supposed to be recorded on.
-        :param as_job:                  If True, queue a reporting job and return its ID.
+        :param as_job:                  If True, queue a reporting job instead of computing immediately.
+        :returns:                       A dictionary with ``job_id`` and ``n_jobs`` when queued,
+                                        otherwise the computed report results.
         """
         if as_job:
             from flexmeasures.data.services.reporting import create_reporting_job
