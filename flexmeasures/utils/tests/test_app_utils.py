@@ -15,6 +15,7 @@ from werkzeug.exceptions import InternalServerError, NotFound, SecurityError
 from flexmeasures.data import (
     _is_running_db_upgrade_command,
     _schema_mismatch_deduplication_key,
+    is_running_database_command,
 )
 from flexmeasures.data.utils import DatabaseSchemaRevisionStatus
 from flexmeasures.utils.app_utils import (
@@ -431,7 +432,10 @@ def test_provision_default_template_assets_on_startup_skips_old_schema(
     monkeypatch.setitem(
         app.config, "FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", True
     )
-    monkeypatch.setattr(app, "database_schema_is_migrated_to_head", False)
+    monkeypatch.setattr("flexmeasures.data.is_running_database_command", lambda: False)
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.database_schema_has_revision", lambda app, rev: False
+    )
     monkeypatch.setattr(
         "flexmeasures.data.scripts.data_gen.provision_default_template_assets",
         fail_if_called,
@@ -441,6 +445,57 @@ def test_provision_default_template_assets_on_startup_skips_old_schema(
         provision_default_template_assets_on_startup(app)
 
     assert "Skipping startup template provisioning" in caplog.text
+
+
+def test_provision_default_template_assets_on_startup_skips_database_commands(
+    app, monkeypatch
+):
+    def fail_if_called(db):
+        raise AssertionError("Template provisioning should not run.")
+
+    monkeypatch.setattr(app, "testing", False)
+    monkeypatch.setitem(app.config, "FLEXMEASURES_ENV", "production")
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", True
+    )
+    monkeypatch.setattr("flexmeasures.data.is_running_database_command", lambda: True)
+    monkeypatch.setattr(
+        "flexmeasures.data.scripts.data_gen.provision_default_template_assets",
+        fail_if_called,
+    )
+
+    provision_default_template_assets_on_startup(app)
+
+
+def test_is_running_database_command(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "/path/to/flexmeasures",
+            "--custom-option-with-value",
+            "some-value",
+            "db-ops",
+            "restore",
+        ],
+    )
+
+    assert is_running_database_command() is True
+
+
+def test_is_running_database_command_false_for_other_cli_groups(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv", ["/path/to/flexmeasures", "add", "initial-structure"]
+    )
+
+    assert is_running_database_command() is False
+
+
+def test_is_running_database_command_false_for_option_value(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv", ["/path/to/flexmeasures", "add", "toy-account", "--name", "db"]
+    )
+
+    assert is_running_database_command() is False
 
 
 def test_is_running_db_upgrade_command(monkeypatch):

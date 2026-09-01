@@ -84,9 +84,9 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
         assert b'title: "Timezone"' in asset_page.data
-        assert b"Scheduling cursor (UTC)" in asset_page.data
+        assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
-        assert b'esc(res.scheduling_cursor || "Not initialized yet")' in asset_page.data
+        assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
     if view in ("get", "context"):
         assert "Show sensors".encode() in asset_page.data
         assert "Edit flex-context".encode() in asset_page.data

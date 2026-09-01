@@ -20,6 +20,18 @@ from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.data.utils import TEMPLATE_COPY_GUIDANCE_PREFIX
 
 
+def _skip_default_data_creation_for_database_command(default_data_name: str) -> bool:
+    """Return whether implicit default data creation should be skipped."""
+    from flexmeasures.data import is_running_database_command
+
+    if is_running_database_command():
+        click.echo(
+            f"Skipping default {default_data_name} creation during database maintenance command."
+        )
+        return True
+    return False
+
+
 def add_default_data_sources(db: SQLAlchemy):
     for source_name, source_type in (
         ("Seita", "demo script"),
@@ -234,6 +246,9 @@ def provision_default_template_assets(db: SQLAlchemy):
     This currently provisions the single-asset starter templates which are
     intended to show up in the asset copy UI.
     """
+    if _skip_default_data_creation_for_database_command("template asset"):
+        return
+
     asset_types = add_default_asset_types(db)
 
     # Battery
@@ -372,6 +387,9 @@ def populate_initial_structure(db: SQLAlchemy):
     """
     Add initially useful structural data.
     """
+    if _skip_default_data_creation_for_database_command("initial structure"):
+        return
+
     click.echo("Populating the database %s with structural data ..." % db.engine)
     add_default_data_sources(db)
     add_default_user_roles(db)

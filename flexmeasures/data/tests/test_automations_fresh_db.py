@@ -290,8 +290,8 @@ def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generato
     automation, _ = automation_with_generator
 
     assert automation.timezone == "Asia/Seoul"
-    assert automation.scheduling_cursor.tzinfo is not None
-    assert automation.scheduling_cursor.utcoffset() == timezone.utc.utcoffset(None)
+    assert automation.cursor.tzinfo is not None
+    assert automation.cursor.utcoffset() == timezone.utc.utcoffset(None)
 
 
 def test_automation_rejects_invalid_timezone(automation_with_generator):

@@ -1,4 +1,4 @@
-"""add automation timezone and scheduling cursor
+"""add automation timezone and cursor
 
 Revision ID: 9f2b6e1d4a73
 Revises: 4d5e6f708192
@@ -25,29 +25,34 @@ def upgrade():
             f"Cannot migrate automations with invalid FLEXMEASURES_TIMEZONE {timezone!r}."
         )
 
+    # Both columns are required, but existing rows have no value for them yet.
+    # So add them as nullable, backfill every row, and only then enforce NOT NULL.
     op.add_column(
         "automation", sa.Column("timezone", sa.String(length=64), nullable=True)
     )
     op.add_column(
         "automation",
-        sa.Column("scheduling_cursor", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("cursor", sa.DateTime(timezone=True), nullable=True),
     )
     automation = sa.table(
         "automation",
         sa.column("timezone", sa.String(length=64)),
-        sa.column("scheduling_cursor", sa.DateTime(timezone=True)),
+        sa.column("cursor", sa.DateTime(timezone=True)),
     )
+    # Existing automations predate the timezone column, and were run against the server timezone, so adopt that.
+    # Their cursor starts one minute before the upgrade, mirroring `get_initial_cursor` for newly created automations:
+    # a run scheduled in the very minute of the upgrade is still queued, while runs scheduled before that are not replayed.
     op.execute(
         automation.update().values(
             timezone=timezone,
-            scheduling_cursor=sa.func.date_trunc("minute", sa.func.current_timestamp())
+            cursor=sa.func.date_trunc("minute", sa.func.current_timestamp())
             - sa.text("interval '1 minute'"),
         )
     )
     op.alter_column("automation", "timezone", nullable=False)
-    op.alter_column("automation", "scheduling_cursor", nullable=False)
+    op.alter_column("automation", "cursor", nullable=False)
 
 
 def downgrade():
-    op.drop_column("automation", "scheduling_cursor")
+    op.drop_column("automation", "cursor")
     op.drop_column("automation", "timezone")

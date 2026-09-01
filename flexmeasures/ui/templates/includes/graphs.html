@@ -26,7 +26,9 @@
     import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { decompressChartData, checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
+    import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
@@ -39,9 +41,15 @@
     let picker;
     let vegaView;
     let previousResult;
+    // Holds the widest contiguous span fetched so far,
+    // so that re-selecting a span we just moved away from costs no request.
+    // Reset whenever the data itself may have changed.
+    const chartDataCache = createChartDataCache();
+    // Counts how often the shown window has been changed.
+    // Selections are not serialised and their requests are not aborted,
+    // so a slow earlier one can answer after a quick later one and draw the wrong range.
+    let shownWindowGeneration = 0;
     let previousPlaybackResult;
-    let queryStartDate;
-    let queryEndDate;
     let storeStartDate;
     let storeEndDate;
     let replaySpeed = 100;
@@ -67,9 +75,9 @@
     // rebuild the groupSpec client-side (with y-axis titles) after an in-browser
     // sensors_to_show save without a page reload.
     let sensorTypeById = new Map();
-    // The current query window as plain epoch-ms {start, end}, captured before any
-    // later mutation of the shared Date objects (getAssetKPIs bumps storeEndDate by
-    // +1 day). Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
+    // The current query window as plain epoch-ms {start, end},
+    // captured so that later changes to the shared Date objects cannot move it.
+    // Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
     let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
@@ -392,7 +400,7 @@
                 showToast("An error occurred: " + error.message, "error");
                 finishUploadStatus();
             });
-    });
+        });
     {% endif %}
 
 
@@ -441,18 +449,20 @@
         }
         {% endif %}
         $("#spinner").show();
-        let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-            signal: signal,
-        })
-            .then(function (response) { return response.json(); })
-            .then(data => decompressChartData(data));
+        // The sensors shown, or the data itself, may have changed, so nothing held is still trustworthy.
+        // Reloading through the emptied cache refills it, rather than leaving it empty for the next selection.
+        chartDataCache.reset();
+        // This reload supersedes any selection still in flight, whose answer is now out of date,
+        // and claims a count of its own, so that a selection made while it runs supersedes it in turn.
+        const thisReload = ++shownWindowGeneration;
+        let newData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
         newData = await Promise.all([
             newData,
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
         ]).then(function (result) { return result[0] }).catch(console.error);
         $("#spinner").hide();
+        // A window has been shown since this reload was started, so its answer is stale.
+        if (thisReload !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
         }
@@ -491,35 +501,36 @@
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
     {% if active_subpage == "asset_graph" and has_kpis %}
-    getAssetKPIs(storeStartDate, storeEndDate);
+    // Copies, because getAssetKPIs advances the end date it is given, and these two are the
+    // chart's own window: the cache would then record a span a day wider than it holds.
+    // PR #2434 removes that advance, after which the copies are merely belt and braces.
+    getAssetKPIs(new Date(storeStartDate), new Date(storeEndDate));
     {% endif %}
-    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        signal: signal,
-    })
-        .then(function (response) { return response.json(); })
-        .then(data => decompressChartData(data));
+    // The picker is already on the page, so a range can be selected while this first load is still running.
+    const thisInitialLoad = ++shownWindowGeneration;
+    // Through the cache, so that the very first date change already only fetches the days it adds.
+    const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
     let fetchedInitialData = await Promise.all([
         initialData,
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
     ]).then(function (result) { return result[0] }).catch(console.error);
     $("#spinner").hide();
-    if (!fastRenderActive() && vegaView) {
-        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+    // A window has been selected while this was loading, so it is already on screen and this answer is stale.
+    if (thisInitialLoad === shownWindowGeneration) {
+        if (!fastRenderActive() && vegaView) {
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+        }
+        previousResult = {
+            start: new Date('{{ event_starts_after }}'),
+            end: new Date('{{ event_ends_before }}'),
+            data: fetchedInitialData
+        };
+        updateFastChart();
+        checkSourceMasking(previousResult.data);
+        {% if active_page == "assets" %}
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
     }
-    var sessionStart = new Date('{{ event_starts_after }}');
-    var sessionEnd = new Date('{{ event_ends_before }}');
-    previousResult = {
-        start: sessionStart,
-        end: sessionEnd,
-        data: fetchedInitialData
-    };
-    updateFastChart();
-    checkSourceMasking(previousResult.data);
-    {% if active_page == "assets" %}
-    checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
-    {% endif %}
     var timerangeNotSetYet = false;
     {% else %}
     var timerangeNotSetYet = true;
@@ -666,7 +677,7 @@
 
             storeStartDate = startDate;
             storeEndDate = endDate;
-            // Capture the window as primitives now, before getAssetKPIs mutates endDate (+1 day).
+            // Capture the window as primitives, fixing the fast chart's x-axis to the selection made here.
             fastChartWindow = { start: startDate.getTime(), end: endDate.getTime() };
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
@@ -689,22 +700,21 @@
 
     stopReplay()
 
+    const thisSelection = ++shownWindowGeneration;
     $("#spinner").show();
     checkDSTTransitions(startDate, endDate)
     Promise.all([
-        fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
+        fetchGraphDataAndKPIs(previousResult, startDate, endDate),
         // Fetch annotations
-        fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-            method: "GET",
-            headers: {"Content-Type": "application/json"},
-            signal: signal,
-        })
-        .then(function(response) { return response.json(); }),
+        fetchChartAnnotations(dataPath, { start: startDate, end: endDate, signal: signal }),
 
         // Embed chart
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
     ]).then(function (result) {
         $("#spinner").hide();
+        // Another window has been shown since this one was asked for, so this answer is stale.
+        // Drawing it would put a range on screen that the picker and the URL no longer name.
+        if (thisSelection !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
         }
@@ -913,8 +923,6 @@
         toggle.classList.add('playing');
         var beliefTime = new Date(storeStartDate);
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
-        queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
-        queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
         const spinner = document.getElementById('spinner');
         if (!playBackDataLoadedForKnownDateRange) {
             spinner.hidden = false;
@@ -922,14 +930,11 @@
         }
         Promise.all([
             playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
-                // Fetch time series data (all data, not only the most recent beliefs)
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
-                    method: "GET",
-                    headers: { "Content-Type": "application/json" },
-                    signal: signal,
-                })
-                    .then(function (response) { return response.json(); })
-                    .then(data => decompressChartData(data)),
+                // Fetch time series data (all data, not only the most recent beliefs).
+                // Deliberately not through chartDataCache: that holds only the most recent belief per event,
+                // so mixing every belief into it would answer later chart requests with data the chart does not draw.
+                // Replay keeps its own copy in previousPlaybackResult instead.
+                fetchChartData(dataPath, { start: storeStartDate, end: storeEndDate, mostRecentBeliefsOnly: false, signal: signal }),
         ]).then(function (result) {
             previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
@@ -1011,20 +1016,17 @@
         }
     }
 
-    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate) {
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) {
             return Promise.resolve(previousResult.data);
         } else {
             {% if active_subpage == "asset_graph" and has_kpis %}
-            getAssetKPIs(startDate, endDate);
+            // Copies, for the same reason as at the initial load: this endDate is the object
+            // held by storeEndDate and previousResult.end, and is about to be handed to the cache.
+            getAssetKPIs(new Date(startDate), new Date(endDate));
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-                signal: signal,
-            })
-                .then(response => response.json())
-                .then(data => decompressChartData(data));
+            // Only the days not already held are fetched (issue #101).
+            return chartDataCache.load(dataPath, { start: startDate, end: endDate, signal: signal });
         }
     }
 
