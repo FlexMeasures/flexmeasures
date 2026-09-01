@@ -62,7 +62,6 @@ from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_asset_automations_job_stats,
     get_automation_job_stats,
-    get_automation_sensors,
     resolve_automation_sensors,
     update_automation,
 )
@@ -91,6 +90,7 @@ from flexmeasures.api.common.utils.api_utils import (
     get_accessible_accounts,
     copy_asset,
 )
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_accepted_for_processing,
@@ -1400,7 +1400,7 @@ class AssetAPI(FlaskView):
           description: |
             The response will be a list of automations: recurring forecasting, scheduling or reporting tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
-            its type, name, activation status, recurrence, IANA timezone, persistent scheduling cursor,
+            its type, name, activation status, recurrence, IANA timezone, cursor,
             and counts of recently created jobs per job status. Jobs in Redis have a limited TTL,
             so not all past jobs are counted.
           security:
@@ -1429,7 +1429,7 @@ class AssetAPI(FlaskView):
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
-                            scheduling_cursor: "2026-07-11T04:00:00+00:00"
+                            cursor: "2026-07-11T04:00:00+00:00"
                             recurrence_description: "At 06:00"
                             active: true
                             job_stats:
@@ -1498,7 +1498,8 @@ class AssetAPI(FlaskView):
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
-            The scheduling cursor is a UTC watermark: occurrences at or before it are ineligible for another automatic queueing attempt. It is not a successful-run timestamp.
+            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1530,7 +1531,7 @@ class AssetAPI(FlaskView):
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
-                        scheduling_cursor: "2026-07-11T04:00:00+00:00"
+                        cursor: "2026-07-11T04:00:00+00:00"
                         recurrence_description: "At 06:00"
                         active: true
                         parameters:
@@ -1581,8 +1582,11 @@ class AssetAPI(FlaskView):
         )
         try:
             automation_sensors = resolve_automation_sensors(automation)
-        except AutomationSensorsUnknown:
-            automation_sensors = get_automation_sensors(automation)
+        except AutomationSensorsUnknown as e:
+            # One broken automation should not keep this response from rendering,
+            # and there are no sensors to check access on in this case.
+            current_app.logger.warning(str(e))
+            automation_sensors = {"input_sensors": [], "output_sensors": []}
         else:
             for sensor in {
                 sensor
@@ -2280,6 +2284,7 @@ class AssetAPI(FlaskView):
         return request_accepted_for_processing(
             job.id,
             legacy_key="schedule",
+            status_code=200 if use_legacy_job_responses(asset) else 202,
         )
 
     @route("/<id>/kpis", methods=["GET"])

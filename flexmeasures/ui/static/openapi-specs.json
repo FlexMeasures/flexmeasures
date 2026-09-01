@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.2"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -3401,7 +3401,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe scheduling cursor is a UTC watermark: occurrences at or before it are ineligible for another automatic queueing attempt. It is not a successful-run timestamp.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3443,7 +3443,7 @@
                       "name": "Day-ahead PV forecasts",
                       "cronstr": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
-                      "scheduling_cursor": "2026-07-11T04:00:00+00:00",
+                      "cursor": "2026-07-11T04:00:00+00:00",
                       "recurrence_description": "At 06:00",
                       "active": true,
                       "parameters": {
@@ -3579,7 +3579,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting, scheduling or reporting tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, recurrence, IANA timezone, persistent scheduling cursor,\nand counts of recently created jobs per job status. Jobs in Redis have a limited TTL,\nso not all past jobs are counted.\n",
+        "description": "The response will be a list of automations: recurring forecasting, scheduling or reporting tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, recurrence, IANA timezone, cursor,\nand counts of recently created jobs per job status. Jobs in Redis have a limited TTL,\nso not all past jobs are counted.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3614,7 +3614,7 @@
                           "name": "Day-ahead PV forecasts",
                           "cronstr": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
-                          "scheduling_cursor": "2026-07-11T04:00:00+00:00",
+                          "cursor": "2026-07-11T04:00:00+00:00",
                           "recurrence_description": "At 06:00",
                           "active": true,
                           "job_stats": {

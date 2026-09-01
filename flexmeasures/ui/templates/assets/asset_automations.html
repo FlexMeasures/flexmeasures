@@ -17,13 +17,13 @@
           <span class="fa fa-info-circle" title="
           This table shows the automations defined on this asset: recurring tasks, such as computing forecasts, schedules and reports.
 
-An active automation follows its cron recurrence in the timezone shown below. If the runner misses forecast occurrences, it coalesces them into one current forecast when it resumes.
+An active automation follows its cron recurrence in the timezone shown below. If the runner misses forecast runs, it coalesces them into one current forecast when it resumes.
           "></span>
         </h4>
         <p>
           Recent jobs created by these automations are listed on the
           <a href="/assets/{{ asset.id }}/status">status page</a>.
-          During daylight-saving-time changes, a skipped local occurrence runs once after the clock moves forward, and a repeated local occurrence runs only once.
+          During daylight-saving-time changes, a run at a skipped local time happens once after the clock moves forward, and a run at a repeated local time happens only once.
         </p>
 
         {% if user_can_manage_automations %}
@@ -117,7 +117,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
                 <div class="mb-3">
                   <label for="editAutomationCron" class="form-label">Recurrence (cron string)</label>
                   <input type="text" class="form-control" id="editAutomationCron" required>
-                  <div class="form-text">The next eligible occurrence is recalculated after changing the recurrence.</div>
+                  <div class="form-text">The next eligible run is recalculated after changing the recurrence.</div>
                 </div>
                 <div class="mb-3">
                   <label for="editAutomationTimezone" class="form-label">Timezone</label>
@@ -283,8 +283,8 @@ An active automation follows its cron recurrence in the timezone shown below. If
         $(`#AutomationDetailsBody-${automationId}`).html(`
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
-          <h6>Scheduling cursor (UTC)</h6>
-          <p title="Occurrences at or before this UTC watermark are ineligible for another automatic queueing attempt; this does not indicate successful queueing or job completion.">${esc(res.scheduling_cursor || "Not initialized yet")}</p>
+          <h6>Cursor (UTC)</h6>
+          <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
           <h6>Reads from</h6>

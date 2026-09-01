@@ -1824,21 +1824,23 @@ def add_automation(
         kwargs, source, config_file, parameters_file
     )
 
-    has_forecast_config = any(
-        value is not None
-        and value is not False
-        and not (isinstance(value, (dict, list, tuple)) and not value)
-        for value in config.values()
-    )
-    if automation_type == "schedules" and (
-        source is not None
-        or config_file is not None
-        or forecaster_class != "TrainPredictPipeline"
-        or has_forecast_config
-    ):
-        raise click.UsageError(
-            "Forecaster options (--forecaster, --source, --config and forecasting configuration fields) cannot be used with --type schedules."
+    if automation_type == "schedules":
+        # Only options actually given on the command line count: the forecaster and the
+        # configuration options that were left out still show up here, with their defaults.
+        forecast_options = _find_options_given_on_command_line(
+            {
+                "forecaster_class": "--forecaster",
+                "source": "--source",
+                "config_file": "--config",
+                "edit_config": "--edit-config",
+            },
+            TrainPredictPipelineConfigSchema(),
         )
+        if forecast_options:
+            raise click.UsageError(
+                f"{flexmeasures_inflection.join_words_into_a_list(forecast_options)} cannot be"
+                " combined with --type schedules: a schedule automation is not computed by a forecaster."
+            )
 
     # The service validates the parameters by automation type (we store them serialized)
     try:
@@ -2461,6 +2463,12 @@ def get_or_create_toy_asset(
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
 @click.option(
+    "--client-version",
+    type=str,
+    default=None,
+    help="Set the flexmeasures-client-version attribute on the toy building asset.",
+)
+@click.option(
     "--shell-vars",
     is_flag=True,
     help=(
@@ -2469,7 +2477,7 @@ def get_or_create_toy_asset(
         '`eval "$(flexmeasures add toy-account --shell-vars)"`.'
     ),
 )
-def add_toy_account(kind: str, name: str, shell_vars: bool):
+def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars: bool):
     """
     Create a toy account, for tutorials and trying things.
     """
@@ -2587,6 +2595,11 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
                 "consumption-price": {"sensor": day_ahead_sensor.id},
             },
         )
+        if client_version:
+            building_asset.attributes = {
+                **(building_asset.attributes or {}),
+                "flexmeasures-client-version": client_version,
+            }
         db.session.flush()
         shell_var_output["FM_TOY_BUILDING_ASSET_ID"] = building_asset.id
 

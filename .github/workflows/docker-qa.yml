@@ -47,14 +47,161 @@ jobs:
           ref: ${{ inputs.flexmeasures-client-ref }}
           path: flexmeasures-client
 
-      - name: Add compose override to mount the HEMS configs directory
+      - name: Determine client QA capabilities
+        id: client-qa
+        env:
+          CLIENT_REF: ${{ inputs.flexmeasures-client-ref }}
         run: |
-          cat > qa-hems-override.yml <<EOF
-          services:
-            server:
-              volumes:
-                - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro
-          EOF
+          # The ingestion tutorial supports client 0.7.0 or newer. HEMS was
+          # introduced in 0.8.0, and release tags should use the matching PyPI
+          # package because older checkouts are not all uv-installable projects.
+          run_ingestion=true
+          run_hems=false
+          use_pypi_client=false
+          use_legacy_cli_wrapper=false
+          use_legacy_job_responses=false
+          adapt_v080_hems_simulation=false
+          client_version=
+          client_source="checked-out project"
+
+          if [[ "$CLIENT_REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            major=${BASH_REMATCH[1]}
+            minor=${BASH_REMATCH[2]}
+            patch=${BASH_REMATCH[3]}
+            client_version="${major}.${minor}.${patch}"
+            use_pypi_client=true
+            client_source="PyPI release package"
+
+            if (( major > 0 || minor > 7 || (minor == 7 && patch >= 0) )); then
+              run_ingestion=true
+            else
+              run_ingestion=false
+            fi
+
+            if (( major > 0 || minor > 8 || (minor == 8 && patch >= 0) )); then
+              run_hems=true
+            fi
+
+            # Client 0.9.4 is the first which treats any 2xx from a data upload as success.
+            # Older clients reject the 202 returned once an ingestion worker is connected,
+            # so they need the legacy job responses.
+            if (( major == 0 && (minor < 9 || (minor == 9 && patch <= 3)) )); then
+              use_legacy_job_responses=true
+            fi
+
+            # Client 0.8.0's HEMS simulation uses static 2026 fixtures and
+            # replaces simulated values during its play-mode loop.
+            if (( major == 0 && minor == 8 && patch == 0 )); then
+              adapt_v080_hems_simulation=true
+            fi
+
+            # FLEXMEASURES_CLI_CMD was introduced in client 0.9.4. Older HEMS
+            # scripts invoke `flexmeasures` directly and need the PATH wrapper.
+            if (( major == 0 && (minor < 9 || (minor == 9 && patch < 4)) )); then
+              use_legacy_cli_wrapper=true
+            fi
+          else
+            # Branches, commits, and main are assumed to contain the current
+            # examples and package layout; the checkout itself is used there.
+            run_ingestion=true
+            run_hems=true
+          fi
+
+          if [[ ! -f flexmeasures-client/examples/HEMS/HEMS_setup.py || \
+                ! -d flexmeasures-client/examples/HEMS/configs ]]; then
+            run_hems=false
+          fi
+
+          ingestion_api_support="yes (file and JSON uploads)"
+          forecasting_api_support="yes"
+          scheduling_api_support="yes"
+          reporting_api_support="no (planned for FlexMeasures 1.1)"
+          ingestion_coverage="not tested with this client"
+          forecasting_coverage="not tested with this client"
+          scheduling_coverage="not tested with this client"
+          reporting_coverage="not tested with this client"
+
+          if [[ "$client_version" == 0.7.* ]]; then
+            ingestion_api_support="partial (JSON via post_measurements; no file upload)"
+            forecasting_api_support="no"
+          elif [[ "$client_version" == 0.8.* ]]; then
+            forecasting_api_support="no"
+          fi
+
+          if [[ "$run_ingestion" == true ]]; then
+            if [[ "$client_version" == 0.7.* ]]; then
+              ingestion_coverage="API JSON upload and read-back (tutorial)"
+            else
+              ingestion_coverage="API file and JSON uploads with read-back (tutorial)"
+            fi
+          elif [[ "$run_hems" == true ]]; then
+            ingestion_coverage="API file uploads (HEMS)"
+          fi
+          if [[ "$run_hems" == true ]]; then
+            scheduling_coverage="API trigger and power/SoC retrieval (HEMS)"
+            reporting_coverage="server CLI (HEMS; no client API)"
+            if [[ "$client_version" == 0.8.* ]]; then
+              forecasting_coverage="server CLI (HEMS; no client API)"
+            else
+              forecasting_coverage="API (HEMS)"
+            fi
+          fi
+
+          printf '\n=== Client QA plan ===\n'
+          printf '%-34s %s\n' \
+            'Requested client ref:' "$CLIENT_REF" \
+            'Resolved client version:' "${client_version:-not pinned}" \
+            'Client source:' "$client_source" \
+            'Data-ingestion tutorial:' "$run_ingestion" \
+            'HEMS example:' "$run_hems" \
+            'Legacy job responses:' "$use_legacy_job_responses" \
+            'Legacy CLI wrapper:' "$use_legacy_cli_wrapper" \
+            'v0.8.0 HEMS simulation shim:' "$adapt_v080_hems_simulation" \
+            'Ingestion API support:' "$ingestion_api_support" \
+            'Planned client ingestion:' "$ingestion_coverage" \
+            'Forecasting API support:' "$forecasting_api_support" \
+            'Planned client forecasting:' "$forecasting_coverage" \
+            'Scheduling API support:' "$scheduling_api_support" \
+            'Planned client scheduling:' "$scheduling_coverage" \
+            'Reporting API support:' "$reporting_api_support" \
+            'Planned client reporting:' "$reporting_coverage" \
+            'Server CLI tutorials 1-5:' 'run (not client-specific)'
+          printf '==============================\n\n'
+
+          {
+            echo "run_ingestion=$run_ingestion"
+            echo "run_hems=$run_hems"
+            echo "use_pypi_client=$use_pypi_client"
+            echo "use_legacy_cli_wrapper=$use_legacy_cli_wrapper"
+            echo "use_legacy_job_responses=$use_legacy_job_responses"
+            echo "adapt_v080_hems_simulation=$adapt_v080_hems_simulation"
+            echo "client_version=$client_version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prepare HEMS Compose override and server config
+        run: |
+          # Create the bind-mounted instance directory before Compose does, so
+          # the runner can update this config later without ownership issues.
+          mkdir -p flexmeasures-instance
+          if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
+            printf '%s\n' \
+              'FLEXMEASURES_MODE = "development"' \
+              'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.3"}' \
+              > flexmeasures-instance/flexmeasures.cfg
+          else
+            printf '%s\n' 'FLEXMEASURES_MODE = "development"' > flexmeasures-instance/flexmeasures.cfg
+          fi
+
+          if [[ "${{ steps.client-qa.outputs.run_hems }}" == true ]]; then
+            printf '%s\n' \
+              'services:' \
+              '  server:' \
+              '    volumes:' \
+              '      - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro' \
+              > qa-hems-override.yml
+          else
+            printf '%s\n' 'services: {}' > qa-hems-override.yml
+          fi
 
       # Runs before the docker compose stack comes up, since `docker compose up`
       # bind-mounts docker-compose-data/dev-db, which the dev-db container then
@@ -85,8 +232,10 @@ jobs:
           done
 
       - name: Run data-ingestion tutorial
+        if: steps.client-qa.outputs.run_ingestion == 'true'
         env:
           FLEXMEASURES_CLIENT_PROJECT: ${{ github.workspace }}/flexmeasures-client
+          FLEXMEASURES_CLIENT_VERSION: ${{ steps.client-qa.outputs.client_version }}
         run: ./documentation/tut/scripts/run-data-ingestion-in-docker.sh
 
       - name: Create HEMS admin account and user
@@ -97,7 +246,23 @@ jobs:
           docker compose exec -T server bash -c \
             "printf 'admin\nadmin\n' | flexmeasures add user --username admin --email admin@admin.com --account $ACCOUNT_ID --roles admin"
 
+      - name: Switch the server to play mode for HEMS
+        run: |
+          {
+            printf '%s\n' 'FLEXMEASURES_MODE = "play"'
+            if [[ "${{ steps.client-qa.outputs.use_legacy_job_responses }}" == true ]]; then
+              printf '%s\n' \
+                'FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {"flexmeasures-client-version": "0.9.3"}' \
+                'FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {"flexmeasures-client-version": "${{ steps.client-qa.outputs.client_version }}"}'
+            fi
+            if [[ "${{ steps.client-qa.outputs.adapt_v080_hems_simulation }}" == true ]]; then
+              printf '%s\n' 'FLEXMEASURES_ALLOW_DATA_OVERWRITE = True'
+            fi
+          } > flexmeasures-instance/flexmeasures.cfg
+          docker compose up --detach --no-deps --force-recreate --wait --wait-timeout 300 server
+
       - name: Run the HEMS example against the running stack
+        if: steps.client-qa.outputs.run_hems == 'true'
         working-directory: flexmeasures-client
         env:
           # Absolute -f paths, since this subprocess runs from
@@ -105,10 +270,93 @@ jobs:
           # COMPOSE_FILE's relative paths would otherwise resolve.
           FLEXMEASURES_CLI_CMD: "docker compose -f ${{ github.workspace }}/docker-compose.yml -f ${{ github.workspace }}/qa-hems-override.yml exec -T server flexmeasures"
           FLEXMEASURES_CLI_CONFIG_DIR: "/hems-configs"
+          FLEXMEASURES_CLIENT_VERSION: ${{ steps.client-qa.outputs.client_version }}
         run: |
-          uv sync
           cd examples/HEMS
-          uv run --project .. python3 HEMS_setup.py
+          if [[ "${{ steps.client-qa.outputs.adapt_v080_hems_simulation }}" == true ]]; then
+            # The static 2026 simulation prior eventually predates the real
+            # upload time, hiding prices that were not yet known at that prior.
+            # Keep the simulation causal by moving all of its fixtures together
+            # to January of the next calendar year.
+            qa_hems_year=$(date -u -d '+1 year' +%Y)
+            mapfile -t dated_hems_files < <(
+              find . -type f \( \
+                -name '*.py' -o -name '*.csv' -o -name '*.json' \
+              \) -exec grep -l '2026-' {} +
+            )
+            if (( ${#dated_hems_files[@]} == 0 )); then
+              echo "Could not find v0.8.0 HEMS fixture dates to update"
+              exit 1
+            fi
+            sed -i "s/2026-/${qa_hems_year}-/g" "${dated_hems_files[@]}"
+            echo "Shifted v0.8.0 HEMS fixtures from 2026 to $qa_hems_year"
+          fi
+
+          # Older client releases do not support FLEXMEASURES_CLI_CMD. They
+          # look for a flexmeasures executable directly, so provide a wrapper
+          # that forwards the CLI invocation to the server container. Legacy
+          # report commands use host-side config paths, which the wrapper
+          # translates to the config directory mounted in the container.
+          # The v0.8.x forecasting command uses --ensure-positive as a flag,
+          # whereas the current CLI expects an explicit Boolean value.
+          if [[ "${{ steps.client-qa.outputs.use_legacy_cli_wrapper }}" == true ]]; then
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'set -euo pipefail' \
+              'translated_args=()' \
+              'for arg in "$@"; do' \
+              '  case "$arg" in' \
+              '    configs/*) arg="/hems-configs/${arg#configs/}" ;;' \
+              '    */examples/HEMS/configs/*) arg="/hems-configs/${arg##*/examples/HEMS/configs/}" ;;' \
+              '  esac' \
+              '  translated_args+=("$arg")' \
+              '  if [[ "$arg" == "--ensure-positive" && "${FLEXMEASURES_CLIENT_VERSION:-}" == 0.8.* ]]; then' \
+              '    translated_args+=("true")' \
+              '  fi' \
+              'done' \
+              'exec docker compose -f "$GITHUB_WORKSPACE/docker-compose.yml" -f "$GITHUB_WORKSPACE/qa-hems-override.yml" exec -T server flexmeasures "${translated_args[@]}"' \
+              > "$RUNNER_TEMP/flexmeasures"
+            chmod +x "$RUNNER_TEMP/flexmeasures"
+            export PATH="$RUNNER_TEMP:$PATH"
+          fi
+
+          if [[ "${{ steps.client-qa.outputs.use_pypi_client }}" == true ]]; then
+            HEMS_COMMAND=(uv run --no-project \
+              --with "flexmeasures-client==${{ steps.client-qa.outputs.client_version }}" \
+              python3 HEMS_setup.py)
+          else
+            uv sync
+            HEMS_COMMAND=(uv run --project .. python3 HEMS_setup.py)
+          fi
+
+          set -o pipefail
+          "${HEMS_COMMAND[@]}" 2>&1 | tee "$RUNNER_TEMP/hems-output.log"
+
+          # Every released HEMS script reports failures and keeps going, which
+          # otherwise makes this step appear successful to Actions. Match any
+          # reported failure rather than named ones, since the wording differs
+          # per client release. A missing CLI is fatal here too, because that
+          # silently skips forecasting and reporting altogether.
+          if grep -qiE 'failed|could not find|could not retrieve|cli not found' \
+            "$RUNNER_TEMP/hems-output.log"; then
+            echo "HEMS reported one or more failed operations"
+            exit 1
+          fi
+
+          # Absence of failures is not enough, since a phase can be skipped
+          # without reporting anything. Require each phase to confirm itself.
+          # Clients up to 0.8.x forecast through the server CLI and report that
+          # differently from the client API used since 0.9.0.
+          if ! grep -qE 'Forecast job completed for|forecasts for .* generated successfully' \
+            "$RUNNER_TEMP/hems-output.log"; then
+            echo "HEMS did not confirm successful forecast generation"
+            exit 1
+          fi
+          if ! grep -q 'Multi-device power and SoC schedules retrieved successfully' \
+            "$RUNNER_TEMP/hems-output.log"; then
+            echo "HEMS did not confirm successful power and SoC schedule retrieval"
+            exit 1
+          fi
 
       - name: Show stack logs on failure
         if: failure()

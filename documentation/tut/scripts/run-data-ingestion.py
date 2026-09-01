@@ -100,11 +100,20 @@ async def wait_for_values_and_verify(
     )
 
 
+def enable_legacy_ingestion_method(client: FlexMeasuresClient) -> bool:
+    """Expose the current ingestion method name on legacy clients.
+
+    :returns: Whether the client supports file ingestion.
+    """
+
+    if hasattr(client, "post_sensor_data"):
+        return True
+    client.post_sensor_data = client.post_measurements
+    return False
+
+
 async def run_tutorial(args: argparse.Namespace) -> None:
     """Upload a spreadsheet and exported values, then verify both intervals."""
-
-    if not args.file.is_file():
-        raise FileNotFoundError(f"Example data file not found: {args.file}")
 
     scheme = "https" if args.ssl else "http"
     print(
@@ -121,27 +130,38 @@ async def run_tutorial(args: argparse.Namespace) -> None:
         email=args.email,
         password=password,
     )
+    file_upload_supported = enable_legacy_ingestion_method(client)
     try:
-        # Start file upload example
-        print(f"Uploading spreadsheet: {args.file}", flush=True)
-        await client.post_sensor_data(
-            sensor_id=args.sensor_id,
-            file_path=str(args.file),
-            belief_time_measured_instantly=True,
-        )
-        # End file upload example
-        print("Spreadsheet upload accepted; verifying stored values ...", flush=True)
-        await wait_for_values_and_verify(
-            client,
-            sensor_id=args.sensor_id,
-            start=EXAMPLE_FILE_START,
-            duration=EXAMPLE_FILE_DURATION,
-            resolution=args.resolution,
-            unit=args.unit,
-            expected_values=EXAMPLE_FILE_VALUES,
-            timeout=args.timeout,
-        )
-        print("Spreadsheet values verified.", flush=True)
+        if file_upload_supported:
+            if not args.file.is_file():
+                raise FileNotFoundError(f"Example data file not found: {args.file}")
+            print(f"Uploading spreadsheet: {args.file}", flush=True)
+            # Start file upload example
+            await client.post_sensor_data(
+                sensor_id=args.sensor_id,
+                file_path=str(args.file),
+                belief_time_measured_instantly=True,
+            )
+            # End file upload example
+            print(
+                "Spreadsheet upload accepted; verifying stored values ...", flush=True
+            )
+            await wait_for_values_and_verify(
+                client,
+                sensor_id=args.sensor_id,
+                start=EXAMPLE_FILE_START,
+                duration=EXAMPLE_FILE_DURATION,
+                resolution=args.resolution,
+                unit=args.unit,
+                expected_values=EXAMPLE_FILE_VALUES,
+                timeout=args.timeout,
+            )
+            print("Spreadsheet values verified.", flush=True)
+        else:
+            print(
+                "Skipping spreadsheet upload: this client predates file ingestion.",
+                flush=True,
+            )
 
         # Start export script example
         print(f"Uploading {len(EXPORT_VALUES)} exported meter values ...", flush=True)

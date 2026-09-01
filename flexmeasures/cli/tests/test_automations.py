@@ -144,7 +144,7 @@ def test_add_automation_default_cron(
         get_due_automations,
     )
 
-    # create the automation before the midnight we check, as an automation does not replay occurrences from before it existed
+    # create the automation before the midnight we check, as an automation does not replay runs from before it existed
     midnight = get_timezone().localize(datetime(2026, 7, 11, 0, 0))
     freeze_server_now(midnight - timedelta(hours=3))
 
@@ -265,6 +265,44 @@ def test_automation_sensors(app, fresh_db, setup_dummy_data):
 
     sensor = fresh_db.session.get(Sensor, sensor_id)
     assert [a.id for a in get_automations_feeding_sensor(sensor)] == [automation.id]
+
+
+def test_delete_sensor_warns_about_automations_using_it(
+    app, fresh_db, setup_dummy_data
+):
+    """Deleting a sensor an automation uses is possible, but says which automations will break."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_delete import delete_sensor
+
+    sensor_id, regressor_id = setup_dummy_data[0], setup_dummy_data[1]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Test forecasts",
+                "sensor": sensor_id,
+                "regressors": regressor_id,
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+
+    # The regressor is only an input, so it is the case that get_automations_feeding_sensor misses.
+    result = runner.invoke(delete_sensor, to_flags({"id": regressor_id}), input="n\n")
+    assert "is used by automation 'Test forecasts'" in result.output, result.output
+
+    # A sensor no automation refers to is deleted without such a warning.
+    unrelated = Sensor(
+        name="unrelated",
+        generic_asset=fresh_db.session.get(Sensor, sensor_id).generic_asset,
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add(unrelated)
+    fresh_db.session.commit()
+    result = runner.invoke(delete_sensor, to_flags({"id": unrelated.id}), input="n\n")
+    assert "is used by automation" not in result.output, result.output
 
 
 def test_automation_sensors_with_source_filtered_regressor(
@@ -441,7 +479,7 @@ def test_add_and_edit_automation_reject_invalid_timezone(
         ["--activate"],
     ),
 )
-def test_edit_automation_rebases_scheduling_cursor(
+def test_edit_automation_rebases_cursor(
     app,
     fresh_db,
     setup_dummy_data,
@@ -478,9 +516,7 @@ def test_edit_automation_rebases_scheduling_cursor(
     )
 
     assert edit_result.exit_code == 0, edit_result.output
-    assert automation.scheduling_cursor == datetime(
-        2026, 1, 15, 9, 59, tzinfo=timezone.utc
-    )
+    assert automation.cursor == datetime(2026, 1, 15, 9, 59, tzinfo=timezone.utc)
 
 
 def test_add_automation_help_focuses_on_automation_options(app):
@@ -848,8 +884,44 @@ def test_add_schedule_automation_rejects_forecast_config(
     )
 
     assert result.exit_code == 2
-    assert "Forecaster options" in result.output
+    assert "--regressors cannot be combined with --type schedules" in result.output
     assert "Traceback" not in result.output
+
+
+def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
+    app, fresh_db, setup_dummy_data
+):
+    """Naming the default forecaster is still naming a forecaster, so it is refused.
+
+    The check asks whether the option was given, rather than comparing its value against the default,
+    which would let the default pass silently and leave the user thinking it applied.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule naming the default forecaster",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "schedules",
+            "--forecaster",
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--forecaster cannot be combined with --type schedules" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Schedule naming the default forecaster")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dummy_data):
@@ -950,7 +1022,7 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["end"]) == now
 
     # The fallback cron period is interpreted in the automation timezone and
-    # ends at the claimed occurrence rather than at a delayed runner's wall time.
+    # ends at the claimed run rather than at a delayed runner's wall time.
     scheduled_at = datetime(2026, 1, 1, 16, 0, tzinfo=timezone.utc)
     message = prepare_report_parameters(
         {},
@@ -962,17 +1034,17 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2025-12-31T16:00:00+00:00")
     assert pd.Timestamp(message["end"]) == pd.Timestamp(scheduled_at)
 
-    # A cron occurrence in Amsterdam's spring gap is canonicalized to 03:00,
-    # while its report starts at the prior day's real 02:30 occurrence.
-    spring_occurrence = datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc)
+    # A cron run in Amsterdam's spring gap is canonicalized to 03:00,
+    # while its report starts at the prior day's real 02:30 run.
+    spring_run = datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc)
     message = prepare_report_parameters(
         {},
         "30 2 * * *",
         cron_timezone="Europe/Amsterdam",
-        scheduled_at=spring_occurrence,
+        scheduled_at=spring_run,
     )
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-03-28T01:30:00+00:00")
-    assert pd.Timestamp(message["end"]) == pd.Timestamp(spring_occurrence)
+    assert pd.Timestamp(message["end"]) == pd.Timestamp(spring_run)
 
     # with a known actual last run, the window starts there instead
     app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
@@ -1291,9 +1363,7 @@ def test_run_automations_catches_up_once_after_downtime(
 
     automation = fresh_db.session.scalars(select(Automation)).one()
     assert automation.timezone == "Europe/Amsterdam"
-    assert automation.scheduling_cursor == datetime(
-        2026, 1, 15, 9, 0, tzinfo=timezone.utc
-    )
+    assert automation.cursor == datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
 
 
 def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
