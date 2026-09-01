@@ -21,7 +21,10 @@ from flexmeasures import Forecaster
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
+from flexmeasures.data.queries.generic_assets import (
+    asset_and_ancestor_ids,
+    asset_is_in_subtree,
+)
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -303,7 +306,7 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     """
     candidate_automations = db.session.scalars(
         select(Automation).filter(
-            Automation.asset_id.in_(_asset_and_ancestor_ids(sensor.generic_asset_id))
+            Automation.asset_id.in_(asset_and_ancestor_ids(sensor.generic_asset_id))
         )
     ).unique()
     return [
@@ -313,18 +316,24 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     ]
 
 
-def _asset_and_ancestor_ids(asset_id: int | None) -> list[int]:
-    """List the given asset and all of its ancestors, nearest first."""
-    from flexmeasures.data.models.generic_assets import GenericAsset
+def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
+    """Find the automations that read from or write to the given sensor.
 
-    asset_ids: list[int] = []
-    while asset_id is not None and asset_id not in asset_ids:
-        asset_ids.append(asset_id)
-        asset = db.session.get(GenericAsset, asset_id)
-        if asset is None:
-            break
-        asset_id = asset.parent_asset_id
-    return asset_ids
+    Unlike `get_automations_feeding_sensor`, this considers every automation, because a regressor
+    may live anywhere in the tree, not just on the sensor's asset or one of its ancestors.
+    That makes this proportional to the number of automations, so keep it out of hot paths;
+    it is meant for rare, interactive checks, such as warning before a sensor is deleted.
+    """
+    involved = []
+    for automation in db.session.scalars(select(Automation)).unique():
+        automation_sensors = get_automation_sensors(automation)
+        if sensor.id in {
+            involved_sensor.id
+            for key in ("input_sensors", "output_sensors")
+            for involved_sensor in automation_sensors[key]
+        }:
+            involved.append(automation)
+    return involved
 
 
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
@@ -402,15 +411,16 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
         )
-    forecaster = automation.generator.data_generator
+    # Work on a copy, as the data generator is cached on the data source,
+    # which may be shared by several automations (as in `resolve_automation_sensors`).
+    forecaster = copy(automation.generator.data_generator)
     if not isinstance(forecaster, Forecaster):
         raise ValueError(
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
         )
     output_sensor = get_forecast_output_sensor(automation.parameters or {})
     validate_forecast_output_scope(automation.asset_id, output_sensor)
-    # The data generator instance is cached on the data source, which may be shared
-    # by several automations, so wipe any parameter state from a previous run.
+    # Wipe any parameter state the copy inherited from a previous run.
     forecaster._parameters = None
     forecaster.set_job_trigger("automation", automation_id=automation.id)
     return forecaster.compute(as_job=True, parameters=dict(automation.parameters))
