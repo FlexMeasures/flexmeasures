@@ -1887,10 +1887,18 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
+            # The beliefs the chart draws: one value per event, the most recent one.
+            # Aggregating belief rows instead would count a revision on top of what it revised,
+            # and would count each source separately when several report the same sensor.
+            beliefs = sensor.search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                most_recent_beliefs_only=True,
+            )
+            values = beliefs["event_value"].dropna()
 
             downsample_function, downsample_value = get_downsample_function_and_value(
-                kpi, sensor, sensor_stats
+                kpi, sensor, values
             )
             kpi_dict = {
                 "title": kpi["title"],
