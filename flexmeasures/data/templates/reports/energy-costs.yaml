@@ -1,0 +1,30 @@
+# Prepared report template: energy costs.
+#
+# Computes the costs of consumed energy (and any revenues from produced energy)
+# over the reporting window, using the ProfitOrLossReporter.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: energy-costs
+description: Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
+reporter: ProfitOrLossReporter
+config:
+  # The sensor recording the price of consumed energy (e.g. in EUR/MWh).
+  consumption_price_sensor: FILL_IN
+  # Optionally, set a separate feed-in tariff (defaults to the consumption price):
+  # production_price_sensor: FILL_IN
+  # Report costs as positive values (and revenues as negative values).
+  loss_is_positive: true
+parameters:
+  input:
+    # The power or energy sensor to compute the costs for. By default, positive
+    # values denote production and negative values denote consumption (set the
+    # sensor attribute consumption_is_positive to invert this).
+    - sensor: FILL_IN
+  output:
+    # The sensor to store the report; its unit must be a currency (e.g. EUR).
+    # The results are resampled to this sensor's event resolution (e.g. daily costs).
+    - sensor: FILL_IN
+  # Rolling reporting window, recommended for recurring use (e.g. in an automation):
+  # each run reports on the previous day. Replace with fixed "start" and "end"
+  # datetimes for a one-off report.
+  start-offset: -1D,DB
+  end-offset: DB

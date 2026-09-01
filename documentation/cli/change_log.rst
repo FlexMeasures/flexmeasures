@@ -17,6 +17,8 @@ since v1.0.0 | August 11, 2026
 * Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions. Run this command once per minute. It makes at most one queueing attempt per automation per minute, including when an attempt fails after partially queueing jobs. Runs missed while the runner was down are caught up once, with several missed runs coalesced into the latest useful one, and a run at a skipped or repeated daylight-saving-time hour happens exactly once.
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
 * ``flexmeasures show data-sources`` now shows the account a data source belongs to, and lists the sensors holding data recorded by a single source with ``--show-sensors``.
+* Add ``flexmeasures show report-templates`` to list prepared report templates, or print one in full (with ``--name``).
+* Add a ``--template`` option to ``flexmeasures add report`` and ``flexmeasures add automation`` (type ``reports``), to start from a prepared report template (any ``--config``/``--parameters`` files and other options override it).
 
 since v0.33.0 | June 01, 2026
 =================================
