@@ -1871,7 +1871,7 @@ class AssetAPI(FlaskView):
 
         try:
             reporter = get_data_generator(
-                source=None,
+                source=None,  # pre-defined app.data_generators
                 model=report_data["reporter"],
                 config=report_data["config"],
                 save_config=True,
