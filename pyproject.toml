@@ -65,7 +65,7 @@ dependencies = [
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
     # 3.5.5: got rid of BlockManager deprecation warnings
-    "timely-beliefs[forecast]>=3.5.5",
+    "timely-beliefs>=3.5.5",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
@@ -272,6 +272,8 @@ test = [
     "lupa>=2.6",
     "pytest-mock>=3.15.1",
     "pytest-runner>=6.0.1",
+    # to run the UI's JavaScript modules in a browser, see flexmeasures/ui/tests/js
+    "selenium>=4.36.0",
 ]
 
 [tool.hatch.build.targets.wheel]

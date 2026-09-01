@@ -331,6 +331,44 @@ def test_post_sensor_data_returns_accepted_job(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+def test_post_sensor_data_is_synchronous_for_legacy_client(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.1"},
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.0"},
+    )
+    current_app.queues["ingestion"].empty()
+    sensor = setup_api_test_data["some gas sensor"]
+    post_data = make_sensor_data_request_for_gas_sensor()
+    post_data["start"] = "2021-06-10T00:00:00+02:00"
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "PROCESSED"
+    assert current_app.queues["ingestion"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_post_sensor_data_falls_back_when_redis_unavailable(
     client,
     setup_api_test_data,
