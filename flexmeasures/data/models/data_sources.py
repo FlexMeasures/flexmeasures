@@ -99,23 +99,39 @@ class DataGenerator:
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
 
-    def set_job_trigger(self, origin: str):
-        """Record how a queued job was created, for storage in its metadata."""
+    def set_job_trigger(self, origin: str, automation_id: int | None = None):
+        """Record how any queued jobs got created (e.g. via the CLI, the API or an automation).
+
+        This information is stored on the jobs themselves (as job meta data).
+        """
         self._job_trigger = {"origin": origin}
+        if automation_id is not None:
+            self._job_trigger["automation_id"] = automation_id
 
     @property
     def input_sensors(self) -> list:
-        """Return the sensors from which this data generator reads data."""
+        """The sensors that this data generator reads data from.
+
+        Overwrite in your data generator, deriving the sensors from its config and
+        parameters. Together with `output_sensors`, this describes the data flowing
+        through the data generator, which is used for linking to the sensors involved
+        (and, in the future, for checking access to them).
+        """
         return []
 
     @property
     def output_sensors(self) -> list:
-        """Return the sensors on which this data generator records data."""
+        """The sensors that this data generator writes data to. See `input_sensors`."""
         return []
 
     @staticmethod
     def _resolve_sensors(*values) -> list:
-        """Turn sensors, sensor references or sensor IDs into unique sensors."""
+        """Turn (lists of) sensors, sensor references or sensor IDs into a list of unique sensors.
+
+        A sensor reference contributes the sensor it wraps, as the source filters only narrow down
+        which beliefs are read from that sensor, not which sensor is involved.
+        Sensor IDs that cannot be found, and None values, are skipped.
+        """
         from flexmeasures.data.models.time_series import Sensor
         from flexmeasures.data.schemas.sensors import SensorReference
 
@@ -128,7 +144,7 @@ class DataGenerator:
                     sensor = item.sensor
                 elif isinstance(item, Sensor):
                     sensor = item
-                elif isinstance(item, int) or (
+                elif (isinstance(item, int) and not isinstance(item, bool)) or (
                     isinstance(item, str) and item.isdigit()
                 ):
                     sensor = db.session.get(Sensor, int(item))

@@ -213,3 +213,11 @@ Usage:
    Create the annotations you want to use as regressors before running the forecast.
    For holidays, use ``flexmeasures add holidays``, which supports both ``workalendar``
    and ``holidays``. See :ref:`annotations` for details.
+
+.. _automating_forecasts:
+
+Automating forecasts
+--------------------
+
+Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues forecasting jobs on a cron schedule.
+See :ref:`automations`.

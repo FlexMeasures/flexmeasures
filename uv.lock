@@ -680,6 +680,18 @@ toml = [
 ]
 
 [[package]]
+name = "cron-descriptor"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/75/b44b05ae7d1e49b59a27a917c44e04ce9aa4cebdd05dac42ba7df06a91b4/cron_descriptor-2.1.0.tar.gz", hash = "sha256:ecddb8b2f6c5286398949aaefe185364666af74f33b01877c61378e1fd4e38e6", size = 50221, upload-time = "2026-06-02T16:26:28.223Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/41/c476c41cb88dbbba83e0685dd331b9d32599f1e4a94ca223b02437a3d83b/cron_descriptor-2.1.0-py3-none-any.whl", hash = "sha256:e280efae0e375e2cbc62846f833888f12c7921d2d11ab0dca598f94c51af8639", size = 74734, upload-time = "2026-06-02T16:26:26.919Z" },
+]
+
+[[package]]
 name = "croniter"
 version = "6.2.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1228,6 +1240,8 @@ dependencies = [
     { name = "bcrypt", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "click", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "click-default-group", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "cron-descriptor", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "croniter", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "cryptography", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "darts", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "email-validator", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -1355,6 +1369,8 @@ requires-dist = [
     { name = "bcrypt", specifier = "==4.3.0" },
     { name = "click", specifier = ">=8.2.0" },
     { name = "click-default-group", specifier = ">=1.2.4" },
+    { name = "cron-descriptor", specifier = ">=1.4.0" },
+    { name = "croniter", specifier = ">=2.0.0" },
     { name = "cryptography", specifier = ">=48.0.1" },
     { name = "darts", specifier = ">=0.41.0" },
     { name = "email-validator", specifier = ">=2.3.0" },

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from flask import current_app
 from sqlalchemy import delete
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
@@ -21,7 +22,9 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
@@ -739,6 +742,17 @@ def serialize_sensor_status_data(
     return sensors
 
 
+def _can_read_automation(automation: Automation | None) -> bool:
+    """Whether the current user may see an automation's identifying details."""
+    if automation is None:
+        return False
+    try:
+        check_access(automation, "read")
+    except (Forbidden, Unauthorized):
+        return False
+    return True
+
+
 def build_asset_jobs_data(
     asset: Asset,
 ) -> list[dict]:
@@ -814,7 +828,20 @@ def build_asset_jobs_data(
                 else None
             )
 
-            metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
+            # Show how the job was created (e.g. via the CLI, the API or an automation)
+            metadata_dict = {**job.meta, "job_id": job.id}
+            trigger = dict(job.meta.get("trigger", {}))
+            created_via = trigger.get("origin", "")
+            if trigger.get("automation_id") is not None:
+                automation = db.session.get(Automation, trigger["automation_id"])
+                if _can_read_automation(automation):
+                    created_via = f"automation '{automation.name}' ({automation.id})"
+                else:
+                    created_via = "automation"
+                    trigger.pop("automation_id")
+                    metadata_dict["trigger"] = trigger
+
+            metadata = json.dumps(metadata_dict, default=str, indent=4)
             jobs_data.append(
                 {
                     "job_id": job.id,
@@ -825,6 +852,7 @@ def build_asset_jobs_data(
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
+                    "created_via": created_via,
                     "metadata_hash": hashlib.sha256(metadata.encode()).hexdigest(),
                 }
             )
