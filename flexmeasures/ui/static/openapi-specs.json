@@ -3579,7 +3579,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "description": "The response will be a list of automations: recurring forecasting, scheduling or reporting tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, recurrence, IANA timezone, cursor,\nand counts of recently created jobs per job status. Jobs in Redis have a limited TTL,\nso not all past jobs are counted.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3616,9 +3616,13 @@
                           "timezone": "Europe/Amsterdam",
                           "cursor": "2026-07-11T04:00:00+00:00",
                           "recurrence_description": "At 06:00",
-                          "active": true
+                          "active": true,
+                          "job_stats": {
+                            "finished": 3
+                          }
                         }
-                      ]
+                      ],
+                      "redis_connection_err": null
                     }
                   }
                 }

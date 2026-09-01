@@ -210,6 +210,12 @@ An active automation follows its cron recurrence in the timezone shown below. If
     $("#automations_err").removeClass("d-none").text(message);
   }
 
+  function jobStatsText(jobStats) {
+    return Object.keys(jobStats || {}).length
+      ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
+      : "none";
+  }
+
   function AutomationRow(automation) {
     const createdAt = automation.created_at;
     return {
@@ -229,8 +235,8 @@ An active automation follows its cron recurrence in the timezone shown below. If
         `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`
       ),
       timezone: esc(automation.timezone),
-      jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
-      details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
+      jobs: `<span title="Recently created jobs, per job status">${esc(jobStatsText(automation.job_stats))}</span>`,
+      details: `<a href="#" class="btn btn-default btn-success automation-details" data-id="${automation.id}" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
@@ -261,19 +267,16 @@ An active automation follows its cron recurrence in the timezone shown below. If
     ).join(", ");
   }
 
+  const loadedDetails = new Set();
+
   function loadAutomationDetails(automationId) {
+    if (loadedDetails.has(automationId)) return;
+    loadedDetails.add(automationId);
     $.ajax({
       url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
       method: "GET",
       success: function (res) {
-        // Show job stats in the table row
         const jobStats = res.job_stats || {};
-        const statsStr = Object.keys(jobStats).length
-          ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
-          : "none";
-        $(`#automation-jobs-${automationId}`).text(statsStr);
-
-        // Fill the details modal
         const generator = res.generator
           ? `${res.generator.description} (data source ${res.generator.id})`
           : "None";
@@ -293,12 +296,9 @@ An active automation follows its cron recurrence in the timezone shown below. If
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
-        if (res.redis_connection_err) {
-          $("#automations_err").removeClass("d-none").text(res.redis_connection_err);
-        }
       },
       error: function (xhr) {
-        $(`#automation-jobs-${automationId}`).text("unknown");
+        loadedDetails.delete(automationId);
         $(`#AutomationDetailsBody-${automationId}`).text("Could not load details.");
         showAutomationsError(
           `Could not load automation details: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
@@ -330,8 +330,6 @@ An active automation follows its cron recurrence in the timezone shown below. If
       ],
       data: automations.map(AutomationRow),
     });
-    // Load more details per automation asynchronously
-    automations.forEach(automation => loadAutomationDetails(automation.id));
   }
 
   function apiError(xhr, fallbackMessage) {
@@ -356,6 +354,9 @@ An active automation follows its cron recurrence in the timezone shown below. If
       method: "GET",
       success: function (res) {
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
+        if (res.redis_connection_err) {
+          showAutomationsError(res.redis_connection_err);
+        }
         for (const automationType of ["forecasts", "schedules", "reports"]) {
           makeAutomationsTable(
             automationType,
@@ -373,6 +374,10 @@ An active automation follows its cron recurrence in the timezone shown below. If
           `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
         );
       },
+    });
+
+    $(document).on("click", ".automation-details", function () {
+      loadAutomationDetails($(this).data("id"));
     });
 
     // Edit an automation's recurrence settings

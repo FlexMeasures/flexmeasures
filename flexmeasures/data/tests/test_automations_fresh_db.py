@@ -272,6 +272,17 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     app.job_cache.add(root.id, job.id, "scheduling", "asset")
     app.job_cache.add(child_sensor.id, job.id, "scheduling", "sensor")
 
+    child_job = Job.create(
+        "flexmeasures.utils.time_utils.server_now", connection=queue.connection
+    )
+    child_job.meta["trigger"] = {
+        "origin": "automation",
+        "automation_id": schedule_automation.id,
+    }
+    child_job.save_meta()
+    queue.enqueue_job(child_job)
+    app.job_cache.add(child_sensor.id, child_job.id, "scheduling", "sensor")
+
     other_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
     )
@@ -283,7 +294,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     queue.enqueue_job(other_job)
     app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
-    assert get_automation_job_stats(schedule_automation) == {"queued": 1}
+    assert get_automation_job_stats(schedule_automation) == {"queued": 2}
 
 
 def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generator):
