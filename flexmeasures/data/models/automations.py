@@ -41,12 +41,12 @@ class Automation(db.Model, AuthModelMixin):
     __tablename__ = "automation"
     __table_args__ = (
         db.CheckConstraint(
-            "type != 'forecasts' OR generator_id IS NOT NULL",
-            name="forecast_generator",
+            "type NOT IN ('forecasts', 'reports') OR generator_id IS NOT NULL",
+            name="automation_generator",
         ),
     )
 
-    SUPPORTED_TYPES = ["forecasts", "schedules"]  # later also "reports"
+    SUPPORTED_TYPES = ["forecasts", "schedules", "reports"]
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(

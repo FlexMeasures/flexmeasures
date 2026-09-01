@@ -219,6 +219,20 @@ Usage:
 Automating forecasts
 --------------------
 
-Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues forecasting jobs on a cron schedule.
-See :ref:`automations`.
-Schedules can be automated in the same way — see :ref:`automating_schedules`.
+Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset (see :ref:`automations` for the full concept, including how to manage and run automations).
+On each run, the automation queues forecasting jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
+When the automation was created, its forecast parameters (see above) were stored, and validated with the same schema that the CLI and API use.
+Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
+The sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
+This relationship is checked both when the automation is created and immediately before each run.
+
+Here is how you create a forecast automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasts \
+        --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
+
+A forecast automation accepts everything ``flexmeasures add forecast`` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it.
+The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
+That data source is required while the automation exists, so it cannot be deleted until the automation is removed.

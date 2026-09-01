@@ -3,65 +3,61 @@
 Automations
 ============
 
-An **automation** is a recurring task defined on an asset.
-For now, an automation computes forecasts; automating schedules and reports is planned.
+Hosts and users often want the three main FlexMeasures features — :ref:`forecasting`, :ref:`scheduling` and :ref:`reporting` — to run on a recurring basis, across larger numbers of sites.
+*Automations* make that a first-class concept: an automation is a recurring task defined on an asset, and each time it runs, it queues jobs.
 
-On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
-The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
-Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
+An automation consists of:
 
-Creating an automation
-----------------------
+- a **type**: ``forecasts``, ``schedules`` or ``reports``;
+- a **recurrence**: a cron string (e.g. ``"0 6 * * *"`` for daily at 6 AM), interpreted in the automation's own IANA timezone;
+- a **data generator** (for forecasts and reports): the forecaster or reporter class and its configuration, stored on a data source.
+  The data source stays the same across runs, so all results the automation produces attribute to one steady source;
+- **parameters**: what to compute on each run, validated by the same schema the CLI and API use for one-off runs.
+  Timing parameters are resolved freshly on each run, so a recurring automation always computes fresh periods
+  (see the type-specific sections below for the exact rules);
+- an **activation status**: only active automations run.
 
-Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
+Managing automations
+--------------------
 
-.. code-block:: bash
+Automations can be managed in three ways:
 
-    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasts \
-        --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
+- **CLI**: ``flexmeasures add automation``, ``flexmeasures edit automation`` (name, cron string, timezone and activation status) and ``flexmeasures delete automation``.
+- **API**: list and inspect with ``[GET] /assets/(id)/automations`` and ``[GET] /assets/(id)/automations/(automation_id)``;
+  create, update and delete with ``[POST|PATCH|DELETE]`` on the same paths (see the `API documentation <../api/v3_0.html>`_).
+- **UI**: each asset has an *Automations* page (in the breadcrumbs dropdown), with a tab per automation type.
+  It lists each automation's recurrence and recent job counts, and lets you create, edit, (de)activate and delete automations.
 
-``--type`` says what the automation computes, and defaults to ``forecasts``.
-The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
-The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
-That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
-
-The recurrence is defined by a standard five-field cron string (minute, hour, day of month, month, and day of week), which defaults to ``"0 0 * * *"`` (daily at midnight).
-It is interpreted in the automation's IANA timezone.
-If ``--timezone`` is omitted, the current ``FLEXMEASURES_TIMEZONE`` value is copied to the automation.
-Changing that configuration later does not change existing automations.
-Cron aliases and optional seconds or year fields are not supported.
-
-Automations are active by default (use ``--inactive`` to create them in deactivated state).
-Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), change the timezone, activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
-These changes are recorded in the asset's audit log.
-
-For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
-This relationship is checked both when the automation is created and immediately before each run.
+Creating, updating and deleting automations requires account admin or consultant rights, and is recorded in the asset's audit log.
 
 Running automations
--------------------
+--------------------
 
-For automations to actually run, let a cron job execute the following command once per minute:
+An automation is due whenever its cron string matches the current minute in its configured timezone. To actually run due automations, let a cron job execute the following command once per minute:
 
 .. code-block:: bash
 
     * * * * * flexmeasures jobs run-automations
 
-Each due automation then queues its jobs.
-If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
-Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast.
-
-Each scheduled run receives at most one automatic queueing attempt.
+Each due automation then queues its jobs — so make sure workers are processing the relevant queues (``forecasting``, ``scheduling`` and/or ``reporting``, see :ref:`redis-queue`).
+Each scheduled run receives at most one automatic queueing attempt, so the command is safe to run more than once within a minute.
 If the process crashes, or queueing fails after creating some jobs, that run is not retried automatically, because a retry could duplicate partial work.
 
-The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
+If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
+Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current result.
 
-Viewing automations
--------------------
+Jobs record how they were created (via the CLI, the API or an automation), which is shown in the *Created Via* column
+of the jobs table on the asset's status page, where recent jobs are listed.
 
-Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
-An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
-Conversely, a sensor's page lists the automations that write data to it.
+Automating each feature
+-----------------------
+
+The parameters stored on an automation follow the same schemas as one-off CLI/API calls, with type-specific rules for resolving timing on each run:
+
+- :ref:`automating_forecasts` — forecast parameters; the forecast start defaults to the run time.
+- :ref:`automating_schedules` — a schedule trigger message; omit ``start`` to schedule from the run time.
+- :ref:`automating_reports` — report parameters; use ``start-offset``/``end-offset`` (Pandas offsets) for a rolling window,
+  or omit timing fields to report on the period since the last successfully covered report window.
 
 .. _automation_cursor:
 

@@ -24,7 +24,7 @@ Here is how to run one worker for each kind of job (in separate terminals):
 
 .. code-block:: bash
 
-   $ flexmeasures jobs run-worker --name our-only-worker --queue forecasting|scheduling|ingestion
+   $ flexmeasures jobs run-worker --name our-only-worker --queue forecasting|scheduling|ingestion|reporting
 
 Running multiple workers in parallel might be a great idea.
 

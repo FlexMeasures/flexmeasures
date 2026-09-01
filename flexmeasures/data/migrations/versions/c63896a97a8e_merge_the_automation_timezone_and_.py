@@ -1,6 +1,6 @@
 """merge the automation timezone and schedule generator migrations
 
-Two migrations branched off the same revision: one adding an automation's timezone and scheduling cursor,
+Two migrations branched off the same revision: one adding an automation's timezone and cursor,
 the other allowing a schedule automation to exist without a data generator.
 They touch different columns, so this merge only rejoins them and has nothing of its own to do.
 

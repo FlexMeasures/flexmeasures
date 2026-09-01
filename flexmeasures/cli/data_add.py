@@ -1456,7 +1456,8 @@ def _assemble_forecaster_config_and_parameters(
         config = _load_yaml_mapping(config_file, "--config")
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         field_value = kwargs.pop(field_name, None)
-        if field_value is not None:
+        # skip unset options (click passes None, or an empty tuple for multiple-value options)
+        if field_value is not None and field_value != ():
             if field_name in {
                 "future_regressors",
                 "past_regressors",
@@ -1505,8 +1506,8 @@ def _assemble_forecaster_config_and_parameters(
         if kebab_key not in parameters:
             parameters[kebab_key] = v
 
-    # Drop None values
-    parameters = {k: v for k, v in parameters.items() if v is not None}
+    # Drop unset values
+    parameters = {k: v for k, v in parameters.items() if v is not None and v != ()}
 
     return config, parameters
 
@@ -1730,19 +1731,27 @@ def add_forecast(  # noqa: C901
     " Cannot be combined with --source, which already determines the forecaster.",
 )
 @click.option(
+    "--reporter",
+    "reporter_class",
+    required=False,
+    type=click.STRING,
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin (only used for --type reports)."
+    " Use the command `flexmeasures show reporters` to list all the available reporters.",
+)
+@click.option(
     "--source",
     "source",
     required=False,
     type=DataSourceIdField(),
-    help="DataSource ID of the `Forecaster`. The forecaster class and its configuration are read from"
-    " the data source's data generator attributes, so --forecaster and --config are not needed (or allowed) with it.",
+    help="DataSource ID of the data generator (`Forecaster` or `Reporter`). The generator class and its configuration are read from"
+    " the data source's attributes, so --forecaster/--reporter and --config are not needed (or allowed) with it.",
 )
 @click.option(
     "--config",
     "config_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the configuration of the forecaster."
+    help="Path to the JSON or YAML file with the configuration of the forecaster or reporter."
     " Cannot be combined with --source, which already determines the configuration.",
 )
 @click.option(
@@ -1751,7 +1760,8 @@ def add_forecast(  # noqa: C901
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
-    " forecast parameters for --type forecasts, or a schedule trigger message for --type schedules.",
+    " forecast parameters for --type forecasts, a schedule trigger message for --type schedules,"
+    " or report parameters for --type reports.",
 )
 @add_cli_options_from_schema(
     ForecasterParametersSchema(), hidden=True, force_optional=True
@@ -1767,13 +1777,14 @@ def add_automation(
     automation_type: str,
     inactive: bool = False,
     forecaster_class: str | None = None,
+    reporter_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
     **kwargs,
 ):
     """
-    Add an automation: a recurring task (computing forecasts or schedules) on an asset.
+    Add an automation: a recurring task (computing forecasts, schedules or reports) on an asset.
 
     \b
     Examples
@@ -1782,12 +1793,18 @@ def add_automation(
         --parameters forecast-parameters.yml
       flexmeasures add automation --asset 3 --name "Hourly schedules"
         --cron "0 * * * *" --type schedules --parameters trigger-message.yml
+      flexmeasures add automation --asset 3 --name "Daily self-consumption report"
+        --cron "0 1 * * *" --type reports --reporter PandasReporter
+        --config reporter-config.yml --parameters report-parameters.yml
 
-    For forecasts, the forecaster configuration is stored on a data source, and
-    the forecast parameters are validated and stored on the automation itself.
+    For forecasts and reports, the data generator configuration is stored on a
+    data source, and the parameters are validated and stored on the automation itself.
     For schedules, the parameters form a schedule trigger message (as accepted by
     the [POST] /assets/(id)/schedules/trigger API endpoint, without the asset id);
     omit its "start" field to schedule from the run time on each run.
+    For reports, use "start-offset"/"end-offset" (comma-separated Pandas offsets,
+    applied to the run time) for a rolling report window, or omit timing fields
+    entirely to report on the last cron period.
     Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster
@@ -1835,7 +1852,9 @@ def add_automation(
             automation_type=automation_type,
             active=not inactive,
             parameters=parameters,
-            forecaster_class=forecaster_class,
+            generator_class=(
+                reporter_class if automation_type == "reports" else forecaster_class
+            ),
             config=config,
             source=source,
             origin="CLI",
@@ -2145,6 +2164,12 @@ def add_schedule(  # noqa C901
     is_flag=True,
     help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
 )
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a reporting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'reporting' queue. Defaults to False.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
     source: DataSource | None = None,
@@ -2161,11 +2186,26 @@ def add_report(  # noqa: C901
     edit_parameters: bool = False,
     save_config: bool = False,
     timezone: str | None = None,
+    as_job: bool = False,
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as CSV or Excel file.
     """
+    if as_job and (dry_run or output_file_pattern):
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run or --output-file:"
+            " the job saves the report to the database only.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if as_job and not save_config:
+        # the worker rebuilds the reporter from its data source, so the config must be stored there
+        click.secho(
+            "Saving the reporter config to its data source (required for --as-job).",
+            **MsgStyle.WARN,
+        )
+        save_config = True
 
     config = dict()
 
@@ -2267,6 +2307,16 @@ def add_report(  # noqa: C901
         parameters["end"] = end.isoformat()
     if ("resolution" not in parameters) and (resolution is not None):
         parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
+    reporter.set_job_trigger("CLI")
+
+    if as_job:
+        returns = reporter.compute(as_job=True, parameters=parameters)
+        click.secho(
+            f"Created reporting job {returns['job_id']} (the report will be saved to the database once processed).",
+            **MsgStyle.SUCCESS,
+        )
+        return
 
     click.echo("Report computation is running...")
 

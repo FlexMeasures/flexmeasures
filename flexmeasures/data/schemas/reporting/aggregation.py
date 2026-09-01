@@ -56,5 +56,5 @@ class AggregatorParametersSchema(ReporterParametersSchema):
 
     # redefining output to restrict the output length to 1
     output = fields.List(
-        fields.Nested(Output()), validate=validate.Length(min=1, max=1)
+        fields.Nested(Output()), required=True, validate=validate.Length(min=1, max=1)
     )
