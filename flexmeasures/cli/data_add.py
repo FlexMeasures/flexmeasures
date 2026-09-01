@@ -2452,6 +2452,12 @@ def get_or_create_toy_asset(
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
 @click.option(
+    "--client-version",
+    type=str,
+    default=None,
+    help="Set the flexmeasures-client-version attribute on the toy building asset.",
+)
+@click.option(
     "--shell-vars",
     is_flag=True,
     help=(
@@ -2460,7 +2466,7 @@ def get_or_create_toy_asset(
         '`eval "$(flexmeasures add toy-account --shell-vars)"`.'
     ),
 )
-def add_toy_account(kind: str, name: str, shell_vars: bool):
+def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars: bool):
     """
     Create a toy account, for tutorials and trying things.
     """
@@ -2578,6 +2584,11 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
                 "consumption-price": {"sensor": day_ahead_sensor.id},
             },
         )
+        if client_version:
+            building_asset.attributes = {
+                **(building_asset.attributes or {}),
+                "flexmeasures-client-version": client_version,
+            }
         db.session.flush()
         shell_var_output["FM_TOY_BUILDING_ASSET_ID"] = building_asset.id
 

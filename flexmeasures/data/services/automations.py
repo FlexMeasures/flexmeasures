@@ -23,13 +23,16 @@ from flexmeasures import Forecaster
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
+from flexmeasures.data.queries.generic_assets import (
+    asset_and_ancestor_ids,
+    asset_is_in_subtree,
+)
 from flexmeasures.utils.time_utils import server_now
 
 
 @dataclass(frozen=True)
 class DueAutomation:
-    """An automation together with the canonical occurrence it should handle."""
+    """An automation together with the canonical run it should handle."""
 
     automation: Automation
     scheduled_at: datetime
@@ -183,10 +186,8 @@ def _is_ambiguous_wall_time(nominal_time: datetime, timezone_info: ZoneInfo) -> 
     return len(_valid_localizations(nominal_time, timezone_info)) == 2
 
 
-def _canonical_occurrence_time(
-    nominal_time: datetime, timezone_info: ZoneInfo
-) -> datetime:
-    """Map one wall-clock occurrence to its canonical effective UTC instant.
+def _canonical_run_time(nominal_time: datetime, timezone_info: ZoneInfo) -> datetime:
+    """Map one wall-clock run to its canonical effective UTC instant.
 
     Ambiguous times use the earlier fold.
     Nonexistent times become effective at the first valid minute after the clock jump.
@@ -209,10 +210,10 @@ def _canonical_occurrence_time(
 
 
 def _cron_evaluation_time(now: datetime, timezone_info: ZoneInfo) -> datetime:
-    """Return the nominal wall time through which cron occurrences have happened.
+    """Return the nominal wall time through which cron runs have happened.
 
     During the second fold of a repeated interval, the entire first fold has already happened.
-    Evaluate through the end of that repeated wall interval, so missed occurrences are coalesced instead of replayed minute by minute.
+    Evaluate through the end of that repeated wall interval, so missed runs are coalesced instead of replayed minute by minute.
     """
     localized_now = now.astimezone(timezone_info)
     nominal_now = _as_nominal_wall_time(localized_now)
@@ -231,27 +232,25 @@ def _cron_evaluation_time(now: datetime, timezone_info: ZoneInfo) -> datetime:
     )
 
 
-def get_latest_scheduled_occurrence(automation: Automation, now: datetime) -> datetime:
-    """Return the latest canonical occurrence for an automation through ``now``."""
+def get_latest_scheduled_run(automation: Automation, now: datetime) -> datetime:
+    """Return the latest canonical run for an automation through ``now``."""
     now = floor_to_minute(now)
     timezone_info = ZoneInfo(automation.timezone)
     evaluation_time = _cron_evaluation_time(now, timezone_info)
     if croniter.match(automation.cronstr, evaluation_time):
-        nominal_occurrence = evaluation_time
+        nominal_run = evaluation_time
     else:
-        nominal_occurrence = croniter(automation.cronstr, evaluation_time).get_prev(
-            datetime
-        )
-    scheduled_at = _canonical_occurrence_time(nominal_occurrence, timezone_info)
+        nominal_run = croniter(automation.cronstr, evaluation_time).get_prev(datetime)
+    scheduled_at = _canonical_run_time(nominal_run, timezone_info)
     if scheduled_at > now:
         raise ValueError(
-            f"Cron occurrence {nominal_occurrence.isoformat()} in {automation.timezone} resolves after {now.isoformat()}."
+            f"Cron run {nominal_run.isoformat()} in {automation.timezone} resolves after {now.isoformat()}."
         )
     return scheduled_at
 
 
 def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
-    """Return the newest unhandled occurrence for each active automation."""
+    """Return the newest unhandled run for each active automation."""
     if now is None:
         now = server_now()
     now = floor_to_minute(now)
@@ -261,22 +260,20 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     due_automations = []
     for automation in active_automations:
         try:
-            scheduled_at = get_latest_scheduled_occurrence(automation, now)
+            scheduled_at = get_latest_scheduled_run(automation, now)
         except (CroniterError, ValueError, ZoneInfoNotFoundError) as exc:
             current_app.logger.error(
-                "Skipping automation %s (%r), because its next occurrence could not be calculated: %s",
+                "Skipping automation %s (%r), because its next run could not be calculated: %s",
                 automation.id,
                 automation.name,
                 exc,
             )
             continue
-        expected_cursor = automation.scheduling_cursor
-        scheduling_cursor = expected_cursor
-        if scheduling_cursor is None:
-            scheduling_cursor = floor_to_minute(automation.created_at) - timedelta(
-                minutes=1
-            )
-        if scheduled_at > scheduling_cursor:
+        expected_cursor = automation.cursor
+        cursor = expected_cursor
+        if cursor is None:
+            cursor = floor_to_minute(automation.created_at) - timedelta(minutes=1)
+        if scheduled_at > cursor:
             due_automations.append(
                 DueAutomation(
                     automation=automation,
@@ -290,11 +287,11 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
 
 
 def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist an occurrence claim if its scheduling configuration is unchanged."""
+    """Persist a run claim if its scheduling configuration is unchanged."""
     if due_automation.expected_cursor is None:
-        cursor_matches = Automation.scheduling_cursor.is_(None)
+        cursor_matches = Automation.cursor.is_(None)
     else:
-        cursor_matches = Automation.scheduling_cursor == due_automation.expected_cursor
+        cursor_matches = Automation.cursor == due_automation.expected_cursor
     result = db.session.execute(
         update(Automation)
         .where(
@@ -304,7 +301,7 @@ def claim_due_automation(due_automation: DueAutomation) -> bool:
             Automation.timezone == due_automation.expected_timezone,
             cursor_matches,
         )
-        .values(scheduling_cursor=due_automation.scheduled_at)
+        .values(cursor=due_automation.scheduled_at)
         .execution_options(synchronize_session=False)
     )
     if result.rowcount != 1:
@@ -436,7 +433,7 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     """
     candidate_automations = db.session.scalars(
         select(Automation).filter(
-            Automation.asset_id.in_(_asset_and_ancestor_ids(sensor.generic_asset_id))
+            Automation.asset_id.in_(asset_and_ancestor_ids(sensor.generic_asset_id))
         )
     ).unique()
     return [
@@ -479,18 +476,24 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     return message
 
 
-def _asset_and_ancestor_ids(asset_id: int | None) -> list[int]:
-    """List the given asset and all of its ancestors, nearest first."""
-    from flexmeasures.data.models.generic_assets import GenericAsset
+def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
+    """Find the automations that read from or write to the given sensor.
 
-    asset_ids: list[int] = []
-    while asset_id is not None and asset_id not in asset_ids:
-        asset_ids.append(asset_id)
-        asset = db.session.get(GenericAsset, asset_id)
-        if asset is None:
-            break
-        asset_id = asset.parent_asset_id
-    return asset_ids
+    Unlike `get_automations_feeding_sensor`, this considers every automation, because a regressor
+    may live anywhere in the tree, not just on the sensor's asset or one of its ancestors.
+    That makes this proportional to the number of automations, so keep it out of hot paths;
+    it is meant for rare, interactive checks, such as warning before a sensor is deleted.
+    """
+    involved = []
+    for automation in db.session.scalars(select(Automation)).unique():
+        automation_sensors = get_automation_sensors(automation)
+        if sensor.id in {
+            involved_sensor.id
+            for key in ("input_sensors", "output_sensors")
+            for involved_sensor in automation_sensors[key]
+        }:
+            involved.append(automation)
+    return involved
 
 
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
@@ -585,15 +588,16 @@ def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
         )
-    forecaster = automation.generator.data_generator
+    # Work on a copy, as the data generator is cached on the data source,
+    # which may be shared by several automations (as in `resolve_automation_sensors`).
+    forecaster = copy(automation.generator.data_generator)
     if not isinstance(forecaster, Forecaster):
         raise ValueError(
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
         )
     output_sensor = get_forecast_output_sensor(automation.parameters or {})
     validate_forecast_output_scope(automation.asset_id, output_sensor)
-    # The data generator instance is cached on the data source, which may be shared
-    # by several automations, so wipe any parameter state from a previous run.
+    # Wipe any parameter state the copy inherited from a previous run.
     forecaster._parameters = None
     forecaster.set_job_trigger("automation", automation_id=automation.id)
     return forecaster.compute(as_job=True, parameters=dict(automation.parameters))

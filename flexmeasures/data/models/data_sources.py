@@ -144,7 +144,7 @@ class DataGenerator:
                     sensor = item.sensor
                 elif isinstance(item, Sensor):
                     sensor = item
-                elif isinstance(item, int) or (
+                elif (isinstance(item, int) and not isinstance(item, bool)) or (
                     isinstance(item, str) and item.isdigit()
                 ):
                     sensor = db.session.get(Sensor, int(item))

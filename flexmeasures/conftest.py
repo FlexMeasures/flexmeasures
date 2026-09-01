@@ -11,7 +11,7 @@ from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, Flask
+from flask import request, jsonify, Flask, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
@@ -90,6 +90,20 @@ def app():
         yield test_app
 
     print("DONE WITH APP FIXTURE")
+
+
+# Authentication state that flask-login and flask-security cache on the app context's `g`.
+# The app fixture holds one app context open for the whole session, so anything left here is visible to later tests.
+# The keys must be cleared together: flask-security's request loader short-circuits on `fs_authn_via` and then returns `g._login_user` unguarded, so clearing only one of them makes the next token-authenticated request raise AttributeError.
+CACHED_AUTH_STATE_KEYS = ("_login_user", "fs_authn_via", "fs_paa", "csrf_valid")
+
+
+@pytest.fixture(autouse=True)
+def clear_flask_login_cache(app):
+    """Prevent cached authentication state from leaking between tests."""
+    yield
+    for key in CACHED_AUTH_STATE_KEYS:
+        g.pop(key, None)
 
 
 @pytest.fixture(scope="module")

@@ -21,7 +21,7 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.automations import (
     Automation,
-    get_initial_scheduling_cursor,
+    get_initial_cursor,
 )
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.schemas.automations import (
@@ -129,7 +129,7 @@ def edit_automation(
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
     if rebase_schedule:
-        automation.scheduling_cursor = get_initial_scheduling_cursor()
+        automation.cursor = get_initial_cursor()
     AssetAuditLog.add_record(
         automation.asset,
         f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via CLI.",
