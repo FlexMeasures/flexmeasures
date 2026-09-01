@@ -736,7 +736,9 @@ def test_add_automation_rejects_non_object_yaml_file(
     assert "Traceback" not in result.output
 
 
-def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
+def test_run_automations(
+    app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
+):
     """Active automations due this minute queue forecasting jobs (with trigger meta data); inactive ones do not.
 
     We use two automations with the same forecaster config (thus sharing a generator data source),
@@ -745,6 +747,10 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.jobs import run_automations
 
+    # Freeze the clock, as this test runs the runner twice and asserts that the second
+    # run finds nothing due. Without freezing, a slow first run can cross a minute
+    # boundary, after which an every-minute automation is legitimately due again.
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
     sensor1_id, sensor2_id = setup_dummy_data[0], setup_dummy_data[1]
     runner = app.test_cli_runner()
     for name, sensor_id in [
