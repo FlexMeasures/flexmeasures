@@ -103,6 +103,7 @@ def setup_report_sensors(
 
 
 def report_message(sensor_1: Sensor, sensor_2: Sensor, output: Sensor) -> dict:
+    """Build a PandasReporter trigger message that adds two inputs and resamples their sum to two-hour events."""
     return {
         "reporter": "PandasReporter",
         "config": {
