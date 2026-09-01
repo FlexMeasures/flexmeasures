@@ -22,6 +22,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.services.automations import (
     delete_automation as remove_automation,
+    get_automations_involving_sensor,
 )
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas import (
@@ -694,6 +695,22 @@ def delete_sensor(
         .select_from(TimedBelief)
         .where(TimedBelief.sensor_id.in_([sensor.id for sensor in sensors]))
     ).scalar_one()
+    # An automation refers to its sensors by ID in its parameters, which no foreign key protects,
+    # so deleting one here would leave the automation to fail on its next run. Say so up front.
+    for sensor in sensors:
+        involved_automations = get_automations_involving_sensor(sensor)
+        if involved_automations:
+            click.secho(
+                f"Sensor {sensor.id} is used by "
+                + join_words_into_a_list(
+                    [
+                        f"automation '{automation.name}' ({automation.id})"
+                        for automation in involved_automations
+                    ]
+                )
+                + ", which will fail on the next run after this deletion.",
+                **MsgStyle.WARN,
+            )
     click.confirm(
         f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n_beliefs} beliefs?",
         abort=True,

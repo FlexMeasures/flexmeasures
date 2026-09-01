@@ -119,6 +119,30 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
 
 
 @pytest.fixture(scope="module")
+def charge_point(db, setup_accounts) -> GenericAsset:
+    """
+    Set up a charge point. A charge point can have one or more connectors,
+    modeled as separate power sensors on this asset.
+    """
+    charge_point_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="charge point")
+    ).scalar_one_or_none()
+    if not charge_point_type:
+        charge_point_type = GenericAssetType(name="charge point")
+    db.session.add(charge_point_type)
+    charge_point = GenericAsset(
+        name="planning charge point",
+        generic_asset_type=charge_point_type,
+        owner=setup_accounts["Prosumer"],
+        flex_context={
+            "site-power-capacity": "1 MVA",
+        },
+    )
+    db.session.add(charge_point)
+    return charge_point
+
+
+@pytest.fixture(scope="module")
 def flexible_devices(db, building) -> dict[str, Sensor]:
     """
     Set up power sensors for flexible devices:
