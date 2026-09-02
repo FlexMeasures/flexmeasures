@@ -172,3 +172,141 @@ def test_get_nonexistent_automation(
             url_for("AssetAPI:get_automation", id=battery.id, automation_id=9999),
         )
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        (None, 401),  # not logged in
+        ("test_prosumer_user@seita.nl", 202),  # same account
+        ("test_dummy_user_3@seita.nl", 403),  # different account
+    ],
+    indirect=["requesting_user"],
+)
+def test_trigger_automation_auth(
+    app,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+    expected_status_code,
+    mocker,
+):
+    battery = add_battery_assets["Test battery"]
+    automation = add_automations[0]
+    run_automation = mocker.patch(
+        "flexmeasures.api.v3_0.assets.run_automation",
+        return_value={"job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb", "n_jobs": 2},
+    )
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == expected_status_code
+    if expected_status_code == 202:
+        assert run_automation.call_args.args[0].id == automation.id
+    else:
+        run_automation.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation(
+    app,
+    db,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+    mocker,
+):
+    """Triggering a run reports the queued job, and leaves the automation's recurrence alone."""
+    battery = add_battery_assets["Test battery"]
+    automation = add_automations[1]  # inactive automations can be triggered, too
+    cursor_before = automation.cursor
+    mocker.patch(
+        "flexmeasures.api.v3_0.assets.run_automation",
+        return_value={"job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb", "n_jobs": 2},
+    )
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == 202
+    assert response.json["status"] == "ACCEPTED"
+    assert response.json["job"] == "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+    assert response.json["n_jobs"] == 2
+    db.session.expire_all()
+    assert automation.cursor == cursor_before
+    assert automation.active is False
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation_that_cannot_run(
+    app,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+    mocker,
+):
+    """A run which cannot be set up is reported as such, rather than as a queued job."""
+    battery = add_battery_assets["Test battery"]
+    automation = add_automations[0]
+    mocker.patch(
+        "flexmeasures.api.v3_0.assets.run_automation",
+        side_effect=ValueError(
+            "Forecast automation output sensor 3 must belong to asset 1 or one of its descendants."
+        ),
+    )
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == 422
+    assert "must belong to asset" in str(response.json["message"])
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("via_other_asset", [True, False])
+def test_trigger_unknown_automation(
+    app,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+    via_other_asset,
+    mocker,
+):
+    """Triggering an automation the asset does not have returns 404, without running anything."""
+    run_automation = mocker.patch("flexmeasures.api.v3_0.assets.run_automation")
+    if via_other_asset:
+        # an existing automation, requested through an asset it does not belong to
+        asset = add_battery_assets["Test small battery"]
+        automation_id = add_automations[0].id
+    else:
+        asset = add_battery_assets["Test battery"]
+        automation_id = 9999
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=asset.id,
+                automation_id=automation_id,
+            ),
+        )
+    assert response.status_code == 404
+    run_automation.assert_not_called()
