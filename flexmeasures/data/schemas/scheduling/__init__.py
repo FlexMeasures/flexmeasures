@@ -21,6 +21,9 @@ from marshmallow import (
 from flexmeasures import Sensor
 
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.scheduler_config import (  # noqa: F401
+    SchedulerConfigSchema,
+)  # noqa: F401
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,

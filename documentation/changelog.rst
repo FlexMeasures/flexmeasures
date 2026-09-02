@@ -14,10 +14,16 @@ v1.1.0 | September XX, 2026
              If you maintain indexes of your own on this table, note that the reordered primary key leads with ``(sensor_id, source_id, event_start, belief_horizon)``, so any index you keep on a prefix of that is now redundant and can be dropped once the migration has run.
              The migration names the ones it finds and leaves them in place, as it cannot know which ones you meant to keep.
 
+.. warning:: A scheduler's data source now also records the flex config it computed under, where previously one data source per scheduler version recorded every schedule that scheduler made.
+             Schedules computed under different flex configs are therefore recorded by different data sources, and a sensor can carry schedules from several of them, as it already could for forecasts.
+             Charts then show one series per configuration used, and a query which aggregates a sensor's schedules should filter by source.
+             One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
+
 New features
 -------------
 
 * Automations: recurring tasks defined per asset, computing forecasts or schedules, managed with new CLI commands (``flexmeasures add|edit|delete automation``), run by ``flexmeasures jobs run-automations``, and viewable in a new UI page and API endpoints (``[GET] /assets/(id)/automations``); each automation interprets its recurrence in its own timezone, and runs missed while the runner was down are caught up once, coalesced into one current forecast; a forecast automation points at a data source holding its forecaster configuration, while a schedule automation stores what the schedule trigger endpoint accepts, and schedules from each run's own time, unless the trigger message fixes a ``start``; an automation's details link to the sensors it reads from and writes to, a sensor's page lists the automations feeding it, and deleting a sensor warns about the automations that use it; jobs now also record whether they were created via the CLI, the API or an automation [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_, `PR #2396 <https://www.github.com/FlexMeasures/flexmeasures/pull/2396>`_ and `PR #2293 <https://www.github.com/FlexMeasures/flexmeasures/pull/2293>`_]
+* A scheduler's data source now also records the flex config the scheduler computed under, so a schedule can be traced back to the configuration that produced it, and a schedule automation points at such a data source, the way a forecast automation points at its forecaster's [see `PR #2444 <https://www.github.com/FlexMeasures/flexmeasures/pull/2444>`_]
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 

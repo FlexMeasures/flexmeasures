@@ -2,7 +2,10 @@ import pytest
 
 import numpy as np
 import pandas as pd
-from flexmeasures.data.services.scheduling import create_simultaneous_scheduling_job
+from flexmeasures.data.services.scheduling import (
+    create_simultaneous_scheduling_job,
+    get_data_source_for_job,
+)
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.models.time_series import Sensor
 
@@ -77,21 +80,29 @@ def test_create_simultaneous_jobs(
     job.perform()
     assert job.get_status() == "finished"
 
-    # Get power and SoC values
-    ev_power = sensors["Test EV"].search_beliefs()
+    # Get power and SoC values, from the source this job wrote with.
+    # A scheduler's data source records the flex config it computed under, so these sensors can also
+    # carry schedules computed under another config, by another job, from another source.
+    scheduler_source = get_data_source_for_job(job)
+    assert scheduler_source is not None
+
+    def schedule_of(sensor):
+        return sensor.search_beliefs(source=scheduler_source)
+
+    ev_power = schedule_of(sensors["Test EV"])
     assert ev_power.sources.unique()[0].model == "StorageScheduler"
-    ev_soc = soc_sensors["Test EV"].search_beliefs()
+    ev_soc = schedule_of(soc_sensors["Test EV"])
     assert ev_soc.sources.unique()[0].model == "StorageScheduler"
 
     if use_heterogeneous_resolutions:
-        battery_power = sensors["Test Battery 1h"].search_beliefs()
+        battery_power = schedule_of(sensors["Test Battery 1h"])
         assert len(battery_power) == 24
-        battery_soc = soc_sensors["Test Battery 1h"].search_beliefs()
+        battery_soc = schedule_of(soc_sensors["Test Battery 1h"])
         assert len(battery_soc) == 97
     else:
-        battery_power = sensors["Test Battery"].search_beliefs()
+        battery_power = schedule_of(sensors["Test Battery"])
         assert len(battery_power) == 96
-        battery_soc = soc_sensors["Test Battery"].search_beliefs()
+        battery_soc = schedule_of(soc_sensors["Test Battery"])
         assert len(battery_soc) == 97
 
     ev_power = ev_power.droplevel([1, 2, 3])

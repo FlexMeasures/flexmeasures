@@ -22,6 +22,7 @@ from sqlalchemy import select, update
 from flexmeasures import Forecaster
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
@@ -476,6 +477,78 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     return message
 
 
+#: Flex-config fields which state what was true at one moment, rather than where to look it up.
+#: A recurring automation would carry such a value into every later run, long after the moment it described.
+_MOMENTARY_FLEX_FIELDS = ("soc-at-start",)
+
+#: Keys which mark a value as describing one moment or period, as a time series segment does.
+_MOMENT_KEYS = ("datetime", "start", "end")
+
+
+def _find_momentary_flex_fields(value, path: str) -> list[str]:
+    """Find the fields under `value` which fix a moment in time, reporting each by its path in the flex config."""
+    if isinstance(value, dict):
+        if any(key in value for key in _MOMENT_KEYS):
+            return [path]
+        found = []
+        for key, item in value.items():
+            if key in _MOMENTARY_FLEX_FIELDS:
+                found.append(f"{path}.{key}")
+                continue
+            found += _find_momentary_flex_fields(item, f"{path}.{key}")
+        return found
+    if isinstance(value, list):
+        found = []
+        for index, item in enumerate(value):
+            found += _find_momentary_flex_fields(item, f"{path}[{index}]")
+        return found
+    return []
+
+
+def find_momentary_flex_config_fields(message: dict) -> list[str]:
+    """Find the flex config fields which describe one moment, rather than the site and its devices.
+
+    A schedule automation recomputes its schedule on every run, and its data source records the config it computes under,
+    so a value tied to a fixed moment is both stale on the next run and misleading as a description of the automation.
+    Sensor references and plain quantities are fine: they say where to look, or what always holds, rather than what was true once.
+    """
+    found: list[str] = []
+    for key in ("flex-model", "flex-context"):
+        found += _find_momentary_flex_fields(message.get(key), key)
+    return sorted(set(found))
+
+
+def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
+    """The data source describing the scheduler a schedule automation runs, and the flex config it runs with.
+
+    The scheduler class follows from the asset, and the config is the trigger message merged with what the asset tree stores,
+    so both can change without the automation changing.
+    That is why this is resolved afresh on every run, rather than only when the automation is created.
+    """
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+    from flexmeasures.data.services.scheduling import (
+        find_scheduler_class,
+        get_scheduler_instance,
+    )
+
+    message = prepare_schedule_trigger_message(dict(parameters or {}), asset_id)
+    trigger_data = AssetTriggerSchema().load(message)
+    asset = trigger_data["asset"]
+    scheduler = get_scheduler_instance(
+        scheduler_class=find_scheduler_class(asset),
+        asset_or_sensor=asset,
+        scheduler_params=dict(
+            start=trigger_data["start_of_schedule"],
+            end=trigger_data["start_of_schedule"] + trigger_data["duration"],
+            # The flex config goes in as the message spells it, which is the form the data source records.
+            flex_model=message.get("flex-model"),
+            flex_context=message.get("flex-context"),
+            return_multiple=True,
+        ),
+    )
+    return scheduler.data_source
+
+
 def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     """Find the automations that read from or write to the given sensor.
 
@@ -609,6 +682,13 @@ def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
         create_sequential_scheduling_job,
         create_simultaneous_scheduling_job,
     )
+
+    # The scheduler and the flex config it merges in can both change between runs,
+    # so record which data source this run actually computes under.
+    generator = resolve_schedule_generator(automation.asset_id, automation.parameters)
+    if automation.generator_id != generator.id:
+        automation.generator_id = generator.id
+        db.session.commit()
 
     message = prepare_schedule_trigger_message(
         dict(automation.parameters), automation.asset_id

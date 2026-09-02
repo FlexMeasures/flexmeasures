@@ -44,7 +44,16 @@ Automating schedules
 A schedule automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ API endpoint (without the asset id).
 Use the canonical API field names, including ``flex-model``, ``flex-context`` and ``force-new-job-creation``.
 The message is passed in a file, through ``--parameters``, and validated when the automation is created.
-No forecaster or data source is involved, so the forecaster options above do not apply to a schedule automation, and are refused when combined with ``--type scheduling``.
+The forecaster options above configure a forecaster, so they do not apply here, and are refused when combined with ``--type scheduling``.
+
+A schedule automation has a data generator too, but it is derived rather than chosen: it is the data source describing the scheduler the asset resolves to, and the flex config that scheduler computes under.
+That config is the trigger message merged with what the asset tree stores, so it changes when the asset does.
+The runner therefore resolves it again on every run, and moves the automation to another data source when either the scheduler's version or the flex config has changed.
+Editing an asset's flex-model is a configuration change, and shows up as such: the schedules computed before and after it carry different data sources.
+
+Because the schedule is recomputed on every run, the flex config may only describe the site and its devices, not one moment.
+A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.
+Refer to a sensor instead, which says where to look rather than what was true once.
 
 Omit the ``start`` field to calculate it afresh from the server time on each run.
 It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
