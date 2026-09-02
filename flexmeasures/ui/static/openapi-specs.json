@@ -909,7 +909,7 @@
     "/api/v3_0/sensors/{id}/stats": {
       "get": {
         "summary": "Get sensor stats",
-        "description": "This endpoint fetches sensor stats for all the historical data.\nStats are reported per data source that recorded for this sensor.\nWhen more than one source did, an extra \"All sources\" entry summarises them together.\n",
+        "description": "This endpoint fetches sensor stats for all the historical data.\nStats are reported per data source that recorded data for this sensor.\nWhen more than one source recorded data, an extra \"All sources\" entry summarises them together.\n",
         "security": [
           {
             "ApiKeyAuth": []

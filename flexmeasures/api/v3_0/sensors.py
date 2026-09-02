@@ -1810,8 +1810,8 @@ class SensorAPI(FlaskView):
           summary: Get sensor stats
           description: |
             This endpoint fetches sensor stats for all the historical data.
-            Stats are reported per data source that recorded for this sensor.
-            When more than one source did, an extra "All sources" entry summarises them together.
+            Stats are reported per data source that recorded data for this sensor.
+            When more than one source recorded data, an extra "All sources" entry summarises them together.
           security:
             - ApiKeyAuth: []
           parameters:

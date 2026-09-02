@@ -901,9 +901,8 @@ def _get_sensor_stats(
     if end_dt:
         q = q.filter(TimedBelief.event_start < end_dt)
 
-    # Group on DataSource, and keep the join in front of the aggregate, rather than grouping on TimedBelief.source_id and joining afterwards.
-    # The join is what tells the planner which sources to look for, which lets a time-filtered query walk (sensor_id, source_id, event_start)
-    # as one index range per source, instead of scanning the sensor's whole history and filtering on event_start.
+    # Group on DataSource, and keep the join in front of the aggregate rather than grouping on TimedBelief.source_id and joining afterwards.
+    # This lets the planner use the (sensor_id, source_id, event_start) index as one range per source, instead of scanning the sensor's whole history and filtering on event_start.
     raw_stats = db.session.execute(q.group_by(DataSource.id)).fetchall()
 
     def to_local_iso(ts):
