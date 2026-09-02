@@ -470,6 +470,10 @@ function unpackData(data) {
     );
 }
 
+// The key under which the stats endpoint reports the statistics covering every source.
+// Kept in step with ALL_SOURCES_KEY in flexmeasures/data/services/sensors.py.
+const ALL_SOURCES_KEY = "All sources";
+
 function getLatestBeliefName(data) {
     return Object.keys(data).reduce((latest, name) => {
         const currentBeliefTime = new Date(data[name]["Last recorded"]);
@@ -620,8 +624,14 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
         if (Object.keys(data).length > 0) {
             // Show the header and dropdown container
             dropdownContainer.classList.remove('d-none');
-            // Populate the dropdown menu with sourceKeys
-            Object.keys(data).forEach(sourceKey => {
+            // Populate the dropdown menu with sourceKeys, the combined entry first.
+            // The response arrives with its keys sorted, which does not put it there.
+            const sourceKeys = Object.keys(data);
+            if (sourceKeys.includes(ALL_SOURCES_KEY)) {
+                sourceKeys.splice(sourceKeys.indexOf(ALL_SOURCES_KEY), 1);
+                sourceKeys.unshift(ALL_SOURCES_KEY);
+            }
+            sourceKeys.forEach(sourceKey => {
                 const dropdownItem = document.createElement('li');
                 const dropdownLink = document.createElement('a');
                 dropdownLink.className = 'dropdown-item';
@@ -642,11 +652,13 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
             });
 
             // Show the source pre-selected via the source query parameter (e.g. when
-            // arriving here from an automation), or else the most recently updated one
+            // arriving here from an automation), or else every source at once, as the graph does.
+            // A sensor recorded by a single source gets no combined entry, so fall back to that source.
             const preselectedSourceKey = Object.keys(data).find(
                 sourceKey => sourceIdFromKey(sourceKey) === preselectedSourceId()
             );
-            const firstSourceKey = preselectedSourceKey || getLatestBeliefName(data);
+            const firstSourceKey = preselectedSourceKey
+                || (ALL_SOURCES_KEY in data ? ALL_SOURCES_KEY : getLatestBeliefName(data));
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
             setUpSourceDetailsButton(firstSourceKey);
