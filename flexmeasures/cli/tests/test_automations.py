@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import json
 
 import pytest
+import pytz
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -91,7 +92,7 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     ).scalar_one_or_none()
     assert automation is not None
     assert automation.active is True
-    assert automation.type == "forecasts"
+    assert automation.type == "forecasting"
     assert automation.cronstr == "0 6 * * *"
     assert automation.timezone == "Europe/Amsterdam"
     # CLI option values are stored as provided (strings); they are coerced by the schema when the automation runs
@@ -734,6 +735,273 @@ def test_add_automation_rejects_non_object_yaml_file(
     assert result.exit_code == 2, result.output
     assert "must contain a YAML or JSON object at the top level" in result.output
     assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize("option_name", ("--config", "--parameters"))
+def test_add_automation_rejects_malformed_yaml_file(
+    app, fresh_db, setup_dummy_data, tmp_path, option_name
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    malformed_file = tmp_path / "malformed.yaml"
+    malformed_file.write_text("field: [\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Malformed YAML",
+            "--cron",
+            "0 6 * * *",
+            option_name,
+            str(malformed_file),
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert f"The {option_name} file is not valid YAML or JSON" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
+    """Create a schedules automation; parameters are validated as a schedule trigger message."""
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+
+    # invalid parameters (unknown field) are rejected
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text("not-a-trigger-field: 1\n")
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Bad schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "Invalid schedule parameters" in result.output
+
+    # minimal valid parameters (flex config can live on the asset)
+    parameters_file.write_text('duration: "PT12H"\n')
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Half-day schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Half-day schedules")
+    ).scalar_one()
+    assert automation.type == "scheduling"
+    assert automation.generator_id is None
+    assert automation.parameters == {"duration": "PT12H"}
+
+    # a fixed start draws a warning
+    parameters_file.write_text('start: "2026-01-01T00:00:00+01:00"\n')
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Fixed-start schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    assert "each run will compute the same period" in result.output
+
+
+@pytest.mark.parametrize(
+    "parameters_yaml",
+    (
+        'resolution: "P1M"\n',
+        'resolution: "PT0S"\n',
+        'resolution: "-PT15M"\n',
+        'duration: "PT0S"\n',
+        'duration: "-PT1H"\n',
+    ),
+)
+def test_add_schedule_automation_rejects_unsupported_durations(
+    app, fresh_db, setup_dummy_data, tmp_path, parameters_yaml
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(parameters_yaml)
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Invalid schedule durations",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "scheduling",
+            "--parameters",
+            str(parameters_file),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid schedule parameters" in result.output
+
+
+def test_add_schedule_automation_rejects_forecast_config(
+    app, fresh_db, setup_dummy_data
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule with ignored forecast config",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "scheduling",
+            "--regressors",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--regressors cannot be combined with --type scheduling" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
+    app, fresh_db, setup_dummy_data
+):
+    """Naming the default forecaster is still naming a forecaster, so it is refused.
+
+    The check asks whether the option was given, rather than comparing its value against the default,
+    which would let the default pass silently and leave the user thinking it applied.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule naming the default forecaster",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "scheduling",
+            "--forecaster",
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--forecaster cannot be combined with --type scheduling" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Schedule naming the default forecaster")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        ["--asset", "1", "--name", "No sensor", "--cron", "0 * * * *"],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid forecast parameters" in result.output
+
+
+@pytest.mark.parametrize("is_dst", (True, False))
+def test_prepare_schedule_start_floors_both_dst_folds(app, monkeypatch, is_dst):
+    from flexmeasures.data.services import automations
+
+    timezone = pytz.timezone("Europe/Amsterdam")
+    now = timezone.localize(datetime(2026, 10, 25, 2, 7, 30), is_dst=is_dst)
+    monkeypatch.setattr(automations, "server_now", lambda: now)
+    parameters = {"duration": "PT1H", "resolution": "PT15M"}
+
+    message = automations.prepare_schedule_trigger_message(parameters, asset_id=1)
+
+    assert datetime.fromisoformat(message["start"]) == now.replace(
+        minute=0, second=0, microsecond=0
+    )
+    assert parameters == {"duration": "PT1H", "resolution": "PT15M"}
+
+
+def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monkeypatch):
+    """Running a schedules automation queues a scheduling job with trigger meta data.
+
+    We monkeypatch the job creator to avoid needing a fully schedulable asset here.
+    """
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.data.services.automations import run_automation
+    from flexmeasures.utils.time_utils import server_now
+
+    asset = fresh_db.session.get(GenericAsset, 1)
+    automation = Automation(
+        asset_id=asset.id,
+        type="scheduling",
+        name="Test schedules",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT12H", "resolution": "PT15M"},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    calls = {}
+
+    def fake_create_simultaneous_scheduling_job(asset, **kwargs):
+        calls["asset"] = asset
+        calls["kwargs"] = kwargs
+
+        class FakeJob:
+            id = "fake-job-id"
+
+        return FakeJob()
+
+    monkeypatch.setattr(
+        scheduling,
+        "create_simultaneous_scheduling_job",
+        fake_create_simultaneous_scheduling_job,
+    )
+
+    returns = run_automation(automation)
+    assert returns == {"job_id": "fake-job-id", "n_jobs": 1}
+    assert calls["asset"].id == asset.id
+    assert calls["kwargs"]["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+    }
+    # start defaulted to (roughly) now, floored to the 15-minute resolution
+    start = calls["kwargs"]["start"]
+    assert start.minute % 15 == 0
+    assert abs((server_now() - start).total_seconds()) < 16 * 60
+    assert calls["kwargs"]["end"] - start == timedelta(hours=12)
 
 
 def test_run_automations(

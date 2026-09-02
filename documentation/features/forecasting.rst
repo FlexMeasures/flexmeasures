@@ -221,3 +221,4 @@ Automating forecasts
 
 Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues forecasting jobs on a cron schedule.
 See :ref:`automations`.
+Schedules can be automated in the same way — see :ref:`automating_schedules`.

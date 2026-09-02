@@ -318,7 +318,11 @@ class Scheduler:
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
         # For the single-asset case, revert the flex-model listification
-        if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
+        if (
+            len(combined_flex_model) == 1
+            and "sensor" not in combined_flex_model[0]
+            and self.asset is None
+        ):
             # Single-asset case
             self.flex_model = combined_flex_model[0]
         else:

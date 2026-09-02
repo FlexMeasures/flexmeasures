@@ -1388,7 +1388,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
@@ -1460,8 +1460,8 @@ class AssetAPI(FlaskView):
           summary: Get details of one automation defined on an asset.
           description: |
             In addition to the fields shown when listing automations, the response shows
-            the automation's parameters (for forecasts, these are the forecast parameters
-            used on each run), information about the data generator that runs it,
+            the automation's parameters (forecast parameters or a schedule trigger message),
+            information about its data generator (null for schedule automations),
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
@@ -1982,10 +1982,11 @@ class AssetAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,  # server time if no prior time was sent
-            resolution=resolution,
             flex_model=flex_model,
             flex_context=flex_context,
         )
+        if resolution is not None:
+            scheduler_kwargs["resolution"] = resolution
         if sequential:
             f = create_sequential_scheduling_job
         else:
@@ -1995,6 +1996,7 @@ class AssetAPI(FlaskView):
                 asset=asset,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
                 **scheduler_kwargs,
             )
         except ValidationError as err:

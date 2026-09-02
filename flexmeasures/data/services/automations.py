@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from cron_descriptor import get_description, Options
 from croniter import croniter
 from croniter.croniter import CroniterError
+import isodate
+from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
 from sqlalchemy import select, update
@@ -39,6 +41,69 @@ class DueAutomation:
     expected_timezone: str
 
 
+# Fields naming sensors on which a scheduler records generated schedules.
+OUTPUT_SENSOR_FIELDS = (
+    "consumption",
+    "production",
+    "state-of-charge",
+    "state_of_charge",
+    "aggregate-consumption",
+    "aggregate_consumption",
+    "aggregate-production",
+    "aggregate_production",
+)
+
+
+def collect_sensors(
+    value: Any,
+    sensors: dict[int, Sensor] | None = None,
+    only_under_output_field: bool = False,
+    _under_output_field: bool = False,
+) -> list[Sensor]:
+    """Collect sensor objects and references from a nested scheduling structure."""
+    if sensors is None:
+        sensors = {}
+
+    def collect(sensor: Sensor | None):
+        if sensor is not None and (_under_output_field or not only_under_output_field):
+            sensors[sensor.id] = sensor
+
+    if isinstance(value, Sensor):
+        collect(value)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            under_output_field = _under_output_field or key in OUTPUT_SENSOR_FIELDS
+            if key == "sensor" and isinstance(item, (int, str)):
+                if str(item).isdigit():
+                    sensor = db.session.get(Sensor, int(item))
+                    if sensor is not None and (
+                        under_output_field or not only_under_output_field
+                    ):
+                        sensors[sensor.id] = sensor
+            else:
+                collect_sensors(
+                    item, sensors, only_under_output_field, under_output_field
+                )
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            collect_sensors(item, sensors, only_under_output_field, _under_output_field)
+    return list(sensors.values())
+
+
+def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
+    """Collect sensors on which the prepared schedule trigger records results."""
+    sensors: dict[int, Sensor] = {}
+    for device in message.get("flex_model") or []:
+        collect_sensors(device.get("sensor"), sensors)
+        collect_sensors(
+            device.get("sensor_flex_model", device),
+            sensors,
+            only_under_output_field=True,
+        )
+    collect_sensors(message.get("flex_context"), sensors, only_under_output_field=True)
+    return list(sensors.values())
+
+
 def describe_cronstr(cronstr: str) -> str:
     """Describe a cron string in natural language, e.g. "At 06:00".
 
@@ -58,6 +123,13 @@ def floor_to_minute(dt: datetime) -> datetime:
     if dt.tzinfo is None or dt.utcoffset() is None:
         raise ValueError("Automation scheduling requires a timezone-aware datetime.")
     return dt.astimezone(timezone.utc).replace(second=0, microsecond=0)
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    """Floor an aware datetime to a fixed resolution without losing its DST fold."""
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
 
 
 def _as_nominal_wall_time(dt: datetime) -> datetime:
@@ -247,15 +319,70 @@ class AutomationSensorsUnknown(Exception):
     """
 
 
+def resolve_schedule_automation_sensors(
+    parameters: dict, asset_id: int
+) -> dict[str, list[Sensor]]:
+    """Resolve the sensors declared by a prepared schedule trigger."""
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+    from flexmeasures.data.services.scheduling import find_scheduler_class
+    from flexmeasures.data.services.utils import get_scheduler_instance
+
+    try:
+        trigger_data = AssetTriggerSchema().load(
+            prepare_schedule_trigger_message(parameters, asset_id)
+        )
+        start = trigger_data["start_of_schedule"]
+        scheduler_params = {
+            "start": start,
+            "end": start + trigger_data["duration"],
+            "belief_time": trigger_data.get("belief_time"),
+            "resolution": trigger_data.get("resolution"),
+            "flex_model": trigger_data["flex_model"],
+            "flex_context": trigger_data["flex_context"],
+        }
+        scheduler_class = find_scheduler_class(trigger_data["asset"])
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=trigger_data["asset"],
+            scheduler_params=scheduler_params,
+        )
+        scheduler.collect_flex_config()
+    except (NotImplementedError, ValidationError, ValueError) as exc:
+        raise AutomationSensorsUnknown(
+            f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
+        ) from exc
+
+    resolved_trigger = {
+        "flex_model": scheduler.flex_model,
+        "flex_context": scheduler.flex_context,
+    }
+    output_sensors = collect_schedule_output_sensors(resolved_trigger)
+    output_sensor_ids = {sensor.id for sensor in output_sensors}
+    input_sensors = [
+        sensor
+        for sensor in collect_sensors(resolved_trigger)
+        if sensor.id not in output_sensor_ids
+    ]
+    return {
+        "input_sensors": input_sensors,
+        "output_sensors": output_sensors,
+    }
+
+
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
-    The sensors are derived from the data generator, configured with the automation's own parameters.
-    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because the automation has no data generator,
+    Forecast sensors are derived from the data generator, while schedule sensors are
+    derived from the same prepared trigger message used to queue the scheduling job.
+    Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because a forecast automation has no data generator,
     because its generator is not registered in this FlexMeasures instance,
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
+    if automation.type == "scheduling":
+        return resolve_schedule_automation_sensors(
+            dict(automation.parameters or {}), automation.asset_id
+        )
     if automation.generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
@@ -316,6 +443,39 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     ]
 
 
+def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
+    """Complete stored schedule parameters into a message for the AssetTriggerSchema.
+
+    The asset id is injected, and the (required) schedule start defaults to now,
+    floored to the message's resolution (if given, otherwise to the minute),
+    so recurring automations produce fresh schedules on each run.
+    """
+    message = dict(parameters)
+    message["id"] = asset_id
+    if "start" not in message:
+        start = server_now()
+        if message.get("resolution") is not None:
+            try:
+                resolution = isodate.parse_duration(message["resolution"])
+            except (ISO8601Error, TypeError) as exc:
+                raise ValidationError(
+                    {"resolution": ["Not a valid ISO 8601 duration."]}
+                ) from exc
+            if not isinstance(resolution, timedelta) or resolution <= timedelta(0):
+                raise ValidationError(
+                    {
+                        "resolution": [
+                            "Schedule resolution must be a positive, fixed duration."
+                        ]
+                    }
+                )
+            start = floor_to_resolution(start, resolution)
+        else:
+            start = floor_to_minute(start)
+        message["start"] = start.isoformat()
+    return message
+
+
 def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     """Find the automations that read from or write to the given sensor.
 
@@ -341,21 +501,33 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
 
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
-    # Jobs are cached under the forecast target sensor(s), which may belong
-    # to a different asset than the automation's own asset.
-    sensor_ids = {sensor.id for sensor in automation.asset.sensors}
-    for key in ("sensor", "sensor-to-save"):
-        value = (automation.parameters or {}).get(key)
-        if value is not None:
-            try:
-                sensor_ids.add(int(value))
-            except (TypeError, ValueError):
-                pass
+    # Determine the job cache entries to scan.
+    if automation.type == "scheduling":
+        # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
+        # and under individual sensors (per-device jobs).
+        assets = [automation.asset, *automation.asset.offspring]
+        cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
+            (sensor.id, "scheduling", "sensor")
+            for asset in assets
+            for sensor in asset.sensors
+        ]
+    else:
+        # Forecasting jobs are cached under the forecast target sensor(s),
+        # which may belong to a different asset than the automation's own asset.
+        sensor_ids = {sensor.id for sensor in automation.asset.sensors}
+        for key in ("sensor", "sensor-to-save"):
+            value = (automation.parameters or {}).get(key)
+            if value is not None:
+                try:
+                    sensor_ids.add(int(value))
+                except (TypeError, ValueError):
+                    pass
+        cache_refs = [(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids]
 
     counts: dict[str, int] = {}
     seen_job_ids: set[str] = set()
-    for sensor_id in sensor_ids:
-        for job in current_app.job_cache.get(sensor_id, "forecasting", "sensor"):
+    for entity_id, queue, asset_or_sensor_type in cache_refs:
+        for job in current_app.job_cache.get(entity_id, queue, asset_or_sensor_type):
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
@@ -400,13 +572,18 @@ def validate_forecast_output_scope(asset_id: int, output_sensor: Sensor) -> None
 def run_automation(automation: Automation) -> dict[str, Any] | None:
     """Queue the jobs for one run of an automation.
 
-    :returns: the data generator's return value, e.g. {"job_id": <uuid>, "n_jobs": <int>}
-              for forecasting jobs.
+    :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    if automation.type != "forecasts":
-        raise NotImplementedError(
-            f"Automations of type '{automation.type}' cannot be run yet."
-        )
+    if automation.type == "forecasting":
+        return _run_forecast_automation(automation)
+    elif automation.type == "scheduling":
+        return _run_schedule_automation(automation)
+    raise NotImplementedError(
+        f"Automations of type '{automation.type}' cannot be run yet."
+    )
+
+
+def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
     if automation.generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
@@ -424,3 +601,39 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
     forecaster._parameters = None
     forecaster.set_job_trigger("automation", automation_id=automation.id)
     return forecaster.compute(as_job=True, parameters=dict(automation.parameters))
+
+
+def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+    from flexmeasures.data.services.scheduling import (
+        create_sequential_scheduling_job,
+        create_simultaneous_scheduling_job,
+    )
+
+    message = prepare_schedule_trigger_message(
+        dict(automation.parameters), automation.asset_id
+    )
+    trigger_data = AssetTriggerSchema().load(message)
+    start = trigger_data["start_of_schedule"]
+    scheduler_kwargs = dict(
+        start=start,
+        end=start + trigger_data["duration"],
+        belief_time=trigger_data.get("belief_time"),  # server time if not set
+        flex_model=trigger_data["flex_model"],
+        flex_context=trigger_data["flex_context"],
+    )
+    if trigger_data.get("resolution") is not None:
+        scheduler_kwargs["resolution"] = trigger_data["resolution"]
+    if trigger_data["sequential"]:
+        f = create_sequential_scheduling_job
+    else:
+        f = create_simultaneous_scheduling_job
+    job = f(
+        asset=trigger_data["asset"],
+        enqueue=True,
+        force_new_job_creation=trigger_data.get("force_new_job_creation", False),
+        trigger={"origin": "automation", "automation_id": automation.id},
+        **scheduler_kwargs,
+    )
+    n_jobs = len(job.args[0]) + 1 if trigger_data["sequential"] else 1
+    return {"job_id": job.id, "n_jobs": n_jobs}
