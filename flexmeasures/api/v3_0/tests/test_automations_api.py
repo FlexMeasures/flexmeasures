@@ -23,7 +23,7 @@ def add_automations(db, add_battery_assets):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Day-ahead forecasts",
             cronstr="0 6 * * *",
             timezone="Europe/Amsterdam",
@@ -34,7 +34,7 @@ def add_automations(db, add_battery_assets):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Intraday forecasts",
             cronstr="0 * * * *",
             timezone="UTC",
@@ -90,7 +90,7 @@ def test_get_automations(
     automations = response.json["automations"]
     assert len(automations) == 2
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
-    assert day_ahead["type"] == "forecasts"
+    assert day_ahead["type"] == "forecasting"
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"

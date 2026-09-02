@@ -379,7 +379,7 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
-    if automation.type == "schedules":
+    if automation.type == "scheduling":
         return resolve_schedule_automation_sensors(
             dict(automation.parameters or {}), automation.asset_id
         )
@@ -502,7 +502,7 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
     # Determine the job cache entries to scan.
-    if automation.type == "schedules":
+    if automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual sensors (per-device jobs).
         assets = [automation.asset, *automation.asset.offspring]
@@ -574,9 +574,9 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    if automation.type == "forecasts":
+    if automation.type == "forecasting":
         return _run_forecast_automation(automation)
-    elif automation.type == "schedules":
+    elif automation.type == "scheduling":
         return _run_schedule_automation(automation)
     raise NotImplementedError(
         f"Automations of type '{automation.type}' cannot be run yet."

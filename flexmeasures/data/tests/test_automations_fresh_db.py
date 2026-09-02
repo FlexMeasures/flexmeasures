@@ -31,7 +31,7 @@ def automation_with_generator(fresh_db):
     automation = Automation(
         asset=asset,
         generator=generator,
-        type="forecasts",
+        type="forecasting",
         name="automation generator lifecycle test",
         cronstr="0 6 * * *",
         parameters={},
@@ -80,7 +80,7 @@ def test_schedule_automation_does_not_require_generator(
     forecast_automation, _ = automation_with_generator
     schedule_automation = Automation(
         asset=forecast_automation.asset,
-        type="schedules",
+        type="scheduling",
         name="generator-free schedule",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H"},
@@ -113,7 +113,7 @@ def test_run_schedule_automation(
 
     automation = Automation(
         asset_id=battery.id,
-        type="schedules",
+        type="scheduling",
         name="Nightly schedules",
         cronstr="0 0 * * *",
         parameters={**message, "flex-model": [flex_model]},
@@ -153,7 +153,7 @@ def test_run_minimal_schedule_automation_with_stored_flex_config(
     }
     automation = Automation(
         asset=building,
-        type="schedules",
+        type="scheduling",
         name="Minimal stored-flex schedule",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H", "sequential": sequential},
@@ -198,7 +198,7 @@ def test_minimal_schedule_automation_reports_stored_flex_sensors(
     }
     automation = Automation(
         asset=building,
-        type="schedules",
+        type="scheduling",
         name="Minimal stored-flex sensor details",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H"},
@@ -231,7 +231,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     )
     schedule_automation = Automation(
         asset=root,
-        type="schedules",
+        type="scheduling",
         name="descendant schedules",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H"},

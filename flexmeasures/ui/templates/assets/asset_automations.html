@@ -40,12 +40,12 @@ An active automation follows its cron recurrence in the timezone shown below. If
         <div class="tab-content">
           <div class="tab-pane fade show active" id="forecasts-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable-forecasts" class="table table-striped w-100"></table>
+              <table id="automationsTable-forecasting" class="table table-striped w-100"></table>
             </div>
           </div>
           <div class="tab-pane fade" id="schedules-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable-schedules" class="table table-striped w-100"></table>
+              <table id="automationsTable-scheduling" class="table table-striped w-100"></table>
             </div>
           </div>
         </div>
@@ -217,7 +217,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
       url: `/api/v3_0/assets/${assetId}/automations`,
       method: "GET",
       success: function (res) {
-        for (const automationType of ["forecasts", "schedules"]) {
+        for (const automationType of ["forecasting", "scheduling"]) {
           makeAutomationsTable(
             automationType,
             res.automations.filter(automation => automation.type === automationType),
@@ -225,7 +225,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
         }
       },
       error: function (xhr) {
-        for (const automationType of ["forecasts", "schedules"]) {
+        for (const automationType of ["forecasting", "scheduling"]) {
           makeAutomationsTable(automationType, []);
           $(`#automationsTable-${automationType}`).hide();
         }

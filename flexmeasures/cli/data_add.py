@@ -1710,7 +1710,7 @@ def add_forecast(  # noqa: C901
 @click.option(
     "--type",
     "automation_type",
-    default="forecasts",
+    default="forecasting",
     show_default=True,
     type=click.Choice(Automation.SUPPORTED_TYPES),
     help="Type of task to automate.",
@@ -1752,7 +1752,7 @@ def add_forecast(  # noqa: C901
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
-    " forecast parameters for --type forecasts, or a schedule trigger message for --type schedules.",
+    " forecast parameters for --type forecasting, or a schedule trigger message for --type scheduling.",
 )
 @add_cli_options_from_schema(
     ForecasterParametersSchema(), hidden=True, force_optional=True
@@ -1782,7 +1782,7 @@ def add_automation(
         --cron "0 6 * * *" --timezone Europe/Amsterdam
         --parameters forecast-parameters.yml
       flexmeasures add automation --asset 3 --name "Hourly schedules"
-        --cron "0 * * * *" --type schedules --parameters trigger-message.yml
+        --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
 
     For forecasts, the forecaster configuration is stored on a data source, and
     the forecast parameters are validated and stored on the automation itself.
@@ -1808,7 +1808,7 @@ def add_automation(
         kwargs, source, config_file, parameters_file
     )
 
-    if automation_type == "schedules":
+    if automation_type == "scheduling":
         # Only options actually given on the command line count: the forecaster and the
         # configuration options that were left out still show up here, with their defaults.
         forecast_options = _find_options_given_on_command_line(
@@ -1823,12 +1823,12 @@ def add_automation(
         if forecast_options:
             raise click.UsageError(
                 f"{flexmeasures_inflection.join_words_into_a_list(forecast_options)} cannot be"
-                " combined with --type schedules: a schedule automation is not computed by a forecaster."
+                " combined with --type scheduling: a schedule automation is not computed by a forecaster."
             )
 
     # Validate the parameters using the forecast parameters schema (we store them serialized)
     generator_id = None
-    if automation_type == "forecasts":
+    if automation_type == "forecasting":
         try:
             deserialized_parameters = ForecasterParametersSchema().load(parameters)
         except ValidationError as e:
@@ -1860,7 +1860,7 @@ def add_automation(
         )  # looks up or creates the data source storing the forecaster config
         db.session.flush()
         generator_id = generator.id
-    else:  # schedules
+    else:  # scheduling
         try:
             AssetTriggerSchema().load(
                 prepare_schedule_trigger_message(parameters, asset.id)
@@ -1893,7 +1893,7 @@ def add_automation(
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
-        f" to compute {automation_type} for asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
+        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
         **MsgStyle.SUCCESS,
     )
 

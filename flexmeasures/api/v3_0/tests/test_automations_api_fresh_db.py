@@ -49,7 +49,7 @@ def test_details_reject_inaccessible_sensor_metadata(
     automation = Automation(
         asset=prosumer_asset,
         generator=generator,
-        type="forecasts",
+        type="forecasting",
         name="Cross-organisation details",
         cronstr="0 6 * * *",
         parameters={"sensor": output_sensor.id},
@@ -107,7 +107,7 @@ def test_schedule_details_include_stored_flex_sensors(
     }
     automation = Automation(
         asset=asset,
-        type="schedules",
+        type="scheduling",
         name="Minimal schedule details",
         cronstr="0 6 * * *",
         parameters={"duration": "PT1H"},

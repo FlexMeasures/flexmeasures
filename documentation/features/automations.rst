@@ -17,10 +17,10 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
 
 .. code-block:: bash
 
-    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasts \
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says what the automation computes, and defaults to ``forecasts``.
+``--type`` says which task to automate (``forecasting`` or ``scheduling``, matching the queue the jobs go to), and defaults to ``forecasting``.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
@@ -44,7 +44,7 @@ Automating schedules
 A schedule automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ API endpoint (without the asset id).
 Use the canonical API field names, including ``flex-model``, ``flex-context`` and ``force-new-job-creation``.
 The message is passed in a file, through ``--parameters``, and validated when the automation is created.
-No forecaster or data source is involved, so the forecaster options above do not apply to a schedule automation, and are refused when combined with ``--type schedules``.
+No forecaster or data source is involved, so the forecaster options above do not apply to a schedule automation, and are refused when combined with ``--type scheduling``.
 
 Omit the ``start`` field to calculate it afresh from the server time on each run.
 It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
@@ -57,7 +57,7 @@ For example, this automation queues a scheduling job every hour, each time sched
 .. code-block:: bash
 
     echo 'duration: "PT12H"' > trigger-message.yml
-    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type schedules --parameters trigger-message.yml
+    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
 
 Running automations
 -------------------
