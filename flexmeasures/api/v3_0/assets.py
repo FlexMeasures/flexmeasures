@@ -1602,8 +1602,8 @@ class AssetAPI(FlaskView):
             This is useful to try out a new automation, to re-run one after fixing what made it fail,
             or to refresh its results after late input data arrived.
 
-            The automation runs with the parameters it was created with, and the jobs it queues are
-            recorded as its jobs, just like the jobs of a recurring run.
+            The automation runs with the parameters it was created with,
+            and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 
             An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
             so the next recurring run still happens as scheduled, and a missed run is still caught up.

@@ -165,7 +165,14 @@ def run_one_automation(automation: Automation):
             **MsgStyle.ERROR,
         )
         raise click.Abort()
-    n_jobs = returns.get("n_jobs") if returns else 0
+    if not returns or returns.get("job_id") is None:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') did not queue any job.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    n_jobs = returns.get("n_jobs")
     AssetAuditLog.add_record(
         automation.asset,
         f"Triggered a run of automation '{automation.name}' ({automation.id}) via CLI.",

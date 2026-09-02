@@ -54,7 +54,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
 
 <script>
   const assetId = {{ asset.id }};
-  // Running an automation writes data under the asset, so the same permission gates the button and the endpoint
+  // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
 
   // Escape user-controlled strings before interpolating them into HTML
@@ -92,7 +92,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
     $("#automations_msg").removeClass("d-none").text(message);
   }
 
-  // Run this automation once, now, on top of its recurring runs
+  // Run this automation once, now, on top of its recurring runs.
   function runButton(automation) {
     if (!userCanRunAutomations) {
       return "";
@@ -241,10 +241,12 @@ An active automation follows its cron recurrence in the timezone shown below. If
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
+          const nJobs = res.n_jobs;
+          const queued = nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`;
           showAutomationsMessage(
-            `Queued ${res.n_jobs ?? "the"} job(s) for automation ${automationId}. Recent jobs are listed on the status page.`
+            `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`
           );
-          loadAutomationDetails(automationId);  // refresh this automation's job stats
+          loadAutomationDetails(automationId);  // refresh this automation's job stats.
         },
         error: function (xhr) {
           $("#automations_msg").addClass("d-none");
