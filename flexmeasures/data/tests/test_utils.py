@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from alembic.script.revision import ResolutionError
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from flexmeasures.data import db, register_at
@@ -54,10 +55,23 @@ class _DummyRevisionMap:
         return (_DummyRevision(revision) for revision in self._revisions)
 
 
+class _DummyRevisionMapWithUnknownRevision:
+    def iterate_revisions(self, *args, **kwargs):
+        def revisions():
+            raise ResolutionError("No such revision or branch 'unknown-a'", "unknown-a")
+            yield
+
+        return revisions()
+
+
 class _DummyScriptDirectoryWithRevisionMap(_DummyScriptDirectory):
     def __init__(self, heads: tuple[str, ...], revisions: tuple[str, ...]):
         super().__init__(heads)
         self.revision_map = _DummyRevisionMap(revisions)
+
+
+class _DummyScriptDirectoryWithUnknownRevisionMap(_DummyScriptDirectory):
+    revision_map = _DummyRevisionMapWithUnknownRevision()
 
 
 def test_schema_mismatch_log_record_is_deduplicated(
@@ -234,6 +248,22 @@ def test_database_schema_has_revision_false_when_revision_is_not_in_current_hist
         lambda config: _DummyScriptDirectoryWithRevisionMap(
             heads=("head-a",), revisions=("old-a",)
         ),
+    )
+
+    assert database_schema_has_revision(app, "required-a") is False
+
+
+def test_database_schema_has_revision_false_when_current_revision_is_unknown(
+    app, monkeypatch
+):
+    monkeypatch.setattr(db.engine, "connect", lambda: _DummyConnection())
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.MigrationContext.configure",
+        lambda connection: _DummyMigrationContext(("unknown-a",)),
+    )
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.ScriptDirectory.from_config",
+        lambda config: _DummyScriptDirectoryWithUnknownRevisionMap(("head-a",)),
     )
 
     assert database_schema_has_revision(app, "required-a") is False
