@@ -71,6 +71,19 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     return job
 
 
+def _count_persistable_values(data) -> int:
+    """Count computed values that will not be dropped as NaN before persistence.
+
+    This does not account for valid values that ``save_to_db`` may skip because
+    they are unchanged.
+    """
+    from timely_beliefs import BeliefsSeries
+
+    if isinstance(data, BeliefsSeries):
+        return int(data.notna().sum())
+    return len(data.dropna(subset=["event_value"]))
+
+
 def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     """Compute and store a report in a reporting worker."""
     from flexmeasures.data.models.data_sources import DataSource
@@ -84,19 +97,24 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         raise ValueError(f"Data source {data_source_id} does not store a Reporter.")
     reporter._parameters = None
     results = reporter.compute(parameters=parameters)
+    saved = []
     for result in results:
+        n_rows = _count_persistable_values(result["data"])
         save_to_db(result["data"])
+        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_rows})
     db.session.commit()
-    saved = [
-        {"sensor_id": result["sensor"].id, "n_rows": len(result["data"])}
-        for result in results
-    ]
-    current_app.logger.info(
-        "Report by %s ran successfully, saving %s.",
-        source,
-        ", ".join(
-            f"{summary['n_rows']} values on sensor {summary['sensor_id']}"
-            for summary in saved
-        ),
+
+    summary = ", ".join(
+        f"{result['n_rows']} values on sensor {result['sensor_id']}" for result in saved
     )
+    if any(result["n_rows"] for result in saved):
+        current_app.logger.info(
+            "Report by %s ran successfully, producing %s.", source, summary
+        )
+    else:
+        current_app.logger.warning(
+            "Report by %s produced no persistable values (%s). This can happen when its inputs do not align on source and belief time.",
+            source,
+            summary,
+        )
     return saved
