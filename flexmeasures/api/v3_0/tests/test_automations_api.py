@@ -225,7 +225,7 @@ def test_trigger_automation(
 ):
     """Triggering a run reports the queued job, and leaves the automation's recurrence alone."""
     battery = add_battery_assets["Test battery"]
-    automation = add_automations[1]  # inactive automations can be triggered, too
+    automation = add_automations[1]  # inactive automations can be triggered, too.
     cursor_before = automation.cursor
     mocker.patch(
         "flexmeasures.api.v3_0.assets.run_automation",
@@ -294,7 +294,7 @@ def test_trigger_unknown_automation(
     """Triggering an automation the asset does not have returns 404, without running anything."""
     run_automation = mocker.patch("flexmeasures.api.v3_0.assets.run_automation")
     if via_other_asset:
-        # an existing automation, requested through an asset it does not belong to
+        # an existing automation, requested through an asset it does not belong to.
         asset = add_battery_assets["Test small battery"]
         automation_id = add_automations[0].id
     else:

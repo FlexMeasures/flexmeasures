@@ -945,7 +945,7 @@ def test_run_one_automation_on_demand(
     assert "queued" in run_result.output
     n_jobs = app.queues["forecasting"].count
     assert n_jobs > 0
-    # the jobs are recorded as this automation's jobs, just like those of a recurring run
+    # the jobs are recorded as this automation's jobs, just like those of a recurring run.
     assert all(
         job.meta["trigger"]["origin"] == "automation"
         and job.meta["trigger"]["automation_id"] == automation.id
@@ -957,7 +957,7 @@ def test_run_one_automation_on_demand(
         )
     ).scalar_one_or_none()
 
-    # the cursor stayed put, so the scheduled run still happens
+    # the cursor stayed put, so the scheduled run still happens.
     fresh_db.session.expire_all()
     assert automation.cursor == cursor_before
     freeze_server_now(datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc))
@@ -998,6 +998,40 @@ def test_run_one_automation_runs_inactive_automation(
     assert run_result.exit_code == 0, run_result.output
     assert "queued" in run_result.output
     assert app.queues["forecasting"].count > 0
+
+
+def test_run_one_automation_without_queued_job_is_an_error(
+    app, fresh_db, setup_dummy_data, clean_redis, mocker
+):
+    """A run which reports no job is an error, rather than a success which recorded nothing."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Reports no job",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data[0],
+            }
+        ),
+    )
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    mocker.patch("flexmeasures.cli.jobs.run_automation", return_value=None)
+
+    result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert result.exit_code == 1, result.output
+    assert "did not queue any job" in result.output
+    assert not fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like("Triggered a run of automation%")
+        )
+    ).scalar_one_or_none()
 
 
 def test_run_one_automation_reports_unknown_automation(app, fresh_db, clean_redis):
