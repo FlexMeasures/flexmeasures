@@ -487,8 +487,8 @@ def _get_sensor_bdfs_by_source_type(
     Each type is searched for by naming its sources explicitly, rather than by filtering on the type of the source.
     A type filter cannot be served by an index on the beliefs table,
     so the "most recent belief" query would walk the sensor's events from the newest backwards,
-    rechecking the type of each belief's source until it found a match --
-    reading every belief the sensor has whenever this type recorded none of them.
+    rechecking the type of each belief's source until it found a match;
+    it would read every belief the sensor has whenever this type recorded none of them.
     Naming the sources instead lets the primary key answer the query directly,
     and lets a type with no sources at all be skipped without a query.
     """

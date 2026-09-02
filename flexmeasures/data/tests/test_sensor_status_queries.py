@@ -37,7 +37,7 @@ def add_belief(db, sensor, source_name: str, source_type: str) -> DataSource:
 def test_only_source_types_that_recorded_are_queried(setup_beliefs, db):
     """A source type that never recorded for this sensor must not cost a belief query.
 
-    Such a query cannot be answered from an index: it would walk the sensor's events
+    Such a query cannot be answered from an index: it would walk the sensor's events,
     from the newest backwards, checking the type of every belief's source,
     and read all of them before concluding that this type recorded none.
     The sensor's sources are known from the summary table, so those types can be skipped entirely.
