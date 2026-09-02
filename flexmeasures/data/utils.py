@@ -112,10 +112,10 @@ def database_schema_has_revision(app, required_revision: str) -> bool:
                 inclusive=True,
                 assert_relative_length=False,
             )
+            if any(revision.revision == required_revision for revision in revisions):
+                return True
         except RevisionError:
             continue
-        if any(revision.revision == required_revision for revision in revisions):
-            return True
     return False
 
 
