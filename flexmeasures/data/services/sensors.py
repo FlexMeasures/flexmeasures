@@ -26,6 +26,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
+from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
@@ -449,19 +450,68 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
+def _sensor_sources_by_type(
+    sensor: Sensor, staleness_search: dict
+) -> dict[str, list[DataSource]]:
+    """Group the sensor's data sources by source type, honouring the source filters of the staleness search.
+
+    Reading which sources ever recorded for this sensor is a lookup in the ``sensor_data_source`` summary,
+    so it costs a handful of rows rather than a scan of the beliefs table.
+    Only the default source types are considered, since those are the ones a status is reported for.
+
+    The summary is a superset (see :class:`~flexmeasures.data.models.data_sources.SensorDataSource`),
+    so a source may be listed whose beliefs have since been deleted.
+    That only costs a belief query returning nothing; no source that has data can be missing.
+    """
+    sources = sensor.search_data_sources(
+        source_types=DEFAULT_DATASOURCE_TYPES,
+        exclude_source_types=staleness_search.get("exclude_source_types"),
+    )
+    requested_sources = parse_source_arg(staleness_search.get("source"))
+    if requested_sources is not None:
+        requested_source_ids = {source.id for source in requested_sources}
+        sources = [source for source in sources if source.id in requested_source_ids]
+
+    sources_by_type: dict[str, list[DataSource]] = {}
+    for source in sources:
+        sources_by_type.setdefault(source.type, []).append(source)
+    return sources_by_type
+
+
 def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
     We only look for the default data source types!
+
+    Each type is searched for by naming its sources explicitly, rather than by filtering on the type of the source.
+    A type filter cannot be served by an index on the beliefs table,
+    so the "most recent belief" query would walk the sensor's events from the newest backwards,
+    rechecking the type of each belief's source until it found a match --
+    reading every belief the sensor has whenever this type recorded none of them.
+    Naming the sources instead lets the primary key answer the query directly,
+    and lets a type with no sources at all be skipped without a query.
     """
+    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+
+    # The source filters are already applied by the source lookup above,
+    # so passing them on as well would only re-apply them.
+    belief_search = {
+        key: value
+        for key, value in staleness_search.items()
+        if key not in ("source", "exclude_source_types")
+    }
+
     bdfs_by_source = dict()
     for source_type in DEFAULT_DATASOURCE_TYPES:
+        sources = sources_by_type.get(source_type)
+        if not sources:
+            continue
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,
-            source_types=[source_type],
-            **staleness_search,
+            source=sources,
+            **belief_search,
         )
         if not bdf.empty:
             bdfs_by_source[source_type] = bdf
