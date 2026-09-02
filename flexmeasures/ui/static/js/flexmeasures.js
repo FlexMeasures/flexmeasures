@@ -24,23 +24,6 @@ function showMsg(msg) {
     $("#msgModal").modal("show");
 }
 
-function showImage(resource, action, value) {
-    //    $("#expectedValueModal .modal-dialog .modal-content img").html("static/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
-    document.getElementById('expected_value_mock').src = "ui/static/control-mock-imgs/value-" + resource + "-action" + action + "-" + value + "MW.png"
-    load_images = document.getElementsByClassName('expected_load_mock')
-    for (var i = 0; i < load_images.length; i++) {
-        load_images[i].src = "ui/static/control-mock-imgs/load-" + resource + "-action" + action + "-" + value + "MW.png"
-    }
-}
-
-
-function defaultImage(action) {
-    load_images = document.getElementsByClassName('expected_load_mock reset_default')
-    for (var i = 0; i < load_images.length; i++) {
-        load_images[i].src = "ui/static/control-mock-imgs/load-action" + action + ".png"
-    }
-}
-
 
 function clickableTable(element, urlColumn) {
     // This will keep actions like text selection or dragging functional
@@ -152,89 +135,6 @@ function ready() {
     Array.prototype.forEach.call(navTables, function(t) {clickableTable(t, 'URL')});
 
 
-    // Sliders
-
-    $('#control-action-setting-offshore')
-        .ionRangeSlider({
-            skin: "big",
-            type: "single",
-            grid: true,
-            grid_snap: true,
-            min: 0,
-            max: 5,
-            from_min: 2,
-            from_max: 3,
-            from_shadow: true,
-            postfix: "MW",
-            force_edges: true,
-            onChange: function (settingData) {
-                action = 1;
-                if (offshoreOrdered) {
-                    action = 2;
-                }
-                value = settingData.from;
-                $("#control-expected-value-offshore").html(numberWithCommas(value * 35000));
-                showImage("offshore", action, value);
-            }
-        });
-
-    $('#control-action-setting-battery').ionRangeSlider({
-        skin: "big",
-        type: "single",
-        grid: true,
-        grid_snap: true,
-        min: 0,
-        max: 5,
-        from_min: 1,
-        from_max: 2,
-        from_shadow: true,
-        postfix: "MW",
-        force_edges: true,
-        onChange: function (settingData) {
-            action = 1;
-            if (offshoreOrdered) {
-                action = 2;
-            }
-            value = settingData.from;
-            $("#control-expected-value-battery").html(numberWithCommas(value * 10000));
-            showImage("battery", action, value);
-        }
-    });
-
-
-    // Hover behaviour
-
-    $("#control-tr-offshore").mouseenter(function (data) {
-        action = 1;
-        if (offshoreOrdered) {
-            action = 2;
-        }
-        var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
-        showImage("offshore", action, value);
-    }).mouseleave(function (data) {
-        action = 1;
-        if (offshoreOrdered) {
-            action = 2;
-        }
-        defaultImage(action);
-    });
-
-    $("#control-tr-battery").mouseenter(function (data) {
-        action = 1;
-        if (offshoreOrdered) {
-            action = 2;
-        }
-        var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
-        showImage("battery", action, value);
-    }).mouseleave(function (data) {
-        action = 1;
-        if (offshoreOrdered) {
-            action = 2;
-        }
-        defaultImage(action);
-    });
-
-
     // Navbar behaviour
 
     $(document.body).css('padding-top', $('#topnavbar').height());
@@ -256,83 +156,6 @@ function ready() {
     });
 
 
-    // Check button behaviour
-
-    $("#control-check-expected-value-offshore").click(function (data) {
-        var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
-        showImage("offshore", 1, value);
-        $("#expectedValueModal").modal("show");
-    });
-
-    $("#control-check-expected-value-battery").click(function (data) {
-        var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
-        action = 1;
-        if (offshoreOrdered) {
-            action = 2;
-        }
-        showImage("battery", action, value);
-        $("#expectedValueModal").modal("show");
-    });
-
-
-    // Order button behaviour
-
-    $("#control-order-button-ev").click(function (data) {
-        showMsg("This action is not supported in this mockup.");
-    });
-
-    $("#control-order-button-onshore").click(function (data) {
-        showMsg("This action is not supported in this mockup.");
-    });
-
-    $("#control-order-button-offshore").click(function (data) {
-        if (offshoreOrdered) {
-            showMsg("This action is not supported in this mockup.");
-        }
-        var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
-        console.log("Offshore was ordered for " + value + "MW!");
-        if (value == 2) {
-            showMsg("Your order of " + value + "MW offshore wind curtailment will be processed!");
-            $("#control-tr-offshore").addClass("active");
-            $("#control-offshore-volume").html("Ordered: <b>2MW</b>");
-            $("#control-order-button-offshore").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel').removeClass("btn-success").addClass("btn-danger");
-            $("#control-check-expected-value-offshore").hide();
-            $("#total_load").html("4.4");
-            $("#total_value").html("230,000");
-            offshoreOrdered = true;
-        }
-        else {
-            showMsg("In this mockup, only ordering 2MW of offshore wind is supported.");
-        }
-    });
-
-    $("#control-order-button-battery").click(function (data) {
-        if (batteryOrdered) {
-            showMsg("This action is not supported in this mockup.");
-        }
-        else if (!offshoreOrdered) {
-            showMsg("In this mockup, please first order 2MW of offshore wind.");
-        } else {
-            var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
-            console.log("Battery was ordered for " + value + "MW!");
-            showMsg("Your order of " + value + "MW battery shifting will be processed!");
-            $("#control-tr-battery").addClass("active");
-            $("#control-order-button-battery").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel').removeClass("btn-success").addClass("btn-danger");
-            $("#control-check-expected-value-battery").hide();
-            if (value == 1) {
-                $("#control-battery-volume").html("Ordered: <b>1MW</b>");
-                $("#total_load").html("5.4");
-                $("#total_value").html("240,000");
-            }
-            else {
-                $("#control-battery-volume").html("Ordered: <b>2MW</b>");
-                $("#total_load").html("6.4");
-                $("#total_value").html("250,000");
-            }
-            batteryOrdered = true;
-        }
-    });
-
     // activate tooltips
     $('[data-toggle="tooltip"]').tooltip();
 }
@@ -343,20 +166,6 @@ const numberWithCommas = (x) => {
     return parts.join(".");
 }
 
-/** Analytics: Submit the resource selector, but reload to a clean URL,
-               without any existing resource selection (confusing)
-*/
-var empty_location = location.protocol + "//" + location.hostname + ":" + location.port + "/analytics";
-
-function submit_resource() {
-    $("#resource-form").attr("action", empty_location).submit();
-}
-function submit_market() {
-    $("#market-form").attr("action", empty_location).submit();
-}
-function submit_sensor_type() {
-    $("#sensor_type-form").attr("action", empty_location).submit();
-}
 
 /** Tooltips: Register custom formatters */
 
@@ -698,6 +507,71 @@ function updateStatsTable(stats, tableBody) {
     });
 }
 
+function sourceIdFromKey(sourceKey) {
+    // Source keys are shown as "<description> (ID: <id>)"
+    const idMatch = String(sourceKey).match(/\(ID:\s*(\d+)\)$/);
+    return idMatch ? idMatch[1] : null;
+}
+
+function preselectedSourceId() {
+    // The sensor page passes on the source query parameter, if given
+    const preselected = document.getElementById('sensorPageData')?.dataset.preselectedSourceId;
+    return preselected ? String(preselected) : null;
+}
+
+function setUpSourceDetailsButton(sourceKey) {
+    // Let the button next to the source selector show the details of the selected source
+    const detailsButton = document.getElementById('sourceDetailsButton');
+    if (!detailsButton) { return; }
+    const sourceId = sourceIdFromKey(sourceKey);
+    if (!sourceId) {
+        detailsButton.classList.add('d-none');
+        return;
+    }
+    detailsButton.classList.remove('d-none');
+    detailsButton.dataset.sourceId = sourceId;
+}
+
+function showSourceDetails(sourceId) {
+    const title = document.getElementById('SourceDetailsTitle');
+    const body = document.getElementById('SourceDetailsBody');
+    if (!body) { return; }
+    title.textContent = `Data source ${sourceId}`;
+    body.textContent = 'Loading ...';
+    fetch(`/api/v3_0/sources/${encodeURIComponent(sourceId)}`)
+    .then(response => {
+        if (!response.ok) { throw new Error(`status ${response.status}`); }
+        return response.json();
+    })
+    .then(source => {
+        title.textContent = `Data source ${source.id}: ${source.description}`;
+        const table = document.createElement('table');
+        table.className = 'table table-striped';
+        Object.entries(source).forEach(([field, value]) => {
+            const row = document.createElement('tr');
+            const fieldCell = document.createElement('th');
+            fieldCell.textContent = field;
+            const valueCell = document.createElement('td');
+            if (value !== null && typeof value === 'object') {
+                const pre = document.createElement('pre');
+                pre.className = 'mb-0';
+                pre.textContent = JSON.stringify(value, null, 4);
+                valueCell.appendChild(pre);
+            } else {
+                valueCell.textContent = value === null ? '—' : String(value);
+            }
+            row.appendChild(fieldCell);
+            row.appendChild(valueCell);
+            table.appendChild(row);
+        });
+        body.innerHTML = '';
+        body.appendChild(table);
+    })
+    .catch(error => {
+        body.textContent = `Could not load the details of this data source (${error.message}).`;
+    });
+}
+
 function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fresh=false) {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
@@ -760,16 +634,22 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
                     const selectedSourceKey = event.target.dataset.sourceKey;
                     dropdownButton.textContent = selectedSourceKey;
                     updateStatsTable(data[selectedSourceKey], tableBody);
+                    setUpSourceDetailsButton(selectedSourceKey);
                 });
 
                 dropdownItem.appendChild(dropdownLink);
                 dropdownMenu.appendChild(dropdownItem);
             });
 
-            // Update the table with the first sourceKey's data by default
-            const firstSourceKey = getLatestBeliefName(data);
+            // Show the source pre-selected via the source query parameter (e.g. when
+            // arriving here from an automation), or else the most recently updated one
+            const preselectedSourceKey = Object.keys(data).find(
+                sourceKey => sourceIdFromKey(sourceKey) === preselectedSourceId()
+            );
+            const firstSourceKey = preselectedSourceKey || getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+            setUpSourceDetailsButton(firstSourceKey);
 
             // Populate the "Delete data" source dropdown if it exists on the page,
             // re-using the stats data already fetched to avoid a duplicate API call.

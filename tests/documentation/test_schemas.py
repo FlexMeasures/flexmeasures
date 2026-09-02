@@ -5,12 +5,12 @@ from pathlib import Path
 import flexmeasures.data.schemas.scheduling.metadata as metadata_module
 from flexmeasures.data.schemas.scheduling.metadata import MetaData
 
-DOC_PATH = Path("documentation/features/scheduling.rst")
+DOC_PATH = Path("documentation/concepts/flexibility-configuration.rst")
 
 # Metadata constants that intentionally do not appear in the documentation
 EXCLUDED_METADATA = {
-    "COMMODITY_FLEX_CONTEXT",  # appears as `commodity` in the flex-context listing in scheduling.rst
-    "COMMODITY_FLEX_MODEL",  # appears as `commodity` in the flex-model listing in scheduling.rst
+    "COMMODITY_FLEX_CONTEXT",  # appears as `commodity` in the flex-context listing
+    "COMMODITY_FLEX_MODEL",  # appears as `commodity` in the flex-model listing
     "RELAX_CAPACITY_CONSTRAINTS",
     "RELAX_SITE_CAPACITY_CONSTRAINTS",
     "RELAX_SOC_CONSTRAINTS",
@@ -53,6 +53,6 @@ def test_all_metadata_fields_are_documented():
 
     assert (
         not missing
-    ), "The following MetaData fields are missing from scheduling.rst:\n" + "\n".join(
+    ), f"The following MetaData fields are missing from {DOC_PATH}:\n" + "\n".join(
         f"{name} -> `{kebab}`" for name, kebab in missing
     )

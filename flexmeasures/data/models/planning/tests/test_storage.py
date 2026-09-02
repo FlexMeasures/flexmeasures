@@ -2631,3 +2631,181 @@ def test_multi_device_validation_survives_stockless_device(add_battery_assets, d
 
     with pytest.raises(ValueError, match="Constraint validation"):
         scheduler.compute()
+
+
+def _evse_power_sensor(db, asset, resolution, name):
+    power_sensor = Sensor(
+        name=name,
+        generic_asset=asset,
+        event_resolution=resolution,
+        unit="kW",
+    )
+    db.session.add(power_sensor)
+    db.session.commit()
+    return power_sensor
+
+
+def _storage_schedule_for_sensor(results, power_sensor):
+    storage_for_sensor = [
+        r
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+    ]
+    assert (
+        len(storage_for_sensor) == 1
+    ), "expected exactly one combined storage_schedule for this sensor"
+    return storage_for_sensor[0]["data"]
+
+
+def test_multiple_sessions_same_sensor_accumulate_schedules(db, charge_point):
+    """Two flex-model sessions on one power sensor must sum schedules (not overwrite).
+
+    Multiple independent storage entries may share a power sensor (e.g. two EV
+    sessions plugged into the same charge point connector, one after the
+    other). Their device schedules must be accumulated into a single sensor
+    schedule.
+
+    Setup: two non-overlapping sessions, each needing 2 kWh at 1 kW over a 2-hour
+    window. Overwrite behaviour would keep only the second session (~2 kWh total,
+    zeros in the first half); correct accumulation yields ~4 kWh with power in
+    both halves of the horizon.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    mid = start + 2 * resolution
+
+    power_sensor = _evse_power_sensor(
+        db, charge_point, resolution, name="connector power non-overlap"
+    )
+
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    # Pre-allocate capacity per session (required when sessions would otherwise
+    # compete for the same charger capacity; here they are non-overlapping).
+    session1_capacity = pd.Series([1.0, 1.0, 0.0, 0.0], index=index)
+    session2_capacity = pd.Series([0.0, 0.0, 1.0, 1.0], index=index)
+
+    flex_model = [
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": mid.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "1 kW",
+            "consumption-capacity": series_to_ts_specs(session1_capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "1 kW",
+            "consumption-capacity": series_to_ts_specs(session2_capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "10 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    schedule = _storage_schedule_for_sensor(results, power_sensor)
+
+    # Each session charges 2 kWh at 1 kW over its half window → [1, 1, 1, 1] kW.
+    np.testing.assert_allclose(schedule.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3)
+    # Overwrite would leave only the second session (zeros first half, ~2 kWh total).
+    np.testing.assert_allclose(schedule.iloc[:2].values, [1.0, 1.0], atol=1e-3)
+    np.testing.assert_allclose(schedule.iloc[2:].values, [1.0, 1.0], atol=1e-3)
+    np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
+
+
+def test_multiple_sessions_different_connectors_preallocate_overlap_capacity(
+    db, charge_point
+):
+    """Overlapping sessions live on different connectors and pre-split capacity.
+
+    Companion to ``test_multiple_sessions_same_sensor_accumulate_schedules``.
+    Two EV sessions cannot overlap on the same connector, so overlap is only
+    meaningful across two connectors of one charge point. Each connector has
+    its own power sensor. During the shared hours the available power is
+    pre-allocated in each flex-model (each connector's power-capacity is
+    decreased).
+
+    Setup: session A on hours 0-3, session B on hours 1-4. Both run at 1 kW
+    when alone and at 0.5 kW in the two overlapping hours. Each still needs
+    2 kWh. Site capacity is left slack so the binding limits are the
+    per-connector pre-split windows.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    connector_a = _evse_power_sensor(
+        db, charge_point, resolution, name="connector A power"
+    )
+    connector_b = _evse_power_sensor(
+        db, charge_point, resolution, name="connector B power"
+    )
+
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    # A: 1 kW, then 0.5 + 0.5 kW in the overlap, then unplugged.
+    # B: unplugged, then 0.5 + 0.5 kW in the overlap, then 1 kW.
+    cap_a = pd.Series([1.0, 0.5, 0.5, 0.0], index=index)
+    cap_b = pd.Series([0.0, 0.5, 0.5, 1.0], index=index)
+
+    def session_flex_model(sensor, capacity, soc_deadline):
+        return {
+            "sensor": sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": soc_deadline.isoformat(), "value": "2 kWh"}],
+            "power-capacity": series_to_ts_specs(capacity, unit="kW"),
+            "consumption-capacity": series_to_ts_specs(capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        }
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=charge_point,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            session_flex_model(connector_a, cap_a, start + 3 * resolution),
+            session_flex_model(connector_b, cap_b, end),
+        ],
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "10 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    schedule_a = _storage_schedule_for_sensor(results, connector_a)
+    schedule_b = _storage_schedule_for_sensor(results, connector_b)
+
+    # Each connector follows its pre-split window, not the other's.
+    np.testing.assert_allclose(schedule_a.values, [1.0, 0.5, 0.5, 0.0], atol=1e-3)
+    np.testing.assert_allclose(schedule_b.values, [0.0, 0.5, 0.5, 1.0], atol=1e-3)
+    # Combined draw in the overlap hours is the sum of the decreased capacities.
+    np.testing.assert_allclose(
+        schedule_a.values + schedule_b.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3
+    )
+    np.testing.assert_allclose(schedule_a.sum(), 2.0, atol=1e-3)
+    np.testing.assert_allclose(schedule_b.sum(), 2.0, atol=1e-3)

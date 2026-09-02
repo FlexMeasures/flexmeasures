@@ -148,9 +148,8 @@ It usually involves a linear program that combines a state of energy flexibility
 There are two ways to queue a scheduling job:
 
 First, we can add a scheduling job to the queue via the API.
-We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
-
-Here, we extend that (storage) example with an additional target value, representing a desired future state of charge.
+The `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ endpoint accepts a flexibility state, such as the state of charge of a battery at a certain point in time.
+This storage example also includes a target value representing a desired future state of charge.
 
 .. code-block:: json
     :emphasize-lines: 6-11
@@ -292,7 +291,7 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 Getting schedules (control signals)
 -----------------------
 
-We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices (see :ref:`posting_flex_states`). You can access the schedules via the `[GET] /schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-id-schedules-uuid>`_ endpoint. The URL then looks like this:
+After FlexMeasures creates an optimised schedule with control signals for flexible devices, you can access it via the `[GET] /schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-id-schedules-uuid>`_ endpoint. The URL then looks like this:
 
 .. code-block:: html
 

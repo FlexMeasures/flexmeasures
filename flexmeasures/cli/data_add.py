@@ -5,7 +5,7 @@ CLI commands for populating the database
 from __future__ import annotations
 
 from contextlib import nullcontext, redirect_stdout
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any
 from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
@@ -19,12 +19,16 @@ from io import TextIOBase
 from io import StringIO
 from string import Template
 
-from marshmallow import validate, ValidationError
+from marshmallow import Schema, validate, ValidationError
 import pandas as pd
 import pytz
 from flask import current_app as app
 from flask.cli import with_appcontext
 import click
+
+# NB the type: ignore comments here and on ctx.get_parameter_source below are needed because types-Flask pins types-click 7.1,
+# whose stubs shadow the inline types that click ships itself, and predate both of these (added in click 8.0).
+from click.core import ParameterSource  # type: ignore[attr-defined]
 import getpass
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
@@ -52,6 +56,7 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
+from flexmeasures.data.services.automations import validate_forecast_output_scope
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import (
@@ -67,6 +72,11 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.automations import (
+    Automation,
+    get_default_automation_timezone,
+)
+from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
     AwareDateTimeField,
@@ -1360,6 +1370,142 @@ def add_holidays(
         )
 
 
+def _normalize_yaml_value(value):
+    """Convert YAML-native date values to the strings expected by our schemas."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _normalize_yaml_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalize_yaml_value(item) for item in value]
+    return value
+
+
+def _load_yaml_mapping(stream: TextIOBase, option_name: str) -> dict:
+    """Load a YAML/JSON CLI option file whose top level must be an object."""
+    value = yaml.safe_load(stream)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise click.UsageError(
+            f"The {option_name} file must contain a YAML or JSON object "
+            "at the top level."
+        )
+    return _normalize_yaml_value(value)
+
+
+def _normalize_yaml_mapping(value, option_name: str) -> dict:
+    """Validate and normalize YAML/JSON data returned by the editor."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise click.UsageError(
+            f"The {option_name} data must contain a YAML or JSON object "
+            "at the top level."
+        )
+    return _normalize_yaml_value(value)
+
+
+def _find_options_given_on_command_line(
+    options_by_param_name: dict[str, str],
+    *schemas: Schema,
+) -> list[str]:
+    """List which of the given CLI options were actually passed on the command line.
+
+    Options are looked up by their click parameter name, both from an explicit mapping
+    of parameter names to option names, and from the CLI metadata of any schema fields
+    (as added by `add_cli_options_from_schema`).
+    """
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return []
+    options_by_param_name = dict(options_by_param_name)
+    for schema in schemas:
+        for field_name, field in schema.fields.items():
+            cli = field.metadata.get("cli")
+            if cli:
+                options_by_param_name[field_name] = cli["option"]
+    return [
+        option
+        for param_name, option in options_by_param_name.items()
+        if ctx.get_parameter_source(param_name) == ParameterSource.COMMANDLINE  # type: ignore[attr-defined]
+    ]
+
+
+def _assemble_forecaster_config_and_parameters(
+    kwargs: dict,
+    source: DataSource | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+) -> tuple[dict, dict]:
+    """Build the forecaster config and (serialized) forecast parameters
+    from optional files, editors and remaining CLI options.
+
+    CLI options matching config schema fields are popped from kwargs into the config;
+    all remaining options become (kebab-cased) parameters. None values are dropped.
+    """
+    config = dict()
+    if config_file:
+        config = _load_yaml_mapping(config_file, "--config")
+    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
+        field_value = kwargs.pop(field_name, None)
+        if field_value is not None:
+            if field_name in {
+                "future_regressors",
+                "past_regressors",
+                "regressors",
+            }:
+                field_value = _parse_regressor_cli_values(field_value)
+            config[field.data_key] = field_value
+
+    if edit_config:
+        config = _normalize_yaml_mapping(
+            launch_editor("/tmp/config.yml"), "--edit-config"
+        )
+
+    if source is not None:
+        # The forecaster class and its configuration are read from the data source's data
+        # generator attributes, so anything configured here would be silently ignored.
+        # Only options actually given on the command line count: the configuration options
+        # that were left out still show up in the config, with their schema defaults.
+        conflicting_options = _find_options_given_on_command_line(
+            {
+                "forecaster_class": "--forecaster",
+                "config_file": "--config",
+                "edit_config": "--edit-config",
+            },
+            TrainPredictPipelineConfigSchema(),
+        )
+        if conflicting_options:
+            raise click.UsageError(
+                f"{flexmeasures_inflection.join_words_into_a_list(conflicting_options)} cannot be"
+                " combined with --source: --source uses the forecaster configuration stored with"
+                " that source. Omit --source to use the supplied configuration options."
+            )
+
+    parameters = dict()
+    if parameters_file:
+        parameters = _load_yaml_mapping(parameters_file, "--parameters")
+
+    if edit_parameters:
+        parameters = _normalize_yaml_mapping(
+            launch_editor("/tmp/parameters.yml"), "--edit-parameters"
+        )
+
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
+    for k, v in kwargs.items():
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
+
+    # Drop None values
+    parameters = {k: v for k, v in parameters.items() if v is not None}
+
+    return config, parameters
+
+
 @fm_add_data.command("forecasts")
 @click.option(
     "--resolution",
@@ -1469,42 +1615,14 @@ def add_forecast(  # noqa: C901
         )
     del kwargs["resolution"]
 
-    config = dict()
-
-    if config_file:
-        config = yaml.safe_load(config_file)
-    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
-        if field_value := kwargs.pop(field_name, None):
-            if field_name in {
-                "future_regressors",
-                "past_regressors",
-                "regressors",
-            }:
-                field_value = _parse_regressor_cli_values(field_value)
-            config[field.data_key] = field_value
-
-    if edit_config:
-        config = launch_editor("/tmp/config.yml")
-
-    if source is not None and config:
-        raise click.UsageError(
-            "--source uses the forecaster configuration stored with that source. "
-            "Omit --source to use the supplied configuration options."
-        )
-
-    parameters = dict()
-
-    if parameters_file:
-        parameters = yaml.safe_load(parameters_file)
-
-    if edit_parameters:
-        parameters = launch_editor("/tmp/parameters.yml")
-
-    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
-    for k, v in kwargs.items():
-        kebab_key = snake_to_kebab(k)
-        if kebab_key not in parameters:
-            parameters[kebab_key] = v
+    config, parameters = _assemble_forecaster_config_and_parameters(
+        kwargs,
+        source,
+        config_file,
+        parameters_file,
+        edit_config,
+        edit_parameters,
+    )
 
     try:
         forecaster = get_data_generator(
@@ -1519,9 +1637,9 @@ def add_forecast(  # noqa: C901
             f"Invalid forecasting configuration: {e.messages}"
         ) from e
 
+    forecaster.set_job_trigger("CLI")
+
     try:
-        # Drop None values
-        parameters = {k: v for k, v in parameters.items() if v is not None}
         pipeline_returns = forecaster.compute(as_job=as_job, parameters=parameters)
 
         # Empty result
@@ -1548,6 +1666,189 @@ def add_forecast(  # noqa: C901
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
         raise
+
+
+@fm_add_data.command("automation")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    required=True,
+    type=AssetIdField(),
+    help="ID of the asset to automate a recurring task for.",
+)
+@click.option(
+    "--name",
+    "name",
+    required=True,
+    type=click.STRING,
+    help="Name of the automation.",
+)
+@click.option(
+    "--cron",
+    "cronstr",
+    default="0 0 * * *",
+    show_default=True,
+    type=CronField(),
+    help='Recurrence as a standard five-field cron expression, e.g. "0 6 * * *" for daily at 06:00.'
+    " The expression is interpreted in the automation timezone. Defaults to daily at midnight.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    default=get_default_automation_timezone,
+    show_default="FLEXMEASURES_TIMEZONE",
+    type=TimezoneField(),
+    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam". Defaults to FLEXMEASURES_TIMEZONE.',
+)
+@click.option(
+    "--type",
+    "automation_type",
+    default="forecasts",
+    show_default=True,
+    type=click.Choice(Automation.SUPPORTED_TYPES),
+    help="Type of task to automate.",
+)
+@click.option(
+    "--inactive",
+    "inactive",
+    is_flag=True,
+    help="Add this flag to create the automation in deactivated state.",
+)
+@click.option(
+    "--forecaster",
+    "forecaster_class",
+    default=None,
+    type=click.STRING,
+    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
+    " Defaults to TrainPredictPipeline. Use the command `flexmeasures show forecasters` to list all the available forecasters."
+    " Cannot be combined with --source, which already determines the forecaster.",
+)
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Forecaster`. The forecaster class and its configuration are read from"
+    " the data source's data generator attributes, so --forecaster and --config are not needed (or allowed) with it.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the configuration of the forecaster."
+    " Cannot be combined with --source, which already determines the configuration.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step on each run of the automation).",
+)
+@add_cli_options_from_schema(
+    ForecasterParametersSchema(), hidden=True, force_optional=True
+)
+@add_cli_options_from_schema(
+    TrainPredictPipelineConfigSchema(), hidden=True, force_optional=True
+)
+def add_automation(
+    asset: GenericAsset,
+    name: str,
+    cronstr: str,
+    timezone: str,
+    automation_type: str,
+    inactive: bool = False,
+    forecaster_class: str | None = None,
+    source: DataSource | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    **kwargs,
+):
+    """
+    Add an automation: a recurring task (for now, computing forecasts) on an asset.
+
+    \b
+    Example
+      flexmeasures add automation --asset 3 --name "Day-ahead PV forecasts"
+        --cron "0 6 * * *" --timezone Europe/Amsterdam
+        --parameters forecast-parameters.yml
+
+    The forecaster configuration is stored on a data source, and the forecast
+    parameters are validated and stored on the automation itself.
+    Each time the automation runs, forecasting jobs are queued
+    (see `flexmeasures jobs run-automations`).
+
+    Alternatively, pass an existing data source (--source) to reuse the forecaster
+    and configuration stored on it.
+
+    Every forecaster and pipeline option that `flexmeasures add forecast` accepts is accepted here, too,
+    but is left out of the help text above to keep it focused on the automation itself;
+    run `flexmeasures add forecast --help` to see them.
+    A configuration option given on the command line overrides the same setting from --config,
+    while a parameter from --parameters takes precedence over the matching command-line option.
+    """
+    if forecaster_class is None:
+        forecaster_class = "TrainPredictPipeline"
+
+    config, parameters = _assemble_forecaster_config_and_parameters(
+        kwargs, source, config_file, parameters_file
+    )
+
+    # Validate the parameters using the forecast parameters schema (we store them serialized)
+    try:
+        deserialized_parameters = ForecasterParametersSchema().load(parameters)
+    except ValidationError as e:
+        click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
+        raise click.Abort()
+    output_sensor = deserialized_parameters.get(
+        "sensor_to_save"
+    ) or deserialized_parameters.get("sensor")
+    try:
+        validate_forecast_output_scope(asset.id, output_sensor)
+    except ValueError as exc:
+        click.secho(str(exc), **MsgStyle.ERROR)
+        raise click.Abort()
+
+    forecaster = get_data_generator(
+        source=source,
+        model=forecaster_class,
+        config=config,
+        save_config=True,
+        data_generator_type=Forecaster,
+    )
+    if forecaster is None:
+        click.secho(
+            f"Could not set up forecaster '{forecaster_class}'.", **MsgStyle.ERROR
+        )
+        raise click.Abort()
+    generator = (
+        forecaster.data_source
+    )  # looks up or creates the data source storing the forecaster config
+    db.session.flush()
+
+    automation = Automation(
+        asset_id=asset.id,
+        type=automation_type,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        active=not inactive,
+        generator_id=generator.id,
+        parameters=parameters,
+    )
+    db.session.add(automation)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created automation '{name}' ({automation.id}) via CLI."
+    )
+    db.session.commit()
+    click.secho(
+        f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
+        f" to compute {automation_type} for asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_add_data.command("schedule")
@@ -2102,6 +2403,12 @@ def get_or_create_toy_asset(
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
 @click.option(
+    "--client-version",
+    type=str,
+    default=None,
+    help="Set the flexmeasures-client-version attribute on the toy building asset.",
+)
+@click.option(
     "--shell-vars",
     is_flag=True,
     help=(
@@ -2110,7 +2417,7 @@ def get_or_create_toy_asset(
         '`eval "$(flexmeasures add toy-account --shell-vars)"`.'
     ),
 )
-def add_toy_account(kind: str, name: str, shell_vars: bool):
+def add_toy_account(kind: str, name: str, client_version: str | None, shell_vars: bool):
     """
     Create a toy account, for tutorials and trying things.
     """
@@ -2228,6 +2535,11 @@ def add_toy_account(kind: str, name: str, shell_vars: bool):
                 "consumption-price": {"sensor": day_ahead_sensor.id},
             },
         )
+        if client_version:
+            building_asset.attributes = {
+                **(building_asset.attributes or {}),
+                "flexmeasures-client-version": client_version,
+            }
         db.session.flush()
         shell_var_output["FM_TOY_BUILDING_ASSET_ID"] = building_asset.id
 

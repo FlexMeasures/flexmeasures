@@ -1,231 +1,322 @@
 .. _tut_posting_data:
 
-Posting data
-============
+Ingesting data from files and scripts
+======================================
 
-The platform FlexMeasures strives on the data you feed it. Let's demonstrate how you can get data into FlexMeasures using the API. This is where FlexMeasures gets connected to your system as a smart backend and helps you build smart energy services.
+FlexMeasures turns time-series data into forecasts, reports and optimized schedules.
+This tutorial shows how to build the first part of that journey: an automated data-ingestion pipeline.
+In this tutorial, we build a complete script which you can run from the command line.
 
-We will show how to use the API endpoints for POSTing data.
-You can call these at regular intervals (through scheduled scripts in your system, for example), so that FlexMeasures always has recent data to work with.
-Of course, these endpoints can also be used to load historic data into FlexMeasures, so that the forecasting models have access to enough data history.
-
-.. note:: For the purposes of forecasting and scheduling, it is often advisable to use a less fine-grained resolution than most metering services keep. For example, while such services might measure every ten seconds, FlexMeasures will usually do its job no less effective if you feed it data with a resolution of five minutes. This will also make the data integration much easier. Keep in mind that many data sources like weather forecasting or markets can have data resolutions of an hour, anyway.
+You will upload a CSV or Excel file with the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client/>`_,
+verify the stored values, and then adapt the example to values produced by an export script.
+The same API accepts meter readings, prices, weather data, state of charge and other numeric time series.
 
 .. contents:: Table of contents
     :local:
-    :depth: 1
+    :depth: 2
+
+Choosing an ingestion route
+---------------------------
+
+Most production pipelines should use the FlexMeasures Client or the API.
+The UI upload is useful for a quick first success and for checking whether a file is accepted before automating it.
+
+=============================== ================================================
+Situation                       Recommended route
+=============================== ================================================
+Values available in Python      FlexMeasures Client
+CSV or Excel on another system  FlexMeasures Client or file-upload API
+Another programming language    REST API
+Quickly validate a file         Sensor UI
+One-off import on the server    FlexMeasures CLI
+Reusable third-party connector  FlexMeasures plugin
+=============================== ================================================
 
 Prerequisites
---------------
+-------------
 
-- FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, study our :ref:`cli` or look into plugins which do this like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `flexmeasures-weather <https://github.com/flexmeasures/flexmeasures-weather>`_.
-- You should be familiar with where to find your API endpoints (see :ref:`api_versions`) and how to authenticate against the API (see :ref:`api_auth`).
+You need:
 
-.. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction`, to the FlexMeasures API, e.g. :ref:`signs`, :ref:`frequency_and_resolution`, :ref:`prognoses` and :ref:`units`.
+- a running FlexMeasures server;
+- the hostname and login details of a user allowed to record data;
+- the ID of an existing sensor;
+- the sensor's unit, event resolution and timezone; and
+- Python 3.10 or newer.
 
+A sensor is the contract for a time series: it tells FlexMeasures what the values mean,
+which unit they use, how long each event lasts and which timezone applies.
+Ask the administrator of your FlexMeasures organisation for these details,
+or find the sensor in the UI.
+If you host FlexMeasures yourself, :ref:`getting_started` and :ref:`cli` explain how to create the required structure.
+
+For a recurring pipeline, consider a dedicated integration user.
+FlexMeasures records the authenticated user as the data source, making the pipeline's provenance easy to recognize.
+
+Install version 0.9.4 or newer of the client:
+
+.. code-block:: console
+
+    $ pip install "flexmeasures-client>=0.9.4"
+
+Store connection details outside the script, for example as environment variables:
+
+.. code-block:: console
+
+    $ export FLEXMEASURES_HOST="company.flexmeasures.io"
+    $ export FLEXMEASURES_EMAIL="data-pipeline@example.com"
+    $ export FLEXMEASURES_SENSOR_ID="16"
+
+When you run the complete script, it securely prompts for the password without recording it in your shell history.
+For an unattended pipeline, inject ``FLEXMEASURES_PASSWORD`` from your deployment platform's secret manager.
+
+Preparing a file
+----------------
+
+The simplest input has two columns: an event start and a numeric value.
+For example, a 15-minute power time series may look like this:
+
+.. code-block:: text
+
+    event_start,event_value
+    2026-07-30T08:00:00+02:00,4.2
+    2026-07-30T08:15:00+02:00,4.8
+    2026-07-30T08:30:00+02:00,5.1
+    2026-07-30T08:45:00+02:00,4.6
+
+Save this as ``meter-readings.csv``, or put the same two columns in ``meter-readings.xlsx``.
+CSV, XLSX, XLS and XLSM files are supported.
+
+Use timezone-aware ISO 8601 timestamps when possible.
+If timestamps have no UTC offset, FlexMeasures interprets them in the sensor's timezone.
+Explicit offsets avoid ambiguity around daylight-saving-time transitions.
+Aligning timestamps and frequency with the sensor's event resolution also makes the pipeline easier to reason about,
+although FlexMeasures can resample compatible resolutions.
+
+Optionally validate the file in the UI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Before automating the pipeline, you can test the file on the sensor page:
+
+1. Open the relevant sensor.
+2. Expand **Upload data** in the left side panel.
+3. Choose the file and its unit.
+4. Select **Measured instantly** if each value was known when its event ended.
+5. Upload the file and inspect the chart.
+
+The panel also offers an example Excel file.
+If the UI accepts your file but the automated upload does not,
+focus troubleshooting on the client configuration, credentials and network connection rather than the file format.
+
+.. A future screenshot belongs here. It should show the sensor page with the
+   "Upload data" panel expanded, including the file selector, "Measured
+   instantly" checkbox, unit selector and upload button.
+
+Uploading the file with the FlexMeasures Client
+-----------------------------------------------
+
+The following call works for both CSV and Excel files:
+
+.. literalinclude:: scripts/run-data-ingestion.py
+    :language: python
+    :start-after: # Start file upload example
+    :end-before: # End file upload example
+    :dedent: 12
+
+``belief_time_measured_instantly=True`` records each value as known when its event ended.
+Leave it at the default ``False`` when the values only became known at upload time.
+
+The file upload currently assumes that values use the sensor's unit.
+The UI and raw API additionally let you specify a different compatible input unit for conversion.
+
+On a server with an ingestion worker, the request may return ``202 Accepted`` while the file is processed in the background.
+Client 0.9.4 accepts both synchronous and queued responses.
+Do not assume that accepted data is immediately available; verify it or follow the returned job URL before starting dependent work.
 
 .. _posting_sensor_data:
 
-Posting sensor data
--------------------
+Posting values from an export script
+------------------------------------
 
-Sensor data (both observations and forecasts) can be posted to `POST  /sensors/<id>/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_.
-This endpoint represents the basic method of getting time series data into FlexMeasures via API.
-It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
-Some examples:
+Often a script has already fetched or computed the values, so writing an intermediate file is unnecessary.
+Post an equally spaced sequence directly:
 
-- readings from electricity and gas meters
-- readings from temperature and pressure sensors
-- state of charge of a battery
-- estimated availability of parking spots
-- price forecasts
+.. literalinclude:: scripts/run-data-ingestion.py
+    :language: python
+    :start-after: # Start export script example
+    :end-before: # End export script example
+    :dedent: 8
 
-The exact URL will depend on your domain name, and will look approximately like this:
+The number of values and the duration determine their frequency.
+For example, four values over ``PT1H`` represent four 15-minute events.
+The duration covers the complete events, so it is one hour rather than the 45-minute difference between the first and last timestamps.
 
-.. code-block:: html
+For data collected dynamically, the surrounding pipeline could look like this:
 
-    [POST] https://company.flexmeasures.io/api/v3_0/sensors/16/data
+.. code-block:: python
 
-This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
-for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
-The ``prior`` indicates that the prices were published at 3pm on December 31st 2014 (i.e. the clearing time of the KPX day-ahead market, which is at 3 PM on the previous day ― see below for a deeper explanation).
+    import asyncio
+    import getpass
+    import os
 
-.. code-block:: json
-
-    {
-        "type": "PostSensorDataRequest",
-        "values": [
-            52.37,
-            51.14,
-            49.09,
-            48.35,
-            48.47,
-            49.98,
-            58.7,
-            67.76,
-            69.21,
-            70.26,
-            70.46,
-            70,
-            70.7,
-            70.41,
-            70,
-            64.53,
-            65.92,
-            69.72,
-            70.51,
-            75.49,
-            70.35,
-            70.01,
-            66.98,
-            58.61
-        ],
-        "start": "2015-01-01T00:00:00+09:00",
-        "duration": "PT24H",
-        "prior": "2014-12-31T15:00:00+09:00",
-        "unit": "KRW/kWh"
-    }
-
-Note how the resolution of the data comes out at 60 minutes when you divide the duration by the number of data points.
-If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
-Likewise, if the data unit does not match the sensor’s unit, FlexMeasures will attempt to convert the data or, if that is not possible, complain.
+    from flexmeasures_client import FlexMeasuresClient
 
 
-Being explicit when posting power data
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For power data, USEF[1] specifies separate message types for observations and forecasts.
-Correspondingly, we allow the following message types to be used with the `POST  /sensors/16/data <../api/v3_0.html#post--api-v3_0-sensors-id-data>`_ endpoint:
-
-.. code-block:: json
-
-    {
-        "type": "PostMeterDataRequest"
-    }
-
-.. code-block:: json
-
-    {
-        "type": "PostPrognosisRequest"
-    }
-
-For these message types, FlexMeasures validates whether the data unit is suitable for communicating power data.
-Additionally, we validate whether meter data lies in the past, and prognoses lie in the future.
-
-Single value, single sensor
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A single average power value for a 15-minute time interval for a single sensor, posted 5 minutes after realisation.
-
-.. code-block:: json
-
-    {
-        "type": "PostSensorDataRequest",
-        "value": 220,
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H15M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
-
-Multiple values, single sensor
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single sensor, posted 5 minutes after each realisation.
-
-.. code-block:: json
-
-    {
-        "type": "PostSensorDataRequest",
-        "values": [
-            220,
-            210,
-            200
-        ],
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H45M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    async def main():
+        email = os.environ["FLEXMEASURES_EMAIL"]
+        client = FlexMeasuresClient(
+            host=os.environ["FLEXMEASURES_HOST"],
+            ssl=True,
+            email=email,
+            password=os.getenv("FLEXMEASURES_PASSWORD")
+            or getpass.getpass(f"FlexMeasures password for {email}: "),
+        )
+        try:
+            values = export_latest_meter_values()  # Your database or vendor API
+            await client.post_sensor_data(
+                sensor_id=int(os.environ["FLEXMEASURES_SENSOR_ID"]),
+                start="2026-07-30T08:00:00+02:00",
+                duration="PT1H",
+                values=values,
+                unit="kW",
+            )
+        finally:
+            await client.close()
 
 
-.. _observations_vs_forecasts
+    asyncio.run(main())
 
-Observations vs forecasts: The time of knowledge
--------------------------------------------------
+The client expects a hostname without ``https://``; set ``ssl=True`` for HTTPS.
+The vendor-specific placeholder ``export_latest_meter_values()`` must return a ``list[float]``, ordered from the oldest interval to the newest.
 
-To correctly tell FlexMeasures when a meter reading or forecast was known is crucial, as it determines which data is being used to compute schedules or to make other forecasts.
+Verifying the result
+--------------------
 
-Usually, the time of posting is assumed to be the time when the data was known. But you can also explicitly tell FlexMeasures what these times are. This either works with one fixed time (for the whole set of data being sent) or with a horizon (which applies to each data point separately).
+Reading values back is not required for ingestion.
+We do it here for the sake of the tutorial, to demonstrate that the pipeline stored the expected data.
+Read back the same interval:
 
-E.g. to post a forecast rather than an observation after the fact, simply set the ``prior`` to the moment at which the forecasts were made, e.g. at "2015-01-01T16:30:00+09:00". Assuming your data starts at 5.00pm, this denotes that the data are forecasts, made half an hour before realisation.
+.. code-block:: python
 
-Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set a ``horizon`` to "PT0H" instead of a ``prior``.
+    sensor_data = await client.get_sensor_data(
+        sensor_id=sensor_id,
+        start="2026-07-30T08:00:00+02:00",
+        duration="PT1H",
+        resolution="PT15M",
+        unit="kW",
+    )
+    assert sensor_data["values"] == [4.2, 4.8, 5.1, 4.6]
 
-Finally, delays in reading out sensor data can be simulated by setting the ``horizon`` field to a negative value.
-For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30pm and so on).
+You can also inspect the sensor chart in the UI.
+Verifying the values, unit and interval catches mistakes that a successful HTTP response alone cannot.
 
-See :ref:`prognoses` for more information regarding the ``prior`` and ``horizon`` fields.
+Running the executable tutorial
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A good example for the use of the ``prior`` field are markets, which have clearing times.
-For example, at the KPX day-ahead auction this is every day at 3pm.
-This point in time (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
+The complete script uploads an example Excel file,
+posts a second interval as in-memory values and verifies both results:
 
-Another example for the ``prior`` field is running simulations with FlexMeasures. It gives you control over the timing so that you could run a month in the past as if it happened right now.
+.. code-block:: console
 
+    $ uv run --no-project --with "flexmeasures-client>=0.9.4" \
+        python documentation/tut/scripts/run-data-ingestion.py \
+        --sensor-id 16 --unit EUR/MWh --resolution PT1H
+
+FlexMeasures maintainers can run the corresponding Docker QA wrapper against the development stack:
+
+.. code-block:: console
+
+    $ ./documentation/tut/scripts/run-data-ingestion-in-docker.sh
+
+The same runner is used in CI so that the client examples in this tutorial remain executable.
+
+Making the pipeline reliable
+----------------------------
+
+For a recurring pipeline:
+
+- store the last successfully ingested timestamp or derive the next window from the source system;
+- retry transient connection failures with bounded backoff;
+- log the sensor ID, interval, number of values and ingestion job ID;
+- split large histories into bounded requests (the server limit defaults to 3 MiB per request);
+- wait for queued ingestion before triggering work which needs the new data; and
+- alert when the source has stopped producing data or verification fails.
+
+Reposting identical data is safe: unchanged beliefs are skipped.
+Changing a value with the same sensor, source, event and recording time is rejected by default rather than silently overwritten.
+
+Common problems
+---------------
+
+``401 Unauthorized``
+    Check the email, password or access token.
+
+``403 Forbidden``
+    The user is authenticated but lacks permission to record data on this sensor.
+
+``413 Payload Too Large``
+    Split the file or values into smaller time windows.
+
+``422 Unprocessable Entity``
+    Inspect the response for an incompatible unit or resolution, invalid timestamps or non-numeric values.
+
+Unexpected timestamps
+    Check timezone offsets and whether the sensor floors timestamps to its event resolution.
+
+Missing values
+    JSON value lists may contain ``null`` to preserve spacing. File uploads may contain gaps if FlexMeasures can still infer a regular frequency.
+
+Without the Python client
+-------------------------
+
+The client wraps the FlexMeasures API, so other languages can call the same endpoints.
+For example, upload a file with an access token:
+
+.. code-block:: console
+
+    $ curl --fail-with-body \
+        -H "Authorization: ${FLEXMEASURES_ACCESS_TOKEN}" \
+        -F "uploaded-files=@meter-readings.xlsx" \
+        -F "belief-time-measured-instantly=true" \
+        "https://${FLEXMEASURES_HOST}/api/v3_0/sensors/${FLEXMEASURES_SENSOR_ID}/data/upload"
+
+Or post values as JSON:
+
+.. code-block:: console
+
+    $ curl --fail-with-body \
+        -H "Authorization: ${FLEXMEASURES_ACCESS_TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data '{
+            "values": [4.2, 4.8, 5.1, 4.6],
+            "start": "2026-07-30T08:00:00+02:00",
+            "duration": "PT1H",
+            "unit": "kW"
+        }' \
+        "https://${FLEXMEASURES_HOST}/api/v3_0/sensors/${FLEXMEASURES_SENSOR_ID}/data"
+
+See :ref:`api_auth` for obtaining an access token and :ref:`v3_0` for the complete endpoint reference.
+
+.. _observations_vs_forecasts:
+
+Measurements, forecasts and time of knowledge
+----------------------------------------------
+
+FlexMeasures stores not only an event value but also when that value became known.
+This prevents a forecast or simulation from accidentally using information which was unavailable at the time.
+
+If neither ``prior`` nor ``horizon`` is supplied, the API uses the request time as the time of knowledge.
+Use ``prior`` for one fixed publication time, such as the issue time of a day-ahead price or weather forecast.
+Use ``horizon`` when every value has the same relationship between its event time and recording time.
+For example, ``PT0H`` means each measurement became known when its event ended,
+while ``-PT1H`` represents a one-hour reporting delay.
+
+See :ref:`prognoses` for the full explanation of ``prior`` and ``horizon``.
 
 .. _posting_flex_states:
 
-Posting flexibility states
--------------------------------
+Next: use the ingested data
+---------------------------
 
-There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices?
-For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
-In our terminology, this is called the "flex model" and you can read more at :ref:`describing_flexibility`.
-
-Owners of such devices can post the flex model along with triggering the creation of a new schedule, to one of two endpoints:
-
-1. `[POST] /assets/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ - for scheduling multiple devices
-2. `[POST] /sensors/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ - for scheduling a single device (which can also be done with the first endpoint)
-
-The URL might look like this:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/v3_0/assets/10/schedules/trigger
-
-The following example triggers a schedule for a power sensor (with ID 15) of a battery asset (with ID 10), asking to take into account the battery's current state of charge.
-From this, FlexMeasures derives the energy flexibility this battery has in the next 48 hours and computes an optimal charging schedule.
-The endpoint also allows to limit the flexibility range and also to set target values.
-
-.. code-block:: json
-
-        {
-            "start": "2015-06-02T10:00:00+00:00",
-            "flex-model": [
-                {
-                    "sensor": 15,
-                    "soc-at-start": "12.1 kWh"
-                }
-            ]
-        }
-
-.. note:: More details on supported flex models can be found in :ref:`flex_models_and_schedulers`.
-
-.. note::
-    Flexibility states posted in trigger messages are only stored temporarily to describe the scheduling job.
-    To record a more complete history of the flexibility state, set up separate sensors and post data to them using `[POST] /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
-    Then reference those sensors in your flex model.
-    For example, say you use sensor 82 to record the power-to-heat efficiency of a heating system, then use this sensor reference in your flex model:
-
-    .. code-block:: json
-
-        {
-            "charging-efficiency": {"sensor": 82}
-        }
-
-
-In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasures is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.
-
-
-[1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
+After ingesting measurements, prices and forecasts, you can ask FlexMeasures to forecast new data or compute optimized schedules.
+Current device state, such as a battery's state of charge, may be supplied in the scheduling trigger's ``flex-model``.
+See :ref:`tut_forecasting_scheduling` and :ref:`describing_flexibility` for the next steps.

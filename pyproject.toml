@@ -37,6 +37,7 @@ dependencies = [
     "py-moneyed>=3.0",
     "iso8601>=2.1.0",
     "xlrd>=2.0.2",
+    "openpyxl>=3.1.5",
     "workalendar>=17.0.0",
     "holidays>=0.57",
     "inflection>=0.5.1",
@@ -51,6 +52,9 @@ dependencies = [
     "isodate>=0.7.2",
     "click>=8.2.0",
     "click-default-group>=1.2.4",
+    # for automations: matching cron strings and describing them in natural language
+    "croniter>=2.0.0",
+    "cron-descriptor>=1.4.0",
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order
@@ -63,8 +67,8 @@ dependencies = [
     # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
-    # 3.5.5: got rid of BlockManager deprecation warnings
-    "timely-beliefs[forecast]>=3.5.5",
+    # 4.2.0: stopped declaring single-column indexes on event_start and sensor_id, which migration b7e5a2c40f18 drops.
+    "timely-beliefs>=4.2.0",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
@@ -81,6 +85,10 @@ dependencies = [
     "flask-swagger-ui>=5.21.0",
     # Note: the redis extra (used for rate-limit storage) currently pins redis<8
     "Flask-Limiter[redis]>=4.0",
+    # Flask-Limiter's rate-limit parser, which we also import directly (to validate rate limits),
+    # so we declare it rather than lean on it arriving transitively.
+    # The floor is Flask-Limiter's own, as we only use the long-standing limits.parse.
+    "limits>=3.13",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
     # See GH#1450 (failing tests on older Python versions)
@@ -266,8 +274,9 @@ test = [
     # required with fakeredis, maybe because we use rq
     "lupa>=2.6",
     "pytest-mock>=3.15.1",
-    "openpyxl>=3.1.5",
     "pytest-runner>=6.0.1",
+    # to run the UI's JavaScript modules in a browser, see flexmeasures/ui/tests/js
+    "selenium>=4.36.0",
 ]
 
 [tool.hatch.build.targets.wheel]
