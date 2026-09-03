@@ -18,6 +18,15 @@ def _describes_a_moment(value) -> bool:
     return isinstance(value, dict) and any(key in value for key in _MOMENT_KEYS)
 
 
+def _was_emptied(original, stripped) -> bool:
+    """Whether stripping left nothing of a value which did hold something."""
+    if stripped is None:
+        return original is not None
+    if isinstance(stripped, (list, dict)) and not stripped:
+        return bool(original)
+    return False
+
+
 def _walk_momentary_fields(value, path: str, drop: bool):
     """Find, and optionally drop, the parts of a flex config which describe one moment.
 
@@ -35,9 +44,14 @@ def _walk_momentary_fields(value, path: str, drop: bool):
                     continue
                 kept[key] = item
                 continue
-            item, item_found = _walk_momentary_fields(item, f"{path}.{key}", drop)
+            stripped, item_found = _walk_momentary_fields(item, f"{path}.{key}", drop)
             found += item_found
-            kept[key] = item
+            if drop and _was_emptied(item, stripped):
+                # Leave the field out altogether, rather than keeping it as a null or an empty list.
+                # Otherwise the same configuration would look different depending on how it was written,
+                # since a single moment may be given as one mapping or as a list of them.
+                continue
+            kept[key] = stripped
         return kept, found
     if isinstance(value, list):
         kept = []

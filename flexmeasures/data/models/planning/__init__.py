@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from copy import deepcopy
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -29,13 +28,23 @@ SchedulerOutputType = pd.Series | list[dict[str, Any]] | None
 
 
 def _json_safe(value: Any) -> Any:
-    """Return `value` with anything JSON cannot hold replaced by its string form.
+    """Return `value` with anything JSON cannot hold replaced by a stable, serializable stand-in.
 
     A flex config usually reaches a scheduler serialized, so this changes nothing.
-    A caller which deserialized it first, as ``flexmeasures add schedule`` does, hands over quantities and sensors instead,
-    and those are recorded by how they print, so that the configuration is still described rather than lost.
+    A caller which deserialized it first, as ``flexmeasures add schedule`` does, hands over sensors, assets and quantities instead.
+
+    A sensor or an asset is recorded by its id, which is what the serialized flex config names it by.
+    Recording how it prints would tie the configuration to its name, so renaming a sensor would describe a different configuration,
+    and two sensors sharing a name would describe the same one.
+    Anything else is recorded by how it prints, so that the configuration is still described rather than lost.
     """
-    return json.loads(json.dumps(value, default=str))
+
+    def encode(obj: Any) -> Any:
+        if isinstance(obj, (Sensor, Asset)):
+            return obj.id
+        return str(obj)
+
+    return json.loads(json.dumps(value, default=encode))
 
 
 def _shadow_inflexible_device_keys(
@@ -285,8 +294,11 @@ class Scheduler(DataGenerator):
             asset_id = None
         return {
             "asset": asset_id,
-            "flex-model": strip_momentary_flex_fields(deepcopy(self.flex_model)),
-            "flex-context": strip_momentary_flex_fields(deepcopy(self.flex_context)),
+            # Take the snapshot through `_json_safe`, which yields plain JSON structures.
+            # Deep-copying instead would carry sensors and assets along, detached from the session,
+            # and the copy would be read long after the objects it copied had been expired by a commit.
+            "flex-model": strip_momentary_flex_fields(_json_safe(self.flex_model)),
+            "flex-context": strip_momentary_flex_fields(_json_safe(self.flex_context)),
         }
 
     @property

@@ -352,6 +352,50 @@ def test_momentary_flex_fields_do_not_make_a_new_data_source(fresh_db):
     assert source_for("4 kWh") != source_for("4 kWh", power_capacity="1 MW")
 
 
+def test_renaming_a_sensor_does_not_make_a_new_data_source(fresh_db):
+    """A scheduler's data source records the sensors its config names by id, not by name.
+
+    A caller which deserialized the flex config first, as ``flexmeasures add schedule`` does,
+    hands the scheduler sensor objects rather than their ids.
+    Recording how those print would tie the configuration to the sensor's name,
+    so renaming a sensor would describe a different configuration, and two sensors sharing a name the same one.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-renamed-sensor")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(
+        name="test-asset-renamed-sensor", generic_asset_type=asset_type
+    )
+    fresh_db.session.add(asset)
+    price_sensor = Sensor(
+        name="day-ahead prices",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+    )
+    fresh_db.session.add(price_sensor)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+
+    def source_now():
+        scheduler = StorageScheduler(
+            asset_or_sensor=asset,
+            start=start,
+            end=start + timedelta(hours=1),
+            resolution=timedelta(hours=1),
+            flex_model=[{"soc-min": "0 kWh", "power-capacity": "2 MW"}],
+            # As a caller hands it over once deserialized: the sensor itself, not its id.
+            flex_context={"consumption-price": price_sensor},
+        )
+        return scheduler.data_source
+
+    before = source_now()
+    price_sensor.name = "day-ahead prices (renamed)"
+    fresh_db.session.commit()
+
+    assert source_now() == before
+
+
 def test_get_power_values_sign_conventions_and_source_filters(fresh_db):
     """The explicit sign convention wins; None defers to the sensor attribute;
     source filters on a SensorReference are honored.
