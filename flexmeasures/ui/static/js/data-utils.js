@@ -19,15 +19,22 @@
  * console.log(uniqueSourceIds); // Output: [4, 5]
  */
 export function getUniqueValues(data, key) {
-    var lookup = {};
-    var items = data;
-    var results = [];
+    // A Set rather than an object, so that a value such as "constructor" or "toString",
+    // which every object inherits, is not mistaken for one already seen.
+    const seen = new Set();
+    const results = [];
 
-    for (var item, i = 0; item = items[i++];) {
-        var val = getValueByNestedKey(item, key);
+    // Iterate by index rather than by truthiness, so that a null entry does not end the loop early.
+    for (let i = 0; i < data.length; i++) {
+        const val = getValueByNestedKey(data[i], key);
 
-        if (!(val in lookup)) {
-            lookup[val] = 1;
+        // A record that lacks the key has no value to report.
+        // Counting it would make callers such as checkSourceMasking see one source more than there are.
+        if (val === undefined) {
+            continue;
+        }
+        if (!seen.has(val)) {
+            seen.add(val);
             results.push(val);
         }
     }
@@ -53,7 +60,8 @@ function getValueByNestedKey(obj, key) {
     const keys = key.split('.');
     let value = obj;
     for (const k of keys) {
-        if (value[k] === undefined) {
+        // Guard the value itself, not just the property, so that a missing record does not throw.
+        if (value === null || value === undefined || value[k] === undefined) {
             return undefined; // Property not found
         }
         value = value[k];

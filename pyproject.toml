@@ -52,6 +52,9 @@ dependencies = [
     "isodate>=0.7.2",
     "click>=8.2.0",
     "click-default-group>=1.2.4",
+    # for automations: matching cron strings and describing them in natural language
+    "croniter>=2.0.0",
+    "cron-descriptor>=1.4.0",
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order
@@ -64,8 +67,8 @@ dependencies = [
     # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
-    # 3.5.5: got rid of BlockManager deprecation warnings
-    "timely-beliefs>=3.5.5",
+    # 4.2.0: stopped declaring single-column indexes on event_start and sensor_id, which migration b7e5a2c40f18 drops.
+    "timely-beliefs>=4.2.0",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
@@ -274,6 +277,8 @@ test = [
     "lupa>=2.6",
     "pytest-mock>=3.15.1",
     "pytest-runner>=6.0.1",
+    # to run the UI's JavaScript modules in a browser, see flexmeasures/ui/tests/js
+    "selenium>=4.36.0",
 ]
 
 [tool.hatch.build.targets.wheel]
