@@ -52,8 +52,8 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
+from flexmeasures.data.schemas.scheduling import find_momentary_flex_config_fields
 from flexmeasures.data.services.automations import (
-    find_momentary_flex_config_fields,
     prepare_schedule_trigger_message,
     resolve_schedule_generator,
 )

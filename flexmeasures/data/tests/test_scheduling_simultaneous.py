@@ -81,8 +81,8 @@ def test_create_simultaneous_jobs(
     assert job.get_status() == "finished"
 
     # Get power and SoC values, from the source this job wrote with.
-    # A scheduler's data source records the flex config it computed under, so these sensors can also
-    # carry schedules computed under another config, by another job, from another source.
+    # A scheduler's data source records the flex config it computed under,
+    # so these sensors can also carry schedules computed under another config, by another job, from another source.
     scheduler_source = get_data_source_for_job(job)
     assert scheduler_source is not None
 

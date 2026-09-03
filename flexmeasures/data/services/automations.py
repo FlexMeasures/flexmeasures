@@ -477,47 +477,6 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     return message
 
 
-#: Flex-config fields which state what was true at one moment, rather than where to look it up.
-#: A recurring automation would carry such a value into every later run, long after the moment it described.
-_MOMENTARY_FLEX_FIELDS = ("soc-at-start",)
-
-#: Keys which mark a value as describing one moment or period, as a time series segment does.
-_MOMENT_KEYS = ("datetime", "start", "end")
-
-
-def _find_momentary_flex_fields(value, path: str) -> list[str]:
-    """Find the fields under `value` which fix a moment in time, reporting each by its path in the flex config."""
-    if isinstance(value, dict):
-        if any(key in value for key in _MOMENT_KEYS):
-            return [path]
-        found = []
-        for key, item in value.items():
-            if key in _MOMENTARY_FLEX_FIELDS:
-                found.append(f"{path}.{key}")
-                continue
-            found += _find_momentary_flex_fields(item, f"{path}.{key}")
-        return found
-    if isinstance(value, list):
-        found = []
-        for index, item in enumerate(value):
-            found += _find_momentary_flex_fields(item, f"{path}[{index}]")
-        return found
-    return []
-
-
-def find_momentary_flex_config_fields(message: dict) -> list[str]:
-    """Find the flex config fields which describe one moment, rather than the site and its devices.
-
-    A schedule automation recomputes its schedule on every run, and its data source records the config it computes under,
-    so a value tied to a fixed moment is both stale on the next run and misleading as a description of the automation.
-    Sensor references and plain quantities are fine: they say where to look, or what always holds, rather than what was true once.
-    """
-    found: list[str] = []
-    for key in ("flex-model", "flex-context"):
-        found += _find_momentary_flex_fields(message.get(key), key)
-    return sorted(set(found))
-
-
 def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
     """The data source describing the scheduler a schedule automation runs, and the flex config it runs with.
 

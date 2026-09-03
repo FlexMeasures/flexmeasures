@@ -46,10 +46,10 @@ Use the canonical API field names, including ``flex-model``, ``flex-context`` an
 The message is passed in a file, through ``--parameters``, and validated when the automation is created.
 The forecaster options above configure a forecaster, so they do not apply here, and are refused when combined with ``--type scheduling``.
 
-A schedule automation has a data generator too, but it is derived rather than chosen: it is the data source describing the scheduler the asset resolves to, and the flex config that scheduler computes under.
-That config is the trigger message merged with what the asset tree stores, so it changes when the asset does.
-The runner therefore resolves it again on every run, and moves the automation to another data source when either the scheduler's version or the flex config has changed.
-Editing an asset's flex-model is a configuration change, and shows up as such: the schedules computed before and after it carry different data sources.
+A schedule automation has a data generator too, but you do not name it separately.
+It is put together from choices you have already made: the flex config in the trigger message, the flex config saved on the asset tree, and the scheduler that the asset resolves to.
+Because those live in two places, and the asset can be edited without touching the automation, the runner puts the generator together again on every run, and moves the automation to another data source when the combination has changed.
+Editing an asset's flex-model is therefore a configuration change, and shows up as one: the schedules computed before and after it carry different data sources.
 
 Because the schedule is recomputed on every run, the flex config may only describe the site and its devices, not one moment.
 A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.

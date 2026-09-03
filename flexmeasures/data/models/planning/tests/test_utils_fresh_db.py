@@ -312,6 +312,46 @@ def test_collect_flex_config_missing_sensor_raises(fresh_db):
         scheduler_soc.collect_flex_config()
 
 
+def test_momentary_flex_fields_do_not_make_a_new_data_source(fresh_db):
+    """A value describing one moment stays out of a scheduler's data source identity.
+
+    A state of charge measured at the start of a schedule differs on every trigger,
+    so recording it would make every schedule the work of a brand new data source.
+    What the site and its devices can do is what tells one scheduler source from another.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-momentary-config")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(
+        name="test-asset-momentary-config", generic_asset_type=asset_type
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+
+    def source_for(soc_at_start: str, power_capacity: str = "2 MW"):
+        scheduler = StorageScheduler(
+            asset_or_sensor=asset,
+            start=start,
+            end=start + timedelta(hours=1),
+            resolution=timedelta(hours=1),
+            flex_model=[
+                {
+                    "soc-at-start": soc_at_start,
+                    "soc-min": "0 kWh",
+                    "power-capacity": power_capacity,
+                }
+            ],
+            flex_context={},
+        )
+        return scheduler.data_source
+
+    # Two schedules of the same device, from different states of charge
+    assert source_for("4 kWh") == source_for("7 kWh")
+    # ... but a device that can draw less power is a different configuration
+    assert source_for("4 kWh") != source_for("4 kWh", power_capacity="1 MW")
+
+
 def test_get_power_values_sign_conventions_and_source_filters(fresh_db):
     """The explicit sign convention wins; None defers to the sensor attribute;
     source filters on a SensorReference are honored.

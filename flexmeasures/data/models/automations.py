@@ -33,11 +33,13 @@ def get_initial_cursor() -> datetime:
 class Automation(db.Model, AuthModelMixin):
     """A recurring task on an asset, such as computing forecasts.
 
-    The recurrence is defined by a cron string. Every automation has a data generator,
-    linked through a data source: a forecaster and its configuration for a forecast automation,
+    The recurrence is defined by a cron string.
+    Every automation has a data generator, linked through a data source:
+    a forecaster and its configuration for a forecast automation,
     and a scheduler and the flex config it computes under for a schedule automation.
-    A forecast automation's generator is chosen when it is created, while a schedule automation's
-    follows from its asset, so the runner resolves that one afresh on every run.
+    A forecast automation's generator is chosen when it is created.
+    A schedule automation's is assembled from the trigger message and what its asset stores,
+    so the runner puts it together afresh on every run.
     """
 
     __tablename__ = "automation"

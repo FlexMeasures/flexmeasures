@@ -17,7 +17,10 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataGenerator, DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
-from flexmeasures.data.schemas.scheduler_config import SchedulerConfigSchema
+from flexmeasures.data.schemas.scheduling.config import (
+    SchedulerConfigSchema,
+    strip_momentary_flex_fields,
+)
 from flexmeasures.utils.coding_utils import deprecated, merge_or_append
 from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
@@ -282,8 +285,8 @@ class Scheduler(DataGenerator):
             asset_id = None
         return {
             "asset": asset_id,
-            "flex-model": deepcopy(self.flex_model),
-            "flex-context": deepcopy(self.flex_context),
+            "flex-model": strip_momentary_flex_fields(deepcopy(self.flex_model)),
+            "flex-context": strip_momentary_flex_fields(deepcopy(self.flex_context)),
         }
 
     @property

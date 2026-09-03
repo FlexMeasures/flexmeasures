@@ -472,10 +472,10 @@ def create_sequential_scheduling_job(
             )
         child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
 
-    # A scheduling request is one run of one generator, so all of its device jobs record their
-    # schedules under one data source, describing the request's own configuration.
-    # Without this, each device job would resolve a source of its own, from its own slice of the
-    # flex-model, and a schedule could no longer be retrieved per device from the request's job.
+    # A scheduling request is one run of one generator,
+    # so all of its device jobs record their schedules under one data source, describing the request's own configuration.
+    # Without this, each device job would resolve a source of its own, from its own slice of the flex-model,
+    # and a schedule could no longer be retrieved per device from the request's job.
     request_scheduler = get_scheduler_instance(
         scheduler_class=scheduler_class,
         asset_or_sensor=asset,
@@ -904,6 +904,10 @@ def make_schedule(  # noqa: C901
     # so that one request records one schedule per sensor, rather than one per device's own config.
     if data_source_id is not None:
         data_source = db.session.get(DataSource, data_source_id)
+        if data_source is None:
+            raise ValueError(
+                f"Data source {data_source_id}, which this job was told to record its schedule under, no longer exists."
+            )
     else:
         data_source = scheduler.data_source
 
