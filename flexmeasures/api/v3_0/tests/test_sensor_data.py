@@ -603,35 +603,39 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
         # If the assert failed, we would get a 500 status code
         assert error_info.__class__.__name__ == "IntegrityError"
 
-    # Check that 1st time posting the data succeeds
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
-    print(response.json)
-    assert response.status_code == 200
+    try:
+        # Check that 1st time posting the data succeeds
+        response = client.post(
+            url_for("SensorAPI:post_data", id=sensor.id),
+            json=post_data,
+        )
+        print(response.json)
+        assert response.status_code == 200
 
-    # Check that 2nd time posting the same data succeeds informatively
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
-    print(response.json)
-    assert response.status_code == 200
-    assert "data has already been received" in response.json["message"]
+        # Check that 2nd time posting the same data succeeds informatively
+        response = client.post(
+            url_for("SensorAPI:post_data", id=sensor.id),
+            json=post_data,
+        )
+        print(response.json)
+        assert response.status_code == 200
+        assert "data has already been received" in response.json["message"]
 
-    # Check that replacing data fails informatively
-    post_data["values"][0] = 100
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
-    print(response.json)
-    assert response.status_code == 403
-    assert "data represents a replacement" in response.json["message"]
+        # Check that replacing data fails informatively
+        post_data["values"][0] = 100
+        response = client.post(
+            url_for("SensorAPI:post_data", id=sensor.id),
+            json=post_data,
+        )
+        print(response.json)
+        assert response.status_code == 403
+        assert "data represents a replacement" in response.json["message"]
 
-    # at this point, the transaction has failed and needs to be rolled back.
-    db.session.rollback()
+        # at this point, the transaction has failed and needs to be rolled back.
+        db.session.rollback()
+    finally:
+        # Without this, the listener would outlive the test and assert on every later database error in the process.
+        event.remove(Engine, "handle_error", receive_handle_error)
 
 
 @pytest.mark.parametrize(
