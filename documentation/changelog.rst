@@ -18,7 +18,8 @@ v1.1.0 | September XX, 2026
              Schedules computed under different flex configs are therefore recorded by different data sources, and a sensor can carry schedules from several of them, as it already could for forecasts.
              Values describing a single moment stay out of that config, so a ``soc-at-start``, or a ``soc-targets`` entry at a given datetime, does not make every run a new data source.
              What does is a change to what the site and its devices can do, such as a device's ``power-capacity``.
-             After such a change, a sensor holds a schedule for the same period from each configuration, so a chart draws both, and a query which sums a sensor's scheduled power over that period adds both up unless it selects a source.
+             After such a change, a sensor holds the schedule computed under each configuration, where the newer schedule used to supersede the older one, so a chart of that sensor draws both, and the asset's KPIs total both, as they report what the chart draws.
+             Select a data source to see the schedule computed under one configuration.
              One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
 
 New features
