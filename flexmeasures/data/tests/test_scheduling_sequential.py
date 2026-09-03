@@ -3,10 +3,66 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 
 import pandas as pd
 from rq.job import Job
+from sqlalchemy import select
+
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.services.scheduling import create_sequential_scheduling_job
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.models.time_series import Sensor
+
+
+def test_sequential_jobs_carry_the_request_config_not_a_data_source_id(
+    db, app, flex_description_sequential, smart_building
+):
+    """The device jobs of one request share a data source, without depending on an uncommitted row.
+
+    FlexMeasures does not auto-commit the session of the request that enqueues the jobs
+    (see `flexmeasures.data.transactional`), so a data source created while enqueueing would never reach the workers.
+    The jobs therefore carry the request's configuration, and each worker resolves the source from it and commits.
+    """
+    assets, sensors, soc_sensors = smart_building
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    flex_description_sequential["start"] = start
+    flex_description_sequential["end"] = pd.Timestamp("2015-01-04").tz_localize(
+        "Europe/Amsterdam"
+    )
+
+    scheduler_sources_before = db.session.scalars(
+        select(DataSource).filter_by(type="scheduler")
+    ).all()
+
+    create_sequential_scheduling_job(
+        asset=assets["Test Site"],
+        scheduler_specs={
+            "module": "flexmeasures.data.models.planning.storage",
+            "class": "StorageScheduler",
+        },
+        enqueue=True,
+        **flex_description_sequential,
+    )
+
+    device_jobs = [
+        Job.fetch(job_id, connection=queue.connection)
+        for job_id in queue.job_ids
+        if Job.fetch(job_id, connection=queue.connection).kwargs.get("asset_or_sensor")
+    ]
+    assert device_jobs, "the request should have queued a job per device"
+    configs = [job.kwargs.get("data_source_config") for job in device_jobs]
+    assert all(
+        config is not None for config in configs
+    ), "every device job should carry the request's configuration"
+    assert all(
+        config == configs[0] for config in configs
+    ), "the device jobs of one request describe one configuration, so they share one data source"
+    assert "data_source_id" not in device_jobs[0].kwargs
+
+    # Enqueueing wrote no data source of its own, which is what it must not rely on.
+    assert (
+        db.session.scalars(select(DataSource).filter_by(type="scheduler")).all()
+        == scheduler_sources_before
+    )
 
 
 def test_create_sequential_jobs(db, app, flex_description_sequential, smart_building):

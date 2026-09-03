@@ -223,7 +223,7 @@ def create_scheduling_job(
     depends_on: Job | list[Job] | None = None,
     success_callback: Callable | None = None,
     trigger: dict | None = None,
-    data_source_id: int | None = None,
+    data_source_config: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -282,7 +282,7 @@ def create_scheduling_job(
         kwargs=dict(
             asset_or_sensor=asset_or_sensor,
             scheduler_specs=scheduler_specs,
-            data_source_id=data_source_id,
+            data_source_config=data_source_config,
             **scheduler_kwargs,
         ),
         id=job_id,
@@ -476,6 +476,9 @@ def create_sequential_scheduling_job(
     # so all of its device jobs record their schedules under one data source, describing the request's own configuration.
     # Without this, each device job would resolve a source of its own, from its own slice of the flex-model,
     # and a schedule could no longer be retrieved per device from the request's job.
+    # The configuration travels with the jobs, rather than the data source it belongs to:
+    # a source created here would live in the transaction of the request that enqueued the jobs,
+    # which FlexMeasures does not commit (see `flexmeasures.data.transactional`), so the workers would never see it.
     request_scheduler = get_scheduler_instance(
         scheduler_class=scheduler_class,
         asset_or_sensor=asset,
@@ -484,7 +487,7 @@ def create_sequential_scheduling_job(
             "flex_model": MultiSensorFlexModelSchema(many=True).dump(flex_model),
         },
     )
-    data_source_id = request_scheduler.data_source.id
+    data_source_config = request_scheduler.resolve_flex_config()
 
     jobs = []
     previous_sensors = []
@@ -504,7 +507,7 @@ def create_sequential_scheduling_job(
 
         job = create_scheduling_job(
             **current_scheduler_kwargs,
-            data_source_id=data_source_id,
+            data_source_config=data_source_config,
             scheduler_specs=scheduler_specs,
             requeue=requeue,
             job_id=job_id,
@@ -810,7 +813,7 @@ def make_schedule(  # noqa: C901
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
-    data_source_id: int | None = None,
+    data_source_config: dict | None = None,
     dry_run: bool = False,
     **scheduler_kwargs: dict,
 ) -> dict:
@@ -900,16 +903,13 @@ def make_schedule(  # noqa: C901
         rq_job.meta["scheduler_info"] = scheduler.info
 
     # The scheduler's own data source, which also records the flex config it computed under.
-    # A device job of a sequential schedule is handed the source of the request it belongs to,
+    # A device job of a sequential schedule is handed the configuration of the request it belongs to,
     # so that one request records one schedule per sensor, rather than one per device's own config.
-    if data_source_id is not None:
-        data_source = db.session.get(DataSource, data_source_id)
-        if data_source is None:
-            raise ValueError(
-                f"Data source {data_source_id}, which this job was told to record its schedule under, no longer exists."
-            )
-    else:
-        data_source = scheduler.data_source
+    # It is handed the configuration rather than a data source id, because the id would come from a row
+    # created while the request that enqueued this job was still open, and this session never sees it.
+    if data_source_config is not None:
+        scheduler.record_config(data_source_config)
+    data_source = scheduler.data_source
 
     # saving info on the job, so the API for a job can look the data up
     if rq_job:

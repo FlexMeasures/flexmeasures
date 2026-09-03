@@ -84,11 +84,12 @@ class Scheduler(DataGenerator):
     TODO: extend to multiple flexible assets.
 
     The scheduler knows the power sensor of the flexible asset.
-    It also knows the basic timing parameter of the schedule (start, end, resolution), including the point in time when
-    knowledge can be assumed to be available (belief_time).
+    It also knows the basic timing parameter of the schedule (start, end, resolution),
+    including the point in time when knowledge can be assumed to be available (belief_time).
 
-    Furthermore, the scheduler needs to have knowledge about the asset's flexibility model (under what constraints
-    can the schedule be optimized?) and the system's flexibility context (which other sensors are relevant, e.g. prices).
+    Furthermore, the scheduler needs to have knowledge about the asset's flexibility model
+    (under what constraints can the schedule be optimized?),
+    and the system's flexibility context (which other sensors are relevant, e.g. prices).
     These two flexibility configurations are usually fed in from outside, so the scheduler should check them.
     The deserialize_flex_config function can be used for that.
 
@@ -300,6 +301,15 @@ class Scheduler(DataGenerator):
             "flex-model": strip_momentary_flex_fields(_json_safe(self.flex_model)),
             "flex-context": strip_momentary_flex_fields(_json_safe(self.flex_context)),
         }
+
+    def record_config(self, config: dict) -> None:
+        """Record `config` on this scheduler's data source, rather than the config it resolves itself.
+
+        A device job of a sequential schedule uses the configuration of the request it belongs to,
+        so that one request records one schedule per sensor, rather than one per device's own slice of the flex-model.
+        """
+        self._config = config
+        self._data_source = None
 
     @property
     def data_source(self) -> DataSource:
