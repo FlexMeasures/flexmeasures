@@ -139,9 +139,11 @@ def success_callback(job, connection, result, *args, **kwargs):
         queue.deferred_job_registry.requeue(dependent_job_ids)
 
 
-# Meta flag marking a job that should still run when a job it depends on failed, so it can report on that failure.
-# We deliberately do not use RQ's Dependency(allow_failure=True) for this: RQ enqueues such a job the moment its
-# dependency fails, which would let a wrap-up job run while the failed subjob's fallback job is still pending,
+# Meta flag marking a job that should still run when a job it depends on failed,
+# so it can report on that failure.
+# We deliberately do not use RQ's Dependency(allow_failure=True) for this.
+# RQ enqueues such a job the moment its dependency fails,
+# which would let a wrap-up job run while the failed subjob's fallback job is still pending,
 # and report the chain as failed just before the fallback schedules the device after all.
 RUNS_ON_CHAIN_FAILURE = "runs_on_chain_failure"
 

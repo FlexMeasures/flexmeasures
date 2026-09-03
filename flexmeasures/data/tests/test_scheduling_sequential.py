@@ -274,8 +274,10 @@ def test_create_sequential_jobs_without_fallback(
 ):
     """Test that a failing subjob without a fallback scheduler does not wedge the chain.
 
-    The first device is infeasible, and no scheduler defines a fallback since PR #2252. The remaining subjobs can then never run,
-    so they should be failed rather than left deferred, and the wrap-up job — whose id is what the trigger endpoint hands to the client —
+    The first device is infeasible, and no scheduler defines a fallback since PR #2252.
+    The remaining subjobs can then never run,
+    so they should be failed rather than left deferred.
+    The wrap-up job, whose id is what the trigger endpoint hands to the client,
     should reach a terminal failed state naming the device that could not be scheduled.
     """
     assets, sensors, _ = smart_building
