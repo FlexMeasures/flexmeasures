@@ -38,8 +38,8 @@
             </h4>
 
             <div class="table-responsive">
-              <!-- No "paginate" class: this page builds both tables itself, when their tab is first shown. -->
-              <table id="jobsTable" class="table table-striped nav-on-click w-100"></table>
+              <!-- Neither the "paginate" nor the "nav-on-click" class: both make flexmeasures.js build the table on page load, and this page builds each table itself, when its tab is first shown. -->
+              <table id="jobsTable" class="table table-striped w-100"></table>
             </div>
 
             <div class="alert alert-warning d-none mt-2" id="redis_connection_err"></div>
@@ -239,6 +239,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         });
       },
     });
+    // Make the rows navigable now that the table exists, as flexmeasures.js only does so on page load.
+    clickableTable(document.getElementById("jobsTable"), "URL");
   }
 
   function initTable(tabName) {
