@@ -905,8 +905,9 @@ def make_schedule(  # noqa: C901
     # The scheduler's own data source, which also records the flex config it computed under.
     # A device job of a sequential schedule is handed the configuration of the request it belongs to,
     # so that one request records one schedule per sensor, rather than one per device's own config.
-    # It is handed the configuration rather than a data source id, because the id would come from a row
-    # created while the request that enqueued this job was still open, and this session never sees it.
+    # It is handed the configuration rather than a data source id,
+    # because that id would come from a row created while the request that enqueued this job was still open,
+    # and this session never sees it.
     if data_source_config is not None:
         scheduler.record_config(data_source_config)
     data_source = scheduler.data_source

@@ -17,8 +17,8 @@ def test_sequential_jobs_carry_the_request_config_not_a_data_source_id(
 ):
     """The device jobs of one request share a data source, without depending on an uncommitted row.
 
-    FlexMeasures does not auto-commit the session of the request that enqueues the jobs
-    (see `flexmeasures.data.transactional`), so a data source created while enqueueing would never reach the workers.
+    FlexMeasures does not auto-commit the session of the request that enqueues the jobs,
+    so a data source created while enqueueing would never reach the workers (see `flexmeasures.data.transactional`).
     The jobs therefore carry the request's configuration, and each worker resolves the source from it and commits.
     """
     assets, sensors, soc_sensors = smart_building
