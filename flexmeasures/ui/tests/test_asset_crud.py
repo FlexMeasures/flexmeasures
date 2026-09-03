@@ -682,18 +682,22 @@ def test_asset_status_page_tabs(db, client, setup_assets, as_prosumer_user1):
     assert b'initTable("sensors")' in status_page.data
 
 
-def test_status_page_tables_are_not_auto_paginated(
-    db, client, setup_assets, as_prosumer_user1
+@pytest.mark.parametrize("remembered_tab", ["jobs", "sensors"])
+def test_status_page_tables_are_not_built_on_page_load(
+    db, client, setup_assets, as_prosumer_user1, remembered_tab
 ):
-    """Neither status table opts into the global DataTables helper that flexmeasures.js applies to the 'paginate' class.
+    """Neither status table opts into a class by which flexmeasures.js builds a DataTable on page load.
 
-    That helper would build whichever table sits in the tab that is not open, using default options and no data source,
-    and the page could then no longer initialise it properly once its tab is opened.
+    Both the 'paginate' and the 'nav-on-click' class do so, the latter through clickableTable().
+    Either one would build whichever table sits in the tab that is not open, using default options and no data source,
+    and the page could then no longer initialise that table once its tab is opened, leaving it empty until a reload.
     """
     user = find_user_by_email("test_prosumer_user@seita.nl")
     asset = user.account.generic_assets[0]
     db.session.expunge(user)
 
+    with client.session_transaction() as session:
+        session["status_page_tab"] = remembered_tab
     status_page = client.get(
         url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
     )
@@ -703,3 +707,9 @@ def test_status_page_tables_are_not_auto_paginated(
             rb'<table id="%s"[^>]*>' % table_id, status_page.data
         ).group()
         assert b"paginate" not in table_tag, table_tag
+        assert b"nav-on-click" not in table_tag, table_tag
+    # The jobs rows stay navigable, by the page applying that helper itself once it has built the table.
+    assert (
+        b'clickableTable(document.getElementById("jobsTable"), "URL")'
+        in status_page.data
+    )
