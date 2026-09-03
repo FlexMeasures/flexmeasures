@@ -456,10 +456,17 @@ def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
-    We only look for the default data source types!
+
+    We look for the source types that actually recorded on this sensor, plus the default source types,
+    so that a sensor recorded by a source type we do not know about, such as data added from the CLI or by a plugin, is still reported on.
     """
+    source_types = list(DEFAULT_DATASOURCE_TYPES)
+    source_types += sorted(
+        {source.type for source in sensor.data_sources if source.type is not None}
+        - set(source_types)
+    )
     bdfs_by_source = dict()
-    for source_type in DEFAULT_DATASOURCE_TYPES:
+    for source_type in source_types:
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,

@@ -37,6 +37,7 @@ Bugfixes
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * Avoid crashing on startup when the database is stamped with an Alembic revision unknown to this FlexMeasures checkout [see `PR #2465 <https://www.github.com/FlexMeasures/flexmeasures/pull/2465>`_]
 * The status page reported "no data recorded" for a sensor whose most recent data was recorded ahead of its knowledge time, such as a day-ahead price sensor holding tomorrow's prices [see `PR #2469 <https://www.github.com/FlexMeasures/flexmeasures/pull/2469>`_]
+* The status page reported "no data recorded" for a sensor recorded by a source type it did not know about, such as the ``CLI script`` source under which ``flexmeasures add beliefs`` records [see `PR #2469 <https://www.github.com/FlexMeasures/flexmeasures/pull/2469>`_]
 * The status page showed a red light for a sensor whose most recent data is not knowable yet, which is only a reason for concern for sources that are expected to deliver future data, such as forecasters and schedulers [see `PR #2469 <https://www.github.com/FlexMeasures/flexmeasures/pull/2469>`_]
 * The status page claimed that every sensor it lists belongs to the asset shown, also for sensors of another asset that are only listed because the asset's flex-context or graphs page refers to them [see `PR #2469 <https://www.github.com/FlexMeasures/flexmeasures/pull/2469>`_]
 

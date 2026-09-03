@@ -13,6 +13,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.scheduling import create_scheduling_job
@@ -600,3 +601,44 @@ def test_serialize_sensor_status_data_relation_to_other_asset(
     assert statuses
     for status in statuses:
         assert "sensor belongs to this asset" in status["relation"]
+
+
+def test_get_status_unknown_source_type(
+    fresh_db, add_market_prices_fresh_db, setup_sources_fresh_db
+):
+    """A sensor recorded by a source type FlexMeasures does not know about is still reported on.
+
+    Regression test for the toy tutorial's day-ahead price sensor reporting "no data recorded",
+    because the CLI recorded its prices under the source type "CLI script",
+    which is not one of the default source types.
+    """
+    sensor = add_market_prices_fresh_db["epex_da"]
+    cli_source = DataSource(name="toy-user", type="CLI script")
+    fresh_db.session.add(cli_source)
+    event_starts = initialize_index(
+        start=pd.Timestamp("2016-01-05").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2016-01-06").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
+    )
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                event_start=event_start,
+                belief_horizon=timedelta(hours=3),
+                event_value=10,
+                sensor=sensor,
+                source=cli_source,
+            )
+            for event_start in event_starts
+        ]
+    )
+    fresh_db.session.flush()
+
+    sensor_statuses = get_statuses(
+        sensor=sensor, now=pd.Timestamp("2016-01-04T10:00+01")
+    )
+    cli_statuses = [
+        status for status in sensor_statuses if status["source_type"] == "CLI script"
+    ]
+    assert len(cli_statuses) == 1
+    assert cli_statuses[0]["stale"] is False
