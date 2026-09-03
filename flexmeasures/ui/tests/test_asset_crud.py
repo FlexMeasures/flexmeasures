@@ -680,3 +680,26 @@ def test_asset_status_page_tabs(db, client, setup_assets, as_prosumer_user1):
     assert b'<a class="nav-link active" id="sensors-tab"' in status_page.data
     assert b'<a class="nav-link " id="jobs-tab"' in status_page.data
     assert b'initTable("sensors")' in status_page.data
+
+
+def test_status_page_tables_are_not_auto_paginated(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """Neither status table opts into the global DataTables helper that flexmeasures.js applies to the 'paginate' class.
+
+    That helper would build whichever table sits in the tab that is not open, using default options and no data source,
+    and the page could then no longer initialise it properly once its tab is opened.
+    """
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    for table_id in (b"jobsTable", b"sensorStatusTable"):
+        table_tag = re.search(
+            rb'<table id="%s"[^>]*>' % table_id, status_page.data
+        ).group()
+        assert b"paginate" not in table_tag, table_tag
