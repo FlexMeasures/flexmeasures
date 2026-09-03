@@ -2207,13 +2207,17 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            # The beliefs the chart draws: one value per event, the most recent one.
-            # Aggregating belief rows instead would count a revision on top of what it revised,
-            # and would count each source separately when several report the same sensor.
+            # One value per event, which is what a KPI reduces.
+            # Aggregating belief rows instead would count a revision on top of the belief it revised,
+            # and would count each source separately when several report the same event,
+            # so that a total came out higher than anything anyone reported.
+            # Where several do report an event, the value is the one from the latest source version,
+            # and from the most recent belief within that.
             beliefs = sensor.search_beliefs(
                 event_starts_after=start,
                 event_ends_before=end,
                 most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
             # Count each event once, under the window it starts in.
             # The search also returns events that merely overlap the window, which the chart draws,

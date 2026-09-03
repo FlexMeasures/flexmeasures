@@ -31,6 +31,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* A KPI on the asset page counted an event once per data source that reported it, so a total could come out higher than any source reported; it now reduces one value per event, from the latest source version and the most recent belief within it [see `PR #2472 <https://www.github.com/FlexMeasures/flexmeasures/pull/2472>`_]
 * Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
 * KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
