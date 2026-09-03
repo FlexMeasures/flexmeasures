@@ -64,6 +64,11 @@ def test_sequential_jobs_carry_the_request_config_not_a_data_source_id(
         == scheduler_sources_before
     )
 
+    # This test never runs the jobs it queued, so clear Redis rather than leaking them into the next test:
+    # the queue and its deferred registry, the jobs themselves, whose ids are derived from what they schedule,
+    # and the job cache, which would otherwise skip the next test's identical request as already made.
+    app.redis_connection.flushdb()
+
 
 def test_create_sequential_jobs(db, app, flex_description_sequential, smart_building):
     """Test sequential scheduling capabilities.

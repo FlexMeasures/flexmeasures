@@ -87,9 +87,9 @@ class Scheduler(DataGenerator):
     It also knows the basic timing parameter of the schedule (start, end, resolution),
     including the point in time when knowledge can be assumed to be available (belief_time).
 
-    Furthermore, the scheduler needs to have knowledge about the asset's flexibility model
-    (under what constraints can the schedule be optimized?),
-    and the system's flexibility context (which other sensors are relevant, e.g. prices).
+    Furthermore, the scheduler needs to have knowledge about the asset's flexibility model,
+    which says under what constraints the schedule may be optimized,
+    and about the system's flexibility context, which says which other sensors are relevant, e.g. prices.
     These two flexibility configurations are usually fed in from outside, so the scheduler should check them.
     The deserialize_flex_config function can be used for that.
 
