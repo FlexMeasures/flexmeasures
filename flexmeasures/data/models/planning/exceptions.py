@@ -24,3 +24,9 @@ class WrongTypeAttributeException(Exception):
 
 class InfeasibleProblemException(Exception):
     pass
+
+
+class UpstreamSchedulingFailure(Exception):
+    """A schedule could not be computed, because a scheduling job it depended on failed."""
+
+    pass
