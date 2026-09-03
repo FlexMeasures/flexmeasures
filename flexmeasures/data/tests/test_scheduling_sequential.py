@@ -43,11 +43,10 @@ def test_sequential_jobs_carry_the_request_config_not_a_data_source_id(
         **flex_description_sequential,
     )
 
-    device_jobs = [
-        Job.fetch(job_id, connection=queue.connection)
-        for job_id in queue.job_ids
-        if Job.fetch(job_id, connection=queue.connection).kwargs.get("asset_or_sensor")
+    queued_jobs = [
+        Job.fetch(job_id, connection=queue.connection) for job_id in queue.job_ids
     ]
+    device_jobs = [job for job in queued_jobs if job.kwargs.get("asset_or_sensor")]
     assert device_jobs, "the request should have queued a job per device"
     configs = [job.kwargs.get("data_source_config") for job in device_jobs]
     assert all(
