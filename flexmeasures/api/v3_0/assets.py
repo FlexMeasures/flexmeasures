@@ -26,7 +26,6 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
-    get_sensor_stats,
 )
 from flexmeasures.api.common.schemas.scheduling import (
     flex_context_schema_openAPI,
@@ -46,8 +45,17 @@ from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.schemas.automations import AutomationSchema
+from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
+    describe_cronstr,
+    get_automation_job_stats,
+    resolve_automation_sensors,
+    run_automation,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
@@ -73,6 +81,7 @@ from flexmeasures.api.common.utils.api_utils import (
     get_accessible_accounts,
     copy_asset,
 )
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_accepted_for_processing,
@@ -93,6 +102,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
+automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -1364,6 +1374,316 @@ class AssetAPI(FlaskView):
 
         return response, 200
 
+    @route("/<id>/automations", methods=["GET"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automations(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get all automations defined on an asset.
+
+        ---
+        get:
+          summary: Get all automations defined on an asset.
+          description: |
+            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            defined on the asset. Each entry shows the automation's ID, when it was created,
+            its type, name, activation status, and its recurrence, both as a cron string
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to get the automations for.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automations:
+                      summary: List of automations
+                      value:
+                        automations:
+                          - id: 1
+                            created_at: "2026-07-11T00:00:00+00:00"
+                            asset_id: 1
+                            type: forecasts
+                            name: Day-ahead PV forecasts
+                            cronstr: "0 6 * * *"
+                            timezone: Europe/Amsterdam
+                            cursor: "2026-07-11T04:00:00+00:00"
+                            recurrence_description: "At 06:00"
+                            active: true
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automations_data = []
+        for automation in asset.automations:
+            automation_data = automation_schema.dump(automation)
+            automation_data["recurrence_description"] = describe_cronstr(
+                automation.cronstr
+            )
+            automations_data.append(automation_data)
+        return {"automations": automations_data}, 200
+
+    @route("/<id>/automations/<int:automation_id>", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get details of one automation defined on an asset.
+
+        ---
+        get:
+          summary: Get details of one automation defined on an asset.
+          description: |
+            In addition to the fields shown when listing automations, the response shows
+            the automation's parameters (for forecasts, these are the forecast parameters
+            used on each run), information about the data generator that runs it,
+            the sensors it reads from and writes to,
+            and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automation:
+                      summary: Automation details
+                      value:
+                        id: 1
+                        created_at: "2026-07-11T00:00:00+00:00"
+                        asset_id: 1
+                        type: forecasts
+                        name: Day-ahead PV forecasts
+                        cronstr: "0 6 * * *"
+                        timezone: Europe/Amsterdam
+                        cursor: "2026-07-11T04:00:00+00:00"
+                        recurrence_description: "At 06:00"
+                        active: true
+                        parameters:
+                          sensor: 2092
+                        generator:
+                          id: 6
+                          description: "forecaster 'TrainPredictPipeline' (v1)"
+                        input_sensors:
+                          - id: 2092
+                            name: power
+                          - id: 2093
+                            name: irradiance
+                        output_sensors:
+                          - id: 2092
+                            name: power
+                        job_stats:
+                          finished: 3
+                          failed: 1
+                        redis_connection_err: null
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        automation_data = automation_schema.dump(automation)
+        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["parameters"] = automation.parameters
+        automation_data["generator"] = (
+            {
+                "id": automation.generator.id,
+                "description": automation.generator.description,
+            }
+            if automation.generator is not None
+            else None
+        )
+        try:
+            automation_sensors = resolve_automation_sensors(automation)
+        except AutomationSensorsUnknown as e:
+            # One broken automation should not keep this response from rendering,
+            # and there are no sensors to check access on in this case.
+            current_app.logger.warning(str(e))
+            automation_sensors = {"input_sensors": [], "output_sensors": []}
+        else:
+            for sensor in {
+                sensor
+                for key in ("input_sensors", "output_sensors")
+                for sensor in automation_sensors[key]
+            }:
+                check_access(sensor, "read")
+        for key in ("input_sensors", "output_sensors"):
+            automation_data[key] = [
+                {"id": sensor.id, "name": sensor.name}
+                for sensor in automation_sensors[key]
+            ]
+        redis_connection_err = None
+        try:
+            automation_data["job_stats"] = get_automation_job_stats(automation)
+        except NoRedisConfigured as e:
+            automation_data["job_stats"] = {}
+            redis_connection_err = e.args[0]
+        automation_data["redis_connection_err"] = redis_connection_err
+        return automation_data, 200
+
+    @route("/<id>/automations/<int:automation_id>/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Running an automation writes data under the asset, which is what create-children means here.
+    # The sensors it writes to were checked against the same permission when the automation was created,
+    # and its output scope is checked again on each run (see validate_forecast_output_scope).
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a single run of an automation.
+
+        ---
+        post:
+          summary: Trigger a single run of an automation.
+          description: |
+            Run one automation now, once, in addition to its recurring runs.
+            This is useful to try out a new automation, to re-run one after fixing what made it fail,
+            or to refresh its results after late input data arrived.
+
+            The automation runs with the parameters it was created with,
+            and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+
+            An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
+            so the next recurring run still happens as scheduled, and a missed run is still caught up.
+            Inactive automations can be triggered, too, which is how you can try one out before activating it.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset the automation is defined on.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation to run.
+              schema:
+                type: integer
+          responses:
+            202:
+              description: PROCESSING
+              content:
+                application/json:
+                  examples:
+                    triggered:
+                      summary: Automation run accepted
+                      description: |
+                        The automation queued its jobs, which will be picked up by a worker.
+                        The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
+                        and `n_jobs` says how many jobs the run queued in total.
+                      value:
+                        status: ACCEPTED
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        n_jobs: 2
+                        message: "Request has been accepted for processing."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        try:
+            returns = run_automation(automation)
+        except (NotImplementedError, ValueError, ValidationError) as e:
+            db.session.rollback()
+            return unprocessable_entity(
+                e.messages if isinstance(e, ValidationError) else str(e)
+            )
+        job_id = (returns or {}).get("job_id")
+        if job_id is None:
+            db.session.rollback()
+            current_app.logger.error(
+                "Automation %s ran on demand, but reported no job: %r",
+                automation.id,
+                returns,
+            )
+            return unprocessable_entity(
+                f"Automation {automation.id} did not queue any job."
+            )
+        AssetAuditLog.add_record(
+            asset,
+            f"Triggered a run of automation '{automation.name}' ({automation.id}).",
+        )
+        db.session.commit()
+        response, status_code = request_accepted_for_processing(job_id)
+        response["n_jobs"] = returns.get("n_jobs")
+        return response, status_code
+
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
@@ -1406,6 +1726,7 @@ class AssetAPI(FlaskView):
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
+                            created_via: API
                             metadata_hash: abc123
                         redis_connection_err: null
             400:
@@ -1794,6 +2115,7 @@ class AssetAPI(FlaskView):
         return request_accepted_for_processing(
             job.id,
             legacy_key="schedule",
+            status_code=200 if use_legacy_job_responses(asset) else 202,
         )
 
     @route("/<id>/kpis", methods=["GET"])
@@ -1885,10 +2207,23 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
+            # The beliefs the chart draws: one value per event, the most recent one.
+            # Aggregating belief rows instead would count a revision on top of what it revised,
+            # and would count each source separately when several report the same sensor.
+            beliefs = sensor.search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                most_recent_beliefs_only=True,
+            )
+            # Count each event once, under the window it starts in.
+            # The search also returns events that merely overlap the window, which the chart draws,
+            # but a total that included them would count one event under two adjacent selections.
+            event_starts = beliefs.index.get_level_values("event_start")
+            beliefs = beliefs[(event_starts >= start) & (event_starts < end)]
+            values = beliefs["event_value"].dropna()
 
             downsample_function, downsample_value = get_downsample_function_and_value(
-                kpi, sensor, sensor_stats
+                kpi, sensor, values
             )
             kpi_dict = {
                 "title": kpi["title"],

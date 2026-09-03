@@ -99,6 +99,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       `,
       queue: job.queue,
       entity: job.entity,
+      // escape, as this cell is rendered as HTML and may contain a user-defined automation name
+      created_via: String(job.created_via || "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c])),
       status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
       info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
         <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
@@ -235,6 +239,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
         { data: "queue", title: "Queue", orderable: true},
         { data: "entity", title: "Entity", orderable: false},
+        { data: "created_via", title: "Created Via", orderable: false},
         { data: "status", title: "Status", className: "text-right", orderable: false},
         { data: "info", title: "Info", className: "text-right", orderable: false},
         { data: "url", title: "URL", className: "d-none", orderable: false},

@@ -19,6 +19,26 @@ from flexmeasures.utils.sentry_utils import SENTRY_DEDUPLICATION_KEY_ATTRIBUTE
 
 ma: Marshmallow = Marshmallow()
 
+DB_COMMANDS = frozenset(db_cli_group.commands.keys())
+DB_OPS_COMMANDS = frozenset(("dump", "reset", "restore"))
+
+
+def is_running_database_command() -> bool:
+    """Return whether this process is running a database maintenance command."""
+    args = sys.argv[1:]
+    return _has_command_pair(args, "db", DB_COMMANDS) or _has_command_pair(
+        args, "db-ops", DB_OPS_COMMANDS
+    )
+
+
+def _has_command_pair(
+    args: list[str], command_group: str, commands: frozenset[str]
+) -> bool:
+    return any(
+        arg == command_group and i + 1 < len(args) and args[i + 1] in commands
+        for i, arg in enumerate(args)
+    )
+
 
 def _is_running_db_upgrade_command() -> bool:
     """Return whether this process is already running the Alembic upgrade command."""

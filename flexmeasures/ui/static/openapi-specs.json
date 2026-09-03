@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -370,7 +370,7 @@
       },
       "get": {
         "summary": "Get sensor data",
-        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -421,7 +421,7 @@
           {
             "in": "query",
             "name": "prior",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             "schema": {
               "type": "string",
               "format": "date-time",
@@ -3346,6 +3346,182 @@
         ]
       }
     },
+    "/api/v3_0/assets/{id}/automations/{automation_id}": {
+      "get": {
+        "summary": "Get details of one automation defined on an asset.",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (for forecasts, these are the forecast parameters\nused on each run), information about the data generator that runs it,\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "automation": {
+                    "summary": "Automation details",
+                    "value": {
+                      "id": 1,
+                      "created_at": "2026-07-11T00:00:00+00:00",
+                      "asset_id": 1,
+                      "type": "forecasts",
+                      "name": "Day-ahead PV forecasts",
+                      "cronstr": "0 6 * * *",
+                      "timezone": "Europe/Amsterdam",
+                      "cursor": "2026-07-11T04:00:00+00:00",
+                      "recurrence_description": "At 06:00",
+                      "active": true,
+                      "parameters": {
+                        "sensor": 2092
+                      },
+                      "generator": {
+                        "id": 6,
+                        "description": "forecaster 'TrainPredictPipeline' (v1)"
+                      },
+                      "input_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        },
+                        {
+                          "id": 2093,
+                          "name": "irradiance"
+                        }
+                      ],
+                      "output_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        }
+                      ],
+                      "job_stats": {
+                        "finished": 3,
+                        "failed": 1
+                      },
+                      "redis_connection_err": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations": {
+      "get": {
+        "summary": "Get all automations defined on an asset.",
+        "description": "The response will be a list of automations: recurring tasks (for now, computing forecasts)\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to get the automations for.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "automations": {
+                    "summary": "List of automations",
+                    "value": {
+                      "automations": [
+                        {
+                          "id": 1,
+                          "created_at": "2026-07-11T00:00:00+00:00",
+                          "asset_id": 1,
+                          "type": "forecasts",
+                          "name": "Day-ahead PV forecasts",
+                          "cronstr": "0 6 * * *",
+                          "timezone": "Europe/Amsterdam",
+                          "cursor": "2026-07-11T04:00:00+00:00",
+                          "recurrence_description": "At 06:00",
+                          "active": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/{id}/chart": {
       "get": {
         "summary": "Download an embeddable chart with time series data",
@@ -3769,6 +3945,7 @@
                           "status": "finished",
                           "err": null,
                           "enqueued_at": "2023-10-01T00:00:00",
+                          "created_via": "API",
                           "metadata_hash": "abc123"
                         }
                       ],
@@ -4287,6 +4464,77 @@
           },
           "429": {
             "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations/{automation_id}/trigger": {
+      "post": {
+        "summary": "Trigger a single run of an automation.",
+        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset the automation is defined on.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation to run.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "PROCESSING",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "triggered": {
+                    "summary": "Automation run accepted",
+                    "description": "The automation queued its jobs, which will be picked up by a worker.\nThe `job` field holds the Universally Unique Identifier (UUID) of the job to follow,\nand `n_jobs` says how many jobs the run queued in total.\n",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "n_jobs": 2,
+                      "message": "Request has been accepted for processing."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4891,6 +5139,69 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
+    "/api/v3_0/sources/{id}": {
+      "get": {
+        "summary": "Get one data source.",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the data source.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 6,
+                  "name": "Seita",
+                  "type": "forecaster",
+                  "model": "TrainPredictPipeline",
+                  "version": "1",
+                  "description": "Seita's TrainPredictPipeline model v1",
+                  "account_id": 2,
+                  "user_id": null,
+                  "attributes": {
+                    "data_generator": {
+                      "config": {
+                        "model": "CustomLGBM"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
@@ -5620,7 +5931,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "forecast-frequency": {
@@ -6759,7 +7070,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             "example": "2026-01-14T20:00+01:00"
           },
           "unit": {
@@ -6825,7 +7136,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "flex-model": {
@@ -7212,7 +7523,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "duration": {

@@ -464,6 +464,25 @@ def test_add_toy_account_battery_uses_kw_sensors_and_kva_capacities(app, fresh_d
     assert solar.sensors[0].unit == "kW"
 
 
+def test_add_toy_account_can_set_client_version_on_building(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    result = app.test_cli_runner().invoke(
+        add_toy_account, ["--kind", "battery", "--client-version", "0.8.1"]
+    )
+
+    check_command_ran_without_error(result)
+
+    toy_account = fresh_db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one()
+    building = fresh_db.session.execute(
+        select(Asset).filter_by(name="toy-building", owner=toy_account)
+    ).scalar_one()
+
+    assert building.attributes["flexmeasures-client-version"] == "0.8.1"
+
+
 def test_add_toy_account_reporter_uses_kw_scale_units(app, fresh_db):
     from flexmeasures.cli.data_add import add_toy_account
 
