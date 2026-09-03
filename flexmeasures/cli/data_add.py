@@ -52,7 +52,11 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.services.automations import prepare_schedule_trigger_message
+from flexmeasures.data.schemas.scheduling import find_momentary_flex_config_fields
+from flexmeasures.data.services.automations import (
+    prepare_schedule_trigger_message,
+    resolve_schedule_generator,
+)
 from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
@@ -1674,6 +1678,29 @@ def add_forecast(  # noqa: C901
         raise
 
 
+def _check_schedule_automation_parameters(parameters: dict, asset) -> DataSource:
+    """Validate a schedule automation's trigger message, and return the data generator it will run with.
+
+    The message has to be a valid schedule trigger, and its flex config has to describe the site and its devices,
+    rather than one moment: the automation computes a fresh schedule on every run,
+    so a value tied to a fixed moment would be stale on the next one.
+    """
+    try:
+        message = prepare_schedule_trigger_message(parameters, asset.id)
+        AssetTriggerSchema().load(message)
+    except ValidationError as e:
+        click.secho(f"Invalid schedule parameters: {e.messages}", **MsgStyle.ERROR)
+        raise click.Abort()
+    momentary_fields = find_momentary_flex_config_fields(message)
+    if momentary_fields:
+        raise click.UsageError(
+            f"{flexmeasures_inflection.join_words_into_a_list(momentary_fields)} fixes a moment in time,"
+            " so it cannot configure a recurring schedule automation, which computes a fresh schedule on every run."
+            " Refer to a sensor instead of a fixed value, or leave the field out."
+        )
+    return resolve_schedule_generator(asset.id, parameters)
+
+
 @fm_add_data.command("automation")
 @with_appcontext
 @click.option(
@@ -1861,13 +1888,9 @@ def add_automation(
         db.session.flush()
         generator_id = generator.id
     else:  # scheduling
-        try:
-            AssetTriggerSchema().load(
-                prepare_schedule_trigger_message(parameters, asset.id)
-            )
-        except ValidationError as e:
-            click.secho(f"Invalid schedule parameters: {e.messages}", **MsgStyle.ERROR)
-            raise click.Abort()
+        # The scheduler and its configuration make up the automation's data generator,
+        # the same way a forecaster and its configuration do for a forecast automation.
+        generator_id = _check_schedule_automation_parameters(parameters, asset).id
         if "start" in parameters:
             click.secho(
                 "Warning: the schedule 'start' is fixed, so each run will compute the same period."

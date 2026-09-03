@@ -6,6 +6,7 @@ import pytest
 from flask import url_for
 
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.services.automations import resolve_schedule_generator
 from flexmeasures import Forecaster
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.data_sources import get_data_generator
@@ -105,12 +106,14 @@ def test_schedule_details_include_stored_flex_sensors(
         "site-power-capacity": "2 MVA",
         "consumption-price": {"sensor": price_sensor.id},
     }
+    parameters = {"duration": "PT1H"}
     automation = Automation(
         asset=asset,
         type="scheduling",
         name="Minimal schedule details",
         cronstr="0 6 * * *",
-        parameters={"duration": "PT1H"},
+        parameters=parameters,
+        generator_id=resolve_schedule_generator(asset.id, parameters).id,
     )
     fresh_db.session.add(automation)
     fresh_db.session.commit()

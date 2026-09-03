@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -12,13 +13,38 @@ import pandas as pd
 from flask import current_app
 
 from flexmeasures.data import db
+from flexmeasures.data.models.data_sources import DataGenerator, DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
+from flexmeasures.data.schemas.scheduling.config import (
+    SchedulerConfigSchema,
+    strip_momentary_flex_fields,
+)
 from flexmeasures.utils.coding_utils import deprecated, merge_or_append
 from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
 
 SchedulerOutputType = pd.Series | list[dict[str, Any]] | None
+
+
+def _json_safe(value: Any) -> Any:
+    """Return `value` with anything JSON cannot hold replaced by a stable, serializable stand-in.
+
+    A flex config usually reaches a scheduler serialized, so this changes nothing.
+    A caller which deserialized it first, as ``flexmeasures add schedule`` does, hands over sensors, assets and quantities instead.
+
+    A sensor or an asset is recorded by its id, which is what the serialized flex config names it by.
+    Recording how it prints would tie the configuration to its name, so renaming a sensor would describe a different configuration,
+    and two sensors sharing a name would describe the same one.
+    Anything else is recorded by how it prints, so that the configuration is still described rather than lost.
+    """
+
+    def encode(obj: Any) -> Any:
+        if isinstance(obj, (Sensor, Asset)):
+            return obj.id
+        return str(obj)
+
+    return json.loads(json.dumps(value, default=encode))
 
 
 def _shadow_inflexible_device_keys(
@@ -50,7 +76,7 @@ def _shadow_inflexible_device_keys(
             db_flex_context.pop(key, None)
 
 
-class Scheduler:
+class Scheduler(DataGenerator):
     """
     Superclass for all FlexMeasures Schedulers.
 
@@ -58,11 +84,12 @@ class Scheduler:
     TODO: extend to multiple flexible assets.
 
     The scheduler knows the power sensor of the flexible asset.
-    It also knows the basic timing parameter of the schedule (start, end, resolution), including the point in time when
-    knowledge can be assumed to be available (belief_time).
+    It also knows the basic timing parameter of the schedule (start, end, resolution),
+    including the point in time when knowledge can be assumed to be available (belief_time).
 
-    Furthermore, the scheduler needs to have knowledge about the asset's flexibility model (under what constraints
-    can the schedule be optimized?) and the system's flexibility context (which other sensors are relevant, e.g. prices).
+    Furthermore, the scheduler needs to have knowledge about the asset's flexibility model,
+    which says under what constraints the schedule may be optimized,
+    and about the system's flexibility context, which says which other sensors are relevant, e.g. prices.
     These two flexibility configurations are usually fed in from outside, so the scheduler should check them.
     The deserialize_flex_config function can be used for that.
 
@@ -70,6 +97,10 @@ class Scheduler:
 
     __version__ = None
     __author__ = None
+    __data_generator_base__ = "scheduler"
+
+    _config_schema = SchedulerConfigSchema()
+    _save_config = True
 
     sensor: Sensor | None = None
     asset: Asset | None = None
@@ -191,6 +222,10 @@ class Scheduler:
         self.resolution = resolution
         self.belief_time = belief_time
         self.round_to_decimals = round_to_decimals
+        # The data generator state, kept per instance rather than per class.
+        self._config = None
+        self._data_source = None
+        self._flex_config_collected = False
         if flex_model is None:
             flex_model = {}
         self.flex_model = flex_model
@@ -242,6 +277,68 @@ class Scheduler:
             )
         return source_info
 
+    def resolve_flex_config(self) -> dict:
+        """The serialized flex config this scheduler computes with, which is what its data source records.
+
+        By default, that is the flex config as it was passed in.
+        A scheduler which also reads flex config from the asset tree should override this,
+        so that its data source describes the configuration the scheduler actually used.
+
+        The config is kept serialized, as the trigger message and the asset tree spell it,
+        because a deserialized flex config holds sensors, quantities and time series, which do not survive a round trip.
+        """
+        if self.asset is not None:
+            asset_id = self.asset.id
+        elif self.sensor is not None:
+            asset_id = self.sensor.generic_asset.id
+        else:
+            asset_id = None
+        return {
+            "asset": asset_id,
+            # Take the snapshot through `_json_safe`, which yields plain JSON structures.
+            # Deep-copying instead would carry sensors and assets along, detached from the session,
+            # and the copy would be read long after the objects it copied had been expired by a commit.
+            "flex-model": strip_momentary_flex_fields(_json_safe(self.flex_model)),
+            "flex-context": strip_momentary_flex_fields(_json_safe(self.flex_context)),
+        }
+
+    def record_config(self, config: dict) -> None:
+        """Record `config` on this scheduler's data source, rather than the config it resolves itself.
+
+        A device job of a sequential schedule uses the configuration of the request it belongs to,
+        so that one request records one schedule per sensor, rather than one per device's own slice of the flex-model.
+        """
+        self._config = config
+        self._data_source = None
+
+    @property
+    def data_source(self) -> DataSource:
+        """The data source describing this scheduler, its version and its configuration.
+
+        Unlike reporters and forecasters, a scheduler names its source after the scheduler's author,
+        and versions it by the scheduler's ``__version__``, so this does not defer to `DataGenerator.data_source`.
+        What it does share is that the configuration is part of the source's identity:
+        two schedules computed under different flex configs are recorded by different sources.
+        """
+        from flexmeasures.data.services.data_sources import get_or_create_source
+
+        if self._data_source is None:
+            if self._config is None:
+                self._config = self.resolve_flex_config()
+            source_info = self.get_data_source_info()
+            self._data_source = get_or_create_source(
+                source=source_info["name"],
+                source_type=self.__data_generator_base__,
+                model=source_info["model"],
+                version=source_info["version"],
+                attributes={
+                    "data_generator": {
+                        "config": _json_safe(self._config_schema.dump(self._config))
+                    }
+                },
+            )
+        return self._data_source
+
     def persist_flex_model(self):
         """
         If useful, (parts of) the flex model can be persisted here,
@@ -257,11 +354,16 @@ class Scheduler:
             raise ValueError(f"No sensor found with ID {sensor_id}.")
         return sensor
 
-    def collect_flex_config(self):
+    def collect_flex_config(self):  # noqa: C901
         """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
         Note that self.flex_context overrides db_flex_context (from the asset and its ancestors).
+        Merging twice would be wrong rather than merely wasteful, so this returns early when it already ran.
         """
+        # Tolerate a subclass which does not call this class's __init__, as plugins may not.
+        if getattr(self, "_flex_config_collected", False):
+            return
+        self._flex_config_collected = True
         if self.asset is not None:
             asset = self.asset
         else:
@@ -334,6 +436,8 @@ class Scheduler:
         Check all configurations we have, throwing either ValidationErrors or ValueErrors.
         Other code can decide if/how to handle those.
         """
+        # Record the configuration while it is still serialized, as the data source stores it.
+        self._config = self.resolve_flex_config()
         self.deserialize_timing_config()
         self.deserialize_flex_config()
         self.config_deserialized = True
