@@ -652,3 +652,31 @@ def test_group_field_hints_on_properties_page(
     assert lone_page.status_code == 200
     assert b"Consider setting" not in lone_page.data
     assert b"Child assets can" not in lone_page.data
+
+
+def test_asset_status_page_tabs(db, client, setup_assets, as_prosumer_user1):
+    """The status page splits sensor data from jobs, and opens the tab the user last looked at."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b"Latest jobs of" in status_page.data
+    assert b"Data connectivity for sensors of" in status_page.data
+    # Without a recorded preference, the jobs tab opens, so only the jobs table loads.
+    assert b'<a class="nav-link active" id="jobs-tab"' in status_page.data
+    assert b'<a class="nav-link " id="sensors-tab"' in status_page.data
+    assert b'initTable("jobs")' in status_page.data
+
+    with client.session_transaction() as session:
+        session["status_page_tab"] = "sensors"
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b'<a class="nav-link active" id="sensors-tab"' in status_page.data
+    assert b'<a class="nav-link " id="jobs-tab"' in status_page.data
+    assert b'initTable("sensors")' in status_page.data
