@@ -1911,6 +1911,77 @@ def test_kpi_window_honours_the_offset_it_is_given(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_counts_an_event_once_when_two_sources_report_it(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """Two sources reporting one event are two claims about it, not two contributions to it.
+
+    Summing them produced a number no source ever reported, and that no point on the chart showed.
+    The KPI now reduces one value per event, preferring the latest source version and the most recent belief in it.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi with two sources on one event",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi with two sources sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    sources = list(setup_sources.values())
+    reported, corrected = sources[0], sources[-1]
+    assert reported.id != corrected.id, "this test needs two distinct sources"
+
+    window_start = datetime(2030, 3, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # One event, claimed by two sources, the second more recently than the first.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=2),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=reported.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=1),
+                event_value=80.0,
+                sensor_id=sensor.id,
+                source_id=corrected.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=1)).isoformat(),
+    )
+    assert total == pytest.approx(
+        80.0
+    ), "the more recent belief about the event, rather than 180.0, which neither source reported"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_kpi_reports_what_the_chart_draws(
     db, client, setup_api_test_data, setup_sources, requesting_user
 ):
