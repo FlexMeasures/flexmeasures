@@ -4790,6 +4790,67 @@
         ]
       }
     },
+    "/api/v3_0/assets/status_page_tab": {
+      "post": {
+        "summary": "Remember which tab of the asset status page the current user last opened.",
+        "description": "The status page shows a sensor data tab and a jobs tab, of which only the opened one loads its data.\nThis endpoint records the user's choice in their session, so their next visit to a status page opens the same tab.\nWithout a recorded choice, the jobs tab opens.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusPageTabJSONSchema"
+              },
+              "examples": {
+                "status_page_tab": {
+                  "summary": "Opening the sensor data tab from now on",
+                  "value": {
+                    "status_page_tab": "sensors"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "message": {
+                    "summary": "Message",
+                    "value": {
+                      "message": "Preferred status page tab updated successfully."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/types": {
       "get": {
         "summary": "Get list of available asset types",
@@ -6263,6 +6324,23 @@
         },
         "required": [
           "default_asset_view"
+        ],
+        "additionalProperties": false
+      },
+      "StatusPageTabJSONSchema": {
+        "type": "object",
+        "properties": {
+          "status_page_tab": {
+            "type": "string",
+            "enum": [
+              "jobs",
+              "sensors"
+            ],
+            "description": "The tab to open on the asset's status page."
+          }
+        },
+        "required": [
+          "status_page_tab"
         ],
         "additionalProperties": false
       },
