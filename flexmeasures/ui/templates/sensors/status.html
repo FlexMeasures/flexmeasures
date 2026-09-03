@@ -38,7 +38,8 @@
             </h4>
 
             <div class="table-responsive">
-              <table id="jobsTable" class="table table-striped paginate nav-on-click w-100"></table>
+              <!-- No "paginate" class: this page builds both tables itself, when their tab is first shown. -->
+              <table id="jobsTable" class="table table-striped nav-on-click w-100"></table>
             </div>
 
             <div class="alert alert-warning d-none mt-2" id="redis_connection_err"></div>
@@ -60,7 +61,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
             </h4>
 
             <div class="table-responsive">
-              <table id="sensorStatusTable" class="table table-striped paginate w-100"></table>
+              <table id="sensorStatusTable" class="table table-striped w-100"></table>
             </div>
           </div>
 
