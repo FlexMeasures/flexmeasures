@@ -1023,6 +1023,15 @@
               "type": "integer"
             },
             "required": true
+          },
+          {
+            "in": "query",
+            "name": "asset_id",
+            "required": false,
+            "description": "ID of the asset whose status page the sensor is reported on.\nThis asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.\nIt only affects the reported relation between the sensor and the asset.\nDefaults to the asset that the sensor belongs to.\n",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {

@@ -64,7 +64,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
 
     return {
       sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
-        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
+        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Relation: ${sensor.relation}" style="margin-left: 10px;"></span>`,
       source_type: sensor.source_type || "None",
       staleness_since: `
         <span title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
@@ -143,7 +143,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         let completed = 0;
         sensors.forEach(sensor => {
           $.ajax({
-            url: `/api/v3_0/sensors/${sensor.id}/status`,
+            url: `/api/v3_0/sensors/${sensor.id}/status?asset_id=${assetId}`,
             method: "GET",
             success: function (res) {
               res.sensors_data.forEach(sensorData => {
@@ -184,7 +184,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       console.log("Refreshing sensor:", sensorId);
 
       $.ajax({
-        url: `/api/v3_0/sensors/${sensorId}/status`,
+        url: `/api/v3_0/sensors/${sensorId}/status?asset_id=${assetId}`,
         method: "GET",
         success: function (res) {
           if (!res.sensors_data || !res.sensors_data.length) return;
