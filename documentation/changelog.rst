@@ -17,6 +17,7 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2466 <https://www.github.com/FlexMeasures/flexmeasures/pull/2466>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
