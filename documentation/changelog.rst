@@ -32,7 +32,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
-* Upgrading a database old enough to still carry the pre-``GenericAsset``/``Sensor`` tables no longer crashes while checking whether those tables hold data, which it did as soon as one of them held more than a single row [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
+* Upgrading a database old enough to still carry the pre-``GenericAsset``/``Sensor`` tables now works, where the v0.18.0 migration that removes them crashed twice over: once while checking whether those tables hold data, as soon as one of them held more than a single row, and once while dropping them, because it dropped each table before the ones referencing it [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
 * KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
