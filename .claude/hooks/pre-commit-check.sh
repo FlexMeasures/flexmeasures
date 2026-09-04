@@ -10,12 +10,10 @@
 #    is not honoured by all Claude Code versions, so the filter is repeated
 #    here, as worktree-guard.sh does. Without it, an unrelated command such as
 #    `gh issue create` pays for a full `pre-commit run --all-files`.
-# 2. Which working tree the commit targets. The primary checkout is shared by
-#    several agents, so running the hooks there when the commit is really for a
-#    worktree checks the wrong tree, and any hook that rewrites a file (such as
-#    the OpenAPI spec) dirties another agent's work. The command text is the
-#    most reliable signal, since `cd <worktree> && git commit` leaves no trace
-#    in the payload's `cwd` once the shell's directory has been reset.
+# 2. Which working tree the commit targets. The primary checkout is shared by several agents.
+#    Running the hooks there when the commit is really for a worktree checks the wrong tree,
+#    and any hook that rewrites a file (such as the OpenAPI spec) dirties another agent's work.
+#    The command text is the most reliable signal, since `cd <worktree> && git commit` leaves no trace in the payload's `cwd` once the shell's directory has been reset.
 #
 # Fails open (exit 0) on any parsing problem — never block a commit because the
 # hook could not read its own payload.
