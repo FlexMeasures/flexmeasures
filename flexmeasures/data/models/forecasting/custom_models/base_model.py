@@ -141,7 +141,9 @@ class BaseModel(ABC):
         # Predictions come back in horizon order, so they append into one series just as they did when predicted in a loop.
         y_preds_per_horizon = self._map_over_horizons(predict_one)
         if not y_preds_per_horizon:
-            return TimeSeries
+            raise ValueError(
+                f"Cannot forecast without a horizon to forecast for: max_forecast_horizon is {self.max_forecast_horizon}, so no sub-model was set up."
+            )
         y_preds = y_preds_per_horizon[0]
         for y_pred in y_preds_per_horizon[1:]:
             y_preds = y_preds.append(other=y_pred)
