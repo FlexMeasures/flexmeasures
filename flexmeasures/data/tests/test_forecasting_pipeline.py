@@ -3,12 +3,15 @@ from __future__ import annotations
 import pytest
 
 import logging
+import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 
+from darts import TimeSeries
 from marshmallow import ValidationError
 from sqlalchemy import inspect as sa_inspect, select
 
+from flexmeasures.data.models.forecasting.custom_models.base_model import default_n_jobs
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
@@ -2265,3 +2268,75 @@ def test_model_params_can_reach_darts_categorical_covariates():
     )
     assert model.models_params["categorical_future_covariates"] == ["day_type"]
     assert model.models_params["min_data_per_group"] == 20
+
+
+def _synthetic_series_and_covariate(n_horizons: int):
+    """Build a seasonal target series, and a future covariate that outlasts it.
+
+    Future covariates have to reach past the target series far enough for the longest horizon,
+    otherwise darts refuses to predict.
+    """
+    index = pd.date_range("2025-01-01", periods=600, freq="15min")
+    steps = np.arange(len(index))
+    series = TimeSeries.from_times_and_values(
+        index, 10 + 3 * np.sin(steps * 2 * np.pi / 96) + np.sin(steps * 2 * np.pi / 17)
+    )
+
+    covariate_index = pd.date_range(
+        "2025-01-01", periods=len(index) + 4 * n_horizons, freq="15min"
+    )
+    covariate_steps = np.arange(len(covariate_index))
+    covariate = TimeSeries.from_times_and_values(
+        covariate_index, 5 + 1.5 * np.sin(covariate_steps * 2 * np.pi / 96)
+    )
+    return series, covariate
+
+
+def test_horizon_sub_models_are_worked_on_concurrently_by_default():
+    """The horizons do not depend on each other, so they are fitted and predicted concurrently."""
+    model = CustomLGBM(max_forecast_horizon=4)
+    assert model.n_jobs == default_n_jobs()
+    # Each sub-model stays single-threaded, so the concurrency does not oversubscribe the cores.
+    assert model.models_params["num_threads"] == 1
+    # A caller can still opt out of the concurrency, or override the thread count.
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=1).n_jobs == 1
+    assert (
+        CustomLGBM(
+            max_forecast_horizon=4, models_params={"num_threads": 4}
+        ).models_params["num_threads"]
+        == 4
+    )
+    # A nonsensical worker count still leaves one worker to do the job.
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=0).n_jobs == 1
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=-5).n_jobs == 1
+
+
+def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
+    """Working on the horizons concurrently must not move a single forecast value."""
+    n_horizons = 12
+    series, covariate = _synthetic_series_and_covariate(n_horizons)
+
+    def fitted(n_jobs: int):
+        model = CustomLGBM(
+            max_forecast_horizon=n_horizons,
+            probabilistic=False,
+            auto_regressive=False,
+            use_past_covariates=True,
+            use_future_covariates=True,
+            training_sample_count=len(series),
+            n_jobs=n_jobs,
+        )
+        model.fit(series=series, past_covariates=covariate, future_covariates=covariate)
+        return model
+
+    predictions = [
+        fitted(n_jobs).predict(
+            series=series, past_covariates=covariate, future_covariates=covariate
+        )
+        for n_jobs in (1, 8)
+    ]
+
+    # One prediction per horizon, in horizon order, holding the very same values.
+    assert len(predictions[0]) == n_horizons
+    assert list(predictions[0].time_index) == list(predictions[1].time_index)
+    assert np.array_equal(predictions[0].values(), predictions[1].values())
