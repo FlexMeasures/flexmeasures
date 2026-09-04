@@ -55,6 +55,7 @@ from flexmeasures.data.services.automations import (
     get_automation_job_stats,
     get_automation_run_stats,
     resolve_automation_sensors,
+    run_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import (
@@ -1595,6 +1596,114 @@ class AssetAPI(FlaskView):
         automation_data["run_stats"] = get_automation_run_stats(automation)
         automation_data["redis_connection_err"] = redis_connection_err
         return automation_data, 200
+
+    @route("/<id>/automations/<int:automation_id>/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Running an automation writes data under the asset, which is what create-children means here.
+    # The sensors it writes to were checked against the same permission when the automation was created,
+    # and its output scope is checked again on each run (see validate_forecast_output_scope).
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a single run of an automation.
+
+        ---
+        post:
+          summary: Trigger a single run of an automation.
+          description: |
+            Run one automation now, once, in addition to its recurring runs.
+            This is useful to try out a new automation, to re-run one after fixing what made it fail,
+            or to refresh its results after late input data arrived.
+
+            The automation runs with the parameters it was created with,
+            and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+
+            An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
+            so the next recurring run still happens as scheduled, and a missed run is still caught up.
+            Inactive automations can be triggered, too, which is how you can try one out before activating it.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset the automation is defined on.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation to run.
+              schema:
+                type: integer
+          responses:
+            202:
+              description: PROCESSING
+              content:
+                application/json:
+                  examples:
+                    triggered:
+                      summary: Automation run accepted
+                      description: |
+                        The automation queued its jobs, which will be picked up by a worker.
+                        The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
+                        and `n_jobs` says how many jobs the run queued in total.
+                      value:
+                        status: ACCEPTED
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        n_jobs: 2
+                        message: "Request has been accepted for processing."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        try:
+            returns = run_automation(automation)
+        except (NotImplementedError, ValueError, ValidationError) as e:
+            db.session.rollback()
+            return unprocessable_entity(
+                e.messages if isinstance(e, ValidationError) else str(e)
+            )
+        job_id = (returns or {}).get("job_id")
+        if job_id is None:
+            db.session.rollback()
+            current_app.logger.error(
+                "Automation %s ran on demand, but reported no job: %r",
+                automation.id,
+                returns,
+            )
+            return unprocessable_entity(
+                f"Automation {automation.id} did not queue any job."
+            )
+        AssetAuditLog.add_record(
+            asset,
+            f"Triggered a run of automation '{automation.name}' ({automation.id}).",
+        )
+        db.session.commit()
+        response, status_code = request_accepted_for_processing(job_id)
+        response["n_jobs"] = returns.get("n_jobs")
+        return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(

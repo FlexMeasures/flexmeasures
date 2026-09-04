@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-34 | September 2, 2026
+"""""""""""""""""""""""""""
+- Added ``POST /api/v3_0/assets/<id>/automations/<automation_id>/trigger``, to run one automation now, once, on top of its recurring runs. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. An on-demand run does not affect the automation's recurrence, and inactive automations can be triggered, too. Triggering requires the same permission as writing data under the asset, and falls under the stricter rate limit that the other triggering endpoints share.
+
 v3.0-33 | September 1, 2026
 """""""""""""""""""""""""""
 - Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Each automation shows the IANA ``timezone`` in which its cron expression is interpreted, and a ``cursor``: the offset-aware UTC time of the most recent run it committed to. The cursor advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.

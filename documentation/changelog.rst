@@ -18,7 +18,7 @@ New features
 -------------
 
 * Forecast automations now keep a durable record of every scheduled run, so a run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and how its jobs ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_]
-
+* A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation_id>/trigger``) and the asset's *Automations* page (a *Run now* button), which is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
@@ -32,9 +32,11 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
 * KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
+* Avoid crashing on startup when the database is stamped with an Alembic revision unknown to this FlexMeasures checkout [see `PR #2465 <https://www.github.com/FlexMeasures/flexmeasures/pull/2465>`_]
 
 
 

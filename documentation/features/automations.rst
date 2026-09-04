@@ -78,6 +78,24 @@ This is what an operator needs to tell a run which failed before queueing anythi
 Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
 Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
 
+Running one automation on demand
+--------------------------------
+
+Besides its recurring runs, a single automation can be run now, once.
+This is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived.
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation 4
+
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation_id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation_id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+
+The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
+Inactive automations can be run this way, too, which is how you can try one out before activating it.
+
+Unlike a recurring run, an on-demand run is not protected against being started twice: asking for two runs in a row queues two runs.
+
 Viewing automations
 -------------------
 

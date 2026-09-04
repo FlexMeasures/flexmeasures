@@ -26,16 +26,21 @@ from rq.registry import (
     ScheduledJobRegistry,
     StartedJobRegistry,
 )
+from marshmallow import ValidationError
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
 
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
+from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.services.automations import (
     dispatch_automation_run,
     floor_to_minute,
     get_dispatchable_automation_runs,
+    run_automation,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -104,6 +109,59 @@ def run_automations():
     if n_failed:
         click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
         raise click.exceptions.Exit(1)
+
+
+@fm_jobs.command("run-automation")
+@with_appcontext
+@click.option(
+    "--automation",
+    "automation",
+    type=AutomationIdField(),
+    required=True,
+    help="ID of the automation to run.",
+)
+def run_one_automation(automation: Automation):
+    """
+    Queue the jobs for a single run of one automation, now.
+
+    \b
+        flexmeasures jobs run-automation --automation 4
+
+    Use this to try out a new automation, to re-run one after fixing what made it fail,
+    or to refresh its results after late input data arrived.
+    The automation runs with the parameters it was created with,
+    and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+
+    This does not affect the automation's recurrence: its cursor stays where it was,
+    so the next recurring run still happens as scheduled (see `flexmeasures jobs run-automations`).
+    Inactive automations can be run this way, too, which is how you can try one out before activating it.
+    """
+    try:
+        returns = run_automation(automation)
+    except (NotImplementedError, ValueError, ValidationError) as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if not returns or returns.get("job_id") is None:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') did not queue any job.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    n_jobs = returns.get("n_jobs")
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Triggered a run of automation '{automation.name}' ({automation.id}) via CLI.",
+    )
+    db.session.commit()
+    click.secho(
+        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_jobs.command("stats")

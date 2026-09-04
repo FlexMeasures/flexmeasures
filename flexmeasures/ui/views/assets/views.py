@@ -256,6 +256,7 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_automations.html",
             asset=asset,
+            user_can_create_children=user_can_create_children(asset),
             current_page="Automations",
         )
 

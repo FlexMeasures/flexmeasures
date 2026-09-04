@@ -45,6 +45,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
           </div>
         </div>
 
+        <div class="alert alert-success d-none mt-2" id="automations_msg"></div>
         <div class="alert alert-warning d-none mt-2" id="automations_err"></div>
       </div>
     </div>
@@ -53,6 +54,8 @@ An active automation follows its cron recurrence in the timezone shown below. If
 
 <script>
   const assetId = {{ asset.id }};
+  // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
+  const userCanRunAutomations = {{ user_can_create_children | tojson }};
 
   // Escape user-controlled strings before interpolating them into HTML
   function esc(value) {
@@ -85,6 +88,19 @@ An active automation follows its cron recurrence in the timezone shown below. If
     $("#automations_err").removeClass("d-none").text(message);
   }
 
+  function showAutomationsMessage(message) {
+    $("#automations_msg").removeClass("d-none").text(message);
+  }
+
+  // Run this automation once, now, on top of its recurring runs.
+  function runButton(automation) {
+    if (!userCanRunAutomations) {
+      return "";
+    }
+    return `<button type="button" class="btn btn-default btn-primary run-automation" data-automation-id="${automation.id}"
+      title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button>`;
+  }
+
   function AutomationRow(automation) {
     const createdAt = automation.created_at;
     return {
@@ -105,7 +121,8 @@ An active automation follows its cron recurrence in the timezone shown below. If
       ),
       timezone: esc(automation.timezone),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
-      details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
+      details: `${runButton(automation)}
+        <a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
@@ -231,6 +248,34 @@ An active automation follows its cron recurrence in the timezone shown below. If
           },
         });
       },
+    });
+
+    $(document).on("click", ".run-automation", function () {
+      const button = $(this);
+      const automationId = button.data("automation-id");
+      button.prop("disabled", true).text("Queueing ...");
+      $.ajax({
+        url: `/api/v3_0/assets/${assetId}/automations/${automationId}/trigger`,
+        method: "POST",
+        success: function (res) {
+          $("#automations_err").addClass("d-none");
+          const nJobs = res.n_jobs;
+          const queued = nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`;
+          showAutomationsMessage(
+            `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`
+          );
+          loadAutomationDetails(automationId);  // refresh this automation's job stats.
+        },
+        error: function (xhr) {
+          $("#automations_msg").addClass("d-none");
+          showAutomationsError(
+            `Could not run automation ${automationId}: ${automationAjaxErrorMessage(xhr)}.`
+          );
+        },
+        complete: function () {
+          button.prop("disabled", false).text("Run now");
+        },
+      });
     });
 
     $.fn.dataTable.ext.errMode = 'none';
