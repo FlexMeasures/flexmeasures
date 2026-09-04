@@ -8,6 +8,7 @@ since v1.1.0 | September XX, 2026
 =================================
 
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
+* ``flexmeasures jobs run-job`` now performs the job exactly once (it used to perform it a second time, outside the job timeout, repeating any side effects), on the queue the job belongs to, so that the queue's own exception handler records why a job failed and the job's registries are updated on that queue.
 
 since v1.0.0 | August 11, 2026
 =================================
