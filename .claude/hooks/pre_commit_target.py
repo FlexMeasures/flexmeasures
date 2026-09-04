@@ -122,8 +122,9 @@ def _resolve(base: str, path: str) -> str:
     """`path` as seen from `base`, the way the shell would see it.
 
     A `~` is expanded, since the shell would have expanded it before git ever saw it.
-    A `$VAR` is left alone, and will simply not be a checkout: this process cannot see the variables
-    of a shell that ran in an earlier call, and guessing is worse than skipping the check.
+    A `$VAR` is left alone, and will simply not be a checkout:
+    this process cannot see the variables of a shell that ran in an earlier call,
+    and guessing is worse than skipping the check.
     """
     return os.path.normpath(os.path.join(base, os.path.expanduser(path)))
 
