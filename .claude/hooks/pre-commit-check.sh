@@ -56,11 +56,17 @@ project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 # names the git directory rather than the working tree, and for a linked
 # worktree it points inside the primary checkout's `.git`, which is not a tree
 # to run hooks in.
+# A path may be quoted, and a quoted path may contain spaces, so the value of a
+# flag is either a quoted run or an unquoted word.
+value_after() {
+  echo "$command" | sed -nE "s/.*$1(\"[^\"]*\"|'[^']*'|[^[:space:];&|]+).*/\1/p" | head -n1
+}
+
 target=""
 if echo "$command" | grep -qE '[[:space:]]-C[[:space:]]'; then
-  target="$(echo "$command" | grep -oE '[[:space:]]-C[[:space:]]+[^[:space:];&|]+' | head -n1 | sed -E 's/^[[:space:]]*-C[[:space:]]+//')"
+  target="$(value_after '[[:space:]]-C[[:space:]]+')"
 elif echo "$command" | grep -qE '\-\-work-tree[=[:space:]]'; then
-  target="$(echo "$command" | grep -oE '\-\-work-tree[=[:space:]][^[:space:];&|]+' | head -n1 | sed -E 's/^--work-tree[=[:space:]]//')"
+  target="$(value_after '\-\-work-tree[=[:space:]]+')"
 elif echo "$command" | grep -qE '(^|[;&|])[[:space:]]*cd[[:space:]]+'; then
   target="$(echo "$command" | grep -oE '(^|[;&|])[[:space:]]*cd[[:space:]]+[^;&|]+' | tail -n1 | sed -E 's/^[;&|]?[[:space:]]*cd[[:space:]]+//')"
 fi
