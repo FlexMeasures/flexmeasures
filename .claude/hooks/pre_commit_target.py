@@ -2,15 +2,17 @@
 """Work out which working tree the `git commit` in a Bash command targets.
 
 Reads a Claude Code PreToolUse payload on stdin.
-Prints the root of the tree to run the hooks in, and prints nothing at all when the command is not a
-commit, or when it names a tree that cannot be resolved from here.
+Prints the root of the tree to run the hooks in,
+and prints nothing at all when the command is not a commit,
+or when it names a tree that cannot be resolved from here.
 
 The command is tokenised with `shlex`, so quoting and escaping are read the way a shell reads them.
-Earlier versions of this hook matched the command with regular expressions, and each round of review
-turned up another string that fooled them: a quoted body holding `&& git commit`, an escaped quote
-inside such a body, a path with a space in it, a second `-C` later in the line.
-Tokenising removes that whole class of mistake, because quoted text arrives as one token and cannot
-look like a command.
+Earlier versions of this hook matched the command with regular expressions,
+and each round of review turned up another string that fooled them:
+a quoted body holding `&& git commit`, an escaped quote inside such a body,
+a path with a space in it, a second `-C` later in the line.
+Tokenising removes that whole class of mistake,
+because quoted text arrives as one token and cannot look like a command.
 """
 
 from __future__ import annotations
@@ -75,10 +77,11 @@ def _verb_and_options(tokens: list[str]) -> tuple[str | None, dict[str, str]]:
 def target_directory(command: str, cwd: str) -> str | None:
     """The directory whose hooks should run for this command, or None to run none.
 
-    None means either that the command does not commit, or that it points at a tree this process
-    cannot resolve: a path built from a shell variable set in an earlier call, or one that is not a
-    checkout. Running the hooks somewhere else would check the wrong files, and any hook that
-    rewrites one would rewrite it there, so nothing is the right answer.
+    None means either that the command does not commit,
+    or that it points at a tree this process cannot resolve:
+    a path built from a shell variable set in an earlier call, or one that is not a checkout.
+    Running the hooks somewhere else would check the wrong files,
+    and any hook that rewrites one would rewrite it there, so nothing is the right answer.
     """
     try:
         tokens = shlex.split(command)
@@ -95,8 +98,8 @@ def target_directory(command: str, cwd: str) -> str | None:
         verb, options = _verb_and_options(segment)
         if verb == "commit":
             committing = True
-            # `--git-dir` is deliberately ignored: it names the git directory rather than the
-            # working tree, and for a linked worktree it points inside the primary checkout.
+            # `--git-dir` is deliberately ignored: it names the git directory rather than the working tree,
+            # and for a linked worktree it points inside the primary checkout.
             named = options.get("-C") or options.get("--work-tree")
             break
     if not committing:
