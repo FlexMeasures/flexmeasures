@@ -534,7 +534,7 @@ def test_get_status_data_recorded_ahead_of_its_knowledge_time(
     """
     sensor = add_market_prices_fresh_db["epex_da"]
 
-    # Record tomorrow's prices at 09:00, three hours ahead of their knowledge time of 12:00
+    # Record tomorrow's prices at 09:00, three hours ahead of their knowledge time of 12:00.
     event_starts = initialize_index(
         start=pd.Timestamp("2016-01-05").tz_localize("Europe/Amsterdam"),
         end=pd.Timestamp("2016-01-06").tz_localize("Europe/Amsterdam"),
