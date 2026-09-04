@@ -747,9 +747,9 @@ def serialize_sensor_status_data(
     """
     Serialize the status of a sensor, in the context of an asset.
 
-    :param sensor: Sensor to get the status of
+    :param sensor: Sensor to get the status of.
     :param asset: Asset whose status page the sensor is reported on, which is not necessarily the asset that the sensor belongs to. Defaults to the asset that the sensor belongs to.
-    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor
+    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor.
     """
     if asset is None:
         asset = sensor.generic_asset
