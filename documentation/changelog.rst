@@ -39,6 +39,7 @@ Bugfixes
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * Avoid crashing on startup when the database is stamped with an Alembic revision unknown to this FlexMeasures checkout [see `PR #2465 <https://www.github.com/FlexMeasures/flexmeasures/pull/2465>`_]
 * The "module not installed" error for an unresolved ``FLEXMEASURES_PLUGINS`` entry now hints at the expected comma-separated format, which helps people who accidentally use an incorrect format like a JSON-array [see `PR #2473 <https://www.github.com/FlexMeasures/flexmeasures/pull/2473>`_]
+* ``flexmeasures jobs run-job`` ran each job twice, and always as if it were a scheduling job, which lost the queue-specific reporting of why a job failed [see `PR #2480 <https://www.github.com/FlexMeasures/flexmeasures/pull/2480>`_]
 
 
 
