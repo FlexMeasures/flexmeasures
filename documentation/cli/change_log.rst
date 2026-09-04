@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v1.1.0 | September XX, 2026
+=================================
+
+* Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
+
 since v1.0.0 | August 11, 2026
 =================================
 

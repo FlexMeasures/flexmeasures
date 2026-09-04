@@ -4542,6 +4542,96 @@
         ]
       }
     },
+    "/api/v3_0/assets/{id}/reports/trigger": {
+      "post": {
+        "summary": "Trigger a one-off reporting job for this asset.",
+        "description": "Queue a one-off report for a worker processing the `reporting` queue.\nThe caller must be able to read every input/configuration sensor and\nrecord data on every output sensor. Each output must belong to the\nasset in the URL or one of its descendants.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "$ref": "#/components/parameters/AssetIdPath"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportTriggerSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "ACCEPTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "message",
+                    "job",
+                    "job-url"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACCEPTED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "job": {
+                      "type": "string",
+                      "description": "UUID of the queued reporting job."
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ACCEPTED",
+                  "message": "Request has been accepted for processing.",
+                  "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                  "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for any number of devices",
@@ -6293,6 +6383,27 @@
           "content",
           "end",
           "start"
+        ],
+        "additionalProperties": false
+      },
+      "ReportTriggerSchema": {
+        "type": "object",
+        "properties": {
+          "reporter": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "parameters",
+          "reporter"
         ],
         "additionalProperties": false
       },

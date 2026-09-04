@@ -346,7 +346,7 @@ Default: ``timedelta(days=1)``
 FLEXMEASURES_DEFAULT_JOB_TIMEOUT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default timeout for jobs (e.g. forecasting, scheduling and ingestion), expressed as a fixed ISO 8601 duration.
+Default timeout for jobs (e.g. forecasting, scheduling, ingestion and reporting), expressed as a fixed ISO 8601 duration.
 Jobs that exceed this timeout are moved to RQ's failed queue.
 
 Default: ``timedelta(seconds=180)`` (``"PT180S"``)
@@ -356,9 +356,9 @@ FLEXMEASURES_JOB_TIMEOUT
 
 Timeouts per queue, expressed as fixed ISO 8601 durations.
 Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
-Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
+Supported queue names are ``forecasting``, ``scheduling``, ``ingestion`` and ``reporting``.
 
-Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
+Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S", "reporting": "PT10M"}``
 
 Default: ``{}``
 
@@ -925,9 +925,8 @@ Default: ``"500 per minute"``
 FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may trigger a schedule or a forecast. This is the expensive work, so this limit is stricter
-than the default one. The trigger endpoints share this budget, so triggering a forecast and triggering a schedule
-draw on the same one.
+How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
+than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
 
 Default: ``"10 per 5 minutes"``
 
