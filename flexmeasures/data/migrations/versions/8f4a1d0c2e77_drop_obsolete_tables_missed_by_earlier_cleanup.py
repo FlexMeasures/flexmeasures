@@ -1,4 +1,4 @@
-"""Drop obsolete tables missed by the earlier cleanup
+"""Drop obsolete tables missed by the earlier cleanup.
 
 Revision ID: 8f4a1d0c2e77
 Revises: 84f268f5153c
@@ -39,19 +39,24 @@ def upgrade():
         "market_type",
     ]
 
-    #  check for existing data
+    # Check for existing data.
+    # The LIMIT is what keeps this a constant-time emptiness check: without it, a table holding more than one row makes scalar_one_or_none raise MultipleResultsFound,
+    # which is exactly the case this check exists to detect.
     tables_with_data = []
     inspect = sa.inspect(db.engine)
     for table in tables:
         try:
             if inspect.has_table(table):
                 result = db.session.execute(
-                    sa.text(f"SELECT 1 FROM {table};")
+                    sa.text(f"SELECT 1 FROM {table} LIMIT 1;")
                 ).scalar_one_or_none()
                 if result:
                     tables_with_data.append(table)
-        except ProgrammingError as exception:
-            print(exception)
+        except ProgrammingError:
+            # Leaving the failed transaction unrolled back would break every later query in this migration,
+            # and dropping a table whose contents we failed to check is not something to do quietly.
+            db.session.rollback()
+            raise
     db.session.close()  # https://stackoverflow.com/a/26346280/13775459
 
     if tables_with_data:
@@ -60,7 +65,7 @@ def upgrade():
             abort=True,
         )
 
-    # drop tables
+    # Drop the tables that are still around.
     for table in tables:
         if inspect.has_table(table):
             op.drop_table(table)
