@@ -61,7 +61,7 @@ def upgrade():
 
     if tables_with_data:
         click.confirm(
-            f"The following tables still have data and will be dropped by this upgrade: {tables_with_data}. Use `flexmeasures db-ops dump` to create a backup. Are you sure you want to upgrade the database?: ",
+            f"The following tables still have data and will be dropped by this upgrade: {', '.join(tables_with_data)}. Use `flexmeasures db-ops dump` to create a backup. Are you sure you want to upgrade the database?",
             abort=True,
         )
 
