@@ -39,20 +39,28 @@ command="$(echo "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null ||
 # is that an oddly wrapped commit (`time git commit ...`) goes unchecked, which
 # is the safe direction for a hook that only checks.
 commit_re='(^|[;&|])[[:space:]]*git[[:space:]]+(-[^[:space:]]*([[:space:]]+[^-[:space:];&|][^[:space:]]*)?[[:space:]]+)*commit([[:space:]]|$)'
-echo "$command" | grep -qE "$commit_re" || exit 0
+# Quoted text is not a command: an issue or PR body can quote a whole command
+# line, separators and all. Blank quoted spans out before deciding, but keep the
+# original command for the path extraction below, where a quoted path is real.
+# A heredoc body is not quoted this way, so one containing a commit line still
+# costs a run; the failure mode is a slow hook, not a wrong one.
+unquoted="$(echo "$command" | sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g")"
+echo "$unquoted" | grep -qE "$commit_re" || exit 0
 
 project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
 # Which working tree does this commit target? In priority order: an explicit
-# `-C <path>` / `--git-dir=<path>` on the git invocation, else a `cd` earlier in
-# the same command, else the Bash tool's own working directory from the payload,
-# else the project dir. Same derivation as worktree-guard.sh, which guards the
-# same shared checkout.
+# `-C <path>` / `--work-tree=<path>` on the git invocation, else a `cd` earlier
+# in the same command, else the Bash tool's own working directory from the
+# payload, else the project dir. `--git-dir` is deliberately not consulted: it
+# names the git directory rather than the working tree, and for a linked
+# worktree it points inside the primary checkout's `.git`, which is not a tree
+# to run hooks in.
 target=""
 if echo "$command" | grep -qE '[[:space:]]-C[[:space:]]'; then
   target="$(echo "$command" | grep -oE '[[:space:]]-C[[:space:]]+[^[:space:];&|]+' | head -n1 | sed -E 's/^[[:space:]]*-C[[:space:]]+//')"
-elif echo "$command" | grep -qE '\-\-git-dir[=[:space:]]'; then
-  target="$(echo "$command" | grep -oE '\-\-git-dir[=[:space:]][^[:space:];&|]+' | head -n1 | sed -E 's/^--git-dir[=[:space:]]//')"
+elif echo "$command" | grep -qE '\-\-work-tree[=[:space:]]'; then
+  target="$(echo "$command" | grep -oE '\-\-work-tree[=[:space:]][^[:space:];&|]+' | head -n1 | sed -E 's/^--work-tree[=[:space:]]//')"
 elif echo "$command" | grep -qE '(^|[;&|])[[:space:]]*cd[[:space:]]+'; then
   target="$(echo "$command" | grep -oE '(^|[;&|])[[:space:]]*cd[[:space:]]+[^;&|]+' | tail -n1 | sed -E 's/^[;&|]?[[:space:]]*cd[[:space:]]+//')"
 fi
@@ -60,7 +68,11 @@ fi
 # Strip surrounding quotes and whitespace, and expand a leading `~`.
 target="$(echo "$target" | sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//")"
 case "$target" in
-  "~"|"~/"*) target="${HOME}${target#\~}" ;;
+  "~"|"~/"*)
+    # Guard HOME: `set -u` would abort on an unset one, and aborting is the one
+    # thing this hook must not do.
+    if [ -n "${HOME:-}" ]; then target="${HOME}${target#\~}"; else target=""; fi
+    ;;
   *'$'*) target="" ;;  # set in an earlier Bash call, whose state this hook cannot see
 esac
 
