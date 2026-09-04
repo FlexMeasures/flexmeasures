@@ -1881,9 +1881,13 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="asset_id", required=False, load_default=None)},
+        location="query",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_status(self, id, sensor):
+    def get_status(self, id, sensor, asset=None):
         """
         .. :quickref: Data; Get status of sensor data
         ---
@@ -1899,6 +1903,16 @@ class SensorAPI(FlaskView):
               name: id
               description: ID of the sensor to fetch status for.
               schema: SensorId
+            - in: query
+              name: asset_id
+              required: false
+              description: |
+                ID of the asset whose status page the sensor is reported on.
+                This asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.
+                It only affects the reported relation between the sensor and the asset.
+                Defaults to the asset that the sensor belongs to.
+              schema:
+                type: integer
           responses:
             200:
               description: PROCESSED
@@ -1933,7 +1947,9 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
-        status_data = serialize_sensor_status_data(sensor=sensor)
+        if asset is not None:
+            check_access(asset, "read")
+        status_data = serialize_sensor_status_data(sensor=sensor, asset=asset)
 
         return {"sensors_data": status_data}, 200
 

@@ -144,9 +144,10 @@ def test_value_field_invalid(deserialization_input, error_msg):
     "now, expected_staleness, expected_stale",
     [
         (
-            # Knowledge time 12 hours from now
+            # The most recent data has a knowledge time 12 hours from now,
+            # so the most recent data we could know about by now is 12 hours old.
             "2016-01-01T00:00+01",
-            None,  # Not known yet
+            timedelta(hours=12),
             True,
         ),
         (
