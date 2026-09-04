@@ -224,13 +224,13 @@ args = [
 dev = [
     "black==26.3.1",
     "flake8==7.1.1",
-    # pre-commit runs the hooks in CI, so keep it locked rather than resolved at run time.
-    "pre-commit>=4.6",
     "flake8-blind-except",
     "pytest-runner",
     "watchdog",
     "pyinstrument",
     "poethepoet>=0.41.0",
+    # pre-commit runs the hooks in CI, so keep it locked rather than resolved at run time.
+    "pre-commit>=4.6",
     # Type checking
     "mypy>=0.902",
     "types-pytz>=2025.2.0.20251108",
