@@ -324,6 +324,42 @@ DEFAULT_DATASOURCE_TYPES = [
 ]
 
 
+class SensorDataSource(db.Model):
+    """Records that a data source has recorded beliefs for a sensor.
+
+    This is a summary of ``timed_belief``, not an independent fact:
+    the same information could be had with ``SELECT DISTINCT sensor_id, source_id FROM timed_belief``.
+    Keeping it separately matters because that query costs a scan of the beliefs table,
+    which is typically the largest in the database,
+    to produce a relation bounded by the number of sensors times the number of sources.
+    In practice that is a few thousand rows at most.
+
+    .. note:: This is a *superset*.
+       A pair is added when beliefs are saved, and is not removed when those beliefs are deleted,
+       because deciding whether a pair has become stale needs exactly the scan this table exists to avoid.
+       So read a row as "this source has recorded for this sensor at some point",
+       not "this source has beliefs stored for this sensor right now".
+       ``Sensor.search_data_sources`` still consults ``timed_belief`` directly whenever time filters are given,
+       so time-bounded questions stay exact.
+    """
+
+    __tablename__ = "sensor_data_source"
+
+    sensor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sensor.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    source_id = db.Column(
+        db.Integer,
+        db.ForeignKey("data_source.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
@@ -373,22 +409,25 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @property
     def sensors(self) -> list:
-        """Return all Sensor objects that have beliefs recorded by this data source.
+        """Return all Sensor objects that this data source has recorded beliefs for.
 
-        Uses a two-step subquery (distinct sensor IDs → Sensor rows) so that
-        it scales to very large timed_belief tables without fetching every belief row.
-        Mirrors the approach of ``Sensor.data_sources``.
+        Reads the ``sensor_data_source`` summary rather than ``timed_belief``.
+        Answering this from the beliefs table would mean scanning it in ``source_id`` order,
+        which no index serves, to produce a handful of rows.
+
+        See :class:`SensorDataSource` for the superset semantics:
+        a sensor stays listed after its beliefs from this source are deleted.
         """
-        from flexmeasures.data.models.time_series import Sensor, TimedBelief
+        from flexmeasures.data.models.time_series import Sensor
 
-        sensor_id_subq = (
-            select(TimedBelief.sensor_id)
-            .where(TimedBelief.source_id == self.id)
-            .distinct()
-            .subquery()
-        )
         return db.session.scalars(
-            select(Sensor).where(Sensor.id.in_(select(sensor_id_subq)))
+            select(Sensor).where(
+                Sensor.id.in_(
+                    select(SensorDataSource.sensor_id).where(
+                        SensorDataSource.source_id == self.id
+                    )
+                )
+            )
         ).all()
 
     _data_generator: ClassVar[DataGenerator | None] = None
