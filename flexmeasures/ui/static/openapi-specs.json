@@ -909,7 +909,7 @@
     "/api/v3_0/sensors/{id}/stats": {
       "get": {
         "summary": "Get sensor stats",
-        "description": "This endpoint fetches sensor stats for all the historical data.",
+        "description": "This endpoint fetches sensor stats for all the historical data.\nStats are reported per data source that recorded data for this sensor.\nWhen more than one source recorded data, an extra \"All sources\" entry summarises them together.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -969,6 +969,16 @@
                     "summary": "Successful response",
                     "description": "A successful response with sensor stats",
                     "value": {
+                      "All sources": {
+                        "First event start": "2015-06-02T10:00:00+00:00",
+                        "Last event end": "2015-10-03T10:00:00+00:00",
+                        "Last recorded": "2015-10-03T10:02:24+00:00",
+                        "Min value": 0.0,
+                        "Max value": 120.0,
+                        "Mean value": 55.0,
+                        "Sum over values": 1100.0,
+                        "Number of values": 20
+                      },
                       "some data source": {
                         "First event start": "2015-06-02T10:00:00+00:00",
                         "Last event end": "2015-10-02T10:00:00+00:00",
@@ -977,6 +987,16 @@
                         "Max value": 100.0,
                         "Mean value": 50.0,
                         "Sum over values": 500.0,
+                        "Number of values": 10
+                      },
+                      "some other data source": {
+                        "First event start": "2015-07-02T10:00:00+00:00",
+                        "Last event end": "2015-10-03T10:00:00+00:00",
+                        "Last recorded": "2015-10-03T10:02:24+00:00",
+                        "Min value": 10.0,
+                        "Max value": 120.0,
+                        "Mean value": 60.0,
+                        "Sum over values": 600.0,
                         "Number of values": 10
                       }
                     }
