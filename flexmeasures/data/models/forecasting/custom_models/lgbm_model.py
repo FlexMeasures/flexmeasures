@@ -36,6 +36,7 @@ class CustomLGBM(BaseModel):
         seasonal_lags_steps: list[int] | None = None,
         training_sample_count: int | None = None,
         min_samples_per_horizon: int = 2,
+        n_jobs: int | None = None,
     ) -> None:
         """
         Initialize the LightGBM forecasting model.
@@ -55,6 +56,7 @@ class CustomLGBM(BaseModel):
         :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain. Include 1 in the list to account for the most recent observation (recommended).
         :param training_sample_count: Optional number of target training samples, used to decide which lags are eligible.
         :param min_samples_per_horizon: Minimum training rows required for each horizon model.
+        :param n_jobs: How many horizon sub-models to fit or predict at the same time. Defaults to one per core.
         """
         self.models_params = {
             "output_chunk_length": 1,
@@ -72,6 +74,10 @@ class CustomLGBM(BaseModel):
                 }  # Cyclic features handled by Darts library
             },
             "verbose": -1,
+            # One thread per sub-model, because the horizons are fitted concurrently instead,
+            # see BaseModel._map_over_horizons. Keep the two together:
+            # single-threading the sub-models without that concurrency makes training on a long window slower.
+            "num_threads": 1,
         }
         if models_params:
             # A shallow merge, so overriding one key of e.g. add_encoders means
@@ -92,6 +98,7 @@ class CustomLGBM(BaseModel):
             use_past_covariates=use_past_covariates,
             use_future_covariates=use_future_covariates,
             ensure_positive=ensure_positive,
+            n_jobs=n_jobs,
         )
 
     @staticmethod
