@@ -88,12 +88,16 @@ def target_directory(command: str, cwd: str) -> str | None:
     except ValueError:
         return None  # unbalanced quotes: not something to guess at
 
+    # Paths compose, so follow the shell: each `cd` moves a running base,
+    # and a relative path is measured from wherever the previous one landed.
+    base = cwd
+    moved = False
     named: str | None = None
-    latest_cd: str | None = None
     committing = False
     for segment in segments(tokens):
         if segment and segment[0] == "cd" and len(segment) > 1:
-            latest_cd = segment[1]
+            base = _resolve(base, segment[1])
+            moved = True
             continue
         verb, options = _verb_and_options(segment)
         if verb == "commit":
@@ -105,11 +109,23 @@ def target_directory(command: str, cwd: str) -> str | None:
     if not committing:
         return None
 
-    if named or latest_cd:
-        return _toplevel(os.path.join(cwd, named or latest_cd or ""))
+    if named:
+        return _toplevel(_resolve(base, named))
+    if moved:
+        return _toplevel(base)
     # Nothing was named, so the Bash tool's own working directory is the best guess,
     # and the project directory after that.
     return _toplevel(cwd) or os.environ.get("CLAUDE_PROJECT_DIR") or None
+
+
+def _resolve(base: str, path: str) -> str:
+    """`path` as seen from `base`, the way the shell would see it.
+
+    A `~` is expanded, since the shell would have expanded it before git ever saw it.
+    A `$VAR` is left alone, and will simply not be a checkout: this process cannot see the variables
+    of a shell that ran in an earlier call, and guessing is worse than skipping the check.
+    """
+    return os.path.normpath(os.path.join(base, os.path.expanduser(path)))
 
 
 def _toplevel(path: str) -> str | None:
