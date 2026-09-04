@@ -40,7 +40,7 @@ def upgrade():
         try:
             if inspect.has_table(table):
                 result = db.session.execute(
-                    sa.text(f"SELECT 1 FROM {table};")
+                    sa.text(f"SELECT 1 FROM {table} LIMIT 1;")
                 ).scalar_one_or_none()
                 if result:
                     tables_with_data.append(table)
