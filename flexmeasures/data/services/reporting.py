@@ -31,9 +31,8 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     # The reporting worker runs in a separate process, so the data source has to be committed before the job is enqueued.
     # Note that reporter.data_source may have only just created it, and that our views do not auto-commit.
     reporter._data_source = db.session.merge(reporter.data_source)
-    db.session.flush()
-    data_source_id = reporter._data_source.id
     db.session.commit()
+    data_source_id = reporter._data_source.id
 
     job_metadata = {
         "data_source_info": {"id": data_source_id},
