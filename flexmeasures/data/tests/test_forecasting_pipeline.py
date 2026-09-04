@@ -2276,14 +2276,14 @@ def _synthetic_series_and_covariate(n_horizons: int):
     Future covariates have to reach past the target series far enough for the longest horizon,
     otherwise darts refuses to predict.
     """
-    index = pd.date_range("2025-01-01", periods=600, freq="15min")
+    index = pd.date_range("2025-01-01", periods=600, freq="15min", tz="UTC")
     steps = np.arange(len(index))
     series = TimeSeries.from_times_and_values(
         index, 10 + 3 * np.sin(steps * 2 * np.pi / 96) + np.sin(steps * 2 * np.pi / 17)
     )
 
     covariate_index = pd.date_range(
-        "2025-01-01", periods=len(index) + 4 * n_horizons, freq="15min"
+        "2025-01-01", periods=len(index) + 4 * n_horizons, freq="15min", tz="UTC"
     )
     covariate_steps = np.arange(len(covariate_index))
     covariate = TimeSeries.from_times_and_values(
@@ -2309,6 +2309,16 @@ def test_horizon_sub_models_are_worked_on_concurrently_by_default():
     # A nonsensical worker count still leaves one worker to do the job.
     assert CustomLGBM(max_forecast_horizon=4, n_jobs=0).n_jobs == 1
     assert CustomLGBM(max_forecast_horizon=4, n_jobs=-5).n_jobs == 1
+
+
+def test_predicting_without_a_horizon_says_so():
+    """Without a horizon there is no sub-model to predict with, which should be said out loud."""
+    model = CustomLGBM(max_forecast_horizon=0)
+    series, covariate = _synthetic_series_and_covariate(1)
+    with pytest.raises(ValueError, match="without a horizon to forecast for"):
+        model.predict(
+            series=series, past_covariates=covariate, future_covariates=covariate
+        )
 
 
 def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
