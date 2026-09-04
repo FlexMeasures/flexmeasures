@@ -886,7 +886,7 @@ def get_exception_handler(queue_name: str) -> Callable:
 
     Queues without a handler of their own fall back to the generic handler.
 
-    :param queue_name: the name of a single queue, e.g. 'forecasting'
+    :param queue_name: the name of a single queue, e.g. 'forecasting'.
     :returns:          an RQ exception handler.
     """
     return QUEUE_EXCEPTION_HANDLERS.get(queue_name, handle_worker_exception)
