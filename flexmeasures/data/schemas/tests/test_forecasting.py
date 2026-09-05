@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 import pytest
 
@@ -833,22 +834,73 @@ def test_forecaster_config_schema_rejects_missing_or_ambiguous_annotation_source
     )
 
 
-def test_forecaster_config_schema_warns_when_train_start_overrides_train_period(
-    caplog,
-):
+def test_forecaster_config_schema_remembers_that_train_period_was_asked_for(caplog):
+    """A stated train-period is told apart from a defaulted one, and neither is announced as ignored."""
     with caplog.at_level(logging.WARNING):
-        TrainPredictPipelineConfigSchema().load(
+        config = TrainPredictPipelineConfigSchema().load(
             {
                 "train-start": "2025-01-01T00:00:00+01:00",
                 "train-period": "P7D",
             }
         )
-    assert any("train-period is ignored" in record.message for record in caplog.records)
+    assert config["train_period_is_explicit"] is True
+    # Both are honoured now, by taking whichever asks for less data, so nothing is ignored.
+    assert not any(
+        "train-period is ignored" in record.message for record in caplog.records
+    )
+
+
+def test_forecaster_config_schema_stores_no_bookkeeping_of_its_own():
+    """Whether the period was asked for rides on train-period being there, not on a setting of its own."""
+    schema = TrainPredictPipelineConfigSchema()
+    dumped = schema.dump(schema.load({"train-start": "2025-01-01T00:00:00+01:00"}))
+    assert "train-period-is-explicit" not in dumped
+    assert "train_period_is_explicit" not in dumped
+    # A period nobody asked for is left out, which is what says it was never asked for.
+    assert "train-period" not in dumped
+
+    asked_for = schema.dump(
+        schema.load({"train-start": "2025-01-01T00:00:00+01:00", "train-period": "P7D"})
+    )
+    assert asked_for["train-period"] == "P7D"
+
+
+def test_forecaster_config_schema_keeps_a_defaulted_train_period_defaulted_when_stored():
+    """A stored config carries a train-period either way, so the config must say which it was.
+
+    Forecaster configs are stored by dumping them, and read back by loading that dump,
+    so without this a defaulted period would read back as one that had been asked for,
+    and would start narrowing the stated train-start.
+    """
+    schema = TrainPredictPipelineConfigSchema()
+    loaded = schema.load({"train-start": "2025-01-01T00:00:00+01:00"})
+    assert loaded["train_period_is_explicit"] is False
+
+    read_back = schema.load(schema.dump(loaded))
+    assert read_back["train_period_is_explicit"] is False
+
+    # And a period that was asked for stays that way too.
+    asked_for = schema.load(
+        {"train-start": "2025-01-01T00:00:00+01:00", "train-period": "P7D"}
+    )
+    assert schema.load(schema.dump(asked_for))["train_period_is_explicit"] is True
+
+
+def test_forecaster_config_schema_marks_a_defaulted_train_period_as_such():
+    """Without a stated train-period, the load default must not pass for one that was asked for."""
+    config = TrainPredictPipelineConfigSchema().load(
+        {"train-start": "2025-01-01T00:00:00+01:00"}
+    )
+    assert config["train_period"] == timedelta(
+        days=30
+    )  # the load default still applies
+    assert config["train_period_is_explicit"] is False
 
 
 def test_forecaster_config_schema_does_not_warn_for_train_period_alone(caplog):
     with caplog.at_level(logging.WARNING):
-        TrainPredictPipelineConfigSchema().load({"train-period": "P7D"})
+        config = TrainPredictPipelineConfigSchema().load({"train-period": "P7D"})
+    assert config["train_period_is_explicit"] is True
     assert not any(
         "train-period is ignored" in record.message for record in caplog.records
     )

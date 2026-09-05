@@ -272,8 +272,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         metadata={
             "description": (
                 "Duration of the initial training period (ISO 8601 format, min 2 days). "
-                "Defaults to P30D (30 days). Ignored when --train-start is set: "
-                "the training window then runs from --train-start to --start, "
+                "Defaults to P30D (30 days), which does not apply when --train-start is set. "
+                "Set both to train from whichever of the two asks for less data, "
                 "capped to --max-training-period."
             ),
             "example": "P7D",
@@ -310,14 +310,37 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
 
-    @pre_load
-    def warn_when_train_period_is_ignored(self, data, **kwargs):
-        """An explicit train-start takes precedence over train-period (see _derive_training_period)."""
-        if data.get("train-start") is not None and data.get("train-period") is not None:
-            logging.warning(
-                "Both train-start and train-period are set; train-period is ignored "
-                "and the training window runs from train-start (capped to max-training-period)."
-            )
+    @post_load(pass_original=True)
+    def note_whether_train_period_was_asked_for(self, data, original_data, **kwargs):
+        """Record whether train-period was stated, rather than merely defaulted to.
+
+        ``train_period`` carries a load default, so once the config is loaded,
+        a stated period is indistinguishable from the default one.
+        Only a stated period should narrow a stated ``train-start``,
+        so the difference is settled here, while the config as given is still at hand.
+
+        This stays out of the config as dumped, and rides on whether ``train-period`` appears there at all,
+        which ``omit_a_train_period_that_was_only_defaulted`` takes care of.
+        """
+        original = original_data if isinstance(original_data, dict) else {}
+        data["train_period_is_explicit"] = "train-period" in original
+        return data
+
+    @post_dump(pass_original=True)
+    def omit_a_train_period_that_was_only_defaulted(
+        self, data, original_data, **kwargs
+    ):
+        """Leave a defaulted train-period out of the config as dumped.
+
+        Forecaster configs are stored by dumping them, and read back by loading that dump.
+        Writing out a period nobody asked for would read back as one that was asked for,
+        and would then narrow a stated train-start, which is the very thing the load default should not do.
+        Leaving it out instead says what was configured, and reads back as what it was.
+        """
+        original = original_data if isinstance(original_data, dict) else {}
+        # Absent means this config never went through a load, in which case take it at face value.
+        if original.get("train_period_is_explicit", True) is False:
+            data.pop("train-period", None)
         return data
 
     @validates_schema
