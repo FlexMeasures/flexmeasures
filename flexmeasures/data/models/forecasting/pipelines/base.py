@@ -59,12 +59,26 @@ def _source_filter_fingerprint(source_filters: dict) -> tuple:
 
     Data sources and accounts are represented by their ID,
     so that equal filters fingerprint equally even when they hold distinct model instances.
+    Filters holding several values are applied as SQL ``IN`` criteria, which are insensitive to the order of the values,
+    so those are sorted before fingerprinting.
+    The order of an explicit list of sources still decides which of two colliding beliefs wins,
+    but that is settled per regressor in ``_resolve_source_collisions``, after the shared frame has been loaded.
     """
     fingerprint = []
     for filter_name in sorted(source_filters):
         value = source_filters[filter_name]
-        if isinstance(value, (list, tuple)):
-            fingerprint.append((filter_name, tuple(_entity_id(item) for item in value)))
+        if isinstance(value, (list, tuple, set, frozenset)):
+            fingerprint.append(
+                (
+                    filter_name,
+                    tuple(
+                        sorted(
+                            (_entity_id(item) for item in value),
+                            key=lambda item: (type(item).__name__, str(item)),
+                        )
+                    ),
+                )
+            )
         else:
             fingerprint.append((filter_name, _entity_id(value)))
     return tuple(fingerprint)
