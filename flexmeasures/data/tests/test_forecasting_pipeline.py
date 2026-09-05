@@ -482,6 +482,61 @@ def test_load_data_all_beliefs_queries_each_sensor_once(
     assert searched_sensor_ids == [target_sensor.id]
 
 
+def test_load_data_all_beliefs_shares_a_query_between_differently_ordered_source_lists(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Two regressors that select the same sources in a different order share one query."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="ordered-source-a", type="forecaster")
+    source_b = DataSource(name="ordered-source-b", type="forecaster")
+    value_a = -111.0
+    value_b = -222.0
+    fresh_db.session.add_all([source_a, source_b])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(source_a, value_a), (source_b, value_b)]
+    )
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatched = pytest.MonkeyPatch()
+    monkeypatched.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+    try:
+        pipeline = BasePipeline(
+            target_sensor=target_sensor,
+            future_regressors=[],
+            past_regressors=[
+                SensorReference(sensor=regressor_sensor, sources=[source_a, source_b]),
+                SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+            ],
+            n_steps_to_predict=1,
+            max_forecast_horizon=1,
+            forecast_frequency=1,
+            event_starts_after=as_server_time(datetime(2025, 1, 1)),
+            event_ends_before=as_server_time(datetime(2025, 1, 3)),
+        )
+        loaded_data = pipeline.load_data_all_beliefs()
+    finally:
+        monkeypatched.undo()
+
+    assert sorted(searched_sensor_ids) == sorted(
+        [regressor_sensor.id, target_sensor.id]
+    )
+
+    # Sharing one frame does not cost the two regressors their own source precedence.
+    first, second = pipeline.past_regressors
+    assert value_a in loaded_data[first].values
+    assert value_b not in loaded_data[first].values
+    assert value_b in loaded_data[second].values
+    assert value_a not in loaded_data[second].values
+
+
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
     setup_fresh_test_forecast_data,
 ):
