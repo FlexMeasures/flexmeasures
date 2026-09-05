@@ -22,6 +22,9 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    TrainPredictPipelineConfigSchema,
+)
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     _load_job_config_payload,
     _load_job_parameters_payload,
@@ -2265,3 +2268,45 @@ def test_model_params_can_reach_darts_categorical_covariates():
     )
     assert model.models_params["categorical_future_covariates"] == ["day_type"]
     assert model.models_params["min_data_per_group"] == 20
+
+
+@pytest.mark.parametrize(
+    ["config", "expected_span", "why"],
+    [
+        ({}, timedelta(days=30), "the default period applies when nothing is stated"),
+        (
+            {"train-start": "2025-09-04T17:00:00+02:00"},
+            timedelta(days=365),
+            "a stated start is not narrowed by the defaulted period",
+        ),
+        (
+            {"train-period": "P7D"},
+            timedelta(days=7),
+            "a stated period applies on its own",
+        ),
+        (
+            {"train-start": "2025-06-01T00:00:00+02:00", "train-period": "P7D"},
+            timedelta(days=7),
+            "stating both goes back no further than the period asks for",
+        ),
+        (
+            {"train-start": "2026-09-01T17:00:00+02:00", "train-period": "P30D"},
+            timedelta(days=3),
+            "stating both goes back no further than the start asks for either",
+        ),
+    ],
+)
+def test_training_window_goes_back_no_further_than_asked_for(
+    config, expected_span, why
+):
+    """Whichever of train-start and train-period asks for less data decides, as long as it was asked for."""
+    predict_start = datetime.fromisoformat("2026-09-04T17:00:00+02:00")
+    loaded = TrainPredictPipelineConfigSchema().load(config)
+
+    pipeline = TrainPredictPipeline.__new__(TrainPredictPipeline)
+    pipeline._config = loaded
+    pipeline._parameters = {"predict_start": predict_start}
+
+    train_start, train_end = pipeline._derive_training_period()
+    assert train_end == predict_start
+    assert train_end - train_start == expected_span, why

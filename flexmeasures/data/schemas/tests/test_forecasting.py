@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 import pytest
 
@@ -833,22 +834,37 @@ def test_forecaster_config_schema_rejects_missing_or_ambiguous_annotation_source
     )
 
 
-def test_forecaster_config_schema_warns_when_train_start_overrides_train_period(
-    caplog,
-):
+def test_forecaster_config_schema_remembers_that_train_period_was_asked_for(caplog):
+    """A stated train-period is told apart from a defaulted one, and neither is announced as ignored."""
     with caplog.at_level(logging.WARNING):
-        TrainPredictPipelineConfigSchema().load(
+        config = TrainPredictPipelineConfigSchema().load(
             {
                 "train-start": "2025-01-01T00:00:00+01:00",
                 "train-period": "P7D",
             }
         )
-    assert any("train-period is ignored" in record.message for record in caplog.records)
+    assert config["train_period_is_explicit"] is True
+    # Both are honoured now, by taking whichever asks for less data, so nothing is ignored.
+    assert not any(
+        "train-period is ignored" in record.message for record in caplog.records
+    )
+
+
+def test_forecaster_config_schema_marks_a_defaulted_train_period_as_such():
+    """Without a stated train-period, the load default must not pass for one that was asked for."""
+    config = TrainPredictPipelineConfigSchema().load(
+        {"train-start": "2025-01-01T00:00:00+01:00"}
+    )
+    assert config["train_period"] == timedelta(
+        days=30
+    )  # the load default still applies
+    assert config["train_period_is_explicit"] is False
 
 
 def test_forecaster_config_schema_does_not_warn_for_train_period_alone(caplog):
     with caplog.at_level(logging.WARNING):
-        TrainPredictPipelineConfigSchema().load({"train-period": "P7D"})
+        config = TrainPredictPipelineConfigSchema().load({"train-period": "P7D"})
+    assert config["train_period_is_explicit"] is True
     assert not any(
         "train-period is ignored" in record.message for record in caplog.records
     )
