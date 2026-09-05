@@ -850,6 +850,21 @@ def test_forecaster_config_schema_remembers_that_train_period_was_asked_for(capl
     )
 
 
+def test_forecaster_config_schema_stores_no_bookkeeping_of_its_own():
+    """Whether the period was asked for rides on train-period being there, not on a setting of its own."""
+    schema = TrainPredictPipelineConfigSchema()
+    dumped = schema.dump(schema.load({"train-start": "2025-01-01T00:00:00+01:00"}))
+    assert "train-period-is-explicit" not in dumped
+    assert "train_period_is_explicit" not in dumped
+    # A period nobody asked for is left out, which is what says it was never asked for.
+    assert "train-period" not in dumped
+
+    asked_for = schema.dump(
+        schema.load({"train-start": "2025-01-01T00:00:00+01:00", "train-period": "P7D"})
+    )
+    assert asked_for["train-period"] == "P7D"
+
+
 def test_forecaster_config_schema_keeps_a_defaulted_train_period_defaulted_when_stored():
     """A stored config carries a train-period either way, so the config must say which it was.
 
