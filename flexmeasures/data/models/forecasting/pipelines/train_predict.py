@@ -353,7 +353,7 @@ class TrainPredictPipeline(Forecaster):
 
         decisive, train_start = max(candidates.items(), key=lambda item: item[1])
 
-        # Enforce minimum training period of 2 days
+        # Enforce a minimum training period of 2 days.
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
             decisive, train_start = (

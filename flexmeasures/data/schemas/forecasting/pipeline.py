@@ -35,6 +35,19 @@ from flexmeasures.utils.unit_utils import ur
 DEFAULT_TRAIN_PERIOD = timedelta(days=30)
 
 
+def _fixed_length_or_none(value) -> timedelta | None:
+    """Return a duration as a timedelta, or None when it is not one of fixed length.
+
+    A duration given in years or months parses to a Duration rather than a timedelta,
+    and the two cannot be compared, so anything that compares durations has to know which it has.
+    """
+    try:
+        parsed = DurationField().deserialize(value)
+    except ValidationError:
+        return None
+    return parsed if isinstance(parsed, timedelta) else None
+
+
 def _is_parseable_quantity(value) -> bool:
     """Whether a post-processing value is a number or a pint-parseable quantity string."""
     if isinstance(value, numbers.Real):
@@ -316,15 +329,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         if stated is None:
             data["train-period"] = deprecated
             return data
-        field = DurationField()
-        try:
-            data["train-period"] = min(
-                (stated, deprecated),
-                key=lambda value: field.deserialize(value),
-            )
-        except ValidationError:
-            # Leave a malformed value to the field itself, which reports it properly.
-            data["train-period"] = stated
+        stated_length = _fixed_length_or_none(stated)
+        deprecated_length = _fixed_length_or_none(deprecated)
+        if stated_length is None or deprecated_length is None:
+            # One of them is malformed, or is a length that varies, such as a year.
+            # Hand that one to the field, which says what is wrong with it, rather than quietly going with the other.
+            data["train-period"] = stated if stated_length is None else deprecated
+            return data
+        data["train-period"] = (
+            stated if stated_length <= deprecated_length else deprecated
+        )
         return data
 
     @validates_schema
