@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import itertools
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
@@ -15,6 +16,7 @@ from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataExcepti
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
 )
+from flexmeasures.data.models.forecasting.pipelines import base as pipelines_base
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
@@ -394,6 +396,145 @@ def test_load_data_all_beliefs_determinizes_probabilistic_regressors_per_source(
 
     assert -555.0 in values.values
     assert not {-111.0, -222.0, -333.0, -444.0, -666.0}.intersection(values.values)
+
+
+def _autoregressive_pipeline(target_sensor: Sensor) -> BasePipeline:
+    """A pipeline whose target sensor is also its own past regressor."""
+    return BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[target_sensor],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+
+
+def _add_forecaster_belief(db, sensor: Sensor, value: float) -> None:
+    """Record a belief from a forecaster, which the target data should not contain."""
+    forecaster_source = DataSource(name="forecaster-on-target", type="forecaster")
+    db.session.add(forecaster_source)
+    db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            event_start=as_server_time(datetime(2025, 1, 2)),
+            event_value=value,
+            belief_horizon=timedelta(hours=6),
+            source=forecaster_source,
+        )
+    )
+    db.session.commit()
+
+
+def test_load_data_all_beliefs_derives_target_data_from_reused_query(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+    monkeypatch,
+):
+    """Sharing one query between the target and its past regressor changes no loaded value."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    forecast_value = -999.0
+    _add_forecaster_belief(fresh_db, target_sensor, forecast_value)
+
+    pipeline = _autoregressive_pipeline(target_sensor)
+    loaded_data = pipeline.load_data_all_beliefs()
+
+    # Disable the query reuse, by making every planned search look unique.
+    unique_keys = itertools.count()
+    monkeypatch.setattr(
+        pipelines_base, "_belief_search_key", lambda search: next(unique_keys)
+    )
+    separately_loaded_data = _autoregressive_pipeline(
+        target_sensor
+    ).load_data_all_beliefs()
+
+    pd.testing.assert_frame_equal(loaded_data, separately_loaded_data)
+
+    # The two entries do differ, so the comparison above is not between two identical columns.
+    past_regressor = pipeline.past_regressors[0]
+    assert forecast_value in loaded_data[past_regressor].values
+    assert forecast_value not in loaded_data[pipeline.target].values
+    assert loaded_data[pipeline.target].notna().any()
+
+
+def test_load_data_all_beliefs_queries_each_sensor_once(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+    monkeypatch,
+):
+    """A sensor that is both target and past regressor is queried once, not twice."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    _add_forecaster_belief(fresh_db, target_sensor, -999.0)
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatch.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+
+    _autoregressive_pipeline(target_sensor).load_data_all_beliefs()
+
+    assert searched_sensor_ids == [target_sensor.id]
+
+
+def test_load_data_all_beliefs_shares_a_query_between_differently_ordered_source_lists(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Two regressors that select the same sources in a different order share one query."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="ordered-source-a", type="forecaster")
+    source_b = DataSource(name="ordered-source-b", type="forecaster")
+    value_a = -111.0
+    value_b = -222.0
+    fresh_db.session.add_all([source_a, source_b])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(source_a, value_a), (source_b, value_b)]
+    )
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatched = pytest.MonkeyPatch()
+    monkeypatched.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+    try:
+        pipeline = BasePipeline(
+            target_sensor=target_sensor,
+            future_regressors=[],
+            past_regressors=[
+                SensorReference(sensor=regressor_sensor, sources=[source_a, source_b]),
+                SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+            ],
+            n_steps_to_predict=1,
+            max_forecast_horizon=1,
+            forecast_frequency=1,
+            event_starts_after=as_server_time(datetime(2025, 1, 1)),
+            event_ends_before=as_server_time(datetime(2025, 1, 3)),
+        )
+        loaded_data = pipeline.load_data_all_beliefs()
+    finally:
+        monkeypatched.undo()
+
+    assert sorted(searched_sensor_ids) == sorted(
+        [regressor_sensor.id, target_sensor.id]
+    )
+
+    # Sharing one frame does not cost the two regressors their own source precedence.
+    first, second = pipeline.past_regressors
+    assert value_a in loaded_data[first].values
+    assert value_b not in loaded_data[first].values
+    assert value_b in loaded_data[second].values
+    assert value_a not in loaded_data[second].values
 
 
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
