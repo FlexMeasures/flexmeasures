@@ -3643,6 +3643,21 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": self.flex_context["shared_currency_unit"],
                 },
             ]
+            commodity_costs = (
+                [
+                    {
+                        "name": "commodity_costs",
+                        "data": model.commodity_costs,
+                        "unit": self.flex_context["shared_currency_unit"],
+                    },
+                ]
+                if getattr(model, "commodity_costs", None)
+                and (
+                    len(model.commodity_costs) > 1
+                    or set(model.commodity_costs.keys()) != {"electricity"}
+                )
+                else []
+            )
             soc_schedules = [
                 {
                     "name": "state_of_charge",
@@ -3686,6 +3701,7 @@ class StorageScheduler(MetaStorageScheduler):
             return self._deduplicate_outputs(
                 storage_schedules
                 + commitment_costs
+                + commodity_costs
                 + soc_schedules
                 + consumption_production_schedules
                 + scheduling_result
