@@ -337,17 +337,18 @@ class TrainPredictPipelineConfigSchema(Schema):
 
         train_period = data.get("train_period")
 
-        if train_period is not None and train_period < timedelta(days=2):
-            raise ValidationError(
-                "train-period must be at least 2 days (48 hours)",
-                field_name="train_period",
-            )
-
+        # Say this first: a Duration cannot be compared to a timedelta, so any check below it would raise a TypeError rather than report the problem.
         if isinstance(train_period, Duration):
             # DurationField only returns Duration when years/months are present
             raise ValidationError(
                 "train-period must be specified using days or smaller units "
                 "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="train_period",
+            )
+
+        if train_period is not None and train_period < timedelta(days=2):
+            raise ValidationError(
+                "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
             )
 
