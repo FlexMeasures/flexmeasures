@@ -11,6 +11,9 @@ from darts import TimeSeries
 from marshmallow import ValidationError
 from sqlalchemy import inspect as sa_inspect, select
 
+from flexmeasures.data.models.forecasting.custom_models import (
+    base_model as base_model_module,
+)
 from flexmeasures.data.models.forecasting.custom_models.base_model import default_n_jobs
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
@@ -2297,7 +2300,8 @@ def test_horizon_sub_models_are_worked_on_concurrently_by_default():
     model = CustomLGBM(max_forecast_horizon=4)
     assert model.n_jobs == default_n_jobs()
     # Each sub-model stays single-threaded, so the concurrency does not oversubscribe the cores.
-    assert model.models_params["num_threads"] == 1
+    # On a single-core machine there is no concurrency to speak of, and LightGBM keeps the threading instead.
+    assert model.models_params["num_threads"] == (1 if default_n_jobs() > 1 else 0)
     # A caller can still override the thread count.
     assert (
         CustomLGBM(
@@ -2308,6 +2312,14 @@ def test_horizon_sub_models_are_worked_on_concurrently_by_default():
     # A nonsensical worker count still leaves one worker to do the job.
     assert CustomLGBM(max_forecast_horizon=4, n_jobs=0).n_jobs == 1
     assert CustomLGBM(max_forecast_horizon=4, n_jobs=-5).n_jobs == 1
+
+
+def test_a_single_core_machine_leaves_the_threading_to_lightgbm(monkeypatch):
+    """One core means no horizons to run side by side, so LightGBM should keep its own threading."""
+    monkeypatch.setattr(base_model_module, "default_n_jobs", lambda: 1)
+    model = CustomLGBM(max_forecast_horizon=4)
+    assert model.n_jobs == 1
+    assert model.models_params["num_threads"] == 0
 
 
 @pytest.mark.parametrize("n_jobs", [1, 0, -5])
