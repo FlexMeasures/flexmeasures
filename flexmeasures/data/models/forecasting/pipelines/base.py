@@ -57,8 +57,8 @@ def _regressor_sensor_and_source_filters(
 def _source_filter_fingerprint(source_filters: dict) -> tuple:
     """Return a hashable fingerprint of the source filters of a belief search.
 
-    Data sources and accounts are represented by their ID, so that equal filters
-    fingerprint equally even when they hold distinct model instances.
+    Data sources and accounts are represented by their ID,
+    so that equal filters fingerprint equally even when they hold distinct model instances.
     """
     fingerprint = []
     for filter_name in sorted(source_filters):
@@ -94,9 +94,8 @@ def _drop_source_types(
 
     Because beliefs are loaded with ``one_deterministic_belief_per_event_per_source=True``,
     the frame holds one row per event per source, rather than one row per event.
-    Dropping the rows of the excluded source types therefore yields exactly what the
-    same search with ``exclude_source_types`` returns: no event is lost that another
-    source also recorded a belief about.
+    Dropping the rows of the excluded source types therefore yields exactly what the same search with ``exclude_source_types`` returns:
+    no event is lost that another source also recorded a belief about.
     """
     if df.empty:
         return df
@@ -303,15 +302,13 @@ class BasePipeline:
     ) -> tuple[list[tuple], dict[tuple, pd.DataFrame]]:
         """Load the beliefs each pipeline entry needs, querying each distinct search only once.
 
-        A sensor is commonly listed more than once, most notably in the autoregressive case,
-        where the target sensor is also one of its own past regressors. Entries that ask the
-        database the same question share a single query, and a target entry can be served by
-        filtering the frame of an otherwise identical search that did not exclude forecasters.
+        A sensor is commonly listed more than once, most notably in the autoregressive case, where the target sensor is also one of its own past regressors.
+        Entries that ask the database the same question share a single query,
+        and a target entry can be served by filtering the frame of an otherwise identical search that did not exclude forecasters.
 
         :param sensor_names:    Column name per entry, in the order the entries are loaded.
         :param sensors:         Sensor or sensor reference per entry, in the same order.
-        :returns:               The entries as (name, sensor or sensor reference, search key) tuples,
-                                and the loaded beliefs per search key.
+        :returns:               The entries as (name, sensor or sensor reference, search key) tuples, and the loaded beliefs per search key.
         """
         entries = []
         searches: dict[tuple, dict] = {}
@@ -348,8 +345,7 @@ class BasePipeline:
             searches.setdefault(search_key, search)
             entries.append((name, regressor_or_sensor, search_key))
 
-        # A search that excludes source types is derivable from an otherwise identical search that does not,
-        # by dropping the rows of the excluded types.
+        # A search that excludes source types is derivable from an otherwise identical search that does not, by dropping the rows of the excluded types.
         derivations: dict[tuple, tuple] = {}
         for search_key, search in searches.items():
             excluded_source_types = search["source_filters"].get("exclude_source_types")
