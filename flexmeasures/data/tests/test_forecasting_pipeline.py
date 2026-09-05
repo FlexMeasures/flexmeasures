@@ -2313,7 +2313,7 @@ def test_model_params_can_reach_darts_categorical_covariates():
 def test_training_window_goes_back_no_further_than_asked_for(
     config, expected_span, why
 ):
-    """Whichever of train-start and train-period asks for less data decides, as long as it was asked for."""
+    """Whichever of train-start and train-period asks for less data decides."""
     predict_start = datetime.fromisoformat("2026-09-04T17:00:00+02:00")
     loaded = TrainPredictPipelineConfigSchema().load(config)
 

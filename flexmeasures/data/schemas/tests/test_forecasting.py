@@ -875,6 +875,29 @@ def test_forecaster_config_schema_says_why_years_and_months_do_not_work(payload)
     assert "days or smaller units" in str(exc.value.messages)
 
 
+@pytest.mark.parametrize(
+    ["payload", "expected"],
+    [
+        (
+            {"train-period": "P30D", "max-training-period": "P1Y"},
+            "days or smaller units",
+        ),
+        ({"train-period": "P30D", "max-training-period": "nonsense"}, "Cannot parse"),
+        ({"train-period": "nonsense", "max-training-period": "P30D"}, "Cannot parse"),
+    ],
+)
+def test_forecaster_config_schema_reports_a_bad_training_limit_under_either_name(
+    payload, expected
+):
+    """A limit that cannot be measured is reported, rather than passed over for the other one.
+
+    Reading the deprecated name as the one that remains must not quietly drop what is wrong with either.
+    """
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(payload)
+    assert expected in str(exc.value.messages)
+
+
 def test_forecaster_config_schema_falls_back_to_the_default_training_period():
     """Asking for no period of its own leaves the default to say how much history to use."""
     config = TrainPredictPipelineConfigSchema().load({"train-period": None})
