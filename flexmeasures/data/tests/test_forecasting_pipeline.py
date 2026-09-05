@@ -2298,8 +2298,7 @@ def test_horizon_sub_models_are_worked_on_concurrently_by_default():
     assert model.n_jobs == default_n_jobs()
     # Each sub-model stays single-threaded, so the concurrency does not oversubscribe the cores.
     assert model.models_params["num_threads"] == 1
-    # A caller can still opt out of the concurrency, or override the thread count.
-    assert CustomLGBM(max_forecast_horizon=4, n_jobs=1).n_jobs == 1
+    # A caller can still override the thread count.
     assert (
         CustomLGBM(
             max_forecast_horizon=4, models_params={"num_threads": 4}
@@ -2309,6 +2308,20 @@ def test_horizon_sub_models_are_worked_on_concurrently_by_default():
     # A nonsensical worker count still leaves one worker to do the job.
     assert CustomLGBM(max_forecast_horizon=4, n_jobs=0).n_jobs == 1
     assert CustomLGBM(max_forecast_horizon=4, n_jobs=-5).n_jobs == 1
+
+
+@pytest.mark.parametrize("n_jobs", [1, 0, -5])
+def test_opting_out_of_concurrency_hands_the_cores_back_to_lightgbm(n_jobs):
+    """Without the concurrency, LightGBM's own threading is what should use the cores.
+
+    Single-threading the sub-models only pays off because the horizons run side by side,
+    so opting out of one has to opt out of the other as well.
+    """
+    model = CustomLGBM(max_forecast_horizon=4, n_jobs=n_jobs)
+    assert model.n_jobs == 1
+    assert (
+        model.models_params["num_threads"] == 0
+    )  # 0 means LightGBM decides, its own default
 
 
 def test_predicting_without_a_horizon_says_so():
