@@ -310,17 +310,36 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
 
+    train_period_is_explicit = fields.Boolean(
+        data_key="train-period-is-explicit",
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": (
+                "Whether train-period was asked for, rather than defaulted to. "
+                "Bookkeeping rather than a setting: it is filled in from the config as given, and only a period that was asked for narrows a stated train-start. "
+                "It is part of the config so that the distinction survives being stored and read back."
+            ),
+            "example": True,
+        },
+    )
+
     @post_load(pass_original=True)
     def note_whether_train_period_was_asked_for(self, data, original_data, **kwargs):
         """Record whether train-period was stated, rather than merely defaulted to.
 
-        ``train_period`` carries a load default, so by the time the config is loaded,
+        ``train_period`` carries a load default, so once the config is loaded,
         a stated period is indistinguishable from the default one.
         Only a stated period should narrow a stated ``train-start``,
-        so the difference is remembered here, where the original input is still at hand.
+        so the difference is settled here, while the config as given is still at hand.
+
+        A config that already carries the answer keeps it, which is what makes storing and reading back a config faithful:
+        a stored config always carries a train-period, defaulted or not, so without this it would read back as though the period had been asked for.
         """
+        if data.get("train_period_is_explicit") is not None:
+            return data
         original = original_data if isinstance(original_data, dict) else {}
-        data["train_period_is_explicit"] = original.get("train-period") is not None
+        data["train_period_is_explicit"] = "train-period" in original
         return data
 
     @validates_schema
