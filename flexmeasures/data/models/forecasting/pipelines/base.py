@@ -54,6 +54,63 @@ def _regressor_sensor_and_source_filters(
     }
 
 
+def _source_filter_fingerprint(source_filters: dict) -> tuple:
+    """Return a hashable fingerprint of the source filters of a belief search.
+
+    Data sources and accounts are represented by their ID, so that equal filters
+    fingerprint equally even when they hold distinct model instances.
+    """
+    fingerprint = []
+    for filter_name in sorted(source_filters):
+        value = source_filters[filter_name]
+        if isinstance(value, (list, tuple)):
+            fingerprint.append((filter_name, tuple(_entity_id(item) for item in value)))
+        else:
+            fingerprint.append((filter_name, _entity_id(value)))
+    return tuple(fingerprint)
+
+
+def _belief_search_key(search: dict) -> tuple:
+    """Return a hashable key identifying a belief search.
+
+    Two entries with equal keys ask the database exactly the same question,
+    so one query can serve both.
+    """
+    sensor = search["sensor"]
+    return (
+        sensor.id if sensor.id is not None else ("unsaved sensor", id(sensor)),
+        search["event_starts_after"],
+        search["event_ends_before"],
+        search["most_recent_beliefs_only"],
+        search["beliefs_before"],
+        _source_filter_fingerprint(search["source_filters"]),
+    )
+
+
+def _drop_source_types(
+    df: pd.DataFrame, excluded_source_types: list[str]
+) -> pd.DataFrame:
+    """Drop the beliefs recorded by sources of the given types.
+
+    Because beliefs are loaded with ``one_deterministic_belief_per_event_per_source=True``,
+    the frame holds one row per event per source, rather than one row per event.
+    Dropping the rows of the excluded source types therefore yields exactly what the
+    same search with ``exclude_source_types`` returns: no event is lost that another
+    source also recorded a belief about.
+    """
+    if df.empty:
+        return df
+    sources = df.index.get_level_values("source")
+    kept = np.fromiter(
+        (source.type not in excluded_source_types for source in sources),
+        dtype=bool,
+        count=len(sources),
+    )
+    if kept.all():
+        return df
+    return df[kept]
+
+
 def _resolve_source_collisions(
     df: pd.DataFrame,
     regressor: Sensor | SensorReference,
@@ -239,6 +296,101 @@ class BasePipeline:
         visible = values.where(known, 0.0)
         return event_starts.map(visible)
 
+    def _search_beliefs_per_entry(
+        self,
+        sensor_names: list[str],
+        sensors: list[Sensor | SensorReference],
+    ) -> tuple[list[tuple], dict[tuple, pd.DataFrame]]:
+        """Load the beliefs each pipeline entry needs, querying each distinct search only once.
+
+        A sensor is commonly listed more than once, most notably in the autoregressive case,
+        where the target sensor is also one of its own past regressors. Entries that ask the
+        database the same question share a single query, and a target entry can be served by
+        filtering the frame of an otherwise identical search that did not exclude forecasters.
+
+        :param sensor_names:    Column name per entry, in the order the entries are loaded.
+        :param sensors:         Sensor or sensor reference per entry, in the same order.
+        :returns:               The entries as (name, sensor or sensor reference, search key) tuples,
+                                and the loaded beliefs per search key.
+        """
+        entries = []
+        searches: dict[tuple, dict] = {}
+        for name, regressor_or_sensor in zip(sensor_names, sensors):
+            sensor, source_filters = _regressor_sensor_and_source_filters(
+                regressor_or_sensor
+            )
+
+            sensor_event_ends_before = self.event_ends_before
+            sensor_event_starts_after = self.event_starts_after
+
+            most_recent_beliefs_only = True
+            # Extend time range for future regressors
+            if regressor_or_sensor in self.future:
+                sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
+                    hours=self.max_forecast_horizon_in_hours
+                )
+
+                most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
+
+            if name == self.target:
+                # Exclude forecasters from the target data to avoid training on forecasts.
+                source_filters["exclude_source_types"] = ["forecaster"]
+
+            search = dict(
+                sensor=sensor,
+                event_starts_after=sensor_event_starts_after,
+                event_ends_before=sensor_event_ends_before,
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                beliefs_before=self.beliefs_before,
+                source_filters=source_filters,
+            )
+            search_key = _belief_search_key(search)
+            searches.setdefault(search_key, search)
+            entries.append((name, regressor_or_sensor, search_key))
+
+        # A search that excludes source types is derivable from an otherwise identical search that does not,
+        # by dropping the rows of the excluded types.
+        derivations: dict[tuple, tuple] = {}
+        for search_key, search in searches.items():
+            excluded_source_types = search["source_filters"].get("exclude_source_types")
+            if not excluded_source_types:
+                continue
+            base_search = dict(
+                search,
+                source_filters={
+                    filter_name: value
+                    for filter_name, value in search["source_filters"].items()
+                    if filter_name != "exclude_source_types"
+                },
+            )
+            base_search_key = _belief_search_key(base_search)
+            if base_search_key in searches:
+                derivations[search_key] = (base_search_key, excluded_source_types)
+
+        beliefs_per_search: dict[tuple, pd.DataFrame] = {}
+        for search_key, search in searches.items():
+            if search_key in derivations:
+                continue
+            beliefs_per_search[search_key] = search["sensor"].search_beliefs(
+                event_starts_after=search["event_starts_after"],
+                event_ends_before=search["event_ends_before"],
+                most_recent_beliefs_only=search["most_recent_beliefs_only"],
+                beliefs_before=search["beliefs_before"],
+                one_deterministic_belief_per_event_per_source=True,
+                **search["source_filters"],
+            )
+        for search_key, (base_search_key, excluded_source_types) in derivations.items():
+            beliefs_per_search[search_key] = _drop_source_types(
+                beliefs_per_search[base_search_key], excluded_source_types
+            )
+
+        logging.debug(
+            "Loaded beliefs for %d pipeline entries with %d queries.",
+            len(entries),
+            len(searches) - len(derivations),
+        )
+        return entries, beliefs_per_search
+
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
         This function fetches data for each sensor.
@@ -259,36 +411,14 @@ class BasePipeline:
         sensor_dfs = []
         sensor_names = self.future_regressors + self.past_regressors + [self.target]
         sensors = self.future + self.past + [self.target_sensor]
-        for name, regressor_or_sensor in zip(sensor_names, sensors):
-            sensor, source_filters = _regressor_sensor_and_source_filters(
-                regressor_or_sensor
-            )
+        entries, beliefs_per_search = self._search_beliefs_per_entry(
+            sensor_names, sensors
+        )
+        for name, regressor_or_sensor, search_key in entries:
+            sensor, _ = _regressor_sensor_and_source_filters(regressor_or_sensor)
             logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
-            sensor_event_ends_before = self.event_ends_before
-            sensor_event_starts_after = self.event_starts_after
-
-            most_recent_beliefs_only = True
-            # Extend time range for future regressors
-            if regressor_or_sensor in self.future:
-                sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
-                    hours=self.max_forecast_horizon_in_hours
-                )
-
-                most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
-
-            if name == self.target:
-                # Exclude forecasters from the target data to avoid training on forecasts.
-                source_filters["exclude_source_types"] = ["forecaster"]
-
-            df = sensor.search_beliefs(
-                event_starts_after=sensor_event_starts_after,
-                event_ends_before=sensor_event_ends_before,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                beliefs_before=self.beliefs_before,
-                one_deterministic_belief_per_event_per_source=True,
-                **source_filters,
-            )
+            df = beliefs_per_search[search_key]
             try:
                 # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
