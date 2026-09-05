@@ -46,12 +46,10 @@ class CustomLGBM(BaseModel):
 
         :param max_forecast_horizon: Maximum number of sensor-resolution steps to forecast.
         :param probabilistic: Whether to configure LightGBM for quantile predictions.
-        :param models_params: LightGBM parameter overrides, merged over the defaults
-                              below. Pass only the keys you want to change; anything you
-                              leave out keeps its default. Keys are handed to
-                              :class:`darts.models.LightGBMModel`, so besides LightGBM's
-                              own parameters this also reaches Darts' ``add_encoders``
-                              and ``categorical_future_covariates``.
+        :param models_params: LightGBM parameter overrides, merged over the defaults below.
+                              Pass only the keys you want to change; anything you leave out keeps its default.
+                              Keys are handed to :class:`darts.models.LightGBMModel`,
+                              so besides LightGBM's own parameters this also reaches Darts' ``add_encoders`` and ``categorical_future_covariates``.
         :param auto_regressive: Whether the target history should provide autoregressive features.
         :param use_past_covariates: Whether past covariates are used for fitting and prediction.
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
