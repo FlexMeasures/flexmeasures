@@ -850,6 +850,27 @@ def test_forecaster_config_schema_remembers_that_train_period_was_asked_for(capl
     )
 
 
+def test_forecaster_config_schema_keeps_a_defaulted_train_period_defaulted_when_stored():
+    """A stored config carries a train-period either way, so the config must say which it was.
+
+    Forecaster configs are stored by dumping them, and read back by loading that dump,
+    so without this a defaulted period would read back as one that had been asked for,
+    and would start narrowing the stated train-start.
+    """
+    schema = TrainPredictPipelineConfigSchema()
+    loaded = schema.load({"train-start": "2025-01-01T00:00:00+01:00"})
+    assert loaded["train_period_is_explicit"] is False
+
+    read_back = schema.load(schema.dump(loaded))
+    assert read_back["train_period_is_explicit"] is False
+
+    # And a period that was asked for stays that way too.
+    asked_for = schema.load(
+        {"train-start": "2025-01-01T00:00:00+01:00", "train-period": "P7D"}
+    )
+    assert schema.load(schema.dump(asked_for))["train_period_is_explicit"] is True
+
+
 def test_forecaster_config_schema_marks_a_defaulted_train_period_as_such():
     """Without a stated train-period, the load default must not pass for one that was asked for."""
     config = TrainPredictPipelineConfigSchema().load(

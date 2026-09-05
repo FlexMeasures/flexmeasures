@@ -2294,6 +2294,11 @@ def test_model_params_can_reach_darts_categorical_covariates():
             timedelta(days=3),
             "stating both goes back no further than the start asks for either",
         ),
+        (
+            {"train-period": None},
+            timedelta(days=365),
+            "asking for no period at all leaves only the outer bound",
+        ),
     ],
 )
 def test_training_window_goes_back_no_further_than_asked_for(
