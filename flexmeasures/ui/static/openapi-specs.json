@@ -5996,15 +5996,6 @@
               "maxItems": 2,
               "items": {}
             }
-          },
-          "train-period-is-explicit": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "default": null,
-            "description": "Whether train-period was asked for, rather than defaulted to. Bookkeeping rather than a setting: it is filled in from the config as given, and only a period that was asked for narrows a stated train-start. It is part of the config so that the distinction survives being stored and read back.",
-            "example": true
           }
         },
         "additionalProperties": false

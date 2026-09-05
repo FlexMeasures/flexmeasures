@@ -310,20 +310,6 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
 
-    train_period_is_explicit = fields.Boolean(
-        data_key="train-period-is-explicit",
-        load_default=None,
-        allow_none=True,
-        metadata={
-            "description": (
-                "Whether train-period was asked for, rather than defaulted to. "
-                "Bookkeeping rather than a setting: it is filled in from the config as given, and only a period that was asked for narrows a stated train-start. "
-                "It is part of the config so that the distinction survives being stored and read back."
-            ),
-            "example": True,
-        },
-    )
-
     @post_load(pass_original=True)
     def note_whether_train_period_was_asked_for(self, data, original_data, **kwargs):
         """Record whether train-period was stated, rather than merely defaulted to.
@@ -333,13 +319,28 @@ class TrainPredictPipelineConfigSchema(Schema):
         Only a stated period should narrow a stated ``train-start``,
         so the difference is settled here, while the config as given is still at hand.
 
-        A config that already carries the answer keeps it, which is what makes storing and reading back a config faithful:
-        a stored config always carries a train-period, defaulted or not, so without this it would read back as though the period had been asked for.
+        This stays out of the config as dumped, and rides on whether ``train-period`` appears there at all,
+        which ``omit_a_train_period_that_was_only_defaulted`` takes care of.
         """
-        if data.get("train_period_is_explicit") is not None:
-            return data
         original = original_data if isinstance(original_data, dict) else {}
         data["train_period_is_explicit"] = "train-period" in original
+        return data
+
+    @post_dump(pass_original=True)
+    def omit_a_train_period_that_was_only_defaulted(
+        self, data, original_data, **kwargs
+    ):
+        """Leave a defaulted train-period out of the config as dumped.
+
+        Forecaster configs are stored by dumping them, and read back by loading that dump.
+        Writing out a period nobody asked for would read back as one that was asked for,
+        and would then narrow a stated train-start, which is the very thing the load default should not do.
+        Leaving it out instead says what was configured, and reads back as what it was.
+        """
+        original = original_data if isinstance(original_data, dict) else {}
+        # Absent means this config never went through a load, in which case take it at face value.
+        if original.get("train_period_is_explicit", True) is False:
+            data.pop("train-period", None)
         return data
 
     @validates_schema
