@@ -2,6 +2,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable
 
 from darts import TimeSeries
 
@@ -16,6 +17,16 @@ def default_n_jobs() -> int:
     Each sub-model is expected to run single-threaded, which keeps the total thread count at one per core.
     """
     return os.cpu_count() or 1
+
+
+def resolve_n_jobs(n_jobs: int | None) -> int:
+    """Settle how many horizon sub-models to work on at the same time.
+
+    ``None`` asks for the default, and anything below 1 still leaves one worker to do the job.
+    Subclasses call this when they need the answer before handing it to ``BaseModel``,
+    for instance to decide how many threads to give each sub-model.
+    """
+    return max(1, n_jobs if n_jobs is not None else default_n_jobs())
 
 
 class BaseModel(ABC):
@@ -70,7 +81,7 @@ class BaseModel(ABC):
         self.use_past_covariates = use_past_covariates
         self.use_future_covariates = use_future_covariates
         self.ensure_positive = ensure_positive
-        self.n_jobs = max(1, n_jobs if n_jobs is not None else default_n_jobs())
+        self.n_jobs = resolve_n_jobs(n_jobs)
         self._setup()
 
     @abstractmethod
@@ -105,10 +116,13 @@ class BaseModel(ABC):
         self._map_over_horizons(fit_one)
         logging.debug("Base model trained successfully")
 
-    def _map_over_horizons(self, work) -> list:
-        """Apply ``work`` to every horizon sub-model, concurrently where that helps.
+    def _map_over_horizons(self, work: Callable[[Any], Any]) -> list:
+        """Do something with every horizon sub-model, concurrently where that helps.
 
-        Results are returned in horizon order, whether or not threads are used.
+        :param work: what to do with one sub-model, called once per horizon with that sub-model,
+                     for instance fitting it or asking it for a prediction.
+        :returns:    what ``work`` returned, in horizon order, whether or not threads were used.
+
         The sub-models share no state, so that order is the only thing concurrency could disturb.
         """
         models = self.models[: self.max_forecast_horizon]

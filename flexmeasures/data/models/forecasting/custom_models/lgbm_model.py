@@ -1,6 +1,9 @@
 from darts.models import LightGBMModel
 
-from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
+from flexmeasures.data.models.forecasting.custom_models.base_model import (
+    BaseModel,
+    resolve_n_jobs,
+)
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 DEFAULT_SEASONAL_LAGS_STEPS = [1, 24]
@@ -58,6 +61,8 @@ class CustomLGBM(BaseModel):
         :param min_samples_per_horizon: Minimum training rows required for each horizon model.
         :param n_jobs: How many horizon sub-models to fit or predict at the same time. Defaults to one per core.
         """
+        # Resolved here rather than in BaseModel, because the thread count below depends on it.
+        n_jobs = resolve_n_jobs(n_jobs)
         self.models_params = {
             "output_chunk_length": 1,
             "likelihood": "quantile",
@@ -74,10 +79,13 @@ class CustomLGBM(BaseModel):
                 }  # Cyclic features handled by Darts library
             },
             "verbose": -1,
-            # One thread per sub-model, because the horizons are fitted concurrently instead,
-            # see BaseModel._map_over_horizons. Keep the two together:
-            # single-threading the sub-models without that concurrency makes training on a long window slower.
-            "num_threads": 1,
+            # How a sub-model should thread depends on whether the horizons run side by side.
+            # Fitted concurrently, each sub-model takes one thread, so the cores are not oversubscribed;
+            # fitted one after another, LightGBM's own threading is what uses those cores, so leave it at its default.
+            # Single-threading the sub-models without the concurrency is the worst of both, and measurably slower.
+            "num_threads": (
+                1 if n_jobs > 1 else 0
+            ),  # 0 lets LightGBM pick, which is its default
         }
         if models_params:
             # A shallow merge, so overriding one key of e.g. add_encoders means
