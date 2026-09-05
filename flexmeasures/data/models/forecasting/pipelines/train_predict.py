@@ -334,16 +334,9 @@ class TrainPredictPipeline(Forecaster):
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
 
-        The training period ends at ``predict_start`` and starts at the latest, and therefore most restrictive, of:
-
-        1. ``train_start``, if one was configured through ``--train-start``.
-        2. ``predict_start - train_period``, if a period was asked for through ``--train-period``.
-        3. ``predict_start - max_training_period``, which always applies as the outer bound.
-
-        A ``train-period`` that was merely defaulted to does not take part when a ``train-start`` was configured,
-        so that the default no longer narrows a stated start date.
-        A ``train-period`` that was asked for does take part, so that stating both keeps whichever asks for less data:
-        each of the two says how far back to go, and honouring both means going back no further than either allows.
+        Training ends at ``predict_start``. Two settings say how far back it may reach:
+        ``train-start`` names the earliest moment to train from, and ``train-period`` says how much history to use.
+        Both are limits, so the window is the shorter of what they allow, which is the later of the two starting points.
 
         Additionally, the resulting training window is guaranteed to span at least two days.
 
@@ -352,19 +345,11 @@ class TrainPredictPipeline(Forecaster):
         train_end = self._parameters["predict_start"]
 
         configured_start: datetime | None = self._config.get("train_start")
-        period_hours: int | None = self._config.get("train_period_in_hours")
-        period_is_explicit: bool = self._config.get("train_period_is_explicit", False)
+        period_hours: int = self._config["train_period_in_hours"]
 
-        # Outer bound: never go further back than max_training_period.
-        candidates = {
-            "max-training-period": train_end - self._config["max_training_period"]
-        }
+        candidates = {"train-period": train_end - timedelta(hours=period_hours)}
         if configured_start is not None:
             candidates["train-start"] = configured_start
-        if period_hours is not None and (
-            period_is_explicit or configured_start is None
-        ):
-            candidates["train-period"] = train_end - timedelta(hours=period_hours)
 
         decisive, train_start = max(candidates.items(), key=lambda item: item[1])
 
