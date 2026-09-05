@@ -234,8 +234,9 @@ class TrainPredictPipeline(Forecaster):
         """
         Runs a single training and prediction cycle.
         """
+        # State the training span, because it decides how much work the cycle is, and it is derived rather than configured.
         logging.info(
-            f"Starting Train-Predict cycle from {train_start} to {predict_end}"
+            f"Starting Train-Predict cycle from {train_start} to {predict_end}, training on {train_end - train_start} of data"
         )
 
         # Train model
@@ -333,16 +334,16 @@ class TrainPredictPipeline(Forecaster):
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
 
-        Priority (most restrictive start date wins):
+        The training period ends at ``predict_start`` and starts at the latest, and therefore most restrictive, of:
 
-        1. ``train_start`` (if explicitly configured via ``--train-start``).
-        2. ``predict_start - train_period`` (if ``--train-period`` was explicitly set).
-        3. ``predict_start - max_training_period`` (always enforced as the outer bound).
+        1. ``train_start``, if one was configured through ``--train-start``.
+        2. ``predict_start - train_period``, if a period was asked for through ``--train-period``.
+        3. ``predict_start - max_training_period``, which always applies as the outer bound.
 
-        When ``--train-start`` is set the ``--train-period`` is ignored – the
-        effective period is simply ``predict_start - train_start``, capped to
-        ``max_training_period``.  This prevents the old 30-day default from
-        silently overriding an explicit start date.
+        A ``train-period`` that was merely defaulted to does not take part when a ``train-start`` was configured,
+        so that the default no longer narrows a stated start date.
+        A ``train-period`` that was asked for does take part, so that stating both keeps whichever asks for less data:
+        each of the two says how far back to go, and honouring both means going back no further than either allows.
 
         Additionally, the resulting training window is guaranteed to span
         at least two days.
@@ -353,27 +354,36 @@ class TrainPredictPipeline(Forecaster):
 
         configured_start: datetime | None = self._config.get("train_start")
         period_hours: int | None = self._config.get("train_period_in_hours")
+        period_is_explicit: bool = self._config.get("train_period_is_explicit", False)
 
         # Outer bound: never go further back than max_training_period.
-        max_period_start = train_end - self._config["max_training_period"]
-
+        candidates = {
+            "max-training-period": train_end - self._config["max_training_period"]
+        }
         if configured_start is not None:
-            # Explicit train_start takes full precedence; period is ignored.
-            train_start = max(configured_start, max_period_start)
-        elif period_hours is not None:
-            # Explicit train_period without train_start.
-            train_start = max(
-                train_end - timedelta(hours=period_hours), max_period_start
-            )
-        else:
-            # Neither set: use the full max_training_period window.
-            train_start = max_period_start
+            candidates["train-start"] = configured_start
+        if period_hours is not None and (
+            period_is_explicit or configured_start is None
+        ):
+            candidates["train-period"] = train_end - timedelta(hours=period_hours)
+
+        decisive, train_start = max(candidates.items(), key=lambda item: item[1])
 
         # Enforce minimum training period of 2 days
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
-            train_start = train_end - min_training_period
+            decisive, train_start = (
+                "minimum training period",
+                train_end - min_training_period,
+            )
 
+        logging.debug(
+            "Training window spans %s, from %s to %s, as asked for by %s.",
+            train_end - train_start,
+            train_start,
+            train_end,
+            decisive,
+        )
         return train_start, train_end
 
     def run(

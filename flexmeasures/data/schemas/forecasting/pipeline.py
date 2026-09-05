@@ -272,8 +272,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         metadata={
             "description": (
                 "Duration of the initial training period (ISO 8601 format, min 2 days). "
-                "Defaults to P30D (30 days). Ignored when --train-start is set: "
-                "the training window then runs from --train-start to --start, "
+                "Defaults to P30D (30 days), which does not apply when --train-start is set. "
+                "Set both to train from whichever of the two asks for less data, "
                 "capped to --max-training-period."
             ),
             "example": "P7D",
@@ -310,14 +310,17 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
 
-    @pre_load
-    def warn_when_train_period_is_ignored(self, data, **kwargs):
-        """An explicit train-start takes precedence over train-period (see _derive_training_period)."""
-        if data.get("train-start") is not None and data.get("train-period") is not None:
-            logging.warning(
-                "Both train-start and train-period are set; train-period is ignored "
-                "and the training window runs from train-start (capped to max-training-period)."
-            )
+    @post_load(pass_original=True)
+    def note_whether_train_period_was_asked_for(self, data, original_data, **kwargs):
+        """Record whether train-period was stated, rather than merely defaulted to.
+
+        ``train_period`` carries a load default, so by the time the config is loaded,
+        a stated period is indistinguishable from the default one.
+        Only a stated period should narrow a stated ``train-start``,
+        so the difference is remembered here, where the original input is still at hand.
+        """
+        original = original_data if isinstance(original_data, dict) else {}
+        data["train_period_is_explicit"] = original.get("train-period") is not None
         return data
 
     @validates_schema
