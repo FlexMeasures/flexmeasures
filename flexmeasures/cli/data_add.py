@@ -1586,7 +1586,8 @@ def add_forecast(  # noqa: C901
     \b
     Workflow
       - Training window: defaults to a 30-day period in advance of the CLI execution time,
-        or runs from --train-start when one is given, capped to --max-training-period.
+        or runs from --train-start when one is given,
+        capped to --max-training-period.
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
@@ -1595,12 +1596,12 @@ def add_forecast(  # noqa: C901
     \b
     Notes:
     - Use --from-date to explicitly set when the forecasts will start.
-    - Use --train-period to set the training window, which will grow each cycle
-        until the specified --to-date is reached.
+    - Use --train-period to set the training window,
+        which will grow each cycle until the specified --to-date is reached.
     - Setting both --train-start and --train-period trains on whichever of the two asks for less data.
-    - Use --predict-period to set the prediction window. It rolls forward by the
-        forecast period each cycle, similar to the training window, but its size
-        does not grow.
+    - Use --predict-period to set the prediction window.
+        It rolls forward by the forecast period each cycle, similar to the training window,
+        but its size does not grow.
     """
 
     # Deprecation warnings for CLI options specific to rolling viewpoint predictions

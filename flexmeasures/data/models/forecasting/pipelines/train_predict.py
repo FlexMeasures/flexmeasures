@@ -345,8 +345,7 @@ class TrainPredictPipeline(Forecaster):
         A ``train-period`` that was asked for does take part, so that stating both keeps whichever asks for less data:
         each of the two says how far back to go, and honouring both means going back no further than either allows.
 
-        Additionally, the resulting training window is guaranteed to span
-        at least two days.
+        Additionally, the resulting training window is guaranteed to span at least two days.
 
         :return:    A tuple ``(train_start, train_end)`` defining the training window.
         """
