@@ -23,6 +23,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Drop the nine obsolete tables that predate the ``GenericAsset``/``Sensor`` data model, asking you to confirm first if any of them still hold data, which cleans up after v0.18.0, where seven of them were dropped but ``asset_type`` and ``weather_sensor_type`` were missed, and where a database that was downgraded past that release and upgraded again kept all nine [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
 * Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
@@ -33,6 +34,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* Upgrading a database old enough to still carry the pre-``GenericAsset``/``Sensor`` tables now works, where the v0.18.0 migration that removes them crashed twice over: once while checking whether those tables hold data, as soon as one of them held more than a single row, and once while dropping them, because it dropped each table before the ones referencing it [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
 * KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
