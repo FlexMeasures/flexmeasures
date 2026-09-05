@@ -857,6 +857,24 @@ def test_forecaster_config_schema_no_longer_stores_the_deprecated_name():
     assert "max-training-period" not in dumped
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"train-period": "P1Y"},
+        {"train-period": "P1M"},
+        {"max-training-period": "P1Y"},
+    ],
+)
+def test_forecaster_config_schema_says_why_years_and_months_do_not_work(payload):
+    """A year or a month is not a fixed length, and saying so beats failing to compare it.
+
+    A Duration cannot be compared to a timedelta, so this has to be reported before anything measures it.
+    """
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(payload)
+    assert "days or smaller units" in str(exc.value.messages)
+
+
 def test_forecaster_config_schema_falls_back_to_the_default_training_period():
     """Asking for no period of its own leaves the default to say how much history to use."""
     config = TrainPredictPipelineConfigSchema().load({"train-period": None})
