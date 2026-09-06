@@ -16,6 +16,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* StorageScheduler now exports a ``commodity_costs`` breakdown alongside ``commitment_costs`` for multi-commodity or non-default commodity schedules and persists it in ``rq_job.meta["scheduler_info"]["commodity_costs"]`` [see `issue #2416 <https://github.com/FlexMeasures/flexmeasures/issues/2416>`_]
 
 * Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_]
 * A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation_id>/trigger``) and the asset's *Automations* page (a *Run now* button), which is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]

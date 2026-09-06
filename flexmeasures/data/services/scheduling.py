@@ -850,6 +850,10 @@ def make_schedule(  # noqa: C901
             # so without an explicit save here the costs never reach Redis.
             rq_job.save_meta()
             continue
+        if rq_job and result.get("name") == "commodity_costs":
+            rq_job.meta["scheduler_info"]["commodity_costs"] = result["data"]
+            rq_job.save_meta()
+            continue
         if "sensor" not in result:
             continue
 

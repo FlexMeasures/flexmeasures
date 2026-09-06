@@ -109,6 +109,9 @@ def test_scheduling_a_battery(
         isinstance(cost, float) and np.isfinite(cost)
         for cost in commitment_costs.values()
     )
+    assert (
+        "commodity_costs" not in finished_job.meta["scheduler_info"]
+    ), "single-commodity schedule should not emit commodity_costs"
 
     # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
     # Count only this job's message — the RQ worker may also process other queued jobs.
