@@ -46,6 +46,7 @@ class PredictPipeline(BasePipeline):
         missing_threshold: float = 1.0,
         annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
+        dry_run: bool = False,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -70,6 +71,7 @@ class PredictPipeline(BasePipeline):
         :param sensor_to_save: Sensor to which the predictions will be attributed.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         :param post_processing_config: Optional clipping and snapping configuration for forecast values.
+        :param dry_run: If True, compute the forecast but do not save it to the database.
         """
         super().__init__(
             future_regressors=future_regressors,
@@ -97,6 +99,7 @@ class PredictPipeline(BasePipeline):
         self.predict_start = predict_start
         self.predict_end = predict_end
         self.post_processing_config = post_processing_config or {}
+        self.dry_run = dry_run
 
         self.sensor_resolution = self.target_sensor.event_resolution
         self.readable_resolution = duration_isoformat(self.sensor_resolution)
@@ -295,13 +298,18 @@ class PredictPipeline(BasePipeline):
         if self.output_path is not None:
             self.save_results_to_CSV(bdf)
 
-        save_to_db(
-            bdf, save_changed_beliefs_only=False
-        )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
-        db.session.commit()
-        logging.info(
-            f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
-        )
+        if self.dry_run:
+            logging.info(
+                f"Not saving predictions to DB (because of dry-run). Would have saved {len(bdf)} beliefs with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+            )
+        else:
+            save_to_db(
+                bdf, save_changed_beliefs_only=False
+            )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
+            db.session.commit()
+            logging.info(
+                f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+            )
         if delete_model:
             os.remove(self.model_path)
 

@@ -1589,6 +1589,7 @@ def add_forecast(  # noqa: C901
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Forecasts are saved to the database; use --dry-run to compute them without saving.
       - Sensor 2093 is used as a regressor in this example.
 
     \b
@@ -1600,6 +1601,16 @@ def add_forecast(  # noqa: C901
         forecast period each cycle, similar to the training window, but its size
         does not grow.
     """
+
+    dry_run = kwargs.get("dry_run", False)
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the forecast that a dry run computes would be discarded unseen."
+            " Drop --as-job to compute the forecast here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     # Deprecation warnings for CLI options specific to rolling viewpoint predictions
     if kwargs.get("horizon") is not None:
@@ -1658,6 +1669,26 @@ def add_forecast(  # noqa: C901
         unique_belief_times = {
             ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
         }
+        if dry_run:
+            sensor_to_save = forecaster.output_sensors[0]
+            first_event_start = min(
+                item["data"].event_starts.min() for item in pipeline_returns
+            )
+            last_event_end = max(
+                item["data"].event_ends.max() for item in pipeline_returns
+            )
+            click.secho(
+                f"Not saving forecasts to the database (because of --dry-run), but this is what I computed:"
+                f"\n{total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times,"
+                f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
+                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}),"
+                f" covering events from {first_event_start} until {last_event_end}.",
+                **MsgStyle.SUCCESS,
+            )
+            for item in pipeline_returns:
+                click.echo(item["data"])
+            return
+
         click.secho(
             f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
             **MsgStyle.SUCCESS,
@@ -1795,6 +1826,15 @@ def add_automation(
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
     )
+
+    # An automation exists to record forecasts, so a dry run would render it pointless.
+    # Popping the parameter also keeps it out of the parameters stored on the automation.
+    if parameters.pop("dry-run", False):
+        click.secho(
+            "The dry-run option is not supported for automations, which exist to record the forecasts they compute.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     # Validate the parameters using the forecast parameters schema (we store them serialized)
     try:
