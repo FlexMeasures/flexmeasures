@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 
@@ -143,7 +144,21 @@ def test_loading_a_cwd_folder_that_is_not_importable_warns(
     """
     working_directory = tmp_path / "plugin-repo"
     write_plugin(working_directory, "fm_test_unimportable_plugin", marker="from-cwd")
-    monkeypatch.chdir(working_directory)  # deliberately not on sys.path
+    monkeypatch.chdir(working_directory)
+    # Some runners put the working directory on sys.path, as "" or spelled out.
+    # Both would make the plugin importable by name, which is the other branch.
+    monkeypatch.setattr(
+        sys,
+        "path",
+        [
+            entry
+            for entry in sys.path
+            if entry not in ("", str(working_directory), os.curdir)
+        ],
+    )
+    assert (
+        importlib.util.find_spec("fm_test_unimportable_plugin") is None
+    ), "this test is about the folder that cannot be imported by name"
 
     app = make_app(["fm_test_unimportable_plugin"])
     with caplog.at_level("WARNING"):
