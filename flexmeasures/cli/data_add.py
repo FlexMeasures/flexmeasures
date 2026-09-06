@@ -1602,16 +1602,6 @@ def add_forecast(  # noqa: C901
         does not grow.
     """
 
-    dry_run = kwargs.get("dry_run", False)
-    if as_job and dry_run:
-        click.secho(
-            "The --as-job flag cannot be combined with --dry-run:"
-            " a queued job runs on a worker, where the forecast that a dry run computes would be discarded unseen."
-            " Drop --as-job to compute the forecast here.",
-            **MsgStyle.ERROR,
-        )
-        raise click.Abort()
-
     # Deprecation warnings for CLI options specific to rolling viewpoint predictions
     if kwargs.get("horizon") is not None:
         click.secho(
@@ -1634,6 +1624,18 @@ def add_forecast(  # noqa: C901
         edit_config,
         edit_parameters,
     )
+
+    # Read the flag from the assembled parameters, so that it counts however it was supplied:
+    # as the --dry-run option, or through the --parameters file or the --edit-parameters editor.
+    dry_run = parameters.get("dry-run", False)
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the forecast that a dry run computes would be discarded unseen."
+            " Drop --as-job to compute the forecast here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     try:
         forecaster = get_data_generator(

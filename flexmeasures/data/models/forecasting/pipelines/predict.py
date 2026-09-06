@@ -300,7 +300,7 @@ class PredictPipeline(BasePipeline):
 
         if self.dry_run:
             logging.info(
-                f"Not saving predictions to DB (because of dry-run). Would have saved {len(bdf)} beliefs with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+                f"Not saving predictions to DB (because of --dry-run). Would have saved {len(bdf)} beliefs with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
             )
         else:
             save_to_db(
