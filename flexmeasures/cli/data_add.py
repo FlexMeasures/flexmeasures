@@ -1673,18 +1673,22 @@ def add_forecast(  # noqa: C901
         }
         if dry_run:
             sensor_to_save = forecaster.output_sensors[0]
-            first_event_start = min(
-                item["data"].event_starts.min() for item in pipeline_returns
-            )
-            last_event_end = max(
-                item["data"].event_ends.max() for item in pipeline_returns
+            # Only frames with beliefs have an event range; without any, we still report the rest.
+            frames_with_beliefs = [
+                item["data"] for item in pipeline_returns if not item["data"].empty
+            ]
+            event_range = (
+                f" covering events from {min(data.event_starts.min() for data in frames_with_beliefs)}"
+                f" until {max(data.event_ends.max() for data in frames_with_beliefs)},"
+                if frames_with_beliefs
+                else ""
             )
             click.secho(
                 f"Not saving forecasts to the database (because of --dry-run), but this is what I computed:"
                 f"\n{total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times,"
+                f"{event_range}"
                 f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
-                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}),"
-                f" covering events from {first_event_start} until {last_event_end}.",
+                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
                 **MsgStyle.SUCCESS,
             )
             for item in pipeline_returns:
