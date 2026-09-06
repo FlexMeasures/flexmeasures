@@ -445,6 +445,81 @@ def test_add_process(
     assert (schedule == -0.4).event_value.sum() == 4
 
 
+def _process_schedule_cli_input(db, process_power_sensor_id: int) -> dict:
+    """Build the CLI input for scheduling a shiftable process, as used by the dry-run tests."""
+    epex_da = get_test_sensor(db)
+    return {
+        "sensor": process_power_sensor_id,
+        "start": "2015-01-02T00:00:00+01:00",
+        "duration": "PT24H",
+        "scheduler": "ProcessScheduler",
+        "flex-context": json.dumps({"consumption-price": {"sensor": epex_da.id}}),
+        "flex-model": json.dumps(
+            {"duration": "PT4H", "power": "0.4", "process-type": "SHIFTABLE"}
+        ),
+    }
+
+
+def test_add_schedule_dry_run_saves_no_beliefs(
+    app, process_power_sensor, add_market_prices_fresh_db, db
+):
+    """A dry run shows the schedule it computed, without recording any belief."""
+    from flexmeasures.cli.data_add import add_schedule
+
+    runner = app.test_cli_runner()
+    cli_input = to_flags(_process_schedule_cli_input(db, process_power_sensor))
+
+    result = runner.invoke(add_schedule, cli_input + ["--dry-run"])
+    check_command_ran_without_error(result)
+    assert "Not saving schedule for sensor `power`" in result.output
+    assert "covering events from" in result.output
+    assert "computed but not stored (because of --dry-run)" in result.output
+    assert "New schedule is stored." not in result.output
+    sensor = db.session.get(Sensor, process_power_sensor)
+    assert len(sensor.search_beliefs()) == 0
+
+    # A normal run does record the schedule, so the dry run really skipped that step
+    result = runner.invoke(add_schedule, cli_input)
+    check_command_ran_without_error(result)
+    assert "New schedule is stored." in result.output
+    assert len(sensor.search_beliefs()) > 0
+
+
+def test_add_schedule_rejects_dry_run_as_job(app, fresh_db, add_market_prices_fresh_db):
+    """A dry run cannot be queued: the worker would save the schedule that the flag rules out."""
+    from flexmeasures.cli.data_add import add_schedule, add_toy_account
+
+    runner = app.test_cli_runner()
+    runner.invoke(add_toy_account)
+    toy_account = fresh_db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one_or_none()
+    battery = fresh_db.session.execute(
+        select(Asset).filter_by(name="toy-battery", owner=toy_account)
+    ).scalar_one_or_none()
+    power_sensor = battery.sensors[0]
+    prices = add_market_prices_fresh_db["epex_da"]
+
+    cli_input = to_flags(
+        {
+            "start": "2014-12-31T23:00:00+00",
+            "duration": "PT12H",
+            "sensor": power_sensor.id,
+            "scheduler": "StorageScheduler",
+            "soc-at-start": "50%",
+            "flex-context": json.dumps({"consumption-price": {"sensor": prices.id}}),
+            "flex-model": json.dumps({"roundtrip-efficiency": "90%"}),
+        }
+    )
+    result = runner.invoke(add_schedule, cli_input + ["--dry-run", "--as-job"])
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
+    # Without the guard, the flag would be dropped and the queued job would store a schedule.
+    assert app.queues["scheduling"].count == 0
+    assert len(power_sensor.search_beliefs()) == 0
+
+
 @pytest.mark.parametrize(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
