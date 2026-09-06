@@ -461,13 +461,13 @@ def _process_schedule_cli_input(db, process_power_sensor_id: int) -> dict:
 
 
 def test_add_schedule_dry_run_saves_no_beliefs(
-    app, process_power_sensor, add_market_prices_fresh_db, db
+    app, fresh_db, process_power_sensor, add_market_prices_fresh_db
 ):
     """A dry run shows the schedule it computed, without recording any belief."""
     from flexmeasures.cli.data_add import add_schedule
 
     runner = app.test_cli_runner()
-    cli_input = to_flags(_process_schedule_cli_input(db, process_power_sensor))
+    cli_input = to_flags(_process_schedule_cli_input(fresh_db, process_power_sensor))
 
     result = runner.invoke(add_schedule, cli_input + ["--dry-run"])
     check_command_ran_without_error(result)
@@ -475,7 +475,7 @@ def test_add_schedule_dry_run_saves_no_beliefs(
     assert "covering events from" in result.output
     assert "computed but not stored (because of --dry-run)" in result.output
     assert "New schedule is stored." not in result.output
-    sensor = db.session.get(Sensor, process_power_sensor)
+    sensor = fresh_db.session.get(Sensor, process_power_sensor)
     assert len(sensor.search_beliefs()) == 0
 
     # A normal run does record the schedule, so the dry run really skipped that step
