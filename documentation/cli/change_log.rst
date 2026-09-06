@@ -7,7 +7,7 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
-* Add ``flexmeasures add forecasts --dry-run``, to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
+* Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
 * ``flexmeasures jobs run-job`` now performs the job exactly once (it used to perform it a second time, outside the job timeout, repeating any side effects), on the queue the job belongs to, so that the queue's own exception handler records why a job failed and the job's registries are updated on that queue.
 
