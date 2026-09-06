@@ -29,9 +29,8 @@ def is_written_as_path(plugin: str) -> bool:
 def find_importable_package(pkg_name: str) -> importlib.machinery.ModuleSpec | None:
     """Find the spec of an importable package, if there is one.
 
-    Namespace packages are ignored: a folder without an ``__init__.py`` is importable,
-    but accepting it here would shadow the clearer error that the file path branch of
-    ``register_plugins`` reports for such a folder.
+    Namespace packages are ignored.
+    A folder without an ``__init__.py`` is importable, but accepting it here would shadow the clearer error that the file path branch of ``register_plugins`` reports for such a folder.
     """
     try:
         spec = importlib.util.find_spec(pkg_name)
@@ -58,9 +57,9 @@ def register_plugins(app: Flask):  # noqa: C901
     If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
     (last part of the path).
 
-    An entry that is not spelled out as a file path is imported as an installed package
-    if one goes by that name, even when a folder of the same name sits in the working
-    directory. To load such a folder instead, spell out its path (e.g. ``./my_plugin``).
+    An entry that is not spelled out as a file path is imported as an installed package if one goes by that name,
+    even when a folder of the same name sits in the working directory.
+    To load such a folder instead, spell out its path (e.g. ``./my_plugin``).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
     if isinstance(plugins, str):
@@ -80,14 +79,20 @@ def register_plugins(app: Flask):  # noqa: C901
         pkg_name = os.path.split(plugin)[
             -1
         ]  # rule out attempts for relative package imports
-        # An installed package wins from a folder of the same name in the working directory,
-        # unless the entry is spelled out as a file path. Loading such a folder by path would
-        # execute its __init__.py a second time, under a new module object, while submodules
-        # imported by the first execution keep referring to the old one — so, for instance,
-        # routes end up on a Blueprint that is never registered. See GH issue #2415.
-        prefer_package = not is_written_as_path(plugin) and (
+        # An entry that is spelled out as a file path always loads the folder it points to.
+        # For a bare name, an installed package wins from a folder of the same name in the working directory.
+        # Loading such a folder by path would execute its __init__.py a second time, under a new module object,
+        # while submodules imported by the first execution keep referring to the old one,
+        # so that, for instance, routes end up on a Blueprint that is never registered. See GH issue #2415.
+        written_as_path = is_written_as_path(plugin)
+        prefer_package = not written_as_path and (
             find_importable_package(pkg_name) is not None
         )
+        if written_as_path and not os.path.exists(plugin):
+            app.logger.error(
+                f"Plugin {plugin_name} is spelled out as a file path, but {plugin} does not exist. Cannot load plugin {plugin_name}."
+            )
+            continue
         if not os.path.exists(plugin) or prefer_package:  # assume plugin is a package
             if prefer_package and os.path.exists(plugin):
                 app.logger.debug(
@@ -106,7 +111,7 @@ def register_plugins(app: Flask):  # noqa: C901
                 )
                 continue
         else:  # assume plugin is a file path
-            if not is_written_as_path(plugin):
+            if not written_as_path:
                 app.logger.warning(
                     f"Loading plugin {plugin_name} from the folder of that name in the working directory,"
                     f" as no installed package goes by that name."

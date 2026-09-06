@@ -14,9 +14,8 @@ from flexmeasures.utils.plugin_utils import register_plugins
 def write_plugin(root, pkg_name: str, marker: str, with_init: bool = True):
     """Write a minimal plugin package, whose Blueprint gets its route from a submodule.
 
-    This mirrors the common plugin layout: the Blueprint is created in ``__init__.py``,
-    and ``views.py`` imports it to attach routes. The marker distinguishes two copies
-    of the same plugin, and rides along on the module and its route.
+    This mirrors the common plugin layout: the Blueprint is created in ``__init__.py``, and ``views.py`` imports it to attach routes.
+    The marker distinguishes two copies of the same plugin, and rides along on the module and its route.
     """
     pkg = root / pkg_name
     pkg.mkdir(parents=True)
@@ -62,10 +61,9 @@ def test_installed_package_wins_from_folder_in_working_directory(
 ):
     """A bare plugin name resolves to the installed package, not to a folder in the cwd.
 
-    Regression test for GH issue #2415: loading the folder executed ``__init__.py`` a second
-    time, so the routes that ``views.py`` had attached to the first Blueprint were lost, and
-    the Blueprint that got registered was empty. Both copies here define a route, so the
-    routing table tells us which module was loaded, and whether its routes survived.
+    Regression test for GH issue #2415: loading the folder executed ``__init__.py`` a second time,
+    so the routes that ``views.py`` had attached to the first Blueprint were lost, and the Blueprint that got registered was empty.
+    Both copies here define a route, so the routing table tells us which module was loaded, and whether its routes survived.
     """
     installed = tmp_path / "site-packages"
     write_plugin(installed, "my_plugin", marker="installed")
@@ -87,9 +85,12 @@ def test_installed_package_wins_from_folder_in_working_directory(
 
 
 def test_folder_in_working_directory_is_loaded_when_nothing_is_installed(
-    tmp_path, monkeypatch, clean_import_state, caplog
+    tmp_path, monkeypatch, clean_import_state
 ):
-    """Without an installed package of that name, a bare name still loads the cwd folder."""
+    """Without another package of that name, a bare name still resolves to the folder in the cwd.
+
+    The cwd is on ``sys.path`` here, as it is for a plugin repo one runs FlexMeasures from, so the folder is importable and loads as a package.
+    """
     working_directory = tmp_path / "plugin-repo"
     write_plugin(working_directory, "lonely_plugin", marker="from-cwd")
     monkeypatch.chdir(working_directory)
@@ -100,6 +101,28 @@ def test_folder_in_working_directory_is_loaded_when_nothing_is_installed(
 
     assert app.config["LOADED_PLUGINS"] == {"lonely_plugin": "from-cwd"}
     assert "/from-cwd" in [str(rule) for rule in app.url_map.iter_rules()]
+
+
+def test_loading_a_cwd_folder_that_is_not_importable_warns(
+    tmp_path, monkeypatch, clean_import_state, caplog
+):
+    """A bare name that only resolves to a folder in the cwd is loaded by path, with a warning.
+
+    This is the one case the loader cannot tell apart from a mistyped package name, so it says what it did.
+    """
+    working_directory = tmp_path / "plugin-repo"
+    write_plugin(working_directory, "unimportable_plugin", marker="from-cwd")
+    monkeypatch.chdir(working_directory)  # deliberately not on sys.path
+
+    app = make_app(["unimportable_plugin"])
+    with caplog.at_level("WARNING"):
+        register_plugins(app)
+
+    assert app.config["LOADED_PLUGINS"] == {"unimportable_plugin": "from-cwd"}
+    assert (
+        "Loading plugin unimportable_plugin from the folder of that name in the working directory"
+        in caplog.text
+    ), "loading a folder for a bare name is ambiguous enough to warn about"
 
 
 def test_path_entry_still_loads_the_folder_it_points_to(
@@ -140,8 +163,8 @@ def test_folder_without_init_file_reports_a_clear_error(
 ):
     """A folder without __init__.py is importable as a namespace package, but we don't.
 
-    Reporting the missing ``__init__.py`` is more useful than loading an empty namespace
-    package and then complaining that it defines no Blueprints.
+    Reporting the missing ``__init__.py`` is more useful than loading an empty namespace package,
+    and then complaining that it defines no Blueprints.
     """
     working_directory = tmp_path / "plugin-repo"
     write_plugin(working_directory, "no_init_plugin", marker="", with_init=False)
@@ -168,6 +191,27 @@ def test_missing_plugin_reports_that_it_is_not_installed(
 
     assert app.config["LOADED_PLUGINS"] == {}
     assert "it is not installed" in caplog.text
+
+
+def test_path_entry_that_does_not_exist_is_reported_as_a_missing_path(
+    tmp_path, monkeypatch, clean_import_state, caplog
+):
+    """A path that does not exist is reported as such, rather than resolved as a package name.
+
+    An installed package goes by the same name here, to show that spelling out a path rules it out.
+    """
+    installed = tmp_path / "site-packages"
+    write_plugin(installed, "my_plugin", marker="installed")
+    monkeypatch.syspath_prepend(str(installed))
+    monkeypatch.chdir(tmp_path / "site-packages")
+
+    app = make_app([f"..{os.sep}nowhere{os.sep}my_plugin"])
+    with caplog.at_level("ERROR"):
+        register_plugins(app)
+
+    assert app.config["LOADED_PLUGINS"] == {}
+    assert "does not exist" in caplog.text
+    assert "/installed" not in [str(rule) for rule in app.url_map.iter_rules()]
 
 
 def test_register_plugins_error_hints_at_comma_separated_format(caplog):
