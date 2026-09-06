@@ -1996,6 +1996,16 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the schedule that a dry run computes would be discarded unseen,"
+            " and where it would be saved to the database, which is exactly what --dry-run asks it not to do."
+            " Drop --as-job to compute the schedule here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     asset_or_sensor = None
     if not power_sensor and not asset:
         click.secho(
@@ -2068,6 +2078,11 @@ def add_schedule(  # noqa C901
         )
         if not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+        else:
+            click.secho(
+                "The schedule above was computed but not stored (because of --dry-run).",
+                **MsgStyle.SUCCESS,
+            )
 
 
 @fm_add_data.command("report")
