@@ -105,6 +105,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.cli.utils import (
@@ -1685,7 +1686,8 @@ def add_forecast(  # noqa: C901
             )
             click.secho(
                 f"Not saving forecasts to the database (because of --dry-run), but this is what I computed:"
-                f"\n{total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times,"
+                f"\n{pluralize('forecast belief', total_beliefs, include_count=True)}"
+                f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
                 f"{event_range}"
                 f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
                 f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
@@ -1696,7 +1698,8 @@ def add_forecast(  # noqa: C901
             return
 
         click.secho(
-            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
             **MsgStyle.SUCCESS,
         )
 

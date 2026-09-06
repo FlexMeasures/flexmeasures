@@ -20,6 +20,7 @@ from flexmeasures.data.models.forecasting.utils import (
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
 class PredictPipeline(BasePipeline):
@@ -300,7 +301,7 @@ class PredictPipeline(BasePipeline):
 
         if self.dry_run:
             logging.info(
-                f"Not saving predictions to DB (because of --dry-run). Would have saved {len(bdf)} beliefs with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+                f"Not saving predictions to DB (because of --dry-run). Would have saved {pluralize('belief', len(bdf), include_count=True)} with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
             )
         else:
             save_to_db(
