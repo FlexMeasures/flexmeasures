@@ -280,9 +280,9 @@ def test_path_entry_that_does_not_exist_is_reported_as_a_missing_path(
 
 
 def test_register_plugins_error_hints_at_comma_separated_format(caplog):
-    """Failing to import an unrecognised plugin should hint at the expected
-    comma-separated format, so a malformed setting (e.g. a JSON array) doesn't
-    read as a packaging problem."""
+    """Failing to import an unrecognised plugin should hint at the expected comma-separated format,
+    so that a malformed setting (e.g. a JSON array) does not read as a packaging problem.
+    """
     app = Flask(__name__)
     app.config["FLEXMEASURES_PLUGINS"] = '["flexmeasures_entsoe"]'
     register_plugins(app)
