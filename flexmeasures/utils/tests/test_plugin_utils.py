@@ -40,14 +40,16 @@ def write_plugin(root, pkg_name: str, marker: str, with_init: bool = True):
 
 @pytest.fixture
 def clean_import_state():
-    """Undo the sys.path and sys.modules changes that loading a plugin makes."""
+    """Undo the sys.path and sys.modules changes that loading a plugin makes.
+
+    Only the modules a test added are dropped, so that unrelated imports in the same session are left alone.
+    """
     original_path = list(sys.path)
-    original_modules = dict(sys.modules)
+    original_modules = set(sys.modules)
     yield
     sys.path[:] = original_path
-    for name in set(sys.modules) - set(original_modules):
+    for name in set(sys.modules) - original_modules:
         del sys.modules[name]
-    sys.modules.update(original_modules)
 
 
 def make_app(plugins: list[str]) -> Flask:
@@ -101,6 +103,35 @@ def test_folder_in_working_directory_is_loaded_when_nothing_is_installed(
 
     assert app.config["LOADED_PLUGINS"] == {"fm_test_lonely_plugin": "from-cwd"}
     assert "/from-cwd" in [str(rule) for rule in app.url_map.iter_rules()]
+
+
+def test_a_bare_name_resolves_the_way_python_would_import_it(
+    tmp_path, monkeypatch, clean_import_state
+):
+    """With the working directory ahead of site-packages on sys.path, the cwd copy is what gets imported.
+
+    That is normal import resolution, and we deliberately do not fight it: forcing the installed copy here would give the process two module objects for one name,
+    which is the very split that GH issue #2415 is about.
+    What matters is that the folder is imported as a module, once, rather than executed a second time by path, so its routes survive either way.
+    """
+    installed = tmp_path / "site-packages"
+    write_plugin(installed, "fm_test_plugin", marker="installed")
+
+    working_directory = tmp_path / "plugin-repo"
+    write_plugin(working_directory, "fm_test_plugin", marker="from-cwd")
+    monkeypatch.chdir(working_directory)
+    monkeypatch.syspath_prepend(str(installed))
+    monkeypatch.syspath_prepend(
+        str(working_directory)
+    )  # as for `python -m`, the cwd comes first
+
+    app = make_app(["fm_test_plugin"])
+    register_plugins(app)
+
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_plugin": "from-cwd"}
+    routes = [str(rule) for rule in app.url_map.iter_rules()]
+    assert "/from-cwd" in routes, "the routes of the imported copy must survive"
+    assert "/installed" not in routes
 
 
 def test_loading_a_cwd_folder_that_is_not_importable_warns(
@@ -193,6 +224,23 @@ def test_missing_plugin_reports_that_it_is_not_installed(
 
     assert app.config["LOADED_PLUGINS"] == {}
     assert "it is not installed" in caplog.text
+
+
+def test_path_entry_with_a_trailing_separator_still_names_the_plugin(
+    tmp_path, monkeypatch, clean_import_state
+):
+    """A path that ends in a separator names the folder it points to, not the empty string.
+
+    Splitting the entry on "/" used to yield an empty plugin name here, which then became the module name and the LOADED_PLUGINS key.
+    """
+    write_plugin(tmp_path, "fm_test_plugin", marker="trailing")
+    monkeypatch.chdir(tmp_path)
+
+    app = make_app([f".{os.sep}fm_test_plugin{os.sep}"])
+    register_plugins(app)
+
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_plugin": "trailing"}
+    assert "/trailing" in [str(rule) for rule in app.url_map.iter_rules()]
 
 
 def test_path_entry_that_does_not_exist_is_reported_as_a_missing_path(

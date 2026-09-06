@@ -74,12 +74,10 @@ def register_plugins(app: Flask):  # noqa: C901
         return
     app.config["LOADED_PLUGINS"] = {}
     for plugin in plugins:
-        plugin_name = plugin.split("/")[-1]
+        plugin_name = os.path.basename(os.path.normpath(plugin))
         app.logger.info(f"Importing plugin {plugin_name} ...")
         module = None
-        pkg_name = os.path.split(plugin)[
-            -1
-        ]  # rule out attempts for relative package imports
+        pkg_name = plugin_name  # rule out attempts for relative package imports
         # An entry that is spelled out as a file path always loads the folder it points to.
         # For a bare name, an installed module wins from a folder of the same name in the working directory.
         # Loading such a folder by path would execute its __init__.py a second time, under a new module object,
