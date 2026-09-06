@@ -22,6 +22,9 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    TrainPredictPipelineConfigSchema,
+)
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     _load_job_config_payload,
     _load_job_parameters_payload,
@@ -1130,7 +1133,12 @@ def test_train_predict_pipeline(  # noqa: C901
         assert (
             "regressors" not in data_generator_config
         ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
-        assert "max-training-period" in data_generator_config
+        assert (
+            "train-period" in data_generator_config
+        ), "the training window should be stored under the name that remains"
+        assert (
+            "max-training-period" not in data_generator_config
+        ), "the deprecated name should not be written back out"
 
         # Check DataGenerator parameters stored under DataSource attributes is empty
         assert "parameters" not in source.attributes["data_generator"]
@@ -1285,7 +1293,7 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
     )
 
 
-# Test that max_training-period caps train-period and logs a warning
+# Test that a config carrying both training limits trains on the shorter of the two
 @pytest.mark.parametrize(
     ["config", "params"],
     [
@@ -1310,15 +1318,16 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
         ),
     ],
 )
-def test_train_period_capped_logs_warning(
+def test_train_period_takes_the_shorter_of_two_limits(
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
     params,  # parameters passed to the compute method of the Forecaster
     caplog,
 ):
-    """
-    Verify that a warning is logged when train-period exceeds max-training-period,
-    and that train-period is capped accordingly.
+    """A config naming both training limits trains on whichever asks for less data.
+
+    The deprecated max-training-period says the same thing as train-period,
+    so carrying both is asking twice, and the shorter of the two is all either allows.
     """
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
     params["sensor"] = sensor.id
@@ -1327,16 +1336,11 @@ def test_train_period_capped_logs_warning(
         pipeline = TrainPredictPipeline(config=config)
         pipeline.compute(parameters=params)
 
-    assert any(
-        "train-period is greater than max-training-period" in message
-        for message in caplog.messages
-    ), "Expected warning about capping train_period"
-
     config_used = pipeline._config
     assert config_used["missing_threshold"] == 1
     assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
-    ), "train_period_in_hours should be capped to max_training_period"
+    ), "the shorter of the two limits should decide"
 
 
 def test_prior_restricts_training_beliefs(
@@ -2265,3 +2269,58 @@ def test_model_params_can_reach_darts_categorical_covariates():
     )
     assert model.models_params["categorical_future_covariates"] == ["day_type"]
     assert model.models_params["min_data_per_group"] == 20
+
+
+@pytest.mark.parametrize(
+    ["config", "expected_span", "why"],
+    [
+        ({}, timedelta(days=30), "the default period applies when nothing is stated"),
+        (
+            {"train-start": "2025-09-04T17:00:00+02:00"},
+            timedelta(days=30),
+            "a start on its own says where training may begin, not how much history to use",
+        ),
+        (
+            {
+                "train-start": "2025-01-01T00:00:00+01:00",
+                "max-training-period": "P366D",
+            },
+            timedelta(days=366),
+            "the deprecated name still says how much history to use",
+        ),
+        (
+            {"train-period": "P7D"},
+            timedelta(days=7),
+            "a stated period applies on its own",
+        ),
+        (
+            {"train-start": "2025-06-01T00:00:00+02:00", "train-period": "P7D"},
+            timedelta(days=7),
+            "stating both goes back no further than the period asks for",
+        ),
+        (
+            {"train-start": "2026-09-01T17:00:00+02:00", "train-period": "P30D"},
+            timedelta(days=3),
+            "stating both goes back no further than the start asks for either",
+        ),
+        (
+            {"train-period": None},
+            timedelta(days=30),
+            "asking for no period of its own leaves the default to say how much history to use",
+        ),
+    ],
+)
+def test_training_window_goes_back_no_further_than_asked_for(
+    config, expected_span, why
+):
+    """Whichever of train-start and train-period asks for less data decides."""
+    predict_start = datetime.fromisoformat("2026-09-04T17:00:00+02:00")
+    loaded = TrainPredictPipelineConfigSchema().load(config)
+
+    pipeline = TrainPredictPipeline.__new__(TrainPredictPipeline)
+    pipeline._config = loaded
+    pipeline._parameters = {"predict_start": predict_start}
+
+    train_start, train_end = pipeline._derive_training_period()
+    assert train_end == predict_start
+    assert train_end - train_start == expected_span, why
