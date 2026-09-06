@@ -36,6 +36,11 @@ def _count_beliefs(db, sensor_id: int) -> int:
     )
 
 
+def _count_sources(db) -> int:
+    """Count the data sources on record."""
+    return db.session.scalar(select(func.count()).select_from(DataSource))
+
+
 def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     """A dry run reports the forecast it computed, without recording any belief."""
     from flexmeasures.cli.data_add import add_forecast
@@ -44,6 +49,7 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     runner = app.test_cli_runner()
 
     beliefs_before_dry_run = _count_beliefs(fresh_db, sensor_id)
+    sources_before_dry_run = _count_sources(fresh_db)
     result = runner.invoke(
         add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run"]
     )
@@ -52,7 +58,12 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
         "Not saving forecasts to the database (because of --dry-run)" in result.output
     )
     assert f"for sensor `sensor 1` (ID {sensor_id})" in result.output
+
+    # The forecaster's data source is flushed, because the dry run reports which source it would have recorded under,
+    # but it is never committed, so no more of it survives the session than of the beliefs.
+    fresh_db.session.rollback()
     assert _count_beliefs(fresh_db, sensor_id) == beliefs_before_dry_run
+    assert _count_sources(fresh_db) == sources_before_dry_run
 
     # A normal run does record beliefs, so the dry run really skipped that step
     result = runner.invoke(add_forecast, to_flags({"sensor": sensor_id}))
