@@ -124,7 +124,7 @@ def test_a_bare_name_resolves_the_way_python_would_import_it(
     monkeypatch.syspath_prepend(str(installed))
     monkeypatch.syspath_prepend(
         str(working_directory)
-    )  # as for `python -m`, the cwd comes first
+    )  # as for `python -m`, the cwd comes first.
 
     app = make_app(["fm_test_plugin"])
     register_plugins(app)

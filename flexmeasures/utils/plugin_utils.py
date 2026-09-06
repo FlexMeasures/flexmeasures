@@ -97,13 +97,10 @@ def register_plugins(app: Flask):  # noqa: C901
         if not folder_exists or prefer_installed:  # assume plugin is a package
             if prefer_installed and folder_exists:
                 app.logger.debug(
-                    f"Loading plugin {plugin_name} as an installed package,"
-                    f" ignoring the folder of the same name in the working directory."
+                    f"Importing plugin {plugin_name} by name, rather than from the folder of the same name in the working directory."
                     f" Spell out its path (e.g. '.{os.sep}{plugin}') to load that folder instead."
                 )
-            app.logger.debug(
-                f"Attempting to import {pkg_name} as an installed package ..."
-            )
+            app.logger.debug(f"Attempting to import {pkg_name} by name ...")
             try:
                 module = importlib.import_module(pkg_name)
             except ModuleNotFoundError:
