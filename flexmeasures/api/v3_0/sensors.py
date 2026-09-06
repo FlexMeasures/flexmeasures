@@ -40,7 +40,9 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.utils.api_utils import process_sensor_data_ingestion
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.data.services.utils import job_status_description
 from flexmeasures.api.common.utils.deprecation_utils import (
     _add_headers as add_deprecation_header,
@@ -57,6 +59,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import id_prefix_filter, simplify_index
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.sensors import (  # noqa F401
+    SensorReference,
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
@@ -123,6 +126,11 @@ REGRESSOR_CONFIG_FIELDS = {
 }
 
 
+def _regressor_sensor(regressor: Sensor | SensorReference) -> Sensor:
+    """Return the sensor wrapped by a forecasting regressor reference."""
+    return regressor.sensor if isinstance(regressor, SensorReference) else regressor
+
+
 def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
     """Extract regressor sensors from the forecasting config for permission checking.
 
@@ -140,21 +148,27 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
             config.get("future_regressors", []),
             config.get("past_regressors", []),
         ]
-        for sensor in regressor_list
+        for sensor in [_regressor_sensor(regressor) for regressor in regressor_list]
     }
     request_config = (request.get_json(silent=True) or {}).get("config", {})
 
     regressors_by_field = {}
     for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
         if request_config:
-            field_sensor_ids = request_config.get(request_field_name, [])
+            field_sensor_ids = [
+                regressor.get("sensor") if isinstance(regressor, dict) else regressor
+                for regressor in request_config.get(request_field_name, [])
+            ]
             field_sensors = [
                 sensors_by_id[sensor_id]
                 for sensor_id in field_sensor_ids
                 if sensor_id in sensors_by_id
             ]
         else:
-            field_sensors = config.get(field_info["schema_field_name"], [])
+            field_sensors = [
+                _regressor_sensor(regressor)
+                for regressor in config.get(field_info["schema_field_name"], [])
+            ]
         if field_sensors:
             regressors_by_field[field_info["label"]] = field_sensors
     return regressors_by_field
@@ -284,7 +298,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
         format="iso",
         data_key="prior",
         metadata=dict(
-            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            description="The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). "
             "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             example="2026-01-15T10:00+01:00",
         ),
@@ -665,6 +679,7 @@ class SensorAPI(FlaskView):
             user_id=current_user.id,
             uploaded_files=files_for_job,
             upload_data=upload_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
 
@@ -739,6 +754,7 @@ class SensorAPI(FlaskView):
             sensor_id=sensor.id,
             user_id=current_user.id,
             sensor_data=sensor_data,
+            force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
 
@@ -760,8 +776,8 @@ class SensorAPI(FlaskView):
 
             Optional parameters:
 
-            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
-            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
+            - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))
+            - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time))
             - "prior" (the belief timing docs also apply here)
             - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
             - "source-account" (filter by the account ID linked to data sources)
@@ -805,6 +821,7 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>/schedules/trigger", methods=["POST"])
+    @limit_triggers()
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -967,7 +984,8 @@ class SensorAPI(FlaskView):
                           sensor: 9
                         production-price:
                           sensor: 10
-                        inflexible-device-sensors: [13, 14, 15]
+                        inflexible-consumption: [{sensor: 13}, {sensor: 14}]
+                        inflexible-production: [{sensor: 15}]
                         site-power-capacity: "100 kVA"
                         site-production-capacity: "80 kW"
                         site-consumption-capacity:
@@ -1074,6 +1092,9 @@ class SensorAPI(FlaskView):
             legacy_key="schedule",
             job_results_url=url_for(
                 "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
+            ),
+            status_code=(
+                200 if use_legacy_job_responses(sensor.generic_asset) else 202
             ),
         )
 
@@ -1311,21 +1332,20 @@ class SensorAPI(FlaskView):
         elif job.is_failed:
             return unknown_schedule(job_status_description(job, scheduler_info_msg))
         else:
-            if current_app.config.get("FLEXMEASURES_API_SUNSET_ACTIVE"):
-                job_status = job.get_status()
-                job_status_name = (
-                    job_status.upper()
-                    if isinstance(job_status, str)
-                    else job_status.name
-                )
-                return (
-                    dict(
-                        status=job_status_name,
-                        message=job_status_description(job, scheduler_info_msg),
-                    ),
-                    202,
-                )
-            return unknown_schedule(job_status_description(job, scheduler_info_msg))
+            job_status = job.get_status()
+            job_status_name = (
+                job_status.upper() if isinstance(job_status, str) else job_status.name
+            )
+            response = dict(
+                status=job_status_name,
+                message=job_status_description(job, scheduler_info_msg),
+            )
+            if use_legacy_job_responses(sensor.generic_asset):
+                return response, 400
+            return (
+                response,
+                202,
+            )
         schedule_start = job.kwargs["start"]
 
         data_source = get_data_source_for_job(job)
@@ -1918,10 +1938,15 @@ class SensorAPI(FlaskView):
         return {"sensors_data": status_data}, 200
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
+    @limit_triggers()
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,
-            exclude=EXCLUDED_FORECASTING_FIELDS,
+            # The API always queues a job, whose results only make sense when they are recorded,
+            # so dry runs are supported on the CLI only.
+            # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            exclude=EXCLUDED_FORECASTING_FIELDS
+            + ["dry_run"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,
@@ -2033,6 +2058,8 @@ class SensorAPI(FlaskView):
         except ValidationError as err:
             return unprocessable_entity(err.messages)
 
+        forecaster.set_job_trigger("API")
+
         # Queue forecasting job
         try:
             pipeline_returns = forecaster.compute(parameters=parameters, as_job=True)
@@ -2046,6 +2073,11 @@ class SensorAPI(FlaskView):
             legacy_key="forecast",
             job_results_url=url_for(
                 "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
+            ),
+            status_code=(
+                200
+                if use_legacy_job_responses(params["sensor_to_save"].generic_asset)
+                else 202
             ),
         )
 

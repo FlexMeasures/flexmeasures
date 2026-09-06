@@ -20,7 +20,6 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
 from flexmeasures.utils.unit_utils import is_valid_unit
 
-
 sensor_schema = SensorSchema()
 
 
@@ -377,6 +376,44 @@ def test_upload_csv_file_returns_accepted_job(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_is_synchronous_for_legacy_client(
+    client, setup_api_test_data, requesting_user, monkeypatch
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.1"},
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.0"},
+    )
+    current_app.queues["ingestion"].empty()
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    csv_content = """event_start,event_value
+2024-12-16T05:11:00Z,4
+"""
+    sensor = setup_api_test_data["empty temperature sensor"]
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "PROCESSED"
+    assert current_app.queues["ingestion"].count == 0
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_upload_csv_file_rejects_large_upload(
     client, setup_api_test_data, requesting_user, monkeypatch
 ):
@@ -646,6 +683,11 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
         "inflexible-device-sensors": [existing_sensor_id],
+        # not a valid combination with the deprecated key above, but a deleted
+        # sensor should be pruned from any of the inflexible-device keys
+        "inflexible-production": [
+            {"sensor": existing_sensor_id, "exclude-source-types": ["scheduler"]}
+        ],
     }
     asset.sensors_to_show = [
         {"title": "Power", "plots": [{"sensor": existing_sensor_id}]},
@@ -682,6 +724,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
+    assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
     assert str(existing_sensor_id) not in json.dumps(
         asset_after.sensors_to_show_as_kpis

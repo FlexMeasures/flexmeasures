@@ -40,6 +40,49 @@ This is used to turn on certain extra behaviours, see :ref:`modes-dev` for detai
 Default: ``""``
 
 
+.. _overwrite-config:
+
+FLEXMEASURES_ALLOW_DATA_OVERWRITE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to allow overwriting existing data when saving data to the database.
+
+Default: ``False``
+
+
+.. _solver-config:
+
+FLEXMEASURES_LP_SOLVER
+^^^^^^^^^^^^^^^^^^^^^^
+
+The scheduling solver backend.
+
+The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
+This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
+
+Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
+Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
+
+Default: ``"highspy"``
+
+
+FLEXMEASURES_LP_SOLVER_OPTIONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
+
+    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
+
+When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
+
+.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
+
+Default: ``{}``
+
+
+
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -289,7 +332,7 @@ Default: ``timedelta(days=1)``
 FLEXMEASURES_DEFAULT_JOB_TIMEOUT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default timeout for jobs (e.g. forecasting, scheduling and ingestion), expressed as a fixed ISO 8601 duration.
+Default timeout for jobs (e.g. forecasting, scheduling, ingestion and reporting), expressed as a fixed ISO 8601 duration.
 Jobs that exceed this timeout are moved to RQ's failed queue.
 
 Default: ``timedelta(seconds=180)`` (``"PT180S"``)
@@ -299,9 +342,9 @@ FLEXMEASURES_JOB_TIMEOUT
 
 Timeouts per queue, expressed as fixed ISO 8601 durations.
 Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
-Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
+Supported queue names are ``forecasting``, ``scheduling``, ``ingestion`` and ``reporting``.
 
-Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
+Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S", "reporting": "PT10M"}``
 
 Default: ``{}``
 
@@ -659,7 +702,23 @@ TRUSTED_HOSTS
 
 A Flask setting you should use to prevent host header poisoning. Read more at :ref:`security-best-practices-for-hosts`.
 
-Default: ``None``
+Leaving this unset means any ``Host`` header is accepted, so FlexMeasures warns about it on startup.
+
+As a list in your config file, or as a comma-separated environment variable:
+
+.. code-block:: python
+
+    TRUSTED_HOSTS = ["flexmeasures.example.com", "10.0.0.5"]
+
+.. code-block:: bash
+
+    TRUSTED_HOSTS="flexmeasures.example.com,10.0.0.5"
+
+Entries starting with a dot match all subdomains, so ``".example.com"`` also matches ``api.example.com``. Ports are ignored when matching.
+
+In the ``development`` environment, loopback hosts are trusted by default, so no warning is shown there. Reaching a development server under another name, for instance by its LAN address from a phone or through a tunnel, means listing that name here as well. Rejected requests say which host was not trusted.
+
+Default: ``None``, except in the ``development`` environment, where it is ``["localhost", ".localhost", "127.0.0.1", "[::1]"]``
 
 
 .. _mail-config:
@@ -771,6 +830,25 @@ so without this filter, 404 errors can inflate Sentry error budgets unnecessaril
 Default: ``True``
 
 
+FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set a positive integer to limit the number of error events sent to Sentry per
+UTC calendar day. The event count is shared between FlexMeasures processes
+through Redis. If Redis is unavailable, events are sent without rate limiting.
+
+.. note::
+   This limit is applied before Sentry's error sampling. If ``sample_rate`` or
+   ``error_sampler`` is configured through ``FLEXMEASURES_SENTRY_CONFIG``,
+   events that are later sampled out still count towards the limit. The number
+   of events actually sent to Sentry may therefore be lower than the configured
+   limit.
+
+Default: ``None`` (no rate limit)
+
+.. note:: This setting is also recognized as environment variable.
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -827,6 +905,55 @@ FLEXMEASURES_REDIS_PASSWORD (*)
 Password of the redis server.
 
 Default: ``None``
+
+.. _rate-limiting-config:
+
+API rate limiting
+-----------------
+
+The settings below rate-limit the API server-wide. They can be overridden per account, by putting the account on
+a plan. Read more at :ref:`plans-and-rate-limiting`.
+
+RATELIMIT_ENABLED
+^^^^^^^^^^^^^^^^^
+
+Whether to rate-limit the API at all. Set this to ``False`` to turn rate limiting off.
+
+Default: ``True``
+
+FLEXMEASURES_API_DEFAULT_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
+if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
+
+Default: ``"500 per minute"``
+
+FLEXMEASURES_API_TRIGGER_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
+than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
+
+Default: ``"10 per 5 minutes"``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
+schedule is a business decision, so you decide what shares a budget:
+
+- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
+  usually works, so it is the default.
+- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
+  that this multiplies the limit by the number of assets an account has.
+- ``"user"``: each user gets their own budget.
+
+An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
+to ``"account"`` rather than raising an error.
+
+Default: ``"account"``
+
 
 Demonstrations
 --------------
@@ -910,6 +1037,54 @@ Specifically, if True, the endpoints of sunset API versions will return ``HTTP s
 If False, these endpoints will either return ``HTTP status 410 (Gone) status codes``, or work like before (including Deprecation and Sunset headers in their response), depending on whether the installed FlexMeasures version still contains the endpoint implementations.
 
 Default: ``False``
+
+
+.. _legacy-job-client-config:
+
+FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Backwards-compatibility switch for job-related endpoints in API v3.
+
+Mapping of version-valued asset attribute names to the maximum incompatible client version.
+For each configured attribute, FlexMeasures checks the relevant asset itself, its parent asset, and its grandparent asset.
+When empty, ingestion uses a connected ingestion worker when available, accepted trigger requests return ``202 Accepted``, and unfinished schedule requests return ``202 Accepted``.
+As a compatibility exception, if an attribute contains its configured maximum version or a lower version, the client receives synchronous sensor-data ingestion, ``HTTP status 200 (OK)`` from accepted scheduling and forecasting triggers, and ``HTTP status 400`` while polling an unfinished schedule, with a message about the scheduling job "waiting to be processed".
+
+For example:
+
+.. code-block:: python
+
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION = {
+        "v2g-liberty-version": "0.9.1",
+    }
+
+Default: ``{}``
+
+
+FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+QA-only override that makes job-related endpoints use the legacy behaviour for
+an assumed client version. This setting has the same mapping format as
+``FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION``: keys are
+asset attribute names and values are client versions. FlexMeasures only compares
+an assumed version with a maximum incompatible version under the same key. An
+actual version found on the relevant asset hierarchy takes precedence over the
+assumed version.
+
+This is intended for automated backward-compatibility testing when the test
+client creates its assets itself; production deployments should use the
+asset-based setting above instead. For example, to test client version 0.8.1
+against the maximum version from the example above:
+
+.. code-block:: python
+
+    FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION = {
+        "v2g-liberty-version": "0.8.1",
+    }
+
+Default: ``{}``
 
 
 .. _reporters-config:

@@ -502,22 +502,18 @@ def test_charging_station_solver_day_2(
         (15, "Test charging station (bidirectional)"),
     ],
 )
-def test_fallback_to_unsolvable_problem(
+def test_storage_scheduler_reports_unsolvable_problem_without_fallback(
     target_soc, charging_station_name, setup_planning_test_data, db
 ):
     """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
     any state of charge in the range [10, 14] kWh for a unidirectional station,
     or [6, 14] for a bidirectional station, given a charging capacity of 2 kW.
-    Here we test target states of charge outside that range, ones that we should be able
-    to get as close to as 1 kWh difference.
-    We want our scheduler to handle unsolvable problems like these with a sensible fallback policy.
-
-    The StorageScheduler raises an Exception which triggers the creation of a new job to compute a fallback
-    schedule.
+    Here we test target states of charge outside that range.
+    The StorageScheduler should report this infeasible problem without hiding it behind
+    a fallback schedule.
     """
     soc_at_start = 10
     duration_until_target = timedelta(hours=2)
-    expected_gap = 1
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
@@ -582,26 +578,8 @@ def test_fallback_to_unsolvable_problem(
 
     # calling the scheduler with an infeasible problem raises an Exception
     with pytest.raises(InfeasibleProblemException):
-        consumption_schedule = scheduler.compute(skip_validation=True)
-
-    # check that the fallback scheduler provides a sensible fallback policy
-    fallback_scheduler = scheduler.fallback_scheduler_class(**kwargs)
-    fallback_scheduler.config_deserialized = True
-    consumption_schedule = fallback_scheduler.compute(skip_validation=True)
-
-    soc_schedule = integrate_time_series(
-        consumption_schedule, soc_at_start, decimal_precision=6
-    )
-
-    # Check if constraints were met
-    assert min(consumption_schedule.values) >= capacity * -1
-    assert max(consumption_schedule.values) <= capacity
-    print(consumption_schedule.head(12))
-    print(soc_schedule.head(12))
-    assert (
-        abs(abs(soc_schedule.loc[target_soc_datetime] - target_soc) - expected_gap)
-        < TOLERANCE
-    )
+        scheduler.compute(skip_validation=True)
+    assert scheduler.fallback_scheduler_class is None
 
 
 @pytest.mark.parametrize(
@@ -1273,7 +1251,12 @@ def test_validate_constraints(
 
 
 def test_infeasible_problem_error(db, add_battery_assets):
-    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0"""
+    """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0
+
+    Note that this only yields an infeasible problem when constraint relaxation is off;
+    with relaxation on (the default), an unreachable target is breached at a price. See
+    ``test_unreachable_soc_target_is_relaxed_by_default``.
+    """
 
     # get the sensors from the database
     _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
@@ -1291,6 +1274,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1319,6 +1303,44 @@ def test_infeasible_problem_error(db, add_battery_assets):
         ValueError, match="The input data yields an infeasible problem."
     ):
         compute_schedule(flex_model)
+
+
+def test_unreachable_soc_target_is_relaxed_by_default(db, add_battery_assets):
+    """An unreachable soc-target no longer makes the problem infeasible.
+
+    Same setup as ``test_infeasible_problem_error`` (soc-max 4.5, soc-target 8.0), but
+    with the default ``relax-constraints``. The target becomes a stock commitment, so
+    the scheduler charges as far as the (hard) soc-max allows and breaches the target
+    at a price, instead of failing to produce a schedule at all.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(hours=1)
+
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-min": 0.5,
+            "soc-max": 4.5,
+            "soc-targets": [{"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}],
+        },
+    )
+    schedule = scheduler.compute()
+    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=3)
+
+    # The hard soc-max still holds, and the scheduler gets as close to the target as it can.
+    assert soc_schedule.max() <= 4.5 + TOLERANCE
+    assert soc_schedule.loc[pd.Timestamp("2015-01-02T16:00:00+01:00")] == pytest.approx(
+        4.5, abs=1e-3
+    )
 
 
 def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
@@ -1372,6 +1394,9 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             ],
             "soc-unit": "MWh",
         },
+        # This test is about numerical error in the hard "equals" constraint, so opt
+        # out of the relaxation that would turn soc-targets into stock commitments.
+        flex_context={"relax-constraints": False},
     )
 
     (
@@ -1652,6 +1677,353 @@ def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
 
     assert np.allclose(device_constraints[0]["derivative min"], expected_derivative_min)
     assert np.allclose(device_constraints[0]["derivative max"], expected_derivative_max)
+
+
+@pytest.mark.parametrize(
+    "direction, capacity_field, expected_derivative_col, expected_bound",
+    [
+        ("production", "production-capacity", "derivative min", 0.0),
+        ("consumption", "consumption-capacity", "derivative max", 0.0),
+    ],
+)
+def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
+    db,
+    add_battery_assets,
+    direction,
+    capacity_field,
+    expected_derivative_col,
+    expected_bound,
+):
+    """Explicit zero directional capacity is physical, not economic (#2323).
+
+    With ``relax-constraints`` defaulting to True, non-zero capacity limits may be softened via breach prices.
+    An explicit ``production-capacity: 0`` (or consumption-capacity: 0) must remain a hard bound,
+    otherwise a consumption-only device (e.g. heat pump) can be scheduled to produce,
+    when site breaches are more expensive than device breaches.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Opposite direction stays open so the symmetric power-capacity fallback is not zero.
+    opposite_field = (
+        "consumption-capacity" if direction == "production" else "production-capacity"
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: "0 kW",
+            opposite_field: "2 MW",
+        },
+        # Default relax-constraints=True injects device breach prices.
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1000 EUR/MWh",  # strong incentive to produce
+            # Cheap device breaches vs expensive site breaches — the incentive that
+            # previously made soft zero-capacity look rational to the LP.
+            "production-breach-price": "100 EUR/kW",
+            "consumption-breach-price": "100 EUR/kW",
+            "site-production-breach-price": "10000 EUR/kW",
+            "site-consumption-breach-price": "10000 EUR/kW",
+            "site-power-capacity": "1 kW",
+        },
+    )
+    scheduler.deserialize_config()
+
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    assert np.allclose(
+        device_constraints[0][expected_derivative_col], expected_bound
+    ), (
+        f"explicit zero {capacity_field} must stay a hard {expected_derivative_col} "
+        f"bound under relax-constraints, got "
+        f"{device_constraints[0][expected_derivative_col].unique()}"
+    )
+
+    # Whether soft breach commitments are still constructed is left unasserted on purpose.
+    # They are harmless next to the hard bound:
+    # their quantity is 0 on these slots, so the pinned flow cannot deviate from them, which makes them unbreachable and free.
+    # The bound asserted above is what the device actually obeys.
+
+
+@pytest.mark.parametrize(
+    "direction, capacity_field, expected_derivative_col",
+    [
+        ("production", "production-capacity", "derivative min"),
+        ("consumption", "consumption-capacity", "derivative max"),
+    ],
+)
+def test_non_zero_directional_capacity_still_softens_under_breach_price(
+    db,
+    add_battery_assets,
+    direction,
+    capacity_field,
+    expected_derivative_col,
+):
+    """Non-zero directional capacity remains soft when breach prices are set (#2323).
+
+    Companion to ``test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints``:
+    only the all-zero case stays hard.
+    Economic (non-zero) limits must still create soft breach commitments,
+    and must not pin the hard derivative bound to that capacity.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    opposite_field = (
+        "consumption-capacity" if direction == "production" else "production-capacity"
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: "0.1 MW",  # non-zero economic limit
+            opposite_field: "2 MW",
+        },
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1 EUR/MWh",
+            "production-breach-price": "100 EUR/kW",
+            "consumption-breach-price": "100 EUR/kW",
+            "site-power-capacity": "2 MW",
+        },
+    )
+    scheduler.deserialize_config()
+
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    soft_breach_names = [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ]
+    assert soft_breach_names, (
+        f"non-zero {capacity_field} must still create soft "
+        f"{direction} breach commitments under breach prices"
+    )
+
+    # Hard bound should stay at power-capacity (±2 MW), not be pinned to the soft 0.1 MW.
+    if expected_derivative_col == "derivative min":
+        assert np.allclose(device_constraints[0][expected_derivative_col], -2.0), (
+            f"hard {expected_derivative_col} should remain power-capacity when "
+            f"non-zero {capacity_field} is softened"
+        )
+    else:
+        assert np.allclose(device_constraints[0][expected_derivative_col], 2.0), (
+            f"hard {expected_derivative_col} should remain power-capacity when "
+            f"non-zero {capacity_field} is softened"
+        )
+
+
+@pytest.mark.parametrize(
+    [
+        "capacity_field",
+        "open_field",
+        "breach_price_field",
+        "prices",
+        "forbidden_direction",
+    ],
+    [
+        (
+            "production-capacity",
+            "consumption-capacity",
+            "production-breach-price",
+            {
+                # Strong incentive to discharge (produce) if allowed.
+                "consumption-price": "1 EUR/MWh",
+                "production-price": "1000 EUR/MWh",
+            },
+            "produce",
+        ),
+        (
+            "consumption-capacity",
+            "production-capacity",
+            "consumption-breach-price",
+            {
+                # Paid to consume — strong incentive to charge if allowed.
+                "consumption-price": "-1000 EUR/MWh",
+                "production-price": "1 EUR/MWh",
+            },
+            "consume",
+        ),
+    ],
+)
+def test_explicit_zero_directional_capacity_not_breached_in_schedule(
+    db,
+    add_battery_assets,
+    capacity_field,
+    open_field,
+    breach_price_field,
+    prices,
+    forbidden_direction,
+):
+    """Regression for #2323: never schedule in a direction with explicit capacity 0.
+
+    A soft interpretation of an all-zero directional capacity (via breach prices that ``relax-constraints`` would inject),
+    would allow power in a physically impossible direction.
+    Zero must stay hard for both production and consumption.
+
+    Same failure mode as EV chargers scheduled to discharge despite ``production-capacity: 0 W`` in #2329.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 1))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "0.1 MW",
+            capacity_field: "0 kW",
+            open_field: "0.1 MW",
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            **prices,
+            # Breach price that would soften non-zero limits; must not soften
+            # an explicit zero. Keep other constraints hard for a simple LP.
+            breach_price_field: "100 EUR/kW",
+            "site-power-capacity": "2 MW",
+            "relax-constraints": False,
+        },
+    )
+    schedule = scheduler.compute()
+    if forbidden_direction == "produce":
+        assert (schedule >= -TOLERANCE).all(), (
+            f"{capacity_field}: 0 must forbid negative (production) power even when "
+            f"{breach_price_field} is set; min scheduled power was {schedule.min()}"
+        )
+    else:
+        assert (schedule <= TOLERANCE).all(), (
+            f"{capacity_field}: 0 must forbid positive (consumption) power even when "
+            f"{breach_price_field} is set; max scheduled power was {schedule.max()}"
+        )
+
+
+@pytest.mark.parametrize(
+    "capacity_field, expected_derivative_col, hard_bound",
+    [
+        ("production-capacity", "derivative min", -2),
+        ("consumption-capacity", "derivative max", 2),
+    ],
+)
+def test_windowed_zero_directional_capacity_stays_soft(
+    db, add_battery_assets, capacity_field, expected_derivative_col, hard_bound
+):
+    """A zero covering only part of the window is a preference, and must stay breachable.
+
+    The whole-window reading of a zero only holds when the device declares it for the whole window.
+    A zero punched into part of an otherwise non-zero capacity says "not right now", not "never":
+    V2G-Liberty uses exactly this shape to keep a charger idle during a calendar car reservation,
+    so that the user can unplug without waiting (see the "Car reservations" section of the V2G tutorial).
+    Hardening those windows would turn a preference into an infeasibility,
+    whenever a soc-minimum needs the device to act during one.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Non-zero for the window, except for one hour in the middle.
+    windowed_capacity = [
+        {"value": "2 MW", "start": start.isoformat(), "duration": "PT24H"},
+        {
+            "value": "0 kW",
+            "start": tz.localize(datetime(2015, 1, 2, 12)).isoformat(),
+            "duration": "PT1H",
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: windowed_capacity,
+        },
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1 EUR/MWh",
+            "site-power-capacity": "2 MW",
+            "relax-capacity-constraints": True,
+        },
+    )
+    scheduler.deserialize_config()
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    # The hard bound stays at the symmetric power-capacity, including during the zero hour.
+    assert np.allclose(device_constraints[0][expected_derivative_col], hard_bound), (
+        f"a windowed zero {capacity_field} must not pin the hard "
+        f"{expected_derivative_col}, got "
+        f"{device_constraints[0][expected_derivative_col].unique()}"
+    )
+
+    # And the capacity is still expressed as a breachable commitment.
+    direction = capacity_field.split("-")[0]
+    assert [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ], f"a windowed zero {capacity_field} must still create soft breach commitments"
 
 
 @pytest.mark.parametrize(
@@ -2379,7 +2751,14 @@ def test_add_storage_constraint_from_sensor(
     ]
 
     scheduler: Scheduler = StorageScheduler(
-        battery, start, end, resolution, flex_model=flex_model
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        # This test inspects the hard "equals" constraint, so opt out of the
+        # relaxation that would turn soc-targets into stock commitments instead.
+        flex_context={"relax-constraints": False},
     )
 
     scheduler_info = scheduler._prepare()
@@ -3155,29 +3534,37 @@ def test_multiple_devices_simultaneous_scheduler():
         for d, schedule in enumerate(schedules)
     ]
 
-    # Expected results with unfair unmet demand and not entirely unfair costs
-    expected_schedules = [
-        # the first EV leaves later, and takes three of the cheapest slots, and one expensive slot
-        [0, 0, 0, 0.25, 0.25, 0.25, 0.25] + [0] * 17,
-        # the second EV leaves earlier, and takes one cheap slot and the remaining (expensive) slot
-        [0, 0.25, 0.25] + [0] * 21,
-    ]
-    total_expected_demand_unmet = (
-        total_expected_demand - np.array(expected_schedules).sum()
-    )
+    # Expected results with unfair unmet demand and not entirely unfair costs.
+    # NB This problem has multiple optima: only the site-level (aggregate) schedule is unique,
+    # while the per-device allocation of the charging slots
+    # (and thereby the per-device costs, and even which device's demand goes unmet)
+    # is an arbitrary tie-break that depends on the solver backend.
+    # We therefore only check solver-independent properties here.
+    expected_aggregate_schedule = [0, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25] + [0] * 17
+    total_expected_demand_unmet = total_expected_demand - np.array(
+        expected_aggregate_schedule
+    ).sum(dtype=float)
     assert total_expected_demand_unmet > 0
-    expected_individual_costs = [(0, 889.51), (1, 607.96)]
+    expected_total_energy_costs = sum(
+        power * price
+        for power, price in zip(expected_aggregate_schedule, market_prices)
+    )
+    expected_total_costs = (
+        expected_total_energy_costs + total_expected_demand_unmet * soc_target_penalty
+    )
 
     # Assertions
-    assert all(
-        np.isclose(schedule, expected_schedules[d]).all()
-        for d, schedule in enumerate(schedules)
-    ), "Schedules mismatch: Device schedules do not match the expected schedules."
+    aggregate_schedule = sum(schedules)
+    assert np.isclose(
+        aggregate_schedule, expected_aggregate_schedule
+    ).all(), "Schedules mismatch: The aggregate schedule does not match the expected aggregate schedule."
 
-    assert all(
-        device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
-        for d, (device, cost) in enumerate(individual_costs)
-    ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+    total_costs = sum(cost for _, cost in individual_costs) + sum(
+        model.commitment_costs[c] for c in (1, 2)  # the device (target) commitments
+    )
+    assert (
+        pytest.approx(total_costs, 0.01) == expected_total_costs
+    ), "Costs mismatch: Total costs are not calculated as expected."
 
 
 def test_prefer_full_storage_skips_non_storage_devices(db, building):
@@ -3468,10 +3855,11 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 ):
     """Flex-context commitments must bind the scheduled devices, not stock-only entries.
 
-    With a stock-only entry listed first, a flex-context commitment should still yield
-    one commitment per scheduled device (indices 0 and 1), rather than one per
-    flex-model entry (indices 0, 1 and 2, of which index 2 does not exist as a
-    flexible device).
+    A regular (unscoped) commitment binds the *aggregate* flow of its commodity's
+    devices as a single commitment (issue #2379). With a stock-only entry listed
+    first, that single commitment should bind the scheduled devices (indices 0 and 1),
+    and never the stock-only entry (which is not a flexible device), rather than one
+    commitment per raw flex-model entry (indices 0, 1 and 2).
     """
     battery_type = setup_generic_asset_types["battery"]
     site = _add_parent_site(db, building, "commitment test site")
@@ -3528,15 +3916,18 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
 
     test_commitments = [c for c in commitments if c.name == "test commitment"]
     num_devices = 2
-    assert len(test_commitments) == num_devices, (
-        f"Expected one commitment per scheduled device ({num_devices}), "
+    assert len(test_commitments) == 1, (
+        f"Expected a single aggregate commitment binding all scheduled devices, "
         f"got {len(test_commitments)} (one per flex-model entry, including the "
         "stock-only entry)."
     )
-    commitment_devices = {int(d) for c in test_commitments for d in c.device.unique()}
+    # The aggregate commitment binds all of its commodity's devices at once,
+    # so each row of its device column is the tuple of scheduled device indices.
+    commitment_devices = {int(d) for d in test_commitments[0].device.iloc[0]}
     assert commitment_devices == set(range(num_devices)), (
-        f"Commitments target device indices {sorted(commitment_devices)}, "
-        f"expected {sorted(range(num_devices))}."
+        f"Commitment targets device indices {sorted(commitment_devices)}, "
+        f"expected {sorted(range(num_devices))} (the scheduled devices, not the "
+        "stock-only entry)."
     )
 
 
@@ -4058,10 +4449,12 @@ def test_multi_device_battery_couples_stock_from_soc_sensor(
     )
     results = scheduler.compute()
 
+    # The device references its power sensor only via a nested consumption output
+    # reference, so its schedule is emitted (once) as a consumption_schedule.
     schedule = next(
         r["data"]
         for r in results
-        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+        if r.get("name") == "consumption_schedule" and r.get("sensor") is power_sensor
     )
     # Net discharged energy (kW * 1h = kWh) cannot exceed the ~0.05 kWh in the store.
     discharged_kwh = -schedule.clip(upper=0).sum()
@@ -4219,6 +4612,122 @@ def test_multi_device_battery_fails_on_unresolvable_soc_sensor(
         scheduler.compute()
 
 
+def test_asset_scheduler_charges_from_default_zero_soc(
+    db, building, setup_generic_asset_types
+):
+    """An asset-scheduled battery can meet a soft minimum without ``soc-at-start``.
+
+    Asset scheduling uses the list-based flex-model path even when only one power
+    sensor is scheduled. With no explicit or measured starting SoC, the battery
+    defaults to empty and charges 2 kWh to reach its soft minimum. This exercises
+    the commitment calculation that previously multiplied ``None`` by a float.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "default starting soc charging test site")
+    power_sensor, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "default starting soc charging battery",
+        with_soc_sensor=False,
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": power_sensor.id,
+                "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+                "power-capacity": "1 kW",
+                "consumption-capacity": "1 kW",
+                "production-capacity": "0 kW",
+            },
+        ],
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+            "soc-minima-breach-price": "1 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+
+    results = scheduler.compute()
+    schedule = next(
+        result["data"]
+        for result in results
+        if result.get("name") == "storage_schedule"
+        and result.get("sensor") is power_sensor
+    )
+    assert schedule.sum() == pytest.approx(2)
+
+
+def test_asset_scheduler_cannot_discharge_from_default_zero_soc(
+    db, building, setup_generic_asset_types
+):
+    """Hard SoC bounds remain active when an asset-scheduled battery defaults empty.
+
+    Discharging is financially attractive and charging is disabled. The resulting
+    idle schedule demonstrates that the default zero starting SoC is connected to
+    the hard lower bound; without stock constraints, the optimizer would discharge
+    energy that the battery does not hold.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "default starting soc safety test site")
+    power_sensor, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "default starting soc safety battery",
+        with_soc_sensor=False,
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": power_sensor.id,
+                "soc-min": "0 kWh",
+                "soc-max": "1 kWh",
+                "power-capacity": "1 kW",
+                "consumption-capacity": "0 kW",
+                "production-capacity": "1 kW",
+            }
+        ],
+        flex_context={
+            "consumption-price": "1000 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+
+    results = scheduler.compute()
+    schedule = next(
+        result["data"]
+        for result in results
+        if result.get("name") == "storage_schedule"
+        and result.get("sensor") is power_sensor
+    )
+    assert np.allclose(schedule, 0)
+
+
 def test_battery_solver_respects_operation_mode_bands(db, add_battery_assets):
     """StorageScheduler.compute() must actually wire "operation-modes" from the
     flex-model through to the LP's device power bands.
@@ -4349,3 +4858,91 @@ def test_battery_solver_passes_device_power_bands_to_device_scheduler(
         "the flex-model declared operation-modes. This indicates the operation-modes "
         "wiring inside StorageScheduler has been severed."
     )
+
+
+def test_battery_solver_inflexible_key_equivalence(
+    setup_planning_test_data,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    db,
+):
+    """The deprecated inflexible-device-sensors field and the sign-explicit
+    inflexible-production field yield identical schedules.
+
+    The fixture's inflexible devices store production-positive data (PV positive,
+    residual demand negative) without a consumption_is_positive attribute, so the
+    deprecated field's attribute-driven read matches the inflexible-production
+    convention exactly.
+    """
+    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+
+    inflexible_sensor_ids = [s.id for s in add_inflexible_device_forecasts.keys()]
+    flex_contexts = [
+        {
+            "inflexible-device-sensors": inflexible_sensor_ids,
+            "site-power-capacity": "2 MW",
+        },
+        {
+            "inflexible-production": [
+                {"sensor": sensor_id} for sensor_id in inflexible_sensor_ids
+            ],
+            "site-power-capacity": "2 MW",
+        },
+    ]
+    schedules = []
+    for flex_context in flex_contexts:
+        scheduler: Scheduler = StorageScheduler(
+            battery,
+            start,
+            end,
+            resolution,
+            flex_model={"soc-at-start": soc_at_start},
+            flex_context=flex_context,
+        )
+        schedules.append(scheduler.compute())
+
+    pd.testing.assert_series_equal(schedules[0], schedules[1])
+
+
+def test_battery_solver_inflexible_sign_flip(
+    setup_planning_test_data,
+    add_battery_assets,
+    add_inflexible_device_forecasts,
+    db,
+):
+    """Listing the same sensor under inflexible-consumption vs inflexible-production
+    flips the sign of its power values in the scheduling problem.
+
+    We check the derivative-equals device constraint built for the PV sensor
+    under either key.
+    """
+    from flexmeasures.data.models.planning.utils import get_power_values
+
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    pv_sensor = next(iter(add_inflexible_device_forecasts.keys()))
+
+    power_as_production = get_power_values(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+        sensor=pv_sensor,
+        consumption_is_positive=False,
+    )
+    power_as_consumption = get_power_values(
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+        sensor=pv_sensor,
+        consumption_is_positive=True,
+    )
+    assert np.allclose(power_as_production, -power_as_consumption)
+    assert (power_as_production != 0).any()

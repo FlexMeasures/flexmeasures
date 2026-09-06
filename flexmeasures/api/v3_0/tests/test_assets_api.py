@@ -1,11 +1,15 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask import url_for
 import pytest
 from sqlalchemy import select, func
 
+from pytz import utc
+
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.generic_assets import GenericAssetType
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.users import find_user_by_email
@@ -1650,6 +1654,55 @@ def test_get_asset_chart_annotations(client, annotated_asset, requesting_user):
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+@pytest.mark.parametrize("prior_query_key", ["prior", "beliefs_before"])
+def test_get_asset_chart_annotations_belief_time(
+    client, db, annotated_asset, requesting_user, prior_query_key
+):
+    """GET /assets/<id>/chart_annotations excludes annotations recorded after the given prior cutoff.
+
+    An annotation without a belief_time is still returned. Parametrized over both
+    the canonical `prior` query key and its legacy `beliefs_before` alias, which
+    must keep working for older clients.
+    """
+    import pandas as pd
+
+    from flexmeasures.data.models.annotations import Annotation
+    from flexmeasures.data.models.data_sources import DataSource
+
+    late_content = f"Breach alert recorded after the fact ({prior_query_key})"
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    annotated_asset.annotations.append(
+        Annotation(
+            content=late_content,
+            start=pd.Timestamp("2025-05-02 12:00+02"),
+            end=pd.Timestamp("2025-05-02 18:00+02"),
+            source=source,
+            type="alert",
+            belief_time=pd.Timestamp("2025-05-10 00:00+02"),
+        )
+    )
+    db.session.flush()
+
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "event_starts_after": "2025-05-01T00:00:00+02:00",
+            "event_ends_before": "2025-05-06T00:00:00+02:00",
+            prior_query_key: "2025-05-03T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    contents = [content for record in records for content in record["content"]]
+    # Recorded after the prior cutoff, so excluded.
+    assert late_content not in contents
+    # No belief_time, so still included regardless of the prior cutoff.
+    assert "Projected breach of site capacity" in contents
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_get_asset_chart_with_annotation_layers(
     client, annotated_asset, requesting_user
 ):
@@ -1684,3 +1737,336 @@ def test_get_asset_chart_with_annotation_layers(
         if param["name"].startswith("annotation_")
     ]
     assert len(all_param_names) == len(set(all_param_names))
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_annotations_start_and_duration(
+    client, db, annotated_asset, requesting_user
+):
+    """GET /assets/<id>/chart_annotations derives `end` from `start` + `duration` when `end` isn't given."""
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "duration": "P5D",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    assert isinstance(records, list)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_session_vars_with_canonical_params(
+    client, db, annotated_asset, requesting_user
+):
+    """Regression test: GET /assets/<id>/chart persists the selected time range as
+    session variables (for a consistent UX across UI page loads) even when the
+    client uses the canonical `start`/`end` query params rather than the legacy
+    `event_starts_after`/`event_ends_before` spelling.
+
+    Session values must stay raw strings (not deserialized datetimes): downstream
+    template rendering only normalizes URL encoding for `str` values.
+    """
+    with client.session_transaction() as sess:
+        sess.pop("event_starts_after", None)
+        sess.pop("event_ends_before", None)
+    response = client.get(
+        url_for("AssetAPI:get_chart", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "end": "2025-05-02T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert sess.get("event_starts_after") == "2025-05-01T00:00:00+02:00"
+        assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"
+
+
+def _asset_with_daily_kpi(
+    db, requesting_user, setup_sources, days: int
+) -> tuple[GenericAsset, datetime]:
+    """Build an asset whose KPI sums a distinct value per day.
+
+    The values differ per day, so that a window covering the wrong days totals differently,
+    rather than merely covering the same number of days.
+    """
+    window_start = datetime(2022, 1, 1, tzinfo=utc)
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    if asset_type is None:
+        asset_type = GenericAssetType(name="battery")
+        db.session.add(asset_type)
+        db.session.flush()
+    asset = GenericAsset(
+        name=f"kpi window asset ({days} days)",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name=f"kpi window sensor ({days} days)",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="MWh",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    source = list(setup_sources.values())[0]
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=window_start + timedelta(days=day),
+                belief_horizon=timedelta(0),
+                event_value=float(day + 1),
+                sensor_id=sensor.id,
+                source_id=source.id,
+                cumulative_probability=0.5,
+            )
+            for day in range(days)
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Total", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+    return asset, window_start
+
+
+def _kpi_total(client, asset: GenericAsset, start: str, end: str) -> float:
+    """Ask the KPI endpoint for one window and return its single value."""
+    response = client.get(
+        url_for("AssetAPI:get_kpis", id=asset.id),
+        query_string={"start": start, "end": end},
+    )
+    assert response.status_code == 200, response.json
+    kpis = response.json["data"]
+    assert len(kpis) == 1, f"expected exactly one KPI, got {kpis}"
+    return kpis[0]["downsample_value"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_end_is_exclusive(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """The KPI window ends before `end`, as the chart's own window does.
+
+    The asset page derives the KPI window from the chart's,
+    so the two have to agree on whether the end is part of the window.
+    """
+    asset, window_start = _asset_with_daily_kpi(
+        db, requesting_user, setup_sources, days=5
+    )
+
+    # Days one to five carry the values 1 to 5, so the first three total six.
+    # Treating the end as inclusive would add the fourth day and total ten.
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=3)).isoformat(),
+    )
+    assert total == pytest.approx(
+        6.0
+    ), "the window must end before its end date, not on it"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_honours_the_offset_it_is_given(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A window written with a UTC offset names the instants that offset implies.
+
+    The asset page sends its window as local clock times carrying an offset,
+    so the endpoint has to read the offset rather than the clock time alone.
+    """
+    asset, _ = _asset_with_daily_kpi(db, requesting_user, setup_sources, days=6)
+
+    # Midnight UTC on the first, written as one o'clock in +01:00.
+    # These are the first three days, worth 1 + 2 + 3.
+    total = _kpi_total(
+        client, asset, "2022-01-01T01:00:00+01:00", "2022-01-04T01:00:00+01:00"
+    )
+    assert total == pytest.approx(
+        6.0
+    ), "the offset must be read, not just the clock time"
+
+    # The same clock times read as UTC name instants an hour later,
+    # which drops the first day and picks up the fourth: 2 + 3 + 4.
+    shifted = _kpi_total(
+        client, asset, "2022-01-01T01:00:00+00:00", "2022-01-04T01:00:00+00:00"
+    )
+    assert shifted == pytest.approx(
+        9.0
+    ), "an hour later is a different set of days, so the two windows must not agree"
+    assert total != shifted, "the assertion above only means something if these differ"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_reports_what_the_chart_draws(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A KPI is read beside the chart, so it must describe the same beliefs.
+
+    Two ways that used to diverge: several sources reporting one sensor were counted separately,
+    and a revised belief was counted on top of the belief it revised.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi agrees with chart",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi agrees with chart sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    sources = list(setup_sources.values())
+    scheduled, uploaded = sources[0], sources[-1]
+    assert scheduled.id != uploaded.id, "this test needs two distinct sources"
+
+    window_start = datetime(2030, 1, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # One day per source, as when a single point is uploaded beside computed data.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(0),
+                event_value=122.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start + timedelta(days=1),
+                belief_horizon=timedelta(0),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=uploaded.id,
+                cumulative_probability=0.5,
+            ),
+            # A third day believed twice, the later belief revising the earlier one.
+            dict(
+                event_start=window_start + timedelta(days=2),
+                belief_horizon=timedelta(days=2),
+                event_value=50.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start + timedelta(days=2),
+                belief_horizon=timedelta(days=1),
+                event_value=7.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    window_end = window_start + timedelta(days=3)
+    total = _kpi_total(client, asset, window_start.isoformat(), window_end.isoformat())
+
+    drawn = sensor.search_beliefs(
+        event_starts_after=window_start,
+        event_ends_before=window_end,
+        most_recent_beliefs_only=True,
+    )
+    starts = drawn.index.get_level_values("event_start")
+    within = drawn[(starts >= window_start) & (starts < window_end)]
+    assert total == pytest.approx(
+        float(within["event_value"].sum())
+    ), "the KPI must total the values the chart draws, for the events this window owns"
+    assert total == pytest.approx(
+        229.0
+    ), "122 from one source, 100 from another, and 7 revising 50, is 229"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_counts_each_event_under_one_day_only(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A day's KPI covers the events that day owns, not those merely overlapping it.
+
+    A daily sensor on the UTC grid, read from a timezone an hour ahead, has every event
+    straddling the boundary between two local days.
+    Counting an event under both would total it twice across neighbouring selections.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi owns its events",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi owns its events sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+        timezone="UTC",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    source = list(setup_sources.values())[0]
+
+    first = datetime(2030, 1, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=first + timedelta(days=offset),
+                belief_horizon=timedelta(0),
+                event_value=value,
+                sensor_id=sensor.id,
+                source_id=source.id,
+                cumulative_probability=0.5,
+            )
+            for offset, value in ((0, 122.0), (1, 100.0))
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    # Local days in +01:00, so each runs from 23:00 UTC to 23:00 UTC and straddles both events.
+    def local_day(day: int) -> str:
+        return f"2030-01-{day:02d}T00:00:00+01:00"
+
+    totals = {
+        day: _kpi_total(client, asset, local_day(day), local_day(day + 1))
+        for day in (15, 16, 17)
+    }
+    assert totals[15] == pytest.approx(122.0), "the 15th owns only its own event"
+    assert totals[16] == pytest.approx(100.0), "the 16th must not also count the 15th"
+    assert totals[17] == pytest.approx(0.0), "the 17th owns nothing"
+    assert sum(totals.values()) == pytest.approx(
+        222.0
+    ), "each event counts once across neighbouring days, not twice"

@@ -18,14 +18,16 @@ from flexmeasures.data.models.forecasting.utils import (
     data_to_bdf,
 )
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
 class PredictPipeline(BasePipeline):
     def __init__(
         self,
-        future_regressors: list[Sensor],
-        past_regressors: list[Sensor],
+        future_regressors: list[Sensor | SensorReference],
+        past_regressors: list[Sensor | SensorReference],
         target_sensor: Sensor,
         model_path: str,
         output_path: str,
@@ -45,13 +47,14 @@ class PredictPipeline(BasePipeline):
         missing_threshold: float = 1.0,
         annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
+        dry_run: bool = False,
     ) -> None:
         """
         Initialize the PredictPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param past_regressors: List of sensors serving as past regressors.
-        :param future_regressors: List of sensors serving as future regressors.
+        :param past_regressors: List of sensors or sensor references serving as past regressors.
+        :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
         :param model_path: Path to the model file.
         :param output_path: Path where predictions will be saved.
@@ -69,6 +72,7 @@ class PredictPipeline(BasePipeline):
         :param sensor_to_save: Sensor to which the predictions will be attributed.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         :param post_processing_config: Optional clipping and snapping configuration for forecast values.
+        :param dry_run: If True, compute the forecast but do not save it to the database.
         """
         super().__init__(
             future_regressors=future_regressors,
@@ -96,6 +100,7 @@ class PredictPipeline(BasePipeline):
         self.predict_start = predict_start
         self.predict_end = predict_end
         self.post_processing_config = post_processing_config or {}
+        self.dry_run = dry_run
 
         self.sensor_resolution = self.target_sensor.event_resolution
         self.readable_resolution = duration_isoformat(self.sensor_resolution)
@@ -294,13 +299,18 @@ class PredictPipeline(BasePipeline):
         if self.output_path is not None:
             self.save_results_to_CSV(bdf)
 
-        save_to_db(
-            bdf, save_changed_beliefs_only=False
-        )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
-        db.session.commit()
-        logging.info(
-            f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
-        )
+        if self.dry_run:
+            logging.info(
+                f"Not saving predictions to DB (because of --dry-run). Would have saved {pluralize('belief', len(bdf), include_count=True)} with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+            )
+        else:
+            save_to_db(
+                bdf, save_changed_beliefs_only=False
+            )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
+            db.session.commit()
+            logging.info(
+                f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {self.sensor_to_save}, sensor_id: {self.sensor_to_save.id}."
+            )
         if delete_model:
             os.remove(self.model_path)
 

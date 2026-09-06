@@ -20,6 +20,7 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
+from flexmeasures.data.schemas.sensors import SensorIdOrReferenceField
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
@@ -100,45 +101,57 @@ class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        SensorIdField(),
+        SensorIdOrReferenceField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs to be treated only as future regressors."
+                "Sensor IDs or source-filtered sensor references to be treated only as future regressors."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
-            "example": [2093, 2094],
+            "example": [
+                {"sensor": 2093, "sources": [12, 13]},
+                {"sensor": 2094, "source-types": ["forecaster"]},
+            ],
             "cli": {
                 "option": "--future-regressors",
             },
         },
     )
     past_regressors = fields.List(
-        SensorIdField(),
+        SensorIdOrReferenceField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs to be treated only as past regressors."
+                "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
-            "example": [2095],
+            "example": [{"sensor": 2095, "exclude-source-types": ["forecaster"]}],
             "cli": {
                 "option": "--past-regressors",
             },
         },
     )
     regressors = fields.List(
-        SensorIdField(),
+        SensorIdOrReferenceField(),
         data_key="regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs used as both past and future regressors."
+                "Sensor IDs or source-filtered sensor references used as both past and future regressors."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
-            "example": [2093, 2094, 2095],
+            "example": [
+                {"sensor": 2093, "sources": [12, 13]},
+                {"sensor": 2094, "source-account": [4]},
+            ],
             "cli": {
                 "option": "--regressors",
             },
@@ -366,10 +379,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         past_and_future_regressors = data.pop("regressors", [])
 
         if past_and_future_regressors:
-            future_regressors = list(
-                set(future_regressors + past_and_future_regressors)
-            )
-            past_regressors = list(set(past_regressors + past_and_future_regressors))
+            future_regressors = future_regressors + [
+                regressor
+                for regressor in past_and_future_regressors
+                if regressor not in future_regressors
+            ]
+            past_regressors = past_regressors + [
+                regressor
+                for regressor in past_and_future_regressors
+                if regressor not in past_regressors
+            ]
 
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
@@ -478,7 +497,7 @@ class ForecasterParametersSchema(Schema):
         format="iso",
         data_key="prior",
         metadata={
-            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). "
             "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00",
             "cli": {
@@ -532,6 +551,18 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
             "cli": {
                 "option": "--sensor-to-save",
+            },
+        },
+    )
+    dry_run = fields.Bool(
+        data_key="dry-run",
+        load_default=False,
+        metadata={
+            "description": "Add this flag to avoid saving the results to the database.",
+            "cli": {
+                "cli-exclusive": True,
+                "is_flag": True,
+                "option": "--dry-run",
             },
         },
     )
@@ -706,6 +737,7 @@ class ForecasterParametersSchema(Schema):
             save_belief_time=save_belief_time,
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
+            dry_run=data.get("dry_run", False),
         )
         if "config" in data:
             result["config"] = data["config"]

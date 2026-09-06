@@ -25,6 +25,7 @@ from flexmeasures.data.services.data_ingestion import (
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.queries.generic_assets import asset_is_in_subtree
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS,
@@ -136,15 +137,21 @@ def process_sensor_data_ingestion(
     upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
+    force_synchronous: bool = False,
 ) -> ResponseTuple:
     """Process sensor data ingestion asynchronously when possible.
 
     If an ingestion queue with connected workers is available, enqueue a background
-    job and return ``202 Accepted``. Otherwise, process the data synchronously and
-    return the resulting ingestion response.
+    job and return ``202 Accepted``. If no worker is available, process the data
+    synchronously and return the resulting ingestion response. As a compatibility
+    exception, callers can force synchronous processing for compatibility purposes.
     """
     ingestion_queue = current_app.queues.get("ingestion")
-    if ingestion_queue is None:
+    if force_synchronous:
+        current_app.logger.info(
+            "Processing sensor data directly as requested by caller."
+        )
+    elif ingestion_queue is None:
         current_app.logger.warning(
             "No ingestion queue configured. Processing sensor data directly."
         )
@@ -570,23 +577,6 @@ def _determine_copy_name(
     return f"{source_name} (Copy {max_index + 1})"
 
 
-def _asset_is_in_subtree(root_asset_id: int, candidate_asset_id: int) -> bool:
-    """Return True if candidate_asset_id is root or a descendant of root_asset_id."""
-    current_asset_id = candidate_asset_id
-    visited: set[int] = set()
-
-    while current_asset_id is not None and current_asset_id not in visited:
-        if current_asset_id == root_asset_id:
-            return True
-        visited.add(current_asset_id)
-        current_asset = db.session.get(GenericAsset, current_asset_id)
-        if current_asset is None:
-            return False
-        current_asset_id = current_asset.parent_asset_id
-
-    return False
-
-
 def copy_asset(
     asset: GenericAsset,
     account=None,
@@ -634,7 +624,7 @@ def copy_asset(
             target_account_id = int(account.id)
             target_parent_asset_id = int(parent_asset.id)
 
-        if target_parent_asset_id is not None and _asset_is_in_subtree(
+        if target_parent_asset_id is not None and asset_is_in_subtree(
             root_asset_id=asset.id,
             candidate_asset_id=target_parent_asset_id,
         ):

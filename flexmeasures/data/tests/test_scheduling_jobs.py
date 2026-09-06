@@ -37,6 +37,7 @@ def test_scheduling_a_battery(
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
+    - the commitment costs reached the job meta stored in Redis — regression for #2418
     - success is logged once (not before compute) — regression for #2049
     """
 
@@ -93,6 +94,21 @@ def test_scheduling_a_battery(
     assert (
         sum(v.event_value for v in power_values) < -0.5
     ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
+
+    # Regression #2418: the commitment costs used to be written to the job meta after the
+    # job's last save_meta() call, and RQ persists a finishing job with include_meta=False,
+    # so they were computed and then silently lost. Fetch a fresh Job to see only what
+    # actually reached Redis, rather than the worker's in-memory job object.
+    finished_job = Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    assert finished_job.is_finished
+    commitment_costs = finished_job.meta["scheduler_info"]["commitment_costs"]
+    assert (
+        commitment_costs
+    ), "the scheduler reported commitment costs, so the persisted job meta must carry them"
+    assert all(
+        isinstance(cost, float) and np.isfinite(cost)
+        for cost in commitment_costs.values()
+    )
 
     # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
     # Count only this job's message — the RQ worker may also process other queued jobs.
@@ -641,3 +657,114 @@ def test_scheduling_unit_conversion(
     assert (
         min(v.event_value for v in power_values) == -max_allowed
     ), "Expected discharging (negative values at max rate"
+
+
+def test_scheduling_device_with_nested_output_sensor_only(
+    fresh_db,
+    app,
+    smart_building,
+):
+    """A device declaring its power sensor only via a nested consumption output
+    reference (plus a state-of-charge sensor) must schedule and save successfully.
+
+    Regression test: since PR #2321, such a device's power sensor intentionally
+    resolves to its consumption output sensor (so the device is not misclassified
+    as a stock-only entry). That sensor then appeared BOTH as a
+    ``storage_schedule`` output AND as a ``consumption_schedule`` output. Saving
+    both in the same scheduling-job transaction violated the ``timed_belief``
+    primary key (UniqueViolation), deterministically failing the whole job.
+    Only the ``consumption_schedule`` output should be emitted for that sensor.
+    """
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+
+    assets, sensors, soc_sensors = smart_building
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+
+    # The device's only power sensor reference is this nested consumption output sensor
+    consumption_sensor = Sensor(
+        name="consumption output",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset=assets["Test Battery"],
+        timezone="Europe/Amsterdam",
+    )
+    fresh_db.session.add(consumption_sensor)
+    fresh_db.session.flush()
+
+    flex_model = [
+        {
+            # This entry has no top-level power sensor; its power sensor resolves
+            # to the nested consumption output sensor (see _resolve_power_sensor).
+            "consumption": {"sensor": consumption_sensor.id},
+            "state-of-charge": {"sensor": soc_sensors["Test Battery"].id},
+            "soc-at-start": "0.2 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "1 MW",
+        },
+        {
+            # A second device with a regular power sensor, so the flex-model
+            # stays a multi-device list throughout (like the field setup in
+            # which this bug was observed).
+            "sensor": sensors["Test EV"].id,
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "1 MW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "2 MW",
+    }
+
+    # Each output sensor appears at most once across the scheduler's outputs
+    scheduler: Scheduler = StorageScheduler(
+        assets["Test Site"],
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    sensor_ids = [
+        result["sensor"].id for result in results if result.get("sensor") is not None
+    ]
+    assert len(sensor_ids) == len(set(sensor_ids)), "no sensor should appear twice"
+    names_for_consumption_sensor = [
+        result["name"]
+        for result in results
+        if result.get("sensor") is not None
+        and result["sensor"].id == consumption_sensor.id
+    ]
+    # The consumption/production output path defines the sign conventions for
+    # output sensors, so that entry (not "storage_schedule") should be kept.
+    assert names_for_consumption_sensor == ["consumption_schedule"]
+
+    # The job saves successfully (this used to fail on a timed_belief UniqueViolation)
+    job = create_scheduling_job(
+        asset_or_sensor=assets["Test Site"],
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        enqueue=True,
+    )
+    work_on_rq(queue, exc_handler=exception_reporter)
+    job.refresh()
+    assert job.get_status() == "finished", job.meta.get("exception")
+
+    # The sensor got exactly one series of timed_belief rows (96 quarter-hours)
+    beliefs = fresh_db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == consumption_sensor.id)
+    ).all()
+    assert len(beliefs) == 96
+    assert len({belief.event_start for belief in beliefs}) == 96

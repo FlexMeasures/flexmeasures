@@ -16,6 +16,8 @@ from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
+from sqlalchemy import exc as sa_exc
+from sqlalchemy.orm import selectinload
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -24,13 +26,16 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
-    get_sensor_stats,
 )
 from flexmeasures.api.common.schemas.scheduling import (
     flex_context_schema_openAPI,
     storage_flex_model_schema_openAPI,
 )
-from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
+from flexmeasures.api.common.schemas.generic_schemas import (
+    PaginationSchema,
+    EventWindowSchema,
+    BeliefTimeFilterSchema,
+)
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
@@ -40,16 +45,33 @@ from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.schemas.automations import AutomationSchema
+from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
+    describe_cronstr,
+    get_automation_job_stats,
+    resolve_automation_sensors,
+    run_automation,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
+    asset_is_in_subtree,
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.schemas.reporting import ReportTriggerSchema
+from flexmeasures.data.services.data_generators import (
+    check_sensor_access,
+    resolve_data_generator_sensors,
+)
+from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -67,10 +89,12 @@ from flexmeasures.api.common.utils.api_utils import (
     get_accessible_accounts,
     copy_asset,
 )
+from flexmeasures.api.v3_0.utils import use_legacy_job_responses
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_accepted_for_processing,
 )
+from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
@@ -86,6 +110,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
+automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -144,28 +169,140 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
-class AssetChartKwargsSchema(Schema):
-    event_starts_after = AwareDateTimeField(format="iso", required=False)
-    event_ends_before = AwareDateTimeField(format="iso", required=False)
-    beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(format="iso", required=False)
-    include_data = fields.Boolean(required=False)
-    combine_legend = fields.Boolean(required=False, load_default=True)
-    include_asset_annotations = fields.Boolean(required=False)
-    include_account_annotations = fields.Boolean(required=False)
-    dataset_name = fields.Str(required=False)
-    height = fields.Str(required=False)
-    width = fields.Str(required=False)
-    chart_type = fields.Str(required=False)
+class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
+    legacy_field_aliases = {
+        **EventWindowSchema.legacy_field_aliases,
+        **BeliefTimeFilterSchema.legacy_field_aliases,
+        "include_data": "include-data",
+        "combine_legend": "combine-legend",
+        "include_asset_annotations": "include-asset-annotations",
+        "include_account_annotations": "include-account-annotations",
+        "dataset_name": "dataset-name",
+        "chart_type": "chart-type",
+    }
+
+    include_data = fields.Boolean(
+        data_key="include-data",
+        required=False,
+        metadata=dict(
+            description="If true, chart specs include the data; if false, fetch data separately from the `chart_data` endpoint.",
+        ),
+    )
+    combine_legend = fields.Boolean(
+        data_key="combine-legend",
+        required=False,
+        load_default=True,
+        metadata=dict(
+            description="If true (default), render one shared legend across all subcharts.",
+        ),
+    )
+    include_asset_annotations = fields.Boolean(
+        data_key="include-asset-annotations",
+        required=False,
+        metadata=dict(
+            description="If true, include the asset's own annotations in the chart.",
+        ),
+    )
+    include_account_annotations = fields.Boolean(
+        data_key="include-account-annotations",
+        required=False,
+        metadata=dict(
+            description="If true, include the asset's account annotations in the chart.",
+        ),
+    )
+    dataset_name = fields.Str(
+        data_key="dataset-name",
+        required=False,
+        metadata=dict(
+            description="Name to use for the embedded chart dataset.",
+        ),
+    )
+    height = fields.Str(
+        required=False,
+        metadata=dict(
+            description="Chart height in pixels; without it, FlexMeasures sets a default.",
+        ),
+    )
+    width = fields.Str(
+        required=False,
+        metadata=dict(
+            description="Chart width in pixels; without it, the chart is scaled to the full width of its container.",
+        ),
+    )
+    chart_type = fields.Str(
+        data_key="chart-type",
+        required=False,
+        metadata=dict(
+            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+        ),
+    )
 
 
-class AssetChartDataKwargsSchema(Schema):
-    event_starts_after = AwareDateTimeField(format="iso", required=False)
-    event_ends_before = AwareDateTimeField(format="iso", required=False)
-    beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(format="iso", required=False)
-    most_recent_beliefs_only = fields.Boolean(required=False)
-    compress_json = fields.Boolean(required=False)
+class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
+    legacy_field_aliases = {
+        **EventWindowSchema.legacy_field_aliases,
+        **BeliefTimeFilterSchema.legacy_field_aliases,
+        "use_latest_version_per_event": "use-latest-version-per-event",
+        "most_recent_beliefs_only": "most-recent-beliefs-only",
+        "compress_json": "compress-json",
+    }
+
+    use_latest_version_per_event = fields.Boolean(
+        data_key="use-latest-version-per-event",
+        required=False,
+        load_default=False,
+        metadata=dict(
+            description="If true, only the latest version of each event's belief is returned.",
+        ),
+    )
+    most_recent_beliefs_only = fields.Boolean(
+        data_key="most-recent-beliefs-only",
+        required=False,
+        metadata=dict(
+            description="If true (default), return only the most recently recorded belief for each event; if false, return every recorded belief.",
+        ),
+    )
+    compress_json = fields.Boolean(
+        data_key="compress-json",
+        required=False,
+        metadata=dict(
+            description="If true, compress the JSON response.",
+        ),
+    )
+
+
+class AssetChartAnnotationsKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
+    legacy_field_aliases = {
+        **EventWindowSchema.legacy_field_aliases,
+        **BeliefTimeFilterSchema.legacy_field_aliases,
+    }
+
+    clip = fields.Boolean(
+        load_default=True,
+        metadata=dict(
+            description="If true (default), clip annotations to the requested time window.",
+        ),
+    )
+
+
+class AssetChartOpenAPISchema(AssetChartKwargsSchema):
+    """Doc-only variant of `AssetChartKwargsSchema` that hides `beliefs_after` from
+    the generated OpenAPI/Swagger spec (see `BeliefTimeFilterSchema`'s docstring for
+    why). Not used for actual request validation -- `AssetChartKwargsSchema` still
+    accepts `beliefs_after`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
+        super().__init__(*args, **kwargs)
+
+
+class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
+        super().__init__(*args, **kwargs)
 
 
 class AssetAuditLogPaginationSchema(PaginationSchema):
@@ -421,6 +558,16 @@ class AssetAPI(FlaskView):
             )  # in non-sunset, we default like usual, but still respect fields_in_response
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
+
+        # Eager-load sensors only when the response schema will dump them, avoiding an N+1 lazy load per asset that made this endpoint take seconds on large catalogs.
+        # The loader is anchored on the query's own root entity, which is an aliased GenericAsset under search filters or owner sorting.
+        # Failing to install the loader is never fatal: sensors then simply lazy-load as before.
+        if "sensors" in response_schema.dump_fields:
+            try:
+                root_entity = query.column_descriptions[0]["entity"]
+                query = query.options(selectinload(root_entity.sensors))
+            except (KeyError, IndexError, sa_exc.ArgumentError):
+                pass
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
@@ -943,7 +1090,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              schema: AssetChartKwargsSchema
+              schema: AssetChartOpenAPISchema
           responses:
             200:
               description: PROCESSED
@@ -958,8 +1105,12 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        # Store selected time range as session variables, for a consistent UX across UI page loads
-        set_session_variables("event_starts_after", "event_ends_before")
+        # Store selected time range as session variables, for a consistent UX across UI page loads.
+        set_session_variables(
+            "event_starts_after",
+            "event_ends_before",
+            aliases={"event_starts_after": "start", "event_ends_before": "end"},
+        )
         return json.dumps(asset.chart(**kwargs))
 
     @route(
@@ -973,20 +1124,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "use_latest_version_per_event": fields.Boolean(
-                required=False, load_default=False
-            ),
-            "most_recent_beliefs_only": fields.Boolean(required=False),
-            "compress_json": fields.Boolean(required=False),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetChartDataKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
         """
@@ -1004,7 +1142,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              schema: AssetChartDataKwargsSchema
+              schema: AssetChartDataOpenAPISchema
           responses:
             200:
               description: PROCESSED
@@ -1035,14 +1173,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "clip": fields.Boolean(load_default=True),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetChartAnnotationsKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_annotations(self, id: int, asset: GenericAsset, **kwargs):
         """
@@ -1062,14 +1193,26 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              name: event_starts_after
-              description: Only return annotations that end after this datetime.
+              name: start
+              description: Only return annotations that end after this datetime (legacy alias `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.
               schema:
                 type: string
                 format: date-time
             - in: query
-              name: event_ends_before
-              description: Only return annotations that start before this datetime.
+              name: end
+              description: Only return annotations that start before this datetime (legacy alias `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.
+              schema:
+                type: string
+                format: date-time
+            - in: query
+              name: duration
+              description: Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.
+              schema:
+                type: string
+                format: duration
+            - in: query
+              name: prior
+              description: Only return annotations recorded before this datetime (legacy alias `beliefs_before`).
               schema:
                 type: string
                 format: date-time
@@ -1103,6 +1246,8 @@ class AssetAPI(FlaskView):
         df = asset.search_annotations(
             annotations_after=event_starts_after,
             annotations_before=event_ends_before,
+            beliefs_after=kwargs.get("beliefs_after", None),
+            beliefs_before=kwargs.get("beliefs_before", None),
             include_account_annotations=True,
             as_frame=True,
         )
@@ -1237,6 +1382,316 @@ class AssetAPI(FlaskView):
 
         return response, 200
 
+    @route("/<id>/automations", methods=["GET"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automations(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get all automations defined on an asset.
+
+        ---
+        get:
+          summary: Get all automations defined on an asset.
+          description: |
+            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            defined on the asset. Each entry shows the automation's ID, when it was created,
+            its type, name, activation status, and its recurrence, both as a cron string
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to get the automations for.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automations:
+                      summary: List of automations
+                      value:
+                        automations:
+                          - id: 1
+                            created_at: "2026-07-11T00:00:00+00:00"
+                            asset_id: 1
+                            type: forecasts
+                            name: Day-ahead PV forecasts
+                            cronstr: "0 6 * * *"
+                            timezone: Europe/Amsterdam
+                            cursor: "2026-07-11T04:00:00+00:00"
+                            recurrence_description: "At 06:00"
+                            active: true
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automations_data = []
+        for automation in asset.automations:
+            automation_data = automation_schema.dump(automation)
+            automation_data["recurrence_description"] = describe_cronstr(
+                automation.cronstr
+            )
+            automations_data.append(automation_data)
+        return {"automations": automations_data}, 200
+
+    @route("/<id>/automations/<int:automation_id>", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get details of one automation defined on an asset.
+
+        ---
+        get:
+          summary: Get details of one automation defined on an asset.
+          description: |
+            In addition to the fields shown when listing automations, the response shows
+            the automation's parameters (for forecasts, these are the forecast parameters
+            used on each run), information about the data generator that runs it,
+            the sensors it reads from and writes to,
+            and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automation:
+                      summary: Automation details
+                      value:
+                        id: 1
+                        created_at: "2026-07-11T00:00:00+00:00"
+                        asset_id: 1
+                        type: forecasts
+                        name: Day-ahead PV forecasts
+                        cronstr: "0 6 * * *"
+                        timezone: Europe/Amsterdam
+                        cursor: "2026-07-11T04:00:00+00:00"
+                        recurrence_description: "At 06:00"
+                        active: true
+                        parameters:
+                          sensor: 2092
+                        generator:
+                          id: 6
+                          description: "forecaster 'TrainPredictPipeline' (v1)"
+                        input_sensors:
+                          - id: 2092
+                            name: power
+                          - id: 2093
+                            name: irradiance
+                        output_sensors:
+                          - id: 2092
+                            name: power
+                        job_stats:
+                          finished: 3
+                          failed: 1
+                        redis_connection_err: null
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        automation_data = automation_schema.dump(automation)
+        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["parameters"] = automation.parameters
+        automation_data["generator"] = (
+            {
+                "id": automation.generator.id,
+                "description": automation.generator.description,
+            }
+            if automation.generator is not None
+            else None
+        )
+        try:
+            automation_sensors = resolve_automation_sensors(automation)
+        except AutomationSensorsUnknown as e:
+            # One broken automation should not keep this response from rendering,
+            # and there are no sensors to check access on in this case.
+            current_app.logger.warning(str(e))
+            automation_sensors = {"input_sensors": [], "output_sensors": []}
+        else:
+            for sensor in {
+                sensor
+                for key in ("input_sensors", "output_sensors")
+                for sensor in automation_sensors[key]
+            }:
+                check_access(sensor, "read")
+        for key in ("input_sensors", "output_sensors"):
+            automation_data[key] = [
+                {"id": sensor.id, "name": sensor.name}
+                for sensor in automation_sensors[key]
+            ]
+        redis_connection_err = None
+        try:
+            automation_data["job_stats"] = get_automation_job_stats(automation)
+        except NoRedisConfigured as e:
+            automation_data["job_stats"] = {}
+            redis_connection_err = e.args[0]
+        automation_data["redis_connection_err"] = redis_connection_err
+        return automation_data, 200
+
+    @route("/<id>/automations/<int:automation_id>/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Running an automation writes data under the asset, which is what create-children means here.
+    # The sensors it writes to were checked against the same permission when the automation was created,
+    # and its output scope is checked again on each run (see validate_forecast_output_scope).
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a single run of an automation.
+
+        ---
+        post:
+          summary: Trigger a single run of an automation.
+          description: |
+            Run one automation now, once, in addition to its recurring runs.
+            This is useful to try out a new automation, to re-run one after fixing what made it fail,
+            or to refresh its results after late input data arrived.
+
+            The automation runs with the parameters it was created with,
+            and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+
+            An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
+            so the next recurring run still happens as scheduled, and a missed run is still caught up.
+            Inactive automations can be triggered, too, which is how you can try one out before activating it.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset the automation is defined on.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation to run.
+              schema:
+                type: integer
+          responses:
+            202:
+              description: PROCESSING
+              content:
+                application/json:
+                  examples:
+                    triggered:
+                      summary: Automation run accepted
+                      description: |
+                        The automation queued its jobs, which will be picked up by a worker.
+                        The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
+                        and `n_jobs` says how many jobs the run queued in total.
+                      value:
+                        status: ACCEPTED
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        n_jobs: 2
+                        message: "Request has been accepted for processing."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        try:
+            returns = run_automation(automation)
+        except (NotImplementedError, ValueError, ValidationError) as e:
+            db.session.rollback()
+            return unprocessable_entity(
+                e.messages if isinstance(e, ValidationError) else str(e)
+            )
+        job_id = (returns or {}).get("job_id")
+        if job_id is None:
+            db.session.rollback()
+            current_app.logger.error(
+                "Automation %s ran on demand, but reported no job: %r",
+                automation.id,
+                returns,
+            )
+            return unprocessable_entity(
+                f"Automation {automation.id} did not queue any job."
+            )
+        AssetAuditLog.add_record(
+            asset,
+            f"Triggered a run of automation '{automation.name}' ({automation.id}).",
+        )
+        db.session.commit()
+        response, status_code = request_accepted_for_processing(job_id)
+        response["n_jobs"] = returns.get("n_jobs")
+        return response, status_code
+
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
@@ -1279,6 +1734,7 @@ class AssetAPI(FlaskView):
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
+                            created_via: API
                             metadata_hash: abc123
                         redis_connection_err: null
             400:
@@ -1444,7 +1900,131 @@ class AssetAPI(FlaskView):
             "message": "Default legend position updated successfully.",
         }, 200
 
+    @route("/<id>/reports/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_report(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a one-off reporting job for this asset.
+        ---
+        post:
+          summary: Trigger a one-off reporting job for this asset.
+          description: |
+            Queue a one-off report for a worker processing the `reporting` queue.
+            The caller must be able to read every input/configuration sensor and
+            record data on every output sensor. Each output must belong to the
+            asset in the URL or one of its descendants.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              $ref: '#/components/parameters/AssetIdPath'
+          requestBody:
+            content:
+              application/json:
+                schema: ReportTriggerSchema
+          responses:
+            202:
+              description: ACCEPTED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required:
+                      - status
+                      - message
+                      - job
+                      - job-url
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - ACCEPTED
+                      message:
+                        type: string
+                      job:
+                        type: string
+                        description: UUID of the queued reporting job.
+                      job-url:
+                        type: string
+                        format: uri
+                        description: URL to query the generic job status API.
+                  example:
+                    status: ACCEPTED
+                    message: Request has been accepted for processing.
+                    job: 364bfd06-c1fa-430b-8d25-8f5a547651fb
+                    job-url: /api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            report_data = ReportTriggerSchema().load(body)
+        except ValidationError as exc:
+            return unprocessable_entity(exc.messages)
+
+        try:
+            reporter = get_data_generator(
+                source=None,  # pre-defined app.data_generators
+                model=report_data["reporter"],
+                config=report_data["config"],
+                save_config=True,
+                data_generator_type=Reporter,
+            )
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"config": exc.messages})
+        if reporter is None:
+            db.session.rollback()
+            return unprocessable_entity(
+                f"Reporter class `{report_data['reporter']}` not available."
+            )
+
+        parameters = report_data["parameters"]
+        try:
+            deserialized_parameters = reporter._parameters_schema.load(parameters)
+            report_sensors = resolve_data_generator_sensors(
+                reporter, deserialized_parameters
+            )
+            check_sensor_access(
+                report_sensors["input_sensors"], report_sensors["output_sensors"]
+            )
+            for output_sensor in report_sensors["output_sensors"]:
+                if not asset_is_in_subtree(asset.id, output_sensor.generic_asset_id):
+                    raise ValueError(
+                        f"Report output sensor {output_sensor.id} must belong to asset"
+                        f" {asset.id} or one of its descendants."
+                    )
+            reporter.set_job_trigger("API")
+            result = reporter.compute(as_job=True, parameters=parameters)
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"parameters": exc.messages})
+        except ValueError as exc:
+            db.session.rollback()
+            return unprocessable_entity(str(exc))
+        except Forbidden:
+            db.session.rollback()
+            raise
+
+        return request_accepted_for_processing(result["job_id"])
+
     @route("/<id>/schedules/trigger", methods=["POST"])
+    @limit_triggers()
     @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
@@ -1556,7 +2136,8 @@ class AssetAPI(FlaskView):
                           flex-context:
                             consumption-price: {sensor: 9}
                             production-price: {sensor: 10}
-                            inflexible-device-sensors: [13, 14, 15]
+                            inflexible-consumption: [{sensor: 13}, {sensor: 14}]
+                            inflexible-production: [{sensor: 15}]
                             site-power-capacity: 100 kVA
                             site-production-capacity: 80 kW
                             site-consumption-capacity: {sensor: 32}
@@ -1594,7 +2175,8 @@ class AssetAPI(FlaskView):
                           flex-context:
                             consumption-price: {sensor: 9}
                             production-price: {sensor: 10}
-                            inflexible-device-sensors: [13, 14, 15]
+                            inflexible-consumption: [{sensor: 13}, {sensor: 14}]
+                            inflexible-production: [{sensor: 15}]
                             site-power-capacity: 100 kVA
                             site-production-capacity: 80 kW
                             site-consumption-capacity: {sensor: 32}
@@ -1664,6 +2246,7 @@ class AssetAPI(FlaskView):
         return request_accepted_for_processing(
             job.id,
             legacy_key="schedule",
+            status_code=200 if use_legacy_job_responses(asset) else 202,
         )
 
     @route("/<id>/kpis", methods=["GET"])
@@ -1755,10 +2338,23 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
+            # The beliefs the chart draws: one value per event, the most recent one.
+            # Aggregating belief rows instead would count a revision on top of what it revised,
+            # and would count each source separately when several report the same sensor.
+            beliefs = sensor.search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                most_recent_beliefs_only=True,
+            )
+            # Count each event once, under the window it starts in.
+            # The search also returns events that merely overlap the window, which the chart draws,
+            # but a total that included them would count one event under two adjacent selections.
+            event_starts = beliefs.index.get_level_values("event_start")
+            beliefs = beliefs[(event_starts >= start) & (event_starts < end)]
+            values = beliefs["event_value"].dropna()
 
             downsample_function, downsample_value = get_downsample_function_and_value(
-                kpi, sensor, sensor_stats
+                kpi, sensor, values
             )
             kpi_dict = {
                 "title": kpi["title"],

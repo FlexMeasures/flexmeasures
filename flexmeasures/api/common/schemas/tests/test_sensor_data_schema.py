@@ -2,6 +2,7 @@ from datetime import timedelta, datetime
 import json
 import pytest
 import pytz
+from rq.job import JobStatus
 
 from marshmallow import ValidationError
 import pandas as pd
@@ -465,7 +466,7 @@ def test_asset_sensors_metadata(
 
 
 def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
-    """Check that we get both types of jobs for a battery asset."""
+    """Check that we get scheduling, forecasting and reporting jobs."""
     battery_asset = add_battery_assets["Test battery"]
     battery = battery_asset.sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
@@ -495,26 +496,47 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
         },
     )
     forecasting_job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+    reporting_job = app.queues["reporting"].enqueue(sum, [1, 2])
+    reporting_job.meta["exception"] = "report failed"
+    reporting_job.save_meta()
+    reporting_job.set_status(JobStatus.FAILED)
+    app.job_cache.add(
+        battery.id,
+        reporting_job.id,
+        queue="reporting",
+        asset_or_sensor_type="sensor",
+    )
 
     jobs_data = build_asset_jobs_data(battery_asset)
     forecasting_jobs_data = [j for j in jobs_data if j["queue"] == "forecasting"]
     scheduling_jobs_data = [j for j in jobs_data if j["queue"] == "scheduling"]
+    reporting_jobs_data = [j for j in jobs_data if j["queue"] == "reporting"]
     assert len(forecasting_jobs_data) == 1
     assert scheduling_jobs_data
+    assert len(reporting_jobs_data) == 1
+    assert (
+        reporting_jobs_data[0]["err"] == "Reporting job failed with str: report failed"
+    )
     scheduling_job_ids = set()
     for job_data in jobs_data:
         metadata = json.loads(job_data["metadata"])
         if job_data["queue"] == "forecasting":
             assert metadata["job_id"] == forecasting_job.id
             assert job_data["entity"] == f"sensor: {battery.name} (Id: {battery.id})"
-        else:
+            assert job_data["status"] == "queued"
+        elif job_data["queue"] == "scheduling":
             scheduling_job_ids.add(metadata["job_id"])
-        assert job_data["status"] == "queued"
+            assert job_data["status"] == "queued"
+        else:
+            assert metadata["job_id"] == reporting_job.id
+            assert job_data["status"] == JobStatus.FAILED
 
     assert scheduling_job.id in scheduling_job_ids
 
     # Clean up queues
     app.queues["scheduling"].empty()
     app.queues["forecasting"].empty()
+    app.queues["reporting"].empty()
     assert app.queues["scheduling"].count == 0
     assert app.queues["forecasting"].count == 0
+    assert app.queues["reporting"].count == 0

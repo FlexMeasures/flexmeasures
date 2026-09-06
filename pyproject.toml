@@ -37,6 +37,7 @@ dependencies = [
     "py-moneyed>=3.0",
     "iso8601>=2.1.0",
     "xlrd>=2.0.2",
+    "openpyxl>=3.1.5",
     "workalendar>=17.0.0",
     "holidays>=0.57",
     "inflection>=0.5.1",
@@ -51,6 +52,9 @@ dependencies = [
     "isodate>=0.7.2",
     "click>=8.2.0",
     "click-default-group>=1.2.4",
+    # for automations: matching cron strings and describing them in natural language
+    "croniter>=2.0.0",
+    "cron-descriptor>=1.4.0",
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order
@@ -63,8 +67,8 @@ dependencies = [
     # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
-    # 3.5.5: got rid of BlockManager deprecation warnings
-    "timely-beliefs[forecast]>=3.5.5",
+    # 4.2.0: stopped declaring single-column indexes on event_start and sensor_id, which migration b7e5a2c40f18 drops.
+    "timely-beliefs>=4.2.0",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
@@ -79,6 +83,12 @@ dependencies = [
     "flask-marshmallow>=1.4.0",
     "flask-cors>=6.0.2",
     "flask-swagger-ui>=5.21.0",
+    # Note: the redis extra (used for rate-limit storage) currently pins redis<8
+    "Flask-Limiter[redis]>=4.0",
+    # Flask-Limiter's rate-limit parser, which we also import directly (to validate rate limits),
+    # so we declare it rather than lean on it arriving transitively.
+    # The floor is Flask-Limiter's own, as we only use the long-standing limits.parse.
+    "limits>=3.13",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
     # See GH#1450 (failing tests on older Python versions)
@@ -146,9 +156,16 @@ script = "flexmeasures.data.scripts.visualize_data_model"
 
 [tool.poe.tasks.clean-db]
 help = "Clean the database."
-shell = "flexmeasures/data/scripts/clean_database.sh"
+# This is a "cmd" and not a "shell" task on purpose.
+# Poe feeds the content of a shell task to the interpreter over stdin,
+# which leaves the script without a terminal to read from,
+# so its password and confirmation prompts would silently read empty.
+# A cmd task runs the script directly and lets it inherit our stdin.
+# The arguments have to be named explicitly, because poe otherwise only exposes them as environment variables.
+cmd = "flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}"
+use_exec = true
 args = [
-    {name = "db-name", help = "The name of the database to clean."},
+    {name = "db-name", required = true, help = "The name of the database to clean."},
     {name = "db-user", help = "The user to clean the database for."},
 ]
 
@@ -205,13 +222,15 @@ args = [
 
 [dependency-groups]
 dev = [
-    "black==24.8.0",
+    "black==26.3.1",
     "flake8==7.1.1",
     "flake8-blind-except",
     "pytest-runner",
     "watchdog",
     "pyinstrument",
     "poethepoet>=0.41.0",
+    # pre-commit runs the hooks in CI, so keep it locked rather than resolved at run time.
+    "pre-commit>=4.6",
     # Type checking
     "mypy>=0.902",
     "types-pytz>=2025.2.0.20251108",
@@ -257,8 +276,9 @@ test = [
     # required with fakeredis, maybe because we use rq
     "lupa>=2.6",
     "pytest-mock>=3.15.1",
-    "openpyxl>=3.1.5",
     "pytest-runner>=6.0.1",
+    # to run the UI's JavaScript modules in a browser, see flexmeasures/ui/tests/js
+    "selenium>=4.36.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -279,6 +299,11 @@ markers = [
 # `uv sync --locked` to fail because the fork markers don't fully cover the
 # declared environment space.
 [tool.uv]
+# Contributors and CI should write uv.lock with the same uv version.
+# Otherwise, environment markers get reformatted, and a small dependency change comes out as a huge diff.
+# This gates every uv invocation, so bumping it means bumping the pins in our workflows, Dockerfile and .readthedocs.yaml, too.
+# See documentation/dev/dependency-management.rst.
+required-version = "==0.12.7"
 environments = [
     "sys_platform == 'linux'",
     "sys_platform == 'darwin'",

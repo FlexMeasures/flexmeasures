@@ -10,7 +10,6 @@ from flask import Flask
 
 from flexmeasures.data.models import naming_convention
 
-
 db: sa = (
     None  # typed attributes unavailable in flask-sqlalchemy, see https://github.com/pallets/flask-sqlalchemy/issues/867
 )
@@ -49,6 +48,7 @@ def configure_db_for(app: Flask):
             user,
             task_runs,
             forecasting,
+            automations,
         )  # noqa: F401
 
         # This would create db structure based on models, but you should use `flask db upgrade` for that.
