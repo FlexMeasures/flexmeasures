@@ -86,6 +86,26 @@ def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data):
     assert "The --as-job flag cannot be combined with --dry-run" in result.output
 
 
+def test_add_forecast_rejects_dry_run_as_job_from_parameters_file(
+    app, setup_dummy_data, tmp_path
+):
+    """A dry run set in a parameters file is rejected in combination with --as-job, too."""
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(yaml.safe_dump({"dry-run": True}))
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast,
+        to_flags({"sensor": sensor_id, "parameters": str(parameters_file)})
+        + ["--as-job"],
+    )
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
+
+
 def test_add_forecast_reports_invalid_annotation_regressor(app, setup_dummy_data):
     from flexmeasures.cli.data_add import add_forecast
 
