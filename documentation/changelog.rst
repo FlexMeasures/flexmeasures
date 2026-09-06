@@ -157,6 +157,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* A plugin listed in ``FLEXMEASURES_PLUGINS`` by name is now imported by name, instead of being loaded from a folder of that name in the working directory (which is easily the case when starting FlexMeasures from the plugin's own repository), where it appeared to load but its routes and CLI commands went missing; spell out a path (e.g. ``./my_plugin``) to load such a folder on purpose, and such a path that does not exist is now reported as missing rather than quietly resolved as a package name [see `PR #2419 <https://www.github.com/FlexMeasures/flexmeasures/pull/2419>`_]
 * Clear cached authentication state between tests, so that one test's login can no longer leak into later tests [see `PR #2424 <https://www.github.com/FlexMeasures/flexmeasures/pull/2424>`_]
 * Include the Excel reader in default installations so XLSX sensor-data uploads work outside test environments [see `PR #2376 <https://www.github.com/FlexMeasures/flexmeasures/pull/2376>`_]
 * In a multi-device flex-model, a device without a stock (e.g. a converter port or curtailable generator) silently disabled constraint validation for all devices after it; validation now covers every device, and also newly checks that each device's power bounds do not contradict each other, so a contradictory hard bound fails with a clear per-time-step message instead of a bare solver infeasibility [see `PR #2252 <https://www.github.com/FlexMeasures/flexmeasures/pull/2252>`_]
