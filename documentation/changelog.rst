@@ -17,6 +17,7 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Try out a forecast without recording it, using ``flexmeasures add forecasts --dry-run``, which computes the forecast in full and reports the sensor, data source, number of beliefs and event range it would have saved [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
 * Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_]
 * A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation_id>/trigger``) and the asset's *Automations* page (a *Run now* button), which is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
@@ -35,6 +36,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* ``flexmeasures add schedule --dry-run`` no longer saves a schedule when it is combined with ``--as-job``, where the flag used to be dropped without a word and the queued job stored its schedule anyway; that combination is now rejected, and a dry run says how many beliefs it would have saved and which events they cover [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
 * Upgrading a database old enough to still carry the pre-``GenericAsset``/``Sensor`` tables now works, where the v0.18.0 migration that removes them crashed twice over: once while checking whether those tables hold data, as soon as one of them held more than a single row, and once while dropping them, because it dropped each table before the ones referencing it [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
 * KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]

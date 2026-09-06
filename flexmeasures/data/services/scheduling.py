@@ -885,8 +885,16 @@ def make_schedule(  # noqa: C901
             save_to_db(bdf)
             num_beliefs_created += len(bdf)
         else:
+            # Report what would have been saved, in the same terms as a forecast dry run does:
+            # the sensor, the number of beliefs, and the events they cover.
+            event_range = (
+                f", covering events from {bdf.event_starts.min()} until {bdf.event_ends.max()}"
+                if not bdf.empty
+                else ""
+            )
             print(
-                f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
+                f"\nNot saving schedule for sensor `{bdf.sensor}` (ID {bdf.sensor.id}) to the database (because of --dry-run),"
+                f" but this is what I computed ({len(bdf)} beliefs{event_range}):\n{bdf}"
             )
 
     # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0

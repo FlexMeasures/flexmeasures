@@ -1942,7 +1942,11 @@ class SensorAPI(FlaskView):
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,
-            exclude=EXCLUDED_FORECASTING_FIELDS,
+            # The API always queues a job, whose results only make sense when they are recorded,
+            # so dry runs are supported on the CLI only.
+            # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            exclude=EXCLUDED_FORECASTING_FIELDS
+            + ["dry_run"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,
