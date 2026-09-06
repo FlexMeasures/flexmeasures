@@ -72,6 +72,34 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     assert _count_beliefs(fresh_db, sensor_id) > beliefs_before_dry_run
 
 
+def test_add_forecast_dry_run_reports_an_empty_forecast(
+    app, fresh_db, setup_dummy_data, monkeypatch
+):
+    """A dry run that computes no beliefs at all still reports, rather than crashing on an empty frame."""
+    import timely_beliefs as tb
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+
+    sensor_id, *_ = setup_dummy_data
+    sensor = fresh_db.session.get(Sensor, sensor_id)
+
+    def compute_nothing(self, *args, **kwargs):
+        self._parameters = {"sensor": sensor, "sensor_to_save": sensor}
+        return [{"data": tb.BeliefsDataFrame(sensor=sensor), "sensor": sensor}]
+
+    monkeypatch.setattr(TrainPredictPipeline, "compute", compute_nothing)
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "0 forecast beliefs across 0 unique belief times" in result.output
+    assert "covering events from" not in result.output
+
+
 def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data):
     """A dry run cannot be queued, because its results would never reach the user."""
     from flexmeasures.cli.data_add import add_forecast
