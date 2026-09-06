@@ -297,9 +297,9 @@ Response field naming (``job``, ``schedule``, ``forecast``)
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 Background-job trigger endpoints (e.g. ``POST /sensors/<id>/schedules/trigger``, ``POST /assets/<id>/schedules/trigger``, ``POST /sensors/<id>/forecasts/trigger``) and ``GET /api/v3_0/jobs/<uuid>`` return a canonical ``job`` field (and, for job status, kebab-case metadata fields such as ``func-name``) alongside older field names (``schedule``, ``forecast``, ``func_name``, etc.) kept purely for backward compatibility.
-These older field names are **not currently marked as deprecated** via the ``Deprecation``/``Sunset``/``Link`` headers described above: within API version ``v3_0`` they are additive and will keep working unchanged.
+Within API version ``v3_0``, these older field names are additive aliases and will keep working unchanged.
 
-New clients should prefer the canonical fields. Any eventual removal of the older field names is planned to happen only as part of a new, whole API version (following the same versioned deprecation/sunset flow described in :ref:`api_deprecation_hosts`), not as a field-by-field change within ``v3_0``. See the `API v4 planning discussion <https://github.com/FlexMeasures/flexmeasures/discussions/2349>`_ for the current state of that plan.
+New clients should prefer the canonical fields. Any eventual removal of the older field names is planned to happen only as part of a new, whole API version, following the same versioned deprecation/sunset flow described in :ref:`api_deprecation_hosts`. See the `API v4 planning discussion <https://github.com/FlexMeasures/flexmeasures/discussions/2349>`_ for the current state of that plan.
 
 .. _api_deprecation_hosts:
 
@@ -313,6 +313,7 @@ FlexMeasures versions go through the following stages for deprecating major feat
 - :ref:`api_deprecation_stage_3`: status 410 (Gone)
 
 Let's go over these stages in more detail.
+Hosts can customize the dates and information links used in deprecation and sunset headers with ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` (see :ref:`Sunset Configuration<sunset-config>`).
 
 .. _api_deprecation_stage_1:
 
