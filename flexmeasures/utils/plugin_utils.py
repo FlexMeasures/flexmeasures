@@ -58,9 +58,10 @@ def register_plugins(app: Flask):  # noqa: C901
     If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
     (last part of the path).
 
-    An entry that is not spelled out as a file path is imported as an installed package if one goes by that name,
-    even when a folder of the same name sits in the working directory.
-    To load such a folder instead, spell out its path (e.g. ``./my_plugin``).
+    An entry that is not spelled out as a file path is imported by name, so that normal import resolution along ``sys.path`` applies,
+    rather than loaded from the folder of that name in the working directory.
+    An installed plugin therefore wins from such a folder, unless the working directory itself comes first on ``sys.path``.
+    To load a folder on purpose, spell out its path (e.g. ``./my_plugin``).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
     if isinstance(plugins, str):
@@ -87,13 +88,14 @@ def register_plugins(app: Flask):  # noqa: C901
         prefer_installed = not written_as_path and (
             find_importable_module(pkg_name) is not None
         )
-        if written_as_path and not os.path.exists(plugin):
+        folder_exists = os.path.exists(plugin)
+        if written_as_path and not folder_exists:
             app.logger.error(
                 f"Plugin {plugin_name} is spelled out as a file path, but {plugin} does not exist. Cannot load plugin {plugin_name}."
             )
             continue
-        if not os.path.exists(plugin) or prefer_installed:  # assume plugin is a package
-            if prefer_installed and os.path.exists(plugin):
+        if not folder_exists or prefer_installed:  # assume plugin is a package
+            if prefer_installed and folder_exists:
                 app.logger.debug(
                     f"Loading plugin {plugin_name} as an installed package,"
                     f" ignoring the folder of the same name in the working directory."
