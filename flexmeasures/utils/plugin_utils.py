@@ -102,7 +102,7 @@ def register_plugins(app: Flask):  # noqa: C901
                 module = importlib.import_module(pkg_name)
             except ModuleNotFoundError:
                 app.logger.error(
-                    f"Attempted to import module {pkg_name} (as it is not a valid file path), but it is not installed."
+                    f'Attempted to import module {pkg_name} (as it is not a valid file path), but it is not installed. Make sure you use a comma-separated list of modules, e.g. "module1,module2".'
                 )
                 continue
         else:  # assume plugin is a file path

@@ -453,9 +453,8 @@ class TrainPredictPipeline(Forecaster):
 
             # Ensure the data source ID is available in the database when the job runs.
             self._data_source = db.session.merge(self.data_source)
-            db.session.flush()
-            data_source_id = self._data_source.id
             db.session.commit()
+            data_source_id = self._data_source.id
 
             # job metadata for tracking
             # Serialize start and end to ISO format strings

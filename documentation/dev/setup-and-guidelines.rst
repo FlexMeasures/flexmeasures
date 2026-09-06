@@ -32,6 +32,11 @@ Dependencies
 
 We use the excellent `uv <https://docs.astral.sh/uv/>`_ tool to manage our dependencies.
 First, `install uv <https://docs.astral.sh/uv/getting-started/installation/>`_.
+Then pin it to the version this project requires (see :ref:`dependency_management` for why, and for what to do if you installed ``uv`` with ``pip`` or ``brew``):
+
+.. code-block:: bash
+
+   $ uv self update 0.12.7
 
 Next, go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 
@@ -309,4 +314,3 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
 
 .. note:: All paths depend on your local environment, of course.
-

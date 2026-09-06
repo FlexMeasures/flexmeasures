@@ -459,18 +459,20 @@ def _convert_time_units(
 
 
 def convert_units(
-    data: tb.BeliefsSeries | pd.Series | list[int | float] | int | float,
+    data: tb.BeliefsSeries | pd.Series | list[int | float | None] | int | float,
     from_unit: str,
     to_unit: str,
     event_resolution: timedelta | None = None,
     capacity: str | None = None,
-) -> pd.Series | list[int | float] | int | float:
+) -> pd.Series | list[int | float | None] | int | float:
     """Updates data values to reflect the given unit conversion.
 
     Handles units in short scientific notation (e.g. m³/h, kW, and ºC), as well as three special units to convert from:
     - from_unit="datetime"          (with data point such as "2023-05-02", "2023-05-02 05:14:49" or "2023-05-02 05:14:49 +02:00")
     - from_unit="dayfirst datetime" (with data point such as "02-05-2023")
     - from_unit="timedelta"         (with data point such as "0 days 01:18:25")
+
+    During numeric list conversions, ``None`` values become ``NaN`` so gaps are preserved.
     """
     if from_unit in ("datetime", "dayfirst datetime", "timedelta"):
         return _convert_time_units(data, from_unit, to_unit)
@@ -479,7 +481,11 @@ def convert_units(
         from_magnitudes = (
             data.to_numpy()
             if isinstance(data, pd.Series)
-            else np.asarray(data) if isinstance(data, list) else np.array([data])
+            else (
+                np.asarray(data, dtype=float)
+                if isinstance(data, list)
+                else np.array([data])
+            )
         )
         try:
             from_quantities = ur.Quantity(from_magnitudes, from_unit)

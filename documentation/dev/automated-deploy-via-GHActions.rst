@@ -167,6 +167,8 @@ The last step, touching a wsgi.py file, is often used as a way to soft-restart t
    touch $PATH_TO_WSGI
 
 
+.. note:: The ``uv`` on your server needs to be the version pinned in ``[tool.uv].required-version`` (see :ref:`dependency_management`), as ``uv`` refuses to run on any other version.
+
 A WSGI file can do various things, as well, but the simplest form is shown below.
 
 .. code-block:: python

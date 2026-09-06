@@ -17,22 +17,32 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_]
+* A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation_id>/trigger``) and the asset's *Automations* page (a *Run now* button), which is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support
 -------------------------
+* Drop the nine obsolete tables that predate the ``GenericAsset``/``Sensor`` data model, asking you to confirm first if any of them still hold data, which cleans up after v0.18.0, where seven of them were dropped but ``asset_type`` and ``weather_sensor_type`` were missed, and where a database that was downgraded past that release and upgraded again kept all nine [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
 * Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
+* The asset page no longer slows down with the amount of data a sensor holds while working out how up to date each of its sensors is [see `PR #2463 <https://www.github.com/FlexMeasures/flexmeasures/pull/2463>`_]
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
+* Require an exact ``uv`` version (``0.12.7``) via ``[tool.uv].required-version``, which keeps ``uv.lock`` changes reproducible across local development, CI, Docker and Read the Docs, but does mean that anyone running ``uv`` in a FlexMeasures checkout — plugin developers and self-hosters included — needs that same version [see `PR #2451 <https://www.github.com/FlexMeasures/flexmeasures/pull/2451>`_]
 
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 
 Bugfixes
 -----------
 
+* Upgrading a database old enough to still carry the pre-``GenericAsset``/``Sensor`` tables now works, where the v0.18.0 migration that removes them crashed twice over: once while checking whether those tables hold data, as soon as one of them held more than a single row, and once while dropping them, because it dropped each table before the ones referencing it [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
+* Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
 * KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
+* Avoid crashing on startup when the database is stamped with an Alembic revision unknown to this FlexMeasures checkout [see `PR #2465 <https://www.github.com/FlexMeasures/flexmeasures/pull/2465>`_]
+* The "module not installed" error for an unresolved ``FLEXMEASURES_PLUGINS`` entry now hints at the expected comma-separated format, which helps people who accidentally use an incorrect format like a JSON-array [see `PR #2473 <https://www.github.com/FlexMeasures/flexmeasures/pull/2473>`_]
+* ``flexmeasures jobs run-job`` ran each job twice, and always as if it were a scheduling job, which lost the queue-specific reporting of why a job failed [see `PR #2480 <https://www.github.com/FlexMeasures/flexmeasures/pull/2480>`_]
 
 
 

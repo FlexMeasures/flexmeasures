@@ -12,7 +12,7 @@ from rq import Queue
 from rq.job import Job
 
 RQ_DEFAULT_JOB_TIMEOUT = 180
-KNOWN_JOB_QUEUES = frozenset(("forecasting", "scheduling", "ingestion"))
+KNOWN_JOB_QUEUES = frozenset(("forecasting", "scheduling", "ingestion", "reporting"))
 
 
 def _timeout_to_seconds(timeout: timedelta | str) -> int:
