@@ -26,10 +26,11 @@ def is_written_as_path(plugin: str) -> bool:
     return os.path.isabs(plugin) or any(sep in plugin for sep in separators)
 
 
-def find_importable_package(pkg_name: str) -> importlib.machinery.ModuleSpec | None:
-    """Find the spec of an importable package, if there is one.
+def find_importable_module(pkg_name: str) -> importlib.machinery.ModuleSpec | None:
+    """Find the spec of an importable module, if there is one.
 
-    Namespace packages are ignored.
+    A single-file module counts, just like a package: ``register_plugins`` imports either by name.
+    Namespace packages do not.
     A folder without an ``__init__.py`` is importable, but accepting it here would shadow the clearer error that the file path branch of ``register_plugins`` reports for such a folder.
     """
     try:
@@ -80,21 +81,21 @@ def register_plugins(app: Flask):  # noqa: C901
             -1
         ]  # rule out attempts for relative package imports
         # An entry that is spelled out as a file path always loads the folder it points to.
-        # For a bare name, an installed package wins from a folder of the same name in the working directory.
+        # For a bare name, an installed module wins from a folder of the same name in the working directory.
         # Loading such a folder by path would execute its __init__.py a second time, under a new module object,
         # while submodules imported by the first execution keep referring to the old one,
         # so that, for instance, routes end up on a Blueprint that is never registered. See GH issue #2415.
         written_as_path = is_written_as_path(plugin)
-        prefer_package = not written_as_path and (
-            find_importable_package(pkg_name) is not None
+        prefer_installed = not written_as_path and (
+            find_importable_module(pkg_name) is not None
         )
         if written_as_path and not os.path.exists(plugin):
             app.logger.error(
                 f"Plugin {plugin_name} is spelled out as a file path, but {plugin} does not exist. Cannot load plugin {plugin_name}."
             )
             continue
-        if not os.path.exists(plugin) or prefer_package:  # assume plugin is a package
-            if prefer_package and os.path.exists(plugin):
+        if not os.path.exists(plugin) or prefer_installed:  # assume plugin is a package
+            if prefer_installed and os.path.exists(plugin):
                 app.logger.debug(
                     f"Loading plugin {plugin_name} as an installed package,"
                     f" ignoring the folder of the same name in the working directory."

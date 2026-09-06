@@ -66,19 +66,19 @@ def test_installed_package_wins_from_folder_in_working_directory(
     Both copies here define a route, so the routing table tells us which module was loaded, and whether its routes survived.
     """
     installed = tmp_path / "site-packages"
-    write_plugin(installed, "my_plugin", marker="installed")
+    write_plugin(installed, "fm_test_plugin", marker="installed")
     monkeypatch.syspath_prepend(str(installed))
 
     working_directory = tmp_path / "plugin-repo"
-    write_plugin(working_directory, "my_plugin", marker="shadow")
+    write_plugin(working_directory, "fm_test_plugin", marker="shadow")
     monkeypatch.chdir(working_directory)
-    assert os.path.exists("my_plugin"), "the shadowing folder must be in the cwd"
+    assert os.path.exists("fm_test_plugin"), "the shadowing folder must be in the cwd"
 
-    app = make_app(["my_plugin"])
+    app = make_app(["fm_test_plugin"])
     register_plugins(app)
 
-    assert app.config["LOADED_PLUGINS"] == {"my_plugin": "installed"}
-    assert sys.modules["my_plugin"].MARKER == "installed"
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_plugin": "installed"}
+    assert sys.modules["fm_test_plugin"].MARKER == "installed"
     routes = [str(rule) for rule in app.url_map.iter_rules()]
     assert "/installed" in routes, "the installed plugin's route must be registered"
     assert "/shadow" not in routes
@@ -92,14 +92,14 @@ def test_folder_in_working_directory_is_loaded_when_nothing_is_installed(
     The cwd is on ``sys.path`` here, as it is for a plugin repo one runs FlexMeasures from, so the folder is importable and loads as a package.
     """
     working_directory = tmp_path / "plugin-repo"
-    write_plugin(working_directory, "lonely_plugin", marker="from-cwd")
+    write_plugin(working_directory, "fm_test_lonely_plugin", marker="from-cwd")
     monkeypatch.chdir(working_directory)
     monkeypatch.syspath_prepend(str(working_directory))
 
-    app = make_app(["lonely_plugin"])
+    app = make_app(["fm_test_lonely_plugin"])
     register_plugins(app)
 
-    assert app.config["LOADED_PLUGINS"] == {"lonely_plugin": "from-cwd"}
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_lonely_plugin": "from-cwd"}
     assert "/from-cwd" in [str(rule) for rule in app.url_map.iter_rules()]
 
 
@@ -111,16 +111,16 @@ def test_loading_a_cwd_folder_that_is_not_importable_warns(
     This is the one case the loader cannot tell apart from a mistyped package name, so it says what it did.
     """
     working_directory = tmp_path / "plugin-repo"
-    write_plugin(working_directory, "unimportable_plugin", marker="from-cwd")
+    write_plugin(working_directory, "fm_test_unimportable_plugin", marker="from-cwd")
     monkeypatch.chdir(working_directory)  # deliberately not on sys.path
 
-    app = make_app(["unimportable_plugin"])
+    app = make_app(["fm_test_unimportable_plugin"])
     with caplog.at_level("WARNING"):
         register_plugins(app)
 
-    assert app.config["LOADED_PLUGINS"] == {"unimportable_plugin": "from-cwd"}
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_unimportable_plugin": "from-cwd"}
     assert (
-        "Loading plugin unimportable_plugin from the folder of that name in the working directory"
+        "Loading plugin fm_test_unimportable_plugin from the folder of that name in the working directory"
         in caplog.text
     ), "loading a folder for a bare name is ambiguous enough to warn about"
 
@@ -130,17 +130,17 @@ def test_path_entry_still_loads_the_folder_it_points_to(
 ):
     """Spelling out a path loads that folder, even when a package of that name is installed."""
     installed = tmp_path / "site-packages"
-    write_plugin(installed, "my_plugin", marker="installed")
+    write_plugin(installed, "fm_test_plugin", marker="installed")
     monkeypatch.syspath_prepend(str(installed))
 
     working_directory = tmp_path / "plugin-repo"
-    write_plugin(working_directory, "my_plugin", marker="by-path")
+    write_plugin(working_directory, "fm_test_plugin", marker="by-path")
     monkeypatch.chdir(working_directory)
 
-    app = make_app([f".{os.sep}my_plugin"])
+    app = make_app([f".{os.sep}fm_test_plugin"])
     register_plugins(app)
 
-    assert app.config["LOADED_PLUGINS"] == {"my_plugin": "by-path"}
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_plugin": "by-path"}
     assert "/by-path" in [str(rule) for rule in app.url_map.iter_rules()]
 
 
@@ -148,14 +148,14 @@ def test_absolute_path_entry_loads_the_folder_it_points_to(
     tmp_path, monkeypatch, clean_import_state
 ):
     """An absolute path is a path, too, wherever the process happens to run from."""
-    plugin = write_plugin(tmp_path / "elsewhere", "my_plugin", marker="absolute")
+    plugin = write_plugin(tmp_path / "elsewhere", "fm_test_plugin", marker="absolute")
     monkeypatch.syspath_prepend(str(tmp_path / "elsewhere"))
     monkeypatch.chdir(tmp_path)
 
     app = make_app([str(plugin)])
     register_plugins(app)
 
-    assert app.config["LOADED_PLUGINS"] == {"my_plugin": "absolute"}
+    assert app.config["LOADED_PLUGINS"] == {"fm_test_plugin": "absolute"}
 
 
 def test_folder_without_init_file_reports_a_clear_error(
@@ -167,11 +167,13 @@ def test_folder_without_init_file_reports_a_clear_error(
     and then complaining that it defines no Blueprints.
     """
     working_directory = tmp_path / "plugin-repo"
-    write_plugin(working_directory, "no_init_plugin", marker="", with_init=False)
+    write_plugin(
+        working_directory, "fm_test_no_init_plugin", marker="", with_init=False
+    )
     monkeypatch.chdir(working_directory)
     monkeypatch.syspath_prepend(str(working_directory))
 
-    app = make_app(["no_init_plugin"])
+    app = make_app(["fm_test_no_init_plugin"])
     with caplog.at_level("ERROR"):
         register_plugins(app)
 
@@ -185,7 +187,7 @@ def test_missing_plugin_reports_that_it_is_not_installed(
     """A name that is neither installed nor a folder is reported as not installed."""
     monkeypatch.chdir(tmp_path)
 
-    app = make_app(["there_is_no_such_plugin"])
+    app = make_app(["fm_test_there_is_no_such_plugin"])
     with caplog.at_level("ERROR"):
         register_plugins(app)
 
@@ -201,11 +203,11 @@ def test_path_entry_that_does_not_exist_is_reported_as_a_missing_path(
     An installed package goes by the same name here, to show that spelling out a path rules it out.
     """
     installed = tmp_path / "site-packages"
-    write_plugin(installed, "my_plugin", marker="installed")
+    write_plugin(installed, "fm_test_plugin", marker="installed")
     monkeypatch.syspath_prepend(str(installed))
     monkeypatch.chdir(tmp_path / "site-packages")
 
-    app = make_app([f"..{os.sep}nowhere{os.sep}my_plugin"])
+    app = make_app([f"..{os.sep}nowhere{os.sep}fm_test_plugin"])
     with caplog.at_level("ERROR"):
         register_plugins(app)
 
