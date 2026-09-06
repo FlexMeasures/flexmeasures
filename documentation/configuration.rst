@@ -40,49 +40,6 @@ This is used to turn on certain extra behaviours, see :ref:`modes-dev` for detai
 Default: ``""``
 
 
-.. _overwrite-config:
-
-FLEXMEASURES_ALLOW_DATA_OVERWRITE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Whether to allow overwriting existing data when saving data to the database.
-
-Default: ``False``
-
-
-.. _solver-config:
-
-FLEXMEASURES_LP_SOLVER
-^^^^^^^^^^^^^^^^^^^^^^
-
-The scheduling solver backend.
-
-The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
-This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
-
-Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
-Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
-We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
-Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
-
-Default: ``"highspy"``
-
-
-FLEXMEASURES_LP_SOLVER_OPTIONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
-
-    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
-
-When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
-
-.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
-
-Default: ``{}``
-
-
-
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -405,11 +362,17 @@ Scheduling
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
-We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
-Note that you need to install the solver, read more at :ref:`installing-a-solver`.
+The scheduling solver backend.
 
-Default: ``"appsi_highs"``
+The default, ``"highspy"``, builds the scheduling problem directly with the `HiGHS <https://highs.dev/>`_ Python API (``highspy``, which is installed with FlexMeasures).
+This bypasses the `pyomo library <http://www.pyomo.org/>`_ and is much faster to construct, while solving the exact same problem.
+
+Any other value is interpreted as the name of a Pyomo solver interface (the model is then built with Pyomo, which calls the solver).
+Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `the Pyomo documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ (both via ``highspy`` and via ``appsi_highs``) and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that a separate solver installation is only needed for external solvers such as ``cbc`` — both HiGHS-based choices (``highspy`` and ``appsi_highs``) rely on the ``highspy`` package that is installed together with FlexMeasures. Read more at :ref:`installing-a-solver`.
+
+Default: ``"highspy"``
 
 
 FLEXMEASURES_LP_SOLVER_OPTIONS
@@ -461,7 +424,9 @@ Default: ``2520`` (e.g. 7 days for a 4-minute resolution sensor, 105 days for a 
 FLEXMEASURES_FALLBACK_REDIRECT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+Control how the API handles a failed scheduling job when a custom scheduler has computed a fallback schedule.
+
+FlexMeasures' built-in storage scheduler no longer computes fallback schedules, but custom schedulers may still define fallback schedulers.
 
 If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
 Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
