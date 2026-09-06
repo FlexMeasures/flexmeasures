@@ -5,7 +5,7 @@ import logging
 import os
 from datetime import datetime
 import pytz
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
@@ -27,6 +27,52 @@ def test_add_forecast(app, setup_dummy_data):
     runner = app.test_cli_runner()
     result = runner.invoke(add_forecast, to_flags(cli_input))
     assert result.exit_code == 0, result.output
+
+
+def _count_beliefs(db, sensor_id: int) -> int:
+    """Count the beliefs recorded on the given sensor."""
+    return db.session.scalar(
+        select(func.count()).select_from(TimedBelief).filter_by(sensor_id=sensor_id)
+    )
+
+
+def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
+    """A dry run reports the forecast it computed, without recording any belief."""
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    runner = app.test_cli_runner()
+
+    beliefs_before_dry_run = _count_beliefs(fresh_db, sensor_id)
+    result = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    assert (
+        "Not saving forecasts to the database (because of --dry-run)" in result.output
+    )
+    assert f"for sensor `sensor 1` (ID {sensor_id})" in result.output
+    assert _count_beliefs(fresh_db, sensor_id) == beliefs_before_dry_run
+
+    # A normal run does record beliefs, so the dry run really skipped that step
+    result = runner.invoke(add_forecast, to_flags({"sensor": sensor_id}))
+    assert result.exit_code == 0, result.output
+    assert "Successfully created" in result.output
+    assert _count_beliefs(fresh_db, sensor_id) > beliefs_before_dry_run
+
+
+def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data):
+    """A dry run cannot be queued, because its results would never reach the user."""
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run", "--as-job"]
+    )
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
 
 
 def test_add_forecast_reports_invalid_annotation_regressor(app, setup_dummy_data):
