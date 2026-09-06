@@ -2070,3 +2070,34 @@ def test_kpi_counts_each_event_under_one_day_only(
     assert sum(totals.values()) == pytest.approx(
         222.0
     ), "each event counts once across neighbouring days, not twice"
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("tab", ["jobs", "sensors"])
+def test_update_status_page_tab(client, setup_api_test_data, requesting_user, tab):
+    """Posting a status page tab records it in the session, for the next status page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_tab"),
+        json={"status_page_tab": tab},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["status_page_tab"] == tab
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_update_status_page_tab_rejects_unknown_tab(
+    client, setup_api_test_data, requesting_user
+):
+    """Only the two tabs the status page actually has are accepted."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_tab"),
+        json={"status_page_tab": "automations"},
+    )
+    assert response.status_code == 422
+    with client.session_transaction() as session:
+        assert "status_page_tab" not in session

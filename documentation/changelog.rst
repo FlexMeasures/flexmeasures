@@ -19,6 +19,7 @@ New features
 
 * Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_]
 * A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation_id>/trigger``) and the asset's *Automations* page (a *Run now* button), which is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]
+* The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 
 Infrastructure / Support

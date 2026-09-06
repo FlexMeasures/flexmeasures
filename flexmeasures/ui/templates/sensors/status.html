@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
+{% set status_page_tab = session.get("status_page_tab", "jobs") %}
 
 {% block title %} {{ asset.name }} - Status {% endblock %}
 
@@ -12,41 +13,59 @@
     <div class="col-sm-8">
       <div class="card p-3">
 
-        <!-- SENSOR STATUS TABLE -->
-        <h4>
-          Data connectivity for sensors of {{ asset.name }}
-          <span class="fa fa-info-circle" title="
-          This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
+        <ul class="nav nav-tabs" id="statusTabs">
+          <li class="nav-item">
+            <a class="nav-link {{ 'active' if status_page_tab == 'jobs' }}" id="jobs-tab" data-bs-toggle="tab" href="#jobs" data-status-page-tab="jobs">Jobs</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {{ 'active' if status_page_tab == 'sensors' }}" id="sensors-tab" data-bs-toggle="tab" href="#sensors" data-status-page-tab="sensors">Sensor data</a>
+          </li>
+        </ul>
+
+        <div class="tab-content pt-3">
+
+          <!-- JOBS TABLE -->
+          <div class="tab-pane fade {{ 'show active' if status_page_tab == 'jobs' }}" id="jobs">
+            <h4 class="">
+              Latest jobs of {{ asset.name }}
+              <span class="fa fa-info-circle " title="This table shows forecasting or scheduling jobs for this asset."></span>
+              <span class="jobs-time-ago" data-timestamp="Loading">
+                <small>
+                  <i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>
+                  <span id="jobs_time_ago"></span>
+                </small>
+              </span>
+            </h4>
+
+            <div class="table-responsive">
+              <!-- Neither the "paginate" nor the "nav-on-click" class: both make flexmeasures.js build the table on page load, and this page builds each table itself, when its tab is first shown. -->
+              <table id="jobsTable" class="table table-striped w-100"></table>
+            </div>
+
+            <div class="alert alert-warning d-none mt-2" id="redis_connection_err"></div>
+          </div>
+
+          <!-- SENSOR STATUS TABLE -->
+          <div class="tab-pane fade {{ 'show active' if status_page_tab == 'sensors' }}" id="sensors">
+            <h4>
+              Data connectivity for sensors of {{ asset.name }}
+              <span class="fa fa-info-circle" title="
+              This table shows the connectivity status for all sensors under or relevant to this asset. Click the table to see the actual data. Per sensor, we report the different data source types. We only explicitly support source types 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter'.
 
 A red traffic light indicates that the last time a record was made was too long ago (it is 'stale'). Hover the light to learn more about why it is displayed red. It could be a source for errors down the line if that sensor data is necessary for forecasts and schedules to be made.
 
 How long ago is considered too long (stale) depends on the sensor, usually we use the sensor's resolution times two. If the source type means we expect future data ('forecaster', 'scheduler'), data should extend 12 hours into the future.
 
 Sensors shown on this page are the ones relevant for correct functioning of the asset. We list the ones linked in the flex-context and the graphs page.
-          "></span>
-        </h4>
+              "></span>
+            </h4>
 
-        <div class="table-responsive">
-          <table id="sensorStatusTable" class="table table-striped paginate w-100"></table>
+            <div class="table-responsive">
+              <table id="sensorStatusTable" class="table table-striped w-100"></table>
+            </div>
+          </div>
+
         </div>
-
-        <!-- JOBS TABLE -->
-        <h4 class="">
-          Latest jobs of {{ asset.name }}
-          <span class="fa fa-info-circle " title="This table shows forecasting or scheduling jobs for this asset."></span>
-          <span class="jobs-time-ago" data-timestamp="Loading">
-            <small>
-              <i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>
-              <span id="jobs_time_ago"></span>
-            </small>
-          </span>
-        </h4>
-
-        <div class="table-responsive">
-          <table id="jobsTable" class="table table-striped paginate nav-on-click w-100"></table>
-        </div>
-
-        <div class="alert alert-warning d-none mt-2" id="redis_connection_err"></div>
       </div>
     </div>
   </div>
@@ -118,10 +137,11 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     };
   }
 
-  let sensorTable;
+  // Both tables are built on first sight of their tab, so opening the page only queries what it shows.
+  let sensorTable, jobsTable;
 
-  $(document).ready(function () {
-    // SENSOR STATUS TABLE
+  function initSensorStatusTable() {
+    if (sensorTable) return;
     sensorTable = $("#sensorStatusTable").DataTable({
       searching: false,
       paging: false,
@@ -176,6 +196,79 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         );
     },
     });
+  }
+
+  function initJobsTable() {
+    if (jobsTable) return;
+    jobsTable = $("#jobsTable").DataTable({
+      order: [[0, "desc"]],
+      searching: false,
+      paging: false,
+      info: false,
+      columns: [
+        { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
+        { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
+        { data: "queue", title: "Queue", orderable: true},
+        { data: "entity", title: "Entity", orderable: false},
+        { data: "created_via", title: "Created Via", orderable: false},
+        { data: "status", title: "Status", className: "text-right", orderable: false},
+        { data: "info", title: "Info", className: "text-right", orderable: false},
+        { data: "url", title: "URL", className: "d-none", orderable: false},
+      ],
+      ajax: function (data, callback) {
+        $.ajax({
+          url: `/api/v3_0/assets/${assetId}/jobs`,
+          method: "GET",
+          success: function (res) {
+            if (res.redis_connection_err) {
+              $("#redis_connection_err").removeClass("d-none").text(res.redis_connection_err);
+            } else {
+              $("#redis_connection_err").addClass("d-none").text("");
+            }
+            const jobs = res.jobs.length ? res.jobs.map(JobRow) : [];
+            callback({ data: jobs });
+
+            const lastCallTime = Date.now();
+            $("#jobs_time_ago").html(`(${getTimeAgo(lastCallTime)})`);
+            $(".jobs-time-ago").data("timestamp", lastCallTime);
+          },
+          error: function (xhr) {
+            console.error("Error fetching jobs:", xhr);
+            callback({ data: [] });
+          },
+        });
+      },
+    });
+    // Make the rows navigable now that the table exists, as flexmeasures.js only does so on page load.
+    clickableTable(document.getElementById("jobsTable"), "URL");
+  }
+
+  function initTable(tabName) {
+    if (tabName === "sensors") {
+      initSensorStatusTable();
+    } else {
+      initJobsTable();
+    }
+  }
+
+  function rememberStatusPageTab(tabName) {
+    fetch(`${window.location.origin}/api/v3_0/assets/status_page_tab`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status_page_tab: tabName }),
+    }).catch((error) => {
+      console.error("Error remembering the preferred status page tab:", error);
+    });
+  }
+
+  $(document).ready(function () {
+    initTable("{{ status_page_tab }}");
+
+    $("#statusTabs a[data-bs-toggle='tab']").on("shown.bs.tab", function () {
+      const tabName = $(this).data("status-page-tab");
+      initTable(tabName);
+      rememberStatusPageTab(tabName);
+    });
 
     $(document).on("click", ".sensor_refresh", function () {
       const sensorId = $(this).attr("id").split("_")[2];
@@ -228,47 +321,6 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       });
     });
 
-    // JOBS TABLE
-    const jobsTable = $("#jobsTable").DataTable({
-      order: [[0, "desc"]],
-      searching: false,
-      paging: false,
-      info: false,
-      columns: [
-        { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
-        { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
-        { data: "queue", title: "Queue", orderable: true},
-        { data: "entity", title: "Entity", orderable: false},
-        { data: "created_via", title: "Created Via", orderable: false},
-        { data: "status", title: "Status", className: "text-right", orderable: false},
-        { data: "info", title: "Info", className: "text-right", orderable: false},
-        { data: "url", title: "URL", className: "d-none", orderable: false},
-      ],
-      ajax: function (data, callback) {
-        $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs`,
-          method: "GET",
-          success: function (res) {
-            if (res.redis_connection_err) {
-              $("#redis_connection_err").removeClass("d-none").text(res.redis_connection_err);
-            } else {
-              $("#redis_connection_err").addClass("d-none").text("");
-            }
-            const jobs = res.jobs.length ? res.jobs.map(JobRow) : [];
-            callback({ data: jobs });
-
-            const lastCallTime = Date.now();
-            $("#jobs_time_ago").html(`(${getTimeAgo(lastCallTime)})`);
-            $(".jobs-time-ago").data("timestamp", lastCallTime);
-          },
-          error: function (xhr) {
-            console.error("Error fetching jobs:", xhr);
-            callback({ data: [] });
-          },
-        });
-      },
-    });
-
     $.fn.dataTable.ext.errMode = 'none';
 
     function updateTimeAgoDisplays() {
@@ -286,7 +338,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       });
     }
 
-    $("#refresh_jobs").click(() => jobsTable.ajax.reload());
+    $("#refresh_jobs").click(() => jobsTable && jobsTable.ajax.reload());
     setInterval(updateTimeAgoDisplays, 10000);
   });
 </script>

@@ -652,3 +652,64 @@ def test_group_field_hints_on_properties_page(
     assert lone_page.status_code == 200
     assert b"Consider setting" not in lone_page.data
     assert b"Child assets can" not in lone_page.data
+
+
+def test_asset_status_page_tabs(db, client, setup_assets, as_prosumer_user1):
+    """The status page splits sensor data from jobs, and opens the tab the user last looked at."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b"Latest jobs of" in status_page.data
+    assert b"Data connectivity for sensors of" in status_page.data
+    # Without a recorded preference, the jobs tab opens, so only the jobs table loads.
+    assert b'<a class="nav-link active" id="jobs-tab"' in status_page.data
+    assert b'<a class="nav-link " id="sensors-tab"' in status_page.data
+    assert b'initTable("jobs")' in status_page.data
+
+    with client.session_transaction() as session:
+        session["status_page_tab"] = "sensors"
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b'<a class="nav-link active" id="sensors-tab"' in status_page.data
+    assert b'<a class="nav-link " id="jobs-tab"' in status_page.data
+    assert b'initTable("sensors")' in status_page.data
+
+
+@pytest.mark.parametrize("remembered_tab", ["jobs", "sensors"])
+def test_status_page_tables_are_not_built_on_page_load(
+    db, client, setup_assets, as_prosumer_user1, remembered_tab
+):
+    """Neither status table opts into a class by which flexmeasures.js builds a DataTable on page load.
+
+    Both the 'paginate' and the 'nav-on-click' class do so, the latter through clickableTable().
+    Either one would build whichever table sits in the tab that is not open, using default options and no data source,
+    and the page could then no longer initialise that table once its tab is opened, leaving it empty until a reload.
+    """
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    with client.session_transaction() as session:
+        session["status_page_tab"] = remembered_tab
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    for table_id in (b"jobsTable", b"sensorStatusTable"):
+        table_tag = re.search(
+            rb'<table id="%s"[^>]*>' % table_id, status_page.data
+        ).group()
+        assert b"paginate" not in table_tag, table_tag
+        assert b"nav-on-click" not in table_tag, table_tag
+    # The jobs rows stay navigable, by the page applying that helper itself once it has built the table.
+    assert (
+        b'clickableTable(document.getElementById("jobsTable"), "URL")'
+        in status_page.data
+    )
