@@ -33,18 +33,16 @@ def get_initial_cursor() -> datetime:
 class Automation(db.Model, AuthModelMixin):
     """A recurring task on an asset, such as computing forecasts.
 
-    The recurrence is defined by a cron string. Forecast automations use a data
-    generator (e.g. a forecaster linked through a data source), while schedule
-    automations use only their stored parameters.
+    The recurrence is defined by a cron string.
+    Every automation has a data generator, linked through a data source:
+    a forecaster and its configuration for a forecast automation,
+    and a scheduler and the flex config it computes under for a schedule automation.
+    A forecast automation's generator is chosen when it is created.
+    A schedule automation's is assembled from the trigger message and what its asset stores,
+    so the runner puts it together afresh on every run.
     """
 
     __tablename__ = "automation"
-    __table_args__ = (
-        db.CheckConstraint(
-            "type != 'forecasting' OR generator_id IS NOT NULL",
-            name="forecast_generator",
-        ),
-    )
 
     SUPPORTED_TYPES = ["forecasting", "scheduling"]  # later also "reporting"
 
@@ -73,7 +71,9 @@ class Automation(db.Model, AuthModelMixin):
         default=get_initial_cursor,
     )
     active = db.Column(db.Boolean, nullable=False, default=True)
-    generator_id = db.Column(db.Integer, db.ForeignKey("data_source.id"), nullable=True)
+    generator_id = db.Column(
+        db.Integer, db.ForeignKey("data_source.id"), nullable=False
+    )
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     asset = db.relationship(

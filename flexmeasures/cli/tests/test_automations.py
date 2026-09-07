@@ -766,6 +766,70 @@ def test_add_automation_rejects_malformed_yaml_file(
     assert "Traceback" not in result.output
 
 
+def test_add_schedule_automation_rejects_momentary_flex_fields(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A flex config field describing one moment cannot configure a recurring schedule automation.
+
+    Such a value is stale on the next run, and it would misdescribe the automation on its data source,
+    which records the configuration the scheduler computes under.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+    parameters_file = tmp_path / "parameters.yml"
+
+    # a state of charge that held at one moment
+    parameters_file.write_text(
+        'duration: "PT12H"\n'
+        "flex-model:\n"
+        "  - sensor: 1\n"
+        '    soc-at-start: "5 kWh"\n'
+    )
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Momentary state of charge",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code == 2, result.output
+    assert "flex-model[0].soc-at-start fixes a moment in time" in result.output
+    assert "Traceback" not in result.output
+
+    # a target tied to a datetime
+    parameters_file.write_text(
+        'duration: "PT12H"\n'
+        "flex-model:\n"
+        "  - sensor: 1\n"
+        "    soc-targets:\n"
+        '      - datetime: "2026-01-15T10:00+01:00"\n'
+        '        value: "5 kWh"\n'
+    )
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Momentary target",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code == 2, result.output
+    assert "flex-model[0].soc-targets[0] fixes a moment in time" in result.output
+
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Momentary state of charge")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
 def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     """Create a schedules automation; parameters are validated as a schedule trigger message."""
     from flexmeasures.cli.data_add import add_automation
@@ -805,7 +869,13 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
         select(Automation).filter_by(name="Half-day schedules")
     ).scalar_one()
     assert automation.type == "scheduling"
-    assert automation.generator_id is None
+    # The scheduler and the flex config it computes under are the automation's data generator.
+    assert automation.generator is not None
+    assert automation.generator.type == "scheduler"
+    assert (
+        automation.generator.attributes["data_generator"]["config"]["asset"]
+        == automation.asset_id
+    )
     assert automation.parameters == {"duration": "PT12H"}
 
     # a fixed start draws a warning
@@ -959,16 +1029,21 @@ def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monke
     """
     from flexmeasures.data.models.generic_assets import GenericAsset
     from flexmeasures.data.services import scheduling
-    from flexmeasures.data.services.automations import run_automation
+    from flexmeasures.data.services.automations import (
+        resolve_schedule_generator,
+        run_automation,
+    )
     from flexmeasures.utils.time_utils import server_now
 
     asset = fresh_db.session.get(GenericAsset, 1)
+    parameters = {"duration": "PT12H", "resolution": "PT15M"}
     automation = Automation(
         asset_id=asset.id,
         type="scheduling",
         name="Test schedules",
         cronstr="0 * * * *",
-        parameters={"duration": "PT12H", "resolution": "PT15M"},
+        parameters=parameters,
+        generator_id=resolve_schedule_generator(asset.id, parameters).id,
     )
     fresh_db.session.add(automation)
     fresh_db.session.flush()
