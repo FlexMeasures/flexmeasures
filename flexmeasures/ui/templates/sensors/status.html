@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
-{% set status_page_tab = session.get("status_page_tab", "jobs") %}
+{% set status_page_tab = session.get("status_page_tab") if session.get("status_page_tab") in ["jobs", "sensors"] else "jobs" %}
 
 {% block title %} {{ asset.name }} - Status {% endblock %}
 
