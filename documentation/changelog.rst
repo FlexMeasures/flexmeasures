@@ -54,6 +54,7 @@ Bugfixes
 
 
 v1.0.0 | August 25, 2026
+============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v100-commercial-industrial-sites/>`_.
 
