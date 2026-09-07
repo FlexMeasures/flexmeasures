@@ -13,12 +13,12 @@
     <div class="col-sm-8">
       <div class="card p-3">
 
-        <ul class="nav nav-tabs" id="statusTabs">
-          <li class="nav-item">
-            <a class="nav-link {{ 'active' if status_page_tab == 'jobs' }}" id="jobs-tab" data-bs-toggle="tab" href="#jobs" data-status-page-tab="jobs">Jobs</a>
+        <ul class="nav nav-tabs" id="statusTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {{ 'active' if status_page_tab == 'jobs' }}" id="jobs-tab" data-bs-toggle="tab" href="#jobs" data-status-page-tab="jobs" role="tab" aria-controls="jobs" aria-selected="{{ 'true' if status_page_tab == 'jobs' else 'false' }}">Jobs</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link {{ 'active' if status_page_tab == 'sensors' }}" id="sensors-tab" data-bs-toggle="tab" href="#sensors" data-status-page-tab="sensors">Sensor data</a>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {{ 'active' if status_page_tab == 'sensors' }}" id="sensors-tab" data-bs-toggle="tab" href="#sensors" data-status-page-tab="sensors" role="tab" aria-controls="sensors" aria-selected="{{ 'true' if status_page_tab == 'sensors' else 'false' }}">Sensor data</a>
           </li>
         </ul>
 
