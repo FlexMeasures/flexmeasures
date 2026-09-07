@@ -25,7 +25,7 @@
         <div class="tab-content pt-3">
 
           <!-- JOBS TABLE -->
-          <div class="tab-pane fade {{ 'show active' if status_page_tab == 'jobs' }}" id="jobs">
+          <div class="tab-pane fade {{ 'show active' if status_page_tab == 'jobs' }}" id="jobs" role="tabpanel" aria-labelledby="jobs-tab">
             <h4 class="">
               Latest jobs of {{ asset.name }}
               <span class="fa fa-info-circle " title="This table shows forecasting or scheduling jobs for this asset."></span>
