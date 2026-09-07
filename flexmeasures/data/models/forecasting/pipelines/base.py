@@ -12,6 +12,162 @@ from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.schemas.sensors import SensorReference
+
+
+class _AnnotationRegressorProxy:
+    """Minimal proxy so annotation regressors can reuse sensor-based pipeline utilities.
+
+    Provides event_resolution and basic attributes expected by detect_and_fill_missing_values.
+    """
+
+    def __init__(self, name: str, event_resolution):
+        self.name = name
+        self.id = f"annotation:{name}"
+        self.event_resolution = event_resolution
+
+
+def _entity_id(entity_or_id):
+    """Return an entity ID from a deserialized model object or a plain ID."""
+    return getattr(entity_or_id, "id", entity_or_id)
+
+
+def _regressor_sensor_and_source_filters(
+    regressor: Sensor | SensorReference,
+) -> tuple[Sensor, dict]:
+    """Return the underlying sensor and belief-search filters for a regressor."""
+    if not isinstance(regressor, SensorReference):
+        return regressor, {}
+
+    source_filters = {
+        "source_types": regressor.source_types,
+        "exclude_source_types": regressor.exclude_source_types,
+        "source": regressor.sources,
+        "source_account_ids": (
+            [account.id for account in regressor.source_account]
+            if regressor.source_account is not None
+            else None
+        ),
+    }
+    return regressor.sensor, {
+        key: value for key, value in source_filters.items() if value is not None
+    }
+
+
+def _source_filter_fingerprint(source_filters: dict) -> tuple:
+    """Return a hashable fingerprint of the source filters of a belief search.
+
+    Data sources and accounts are represented by their ID,
+    so that equal filters fingerprint equally even when they hold distinct model instances.
+    Filters holding several values are applied as SQL ``IN`` criteria, which are insensitive to the order of the values,
+    so those are sorted before fingerprinting.
+    The order of an explicit list of sources still decides which of two colliding beliefs wins,
+    but that is settled per regressor in ``_resolve_source_collisions``, after the shared frame has been loaded.
+    """
+    fingerprint = []
+    for filter_name in sorted(source_filters):
+        value = source_filters[filter_name]
+        if isinstance(value, (list, tuple, set, frozenset)):
+            fingerprint.append(
+                (
+                    filter_name,
+                    tuple(
+                        sorted(
+                            (_entity_id(item) for item in value),
+                            key=lambda item: (type(item).__name__, str(item)),
+                        )
+                    ),
+                )
+            )
+        else:
+            fingerprint.append((filter_name, _entity_id(value)))
+    return tuple(fingerprint)
+
+
+def _belief_search_key(search: dict) -> tuple:
+    """Return a hashable key identifying a belief search.
+
+    Two entries with equal keys ask the database exactly the same question,
+    so one query can serve both.
+    """
+    sensor = search["sensor"]
+    return (
+        sensor.id if sensor.id is not None else ("unsaved sensor", id(sensor)),
+        search["event_starts_after"],
+        search["event_ends_before"],
+        search["most_recent_beliefs_only"],
+        search["beliefs_before"],
+        _source_filter_fingerprint(search["source_filters"]),
+    )
+
+
+def _drop_source_types(
+    df: pd.DataFrame, excluded_source_types: list[str]
+) -> pd.DataFrame:
+    """Drop the beliefs recorded by sources of the given types.
+
+    Because beliefs are loaded with ``one_deterministic_belief_per_event_per_source=True``,
+    the frame holds one row per event per source, rather than one row per event.
+    Dropping the rows of the excluded source types therefore yields exactly what the same search with ``exclude_source_types`` returns:
+    no event is lost that another source also recorded a belief about.
+    """
+    if df.empty:
+        return df
+    sources = df.index.get_level_values("source")
+    kept = np.fromiter(
+        (source.type not in excluded_source_types for source in sources),
+        dtype=bool,
+        count=len(sources),
+    )
+    if kept.all():
+        return df
+    return df[kept]
+
+
+def _resolve_source_collisions(
+    df: pd.DataFrame,
+    regressor: Sensor | SensorReference,
+) -> pd.DataFrame:
+    """Keep a single belief per (event_start, belief_time) pair.
+
+    Several selected sources may record a belief about the same event at the same
+    belief time. Which belief is kept is decided as follows:
+
+    - If the regressor reference lists explicit ``sources``, their list order decides:
+      the first listed source wins.
+    - Otherwise, the source with the highest ID wins. Latest source versions within
+      each source family have already been selected while loading beliefs.
+
+    Deduplicating here, before the source column is dropped, also prevents duplicated
+    (event_start, belief_time) keys from multiplying rows through the outer join over
+    regressors in ``load_data_all_beliefs``.
+    """
+    if not df.duplicated(subset=["event_start", "belief_time"]).any():
+        return df
+    explicit_sources = (
+        regressor.sources if isinstance(regressor, SensorReference) else None
+    )
+    if explicit_sources:
+        rank = {}
+        for position, source in enumerate(explicit_sources):
+            rank.setdefault(source.id, position)
+        precedence = df["source"].map(lambda s: (rank.get(s.id, len(rank)), s.id))
+        first_wins = True
+    else:
+        precedence = df["source"].map(lambda source: source.id)
+        first_wins = False  # sort descending: the highest source ID wins
+    return (
+        df.assign(_precedence=precedence)
+        .sort_values(
+            by=["event_start", "belief_time", "_precedence"],
+            ascending=[True, True, first_wins],
+            kind="mergesort",
+        )
+        .drop_duplicates(subset=["event_start", "belief_time"], keep="first")
+        .drop(columns=["_precedence"])
+        .sort_values(by=["event_start", "belief_time"], kind="mergesort")
+        .reset_index(drop=True)
+    )
 
 
 class BasePipeline:
@@ -40,10 +196,10 @@ class BasePipeline:
 
     Parameters
     ----------
-    past_regressors : list[str] | None
-        Sensor names used only as historical (past) covariates.
-    future_regressors : list[str]
-        Sensor names used as future covariates (with forecast data).
+    past_regressors : list[Sensor | SensorReference]
+        Sensors or sensor references used only as historical (past) covariates.
+    future_regressors : list[Sensor | SensorReference]
+        Sensors or sensor references used as future covariates (with forecast data).
     target : str
         Name of the target sensor (key in `sensors`).
     n_steps_to_predict : int
@@ -57,8 +213,8 @@ class BasePipeline:
     def __init__(
         self,
         target_sensor: Sensor,
-        future_regressors: list[Sensor],
-        past_regressors: list[Sensor],
+        future_regressors: list[Sensor | SensorReference],
+        past_regressors: list[Sensor | SensorReference],
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int,
@@ -69,6 +225,7 @@ class BasePipeline:
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
+        annotation_regressors: list[dict] | None = None,
     ) -> None:
         self.future = future_regressors
         self.past = past_regressors
@@ -89,12 +246,12 @@ class BasePipeline:
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
-            f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
-            for idx, sensor in enumerate(self.future)
+            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_FR-{idx}"
+            for idx, regressor in enumerate(self.future)
         ]
         self.past_regressors = [
-            f"{sensor.name} (ID: {sensor.id})_PR-{idx}"
-            for idx, sensor in enumerate(self.past)
+            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_PR-{idx}"
+            for idx, regressor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
@@ -105,6 +262,144 @@ class BasePipeline:
         )  # convert max_forecast_horizon to hours
         self.forecast_frequency = forecast_frequency
         self.missing_threshold = missing_threshold
+        self.annotation_regressors = annotation_regressors or []
+        # Build column names and proxy objects for annotation regressors
+        # Use `or` so that None or empty-string names fall back to the default.
+        self.annotation_regressor_proxies = [
+            _AnnotationRegressorProxy(
+                name=spec.get("name") or f"annotation_regressor_{i}",
+                event_resolution=target_sensor.event_resolution,
+            )
+            for i, spec in enumerate(self.annotation_regressors)
+        ]
+        self.annotation_regressor_names = [
+            f"{proxy.name} (annotation)_AR-{i}"
+            for i, proxy in enumerate(self.annotation_regressor_proxies)
+        ]
+        # Per annotation regressor, the belief time and value of each event start.
+        # Belief time is NaT where the annotation records none, meaning "always known".
+        self._annotation_belief_times: dict[str, pd.Series] = {}
+        self._annotation_values: dict[str, pd.Series] = {}
+
+    def _annotation_values_known_at(
+        self, col_name: str, event_starts: pd.Series, vantage_point: pd.Timestamp
+    ) -> pd.Series | None:
+        """Annotation regressor values as they were known at ``vantage_point``.
+
+        Annotations carry their own belief time (``Annotation.belief_time``), which may
+        be NULL. A NULL belief time means the annotation is assumed to have always been
+        known -- the case for the public-holiday calendars written by
+        ``flexmeasures add holidays``, which record no belief time. Annotations that do
+        carry a belief time are only visible from that moment on; before it, the
+        regressor reads 0, because we did not yet know about the event.
+
+        :param col_name:        Annotation regressor column.
+        :param event_starts:    Event starts to return values for.
+        :param vantage_point:   The moment the forecast is made.
+        :returns:               Values aligned to ``event_starts``, or None if this
+                                regressor was not loaded from the database (in which
+                                case the caller keeps whatever it already has).
+        """
+        belief_times = self._annotation_belief_times.get(col_name)
+        values = self._annotation_values.get(col_name)
+        if belief_times is None or values is None:
+            return None
+
+        known = belief_times.isna() | (belief_times <= vantage_point)
+        visible = values.where(known, 0.0)
+        return event_starts.map(visible)
+
+    def _search_beliefs_per_entry(
+        self,
+        sensor_names: list[str],
+        sensors: list[Sensor | SensorReference],
+    ) -> tuple[list[tuple], dict[tuple, pd.DataFrame]]:
+        """Load the beliefs each pipeline entry needs, querying each distinct search only once.
+
+        A sensor is commonly listed more than once, most notably in the autoregressive case, where the target sensor is also one of its own past regressors.
+        Entries that ask the database the same question share a single query,
+        and a target entry can be served by filtering the frame of an otherwise identical search that did not exclude forecasters.
+
+        :param sensor_names:    Column name per entry, in the order the entries are loaded.
+        :param sensors:         Sensor or sensor reference per entry, in the same order.
+        :returns:               The entries as (name, sensor or sensor reference, search key) tuples, and the loaded beliefs per search key.
+        """
+        entries = []
+        searches: dict[tuple, dict] = {}
+        for name, regressor_or_sensor in zip(sensor_names, sensors):
+            sensor, source_filters = _regressor_sensor_and_source_filters(
+                regressor_or_sensor
+            )
+
+            sensor_event_ends_before = self.event_ends_before
+            sensor_event_starts_after = self.event_starts_after
+
+            most_recent_beliefs_only = True
+            # Extend time range for future regressors
+            if regressor_or_sensor in self.future:
+                sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
+                    hours=self.max_forecast_horizon_in_hours
+                )
+
+                most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
+
+            if name == self.target:
+                # Exclude forecasters from the target data to avoid training on forecasts.
+                source_filters["exclude_source_types"] = ["forecaster"]
+
+            search = dict(
+                sensor=sensor,
+                event_starts_after=sensor_event_starts_after,
+                event_ends_before=sensor_event_ends_before,
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                beliefs_before=self.beliefs_before,
+                source_filters=source_filters,
+            )
+            search_key = _belief_search_key(search)
+            searches.setdefault(search_key, search)
+            entries.append((name, regressor_or_sensor, search_key))
+
+        # A search that excludes source types is derivable from an otherwise identical search that does not, by dropping the rows of the excluded types.
+        derivations: dict[tuple, tuple] = {}
+        for search_key, search in searches.items():
+            excluded_source_types = search["source_filters"].get("exclude_source_types")
+            if not excluded_source_types:
+                continue
+            base_search = dict(
+                search,
+                source_filters={
+                    filter_name: value
+                    for filter_name, value in search["source_filters"].items()
+                    if filter_name != "exclude_source_types"
+                },
+            )
+            base_search_key = _belief_search_key(base_search)
+            if base_search_key in searches:
+                derivations[search_key] = (base_search_key, excluded_source_types)
+
+        beliefs_per_search: dict[tuple, pd.DataFrame] = {}
+        for search_key, search in searches.items():
+            if search_key in derivations:
+                continue
+            beliefs_per_search[search_key] = search["sensor"].search_beliefs(
+                event_starts_after=search["event_starts_after"],
+                event_ends_before=search["event_ends_before"],
+                most_recent_beliefs_only=search["most_recent_beliefs_only"],
+                beliefs_before=search["beliefs_before"],
+                one_deterministic_belief_per_event_per_source=True,
+                **search["source_filters"],
+            )
+        for search_key, (base_search_key, excluded_source_types) in derivations.items():
+            beliefs_per_search[search_key] = _drop_source_types(
+                beliefs_per_search[base_search_key], excluded_source_types
+            )
+
+        logging.debug(
+            "Loaded beliefs for %d pipeline entries with %d queries.",
+            len(entries),
+            len(searches) - len(derivations),
+        )
+        return entries, beliefs_per_search
 
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
@@ -126,42 +421,33 @@ class BasePipeline:
         sensor_dfs = []
         sensor_names = self.future_regressors + self.past_regressors + [self.target]
         sensors = self.future + self.past + [self.target_sensor]
-        for name, sensor in zip(sensor_names, sensors):
+        entries, beliefs_per_search = self._search_beliefs_per_entry(
+            sensor_names, sensors
+        )
+        for name, regressor_or_sensor, search_key in entries:
+            sensor, _ = _regressor_sensor_and_source_filters(regressor_or_sensor)
             logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
-            sensor_event_ends_before = self.event_ends_before
-            sensor_event_starts_after = self.event_starts_after
-
-            most_recent_beliefs_only = True
-            # Extend time range for future regressors
-            if sensor in self.future:
-                sensor_event_ends_before = self.event_ends_before + pd.Timedelta(
-                    hours=self.max_forecast_horizon_in_hours
-                )
-
-                most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
-
-            df = sensor.search_beliefs(
-                event_starts_after=sensor_event_starts_after,
-                event_ends_before=sensor_event_ends_before,
-                most_recent_beliefs_only=most_recent_beliefs_only,
-                beliefs_before=self.beliefs_before,
-                exclude_source_types=(
-                    ["forecaster"] if name == self.target else []
-                ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
-            )
+            df = beliefs_per_search[search_key]
             try:
-                # We resample regressors to the target sensor’s resolution so they align in time.
+                # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
-                df = tb_utils.replace_multi_index_level(
-                    df,
-                    "event_start",
-                    df.event_starts.floor(self.target_sensor.event_resolution),
-                )
+                event_starts = df.event_starts
+                try:
+                    floored = event_starts.floor(self.target_sensor.event_resolution)
+                except Exception:
+                    # DST ambiguity: convert to UTC, floor, convert back to original tz.
+                    floored = (
+                        event_starts.tz_convert("UTC")
+                        .floor(self.target_sensor.event_resolution)
+                        .tz_convert(event_starts.tz)
+                    )
+                df = tb_utils.replace_multi_index_level(df, "event_start", floored)
             except Exception as e:
                 logging.warning(f"Error during custom resample for {name}: {e}")
 
             df = df.reset_index()
+            df = _resolve_source_collisions(df, regressor_or_sensor)
             df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
             df_filtered.rename(columns={"event_value": name}, inplace=True)
 
@@ -191,7 +477,171 @@ class BasePipeline:
             data_pd["belief_time"], utc=True
         ).dt.tz_localize(None)
 
+        # Append annotation regressors as future covariates
+        if self.annotation_regressors:
+            ann_end = self.event_ends_before + pd.Timedelta(
+                hours=self.max_forecast_horizon_in_hours
+            )
+            for spec, col_name in zip(
+                self.annotation_regressors, self.annotation_regressor_names
+            ):
+                ann_df = self._load_annotation_regressor_df(
+                    spec=spec,
+                    col_name=col_name,
+                    start=self.event_starts_after,
+                    end=ann_end,
+                )
+                if not ann_df.empty:
+                    data_pd = data_pd.merge(
+                        ann_df[["event_start", col_name]],
+                        on="event_start",
+                        how="outer",
+                    )
+                    data_pd[col_name] = data_pd[col_name].fillna(0.0)
+            data_pd = data_pd.sort_values(
+                by=["event_start", "belief_time"], na_position="last"
+            ).reset_index(drop=True)
+            logging.debug(
+                "Added %d annotation regressor(s) to data: %s",
+                len(self.annotation_regressors),
+                self.annotation_regressor_names,
+            )
+
         return data_pd
+
+    def _load_annotation_regressor_df(
+        self,
+        spec: dict,
+        col_name: str,
+        start: datetime,
+        end: datetime,
+    ) -> pd.DataFrame:
+        """Load an annotation regressor as a binary 0/1 time series DataFrame.
+
+        Queries annotations for the given account, asset, or sensor, then marks each
+        time step at the target sensor's resolution as 1 (if an annotation
+        covers it) or 0 (otherwise).
+
+        Each event start keeps the belief time of the annotation covering it, or NaT
+        where the annotation records none, which is read as "always known". That makes
+        annotations suitable as future covariates for events known ahead of time, such
+        as public holidays, without overstating when they became known.
+
+        :param spec:      Dict with 'account', 'asset', or 'sensor' (ID), and optionally
+                          'annotation_type' (default: 'holiday') and 'name'.
+        :param col_name:  Column name to use in the returned DataFrame.
+        :param start:     Start of the time range (inclusive).
+        :param end:       End of the time range (exclusive).
+        :returns:         DataFrame with columns [event_start, belief_time, col_name].
+        """
+        from flexmeasures.data import db
+        from flexmeasures.data.queries.annotations import (
+            query_asset_annotations,
+            query_account_annotations,
+            query_sensor_annotations,
+        )
+
+        annotation_type = spec.get("annotation_type", "holiday")
+        account_id = _entity_id(spec.get("account"))
+        asset_id = _entity_id(spec.get("asset"))
+        sensor_id = _entity_id(spec.get("sensor"))
+
+        if account_id is not None:
+            query = query_account_annotations(
+                account_id=account_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
+        elif asset_id is not None:
+            query = query_asset_annotations(
+                asset_id=asset_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
+        elif sensor_id is not None:
+            query = query_sensor_annotations(
+                sensor_id=sensor_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
+        else:
+            logging.warning(
+                "Annotation regressor spec %r (column: %s) has no 'account', 'asset', or 'sensor'; skipping.",
+                spec,
+                col_name,
+            )
+            return pd.DataFrame(columns=["event_start", "belief_time", col_name])
+
+        annotations = db.session.execute(query).scalars().all()
+
+        # Build the full time index at target resolution.
+        # Normalise start/end to UTC first so pd.date_range never sees two
+        # tz-aware endpoints with different UTC offsets (e.g. CET vs CEST).
+        resolution = self.target_sensor.event_resolution
+        start_utc = (
+            pd.Timestamp(start).tz_convert("UTC")
+            if pd.Timestamp(start).tzinfo
+            else pd.Timestamp(start, tz="UTC")
+        )
+        end_utc = (
+            pd.Timestamp(end).tz_convert("UTC")
+            if pd.Timestamp(end).tzinfo
+            else pd.Timestamp(end, tz="UTC")
+        )
+        time_index = pd.date_range(
+            start=start_utc, end=end_utc, freq=resolution, inclusive="left"
+        )
+        # Strip timezone info to match the convention in load_data_all_beliefs
+        time_index = time_index.tz_localize(None)
+
+        binary = pd.Series(0.0, index=time_index, name=col_name)
+        # Belief time per event start. NaT means "always known", which is both the
+        # default for events no annotation covers and the value we keep for annotations
+        # that record no belief time of their own.
+        belief_times = pd.Series(pd.NaT, index=time_index, dtype="datetime64[ns]")
+
+        for ann in annotations:
+            ann_start = pd.Timestamp(ann.start)
+            ann_end = pd.Timestamp(ann.end)
+            if ann_start.tzinfo is not None:
+                ann_start = ann_start.tz_convert("UTC").tz_localize(None)
+            if ann_end.tzinfo is not None:
+                ann_end = ann_end.tz_convert("UTC").tz_localize(None)
+            mask = (binary.index >= ann_start) & (binary.index < ann_end)
+            binary.loc[mask] = 1.0
+
+            ann_belief_time = pd.NaT
+            if ann.belief_time is not None:
+                ann_belief_time = pd.Timestamp(ann.belief_time)
+                if ann_belief_time.tzinfo is not None:
+                    ann_belief_time = ann_belief_time.tz_convert("UTC").tz_localize(
+                        None
+                    )
+            # Where annotations overlap, the event becomes known as soon as the
+            # earliest of them does; a NaT (always known) therefore wins outright.
+            overlapping = mask & belief_times.notna()
+            belief_times.loc[mask & ~overlapping] = ann_belief_time
+            if ann_belief_time is pd.NaT or pd.isna(ann_belief_time):
+                belief_times.loc[overlapping] = pd.NaT
+            else:
+                belief_times.loc[overlapping] = belief_times.loc[overlapping].clip(
+                    upper=ann_belief_time
+                )
+
+        self._annotation_belief_times[col_name] = belief_times
+        self._annotation_values[col_name] = binary
+
+        df = pd.DataFrame(
+            {
+                "event_start": time_index,
+                "belief_time": belief_times.values,
+                col_name: binary.values,
+            }
+        )
+        return df
 
     def split_data_all_beliefs(  # noqa: C901
         self, df: pd.DataFrame, is_predict_pipeline: bool = False
@@ -415,6 +865,57 @@ class BasePipeline:
 
                 return _select_latest_per_regressor(known, regressor_columns)
 
+            def _overlay_annotations(
+                future_df: pd.DataFrame,
+                source_df: pd.DataFrame,
+                forecast_belief_time: pd.Timestamp,
+                start_ts: pd.Timestamp,
+                end_ts: pd.Timestamp,
+            ) -> pd.DataFrame:
+                """Add annotation regressor columns, as known at the forecast belief time.
+
+                Annotation regressors span the whole forecast window, including horizons
+                for which no sensor regressor has a belief yet, so this also extends the
+                frame's event starts where needed.
+                """
+                index = pd.Index(future_df["event_start"], name="event_start")
+                for col in self.annotation_regressor_names:
+                    loaded = self._annotation_values.get(col)
+                    if loaded is not None:
+                        covered = loaded.index[
+                            (loaded.index >= start_ts) & (loaded.index <= end_ts)
+                        ]
+                        index = index.union(pd.Index(covered, name="event_start"))
+
+                out = (
+                    future_df.set_index("event_start")
+                    .reindex(index)
+                    .rename_axis("event_start")
+                    .reset_index()
+                )
+
+                for col in self.annotation_regressor_names:
+                    values = self._annotation_values_known_at(
+                        col, out["event_start"], forecast_belief_time
+                    )
+                    if values is None:
+                        # Not loaded from the database (e.g. a caller-supplied frame).
+                        # With no belief time to filter on, the values are taken as
+                        # always known, consistent with how NULL belief times are read.
+                        if col in source_df.columns:
+                            fallback = (
+                                source_df[["event_start", col]]
+                                .dropna(subset=[col])
+                                .drop_duplicates("event_start", keep="last")
+                                .set_index("event_start")[col]
+                            )
+                            values = out["event_start"].map(fallback)
+                        else:
+                            continue
+                    out[col] = values.to_numpy()
+
+                return out.sort_values("event_start").reset_index(drop=True)
+
             target_list = []
             past_covariates_list = []
             future_covariates_list = []
@@ -473,9 +974,16 @@ class BasePipeline:
 
                 # Future covariates (realized up to target_end + forecasts up to forecast_end) split
                 if X_future_regressors_df is not None:
+                    # Annotation regressors are not split into realized-versus-forecast
+                    # rows. A holiday calendar is never "realized" after the fact, so
+                    # the `belief_time > event_start` test that picks realized sensor
+                    # values would hide it from the training window entirely. Its
+                    # visibility is governed solely by its own belief time, applied
+                    # below once the sensor-based frame has been assembled.
+                    future_regressor_columns = self.future_regressors
                     future_known = _latest_known_per_regressor(
                         X_future_regressors_df,
-                        self.future_regressors,
+                        future_regressor_columns,
                         belief_time,
                         realized_only=True,
                     )
@@ -500,7 +1008,7 @@ class BasePipeline:
                     # at the simulated forecast belief time.
                     forecast_slice = _latest_known_per_regressor(
                         fc_window,
-                        self.future_regressors,
+                        future_regressor_columns,
                         belief_time,
                         realized_only=False,
                     )
@@ -512,10 +1020,20 @@ class BasePipeline:
                         .reset_index(drop=True)
                     )
 
+                    if self.annotation_regressor_names:
+                        future_df = _overlay_annotations(
+                            future_df,
+                            X_future_regressors_df,
+                            belief_time,
+                            target_start,
+                            forecast_end,
+                        )
+
                     future_covariates = self.detect_and_fill_missing_values(
                         df=future_df,
-                        sensors=self.future,
-                        sensor_names=self.future_regressors,
+                        sensors=self.future + self.annotation_regressor_proxies,
+                        sensor_names=self.future_regressors
+                        + self.annotation_regressor_names,
                         start=target_start,
                         end=forecast_end + self.target_sensor.event_resolution,
                     )
@@ -545,7 +1063,7 @@ class BasePipeline:
             )
 
         # Autoregressive-only case
-        if not self.past and not self.future:
+        if not self.past and not self.future and not self.annotation_regressors:
             logging.info("Using autoregressive forecasting.")
 
             y = df[["event_start", "belief_time", self.target]].copy()
@@ -562,10 +1080,15 @@ class BasePipeline:
             else None
         )
         X_future_regressors_df = (
-            df[["event_start", "belief_time"] + self.future_regressors]
-            if self.future != []
+            df[
+                ["event_start", "belief_time"]
+                + self.future_regressors
+                + self.annotation_regressor_names
+            ]
+            if self.future != [] or self.annotation_regressors
             else None
         )
+
         y = (
             df[["event_start", "belief_time", self.target]]
             .dropna()

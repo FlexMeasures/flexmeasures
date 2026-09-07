@@ -13,6 +13,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     VariableQuantityOpenAPISchema,
 )
+from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases  # noqa: F401
 
 
 def make_openapi_compatible(  # noqa: C901

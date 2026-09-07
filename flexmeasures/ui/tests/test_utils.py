@@ -3,6 +3,13 @@ from datetime import timedelta
 from flexmeasures import Asset, AssetType, Account, Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.breadcrumb_utils import get_ancestry
+from flexmeasures.ui.utils.view_utils import (
+    CHARGER_ICON,
+    FALLBACK_SVG_ICON,
+    SVG_ICON_MAPPING,
+    normalize_asset_type_name,
+    svg_asset_icon_name,
+)
 from flexmeasures.data.schemas.scheduling import (
     UI_FLEX_CONTEXT_SCHEMA,
     UI_FLEX_MODEL_SCHEMA,
@@ -10,6 +17,57 @@ from flexmeasures.data.schemas.scheduling import (
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
+
+
+def test_svg_asset_icon_name_for_default_asset_types():
+    """Every asset type that FlexMeasures seeds by default should have its own icon.
+
+    These are the types added by flexmeasures.data.scripts.data_gen.add_default_asset_types.
+    """
+    for asset_type_name in (
+        "solar",
+        "wind",
+        "one-way_evse",
+        "two-way_evse",
+        "battery",
+        "building",
+        "process",
+        "heat-storage",
+    ):
+        assert svg_asset_icon_name(asset_type_name) != FALLBACK_SVG_ICON
+
+    for asset_type_name in ("one-way_evse", "two-way_evse"):
+        assert svg_asset_icon_name(asset_type_name) == CHARGER_ICON
+
+
+def test_svg_asset_icon_name_falls_back_for_unknown_asset_type():
+    assert svg_asset_icon_name("no-such-asset-type") == FALLBACK_SVG_ICON
+    assert svg_asset_icon_name("") == FALLBACK_SVG_ICON
+    assert svg_asset_icon_name(None) == FALLBACK_SVG_ICON
+
+
+def test_svg_asset_icon_name_ignores_case_and_separators():
+    """Projects are free to name their asset types, so spelling variants should find the same icon."""
+    for asset_type_name in ("charge-point", "charge point", "Charge_Point"):
+        assert svg_asset_icon_name(asset_type_name) == CHARGER_ICON
+
+    # a namespaced asset type, as a plugin may define it, is matched on its last component
+    assert svg_asset_icon_name("myplugin.battery") == svg_asset_icon_name("battery")
+
+
+def test_svg_icon_mapping_keys_do_not_collide_when_normalized():
+    """Two keys that normalize to the same name would silently shadow each other."""
+    normalized_keys: dict[str, list[str]] = {}
+    for asset_type_name in SVG_ICON_MAPPING:
+        normalized_keys.setdefault(
+            normalize_asset_type_name(asset_type_name), []
+        ).append(asset_type_name)
+
+    assert {
+        normalized: keys
+        for normalized, keys in normalized_keys.items()
+        if len(keys) > 1
+    } == {}
 
 
 def test_get_ancestry(app, db):
@@ -79,8 +137,9 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
-        "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
+        "inflexible-device-sensors",  # deprecated; the UI only offers inflexible-consumption/inflexible-production
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
+        "commodities",  # internal field; the UI manages it through the commodity tab bar
     ]
 
     schema_keys = []
@@ -99,24 +158,59 @@ def test_ui_flexcontext_schema():
     ), "If this fails, you may have added UI support for a new flex-context field, but forgot to remove it from exclude_fields."
 
 
+def test_ui_flexcontext_schema_per_commodity_flags():
+    """The context editor relies on each UI schema entry telling whether the field
+    can also be set within a commodity context (an entry of the commodities list)."""
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    commodity_context_keys = {
+        schema_field.data_key or field_name
+        for field_name, schema_field in CommodityFlexContextSchema().fields.items()
+    }
+    for field_name, entry in UI_FLEX_CONTEXT_SCHEMA.items():
+        assert entry["per-commodity"] == (field_name in commodity_context_keys), (
+            f"UI schema entry '{field_name}' has a per-commodity flag that contradicts "
+            "CommodityFlexContextSchema."
+        )
+
+
 def test_ui_flexmodel_schema():
     """
-    This test ensures that all fields in the DBStorageFlexModelSchema are also in the UI schema and vice versa.
+    UI_FLEX_MODEL_SCHEMA is now derived from DBStorageFlexModelSchema (the single
+    source of truth) by _build_ui_flex_model_schema, so DB<->UI parity is guaranteed
+    by construction: a DB field without UI presentation info raises at import time.
 
-    This is important to keep in mind when updating either schema. We want to avoid a situation
-    where a field is added to the DB schema but not to the UI schema, as that would lead to
-    inconsistencies and potential bugs in the application.
+    Here we assert the remaining property that cannot be guaranteed structurally:
+    that every derived UI entry is well-formed (has the expected keys and a
+    non-empty backend type token). If someone adds a flex-model field but leaves
+    its UI presentation info incomplete, this fails with a clear message.
     """
-    ui_flexmodel_schema_fields = [key for key, value in UI_FLEX_MODEL_SCHEMA.items()]
+    schema_keys = {
+        (value.data_key if value.data_key else value.name)
+        for value in DBStorageFlexModelSchema().fields.values()
+    }
 
-    schema_keys = []
-    for value in DBStorageFlexModelSchema().fields.values():
-        schema_keys.append(value.data_key if value.data_key else value.name)
+    # Parity is by construction: the derived schema covers exactly the DB fields.
+    assert set(UI_FLEX_MODEL_SCHEMA.keys()) == schema_keys
 
-    schema_keys = set(schema_keys)
-    ui_flexmodel_schema_fields = set(ui_flexmodel_schema_fields)
-
-    assert schema_keys == ui_flexmodel_schema_fields
+    for key, entry in UI_FLEX_MODEL_SCHEMA.items():
+        assert set(entry.keys()) == {
+            "default",
+            "description",
+            "types",
+            "example-units",
+        }, f"UI flex-model entry '{key}' has unexpected keys: {sorted(entry.keys())}"
+        assert set(entry["types"].keys()) == {
+            "backend",
+            "ui",
+        }, f"UI flex-model entry '{key}' has a malformed 'types' sub-dict."
+        assert entry["types"][
+            "backend"
+        ], f"UI flex-model entry '{key}' has an empty backend type token."
+        assert entry["types"][
+            "ui"
+        ], f"UI flex-model entry '{key}' has an empty UI help string."
+        assert entry["description"], f"UI flex-model entry '{key}' has no description."
 
 
 class NewAsset:

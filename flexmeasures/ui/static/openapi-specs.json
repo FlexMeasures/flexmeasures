@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -50,6 +50,9 @@
           },
           "401": {
             "description": "UNAUTHORIZED"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -90,6 +93,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -134,6 +140,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -214,6 +223,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -293,6 +305,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -344,6 +359,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -352,7 +370,7 @@
       },
       "get": {
         "summary": "Get sensor data",
-        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -403,7 +421,7 @@
           {
             "in": "query",
             "name": "prior",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             "schema": {
               "type": "string",
               "format": "date-time",
@@ -479,6 +497,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -549,6 +570,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -683,6 +707,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -821,6 +848,40 @@
               }
             }
           },
+          "202": {
+            "description": "Scheduling job status while the job is still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "STARTED",
+                        "DEFERRED"
+                      ],
+                      "description": "Processing status of the scheduling job."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable message about current job processing."
+                    }
+                  }
+                },
+                "examples": {
+                  "started": {
+                    "summary": "Scheduling job is still running",
+                    "value": {
+                      "status": "STARTED",
+                      "message": "The scheduling job is currently running."
+                    }
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP"
           },
@@ -835,6 +896,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -845,7 +909,7 @@
     "/api/v3_0/sensors/{id}/stats": {
       "get": {
         "summary": "Get sensor stats",
-        "description": "This endpoint fetches sensor stats for all the historical data.",
+        "description": "This endpoint fetches sensor stats for all the historical data.\nStats are reported per data source that recorded data for this sensor.\nWhen more than one source recorded data, an extra \"All sources\" entry summarises them together.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -880,7 +944,7 @@
           },
           {
             "in": "query",
-            "name": "sort_keys",
+            "name": "sort",
             "description": "Whether to sort the stats by keys (defaults to true).",
             "schema": {
               "type": "boolean"
@@ -905,6 +969,16 @@
                     "summary": "Successful response",
                     "description": "A successful response with sensor stats",
                     "value": {
+                      "All sources": {
+                        "First event start": "2015-06-02T10:00:00+00:00",
+                        "Last event end": "2015-10-03T10:00:00+00:00",
+                        "Last recorded": "2015-10-03T10:02:24+00:00",
+                        "Min value": 0.0,
+                        "Max value": 120.0,
+                        "Mean value": 55.0,
+                        "Sum over values": 1100.0,
+                        "Number of values": 20
+                      },
                       "some data source": {
                         "First event start": "2015-06-02T10:00:00+00:00",
                         "Last event end": "2015-10-02T10:00:00+00:00",
@@ -913,6 +987,16 @@
                         "Max value": 100.0,
                         "Mean value": 50.0,
                         "Sum over values": 500.0,
+                        "Number of values": 10
+                      },
+                      "some other data source": {
+                        "First event start": "2015-07-02T10:00:00+00:00",
+                        "Last event end": "2015-10-03T10:00:00+00:00",
+                        "Last recorded": "2015-10-03T10:02:24+00:00",
+                        "Min value": 10.0,
+                        "Max value": 120.0,
+                        "Mean value": 60.0,
+                        "Sum over values": 600.0,
                         "Number of values": 10
                       }
                     }
@@ -932,6 +1016,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1000,6 +1087,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1010,7 +1100,7 @@
     "/api/v3_0/sensors": {
       "get": {
         "summary": "Get list of sensors",
-        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> <strong>Note:</strong> You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).\n\nThe `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger\npagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.\n",
+        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> <strong>Note:</strong> You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account` query parameter, legacy alias: `account_id`).\n\nThe `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per-page` query parameters (legacy alias: `per_page`). If `page` is omitted,\nall accessible sensors are returned, without pagination. If `page` is provided, the response is paginated, using `per-page` (default 10) to\nspecify the number of records per page.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1019,7 +1109,7 @@
         "parameters": [
           {
             "in": "query",
-            "name": "account_id",
+            "name": "account",
             "schema": {
               "type": "integer"
             },
@@ -1027,7 +1117,7 @@
           },
           {
             "in": "query",
-            "name": "asset_id",
+            "name": "asset",
             "schema": {
               "type": "integer"
             },
@@ -1062,7 +1152,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -1181,6 +1271,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1255,6 +1348,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1265,7 +1361,7 @@
     "/api/v3_0/sensors/{id}/annotations": {
       "post": {
         "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on a sensor.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1309,6 +1405,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1353,32 +1452,49 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "PROCESSED",
+          "202": {
+            "description": "ACCEPTED (Forecasting job queued for processing)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "forecast": {
+                    "job": {
                       "type": "string",
-                      "description": "UUID of the queued forecasting job."
+                      "description": "UUID of the queued forecasting job (canonical field; use this)."
                     },
                     "status": {
                       "type": "string",
                       "enum": [
-                        "PROCESSED"
+                        "ACCEPTED"
                       ]
                     },
                     "message": {
                       "type": "string"
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    },
+                    "results-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to fetch the forecast results for this job once it is complete."
+                    },
+                    "forecast": {
+                      "type": "string",
+                      "description": "Legacy alias of `job`, kept for backward compatibility. Prefer `job`."
                     }
                   }
                 },
                 "example": {
-                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-                  "status": "PROCESSED",
-                  "message": "Forecasting job has been queued."
+                  "status": "ACCEPTED",
+                  "job": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "message": "Forecasting job has been queued.",
+                  "job-url": "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "results-url": "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                 }
               }
             }
@@ -1391,6 +1507,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1479,10 +1598,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -1503,21 +1630,53 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "PROCESSED",
+          "202": {
+            "description": "ACCEPTED (Scheduling job queued for processing)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "job": {
+                      "type": "string",
+                      "description": "UUID of the queued scheduling job (canonical field; use this)."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACCEPTED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    },
+                    "results-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to fetch the schedule results for this job once it is complete."
+                    },
+                    "schedule": {
+                      "type": "string",
+                      "description": "Legacy alias of `job`, kept for backward compatibility. Prefer `job`."
+                    }
+                  }
                 },
                 "examples": {
                   "schedule_created": {
                     "summary": "Schedule response",
-                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
                     "value": {
-                      "status": "PROCESSED",
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "message": "Request has been processed."
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "results-url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been accepted for processing."
                     }
                   }
                 }
@@ -1538,6 +1697,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1658,6 +1820,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1742,6 +1907,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1797,6 +1965,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1805,7 +1976,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n- The <strong>plan_id</strong> field can only be edited by admins, and cannot be set to a legacy plan.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1875,6 +2046,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -1885,7 +2059,7 @@
     "/api/v3_0/accounts": {
       "get": {
         "summary": "List all accounts accessible to the current user.",
-        "description": "This endpoint returns all accounts the current user has access to.\nAccessible accounts include the user's own account, accounts for which the user is a consultant, and all accounts if the user has admin privileges.\n\nThe endpoint supports pagination of the account list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all accounts are returned, without pagination information. The result will be a list of accounts.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of accounts per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out accounts where each search term is either present in their name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
+        "description": "This endpoint returns all accounts the current user has access to.\nAccessible accounts include the user's own account, accounts for which the user is a consultant, and all accounts if the user has admin privileges.\n\nThe endpoint supports pagination of the account list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n  - If the `page` parameter is not provided, all accounts are returned, without pagination information. The result will be a list of accounts.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of accounts per page as defined by `per-page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out accounts where each search term is either present in their name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1903,7 +2077,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -1922,7 +2096,7 @@
           },
           {
             "in": "query",
-            "name": "sort_by",
+            "name": "sort-by",
             "schema": {
               "type": "string",
               "enum": [
@@ -1936,7 +2110,7 @@
           },
           {
             "in": "query",
-            "name": "sort_dir",
+            "name": "sort-dir",
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
@@ -1944,6 +2118,16 @@
                 "asc",
                 "desc"
               ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "description": "Filter organisations by account role.",
+            "schema": {
+              "type": "string",
+              "example": "Prosumer"
             },
             "required": false
           }
@@ -2007,6 +2191,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2048,6 +2235,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2058,7 +2248,7 @@
     "/api/v3_0/accounts/{id}/annotations": {
       "post": {
         "summary": "Creates a new account annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an account.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an account.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2102,6 +2292,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2113,7 +2306,7 @@
     "/api/v3_0/users/{id}/auditlog": {
       "get": {
         "summary": "Get history of user actions.",
-        "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).\n  - If `sort_by` (field name) and `sort_dir` (\"asc\" or \"desc\") are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by https://datatables.net/manual/server-side\n",
+        "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per-page` (legacy alias: `per_page`, default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per-page` (default is 10).\n  - If `sort-by` (field name, legacy alias: `sort_by`) and `sort-dir` (\"asc\" or \"desc\", legacy alias: `sort_dir`) are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by https://datatables.net/manual/server-side\n",
         "parameters": [
           {
             "in": "path",
@@ -2134,7 +2327,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -2153,7 +2346,7 @@
           },
           {
             "in": "query",
-            "name": "sort_by",
+            "name": "sort-by",
             "schema": {
               "type": "string",
               "enum": [
@@ -2168,7 +2361,7 @@
           },
           {
             "in": "query",
-            "name": "sort_dir",
+            "name": "sort-dir",
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
@@ -2219,6 +2412,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2288,6 +2484,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2373,6 +2572,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2383,7 +2585,7 @@
     "/api/v3_0/users": {
       "get": {
         "summary": "List users.",
-        "description": "This endpoint returns all accessible users.\nBy default, only active users are returned.\nThe `account_id` query parameter can be used to filter the users of\na given account.\nThe `include_inactive` query parameter can be used to also fetch\ninactive users.\nAccessible users are users in the same account as the current user.\nOnly admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).\n",
+        "description": "This endpoint returns all accessible users.\nBy default, only active users are returned.\nThe `account` query parameter (legacy alias: `account_id`) can be used to filter the users of\na given account.\nThe `include_inactive` query parameter can be used to also fetch\ninactive users.\nAccessible users are users in the same account as the current user.\nOnly admins can use this endpoint to fetch users from a different account (by using the `account` query parameter).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2401,7 +2603,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -2420,7 +2622,7 @@
           },
           {
             "in": "query",
-            "name": "sort_by",
+            "name": "sort-by",
             "schema": {
               "type": "string",
               "enum": [
@@ -2434,7 +2636,7 @@
           },
           {
             "in": "query",
-            "name": "sort_dir",
+            "name": "sort-dir",
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
@@ -2447,7 +2649,7 @@
           },
           {
             "in": "query",
-            "name": "account_id",
+            "name": "account",
             "schema": {
               "type": "integer"
             },
@@ -2514,6 +2716,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2594,6 +2799,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2630,6 +2838,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2640,7 +2851,7 @@
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
-        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\n- If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
+        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per-page` (default is 10).\n- If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2667,7 +2878,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -2686,7 +2897,7 @@
           },
           {
             "in": "query",
-            "name": "sort_by",
+            "name": "sort-by",
             "schema": {
               "type": "string",
               "enum": [
@@ -2699,7 +2910,7 @@
           },
           {
             "in": "query",
-            "name": "sort_dir",
+            "name": "sort-dir",
             "schema": {
               "type": "string",
               "enum": [
@@ -2765,6 +2976,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2775,7 +2989,7 @@
     "/api/v3_0/assets/{id}/auditlog": {
       "get": {
         "summary": "Get history of asset related actions.",
-        "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If `sort_by` (field name) and `sort_dir` (\"asc\" or \"desc\") are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)\n",
+        "description": "The endpoint is paginated and supports search filters.\n  - If the `page` parameter is not provided, all audit logs are returned paginated by `per-page` (legacy alias: `per_page`, default is 10).\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).\n  - If `sort-by` (field name, legacy alias: `sort_by`) and `sort-dir` (\"asc\" or \"desc\", legacy alias: `sort_dir`) are provided, the list will be sorted.\n  - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.\n    The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2802,7 +3016,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -2821,7 +3035,7 @@
           },
           {
             "in": "query",
-            "name": "sort_by",
+            "name": "sort-by",
             "schema": {
               "type": "string",
               "enum": [
@@ -2832,7 +3046,7 @@
           },
           {
             "in": "query",
-            "name": "sort_dir",
+            "name": "sort-dir",
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
@@ -2882,6 +3096,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2955,6 +3172,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -2997,6 +3217,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3054,6 +3277,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3130,6 +3356,185 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations/{automation_id}": {
+      "get": {
+        "summary": "Get details of one automation defined on an asset.",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (for forecasts, these are the forecast parameters\nused on each run), information about the data generator that runs it,\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "automation": {
+                    "summary": "Automation details",
+                    "value": {
+                      "id": 1,
+                      "created_at": "2026-07-11T00:00:00+00:00",
+                      "asset_id": 1,
+                      "type": "forecasts",
+                      "name": "Day-ahead PV forecasts",
+                      "cronstr": "0 6 * * *",
+                      "timezone": "Europe/Amsterdam",
+                      "cursor": "2026-07-11T04:00:00+00:00",
+                      "recurrence_description": "At 06:00",
+                      "active": true,
+                      "parameters": {
+                        "sensor": 2092
+                      },
+                      "generator": {
+                        "id": 6,
+                        "description": "forecaster 'TrainPredictPipeline' (v1)"
+                      },
+                      "input_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        },
+                        {
+                          "id": 2093,
+                          "name": "irradiance"
+                        }
+                      ],
+                      "output_sensors": [
+                        {
+                          "id": 2092,
+                          "name": "power"
+                        }
+                      ],
+                      "job_stats": {
+                        "finished": 3,
+                        "failed": 1
+                      },
+                      "redis_connection_err": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations": {
+      "get": {
+        "summary": "Get all automations defined on an asset.",
+        "description": "The response will be a list of automations: recurring tasks (for now, computing forecasts)\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to get the automations for.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "automations": {
+                    "summary": "List of automations",
+                    "value": {
+                      "automations": [
+                        {
+                          "id": 1,
+                          "created_at": "2026-07-11T00:00:00+00:00",
+                          "asset_id": 1,
+                          "type": "forecasts",
+                          "name": "Day-ahead PV forecasts",
+                          "cronstr": "0 6 * * *",
+                          "timezone": "Europe/Amsterdam",
+                          "cursor": "2026-07-11T04:00:00+00:00",
+                          "recurrence_description": "At 06:00",
+                          "active": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3158,43 +3563,52 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
+            "name": "prior",
+            "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-03T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "event_ends_before",
+            "name": "start",
+            "description": "Only include events starting after this datetime (legacy alias: `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-01T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_after",
+            "name": "end",
+            "description": "Only include events ending before this datetime (legacy alias: `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-06T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_before",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "example": "PT24H",
+              "format": "duration"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "include_data",
+            "name": "include-data",
+            "description": "If true, chart specs include the data; if false, fetch data separately from the `chart_data` endpoint.",
             "schema": {
               "type": "boolean"
             },
@@ -3202,7 +3616,8 @@
           },
           {
             "in": "query",
-            "name": "combine_legend",
+            "name": "combine-legend",
+            "description": "If true (default), render one shared legend across all subcharts.",
             "schema": {
               "type": "boolean",
               "default": true
@@ -3211,7 +3626,26 @@
           },
           {
             "in": "query",
-            "name": "dataset_name",
+            "name": "include-asset-annotations",
+            "description": "If true, include the asset's own annotations in the chart.",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include-account-annotations",
+            "description": "If true, include the asset's account annotations in the chart.",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "dataset-name",
+            "description": "Name to use for the embedded chart dataset.",
             "schema": {
               "type": "string"
             },
@@ -3220,6 +3654,7 @@
           {
             "in": "query",
             "name": "height",
+            "description": "Chart height in pixels; without it, FlexMeasures sets a default.",
             "schema": {
               "type": "string"
             },
@@ -3228,6 +3663,7 @@
           {
             "in": "query",
             "name": "width",
+            "description": "Chart width in pixels; without it, the chart is scaled to the full width of its container.",
             "schema": {
               "type": "string"
             },
@@ -3235,7 +3671,8 @@
           },
           {
             "in": "query",
-            "name": "chart_type",
+            "name": "chart-type",
+            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
             "schema": {
               "type": "string"
             },
@@ -3257,6 +3694,108 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/chart_annotations": {
+      "get": {
+        "summary": "Download annotations for use in charts",
+        "description": "Get annotations for use in charts (in case you have the chart specs already).\nAnnotations on the asset and on the asset's account are returned.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to download annotations for.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "description": "Only return annotations that end after this datetime (legacy alias `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "description": "Only return annotations that start before this datetime (legacy alias `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
+            "schema": {
+              "type": "string",
+              "format": "duration"
+            }
+          },
+          {
+            "in": "query",
+            "name": "prior",
+            "description": "Only return annotations recorded before this datetime (legacy alias `beliefs_before`).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clip",
+            "description": "If true (default), clip annotations to the requested time window.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3285,43 +3824,62 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
+            "name": "prior",
+            "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-03T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "event_ends_before",
+            "name": "start",
+            "description": "Only include events starting after this datetime (legacy alias: `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-01T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_after",
+            "name": "end",
+            "description": "Only include events ending before this datetime (legacy alias: `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-06T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "beliefs_before",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "example": "PT24H",
+              "format": "duration"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "most_recent_beliefs_only",
+            "name": "use-latest-version-per-event",
+            "description": "If true, only the latest version of each event's belief is returned.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "most-recent-beliefs-only",
+            "description": "If true (default), return only the most recently recorded belief for each event; if false, return every recorded belief.",
             "schema": {
               "type": "boolean"
             },
@@ -3329,7 +3887,8 @@
           },
           {
             "in": "query",
-            "name": "compress_json",
+            "name": "compress-json",
+            "description": "If true, compress the JSON response.",
             "schema": {
               "type": "boolean"
             },
@@ -3358,6 +3917,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3403,6 +3965,7 @@
                           "status": "finished",
                           "err": null,
                           "enqueued_at": "2023-10-01T00:00:00",
+                          "created_via": "API",
                           "metadata_hash": "abc123"
                         }
                       ],
@@ -3424,6 +3987,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3512,6 +4078,9 @@
           },
           "405": {
             "description": "INVALID_METHOD"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3522,7 +4091,7 @@
     "/api/v3_0/assets": {
       "get": {
         "summary": "List assets accessible by the user.",
-        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3540,7 +4109,7 @@
           },
           {
             "in": "query",
-            "name": "per_page",
+            "name": "per-page",
             "schema": {
               "type": "integer",
               "default": 10,
@@ -3559,7 +4128,7 @@
           },
           {
             "in": "query",
-            "name": "sort_by",
+            "name": "sort-by",
             "description": "Sort results by this field.",
             "schema": {
               "type": "string",
@@ -3573,7 +4142,7 @@
           },
           {
             "in": "query",
-            "name": "sort_dir",
+            "name": "sort-dir",
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc').",
             "schema": {
               "type": "string",
@@ -3597,7 +4166,7 @@
           },
           {
             "in": "query",
-            "name": "account_id",
+            "name": "account",
             "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "schema": {
               "type": "integer",
@@ -3718,6 +4287,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3807,6 +4379,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3817,7 +4392,7 @@
     "/api/v3_0/assets/{id}/annotations": {
       "post": {
         "summary": "Creates a new asset annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an asset.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3861,6 +4436,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3903,6 +4481,170 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations/{automation_id}/trigger": {
+      "post": {
+        "summary": "Trigger a single run of an automation.",
+        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset the automation is defined on.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation to run.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "PROCESSING",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "triggered": {
+                    "summary": "Automation run accepted",
+                    "description": "The automation queued its jobs, which will be picked up by a worker.\nThe `job` field holds the Universally Unique Identifier (UUID) of the job to follow,\nand `n_jobs` says how many jobs the run queued in total.\n",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "n_jobs": 2,
+                      "message": "Request has been accepted for processing."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/reports/trigger": {
+      "post": {
+        "summary": "Trigger a one-off reporting job for this asset.",
+        "description": "Queue a one-off report for a worker processing the `reporting` queue.\nThe caller must be able to read every input/configuration sensor and\nrecord data on every output sensor. Each output must belong to the\nasset in the URL or one of its descendants.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "$ref": "#/components/parameters/AssetIdPath"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportTriggerSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "ACCEPTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "message",
+                    "job",
+                    "job-url"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACCEPTED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "job": {
+                      "type": "string",
+                      "description": "UUID of the queued reporting job."
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ACCEPTED",
+                  "message": "Request has been accepted for processing.",
+                  "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                  "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -3973,10 +4715,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -4023,10 +4773,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -4041,8 +4799,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "PROCESSED",
+          "202": {
+            "description": "ACCEPTED (Scheduling job queued for processing)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4050,11 +4808,13 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
-                      "status": "PROCESSED",
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "message": "Request has been processed."
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been accepted for processing."
                     }
                   }
                 }
@@ -4075,6 +4835,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4143,6 +4906,9 @@
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4195,6 +4961,9 @@
           },
           "400": {
             "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4229,6 +4998,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4290,7 +5062,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Job status retrieved successfully.",
+            "description": "Finished job status retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4318,7 +5090,7 @@
                       "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). The <code>num-beliefs</code> field holds the total number of beliefs (scheduled values) saved to the database.\n",
                       "nullable": true
                     },
-                    "func_name": {
+                    "func-name": {
                       "type": "string",
                       "description": "Fully-qualified name of the function executed by this job."
                     },
@@ -4326,28 +5098,55 @@
                       "type": "string",
                       "description": "Name of the queue the job was placed on."
                     },
-                    "enqueued_at": {
+                    "enqueued-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job was enqueued."
                     },
-                    "started_at": {
+                    "started-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job started executing."
                     },
-                    "ended_at": {
+                    "ended-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job finished executing."
                     },
-                    "exc_info": {
+                    "exc-info": {
                       "type": "string",
                       "nullable": true,
                       "description": "Traceback information for failed jobs, or null otherwise."
+                    },
+                    "func_name": {
+                      "type": "string",
+                      "description": "Legacy alias of `func-name`, kept for backward compatibility. Prefer `func-name`."
+                    },
+                    "enqueued_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "Legacy alias of `enqueued-at`, kept for backward compatibility. Prefer `enqueued-at`."
+                    },
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "Legacy alias of `started-at`, kept for backward compatibility. Prefer `started-at`."
+                    },
+                    "ended_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "Legacy alias of `ended-at`, kept for backward compatibility. Prefer `ended-at`."
+                    },
+                    "exc_info": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Legacy alias of `exc-info`, kept for backward compatibility. Prefer `exc-info`."
                     }
                   }
                 },
@@ -4358,8 +5157,13 @@
                       "status": "QUEUED",
                       "message": "Scheduling job waiting to be processed.",
                       "result": null,
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": null,
+                      "ended-at": null,
+                      "exc-info": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
                       "enqueued_at": "2026-04-28T10:00:00+00:00",
                       "started_at": null,
                       "ended_at": null,
@@ -4390,12 +5194,12 @@
                         "resolved": [],
                         "num-beliefs": 96
                       },
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
-                      "enqueued_at": "2026-04-28T10:00:00+00:00",
-                      "started_at": "2026-04-28T10:00:01+00:00",
-                      "ended_at": "2026-04-28T10:00:05+00:00",
-                      "exc_info": null
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": "2026-04-28T10:00:01+00:00",
+                      "ended-at": "2026-04-28T10:00:05+00:00",
+                      "exc-info": null
                     }
                   },
                   "failed": {
@@ -4404,17 +5208,23 @@
                       "status": "FAILED",
                       "message": "Scheduling job failed with ValueError: ...",
                       "result": null,
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
-                      "enqueued_at": "2026-04-28T10:00:00+00:00",
-                      "started_at": "2026-04-28T10:00:01+00:00",
-                      "ended_at": "2026-04-28T10:00:02+00:00",
-                      "exc_info": "Traceback (most recent call last): ..."
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": "2026-04-28T10:00:01+00:00",
+                      "ended-at": "2026-04-28T10:00:02+00:00",
+                      "exc-info": "Traceback (most recent call last): ..."
                     }
                   }
                 }
               }
             }
+          },
+          "202": {
+            "description": "Job is still queued, scheduled, deferred, or running."
+          },
+          "422": {
+            "description": "Job has failed."
           },
           "404": {
             "description": "NOT_FOUND"
@@ -4427,6 +5237,9 @@
           },
           "503": {
             "description": "SERVICE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4436,6 +5249,69 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
+    "/api/v3_0/sources/{id}": {
+      "get": {
+        "summary": "Get one data source.",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the data source.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 6,
+                  "name": "Seita",
+                  "type": "forecaster",
+                  "model": "TrainPredictPipeline",
+                  "version": "1",
+                  "description": "Seita's TrainPredictPipeline model v1",
+                  "account_id": 2,
+                  "user_id": null,
+                  "attributes": {
+                    "data_generator": {
+                      "config": {
+                        "model": "CustomLGBM"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
@@ -4492,6 +5368,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -4572,6 +5451,11 @@
             "items": {
               "type": "integer"
             }
+          },
+          "default": {
+            "type": "string",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            "example": "0 kWh"
           }
         },
         "required": [
@@ -4581,11 +5465,25 @@
       },
       "TimeSeries": {
         "type": "array",
-        "description": "Time series specification containing a list of segments that together describe a variable quantity.",
+        "description": "Time series specification containing a list of segments that together describe a variable quantity. Each segment may specify either `datetime`, `start` and `end`, `start` and `duration`, or `end` and `duration`.",
         "example": [
           {
             "value": "23 kW",
-            "start": "2025-11-20T15:15+01",
+            "datetime": "2025-11-20T15:15+01"
+          },
+          {
+            "value": "24 kW",
+            "start": "2025-11-20T16:00+01",
+            "end": "2025-11-20T17:00+01"
+          },
+          {
+            "value": "25 kW",
+            "start": "2025-11-20T17:00+01",
+            "duration": "PT1H"
+          },
+          {
+            "value": "26 kW",
+            "end": "2025-11-20T19:00+01",
             "duration": "PT1H"
           }
         ],
@@ -4615,20 +5513,109 @@
           }
         }
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Reference to a group of devices whose aggregate power is constrained."
+      },
       "Commitment": {
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          },
+          "sensors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "group": {
+            "$ref": "#/components/schemas/GroupReference"
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity"
           },
           "baseline": {},
           "up-price": {},
           "down-price": {}
         },
         "required": [
+          "baseline",
           "name"
         ],
         "additionalProperties": false
+      },
+      "InflexibleDevice": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          },
+          "source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude-source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Exclude beliefs from sources with these source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from these data source IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "source-account": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from data sources linked to these account IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "default": {
+            "type": "string",
+            "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            "example": "0 kWh"
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "description": "Sensor reference from which to look up an inflexible device's power (or energy) data."
       },
       "OutputSensorReference": {
         "type": "object",
@@ -4730,42 +5717,56 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with <code>soc-maxima-breach-price</code>, it also prices <code>soc-targets</code>: falling short of a target is priced like a <code>soc-minima</code> breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-maxima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nTogether with <code>soc-minima-breach-price</code>, it also prices <code>soc-targets</code>: overshooting a target is priced like a <code>soc-maxima</code> breach.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\nThe same goes for the soc-targets, which need both breach prices to become soft.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "relax-constraints": {
             "type": "boolean",
             "default": true,
-            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "description": "If True (the default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n\nThe specific <code>relax-soc-constraints</code> and <code>relax-site-capacity-constraints</code> flags follow this flag unless they are set explicitly, in which case they take precedence.\nThe device <code>consumption-capacity</code> and <code>production-capacity</code> are deliberately not covered; see <code>relax-capacity-constraints</code>.\n\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Whether to soften SoC minima/maxima with default breach prices. If not set, <code>relax-constraints</code> decides (so they are relaxed by default); an explicit value here takes precedence.",
             "example": true
           },
           "relax-capacity-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "description": "If True, softens the device consumption/production capacities with default breach prices. Deliberately not covered by <code>relax-constraints</code>: a directional device capacity may state a physical impossibility (a heat pump that cannot produce) rather than an economic limit, so softening it has to name the thing being softened.",
             "example": true
           },
           "relax-site-capacity-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Whether to soften the site consumption/production capacities with default breach prices. If not set, <code>relax-constraints</code> decides (so they are relaxed by default); an explicit value here takes precedence.",
             "example": true
           },
           "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
-            "example": [],
+            "description": "Prior commitments. Each commitment needs a <code>name</code> and a <code>baseline</code>, plus at least one deviation price (<code>up-price</code> and/or <code>down-price</code>); its <code>commodity</code> defaults to electricity.\nYou can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\" rel=\"noopener noreferrer\">the docs</a>.\n",
+            "example": [
+              {
+                "name": "capacity contract",
+                "baseline": "100 kW",
+                "up-price": {
+                  "sensor": 5
+                }
+              }
+            ],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Commitment"
@@ -4773,13 +5774,43 @@
           },
           "inflexible-device-sensors": {
             "type": "array",
-            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
+            "description": "[Deprecated field] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nTo avoid using the field, use <code>inflexible-consumption</code> and/or <code>inflexible-production</code> instead, which make clear the sign convention.\nFor this field, each sensor's sign convention is determined by its <code>consumption_is_positive</code> attribute (default: false, i.e. production-positive).\nMust be a list of integers.\n",
             "example": [
               3,
               4
             ],
             "items": {
               "type": "integer"
+            }
+          },
+          "inflexible-consumption": {
+            "type": "array",
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": [
+              {
+                "sensor": 3
+              },
+              {
+                "sensor": 4
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InflexibleDevice"
+            }
+          },
+          "inflexible-production": {
+            "type": "array",
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": [
+              {
+                "sensor": 3
+              },
+              {
+                "sensor": 4
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InflexibleDevice"
             }
           },
           "aggregate-consumption": {
@@ -4799,6 +5830,46 @@
         },
         "additionalProperties": false
       },
+      "AnnotationRegressor": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Account ID whose annotations to use."
+          },
+          "asset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Asset ID whose annotations to use."
+          },
+          "sensor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Sensor ID whose annotations to use."
+          },
+          "annotation-type": {
+            "type": "string",
+            "default": "holiday",
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+          }
+        },
+        "additionalProperties": false
+      },
       "TrainPredictPipelineConfigSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -4809,37 +5880,99 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
-              2093,
-              2094
+              {
+                "sensor": 2093,
+                "sources": [
+                  12,
+                  13
+                ]
+              },
+              {
+                "sensor": 2094,
+                "source-types": [
+                  "forecaster"
+                ]
+              }
             ],
             "items": {
-              "type": "integer"
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/components/schemas/SensorReference"
+                }
+              ]
             }
           },
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
-              2095
+              {
+                "sensor": 2095,
+                "exclude-source-types": [
+                  "forecaster"
+                ]
+              }
             ],
             "items": {
-              "type": "integer"
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/components/schemas/SensorReference"
+                }
+              ]
             }
           },
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
-              2093,
-              2094,
-              2095
+              {
+                "sensor": 2093,
+                "sources": [
+                  12,
+                  13
+                ]
+              },
+              {
+                "sensor": 2094,
+                "source-account": [
+                  4
+                ]
+              }
             ],
             "items": {
-              "type": "integer"
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "$ref": "#/components/schemas/SensorReference"
+                }
+              ]
+            }
+          },
+          "annotation-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Annotation sources to use as binary future regressors. Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally 'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). Annotations are converted to a binary 0/1 time series: 1 during annotated periods.",
+            "example": [
+              {
+                "account": 1,
+                "annotation-type": "holiday",
+                "name": "holidays"
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnnotationRegressor"
             }
           },
           "missing-threshold": {
@@ -4908,7 +6041,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "forecast-frequency": {
@@ -4934,7 +6067,7 @@
             "type": "integer",
             "minimum": 1
           },
-          "per_page": {
+          "per-page": {
             "type": "integer",
             "default": 10,
             "minimum": 1
@@ -4943,7 +6076,7 @@
             "type": "string",
             "description": "Filter results by this keyword."
           },
-          "sort_by": {
+          "sort-by": {
             "type": "string",
             "enum": [
               "username",
@@ -4952,7 +6085,7 @@
               "lastSeen"
             ]
           },
-          "sort_dir": {
+          "sort-dir": {
             "type": "string",
             "enum": [
               "asc",
@@ -4960,7 +6093,7 @@
             ],
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
           },
-          "account_id": {
+          "account": {
             "type": "integer"
           },
           "include_inactive": {
@@ -4977,7 +6110,7 @@
             "type": "integer",
             "minimum": 1
           },
-          "per_page": {
+          "per-page": {
             "type": "integer",
             "default": 10,
             "minimum": 1
@@ -4986,7 +6119,7 @@
             "type": "string",
             "description": "Filter results by this keyword."
           },
-          "sort_by": {
+          "sort-by": {
             "type": "string",
             "enum": [
               "id",
@@ -4995,7 +6128,7 @@
             ],
             "description": "Sort results by this field."
           },
-          "sort_dir": {
+          "sort-dir": {
             "type": "string",
             "enum": [
               "asc",
@@ -5009,7 +6142,7 @@
             "description": "Which fields to include in response. List fields separated by '|' (pipe).",
             "example": "id|name|flex_model"
           },
-          "account_id": {
+          "account": {
             "type": "integer",
             "description": "Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
             "example": 67
@@ -5273,6 +6406,27 @@
         ],
         "additionalProperties": false
       },
+      "ReportTriggerSchema": {
+        "type": "object",
+        "properties": {
+          "reporter": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "parameters",
+          "reporter"
+        ],
+        "additionalProperties": false
+      },
       "CopyAssetSchema": {
         "type": "object",
         "properties": {
@@ -5380,6 +6534,12 @@
               "integer",
               "null"
             ]
+          },
+          "plan_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -5432,6 +6592,12 @@
               "null"
             ]
           },
+          "plan_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "attributes": {},
           "account_roles": {
             "type": "array",
@@ -5449,7 +6615,7 @@
             "type": "integer",
             "minimum": 1
           },
-          "per_page": {
+          "per-page": {
             "type": "integer",
             "default": 10,
             "minimum": 1
@@ -5458,7 +6624,7 @@
             "type": "string",
             "description": "Filter results by this keyword."
           },
-          "sort_by": {
+          "sort-by": {
             "type": "string",
             "enum": [
               "id",
@@ -5467,13 +6633,18 @@
               "users"
             ]
           },
-          "sort_dir": {
+          "sort-dir": {
             "type": "string",
             "enum": [
               "asc",
               "desc"
             ],
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
+          },
+          "role": {
+            "type": "string",
+            "description": "Filter organisations by account role.",
+            "example": "Prosumer"
           }
         },
         "additionalProperties": false
@@ -6030,7 +7201,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs).",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
             "example": "2026-01-14T20:00+01:00"
           },
           "unit": {
@@ -6096,7 +7267,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "flex-model": {
@@ -6200,6 +7371,42 @@
         ],
         "additionalProperties": false
       },
+      "OperationMode": {
+        "type": "object",
+        "properties": {
+          "consumption-range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Consumption power range [min, max] of this operation mode (non-negative; positive is consumption). The non-negative part of an S2 power-range maps to this field.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "production-range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Production power range [min, max] of this operation mode (non-negative; positive is production). Negative (production) values of an S2 power-range map to this field, with their sign flipped.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "consumption-range"
+            ]
+          },
+          {
+            "required": [
+              "production-range"
+            ]
+          }
+        ]
+      },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -6259,6 +7466,49 @@
             "example": "0 kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
+          "operation-modes": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the <a href=\"https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/\" target=\"_blank\" rel=\"noopener noreferrer\">operation modes of the S2 standard</a>.\nS2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM <code>consumption-range</code>, negative S2 power values (production) correspond to the FM <code>production-range</code> (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
+            "example": [
+              {
+                "consumption-range": [
+                  "0 W",
+                  "0 W"
+                ]
+              },
+              {
+                "consumption-range": [
+                  "883.7 W",
+                  "883.7 W"
+                ]
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OperationMode"
+            }
+          },
+          "group": {
+            "description": "Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the <code>asset</code> that represents the shared equipment (<code>{\"asset\": <id>}</code>, e.g. a sub-EMS asset in the tree); a power <code>sensor</code> (<code>{\"sensor\": <id>}</code>) is also accepted - give exactly one of the two.\nThe referenced asset or sensor should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>asset</code>, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved directly to that group sensor.\n",
+            "example": {
+              "asset": 7
+            },
+            "$ref": "#/components/schemas/GroupReference"
+          },
+          "inflexible-consumption": {
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": {
+              "sensor": 3
+            },
+            "$ref": "#/components/schemas/InflexibleDevice"
+          },
+          "inflexible-production": {
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": {
+              "sensor": 3
+            },
+            "$ref": "#/components/schemas/InflexibleDevice"
+          },
           "prefer-curtailing-later": {
             "type": "boolean",
             "default": true,
@@ -6272,7 +7522,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nSoft constraints by default (see <code>relax-soc-constraints</code>).",
             "example": [
               {
                 "value": "51 kWh",
@@ -6283,7 +7533,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nSoft constraints by default (see <code>relax-soc-constraints</code>).\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
@@ -6298,7 +7548,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-targets": {
-            "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nThese are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
+            "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nA target is two-sided, so if both a <code>soc-minima-breach-price</code> and a <code>soc-maxima-breach-price</code> are defined, the <code>soc-targets</code> become soft constraints in the optimization problem.\nFalling short of a target is then priced like a <code>soc-minima</code> breach, and overshooting it like a <code>soc-maxima</code> breach.\nOtherwise, they become hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
@@ -6369,6 +7619,22 @@
             ],
             "items": {}
           },
+          "coupling": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Name of the coupling group this device belongs to.\nDevices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.\nUse this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.\nFor example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.\nUse together with <code>coupling-coefficient</code> to set the flow ratios.\n",
+            "example": "chp"
+          },
+          "coupling-coefficient": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.0,
+            "description": "Positive coupling magnitude for this device within its coupling group.\nThe scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.\nThe flow direction of each device is inferred from which directional capacity is set: a device given only a <code>production-capacity</code> is an output (producing) device, and a device given only a <code>consumption-capacity</code> is an input (consuming) device.\nThe unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).\nFor example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).\nDefaults to 1.\n",
+            "example": 0.5
+          },
           "soc-value-at-end": {
             "description": "Marginal value assigned to energy left in storage at the end of the scheduling horizon.\nWithout it, the scheduler sees no benefit in ending the horizon with a non-zero state of charge, which can lead to myopic behaviour such as fully depleting the storage towards the end of the horizon.\nIt must use the same currency as the other price settings and cannot be negative.\nSet it per device (for example, lower for a heat pump's thermal buffer than for a battery, due to the difference between the COP and the battery's charging efficiency), either as a fixed quantity or as a sensor reference.\n",
             "example": "60 EUR/MWh",
@@ -6393,7 +7659,7 @@
           "prior": {
             "type": "string",
             "format": "date-time",
-            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "description": "The scheduler is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00"
           },
           "duration": {

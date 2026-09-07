@@ -23,14 +23,16 @@ depends_on = None
 
 
 def upgrade():
+    # Children before parents, so that no foreign key blocks a drop.
+    # Postgres refuses to drop market while asset.market_id still references it, and market_type while market references it.
     tables = [
-        "price",
         "power",
-        "market",
-        "market_type",
+        "price",
         "weather",
         "asset",
         "weather_sensor",
+        "market",
+        "market_type",
     ]
 
     #  check for existing data
@@ -40,7 +42,7 @@ def upgrade():
         try:
             if inspect.has_table(table):
                 result = db.session.execute(
-                    sa.text(f"SELECT 1 FROM {table};")
+                    sa.text(f"SELECT 1 FROM {table} LIMIT 1;")
                 ).scalar_one_or_none()
                 if result:
                     tables_with_data.append(table)

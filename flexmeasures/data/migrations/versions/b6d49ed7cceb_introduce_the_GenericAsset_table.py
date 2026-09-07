@@ -12,7 +12,6 @@ from alembic import context, op
 from sqlalchemy import orm, insert, update
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = "b6d49ed7cceb"
 down_revision = "565e092a6c5e"

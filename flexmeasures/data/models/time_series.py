@@ -7,8 +7,9 @@ import json
 from packaging.version import Version
 from flask import current_app
 
+import numpy as np
 import pandas as pd
-from sqlalchemy import exists, select
+from sqlalchemy import event, exists, select, text as sa_text
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -31,6 +32,7 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
     build_entity_address,
 )
+from flexmeasures.utils.time_utils import truncated_integer_epochs
 from flexmeasures.utils.unit_utils import (
     is_energy_unit,
     is_power_unit,
@@ -42,9 +44,10 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
+from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.coding_utils import OrderByIdMixin
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -315,6 +318,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         annotations_after: datetime_type | None = None,
         annotation_ends_before: datetime_type | None = None,  # deprecated
         annotations_before: datetime_type | None = None,
+        beliefs_after: datetime_type | None = None,
+        beliefs_before: datetime_type | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -326,6 +331,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
 
         # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
@@ -363,6 +371,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             query = query.filter(
                 Annotation.start < annotations_before,
             )
+        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
         if parsed_sources:
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
@@ -372,12 +381,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             annotations += self.generic_asset.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
         if include_account_annotations:
             annotations += self.generic_asset.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
 
@@ -466,8 +479,6 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             # Build metadata dictionaries
             sensors_metadata = {}
-            sources_metadata = {}
-            all_records = []
 
             # Build sensor metadata
             sensor_dict = self.as_dict
@@ -484,69 +495,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 "asset_description": sensor_dict.get("asset_description", ""),
             }
 
-            # Process each row in the dataframe
-            for _, row in df.iterrows():
-                source_obj = row.get("source")
-
-                if (
-                    source_obj
-                    and hasattr(source_obj, "id")
-                    and source_obj.id not in sources_metadata
-                ):
-
-                    source_dict = source_obj.as_dict
-                    sources_metadata[source_obj.id] = {
-                        "name": source_dict.get("name", ""),
-                        "model": source_dict.get("model", ""),
-                        "version": source_dict.get("version", ""),
-                        "type": source_dict.get("type", "other"),
-                        "raw_type": source_dict.get("raw_type", ""),
-                        "display_type": source_dict.get(
-                            "display_type", source_dict.get("type", "other")
-                        ),
-                        "description": source_dict.get("description", ""),
-                    }
-
-                # Build the data record with reference IDs instead of full objects
-                record = {
-                    "ts": int(
-                        row["event_start"].timestamp() * 1000
-                    ),  # timestamp in milliseconds for JavaScript compatibility
-                    "sid": self.id,  # sensor ID reference
-                    "val": row["event_value"],
-                }
-
-                # Add optional fields
-                if source_obj and hasattr(source_obj, "id"):
-                    record["src"] = source_obj.id  # source ID reference
-
-                if "belief_time" in row and pd.notnull(row["belief_time"]):
-                    record["bt"] = int(
-                        row["belief_time"].timestamp() * 1000
-                    )  # timestamp in milliseconds for JavaScript compatibility
-
-                if "belief_horizon" in row and pd.notnull(row["belief_horizon"]):
-                    record["bh"] = int(row["belief_horizon"].total_seconds())
-
-                if "cumulative_probability" in row and pd.notnull(
-                    row["cumulative_probability"]
-                ):
-                    record["cp"] = row["cumulative_probability"]
-
-                # Clean up any problematic types
-                for key, value in record.items():
-                    if pd.isna(value):
-                        record[key] = None
-                    elif isinstance(value, pd.Timestamp):
-                        record[key] = int(
-                            value.timestamp() * 1000
-                        )  # timestamp in milliseconds for JavaScript compatibility
-                    elif isinstance(value, (pd.Timedelta, timedelta)):
-                        record[key] = int(value.total_seconds())
-                    elif hasattr(value, "item"):  # numpy types
-                        record[key] = value.item()
-
-                all_records.append(record)
+            all_records, sources_metadata = compress_belief_records(df, self.id)
 
             # Return in the new structured format
             result = {
@@ -768,7 +717,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         exclude_source_types: list[str] | None = None,
         check_exists: bool = False,
     ) -> list[DataSource] | bool:
-        """
+        """Find the data sources that have recorded beliefs for this sensor.
+
+        Where the answer comes from depends on whether time filters are given.
+        With them, the beliefs table is consulted, so the answer is exact for that window.
+        Without them, the ``sensor_data_source`` summary is read instead,
+        which avoids scanning the beliefs table but is a superset:
+        a source stays listed after its beliefs for this sensor are deleted.
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource`.
+
         :returns: list of Data Source objects, or, if check_exists, True if any such sources exist, False if none do.
         """
 
@@ -825,17 +782,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             q = select(DataSource).where(DataSource.id.in_(belief_q.distinct()))
         else:
-            # No time filters: retrieve distinct source IDs for this sensor via a
-            # lightweight index-only scan, then fetch those DataSource rows. This
-            # avoids a full join across potentially hundreds of millions of belief
-            # rows just to enumerate a handful of sources.
-            source_id_subq = (
-                select(TimedBelief.source_id)
-                .where(TimedBelief.sensor_id == self.id)
-                .distinct()
-                .subquery()
+            # No time filters: read the sensor_data_source summary instead of the beliefs table,
+            # which turns a scan over very many rows into a lookup of a handful.
+            # See SensorDataSource for the superset semantics this accepts.
+            q = select(DataSource).where(
+                DataSource.id.in_(
+                    select(SensorDataSource.source_id).where(
+                        SensorDataSource.sensor_id == self.id
+                    )
+                )
             )
-            q = select(DataSource).where(DataSource.id.in_(select(source_id_subq)))
 
         if source_types:
             q = q.where(DataSource.type.in_(source_types))
@@ -851,11 +807,125 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def data_sources(self) -> list[DataSource]:
         """Return all DataSource objects that have recorded beliefs for this sensor.
 
-        Uses a two-step subquery (distinct source IDs → DataSource rows) so that
-        it scales to very large timed_belief tables without fetching every belief row.
-        Equivalent to ``search_data_sources()`` with no filters.
+        Equivalent to ``search_data_sources()`` with no filters,
+        which reads the ``sensor_data_source`` summary rather than the beliefs table.
+
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource` for the superset semantics that implies:
+        a source stays listed after its beliefs for this sensor are deleted.
         """
         return self.search_data_sources()
+
+
+def compress_belief_records(df: pd.DataFrame, sensor_id: int) -> tuple[list, dict]:
+    """Build compact belief records and source metadata from a reset-index beliefs frame.
+
+    Records hold reference IDs instead of full objects, and timestamps in epoch
+    milliseconds for JavaScript compatibility (belief horizons in seconds).
+    Missing values (e.g. an unknown belief time) leave their key out of the record.
+    """
+    sources_metadata: dict = {}
+
+    # Build source metadata and the source id per row (in first-appearance order)
+    source_codes, unique_sources = pd.factorize(df["source"])
+    unique_source_ids: list[int | None] = []
+    for source_obj in unique_sources:
+        if source_obj and hasattr(source_obj, "id"):
+            unique_source_ids.append(source_obj.id)
+            if source_obj.id not in sources_metadata:
+                source_dict = source_obj.as_dict
+                sources_metadata[source_obj.id] = {
+                    "name": source_dict.get("name", ""),
+                    "model": source_dict.get("model", ""),
+                    "version": source_dict.get("version", ""),
+                    "type": source_dict.get("type", "other"),
+                    "raw_type": source_dict.get("raw_type", ""),
+                    "display_type": source_dict.get(
+                        "display_type", source_dict.get("type", "other")
+                    ),
+                    "description": source_dict.get("description", ""),
+                }
+        else:
+            unique_source_ids.append(None)
+    src_per_row = [
+        unique_source_ids[code] if code >= 0 else None for code in source_codes
+    ]
+
+    # Convert the timing columns to epoch values (vectorized)
+    def to_epoch_list(column: str, np_dtype: str | None, divisor: int) -> list:
+        """Integer epoch value (ns / divisor, truncated toward zero) per row,
+        or None for missing values."""
+        if column not in df.columns:
+            return [None] * len(df)
+        values = df[column]
+        mask = values.notna().to_numpy()
+        raw = values.to_numpy(dtype=np_dtype) if np_dtype else values.to_numpy()
+        ints = truncated_integer_epochs(raw.view("int64"), divisor)
+        return [int(value) if keep else None for value, keep in zip(ints, mask)]
+
+    ts_per_row = to_epoch_list("event_start", "datetime64[ns]", 10**6)  # ms
+    bt_per_row = to_epoch_list("belief_time", "datetime64[ns]", 10**6)  # ms
+    bh_per_row = to_epoch_list("belief_horizon", None, 10**9)  # s
+    cp_per_row = (
+        [
+            None if value != value else value
+            for value in df["cumulative_probability"].tolist()
+        ]
+        if "cumulative_probability" in df.columns
+        else [None] * len(df)
+    )
+    val_per_row = df["event_value"].tolist()
+
+    all_records = []
+    for ts, val, src, bt, bh, cp in zip(
+        ts_per_row, val_per_row, src_per_row, bt_per_row, bh_per_row, cp_per_row
+    ):
+        record = {
+            "ts": ts,
+            "sid": sensor_id,  # sensor ID reference
+            "val": None if val != val else val,
+        }
+        if src is not None:
+            record["src"] = src  # source ID reference
+        if bt is not None:
+            record["bt"] = bt
+        if bh is not None:
+            record["bh"] = bh
+        if cp is not None:
+            record["cp"] = cp
+        all_records.append(record)
+    return all_records, sources_metadata
+
+
+def _select_latest_version_and_belief_per_event(
+    bdf: tb.BeliefsDataFrame,
+) -> tb.BeliefsDataFrame:
+    """Keep, per event, the single belief with the latest source version,
+    breaking version ties by most recent belief time.
+
+    Assumes deterministic beliefs (probabilistic depth 1) and a belief_time index level.
+    """
+    source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))
+    versions = [
+        Version(source.version if source.version else "0.0.0")
+        for source in unique_sources
+    ]
+    version_ranks = {
+        version: rank for rank, version in enumerate(sorted(set(versions)))
+    }
+    rank_per_row = np.array([version_ranks[version] for version in versions])[
+        source_codes
+    ]
+    event_values = bdf.index.get_level_values("event_start").asi8
+    belief_values = bdf.index.get_level_values("belief_time").asi8
+    # Sort by event (ascending), then version rank and belief time (both descending)
+    order = np.lexsort((-belief_values, -rank_per_row, event_values))
+    sorted_events = event_values[order]
+    is_first_of_event = np.empty(len(order), dtype=bool)
+    is_first_of_event[:1] = True
+    is_first_of_event[1:] = sorted_events[1:] != sorted_events[:-1]
+    mask = np.zeros(len(order), dtype=bool)
+    mask[order[is_first_of_event]] = True
+    return bdf[mask]
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
@@ -863,6 +933,43 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
     It also records the source of the belief, and the sensor that the event pertains to.
     """
+
+    @declared_attr
+    def __table_args__(cls):
+        """Keep timely_beliefs' indexes, but pin the primary key's column order.
+
+        Without an explicit constraint,
+        the order of the primary key's columns is whatever order SQLAlchemy happened to collect the columns in:
+        attributes declared on this class come first, then the mixin's.
+        That makes the key's shape an accident of which columns a subclass redeclares,
+        and it is why a schema built by ``create_all()`` could disagree with a migrated one.
+
+        The order below is deliberate, and it is not the order the columns are declared in:
+
+        - ``sensor_id`` first, because virtually every query filters on a single sensor.
+          A key that does not lead with it cannot serve those queries at all.
+        - ``source_id`` second,
+          so that ``(sensor_id, source_id, event_start, belief_horizon)`` is a prefix of this key.
+          A separate composite index on exactly those columns is therefore redundant, and can be dropped.
+        - ``cumulative_probability`` last,
+          because it is very nearly a constant (0.5 for every deterministic belief),
+          and so contributes no selectivity.
+        - ``sensor_id`` and ``source_id`` adjacent, which is worth ~15% of the index's size:
+          both are 4-byte integers,
+          so keeping them together avoids the alignment padding that separating them forces into every index tuple.
+
+        Changing this order requires a migration; see ``d4a7c1e93b52``.
+        """
+        return tb.TimedBeliefDBMixin.__dict__["__table_args__"].fget(cls) + (
+            db.PrimaryKeyConstraint(
+                "sensor_id",
+                "source_id",
+                "event_start",
+                "belief_horizon",
+                "cumulative_probability",
+                name="timed_belief_pkey",
+            ),
+        )
 
     @declared_attr
     def source_id(cls):
@@ -1030,25 +1137,34 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 ):
                     # Fast track, no need to loop over beliefs
                     pass
+                elif (
+                    bdf.lineage.probabilistic_depth == 1
+                    and "belief_time" in bdf.index.names
+                ):
+                    # Deterministic beliefs: no need to take the median,
+                    # just pick the winning belief per event directly
+                    bdf = _select_latest_version_and_belief_per_event(bdf)
                 else:
                     # First make deterministic
                     bdf = bdf.for_each_belief(get_median_belief)
-                    # Then sort each event by most recent source version and most recent belief_time
+                    # Then sort each event by latest source version and most recent belief_time
+                    version_per_source = {
+                        source: Version(source.version if source.version else "0.0.0")
+                        for source in bdf.lineage.sources
+                    }
                     bdf = bdf.sort_values(
                         by=["event_start", "source", "belief_time"],
                         ascending=[True, False, False],
                         key=lambda col: (
-                            col.map(
-                                lambda s: Version(s.version if s.version else "0.0.0")
-                            )
-                            if col.name == "source"
-                            else col
+                            col.map(version_per_source) if col.name == "source" else col
                         ),
                     )
-                    # Finally, take the first belief for each event, thus preference most recent belief_time first, latest version second
-                    bdf = bdf.groupby(level=["event_start"], group_keys=False).apply(
-                        lambda x: x.head(1)
-                    )
+                    # Finally, take the first belief for each event, thus preference latest version first, most recent belief_time second
+                    bdf = bdf[
+                        ~bdf.index.get_level_values("event_start").duplicated(
+                            keep="first"
+                        )
+                    ]
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
                     # Fast track, no need to loop over beliefs
@@ -1109,3 +1225,90 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
+
+
+# How the sensor_data_source summary is kept up to date.
+#
+# A database trigger does it, rather than FlexMeasures code.
+# The reason is that beliefs reach timed_belief by several routes:
+# save_to_db, bulk inserts, plugins, and raw SQL.
+# Code added to one of those routes would only ever see the beliefs that took it,
+# leaving the summary quietly incomplete for all the others.
+# A trigger sits on the table itself, so it sees every insert whatever the route.
+#
+# The trigger runs once per INSERT *statement* rather than once per row.
+# It reads that statement's new rows in one go, through what PostgreSQL calls a
+# transition table (named inserted_beliefs below).
+# So saving a million beliefs in one statement adds one small insert, not a million.
+#
+# Migration f1c8a3d75e29 imports these two constants and installs the same
+# function and trigger for databases built by Alembic rather than by create_all().
+# There is only one such trigger, not a history of versions to preserve,
+# so the migration installs the current definition instead of a frozen copy of its own.
+#
+# Sharing the text does not, on its own, make a later change to it reach an existing
+# database: like any other schema change, that needs a new migration,
+# because a migration that has already run will not run again.
+RECORD_SENSOR_DATA_SOURCES_FUNCTION = """
+CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO sensor_data_source (sensor_id, source_id)
+    SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
+    ON CONFLICT DO NOTHING;
+    RETURN NULL;
+END;
+$$
+"""
+
+RECORD_SENSOR_DATA_SOURCES_TRIGGER = """
+CREATE TRIGGER timed_belief_record_sensor_data_sources
+AFTER INSERT ON timed_belief
+REFERENCING NEW TABLE AS inserted_beliefs
+FOR EACH STATEMENT
+EXECUTE FUNCTION record_sensor_data_sources()
+"""
+
+
+def create_sensor_data_source_trigger(target, connection, **kwargs) -> None:
+    """Install the trigger, for databases whose schema is built by create_all().
+
+    A FlexMeasures database gets its schema in one of two ways,
+    and each needs its own route to the trigger:
+
+    - built by Alembic migrations, as in production:
+      migration f1c8a3d75e29 installs it there.
+    - built by ``db.create_all()``, as in the test suite and some development setups:
+      this function installs it there.
+
+    SQLAlchemy fires "after_create" whenever it has created something.
+    This listens for that on the whole metadata rather than on the timed_belief table,
+    so that it runs after *all* tables exist.
+    Listening on timed_belief alone would be a bet on creation order,
+    because the trigger's function reads sensor_data_source,
+    and nothing guarantees that table gets created first.
+    PostgreSQL would in fact tolerate the wrong order today,
+    since a function written in its procedural language does not look up the tables it names until it first runs,
+    but depending on that is fragile.
+
+    Does nothing unless the database is PostgreSQL and both tables are present,
+    so another backend, or a create_all() that made only some tables, is left alone.
+    """
+    if connection.dialect.name != "postgresql":
+        return
+    inspector = inspect(connection)
+    if not inspector.has_table("timed_belief") or not inspector.has_table(
+        "sensor_data_source"
+    ):
+        return
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_FUNCTION))
+    connection.execute(
+        sa_text(
+            "DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources"
+            " ON timed_belief"
+        )
+    )
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_TRIGGER))
+
+
+event.listen(db.metadata, "after_create", create_sensor_data_source_trigger)

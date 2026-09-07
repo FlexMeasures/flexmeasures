@@ -3,7 +3,6 @@ import json
 
 from flexmeasures.auth import error_handling as auth_error_handling
 
-
 """
 Testing if errors are handled by the right handlers.
 First, test a JSON request, then a common one, which should lead to a rendered page.

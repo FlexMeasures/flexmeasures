@@ -19,7 +19,7 @@ import json
 from sqlalchemy import select, func
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account, AccountRole, User, Role
+from flexmeasures.data.models.user import Account, AccountRole, Plan, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -79,6 +79,50 @@ def list_accounts():
         for account in accounts
     ]
     click.echo(tabulate(account_data, headers=["ID", "Name", "Assets"]))
+
+
+@fm_show_data.command("plans")
+@with_appcontext
+def list_plans():
+    """
+    List all plans on this FlexMeasures instance, with the rate limits they set.
+
+    The quota fields a plan carries (max_users, max_assets and max_clients) are left out,
+    as long as nothing enforces them yet.
+    """
+    plans = db.session.scalars(select(Plan).order_by(Plan.name)).all()
+    if not plans:
+        click.secho("No plans created yet.", **MsgStyle.WARN)
+        raise click.Abort()
+    click.echo("All plans on this FlexMeasures instance:\n ")
+    plan_data = [
+        (
+            plan.id,
+            plan.name,
+            plan.default_rate_limit,
+            plan.trigger_rate_limit,
+            plan.rate_limit_key.value if plan.rate_limit_key else None,
+            "yes" if plan.legacy else "no",
+        )
+        for plan in plans
+    ]
+    click.echo(
+        tabulate(
+            plan_data,
+            headers=[
+                "ID",
+                "Name",
+                "Default rate limit",
+                "Trigger rate limit",
+                "Rate limit key",
+                "Legacy",
+            ],
+        )
+    )
+    click.echo(
+        "\nAn empty cell means the server-wide setting applies."
+        "\nA legacy plan keeps applying to the accounts already on it, but is no longer offered when assigning a plan."
+    )
 
 
 @fm_show_data.command("roles")
@@ -377,10 +421,26 @@ def _format_sensor_plot(plot: dict) -> str:
     help="Whether to show the attributes of the DataSource.",
     is_flag=True,
 )
-def list_data_sources(source: DataSource | None = None, show_attributes: bool = False):
+@click.option(
+    "--show-sensors",
+    "show_sensors",
+    type=bool,
+    help="Whether to list the sensors which hold data recorded by the DataSource. Requires --id.",
+    is_flag=True,
+)
+def list_data_sources(
+    source: DataSource | None = None,
+    show_attributes: bool = False,
+    show_sensors: bool = False,
+):
     """
     Show available data sources
     """
+    if show_sensors and source is None:
+        # Looking up the sensors of a source queries the (potentially huge) timed_belief table,
+        # so we only do it for the single source the user asked about.
+        raise click.UsageError("--show-sensors requires --id.")
+
     if source is None:
         sources = db.session.scalars(
             select(DataSource)
@@ -396,7 +456,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         click.secho("No data sources created yet.", **MsgStyle.WARN)
         raise click.Abort()
 
-    headers = ["ID", "Name", "User ID", "Model", "Version"]
+    headers = ["ID", "Name", "Account ID", "User ID", "Model", "Version"]
 
     if show_attributes:
         headers.append("Attributes")
@@ -407,6 +467,7 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         row = [
             source.id,
             source.name,
+            source.account_id,
             source.user_id,
             source.model,
             source.version,
@@ -424,6 +485,37 @@ def list_data_sources(source: DataSource | None = None, show_attributes: bool = 
         click.echo("=" * len(ds_type))
         click.echo(tabulate(row, headers=headers))
         click.echo("\n")
+
+    if show_sensors:
+        # At this point we know there is exactly one source, as --show-sensors requires --id.
+        _list_sensors_of_source(sources[0])
+
+
+def _list_sensors_of_source(source: DataSource):
+    """List the sensors which hold data recorded by the given data source."""
+    sensors = sorted(source.sensors, key=lambda sensor: sensor.id)
+    if not sensors:
+        click.secho(
+            f"No sensors hold data recorded by data source {source.id}.",
+            **MsgStyle.WARN,
+        )
+        return
+
+    click.echo(f"Sensors with data from data source {source.id}:\n")
+    click.echo(
+        tabulate(
+            [
+                [
+                    sensor.id,
+                    sensor.name,
+                    sensor.unit,
+                    f"{sensor.generic_asset.name} (ID: {sensor.generic_asset.id})",
+                ]
+                for sensor in sensors
+            ],
+            headers=["ID", "Name", "Unit", "Asset"],
+        )
+    )
 
 
 @fm_show_data.command("chart")

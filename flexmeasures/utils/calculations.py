@@ -1,4 +1,4 @@
-""" Various calculations """
+"""Various calculations"""
 
 from __future__ import annotations
 

@@ -141,14 +141,13 @@ def user_source_criterion(
     """
     if user_source_ids is not None and not isinstance(user_source_ids, list):
         user_source_ids = [user_source_ids]  # ensure user_source_ids is a list
-    ignorable_user_sources = db.session.scalars(
-        select(DataSource)
+    # Uncorrelated subquery, so building the criterion costs no extra round trip
+    ignorable_user_source_ids = (
+        select(DataSource.id)
         .filter(DataSource.type == "user")
         .filter(DataSource.id.not_in(user_source_ids))
-    ).all()
-    ignorable_user_source_ids = [
-        user_source.id for user_source in ignorable_user_sources
-    ]
+        .scalar_subquery()
+    )
 
     # todo: [legacy] deprecate this if-statement, which is used to support the TimedValue class
     if hasattr(cls, "data_source_id"):

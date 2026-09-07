@@ -5,6 +5,7 @@ Utils around the data models and db sessions
 from __future__ import annotations
 
 from alembic.config import Config as AlembicConfig
+from alembic.script.revision import RevisionError
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from dataclasses import dataclass
@@ -16,7 +17,6 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
-
 
 SAVE_TO_DB_SUCCESS = "success"
 SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED = (
@@ -85,6 +85,38 @@ def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
         current_heads=current_heads,
         expected_heads=expected_heads,
     )
+
+
+def database_schema_has_revision(app, required_revision: str) -> bool:
+    """Return whether the connected database includes a specific Alembic revision."""
+    revision_status = get_database_schema_revision_status(app)
+    if (
+        revision_status.inspection_error is not None
+        or not revision_status.current_heads
+    ):
+        return False
+
+    migrate_extension = app.extensions.get("migrate")
+    if migrate_extension is None:
+        return False
+
+    alembic_config = AlembicConfig()
+    alembic_config.set_main_option("script_location", migrate_extension.directory)
+    script = ScriptDirectory.from_config(alembic_config)
+
+    for current_head in revision_status.current_heads:
+        try:
+            revisions = script.revision_map.iterate_revisions(
+                current_head,
+                required_revision,
+                inclusive=True,
+                assert_relative_length=False,
+            )
+            if any(revision.revision == required_revision for revision in revisions):
+                return True
+        except RevisionError:
+            continue
+    return False
 
 
 def format_database_schema_revision_status(
@@ -241,26 +273,31 @@ def save_to_db(
     return status
 
 
-def get_downsample_function_and_value(
-    kpi: dict, sensor: Sensor, sensor_stats: dict
-) -> tuple:
+def get_downsample_function_and_value(kpi: dict, sensor: Sensor, values) -> tuple:
+    """Reduce a sensor's values over a window to the single number a KPI shows.
+
+    :param kpi:     The `sensors_to_show_as_kpis` entry, which may name a function.
+    :param sensor:  The sensor the KPI describes, whose unit decides the default function.
+    :param values:  One value per event, as the chart draws them, rather than one row per belief.
+    :returns:       The function used, and the value it produced.
+    """
     downsample_function = kpi.get("function", None)
     if downsample_function is None:
         if sensor.unit == "%":
             downsample_function = "mean"
         else:
             downsample_function = "sum"
-    try:
-        if downsample_function == "mean":
-            downsample_value = dict(next(iter(sensor_stats.values())))["Mean value"]
-        elif downsample_function == "max":
-            downsample_value = dict(next(iter(sensor_stats.values())))["Max value"]
-        elif downsample_function == "min":
-            downsample_value = dict(next(iter(sensor_stats.values())))["Min value"]
-        else:
-            downsample_value = dict(next(iter(sensor_stats.values())))[
-                "Sum over values"
-            ]
-    except StopIteration:
-        downsample_value = 0
+
+    # An empty window has nothing to reduce, and sum() over none of it is not a KPI of zero cost.
+    if len(values) == 0:
+        return downsample_function, 0
+
+    if downsample_function == "mean":
+        downsample_value = values.mean()
+    elif downsample_function == "max":
+        downsample_value = values.max()
+    elif downsample_function == "min":
+        downsample_value = values.min()
+    else:
+        downsample_value = values.sum()
     return downsample_function, downsample_value

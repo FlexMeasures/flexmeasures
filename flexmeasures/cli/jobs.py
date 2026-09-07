@@ -10,7 +10,7 @@ import string
 import sys
 from datetime import datetime, timedelta
 from types import TracebackType
-from typing import Type
+from typing import Callable, Type
 
 import click
 from flask import current_app as app
@@ -26,11 +26,22 @@ from rq.registry import (
     ScheduledJobRegistry,
     StartedJobRegistry,
 )
+from marshmallow import ValidationError
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
 
+from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
+from flexmeasures.data.schemas.automations import AutomationIdField
+from flexmeasures.data.services.automations import (
+    claim_due_automation,
+    floor_to_minute,
+    get_due_automations,
+    run_automation,
+)
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
@@ -38,7 +49,6 @@ from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
-
 
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
@@ -49,10 +59,135 @@ REGISTRY_MAP = dict(
     scheduled=ScheduledJobRegistry,
 )
 
+# Queues with an exception handler of their own; jobs on other queues use handle_worker_exception.
+QUEUE_EXCEPTION_HANDLERS = dict(
+    scheduling=handle_scheduling_exception,
+    forecasting=handle_forecasting_exception,
+)
+
 
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("run-automations")
+@with_appcontext
+def run_automations():
+    """
+    Queue jobs for all automations that are due to run this minute.
+
+    Each cron string is interpreted in the automation's timezone.
+    Missed forecast runs are caught up once, with several missed runs coalesced into the latest useful forecast.
+    Run this command once per minute (e.g. via cron):
+
+    \b
+        * * * * * flexmeasures jobs run-automations
+
+    A Redis-based guard allows at most one queueing attempt per scheduled run.
+    A failed attempt is not retried automatically, because it may already have queued some jobs.
+    """
+    now = floor_to_minute(server_now())
+    due_automations = get_due_automations(now)
+    if not due_automations:
+        click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
+        return
+
+    connection = app.queues["forecasting"].connection
+    n_run = 0
+    n_failed = 0
+    for due_automation in due_automations:
+        automation = due_automation.automation
+        # Guard the canonical run, including catch-ups and repeated wall times.
+        guard_key = (
+            f"automation-run:{automation.id}:{due_automation.scheduled_at.isoformat()}"
+        )
+        if not connection.set(guard_key, 1, nx=True, ex=120):
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') was already attempted for {due_automation.scheduled_at}. "
+                "Skipping to avoid duplicate jobs.",
+                **MsgStyle.WARN,
+            )
+            continue
+        if not claim_due_automation(due_automation):
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') run {due_automation.scheduled_at} was already claimed. Skipping to avoid duplicate jobs.",
+                **MsgStyle.WARN,
+            )
+            continue
+        try:
+            returns = run_automation(automation)
+            n_jobs = returns.get("n_jobs") if returns else 0
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+                **MsgStyle.SUCCESS,
+            )
+            n_run += 1
+        except Exception as e:
+            db.session.rollback()
+            # Queueing a multi-cycle forecast is not transactional. Keep the guard
+            # because this attempt may have queued some jobs before failing.
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
+                **MsgStyle.ERROR,
+            )
+            n_failed += 1
+    if n_failed:
+        click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
+        raise click.exceptions.Exit(1)
+
+
+@fm_jobs.command("run-automation")
+@with_appcontext
+@click.option(
+    "--automation",
+    "automation",
+    type=AutomationIdField(),
+    required=True,
+    help="ID of the automation to run.",
+)
+def run_one_automation(automation: Automation):
+    """
+    Queue the jobs for a single run of one automation, now.
+
+    \b
+        flexmeasures jobs run-automation --automation 4
+
+    Use this to try out a new automation, to re-run one after fixing what made it fail,
+    or to refresh its results after late input data arrived.
+    The automation runs with the parameters it was created with,
+    and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+
+    This does not affect the automation's recurrence: its cursor stays where it was,
+    so the next recurring run still happens as scheduled (see `flexmeasures jobs run-automations`).
+    Inactive automations can be run this way, too, which is how you can try one out before activating it.
+    """
+    try:
+        returns = run_automation(automation)
+    except (NotImplementedError, ValueError, ValidationError) as e:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if not returns or returns.get("job_id") is None:
+        db.session.rollback()
+        click.secho(
+            f"Automation {automation.id} ('{automation.name}') did not queue any job.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    n_jobs = returns.get("n_jobs")
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Triggered a run of automation '{automation.name}' ({automation.id}) via CLI.",
+    )
+    db.session.commit()
+    click.secho(
+        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_jobs.command("stats")
@@ -275,15 +410,30 @@ def _estimate_service_time(
 )
 def run_job(job_id: str):
     """
-    Run a single job.
+    Run a single job, on the queue it was enqueued to.
 
     We use the app context to find out which redis queues to use.
+    The job is performed once, by a worker on the job's own queue,
+    so that the queue's exception handler applies and the job's registries are updated on that same queue.
     """
-    connection = app.queues["scheduling"].connection
-    job = Job.fetch(job_id, connection=connection)
-    work_on_rq(app.queues["scheduling"], exc_handler=handle_worker_exception, job=job)
-    result = job.perform()
-    click.echo(f"Job {job_id} finished with: {result}")
+    try:
+        job = Job.fetch(job_id, connection=app.redis_connection)
+    except NoSuchJobError:
+        click.secho(f"Job {job_id} not found.", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    try:
+        queue = parse_queue_list(job.origin)[0]
+    except ValueError as e:
+        click.secho(
+            f"{e} Job {job_id} belongs to a queue that FlexMeasures is not configured with. Available queues: {join_words_into_a_list(list(app.queues.keys()))}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    # The worker performs the job, records its outcome and hands failures to the queue's exception handler.
+    work_on_rq(queue, exc_handler=get_exception_handler(job.origin), job=job)
+    click.echo(f"Job {job_id} finished with: {job.return_value(refresh=True)}")
 
 
 @fm_jobs.command("inspect-job")
@@ -356,7 +506,7 @@ def inspect_job(job_id: str):
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion' or 'forecasting|scheduling'.",
+    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion', 'reporting' or 'forecasting|scheduling'.",
 )
 @click.option(
     "--name",
@@ -375,7 +525,7 @@ def inspect_job(job_id: str):
 )
 def run_worker(queue: str, name: str | None, with_scheduler: bool):
     """
-    Start a worker process for forecasting, scheduling and/or ingestion jobs.
+    Start a worker process for forecasting, scheduling, ingestion and/or reporting jobs.
 
     We use the app context to find out which redis queues to use.
     """
@@ -398,11 +548,7 @@ def run_worker(queue: str, name: str | None, with_scheduler: bool):
     while used_name in worker_names:
         used_name = f"{name}-{next(name_suffixes)}"
 
-    error_handler = handle_worker_exception
-    if queue == "scheduling":
-        error_handler = handle_scheduling_exception
-    elif queue == "forecasting":
-        error_handler = handle_forecasting_exception
+    error_handler = get_exception_handler(queue)
 
     # On macOS: RQ's fork-based Worker triggers a known OpenSSL/psycopg2
     # segmentation fault due to reinitialization of SSL state in forked children.
@@ -733,6 +879,17 @@ def handle_worker_exception(
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
     job.meta["exception"] = str(exc_value)  # meta must contain JSON serializable data
     job.save_meta()
+
+
+def get_exception_handler(queue_name: str) -> Callable:
+    """Look up the exception handler to use for jobs on a given queue.
+
+    Queues without a handler of their own fall back to the generic handler.
+
+    :param queue_name: the name of a single queue, e.g. 'forecasting'.
+    :returns:          an RQ exception handler.
+    """
+    return QUEUE_EXCEPTION_HANDLERS.get(queue_name, handle_worker_exception)
 
 
 def parse_queue_list(queue_names_str: str) -> list[Queue]:

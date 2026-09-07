@@ -5,7 +5,6 @@ import pytz
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.tests.utils import get_test_sensor
 
-
 tz = pytz.timezone("Europe/Amsterdam")
 start = tz.localize(datetime(2015, 1, 2))
 end = tz.localize(datetime(2015, 1, 3))

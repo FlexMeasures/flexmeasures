@@ -88,3 +88,6 @@ After the database is initialized, create the host account and first admin user:
    $ flexmeasures add user --username <admin-username> --email <admin-email-address> --account <host-account-id> --roles admin
 
 The account command prints the new account ID. Use that ID as ``<host-account-id>`` when creating the admin user.
+
+.. note:: What an account may ask of the server can be set per account, by putting it on a plan.
+          See :ref:`plans-and-rate-limiting`.

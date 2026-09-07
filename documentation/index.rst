@@ -175,6 +175,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     features/scheduling
     features/forecasting
     features/reporting
+    features/automations
 
 .. toctree::
     :caption: Tutorials
@@ -189,6 +190,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/multi-commodity
     tut/toy-example-process
     tut/toy-example-reporter
+    tut/toy-example-group-constraints
     tut/posting_data
     tut/forecasting_scheduling
     tut/building_uis
@@ -200,6 +202,8 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
     concepts/flexibility
     concepts/data-model
+    concepts/time-series-and-beliefs
+    concepts/flexibility-configuration
     concepts/security_auth
     concepts/commitments
     concepts/device_scheduler
@@ -243,6 +247,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/data
     host/deployment
     host/multi-tenancy
+    host/plans
     configuration
     host/white-labelling
     host/queues

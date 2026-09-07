@@ -11,7 +11,6 @@ import sqlalchemy as sa
 
 from datetime import timedelta
 
-
 # revision identifiers, used by Alembic.
 revision = "bddc5e9f72a3"
 down_revision = "02ddbbff29a7"

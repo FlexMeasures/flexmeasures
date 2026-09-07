@@ -134,7 +134,12 @@ def test_create_simultaneous_jobs(
 
     # Define expected costs based on resolution
     expected_total_cost = -3.2775
-    expected_ev_costs = 2.3125
+    # Aggregate (unscoped) commitment semantics (issue #2379): the sample commitment
+    # rewarding supply binds the site's *aggregate* flow, so it stays inactive while
+    # the site is net-consuming and does not bias the per-device dispatch. Under the
+    # earlier per-device binding it wrongly rewarded the battery's supply, shifting the
+    # EV/battery split (EV costs were €2.3125); the total cost is unchanged either way.
+    expected_ev_costs = 2.2375
     expected_battery_costs = expected_total_cost - expected_ev_costs
 
     # Check costs

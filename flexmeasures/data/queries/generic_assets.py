@@ -17,6 +17,27 @@ from flexmeasures.data.queries.utils import (
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 
+def asset_and_ancestor_ids(asset_id: int | None) -> list[int]:
+    """List the given asset and all of its ancestors, nearest first.
+
+    Walks up the tree one asset at a time, so keep the number of calls low on hot paths.
+    A cycle in the tree (which should not occur) stops the walk rather than looping forever.
+    """
+    asset_ids: list[int] = []
+    while asset_id is not None and asset_id not in asset_ids:
+        asset_ids.append(asset_id)
+        asset = db.session.get(GenericAsset, asset_id)
+        if asset is None:
+            break
+        asset_id = asset.parent_asset_id
+    return asset_ids
+
+
+def asset_is_in_subtree(root_asset_id: int, candidate_asset_id: int) -> bool:
+    """Return whether an asset is the given root or one of its descendants."""
+    return root_asset_id in asset_and_ancestor_ids(candidate_asset_id)
+
+
 def query_assets_by_type(
     type_names: list[str] | str,
     account_id: int | None = None,

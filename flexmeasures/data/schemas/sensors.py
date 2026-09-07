@@ -17,6 +17,7 @@ from marshmallow import (
     Schema,
     ValidationError,
     fields,
+    post_dump,
     post_load,
     pre_load,
     validates,
@@ -24,6 +25,7 @@ from marshmallow import (
 )
 import marshmallow.validate as validate
 from pandas.api.types import is_numeric_dtype
+from pint.errors import PintError
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
@@ -359,7 +361,17 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         return value.id
 
 
+SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
+    {"source-types", "exclude-source-types", "sources", "source-account"}
+)
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
+    _UNSUPPORTED_VALUE_TYPE_MESSAGE = (
+        "Unsupported value type. `{value_type}` was provided but only dict, list, "
+        "str, pint Quantity, tuple, and numeric values with a default source unit are supported."
+    )
+
     def __init__(
         self,
         to_unit,
@@ -429,25 +441,51 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: dict[str, int] | list[dict] | str, attr, data, **kwargs
-    ) -> Sensor | list[dict] | ur.Quantity:
+        self,
+        value: (
+            dict[str, Any]
+            | list[dict]
+            | str
+            | ur.Quantity
+            | tuple[Any, ...]
+            | numbers.Real
+        ),
+        attr,
+        data,
+        **kwargs,
+    ) -> Sensor | SensorReference | list[dict] | ur.Quantity:
 
         if isinstance(value, dict):
-            return self._deserialize_dict(value)
+            return self._deserialize_dict(value, attr, data, **kwargs)
         elif isinstance(value, list):
             return self._deserialize_list(value)
         elif isinstance(value, str):
             return self._deserialize_str(value)
+        elif isinstance(value, ur.Quantity):
+            return value.to(self.to_unit)
+        elif isinstance(value, tuple):
+            try:
+                return ur.Quantity.from_tuple(value).to(self.to_unit)
+            except (PintError, TypeError, ValueError, AttributeError, IndexError):
+                if (
+                    len(value) == 1
+                    and isinstance(value[0], numbers.Real)
+                    and self.default_src_unit is not None
+                ):
+                    return self._deserialize_numeric(value[0], attr, data, **kwargs)
+                if len(value) == 2:
+                    return self._deserialize_str(f"{value[0]} {value[1]}")
+                raise FMValidationError(
+                    self._UNSUPPORTED_VALUE_TYPE_MESSAGE.format(value_type=type(value))
+                )
         elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
             return self._deserialize_numeric(value, attr, data, **kwargs)
         else:
             raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
+                self._UNSUPPORTED_VALUE_TYPE_MESSAGE.format(value_type=type(value))
             )
 
-    _SOURCE_FILTER_KEYS = frozenset(
-        {"source-types", "exclude-source-types", "sources", "source-account"}
-    )
+    _SOURCE_FILTER_KEYS = SENSOR_REFERENCE_SOURCE_FILTER_KEYS
 
     def _deserialize_source_filters(self, value: dict[str, Any]) -> tuple[
         list[str] | None,
@@ -501,13 +539,15 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
         return source_types, exclude_source_types, sources, source_account
 
-    def _deserialize_dict(self, value: dict[str, Any]) -> Sensor | SensorReference:
+    def _deserialize_dict(
+        self, value: dict[str, Any], attr, data, **kwargs
+    ) -> Sensor | SensorReference:
         """Deserialize a sensor reference to a Sensor or SensorReference.
 
-        Returns a plain :class:`Sensor` when no source filter keys are present
-        (backward compatible), and a :class:`SensorReference` when any of
-        ``source-types``, ``exclude-source-types``, ``sources``, or
-        ``source-account`` are provided.
+        Returns a plain :class:`Sensor` when no source filter or default keys are
+        present (backward compatible), and a :class:`SensorReference` when any of
+        ``source-types``, ``exclude-source-types``, ``sources``, ``source-account``
+        or ``default`` are provided.
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
@@ -527,8 +567,12 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 unit=self.to_unit if not self.to_unit.startswith("/") else None
             ).deserialize(value["sensor"], None, None)
 
-        # If source filter keys are present, return a SensorReference instead of a plain Sensor.
-        if self._SOURCE_FILTER_KEYS.isdisjoint(value.keys()):
+        default = None
+        if "default" in value:
+            default = self._deserialize_default(value["default"], attr, data, **kwargs)
+
+        # If no source filter or default keys are present, keep returning a plain Sensor.
+        if self._SOURCE_FILTER_KEYS.isdisjoint(value.keys()) and default is None:
             return sensor  # backward compat: no filters → plain Sensor
 
         source_types, exclude_source_types, sources, source_account = (
@@ -540,7 +584,22 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             exclude_source_types=exclude_source_types,
             sources=sources,
             source_account=source_account,
+            default=default,
         )
+
+    def _deserialize_default(self, value, attr, data, **kwargs) -> ur.Quantity:
+        """Deserialize a sensor reference fallback value."""
+        if isinstance(value, str):
+            default = self._deserialize_str(value)
+        elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
+            default = self._deserialize_numeric(value, attr, data, **kwargs)
+        else:
+            raise FMValidationError(
+                "Sensor reference `default` must be a quantity string or a numeric value with a known default source unit."
+            )
+        if self.value_validator is not None:
+            self.value_validator(default)
+        return default
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:
         """Deserialize a time series to a list of timed events."""
@@ -593,6 +652,15 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 sensor_reference["source-account"] = [
                     account.id for account in value.source_account
                 ]
+            if value.default is not None:
+                # `default` was already resolved to a concrete, compatible unit at
+                # deserialization time (see _deserialize_default), so for a
+                # denominator-only to_unit (e.g. "/MWh", not a valid pint unit on
+                # its own) there is nothing left to convert to.
+                if self.to_unit.startswith("/"):
+                    sensor_reference["default"] = str(value.default)
+                else:
+                    sensor_reference["default"] = str(value.default.to(self.to_unit))
             return sensor_reference
         elif isinstance(value, Sensor):
             return dict(sensor=value.id)
@@ -960,13 +1028,13 @@ class QuantitySchema(Schema):
 
 @dataclass
 class SensorReference:
-    """A sensor reference that wraps a Sensor with optional source filters for belief queries.
+    """A sensor reference that wraps a Sensor with optional query settings.
 
     Exposes the same ``unit``, ``id``, and ``event_resolution`` properties as a plain
     :class:`~flexmeasures.data.models.time_series.Sensor`, so code that reads those
-    properties works without modification. The source filters are passed through to
-    :meth:`TimedBelief.search <flexmeasures.data.models.time_series.TimedBelief.search>`
-    in :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
+    properties works without modification. The source filters and optional default
+    value are passed through to
+    :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
     """
 
     sensor: Sensor
@@ -974,6 +1042,7 @@ class SensorReference:
     exclude_source_types: list[str] | None = field(default=None)
     sources: list[DataSource] | None = field(default=None)
     source_account: list[Account] | None = field(default=None)
+    default: ur.Quantity | None = field(default=None)
 
     @property
     def unit(self) -> str:
@@ -1008,7 +1077,7 @@ class OutputSensorReferenceSchema(SharedSensorReferenceSchema):
 
 
 class SensorReferenceSchema(SharedSensorReferenceSchema):
-    """Sensor reference with optional source filters."""
+    """Sensor reference with optional source filters and fallback value."""
 
     class Meta:
         description = "Sensor reference from which to look up a variable quantity."
@@ -1044,6 +1113,96 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
             description="Only use beliefs from data sources linked to these account IDs.",
         ),
     )
+    default = fields.String(
+        required=False,
+        allow_none=False,
+        metadata=dict(
+            description="Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
+            example="0 kWh",
+        ),
+    )
+
+    @post_dump
+    def remove_unset_default(self, data: dict, **kwargs) -> dict:
+        """Leave out `default` entirely when the reference does not define one.
+
+        Without this, references that set no fallback would serialize a
+        `default: None` key, which is not valid input on the way back in.
+        """
+        if data.get("default") is None:
+            data.pop("default", None)
+        return data
+
+
+class InflexibleDeviceSchema(SensorReferenceSchema):
+    """One inflexible device: a sensor reference with optional source filters.
+
+    Used both in the flex-context (as a list, for site-level inflexible load),
+    and in a flex-model entry (as a single reference, when an inflexible device is modelled as its own asset).
+    Deserializes to a plain :class:`Sensor` when no source filters are given (a backward-compatible shape downstream),
+    and to a :class:`SensorReference` otherwise.
+    """
+
+    class Meta:
+        description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @post_load
+    def to_sensor_or_reference(
+        self, data: dict, **kwargs
+    ) -> "Sensor | SensorReference":
+        if not any(
+            data.get(key)
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            return data["sensor"]
+        return SensorReference(
+            sensor=data["sensor"],
+            source_types=data.get("source_types"),
+            exclude_source_types=data.get("exclude_source_types"),
+            sources=data.get("sources"),
+            source_account=data.get("source_account"),
+        )
+
+
+class SensorIdOrReferenceField(fields.Raw):
+    """Field accepting either a sensor ID or a source-filtered sensor reference."""
+
+    def __init__(self, *args, **kwargs):
+        metadata = dict(kwargs.pop("metadata", {}))
+        metadata.setdefault(
+            "oneOf",
+            [
+                {"type": "integer"},
+                {"$ref": "#/components/schemas/SensorReference"},
+            ],
+        )
+        kwargs["metadata"] = metadata
+        super().__init__(*args, **kwargs)
+        self.sensor_id_field = SensorIdField()
+        self.sensor_reference_schema = SensorReferenceSchema()
+
+    def _deserialize(
+        self, value: Any, attr, data, **kwargs
+    ) -> Sensor | SensorReference:
+        if not isinstance(value, dict):
+            return self.sensor_id_field.deserialize(value, attr, data, **kwargs)
+
+        sensor_reference = self.sensor_reference_schema.load(value)
+        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value):
+            return sensor_reference["sensor"]
+        return SensorReference(**sensor_reference)
+
+    def _serialize(
+        self, value: Sensor | SensorReference, attr, obj, **kwargs
+    ) -> int | dict[str, Any]:
+        if isinstance(value, SensorReference):
+            return self.sensor_reference_schema.dump(value)
+        return self.sensor_id_field._serialize(value, attr, obj, **kwargs)
 
 
 class TimeSeriesSchema(Schema):
@@ -1053,9 +1212,21 @@ class TimeSeriesSchema(Schema):
         fields.Dict,
         required=True,
         metadata=dict(
-            description="Time series specification containing a list of segments that together describe a variable quantity.",
+            description=(
+                "Time series specification containing a list of segments that together "
+                "describe a variable quantity. Each segment may specify either "
+                "`datetime`, `start` and `end`, `start` and `duration`, or `end` and "
+                "`duration`."
+            ),
             example=[
-                {"value": "23 kW", "start": "2025-11-20T15:15+01", "duration": "PT1H"}
+                {"value": "23 kW", "datetime": "2025-11-20T15:15+01"},
+                {
+                    "value": "24 kW",
+                    "start": "2025-11-20T16:00+01",
+                    "end": "2025-11-20T17:00+01",
+                },
+                {"value": "25 kW", "start": "2025-11-20T17:00+01", "duration": "PT1H"},
+                {"value": "26 kW", "end": "2025-11-20T19:00+01", "duration": "PT1H"},
             ],
         ),
     )

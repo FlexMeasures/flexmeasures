@@ -319,13 +319,51 @@ def test_post_sensor_data_returns_accepted_job(
 
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
-    assert response.json["job_monitor_url"] == url_for(
-        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    assert response.json["job-url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job"]
     )
-    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["sensor_data"] == post_data
     assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_is_synchronous_for_legacy_client(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.1"},
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.0"},
+    )
+    current_app.queues["ingestion"].empty()
+    sensor = setup_api_test_data["some gas sensor"]
+    post_data = make_sensor_data_request_for_gas_sensor()
+    post_data["start"] = "2021-06-10T00:00:00+02:00"
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "PROCESSED"
+    assert current_app.queues["ingestion"].count == 0
 
 
 @pytest.mark.parametrize(

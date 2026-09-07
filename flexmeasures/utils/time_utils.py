@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from flask_security.core import current_user
 from humanize import naturaldate, naturaltime
+import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import pytz
@@ -430,3 +431,16 @@ def to_utc_timestamp(value):
 
     # Return Unix timestamp (seconds since epoch)
     return value.timestamp()
+
+
+def truncated_integer_epochs(ns: np.ndarray, divisor: int) -> np.ndarray:
+    """Convert int64 nanosecond values to integer epoch units (ns / divisor),
+    truncating toward zero.
+
+    Note that floor division would round negative values with a remainder
+    (e.g. a belief horizon of -0.5s) away from zero instead, unlike
+    int(td.total_seconds()).
+    """
+    quotients, remainders = np.divmod(ns, divisor)
+    quotients[(remainders != 0) & (ns < 0)] += 1
+    return quotients

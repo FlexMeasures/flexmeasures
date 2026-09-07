@@ -54,6 +54,49 @@ def test_sensor_page_loads(db, client, setup_assets, as_prosumer_user1):
     assert sensor.name.encode() in response.data
 
 
+def test_sensor_page_preselects_source(db, client, setup_assets, as_prosumer_user1):
+    """The source query parameter is passed on to the page, for the statistics panel."""
+    sensor = _get_prosumer_sensor(db)
+    response = client.get(
+        url_for("SensorUI:get", id=sensor.id, source=42), follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b'data-preselected-source-id="42"' in response.data
+
+
+def test_sensor_page_lists_feeding_automations(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """Automations that write data to the sensor are listed on its page."""
+    from flexmeasures.data.models.automations import Automation
+
+    sensor = _get_prosumer_sensor(db)
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
+    assert b"Bihourly forecasts" not in response.data
+
+    with (
+        patch(
+            "flexmeasures.ui.views.sensors.get_automations_feeding_sensor",
+            return_value=[
+                Automation(
+                    id=1,
+                    asset_id=sensor.generic_asset_id,
+                    name="Bihourly forecasts",
+                    cronstr="0 */2 * * *",
+                    active=True,
+                )
+            ],
+        ),
+        patch("flexmeasures.ui.views.sensors.user_can_read", return_value=True),
+    ):
+        response = client.get(
+            url_for("SensorUI:get", id=sensor.id), follow_redirects=True
+        )
+    assert response.status_code == 200
+    assert b"Bihourly forecasts" in response.data
+    assert b"Every 2 hours" in response.data
+
+
 def test_sensor_page_requires_login(client, setup_assets):
     """Unauthenticated requests are redirected to the login page."""
     response = client.get(url_for("SensorUI:get", id=1), follow_redirects=True)

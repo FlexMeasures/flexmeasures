@@ -29,6 +29,7 @@ Find an optimized schedule for your flexible asset, like a battery, with standar
 2. Automate
 ^^^^^^^^^^^^^^^^^^^
 
+Turn spreadsheet or export-script data into a repeatable pipeline with :ref:`tut_posting_data`.
 Get the prices from an open API, for instance `ENTSO-E <https://transparency.entsoe.eu/>`_ (using a plugin like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_), and run the scheduler regularly in a cron job. Do more, like automating forecasts, too. And for scale, copy your successfully-tested asset programmatically (or in the UI), to set up new customers quickly, e.g. as you are servicing the same kind of site often.
 
 3. Integrate
@@ -89,4 +90,3 @@ Core developers
 ^^^^^^^^^^^^^^^^
 
 You want to help develop FlexMeasures, e.g. to fix a bug. We provide a getting-started guide to becoming a developer at :ref:`developing`.
-

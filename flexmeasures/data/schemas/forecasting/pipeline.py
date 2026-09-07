@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import numbers
 import os
 
@@ -13,11 +12,14 @@ from marshmallow import (
     validate,
     validates_schema,
     pre_load,
+    pre_dump,
     post_load,
+    post_dump,
     ValidationError,
 )
 
 from flexmeasures.data.schemas import SensorIdField
+from flexmeasures.data.schemas.sensors import SensorIdOrReferenceField
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
@@ -25,8 +27,25 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.data.schemas.account import AccountIdField
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import ur
+
+DEFAULT_TRAIN_PERIOD = timedelta(days=30)
+
+
+def _fixed_length_or_none(value) -> timedelta | None:
+    """Return a duration as a timedelta, or None when it is not one of fixed length.
+
+    A duration given in years or months parses to a Duration rather than a timedelta,
+    and the two cannot be compared, so anything that compares durations has to know which it has.
+    """
+    try:
+        parsed = DurationField().deserialize(value)
+    except ValidationError:
+        return None
+    return parsed if isinstance(parsed, timedelta) else None
 
 
 def _is_parseable_quantity(value) -> bool:
@@ -42,51 +61,155 @@ def _is_parseable_quantity(value) -> bool:
     return True
 
 
+class AnnotationRegressorSchema(Schema):
+    """Schema for a single annotation regressor in the forecasting pipeline config."""
+
+    account = AccountIdField(
+        allow_none=True,
+        metadata={"description": "Account ID whose annotations to use."},
+    )
+    asset = GenericAssetIdField(
+        allow_none=True,
+        metadata={"description": "Asset ID whose annotations to use."},
+    )
+    sensor = SensorIdField(
+        allow_none=True,
+        metadata={"description": "Sensor ID whose annotations to use."},
+    )
+    annotation_type = fields.Str(
+        data_key="annotation-type",
+        load_default="holiday",
+        metadata={
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+        },
+    )
+    name = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+        },
+    )
+
+    @post_dump
+    def remove_none_values(self, data, **kwargs):
+        """Omit null fields from the serialised config to keep it clean."""
+        return {k: v for k, v in data.items() if v is not None}
+
+    @pre_dump
+    def skip_empty_sources(self, data, **kwargs):
+        """Omit empty sources before custom ID fields serialise objects."""
+        return {k: v for k, v in data.items() if v is not None}
+
+    @validates_schema
+    def validate_single_source(self, data: dict, **kwargs):
+        sources = [
+            source_key
+            for source_key in ("account", "asset", "sensor")
+            if data.get(source_key) is not None
+        ]
+        if len(sources) != 1:
+            raise ValidationError("Specify exactly one of account, asset, or sensor.")
+
+
 class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        SensorIdField(),
+        SensorIdOrReferenceField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs to be treated only as future regressors."
+                "Sensor IDs or source-filtered sensor references to be treated only as future regressors."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
-            "example": [2093, 2094],
+            "example": [
+                {"sensor": 2093, "sources": [12, 13]},
+                {"sensor": 2094, "source-types": ["forecaster"]},
+            ],
             "cli": {
                 "option": "--future-regressors",
             },
         },
     )
     past_regressors = fields.List(
-        SensorIdField(),
+        SensorIdOrReferenceField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs to be treated only as past regressors."
+                "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
-            "example": [2095],
+            "example": [{"sensor": 2095, "exclude-source-types": ["forecaster"]}],
             "cli": {
                 "option": "--past-regressors",
             },
         },
     )
     regressors = fields.List(
-        SensorIdField(),
+        SensorIdOrReferenceField(),
         data_key="regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs used as both past and future regressors."
+                "Sensor IDs or source-filtered sensor references used as both past and future regressors."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
-            "example": [2093, 2094, 2095],
+            "example": [
+                {"sensor": 2093, "sources": [12, 13]},
+                {"sensor": 2094, "source-account": [4]},
+            ],
             "cli": {
                 "option": "--regressors",
+            },
+        },
+    )
+    annotation_regressors = fields.List(
+        fields.Nested(AnnotationRegressorSchema()),
+        data_key="annotation-regressors",
+        load_default=[],
+        metadata={
+            "description": (
+                "Annotation sources to use as binary future regressors. "
+                "Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally "
+                "'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). "
+                "Annotations are converted to a binary 0/1 time series: 1 during annotated periods."
+            ),
+            "example": [
+                {"account": 1, "annotation-type": "holiday", "name": "holidays"}
+            ],
+            "cli": {
+                "option": "--annotation-regressors",
+            },
+        },
+    )
+    model_params = fields.Dict(
+        keys=fields.Str(),
+        data_key="model-params",
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": (
+                "LightGBM parameter overrides, merged over the defaults. Only the keys"
+                " you pass are changed. These are handed to Darts' LightGBMModel, so"
+                " besides LightGBM's own parameters (e.g. 'max_depth',"
+                " 'min_child_samples', 'min_data_per_group') this also reaches"
+                " 'add_encoders' and 'categorical_future_covariates'. Note that 'lags',"
+                " 'lags_future_covariates' and 'output_chunk_shift' are derived per"
+                " forecast horizon and cannot be overridden here."
+            ),
+            "example": {"max_depth": 6, "min_child_samples": 10},
+            "cli": {
+                "option": "--model-params",
+                "extra_help": "Pass as JSON, e.g. '{\"max_depth\": 6}'.",
+                "cli-exclusive": True,
             },
         },
     )
@@ -158,27 +281,19 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
     train_period = DurationField(
         data_key="train-period",
-        load_default=timedelta(days=30),
+        load_default=DEFAULT_TRAIN_PERIOD,
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from train_start and start if not set or defaults to P30D (30 days).",
+            "description": (
+                "How much history to train on (ISO 8601 format, min 2 days). Defaults to P30D (30 days). "
+                "Together with train-start this bounds the training window: training starts no earlier than train-start, and spans no more than train-period, so whichever of the two asks for less data decides. "
+                "max-training-period said the same thing, and is still accepted as a deprecated alias."
+            ),
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
                 "option": "--train-period",
-            },
-        },
-    )
-    max_training_period = DurationField(
-        data_key="max-training-period",
-        load_default=timedelta(days=365),
-        allow_none=True,
-        metadata={
-            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
-            "example": "P1Y",
-            "cli": {
-                "cli-exclusive": True,
-                "option": "--max-training-period",
+                "aliases": ["--max-training-period"],
             },
         },
     )
@@ -196,6 +311,36 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
 
+    @pre_load
+    def fold_in_max_training_period(self, data, **kwargs):
+        """Read the deprecated max-training-period as the train-period it always was.
+
+        Both said how far back training may reach, so a config carrying both asks twice,
+        and the shorter of the two is all that either of them allows.
+        Folding it in here keeps configs written before the two were merged working, without keeping the merged name in the schema.
+        """
+        if not isinstance(data, dict) or "max-training-period" not in data:
+            return data
+        data = dict(data)
+        deprecated = data.pop("max-training-period")
+        if deprecated is None:
+            return data
+        stated = data.get("train-period")
+        if stated is None:
+            data["train-period"] = deprecated
+            return data
+        stated_length = _fixed_length_or_none(stated)
+        deprecated_length = _fixed_length_or_none(deprecated)
+        if stated_length is None or deprecated_length is None:
+            # One of them is malformed, or is a length that varies, such as a year.
+            # Hand that one to the field, which says what is wrong with it, rather than quietly going with the other.
+            data["train-period"] = stated if stated_length is None else deprecated
+            return data
+        data["train-period"] = (
+            stated if stated_length <= deprecated_length else deprecated
+        )
+        return data
+
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         if data["retrain_frequency"] < timedelta(hours=1):
@@ -205,20 +350,20 @@ class TrainPredictPipelineConfigSchema(Schema):
             )
 
         train_period = data.get("train_period")
-        max_training_period = data.get("max_training_period")
+
+        # Say this first: a Duration cannot be compared to a timedelta, so any check below it would raise a TypeError rather than report the problem.
+        if isinstance(train_period, Duration):
+            # DurationField only returns Duration when years/months are present
+            raise ValidationError(
+                "train-period must be specified using days or smaller units "
+                "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="train_period",
+            )
 
         if train_period is not None and train_period < timedelta(days=2):
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
-            )
-
-        if isinstance(max_training_period, Duration):
-            # DurationField only returns Duration when years/months are present
-            raise ValidationError(
-                "max-training-period must be specified using days or smaller units "
-                "(e.g. P365D, PT48H). Years and months are not supported.",
-                field_name="max_training_period",
             )
 
     @validates_schema
@@ -255,23 +400,23 @@ class TrainPredictPipelineConfigSchema(Schema):
         past_and_future_regressors = data.pop("regressors", [])
 
         if past_and_future_regressors:
-            future_regressors = list(
-                set(future_regressors + past_and_future_regressors)
-            )
-            past_regressors = list(set(past_regressors + past_and_future_regressors))
+            future_regressors = future_regressors + [
+                regressor
+                for regressor in past_and_future_regressors
+                if regressor not in future_regressors
+            ]
+            past_regressors = past_regressors + [
+                regressor
+                for regressor in past_and_future_regressors
+                if regressor not in past_regressors
+            ]
 
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
 
-        train_period_in_hours = data["train_period"] // timedelta(hours=1)
-        max_training_period = data["max_training_period"]
-        if train_period_in_hours > max_training_period // timedelta(hours=1):
-            train_period_in_hours = max_training_period // timedelta(hours=1)
-            logging.warning(
-                f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
-            )
-
-        data["train_period_in_hours"] = train_period_in_hours
+        # A null train-period asks for no limit of its own, which leaves the default to say how much history to use.
+        train_period = data.get("train_period") or DEFAULT_TRAIN_PERIOD
+        data["train_period_in_hours"] = train_period // timedelta(hours=1)
         return data
 
 
@@ -360,7 +505,7 @@ class ForecasterParametersSchema(Schema):
         format="iso",
         data_key="prior",
         metadata={
-            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). "
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time). "
             "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
             "example": "2026-01-15T10:00+01:00",
             "cli": {
@@ -414,6 +559,18 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
             "cli": {
                 "option": "--sensor-to-save",
+            },
+        },
+    )
+    dry_run = fields.Bool(
+        data_key="dry-run",
+        load_default=False,
+        metadata={
+            "description": "Add this flag to avoid saving the results to the database.",
+            "cli": {
+                "cli-exclusive": True,
+                "is_flag": True,
+                "option": "--dry-run",
             },
         },
     )
@@ -588,6 +745,7 @@ class ForecasterParametersSchema(Schema):
             save_belief_time=save_belief_time,
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
+            dry_run=data.get("dry_run", False),
         )
         if "config" in data:
             result["config"] = data["config"]

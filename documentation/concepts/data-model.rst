@@ -79,7 +79,7 @@ A data source can be a FlexMeasures user, but also simply a named source from ou
 In FlexMeasures, data sources have a type. It is just a string which you can freely choose (we do not model them explicitly im the data model like Asset types).
 We do support some types out of the box: "scheduler", "forecaster" "reporter", "demo script" and "user".
 
-.. _beliefs:
+.. _beliefs_in_data_model:
 
 Beliefs
 ---------
@@ -87,10 +87,15 @@ Beliefs
 When we discussed sensors, we hinted at the care we took to model the event data well. We call each data point a "belief", as we not only store measurements ―
 we also store forecasts, schedules and the like, many of which do not have a 100% truth value.
 
-For instance, a horizon of 0 means the data point was known right after it happened. A positive horizon means the data point is a forecast.
+For a physical event, a horizon of 0 means the data point was known when the
+event ended. A positive horizon means the data point was known in advance, and
+a negative horizon means it was recorded after the event.
 
 The `timely-beliefs package <https://github.com/SeitaBV/timely-beliefs>`_ helps us to model many aspects about data points, e.g. who claims to know that value,
 when they said so and how certain they were. 
+
+See :ref:`beliefs` for a detailed explanation of event time, belief time,
+belief horizon, and the filters used to retrieve historical beliefs.
 
 Each belief links to a sensor and a data source. Here are two examples:
 
@@ -98,6 +103,32 @@ Each belief links to a sensor and a data source. Here are two examples:
 - A thermal demand sensor containing forecasts (data source of type "forecast", e.g. heating usage forecast sent to FlexMeasures or made by FlexMeasures) and measurements (sent into FlexMeasures, data source type "user").
 
 See also :ref:`one_or_multiple_sensors` for guidance on when such beliefs are best recorded on one shared sensor and when separate sensors are preferable.
+
+
+.. _projecting_scheduling_constraints:
+
+Projecting scheduling constraints to a fixed resolution
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Schedulers operate on a fixed scheduling resolution, such as 15 minutes.
+This means the optimization problem can enforce state-of-charge constraints only on the scheduling ticks implied by that resolution.
+When a storage flex-model contains point-like ``soc-targets``, ``soc-minima`` or ``soc-maxima`` between two scheduling ticks, FlexMeasures projects those constraints onto the surrounding ticks instead of simply flooring them.
+
+For an off-tick ``soc-target``, the target value is moved to the next scheduling tick as an exact target.
+The previous tick receives lower and upper bounds that reflect how much the asset could still charge or discharge between the previous tick and the original target time.
+For off-tick ``soc-minima``, both surrounding ticks receive lower bounds that preserve whether the requested minimum can still be reached.
+For off-tick ``soc-maxima``, both surrounding ticks receive upper bounds with the same reachability logic.
+
+The projection uses the ``consumption-capacity`` and ``production-capacity`` active at the relevant ticks.
+If multiple projected lower bounds land on the same tick, the highest lower bound is kept.
+If multiple projected upper bounds land on the same tick, the lowest upper bound is kept.
+Because projection can introduce additional bounds and more complex combinations can become infeasible, FlexMeasures enables ``relax-soc-constraints`` automatically when off-tick SoC constraints are submitted (unless it was explicitly set to ``False``, which is respected with a logged warning).
+When relaxation is enabled purely because of off-tick projection (rather than by the flex-context settings), the softening is scoped to the devices that actually use off-tick SoC constraints; other devices keep their hard SoC constraints.
+
+The starting state of charge is projected as well: when ``soc-at-start`` is resolved from the ``state-of-charge`` field and the underlying measurement was taken at an off-tick time within the first scheduling interval, the SoC is assumed to hold until that time, and the next scheduling tick receives bounds reflecting how much the device can still (dis)charge after it.
+
+Projection can be disabled per sensor by setting the ``floor_datetimes_to_resolution`` sensor attribute to ``False``.
+In that case, off-tick point-like SoC constraints cannot be enforced on the scheduling ticks and are disregarded (with a logged warning).
 
 
 .. _signs_of_power_beliefs:
@@ -131,6 +162,11 @@ For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) reco
   The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``True``.
 - If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
   The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``False``.
+
+For scheduling *inputs*, the sign convention works the same way: the key name under which a sensor is referenced tells the scheduler how to read its data.
+For example, sensors listed under the flex-context's ``inflexible-consumption`` field are read with consumption as positive values, and sensors listed under ``inflexible-production`` are read with production as positive values.
+A sensor whose ``"consumption_is_positive"`` attribute explicitly contradicts the field it is listed under is rejected, to guard against accidental sign flips.
+(Sensors listed under the deprecated ``inflexible-device-sensors`` field are still read according to their ``"consumption_is_positive"`` attribute.)
 
 For guidance on when schedules should share a power sensor with measurements and forecasts, and when dedicated output sensors are preferable, see :ref:`one_or_multiple_sensors`.
 

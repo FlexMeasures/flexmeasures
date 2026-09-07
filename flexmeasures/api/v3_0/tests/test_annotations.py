@@ -616,10 +616,11 @@ def test_post_annotation_all_three_endpoints(client, setup_api_test_data):
     - Sensor annotation endpoint works
 
     All with the same user and similar data.
+    The user is an admin, because annotating an account requires the account-admin role, which the supplier user does not have.
     """
     from flexmeasures.api.tests.utils import get_auth_token
 
-    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
 
     # Get test entities
     supplier_account = find_user_by_email("test_supplier_user_4@seita.nl").account

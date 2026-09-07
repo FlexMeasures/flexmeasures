@@ -12,7 +12,6 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.api.common.responses import request_processed
 
-
 get_sensor_schema_ea = GetSensorDataSchemaEntityAddress()
 post_sensor_schema_ea = PostSensorDataSchemaEntityAddress()
 

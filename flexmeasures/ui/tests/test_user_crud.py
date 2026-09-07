@@ -2,7 +2,6 @@ from flask import url_for
 
 from flexmeasures.data.services.users import find_user_by_email
 
-
 """
 Testing if the UI crud views do auth checks and display answers.
 Actual logic is tested in the API tests.

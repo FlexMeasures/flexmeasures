@@ -21,5 +21,6 @@ Play
 In this mode, the server is assumed to be used to run simulations.
 
 - [UI] On the asset page, the ``sensors_to_show`` attribute can be used to show any sensor from any account, rather than only sensors from assets owned by the user's organization.
+- [API] The API is not rate-limited, as a simulation is expected to trigger scheduling and forecasting in a tight loop (see :ref:`plans-and-rate-limiting`). Note that this applies to the play mode only: a development server rate-limits like production does.
 
 .. note:: A former feature of play mode is now a separate config setting. To allow overwriting existing data when saving data to the database, use :ref:`overwrite-config`.

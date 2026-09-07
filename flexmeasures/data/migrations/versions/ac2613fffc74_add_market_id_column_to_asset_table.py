@@ -9,7 +9,6 @@ Create Date: 2018-10-23 15:49:36.312000
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = "ac2613fffc74"
 down_revision = "50cf294e007d"
@@ -22,11 +21,9 @@ def upgrade():
     op.create_foreign_key(
         "asset_market_id_market_fkey", "asset", "market", ["market_id"], ["id"]
     )
-    op.execute(
-        """
+    op.execute("""
         update asset set market_id = market.id from market where market.name = 'kpx_da';
-        """
-    )
+        """)
 
 
 def downgrade():

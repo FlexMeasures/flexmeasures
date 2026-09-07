@@ -32,7 +32,6 @@ from collections import defaultdict
 from alembic import op
 from sqlalchemy import text
 
-
 # revision identifiers, used by Alembic.
 revision = "a5b26c3f8e91"
 down_revision = "8b62f8129f34"

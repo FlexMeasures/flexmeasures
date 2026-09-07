@@ -12,7 +12,6 @@ from flexmeasures.data.models.data_sources import DataSource, DataGenerator
 from flexmeasures.data.models.user import is_user
 from flask import current_app as app
 
-
 DG = TypeVar("DG", bound=DataGenerator)
 
 

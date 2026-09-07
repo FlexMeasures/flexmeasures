@@ -111,7 +111,7 @@ class JobAPI(FlaskView):
                 type: string
           responses:
             200:
-              description: Job status retrieved successfully.
+              description: Finished job status retrieved successfully.
               content:
                 application/json:
                   schema:
@@ -144,31 +144,53 @@ class JobAPI(FlaskView):
                           The ``num-beliefs`` field holds the total number of
                           beliefs (scheduled values) saved to the database.
                         nullable: true
-                      func_name:
+                      func-name:
                         type: string
                         description: Fully-qualified name of the function executed by this job.
                       origin:
                         type: string
                         description: Name of the queue the job was placed on.
-                      enqueued_at:
+                      enqueued-at:
                         type: string
                         format: date-time
                         nullable: true
                         description: ISO-8601 timestamp of when the job was enqueued.
-                      started_at:
+                      started-at:
                         type: string
                         format: date-time
                         nullable: true
                         description: ISO-8601 timestamp of when the job started executing.
-                      ended_at:
+                      ended-at:
                         type: string
                         format: date-time
                         nullable: true
                         description: ISO-8601 timestamp of when the job finished executing.
-                      exc_info:
+                      exc-info:
                         type: string
                         nullable: true
                         description: Traceback information for failed jobs, or null otherwise.
+                      func_name:
+                        type: string
+                        description: Legacy alias of `func-name`, kept for backward compatibility. Prefer `func-name`.
+                      enqueued_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: Legacy alias of `enqueued-at`, kept for backward compatibility. Prefer `enqueued-at`.
+                      started_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: Legacy alias of `started-at`, kept for backward compatibility. Prefer `started-at`.
+                      ended_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: Legacy alias of `ended-at`, kept for backward compatibility. Prefer `ended-at`.
+                      exc_info:
+                        type: string
+                        nullable: true
+                        description: Legacy alias of `exc-info`, kept for backward compatibility. Prefer `exc-info`.
                   examples:
                     queued:
                       summary: Queued job
@@ -176,8 +198,13 @@ class JobAPI(FlaskView):
                         status: QUEUED
                         message: "Scheduling job waiting to be processed."
                         result: null
-                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        func-name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
+                        enqueued-at: "2026-04-28T10:00:00+00:00"
+                        started-at: null
+                        ended-at: null
+                        exc-info: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
                         enqueued_at: "2026-04-28T10:00:00+00:00"
                         started_at: null
                         ended_at: null
@@ -197,24 +224,28 @@ class JobAPI(FlaskView):
                                   violation: "180.0 kWh"
                           resolved: []
                           num-beliefs: 96
-                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        func-name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
-                        enqueued_at: "2026-04-28T10:00:00+00:00"
-                        started_at: "2026-04-28T10:00:01+00:00"
-                        ended_at: "2026-04-28T10:00:05+00:00"
-                        exc_info: null
+                        enqueued-at: "2026-04-28T10:00:00+00:00"
+                        started-at: "2026-04-28T10:00:01+00:00"
+                        ended-at: "2026-04-28T10:00:05+00:00"
+                        exc-info: null
                     failed:
                       summary: Failed job
                       value:
                         status: FAILED
                         message: "Scheduling job failed with ValueError: ..."
                         result: null
-                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        func-name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
-                        enqueued_at: "2026-04-28T10:00:00+00:00"
-                        started_at: "2026-04-28T10:00:01+00:00"
-                        ended_at: "2026-04-28T10:00:02+00:00"
-                        exc_info: "Traceback (most recent call last): ..."
+                        enqueued-at: "2026-04-28T10:00:00+00:00"
+                        started-at: "2026-04-28T10:00:01+00:00"
+                        ended-at: "2026-04-28T10:00:02+00:00"
+                        exc-info: "Traceback (most recent call last): ..."
+            202:
+              description: Job is still queued, scheduled, deferred, or running.
+            422:
+              description: Job has failed.
             404:
               description: NOT_FOUND
             401:
@@ -264,12 +295,24 @@ class JobAPI(FlaskView):
             status=status_name,
             message=job_status_description(job),
             result=result,
-            func_name=job.func_name,
             origin=job.origin,
-            enqueued_at=_isoformat_or_none(job.enqueued_at),
-            started_at=_isoformat_or_none(job.started_at),
-            ended_at=_isoformat_or_none(job.ended_at),
-            exc_info=failed_job_exc_info(job),
         )
+        response["func-name"] = job.func_name
+        response["enqueued-at"] = _isoformat_or_none(job.enqueued_at)
+        response["started-at"] = _isoformat_or_none(job.started_at)
+        response["ended-at"] = _isoformat_or_none(job.ended_at)
+        response["exc-info"] = failed_job_exc_info(job)
+        response["func_name"] = response["func-name"]
+        response["enqueued_at"] = response["enqueued-at"]
+        response["started_at"] = response["started-at"]
+        response["ended_at"] = response["ended-at"]
+        response["exc_info"] = response["exc-info"]
 
-        return response, 200
+        if status_name == JobStatus.FAILED.name:
+            status_code = 422
+        elif status_name == JobStatus.FINISHED.name:
+            status_code = 200
+        else:
+            status_code = 202
+
+        return response, status_code

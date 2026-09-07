@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 
 from marshmallow import ValidationError
@@ -7,6 +9,8 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
 
@@ -547,7 +551,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=30),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(hours=12),
                 "train-period-in-hours": 24 * 30,
             },
@@ -568,7 +571,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=3),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(days=2),
                 "train-period-in-hours": 24 * 3,
             },
@@ -589,7 +591,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=20),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(days=2),
                 "train-period-in-hours": 24 * 20,
             },
@@ -610,7 +611,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=30),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(days=3),
                 "train-period-in-hours": 24 * 30,
             },
@@ -645,6 +645,96 @@ def test_timing_parameters_of_forecaster_config_schema(
         assert data[snake_key] == v, f"{k} did not match expectations."
 
 
+@pytest.mark.parametrize(
+    "regressor_field", ["future-regressors", "past-regressors", "regressors"]
+)
+def test_forecaster_config_schema_loads_plain_regressor_sensor_ids(
+    regressor_field, setup_dummy_sensors
+):
+    sensor, *_ = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load({regressor_field: [sensor.id]})
+
+    expected_fields = (
+        ("future_regressors", "past_regressors")
+        if regressor_field == "regressors"
+        else (regressor_field.replace("-", "_"),)
+    )
+    for field_name in expected_fields:
+        assert data[field_name] == [sensor]
+        assert isinstance(data[field_name][0], Sensor)
+
+
+@pytest.mark.parametrize(
+    "regressor_field", ["future-regressors", "past-regressors", "regressors"]
+)
+def test_forecaster_config_schema_round_trips_filtered_sensor_references(
+    regressor_field,
+    setup_dummy_sensors,
+    setup_sources,
+    setup_accounts,
+    db,
+):
+    sensor, *_ = setup_dummy_sensors
+    source = setup_sources["Seita"]
+    account = setup_accounts["Prosumer"]
+    db.session.flush()
+    serialized_reference = {
+        "sensor": sensor.id,
+        "sources": [source.id],
+        "source-types": ["forecaster"],
+        "exclude-source-types": ["user"],
+        "source-account": [account.id],
+    }
+    schema = TrainPredictPipelineConfigSchema()
+
+    data = schema.load({regressor_field: [serialized_reference]})
+
+    expected_fields = (
+        ("future_regressors", "past_regressors")
+        if regressor_field == "regressors"
+        else (regressor_field.replace("-", "_"),)
+    )
+    for field_name in expected_fields:
+        regressor = data[field_name][0]
+        assert isinstance(regressor, SensorReference)
+        assert regressor.sensor == sensor
+        assert regressor.sources == [source]
+        assert regressor.source_types == ["forecaster"]
+        assert regressor.exclude_source_types == ["user"]
+        assert regressor.source_account == [account]
+
+    dumped = schema.dump(data)
+    for field_name in expected_fields:
+        assert dumped[field_name.replace("_", "-")] == [serialized_reference]
+
+
+def test_forecaster_config_schema_stably_merges_distinct_regressor_references(
+    setup_dummy_sensors,
+):
+    sensor, *_ = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "future-regressors": [sensor.id],
+            "regressors": [
+                {"sensor": sensor.id, "source-types": ["forecaster"]},
+                {"sensor": sensor.id, "source-types": ["scheduler"]},
+            ],
+        }
+    )
+
+    assert data["future_regressors"][0] == sensor
+    assert [regressor.source_types for regressor in data["future_regressors"][1:]] == [
+        ["forecaster"],
+        ["scheduler"],
+    ]
+    assert [regressor.source_types for regressor in data["past_regressors"]] == [
+        ["forecaster"],
+        ["scheduler"],
+    ]
+
+
 def test_forecaster_config_schema_loads_forecast_post_processing_options():
     data = TrainPredictPipelineConfigSchema().load(
         {
@@ -665,6 +755,153 @@ def test_forecaster_config_schema_defaults_forecast_post_processing_to_disabled(
     assert data["lower"] is None
     assert data["upper"] is None
     assert data["snap"] == {}
+
+
+def test_forecaster_config_schema_loads_annotation_regressor_source_fields(
+    setup_dummy_sensors, dummy_asset
+):
+    sensor, *_ = setup_dummy_sensors
+    schema = TrainPredictPipelineConfigSchema()
+
+    data = schema.load(
+        {
+            "annotation-regressors": [
+                {
+                    "asset": dummy_asset.id,
+                    "annotation-type": "label",
+                    "name": "maintenance",
+                },
+                {
+                    "sensor": sensor.id,
+                    "annotation-type": "holiday",
+                    "name": "sensor_holidays",
+                },
+            ]
+        }
+    )
+
+    first_regressor, second_regressor = data["annotation_regressors"]
+    assert first_regressor["asset"] == dummy_asset
+    assert second_regressor["sensor"] == sensor
+
+    dumped = schema.dump(data)
+    assert dumped["annotation-regressors"] == [
+        {
+            "asset": dummy_asset.id,
+            "annotation-type": "label",
+            "name": "maintenance",
+        },
+        {
+            "sensor": sensor.id,
+            "annotation-type": "holiday",
+            "name": "sensor_holidays",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "annotation_regressor",
+    [
+        {"annotation-type": "label"},
+        {"asset": 1, "sensor": 1, "annotation-type": "label"},
+    ],
+)
+def test_forecaster_config_schema_rejects_missing_or_ambiguous_annotation_source(
+    annotation_regressor, setup_dummy_sensors, dummy_asset
+):
+    sensor, *_ = setup_dummy_sensors
+    annotation_regressor = {
+        key: (
+            dummy_asset.id
+            if key == "asset"
+            else sensor.id if key == "sensor" else value
+        )
+        for key, value in annotation_regressor.items()
+    }
+
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"annotation-regressors": [annotation_regressor]}
+        )
+
+    assert "Specify exactly one of account, asset, or sensor." in str(
+        exc.value.messages
+    )
+
+
+def test_forecaster_config_schema_reads_max_training_period_as_train_period():
+    """The deprecated name says how much history to train on, which is what train-period says."""
+    config = TrainPredictPipelineConfigSchema().load({"max-training-period": "P90D"})
+    assert config["train_period"] == timedelta(days=90)
+    assert config["train_period_in_hours"] == 90 * 24
+
+
+def test_forecaster_config_schema_takes_the_shorter_of_two_training_limits():
+    """A config carrying both names asks twice, and the shorter of the two is all either allows."""
+    config = TrainPredictPipelineConfigSchema().load(
+        {"train-period": "P30D", "max-training-period": "P365D"}
+    )
+    assert config["train_period"] == timedelta(days=30)
+
+    the_other_way_around = TrainPredictPipelineConfigSchema().load(
+        {"train-period": "P365D", "max-training-period": "P30D"}
+    )
+    assert the_other_way_around["train_period"] == timedelta(days=30)
+
+
+def test_forecaster_config_schema_no_longer_stores_the_deprecated_name():
+    """Storing a config writes the name that remains, so the deprecated one dies out on its own."""
+    schema = TrainPredictPipelineConfigSchema()
+    dumped = schema.dump(schema.load({"max-training-period": "P90D"}))
+    assert dumped["train-period"] == "P90D"
+    assert "max-training-period" not in dumped
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"train-period": "P1Y"},
+        {"train-period": "P1M"},
+        {"max-training-period": "P1Y"},
+    ],
+)
+def test_forecaster_config_schema_says_why_years_and_months_do_not_work(payload):
+    """A year or a month is not a fixed length, and saying so beats failing to compare it.
+
+    A Duration cannot be compared to a timedelta, so this has to be reported before anything measures it.
+    """
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(payload)
+    assert "days or smaller units" in str(exc.value.messages)
+
+
+@pytest.mark.parametrize(
+    ["payload", "expected"],
+    [
+        (
+            {"train-period": "P30D", "max-training-period": "P1Y"},
+            "days or smaller units",
+        ),
+        ({"train-period": "P30D", "max-training-period": "nonsense"}, "Cannot parse"),
+        ({"train-period": "nonsense", "max-training-period": "P30D"}, "Cannot parse"),
+    ],
+)
+def test_forecaster_config_schema_reports_a_bad_training_limit_under_either_name(
+    payload, expected
+):
+    """A limit that cannot be measured is reported, rather than passed over for the other one.
+
+    Reading the deprecated name as the one that remains must not quietly drop what is wrong with either.
+    """
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(payload)
+    assert expected in str(exc.value.messages)
+
+
+def test_forecaster_config_schema_falls_back_to_the_default_training_period():
+    """Asking for no period of its own leaves the default to say how much history to use."""
+    config = TrainPredictPipelineConfigSchema().load({"train-period": None})
+    assert config["train_period_in_hours"] == 30 * 24
 
 
 def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():

@@ -32,6 +32,14 @@ def user_can_delete(context: AuthModelMixin) -> bool:
     return True
 
 
+def user_can_read(context: AuthModelMixin) -> bool:
+    try:
+        check_access(context, "read")
+    except Exception:
+        return False
+    return True
+
+
 def user_can_update(context: AuthModelMixin) -> bool:
     try:
         check_access(context, "update")

@@ -19,7 +19,6 @@ from werkzeug.exceptions import Forbidden
 from flexmeasures.data import db
 from flexmeasures.auth.policy import ADMIN_ROLE, AuthModelMixin, check_access
 
-
 _security = LocalProxy(lambda: current_app.extensions["security"])
 
 

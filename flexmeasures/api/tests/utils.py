@@ -14,7 +14,6 @@ from flexmeasures.data import db
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.user import Account
 
-
 """
 Useful things for API testing
 """

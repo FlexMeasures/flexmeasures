@@ -20,7 +20,6 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
 from flexmeasures.utils.unit_utils import is_valid_unit
 
-
 sensor_schema = SensorSchema()
 
 
@@ -366,14 +365,52 @@ def test_upload_csv_file_returns_accepted_job(
 
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
-    assert response.json["job_monitor_url"] == url_for(
-        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    assert response.json["job-url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job"]
     )
-    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["uploaded_files"][0]["filename"] == "test.csv"
     assert job.kwargs["uploaded_files"][0]["content"] == csv_content.encode("utf-8")
     assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_is_synchronous_for_legacy_client(
+    client, setup_api_test_data, requesting_user, monkeypatch
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.1"},
+    )
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_LEGACY_JOB_RESPONSES_ASSUME_THIS_CLIENT_VERSION",
+        {"flexmeasures-client-version": "0.9.0"},
+    )
+    current_app.queues["ingestion"].empty()
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    csv_content = """event_start,event_value
+2024-12-16T05:11:00Z,4
+"""
+    sensor = setup_api_test_data["empty temperature sensor"]
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "PROCESSED"
+    assert current_app.queues["ingestion"].count == 0
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -646,6 +683,11 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
         "inflexible-device-sensors": [existing_sensor_id],
+        # not a valid combination with the deprecated key above, but a deleted
+        # sensor should be pruned from any of the inflexible-device keys
+        "inflexible-production": [
+            {"sensor": existing_sensor_id, "exclude-source-types": ["scheduler"]}
+        ],
     }
     asset.sensors_to_show = [
         {"title": "Power", "plots": [{"sensor": existing_sensor_id}]},
@@ -682,6 +724,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
+    assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
     assert str(existing_sensor_id) not in json.dumps(
         asset_after.sensors_to_show_as_kpis
@@ -737,10 +780,16 @@ def test_fetch_sensor_stats(
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
+            "All sources",
             "Other source (ID: 12)",
             "Test Admin User (ID: 7)",
             "Test Supplier User (ID: 6)",
         ]
+
+        # The combined entry summarises the sources rather than being one of them,
+        # so take it out before checking the sources one by one.
+        combined = response_content.pop("All sources")
+
         for source, record in response_content.items():
             assert record["First event start"]
             assert record["Last event end"]
@@ -769,6 +818,32 @@ def test_fetch_sensor_stats(
                 record["Sum over values"], sum_values, rel_tol=1e-5
             ), f"sum_values is close to {sum_values}"
             assert record["Number of values"] == count_values
+
+        # The combined entry reports the sources as if they were one.
+        assert combined["Number of values"] == 39 + 3 + 3
+        assert math.isclose(
+            combined["Sum over values"], 267.0 + 275.1 + 183.4, rel_tol=1e-5
+        )
+        # One of "Other source"'s three rows holds NaN, which is why that source's own mean is 183.4 / 2 rather than 183.4 / 3.
+        # The combined mean divides by the 44 values that were summed, not by the 45 rows that were counted.
+        assert math.isclose(
+            combined["Mean value"], (267.0 + 275.1 + 183.4) / 44, rel_tol=1e-5
+        )
+        assert combined["Min value"] == min(
+            record["Min value"] for record in response_content.values()
+        )
+        assert combined["Max value"] == max(
+            record["Max value"] for record in response_content.values()
+        )
+        assert combined["First event start"] == min(
+            record["First event start"] for record in response_content.values()
+        )
+        assert combined["Last event end"] == max(
+            record["Last event end"] for record in response_content.values()
+        )
+        assert combined["Last recorded"] == max(
+            record["Last recorded"] for record in response_content.values()
+        )
 
     with QueryCounter(db.session.connection()) as counter2:
         response = client.get(

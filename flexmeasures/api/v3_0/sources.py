@@ -179,21 +179,86 @@ class SourceAPI(FlaskView):
 
         return {"types": all_types, "sources": serialized}, 200
 
+    @route("/<int:id>", methods=["GET"])
+    @as_json
+    def get(self, id: int):
+        """Get one data source, including its attributes.
 
-def _serialize_source(source: DataSource) -> dict:
-    """Serialize a DataSource to a plain dict for the API response."""
+        .. :quickref: Sources; Get one data source.
+
+        ---
+        get:
+          summary: Get one data source.
+          description: |
+            Returns the full record of one data source, including the attributes in which
+            data generators (such as forecasters, schedulers and reporters) store their
+            configuration.
+
+            The access rules are the same as for listing data sources.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the data source.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  example:
+                    id: 6
+                    name: Seita
+                    type: forecaster
+                    model: TrainPredictPipeline
+                    version: "1"
+                    description: "Seita's TrainPredictPipeline model v1"
+                    account_id: 2
+                    user_id: null
+                    attributes:
+                      data_generator:
+                        config:
+                          model: CustomLGBM
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+          tags:
+            - Sources
+        """
+        source = db.session.get(DataSource, id)
+        if source is None:
+            return {"message": f"No data source found with id {id}."}, 404
+        accessible_account_ids = _get_accessible_account_ids()
+        if accessible_account_ids is not None and not (
+            source.account_id in accessible_account_ids
+            or (source.account_id is None and source.user_id is None)
+        ):
+            return {"message": "You cannot read this data source."}, 403
+        return _serialize_source(source, with_attributes=True), 200
+
+
+def _serialize_source(source: DataSource, with_attributes: bool = False) -> dict:
+    """Serialize a DataSource to a plain dict for the API response.
+
+    With `with_attributes`, the full record is returned, including the attributes and
+    any fields that are not set (rather than leaving those out).
+    """
     result = {
         "id": source.id,
         "name": source.name,
         "type": source.type,
         "description": source.description,
     }
-    if source.model is not None:
-        result["model"] = source.model
-    if source.version is not None:
-        result["version"] = source.version
-    if source.account_id is not None:
-        result["account_id"] = source.account_id
-    if source.user_id is not None:
-        result["user_id"] = source.user_id
+    for field in ("model", "version", "account_id", "user_id"):
+        value = getattr(source, field)
+        if value is not None or with_attributes:
+            result[field] = value
+    if with_attributes:
+        result["attributes"] = source.attributes
     return result

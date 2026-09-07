@@ -13,6 +13,7 @@ Scripting via the FlexMeasures-Client
 
 The most universal way to script FlexMeasures is via `the FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client/>`_.
 Actually, this is scripting via the API, as the client is not much more than a wrapper around the FlexMeasures server API.
+For a hands-on example which uploads Excel or CSV data and posts values from an export script, see :ref:`tut_posting_data`.
 
 Let's look at two examples, to give an impression. The first one creates a sensor:
 

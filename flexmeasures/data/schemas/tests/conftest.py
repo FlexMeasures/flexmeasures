@@ -58,6 +58,30 @@ def setup_dummy_sensors(db, app, dummy_asset):
 
 
 @pytest.fixture(scope="module")
+def setup_inflexible_sensors(db, app, dummy_asset):
+    """Power sensors for inflexible-consumption/production tests, with the
+    consumption_is_positive attribute set to True, set to False, and unset."""
+    sensors = {}
+    for name, attributes in (
+        ("consumption-positive power", {"consumption_is_positive": True}),
+        ("production-positive power", {"consumption_is_positive": False}),
+        ("attributeless power", {}),
+    ):
+        sensor = Sensor(
+            name,
+            generic_asset=dummy_asset,
+            event_resolution=timedelta(hours=1),
+            unit="kW",
+            attributes=attributes,
+        )
+        db.session.add(sensor)
+        sensors[name] = sensor
+    db.session.commit()
+
+    return sensors
+
+
+@pytest.fixture(scope="module")
 def setup_efficiency_sensors(db, app, dummy_asset):
     sensor = Sensor(
         "efficiency",

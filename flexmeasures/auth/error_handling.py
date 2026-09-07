@@ -14,7 +14,6 @@ from flask import request, jsonify, current_app
 
 from flexmeasures.utils.error_utils import log_error
 
-
 # "Unauthorized"
 # "The request requires user authentication. The response MUST include a WWW-Authenticate header field."
 # So this essentially means the user needs to authenticate!

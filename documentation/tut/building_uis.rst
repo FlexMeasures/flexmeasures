@@ -257,9 +257,9 @@ Here are some common parameter choices for our JavaScript function:
     var params = new URLSearchParams();
     params.append("width", 400); // an integer number of pixels; without it, the chart will be scaled to the full width of the container (note that we set the div width to 100%)
     params.append("height", 400); // an integer number of pixels; without it, a FlexMeasures default is used
-    params.append("event_starts_after", '2022-10-01T00:00+01'); // only fetch events from midnight October 1st
-    params.append("event_ends_before", '2022-10-08T00:00+01'); // only fetch events until midnight October 8th
-    params.append("beliefs_before", '2022-10-03T00:00+01'); // only fetch beliefs prior to October 3rd (time travel)
+    params.append("start", '2022-10-01T00:00+01'); // only fetch events from midnight October 1st
+    params.append("end", '2022-10-08T00:00+01'); // only fetch events until midnight October 8th
+    params.append("prior", '2022-10-03T00:00+01'); // only fetch beliefs recorded prior to October 3rd (time travel)
 
 
 As FlexMeasures uses `the Vega-Lite Grammar of Interactive Graphics <https://vega.github.io/vega-lite/>`_ internally, we also need to import this library to render the chart (see the ``script`` tags above). It's crucial to note that FlexMeasures is not transferring images across HTTP here, just information needed to render them.
@@ -277,7 +277,7 @@ Now let's call this function when the HTML page is opened, to embed our chart:
                 var authToken = response.auth_token;
 
                 var params = new URLSearchParams();
-                params.append("event_starts_after", '2022-01-01T00:00+01');
+                params.append("start", '2022-01-01T00:00+01');
                 embedChart(params, authToken, 1, '#sensor-chart');
             })
         }

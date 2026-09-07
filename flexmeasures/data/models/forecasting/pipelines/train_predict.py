@@ -22,6 +22,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
+from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.utils.flexmeasures_inflection import p
 
 
@@ -30,6 +31,20 @@ def _sensor_id(sensor: Sensor | int | None) -> int | None:
     if sensor is None:
         return None
     return sensor.id if isinstance(sensor, Sensor) else sensor
+
+
+def _entity_id(entity_or_id):
+    """Return the database ID from a model object or already-serialized ID."""
+    return getattr(entity_or_id, "id", entity_or_id)
+
+
+def _make_annotation_regressor_payload(spec: dict[str, Any]) -> dict[str, Any]:
+    """Serialize ORM-backed annotation regressor source fields to IDs."""
+    payload = dict(spec)
+    for source_key in ("account", "asset", "sensor"):
+        if source_key in payload:
+            payload[source_key] = _entity_id(payload[source_key])
+    return payload
 
 
 def _get_attached_sensor(sensor_id: int | None) -> Sensor | None:
@@ -50,6 +65,26 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
     if attached_source is None:
         raise ValueError(f"Could not load data source with id {data_source_id}.")
     return attached_source
+
+
+def _make_regressor_payload(
+    regressor: Sensor | SensorReference,
+) -> int | dict[str, Any]:
+    """Serialize a regressor and its optional source filters to database IDs."""
+    if isinstance(regressor, SensorReference):
+        return SensorReferenceSchema().dump(regressor)
+    return regressor.id
+
+
+def _load_regressor_payload(
+    payload: int | dict[str, Any],
+) -> Sensor | SensorReference:
+    """Restore a worker-local regressor from a primitive queued-job payload."""
+    if isinstance(payload, dict):
+        return SensorReference(**SensorReferenceSchema().load(payload))
+    sensor = _get_attached_sensor(payload)
+    assert sensor is not None
+    return sensor
 
 
 def _assert_no_orm_objects(value: Any, path: str = "payload") -> None:
@@ -74,14 +109,20 @@ def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
 
     ORM-backed fields are replaced by IDs, while plain config fields are preserved.
     """
-    # Preserve plain config fields, but replace ORM-backed regressors by IDs.
+    # Preserve plain config fields, but replace ORM-backed regressors by primitive payloads.
     payload = dict(config)
     future_regressors = payload.pop("future_regressors", [])
     past_regressors = payload.pop("past_regressors", [])
     payload["future_regressor_ids"] = [
-        _sensor_id(sensor) for sensor in future_regressors
+        _make_regressor_payload(regressor) for regressor in future_regressors
     ]
-    payload["past_regressor_ids"] = [_sensor_id(sensor) for sensor in past_regressors]
+    payload["past_regressor_ids"] = [
+        _make_regressor_payload(regressor) for regressor in past_regressors
+    ]
+    payload["annotation_regressors"] = [
+        _make_annotation_regressor_payload(spec)
+        for spec in payload.get("annotation_regressors", [])
+    ]
     _assert_no_orm_objects(payload)
     return payload
 
@@ -90,12 +131,12 @@ def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Restore worker config and reload regressors in the worker session."""
     config = dict(payload)
     config["future_regressors"] = [
-        _get_attached_sensor(sensor_id)
-        for sensor_id in config.pop("future_regressor_ids", [])
+        _load_regressor_payload(regressor)
+        for regressor in config.pop("future_regressor_ids", [])
     ]
     config["past_regressors"] = [
-        _get_attached_sensor(sensor_id)
-        for sensor_id in config.pop("past_regressor_ids", [])
+        _load_regressor_payload(regressor)
+        for regressor in config.pop("past_regressor_ids", [])
     ]
     return config
 
@@ -193,8 +234,9 @@ class TrainPredictPipeline(Forecaster):
         """
         Runs a single training and prediction cycle.
         """
+        # State the training span, because it decides how much work the cycle is, and it is derived rather than configured.
         logging.info(
-            f"Starting Train-Predict cycle from {train_start} to {predict_end}"
+            f"Starting Train-Predict cycle from {train_start} to {predict_end}, training on {train_end - train_start} of data"
         )
 
         # Train model
@@ -215,8 +257,9 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             ensure_positive=self._config["ensure_positive"],
             missing_threshold=self._config.get("missing_threshold"),
+            annotation_regressors=self._config.get("annotation_regressors", []),
+            model_params=self._config.get("model_params"),
         )
-
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
         train_start_time = time.time()
         train_pipeline.run(counter=counter)
@@ -256,11 +299,13 @@ class TrainPredictPipeline(Forecaster):
             sensor_to_save=self._parameters["sensor_to_save"],
             data_source=self.data_source,
             missing_threshold=self._config.get("missing_threshold"),
+            annotation_regressors=self._config.get("annotation_regressors", []),
             post_processing_config={
                 "lower": self._config.get("lower"),
                 "upper": self._config.get("upper"),
                 "snap": self._config.get("snap"),
             },
+            dry_run=self._parameters.get("dry_run", False),
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
@@ -290,41 +335,40 @@ class TrainPredictPipeline(Forecaster):
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
 
-        The training period ends at ``predict_start`` and starts at the
-        most restrictive (latest) of the following:
+        Training ends at ``predict_start``. Two settings say how far back it may reach:
+        ``train-start`` names the earliest moment to train from, and ``train-period`` says how much history to use.
+        Both are limits, so the window is the shorter of what they allow, which is the later of the two starting points.
 
-        - The configured ``start_date`` (if any)
-        - ``predict_start - train_period_in_hours`` (if configured)
-        - ``predict_start - max_training_period`` (always enforced)
-
-        Additionally, the resulting training window is guaranteed to span
-        at least two days.
+        Additionally, the resulting training window is guaranteed to span at least two days.
 
         :return:    A tuple ``(train_start, train_end)`` defining the training window.
         """
         train_end = self._parameters["predict_start"]
 
         configured_start: datetime | None = self._config.get("train_start")
-        period_hours: int | None = self._config.get("train_period_in_hours")
+        period_hours: int = self._config["train_period_in_hours"]
 
-        candidates: list[datetime] = []
-
+        candidates = {"train-period": train_end - timedelta(hours=period_hours)}
         if configured_start is not None:
-            candidates.append(configured_start)
+            candidates["train-start"] = configured_start
 
-        if period_hours is not None:
-            candidates.append(train_end - timedelta(hours=period_hours))
+        decisive, train_start = max(candidates.items(), key=lambda item: item[1])
 
-        # Always enforce maximum training period
-        candidates.append(train_end - self._config["max_training_period"])
-
-        train_start = max(candidates)
-
-        # Enforce minimum training period of 2 days
+        # Enforce a minimum training period of 2 days.
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
-            train_start = train_end - min_training_period
+            decisive, train_start = (
+                "minimum training period",
+                train_end - min_training_period,
+            )
 
+        logging.debug(
+            "Training window spans %s, from %s to %s, as asked for by %s.",
+            train_end - train_start,
+            train_start,
+            train_end,
+            decisive,
+        )
         return train_start, train_end
 
     def run(
@@ -332,7 +376,10 @@ class TrainPredictPipeline(Forecaster):
         as_job: bool = False,
         queue: str = "forecasting",
     ):
-        logging.info(
+        # Only announce a pipeline run when actually running it here: with as_job, this
+        # method merely queues the cycles, and the workers running them log their own start.
+        log_start = logging.debug if as_job else logging.info
+        log_start(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
         connection = current_app.queues[queue].connection
@@ -401,9 +448,8 @@ class TrainPredictPipeline(Forecaster):
 
             # Ensure the data source ID is available in the database when the job runs.
             self._data_source = db.session.merge(self.data_source)
-            db.session.flush()
-            data_source_id = self._data_source.id
             db.session.commit()
+            data_source_id = self._data_source.id
 
             # job metadata for tracking
             # Serialize start and end to ISO format strings
@@ -414,6 +460,8 @@ class TrainPredictPipeline(Forecaster):
                 "end": self._parameters["end_date"].isoformat(),
                 "sensor_id": sensor_to_save_id,
             }
+            if self._job_trigger:
+                job_metadata["trigger"] = self._job_trigger
             for cycle_params in cycles_job_params:
                 job_kwargs = {
                     "config": job_config,
@@ -439,7 +487,6 @@ class TrainPredictPipeline(Forecaster):
                         ).total_seconds()
                     ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                     meta=job_metadata,
-                    timeout=60 * 60,  # 1 hour
                 )
 
                 # Store the job ID for this cycle

@@ -9,7 +9,6 @@ from flexmeasures.api.common.utils.deprecation_utils import (
     sunset_blueprint,
 )
 
-
 # The sunset API blueprints. They are registered with the Flask app (see register_at)
 flexmeasures_api_v1 = Blueprint("flexmeasures_api_v1", __name__)
 flexmeasures_api_v1_1 = Blueprint("flexmeasures_api_v1_1", __name__)

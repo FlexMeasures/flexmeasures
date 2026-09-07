@@ -11,7 +11,7 @@ from sqlalchemy import select
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, Flask
+from flask import request, jsonify, Flask, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
@@ -90,6 +90,20 @@ def app():
         yield test_app
 
     print("DONE WITH APP FIXTURE")
+
+
+# Authentication state that flask-login and flask-security cache on the app context's `g`.
+# The app fixture holds one app context open for the whole session, so anything left here is visible to later tests.
+# The keys must be cleared together: flask-security's request loader short-circuits on `fs_authn_via` and then returns `g._login_user` unguarded, so clearing only one of them makes the next token-authenticated request raise AttributeError.
+CACHED_AUTH_STATE_KEYS = ("_login_user", "fs_authn_via", "fs_paa", "csrf_valid")
+
+
+@pytest.fixture(autouse=True)
+def clear_flask_login_cache(app):
+    """Prevent cached authentication state from leaking between tests."""
+    yield
+    for key in CACHED_AUTH_STATE_KEYS:
+        g.pop(key, None)
 
 
 @pytest.fixture(scope="module")
@@ -2066,6 +2080,27 @@ def add_test_sensor_with_anomalous_beliefs(
     return {"anomaly-sensor": sensor}
 
 
+def _patch_server_now_in_module(module, module_name: str, value, originals: dict):
+    """Patch server_now in a single module, remembering the original only the first
+    time we patch it, so repeated freeze calls still restore the true original."""
+    try:
+        originals.setdefault(module_name, module.server_now)
+        setattr(module, "server_now", lambda: value)
+    except Exception:
+        # skip modules that cannot be inspected or modified
+        pass
+
+
+def _patch_server_now_in_loaded_modules(value, originals: dict):
+    """Patch server_now in all currently loaded FlexMeasures modules."""
+    for module in list(sys.modules.values()):  # copy to avoid RuntimeError
+        if not isinstance(module, type(sys)):  # skip placeholders
+            continue
+        name = getattr(module, "__name__", "")
+        if name.startswith("flexmeasures") and hasattr(module, "server_now"):
+            _patch_server_now_in_module(module, name, value, originals)
+
+
 @pytest.fixture
 def freeze_server_now():
     """
@@ -2075,40 +2110,24 @@ def freeze_server_now():
         def test_x(freeze_server_now):
             freeze_server_now(pd.Timestamp("2025-01-15T12:23:58+01"))
     """
-    patched_modules = set()
+    original_server_nows: dict = {}  # module name -> original server_now function
+    original_import = builtins.__import__
 
     def _freeze(value: datetime | pd.Timestamp):
         if isinstance(value, pd.Timestamp):
             value = value.to_pydatetime()
         # Patch currently loaded FlexMeasures modules
-        for module in list(sys.modules.values()):  # copy to avoid RuntimeError
-            try:
-                if not isinstance(module, type(sys)):  # skip placeholders
-                    continue
-                name = getattr(module, "__name__", "")
-                if not name.startswith("flexmeasures"):
-                    continue
-                if hasattr(module, "server_now"):
-                    setattr(module, "server_now", lambda: value)
-                    patched_modules.add(module.__name__)
-            except Exception:
-                # skip modules that cannot be inspected or modified
-                pass
+        _patch_server_now_in_loaded_modules(value, original_server_nows)
 
         # Optionally, warn if new modules are imported later
-        original_import = builtins.__import__
-
         def import_hook(name, *args, **kwargs):
             mod = original_import(name, *args, **kwargs)
-            if hasattr(mod, "server_now") and mod not in patched_modules:
+            mod_name = getattr(mod, "__name__", name)
+            if hasattr(mod, "server_now") and mod_name not in original_server_nows:
                 warnings.warn(
                     f"Module {name} imported after server_now was frozen; patching it now."
                 )
-                try:
-                    setattr(mod, "server_now", lambda: value)
-                    patched_modules.add(name)
-                except Exception:
-                    pass
+                _patch_server_now_in_module(mod, mod_name, value, original_server_nows)
             return mod
 
         builtins.__import__ = import_hook
@@ -2117,5 +2136,15 @@ def freeze_server_now():
 
     yield _freeze
 
-    # cleanup: restore the original import function
-    builtins.__import__ = builtins.__import__
+    # Cleanup: restore the original import function and unfreeze server_now in all
+    # patched modules. Without this, the frozen clock leaks into every test that runs
+    # afterwards in the same process (e.g. scheduling jobs then reuse the exact same
+    # belief_time, causing unique-key violations on saving beliefs).
+    builtins.__import__ = original_import
+    for module_name, original_server_now in original_server_nows.items():
+        module = sys.modules.get(module_name)
+        if module is not None:
+            try:
+                setattr(module, "server_now", original_server_now)
+            except Exception:
+                pass
