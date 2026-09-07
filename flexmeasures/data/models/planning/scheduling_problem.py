@@ -162,7 +162,34 @@ def convert_commitments_to_subcommitments(
         up_by_group = grouped["upwards deviation price"].first()
         down_by_group = grouped["downwards deviation price"].first()
 
+        # The columns the device grouping is built from, read once per commitment and
+        # sliced per group below, rather than read back off every sub-commitment.
+        shared["stock"] = (
+            df["stock"].iloc[0] if "stock" in df.columns and not df.empty else None
+        )
+        if _is_missing(shared["stock"]):
+            shared["stock"] = None
+        device_values = df["device"].to_numpy() if "device" in df.columns else None
+        device_group_values = (
+            df["device_group"].to_numpy() if "device_group" in df.columns else None
+        )
+        group_positions = grouped.indices
+
+        def _grouping(group_key) -> dict:
+            """The device/device_group values of one group, as arrays."""
+            if device_values is None:
+                return {"device": None, "device_group": None}
+            pos = group_positions[group_key]
+            return {
+                "device": device_values[pos],
+                "device_group": (
+                    None if device_group_values is None else device_group_values[pos]
+                ),
+                "has_device_group": device_group_values is not None,
+            }
+
         for group_key, sub_commitment in grouped:
+            grouping = _grouping(group_key)
             up_price = up_by_group.get(group_key)
             down_price = down_by_group.get(group_key)
             up_price = None if _is_missing(up_price) else up_price
@@ -173,6 +200,7 @@ def convert_commitments_to_subcommitments(
                 scalars.append(
                     {
                         **shared,
+                        **grouping,
                         "upwards deviation price": up_price,
                         "downwards deviation price": down_price,
                     }
@@ -187,6 +215,7 @@ def convert_commitments_to_subcommitments(
                 scalars.append(
                     {
                         **shared,
+                        **grouping,
                         "upwards deviation price": None,
                         "downwards deviation price": down_price,
                     }
@@ -194,6 +223,7 @@ def convert_commitments_to_subcommitments(
                 scalars.append(
                     {
                         **shared,
+                        **grouping,
                         "upwards deviation price": up_price,
                         "downwards deviation price": None,
                     }
@@ -529,33 +559,31 @@ def prepare_scheduling_problem(  # noqa C901
 
     device_group_lookup: dict[int, dict] = {}
 
-    for c, df in enumerate(commitments):
+    # The device/device_group/stock values come from commitment_headers, sliced from
+    # each commitment while it was split. Reading them back off the sub-commitment
+    # frames meant several pandas lookups per group, and a group is usually one time step.
+    for c, header in enumerate(commitment_headers):
         # Stock-scoped commitments couple to their stock group as a whole, regardless
         # of which device index they name: the group's first device carries the group's
         # stock, so a single-member group suffices (also avoiding double-counting the
         # shared stock when the commitment names multiple members).
-        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
-            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
+        if header["stock"] is not None:
+            stock_group_key = f"stock:{int(header['stock'])}"
             if stock_group_key in group_to_devices:
                 device_group_lookup[c] = {
                     stock_group_key: {group_to_devices[stock_group_key][0]}
                 }
                 continue
 
-        if "device" not in df.columns:
+        device_values = header["device"]
+        if device_values is None:
             # EMS-level commitment: no device grouping needed here;
             # handled by ems_flow_commitment_equalities.
             continue
 
-        has_device_group = "device_group" in df.columns
-
-        # Read the columns as arrays rather than slicing + dropna()-ing a fresh DataFrame per sub-commitment.
-        # Each time step usually forms its own group, so this loop runs once per time step,
-        # and the per-call pandas overhead dominated it
-        # (~50 ms of a ~135 ms prepare on 4 devices x 192 steps; the arrays bring that under 1 ms).
-        device_values = df["device"].to_numpy()
+        has_device_group = header["has_device_group"]
         if has_device_group:
-            group_values = df["device_group"].to_numpy()
+            group_values = header["device_group"]
         else:
             # Backwards-compatible default: each device is its own group.
             # This preserves the behaviour of old-style DataFrame commitments that
@@ -578,9 +606,15 @@ def prepare_scheduling_problem(  # noqa C901
 
         device_group_lookup[c] = groups
 
-    # Oversimplified check for a convex cost curve
+    # Oversimplified check for a convex cost curve.
+    # Summed over the commitments as passed in, not over the sub-commitments: splitting
+    # a commitment partitions its rows between groups, and a group that yields both a
+    # downwards and an upwards sub-commitment contributes each price exactly once, just
+    # as the row it came from does. The sums are therefore the same, and there are far
+    # fewer frames to concatenate -- one per commitment rather than one per group, and a
+    # group is usually a single time step.
     if commitments:
-        df = pd.concat(commitments)[
+        df = pd.concat(original_commitments)[
             ["upwards deviation price", "downwards deviation price"]
         ]
         df = df.groupby(level=0).sum()
