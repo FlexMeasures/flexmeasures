@@ -2345,6 +2345,7 @@ class AssetAPI(FlaskView):
                 event_starts_after=start,
                 event_ends_before=end,
                 most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
             # Count each event once, under the window it starts in.
             # The search also returns events that merely overlap the window, which the chart draws,

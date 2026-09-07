@@ -2070,3 +2070,66 @@ def test_kpi_counts_each_event_under_one_day_only(
     assert sum(totals.values()) == pytest.approx(
         222.0
     ), "each event counts once across neighbouring days, not twice"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_two_sources_same_event(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """When multiple sources report beliefs for the same event, a KPI should not sum across sources."""
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi two sources same event",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi two sources sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    sources = list(setup_sources.values())
+    a, b = sources[0], sources[-1]
+    assert a.id != b.id, "this test needs two distinct sources"
+    window_start = datetime(2030, 3, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=2),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=a.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=1),
+                event_value=80.0,
+                sensor_id=sensor.id,
+                source_id=b.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=1)).isoformat(),
+    )
+    # The KPI selects one deterministic belief per event rather than double-counting across sources
+    assert total in (100.0, 80.0)
+    assert total != 180.0
