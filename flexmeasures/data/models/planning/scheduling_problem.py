@@ -16,6 +16,7 @@ It also gives both backends a single place to grow support for a new scheduling 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
 
@@ -98,6 +99,40 @@ def solver_options(solver_name: str) -> dict:
     return profile
 
 
+class SubCommitmentFrames(Sequence):
+    """The sub-commitment frames, each built the first time it is asked for.
+
+    Splitting a commitment produces one sub-commitment per group, and a group is usually
+    a single time step, so a schedule can hold thousands of one-row frames. The HiGHS
+    backend works entirely from the arrays gathered during the split and never looks at
+    them; the Pyomo backend uses them throughout. Building them all up front therefore
+    cost more than the rest of the split put together, and for the default backend it
+    bought nothing.
+
+    Each entry knows the frame it came from, the row positions of its group, and the
+    price column its half of a two-sided group drops.
+    """
+
+    def __init__(self, specs: list[tuple]):
+        self._specs = specs
+        self._frames: dict[int, pd.DataFrame] = {}
+
+    def __len__(self) -> int:
+        return len(self._specs)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        frame = self._frames.get(index)
+        if frame is None:
+            source, positions, dropped_column = self._specs[index]
+            frame = source.iloc[positions]
+            if dropped_column is not None:
+                frame = frame.drop(columns=dropped_column)
+            self._frames[index] = frame
+        return frame
+
+
 def convert_commitments_to_subcommitments(
     dfs: list[pd.DataFrame],
 ) -> tuple[list[pd.DataFrame], dict[int, int], list[dict]]:
@@ -132,7 +167,8 @@ def convert_commitments_to_subcommitments(
         # Group rows by the "group" column in order of first appearance (like pd.unique),
         # in a single pass rather than by filtering the DataFrame once per group
         # (which would scale quadratically with the number of time steps, as each time step often forms its own group).
-        grouped = df.drop(columns=["group"]).groupby(df["group"], sort=False)
+        group_column = df["group"]
+        grouped = df.drop(columns=["group"]).groupby(group_column, sort=False)
 
         # Catch non-uniqueness (vectorized across all groups)
         if (grouped["upwards deviation price"].nunique(dropna=False) > 1).any():
@@ -175,6 +211,18 @@ def convert_commitments_to_subcommitments(
         )
         group_positions = grouped.indices
 
+        # The rows a model builder binds: the commitment's quantity and time-step index
+        # at its active time steps. A NaN or -inf quantity deactivates the commitment
+        # there, the way the Pyomo Param's -inf does.
+        quantity_values = df["quantity"].to_numpy(dtype=float)
+        j_values = df["j"].to_numpy(dtype=np.int64)
+
+        def _active_rows(group_key, lb: float, ub: float) -> tuple:
+            pos = group_positions[group_key]
+            quantity = quantity_values[pos]
+            active = ~(np.isnan(quantity) | (quantity == -infinity))
+            return quantity[active], j_values[pos][active], lb, ub
+
         def _grouping(group_key) -> dict:
             """The device/device_group values of one group, as arrays."""
             if device_values is None:
@@ -188,29 +236,37 @@ def convert_commitments_to_subcommitments(
                 "has_device_group": device_group_values is not None,
             }
 
-        for group_key, sub_commitment in grouped:
+        # The frame the groupby would have handed out, minus the column it grouped on.
+        without_group = df.drop(columns=["group"])
+
+        for group_key in pd.unique(group_column):
+            positions = group_positions[group_key]
             grouping = _grouping(group_key)
             up_price = up_by_group.get(group_key)
             down_price = down_by_group.get(group_key)
             up_price = None if _is_missing(up_price) else up_price
             down_price = None if _is_missing(down_price) else down_price
-            if len(sub_commitment) == 1:
+            if len(positions) == 1:
                 commitment_mapping[len(sub_commitments)] = c
-                sub_commitments.append(sub_commitment)
+                sub_commitments.append((without_group, positions, None))
                 scalars.append(
                     {
                         **shared,
                         **grouping,
                         "upwards deviation price": up_price,
                         "downwards deviation price": down_price,
+                        "active rows": _active_rows(group_key, 0.0, 0.0),
                     }
                 )
             else:
-                down_commitment = sub_commitment.drop(columns="upwards deviation price")
-                up_commitment = sub_commitment.drop(columns="downwards deviation price")
                 commitment_mapping[len(sub_commitments)] = c
                 commitment_mapping[len(sub_commitments) + 1] = c
-                sub_commitments.extend([down_commitment, up_commitment])
+                sub_commitments.extend(
+                    [
+                        (without_group, positions, "upwards deviation price"),
+                        (without_group, positions, "downwards deviation price"),
+                    ]
+                )
                 # Each half keeps only its own direction's price.
                 scalars.append(
                     {
@@ -218,6 +274,7 @@ def convert_commitments_to_subcommitments(
                         **grouping,
                         "upwards deviation price": None,
                         "downwards deviation price": down_price,
+                        "active rows": _active_rows(group_key, -infinity, 0.0),
                     }
                 )
                 scalars.append(
@@ -226,9 +283,10 @@ def convert_commitments_to_subcommitments(
                         **grouping,
                         "upwards deviation price": up_price,
                         "downwards deviation price": None,
+                        "active rows": _active_rows(group_key, 0.0, infinity),
                     }
                 )
-    return sub_commitments, commitment_mapping, scalars
+    return SubCommitmentFrames(sub_commitments), commitment_mapping, scalars
 
 
 def _is_missing(value) -> bool:
