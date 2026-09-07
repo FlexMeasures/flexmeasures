@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import pytest
 
+import itertools
 import logging
+import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 
+from darts import TimeSeries
 from marshmallow import ValidationError
 from sqlalchemy import inspect as sa_inspect, select
 
+from flexmeasures.data.models.forecasting.custom_models import (
+    base_model as base_model_module,
+)
+from flexmeasures.data.models.forecasting.custom_models.base_model import default_n_jobs
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
 )
+from flexmeasures.data.models.forecasting.pipelines import base as pipelines_base
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
@@ -397,6 +405,145 @@ def test_load_data_all_beliefs_determinizes_probabilistic_regressors_per_source(
 
     assert -555.0 in values.values
     assert not {-111.0, -222.0, -333.0, -444.0, -666.0}.intersection(values.values)
+
+
+def _autoregressive_pipeline(target_sensor: Sensor) -> BasePipeline:
+    """A pipeline whose target sensor is also its own past regressor."""
+    return BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[target_sensor],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+
+
+def _add_forecaster_belief(db, sensor: Sensor, value: float) -> None:
+    """Record a belief from a forecaster, which the target data should not contain."""
+    forecaster_source = DataSource(name="forecaster-on-target", type="forecaster")
+    db.session.add(forecaster_source)
+    db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            event_start=as_server_time(datetime(2025, 1, 2)),
+            event_value=value,
+            belief_horizon=timedelta(hours=6),
+            source=forecaster_source,
+        )
+    )
+    db.session.commit()
+
+
+def test_load_data_all_beliefs_derives_target_data_from_reused_query(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+    monkeypatch,
+):
+    """Sharing one query between the target and its past regressor changes no loaded value."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    forecast_value = -999.0
+    _add_forecaster_belief(fresh_db, target_sensor, forecast_value)
+
+    pipeline = _autoregressive_pipeline(target_sensor)
+    loaded_data = pipeline.load_data_all_beliefs()
+
+    # Disable the query reuse, by making every planned search look unique.
+    unique_keys = itertools.count()
+    monkeypatch.setattr(
+        pipelines_base, "_belief_search_key", lambda search: next(unique_keys)
+    )
+    separately_loaded_data = _autoregressive_pipeline(
+        target_sensor
+    ).load_data_all_beliefs()
+
+    pd.testing.assert_frame_equal(loaded_data, separately_loaded_data)
+
+    # The two entries do differ, so the comparison above is not between two identical columns.
+    past_regressor = pipeline.past_regressors[0]
+    assert forecast_value in loaded_data[past_regressor].values
+    assert forecast_value not in loaded_data[pipeline.target].values
+    assert loaded_data[pipeline.target].notna().any()
+
+
+def test_load_data_all_beliefs_queries_each_sensor_once(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+    monkeypatch,
+):
+    """A sensor that is both target and past regressor is queried once, not twice."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    _add_forecaster_belief(fresh_db, target_sensor, -999.0)
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatch.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+
+    _autoregressive_pipeline(target_sensor).load_data_all_beliefs()
+
+    assert searched_sensor_ids == [target_sensor.id]
+
+
+def test_load_data_all_beliefs_shares_a_query_between_differently_ordered_source_lists(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Two regressors that select the same sources in a different order share one query."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="ordered-source-a", type="forecaster")
+    source_b = DataSource(name="ordered-source-b", type="forecaster")
+    value_a = -111.0
+    value_b = -222.0
+    fresh_db.session.add_all([source_a, source_b])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(source_a, value_a), (source_b, value_b)]
+    )
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatched = pytest.MonkeyPatch()
+    monkeypatched.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+    try:
+        pipeline = BasePipeline(
+            target_sensor=target_sensor,
+            future_regressors=[],
+            past_regressors=[
+                SensorReference(sensor=regressor_sensor, sources=[source_a, source_b]),
+                SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+            ],
+            n_steps_to_predict=1,
+            max_forecast_horizon=1,
+            forecast_frequency=1,
+            event_starts_after=as_server_time(datetime(2025, 1, 1)),
+            event_ends_before=as_server_time(datetime(2025, 1, 3)),
+        )
+        loaded_data = pipeline.load_data_all_beliefs()
+    finally:
+        monkeypatched.undo()
+
+    assert sorted(searched_sensor_ids) == sorted(
+        [regressor_sensor.id, target_sensor.id]
+    )
+
+    # Sharing one frame does not cost the two regressors their own source precedence.
+    first, second = pipeline.past_regressors
+    assert value_a in loaded_data[first].values
+    assert value_b not in loaded_data[first].values
+    assert value_b in loaded_data[second].values
+    assert value_a not in loaded_data[second].values
 
 
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
@@ -2324,3 +2471,107 @@ def test_training_window_goes_back_no_further_than_asked_for(
     train_start, train_end = pipeline._derive_training_period()
     assert train_end == predict_start
     assert train_end - train_start == expected_span, why
+
+
+def _synthetic_series_and_covariate(n_horizons: int):
+    """Build a seasonal target series, and a future covariate that outlasts it.
+
+    Future covariates have to reach past the target series far enough for the longest horizon,
+    otherwise darts refuses to predict.
+    """
+    index = pd.date_range("2025-01-01", periods=600, freq="15min", tz="UTC")
+    steps = np.arange(len(index))
+    series = TimeSeries.from_times_and_values(
+        index, 10 + 3 * np.sin(steps * 2 * np.pi / 96) + np.sin(steps * 2 * np.pi / 17)
+    )
+
+    covariate_index = pd.date_range(
+        "2025-01-01", periods=len(index) + 4 * n_horizons, freq="15min", tz="UTC"
+    )
+    covariate_steps = np.arange(len(covariate_index))
+    covariate = TimeSeries.from_times_and_values(
+        covariate_index, 5 + 1.5 * np.sin(covariate_steps * 2 * np.pi / 96)
+    )
+    return series, covariate
+
+
+def test_horizon_sub_models_are_worked_on_concurrently_by_default():
+    """The horizons do not depend on each other, so they are fitted and predicted concurrently."""
+    model = CustomLGBM(max_forecast_horizon=4)
+    assert model.n_jobs == default_n_jobs()
+    # Each sub-model stays single-threaded, so the concurrency does not oversubscribe the cores.
+    # On a single-core machine there is no concurrency to speak of, and LightGBM keeps the threading instead.
+    assert model.models_params["num_threads"] == (1 if default_n_jobs() > 1 else 0)
+    # A caller can still override the thread count.
+    assert (
+        CustomLGBM(
+            max_forecast_horizon=4, models_params={"num_threads": 4}
+        ).models_params["num_threads"]
+        == 4
+    )
+    # A nonsensical worker count still leaves one worker to do the job.
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=0).n_jobs == 1
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=-5).n_jobs == 1
+
+
+def test_a_single_core_machine_leaves_the_threading_to_lightgbm(monkeypatch):
+    """One core means no horizons to run side by side, so LightGBM should keep its own threading."""
+    monkeypatch.setattr(base_model_module, "default_n_jobs", lambda: 1)
+    model = CustomLGBM(max_forecast_horizon=4)
+    assert model.n_jobs == 1
+    assert model.models_params["num_threads"] == 0
+
+
+@pytest.mark.parametrize("n_jobs", [1, 0, -5])
+def test_opting_out_of_concurrency_hands_the_cores_back_to_lightgbm(n_jobs):
+    """Without the concurrency, LightGBM's own threading is what should use the cores.
+
+    Single-threading the sub-models only pays off because the horizons run side by side,
+    so opting out of one has to opt out of the other as well.
+    """
+    model = CustomLGBM(max_forecast_horizon=4, n_jobs=n_jobs)
+    assert model.n_jobs == 1
+    assert (
+        model.models_params["num_threads"] == 0
+    )  # 0 means LightGBM decides, its own default
+
+
+def test_predicting_without_a_horizon_says_so():
+    """Without a horizon there is no sub-model to predict with, which should be said out loud."""
+    model = CustomLGBM(max_forecast_horizon=0)
+    series, covariate = _synthetic_series_and_covariate(1)
+    with pytest.raises(ValueError, match="without a horizon to forecast for"):
+        model.predict(
+            series=series, past_covariates=covariate, future_covariates=covariate
+        )
+
+
+def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
+    """Working on the horizons concurrently must not move a single forecast value."""
+    n_horizons = 12
+    series, covariate = _synthetic_series_and_covariate(n_horizons)
+
+    def fitted(n_jobs: int):
+        model = CustomLGBM(
+            max_forecast_horizon=n_horizons,
+            probabilistic=False,
+            auto_regressive=False,
+            use_past_covariates=True,
+            use_future_covariates=True,
+            training_sample_count=len(series),
+            n_jobs=n_jobs,
+        )
+        model.fit(series=series, past_covariates=covariate, future_covariates=covariate)
+        return model
+
+    predictions = [
+        fitted(n_jobs).predict(
+            series=series, past_covariates=covariate, future_covariates=covariate
+        )
+        for n_jobs in (1, 8)
+    ]
+
+    # One prediction per horizon, in horizon order, holding the very same values.
+    assert len(predictions[0]) == n_horizons
+    assert list(predictions[0].time_index) == list(predictions[1].time_index)
+    assert np.array_equal(predictions[0].values(), predictions[1].values())

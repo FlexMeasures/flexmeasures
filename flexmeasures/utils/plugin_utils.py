@@ -4,6 +4,7 @@ Utils for registering FlexMeasures plugins
 
 from __future__ import annotations
 
+import importlib.machinery
 import importlib.util
 import os
 import sys
@@ -14,6 +15,33 @@ import sentry_sdk
 from flask import Flask, Blueprint
 
 from flexmeasures.utils.coding_utils import get_classes_module
+
+
+def is_written_as_path(plugin: str) -> bool:
+    """Whether this FLEXMEASURES_PLUGINS entry is spelled out as a file path.
+
+    A bare name like ``my_plugin`` is not: it may well name an installed package.
+    """
+    separators = [sep for sep in (os.sep, os.altsep) if sep is not None]
+    return os.path.isabs(plugin) or any(sep in plugin for sep in separators)
+
+
+def find_importable_module(pkg_name: str) -> importlib.machinery.ModuleSpec | None:
+    """Find the spec of an importable module, if there is one.
+
+    A single-file module counts, just like a package: ``register_plugins`` imports either by name.
+    Namespace packages do not.
+    A folder without an ``__init__.py`` is importable, but accepting it here would shadow the clearer error that the file path branch of ``register_plugins`` reports for such a folder.
+    """
+    try:
+        spec = importlib.util.find_spec(pkg_name)
+    except (ImportError, ValueError):
+        # ImportError: a dotted name whose parent package is missing.
+        # ValueError: a name that is in sys.modules without a spec.
+        return None
+    if spec is None or spec.origin is None:
+        return None
+    return spec
 
 
 def register_plugins(app: Flask):  # noqa: C901
@@ -29,6 +57,11 @@ def register_plugins(app: Flask):  # noqa: C901
 
     If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
     (last part of the path).
+
+    An entry that is not spelled out as a file path is imported by name, so that normal import resolution along ``sys.path`` applies,
+    rather than loaded from the folder of that name in the working directory.
+    An installed plugin therefore wins from such a folder, unless the working directory itself comes first on ``sys.path``.
+    To load a folder on purpose, spell out its path (e.g. ``./my_plugin``).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
     if isinstance(plugins, str):
@@ -42,16 +75,32 @@ def register_plugins(app: Flask):  # noqa: C901
         return
     app.config["LOADED_PLUGINS"] = {}
     for plugin in plugins:
-        plugin_name = plugin.split("/")[-1]
+        plugin_name = os.path.basename(os.path.normpath(plugin))
         app.logger.info(f"Importing plugin {plugin_name} ...")
         module = None
-        if not os.path.exists(plugin):  # assume plugin is a package
-            pkg_name = os.path.split(plugin)[
-                -1
-            ]  # rule out attempts for relative package imports
-            app.logger.debug(
-                f"Attempting to import {pkg_name} as an installed package ..."
+        pkg_name = plugin_name  # rule out attempts for relative package imports
+        # An entry that is spelled out as a file path always loads the folder it points to.
+        # For a bare name, an installed module wins from a folder of the same name in the working directory.
+        # Loading such a folder by path would execute its __init__.py a second time, under a new module object,
+        # while submodules imported by the first execution keep referring to the old one,
+        # so that, for instance, routes end up on a Blueprint that is never registered. See GH issue #2415.
+        written_as_path = is_written_as_path(plugin)
+        prefer_installed = not written_as_path and (
+            find_importable_module(pkg_name) is not None
+        )
+        folder_exists = os.path.exists(plugin)
+        if written_as_path and not folder_exists:
+            app.logger.error(
+                f"Plugin {plugin_name} is spelled out as a file path, but {plugin} does not exist. Cannot load plugin {plugin_name}."
             )
+            continue
+        if not folder_exists or prefer_installed:  # assume plugin is a package
+            if prefer_installed and folder_exists:
+                app.logger.debug(
+                    f"Importing plugin {plugin_name} by name, rather than from the folder of the same name in the working directory."
+                    f" Spell out its path (e.g. '.{os.sep}{plugin}') to load that folder instead."
+                )
+            app.logger.debug(f"Attempting to import {pkg_name} by name ...")
             try:
                 module = importlib.import_module(pkg_name)
             except ModuleNotFoundError:
@@ -60,6 +109,12 @@ def register_plugins(app: Flask):  # noqa: C901
                 )
                 continue
         else:  # assume plugin is a file path
+            if not written_as_path:
+                app.logger.warning(
+                    f"Loading plugin {plugin_name} from the folder of that name in the working directory,"
+                    f" as no installed package goes by that name."
+                    f" Spell out its path (e.g. '.{os.sep}{plugin}') to make this explicit."
+                )
             if not os.path.exists(os.path.join(plugin, "__init__.py")):
                 app.logger.error(
                     f"Plugin {plugin_name} is a valid file path, but does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."

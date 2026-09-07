@@ -31,7 +31,22 @@ command -v python3 >/dev/null 2>&1 || exit 0
 target="$(printf '%s' "$payload" | python3 "$(dirname "${BASH_SOURCE[0]}")/pre_commit_target.py" 2>/dev/null || true)"
 [ -n "$target" ] || exit 0
 
-if ! output=$(cd "$target" && uv run pre-commit run --all-files 2>&1); then
+# Pick a runner for the target checkout.
+# `uv run` only works where the target is a uv project whose dependencies resolve,
+# which is not a given: commits from this session also land in worktrees of other repositories,
+# where uv fails to build an environment for reasons that have nothing to do with the commit,
+# and blocking on that would be a false positive.
+# The hook versions come from the target's own .pre-commit-config.yaml either way, so a pre-commit on PATH checks exactly the same things.
+if [ -f "$target/uv.lock" ] && command -v uv >/dev/null 2>&1 && (cd "$target" && uv run pre-commit --version) >/dev/null 2>&1; then
+    runner=(uv run pre-commit)
+elif command -v pre-commit >/dev/null 2>&1; then
+    runner=(pre-commit)
+else
+    # No way to run the hooks; fail open, as above.
+    exit 0
+fi
+
+if ! output=$(cd "$target" && "${runner[@]}" run --all-files 2>&1); then
     echo "pre-commit failed in $target — fix the issues below before committing:" >&2
     echo "$output" >&2
     exit 2
