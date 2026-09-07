@@ -111,54 +111,63 @@ class SensorsToShowSchema(fields.Field):
         Transform a dictionary-based sensor configuration into a standardized 'plots' structure.
         Ensures 'title' is a string and processes 'sensor', 'sensors', or direct 'plots' keys.
         """
-
-        # Get the value, default to "No Title" if the key doesn't exist
+        # Get the title and optional description. Keep title defaulting to "No Title".
         title = item.get("title", None)
+        description = item.get("description", None)
 
         if title is not None and not isinstance(title, str):
             raise ValidationError("'title' value must be a string.")
 
+        if description is not None and not isinstance(description, str):
+            raise ValidationError("'description' value must be a string.")
+
+        # Preserve original behavior of setting title on the provided dict.
         item["title"] = title or "No Title"
 
+        # Collect non-default y-axis configuration if provided.
         y_axis_kwargs = {}
         if "y-axis" in item:
             validated_y_axis = self._validate_y_axis(item["y-axis"])
-            # Only store non-default values; "zero" is the implicit default.
             if validated_y_axis != "zero":
                 y_axis_kwargs["y-axis"] = validated_y_axis
+
+        def _make_base():
+            base = {"title": title, **y_axis_kwargs}
+            if description is not None:
+                base["description"] = description
+            return base
 
         if "sensor" in item:
             sensor = item["sensor"]
             if not isinstance(sensor, int):
                 raise ValidationError("'sensor' value must be an integer.")
-            return {
-                "title": title,
-                **y_axis_kwargs,
-                "plots": [{"sensor": sensor}],
-            }
-        elif "sensors" in item:
+            base = _make_base()
+            base["plots"] = [{"sensor": sensor}]
+            return base
+
+        if "sensors" in item:
             sensors = item["sensors"]
             if not isinstance(sensors, list) or not all(
                 isinstance(sensor_id, int) for sensor_id in sensors
             ):
                 raise ValidationError("'sensors' value must be a list of integers.")
-            return {
-                "title": title,
-                **y_axis_kwargs,
-                "plots": [{"sensors": sensors}],
-            }
-        elif "plots" in item:
+            base = _make_base()
+            base["plots"] = [{"sensors": sensors}]
+            return base
+
+        if "plots" in item:
             plots = item["plots"]
             if not isinstance(plots, list):
                 raise ValidationError("'plots' must be a list or dictionary.")
             for plot in plots:
                 self._validate_single_plot(plot)
+            base = _make_base()
+            base["plots"] = plots
+            return base
 
-            return {"title": title, **y_axis_kwargs, "plots": plots}
-        else:
-            raise ValidationError(
-                "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
-            )
+        raise ValidationError(
+            "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
+        )
 
     def _validate_y_axis(self, y_axis) -> str | list | dict:
         """
