@@ -105,6 +105,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.cli.utils import (
@@ -1589,6 +1590,7 @@ def add_forecast(  # noqa: C901
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Forecasts are saved to the database; use --dry-run to compute them without saving.
       - Sensor 2093 is used as a regressor in this example.
 
     \b
@@ -1624,6 +1626,18 @@ def add_forecast(  # noqa: C901
         edit_parameters,
     )
 
+    # Read the flag from the assembled parameters, so that it counts however it was supplied:
+    # as the --dry-run option, or through the --parameters file or the --edit-parameters editor.
+    dry_run = parameters.get("dry-run", False)
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the forecast that a dry run computes would be discarded unseen."
+            " Drop --as-job to compute the forecast here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     try:
         forecaster = get_data_generator(
             source=source,
@@ -1658,8 +1672,34 @@ def add_forecast(  # noqa: C901
         unique_belief_times = {
             ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
         }
+        if dry_run:
+            sensor_to_save = forecaster.output_sensors[0]
+            # Only frames with beliefs have an event range; without any, we still report the rest.
+            frames_with_beliefs = [
+                item["data"] for item in pipeline_returns if not item["data"].empty
+            ]
+            event_range = (
+                f" covering events from {min(data.event_starts.min() for data in frames_with_beliefs)}"
+                f" until {max(data.event_ends.max() for data in frames_with_beliefs)},"
+                if frames_with_beliefs
+                else ""
+            )
+            click.secho(
+                f"Not saving forecasts to the database (because of --dry-run), but this is what I computed:"
+                f"\n{pluralize('forecast belief', total_beliefs, include_count=True)}"
+                f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+                f"{event_range}"
+                f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
+                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            for item in pipeline_returns:
+                click.echo(item["data"])
+            return
+
         click.secho(
-            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
             **MsgStyle.SUCCESS,
         )
 
@@ -1795,6 +1835,15 @@ def add_automation(
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
     )
+
+    # An automation exists to record forecasts, so a dry run would render it pointless.
+    # Popping the parameter also keeps it out of the parameters stored on the automation.
+    if parameters.pop("dry-run", False):
+        click.secho(
+            "The dry-run option is not supported for automations, which exist to record the forecasts they compute.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     # Validate the parameters using the forecast parameters schema (we store them serialized)
     try:
@@ -1954,6 +2003,16 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the schedule that a dry run computes would be discarded unseen,"
+            " and where it would be saved to the database, which is exactly what --dry-run asks it not to do."
+            " Drop --as-job to compute the schedule here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     asset_or_sensor = None
     if not power_sensor and not asset:
         click.secho(
@@ -2026,6 +2085,11 @@ def add_schedule(  # noqa C901
         )
         if not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+        else:
+            click.secho(
+                "The schedule above was computed but not stored (because of --dry-run).",
+                **MsgStyle.SUCCESS,
+            )
 
 
 @fm_add_data.command("report")

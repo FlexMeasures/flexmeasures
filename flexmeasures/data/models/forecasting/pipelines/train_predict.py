@@ -304,6 +304,7 @@ class TrainPredictPipeline(Forecaster):
                 "upper": self._config.get("upper"),
                 "snap": self._config.get("snap"),
             },
+            dry_run=self._parameters.get("dry_run", False),
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."

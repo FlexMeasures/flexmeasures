@@ -554,6 +554,18 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
+    dry_run = fields.Bool(
+        data_key="dry-run",
+        load_default=False,
+        metadata={
+            "description": "Add this flag to avoid saving the results to the database.",
+            "cli": {
+                "cli-exclusive": True,
+                "is_flag": True,
+                "option": "--dry-run",
+            },
+        },
+    )
 
     @pre_load
     def sanitize_input(self, data, **kwargs):
@@ -725,6 +737,7 @@ class ForecasterParametersSchema(Schema):
             save_belief_time=save_belief_time,
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
+            dry_run=data.get("dry_run", False),
         )
         if "config" in data:
             result["config"] = data["config"]
