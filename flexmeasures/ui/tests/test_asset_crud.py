@@ -652,3 +652,48 @@ def test_group_field_hints_on_properties_page(
     assert lone_page.status_code == 200
     assert b"Consider setting" not in lone_page.data
     assert b"Child assets can" not in lone_page.data
+
+
+def test_status_page_lists_only_real_sensors(
+    db, client, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """The status page asks the status endpoint about each sensor it lists.
+
+    Fixed-value sensors stand in for flex-config quantities and have no row in the database,
+    so listing them would only lead to status requests for their negative IDs, which cannot resolve to a sensor.
+    """
+    asset = GenericAsset(
+        name="status-page-asset",
+        generic_asset_type=setup_generic_asset_types["wind"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10.0,
+        longitude=100.0,
+        flex_context={"site-power-capacity": "1 MVA"},
+    )
+    db.session.add(asset)
+    power_sensor = Sensor(
+        name="power",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(power_sensor)
+    db.session.flush()
+
+    asset.sensors_to_show = [
+        {"title": "Power", "sensor": power_sensor.id},
+        {
+            "title": "Capacity",
+            "plots": [{"asset": asset.id, "flex-context": "site-power-capacity"}],
+        },
+    ]
+    db.session.commit()
+
+    page = client.get(url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True)
+    assert page.status_code == 200
+
+    listed_sensors = json.loads(
+        re.search(r"const sensors = (\[.*?\]);", page.data.decode(), re.DOTALL).group(1)
+    )
+    assert power_sensor.id in [sensor["id"] for sensor in listed_sensors]
+    assert not [sensor for sensor in listed_sensors if sensor["id"] < 0]

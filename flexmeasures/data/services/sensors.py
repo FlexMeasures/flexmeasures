@@ -740,6 +740,10 @@ def get_asset_sensors_metadata(
     for sensor in sensors_list:
         if sensor is None or sensor.id in sensor_ids:
             continue
+        if sensor.id is not None and sensor.id < 0:
+            # Skip fixed-value sensors, the synthetic stand-ins for flex-config quantities.
+            # They carry negative IDs, have no row in the database, and therefore no data connectivity to report on.
+            continue
         sensor_status = {}
         sensor_status["id"] = sensor.id
         sensor_status["name"] = sensor.name

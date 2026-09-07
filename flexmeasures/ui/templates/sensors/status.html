@@ -52,7 +52,9 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { fetchSensorStatuses } from "{{ url_for('flexmeasures_ui.static', filename='js/sensor-status-utils.js') }}?v={{ flexmeasures_version }}";
+
   const assetId = "{{ asset.id }}";
   const sensors = {{ sensors | tojson }};
 
@@ -135,35 +137,11 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         { data: "url", title: "URL", className: "d-none" },
       ],
       ajax: function (data, callback) {
-        if (!sensors.length) {
-          callback({ data: [] });
-          return;
-        }
-        const allData = [];
-        let completed = 0;
-        sensors.forEach(sensor => {
-          $.ajax({
-            url: `/api/v3_0/sensors/${sensor.id}/status`,
-            method: "GET",
-            success: function (res) {
-              res.sensors_data.forEach(sensorData => {
-                allData.push(SensorStatusRow(sensorData));
-              });
-            },
-            complete: function () {
-              completed++;
-              if (completed === sensors.length) {
-                callback({ data: allData });
-              }
-            },
-            error: function () {
-              completed++;
-              if (completed === sensors.length) {
-                callback({ data: allData });
-              }
-            }
-          });
-        });
+        fetchSensorStatuses(
+          sensors.map(sensor => sensor.id),
+          sensorId => $.ajax({ url: `/api/v3_0/sensors/${sensorId}/status`, method: "GET" }),
+          (sensorId, error) => console.error("Error fetching status for sensor:", sensorId, error)
+        ).then(sensorsData => callback({ data: sensorsData.map(SensorStatusRow) }));
       },
       headerCallback: function (thead, data, start, end, display) {
         // target the 3rd column header (index 2)
