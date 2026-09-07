@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.1"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -7634,6 +7634,11 @@
             "minimum": 0.0,
             "description": "Positive coupling magnitude for this device within its coupling group.\nThe scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.\nThe flow direction of each device is inferred from which directional capacity is set: a device given only a <code>production-capacity</code> is an output (producing) device, and a device given only a <code>consumption-capacity</code> is an input (consuming) device.\nThe unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).\nFor example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).\nDefaults to 1.\n",
             "example": 0.5
+          },
+          "soc-value-at-end": {
+            "description": "Marginal value assigned to energy left in storage at the end of the scheduling horizon.\nWithout it, the scheduler sees no benefit in ending the horizon with a non-zero state of charge, which can lead to myopic behaviour such as fully depleting the storage towards the end of the horizon.\nIt must use the same currency as the other price settings and cannot be negative.\nSet it per device (for example, lower for a heat pump's thermal buffer than for a battery, due to the difference between the COP and the battery's charging efficiency), either as a fixed quantity or as a sensor reference.\n",
+            "example": "60 EUR/MWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "sensor": {
             "type": "integer",
