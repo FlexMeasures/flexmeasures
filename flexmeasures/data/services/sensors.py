@@ -4,7 +4,7 @@ import json
 import time
 import hashlib
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 from flask import current_app
 from sqlalchemy import delete
 from werkzeug.exceptions import Forbidden, Unauthorized
@@ -910,6 +910,11 @@ def build_asset_jobs_data(
     return jobs_data
 
 
+# The key under which the statistics covering every source are reported.
+# Keys for individual sources always end in " (ID: <id>)", so this one cannot collide with them.
+ALL_SOURCES_KEY = "All sources"
+
+
 def _get_sensor_stats(
     sensor: Sensor,
     event_end_time: str,
@@ -942,6 +947,8 @@ def _get_sensor_stats(
             filtered_agg(sa.func.avg).label("avg_event_value"),
             filtered_agg(sa.func.sum).label("sum_event_value"),
             sa.func.count(TimedBelief.event_value).label("count_event_value"),
+            # Not reported, but needed to combine the per-source means; see _combine_stats.
+            filtered_agg(sa.func.count).label("count_non_nan_event_value"),
         )
         .select_from(TimedBelief)
         .join(DataSource, DataSource.id == TimedBelief.source_id)
@@ -953,14 +960,14 @@ def _get_sensor_stats(
     if end_dt:
         q = q.filter(TimedBelief.event_start < end_dt)
 
+    # Group on DataSource, and keep the join in front of the aggregate rather than grouping on TimedBelief.source_id and joining afterwards.
+    # This lets the planner use the (sensor_id, source_id, event_start) index as one range per source, instead of scanning the sensor's whole history and filtering on event_start.
     raw_stats = db.session.execute(q.group_by(DataSource.id)).fetchall()
 
     def to_local_iso(ts):
         return pd.Timestamp(ts).tz_convert(sensor.timezone).isoformat()
 
-    stats = dict()
-    for (
-        data_source_obj,
+    def record(
         min_event_start,
         max_event_start,
         max_belief_time,
@@ -969,12 +976,10 @@ def _get_sensor_stats(
         mean_value,
         sum_values,
         count_values,
-    ) in raw_stats:
-        data_source = f"{data_source_obj.description} (ID: {data_source_obj.id})"
-        last_event_end = max_event_start + sensor.event_resolution
-        stats[data_source] = {
+    ) -> dict:
+        return {
             "First event start": to_local_iso(min_event_start),
-            "Last event end": to_local_iso(last_event_end),
+            "Last event end": to_local_iso(max_event_start + sensor.event_resolution),
             "Last recorded": to_local_iso(max_belief_time),
             "Min value": min_value,
             "Max value": max_value,
@@ -982,9 +987,66 @@ def _get_sensor_stats(
             "Sum over values": sum_values,
             "Number of values": count_values,
         }
-        if not sort_keys:
-            stats[data_source] = stats[data_source].items()
+
+    stats = dict()
+    if len(raw_stats) > 1:
+        # Report the combined statistics first, and only when more than one source recorded,
+        # because with a single source they would just repeat that source's own record.
+        stats[ALL_SOURCES_KEY] = _combine_stats(raw_stats, record)
+    for row in raw_stats:
+        data_source = f"{row[0].description} (ID: {row[0].id})"
+        stats[data_source] = record(
+            row.min_event_start,
+            row.max_event_start,
+            row.max_belief_time,
+            row.min_event_value,
+            row.max_event_value,
+            row.avg_event_value,
+            row.sum_event_value,
+            row.count_event_value,
+        )
+    if not sort_keys:
+        stats = {source: values.items() for source, values in stats.items()}
     return stats
+
+
+def _combine_stats(raw_stats: list, record: Callable[..., dict]) -> dict:
+    """Fold the per-source statistics into one record covering every source.
+
+    Every field is derived from aggregates the query already returned, so summarising costs no extra database work.
+    Doing it in SQL instead, as a GROUP BY GROUPING SETS rollup, is free while the query is time-filtered but not otherwise:
+    a rollup cannot be aggregated in parallel, which over a sensor's whole history is markedly slower than the plain grouping.
+
+    The mean is the one field that cannot be derived from what the record reports.
+    "Number of values" counts every row, NaN ones included, while the sum leaves NaN rows out,
+    so weighting each source's mean by that count would understate the combined mean.
+    The query selects a NaN-excluded count for this purpose, which is not itself reported.
+
+    Counts are summed, so an event that two sources both recorded counts once per source,
+    just as a single source's count already counts an event once per belief held about it.
+    """
+    # A source whose rows are all NaN contributes a row count but no value aggregates.
+    min_values = [
+        row.min_event_value for row in raw_stats if row.min_event_value is not None
+    ]
+    max_values = [
+        row.max_event_value for row in raw_stats if row.max_event_value is not None
+    ]
+    sum_values = [
+        row.sum_event_value for row in raw_stats if row.sum_event_value is not None
+    ]
+    total = sum(sum_values) if sum_values else None
+    count_non_nan = sum(row.count_non_nan_event_value for row in raw_stats)
+    return record(
+        min_event_start=min(row.min_event_start for row in raw_stats),
+        max_event_start=max(row.max_event_start for row in raw_stats),
+        max_belief_time=max(row.max_belief_time for row in raw_stats),
+        min_value=min(min_values) if min_values else None,
+        max_value=max(max_values) if max_values else None,
+        mean_value=total / count_non_nan if count_non_nan else None,
+        sum_values=total,
+        count_values=sum(row.count_event_value for row in raw_stats),
+    )
 
 
 # Per-key TTL cache for sensor stats.
