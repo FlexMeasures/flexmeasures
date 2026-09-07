@@ -280,3 +280,38 @@ def test_flatten_ignores_y_axis():
     schema = SensorsToShowSchema()
     input_value = [{"y-axis": "data", "plots": [{"sensors": [1, 2]}]}]
     assert schema.flatten(input_value) == [1, 2]
+
+
+def test_description_survives_deserialize_and_is_optional():
+    schema = SensorsToShowSchema()
+    input_value = [
+        {
+            "title": "Prices",
+            "description": "Per-hour median",
+            "plots": [{"sensors": [3, 4]}],
+        }
+    ]
+    expected_output = [
+        {
+            "title": "Prices",
+            "description": "Per-hour median",
+            "plots": [{"sensors": [3, 4]}],
+        }
+    ]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_deserialize_without_description_preserves_shape():
+    schema = SensorsToShowSchema()
+    input_value = [{"title": "Prices", "plots": [{"sensors": [3, 4]}]}]
+    output = schema.deserialize(input_value)
+    assert "description" not in output[0]
+
+
+def test_invalid_non_string_description_raises():
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "description": 123, "plots": [{"sensors": [3, 4]}]}
+    ]
+    with pytest.raises(ValidationError, match="'description' value must be a string."):
+        schema.deserialize(input_value)
