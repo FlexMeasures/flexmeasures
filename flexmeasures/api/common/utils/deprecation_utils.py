@@ -255,7 +255,7 @@ def _api_version_deprecation_setting(
 ) -> Any:
     """Return host-configured API-version deprecation metadata, if available."""
     config = current_app.config.get("FLEXMEASURES_DEPRECATION_AND_SUNSET", {}) or {}
-    api_version_key = f"api-v{api_version.replace('.', '_')}"
+    api_version_key = f"api-v{api_version}"
     api_version_config = config.get(api_version_key, config.get(api_version, {}))
 
     if setting_name in api_version_config:

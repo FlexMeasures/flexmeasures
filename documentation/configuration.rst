@@ -972,7 +972,7 @@ Dates may be strings of a format like ``"2026-08-01"``.
 .. code-block:: python
 
     FLEXMEASURES_DEPRECATION_AND_SUNSET = {
-        "api-v2_0": {
+        "api-v2.0": {
             "deprecation-date": "2026-08-01",
             "deprecation-link": "https://example.com/api/v2-deprecation",
             "sunset-date": "2026-11-01",
@@ -982,11 +982,11 @@ Dates may be strings of a format like ``"2026-08-01"``.
 
 The currently known API-version keys are:
 
-* ``api-v1``
-* ``api-v1_1``
-* ``api-v1_2``
-* ``api-v1_3``
-* ``api-v2_0``
+* ``api-v1.0``
+* ``api-v1.1``
+* ``api-v1.2``
+* ``api-v1.3``
+* ``api-v2.0``
 
 Default: ``{}`` (built-in metadata is used)
 
