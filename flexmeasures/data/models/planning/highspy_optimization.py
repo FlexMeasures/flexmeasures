@@ -268,6 +268,7 @@ def device_scheduler_highspy(  # noqa C901
     device_to_group = problem.device_to_group
     group_to_devices = problem.group_to_devices
     commitments = problem.commitments
+    commitment_headers = problem.commitment_scalars
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
@@ -382,21 +383,19 @@ def device_scheduler_highspy(  # noqa C901
         lower[col_band:ncol] = 0
         upper[col_band:ncol] = 1
 
-    # Per-subcommitment data: prices (objective), quantities and bounds
-    def _price_of(df: pd.DataFrame, column: str) -> float:
+    # Per-subcommitment data: prices (objective), quantities and bounds.
+    # Prices are constant down a commitment, so they come from the headers read once
+    # by prepare_scheduling_problem rather than from indexing every frame again.
+    def _price_of(header: dict, column: str) -> float:
         """Mirrors price_down_select / price_up_select."""
-        if column not in df.columns:
-            return 0
-        price = df[column].iloc[0]
-        if pd.isna(price):
-            return 0
-        return float(price)
+        price = header[column]
+        return 0 if price is None else float(price)
 
     down_price = np.zeros(C)
     up_price = np.zeros(C)
-    for c, df in enumerate(commitments):
-        down_price[c] = _price_of(df, "downwards deviation price")
-        up_price[c] = _price_of(df, "upwards deviation price")
+    for c, header in enumerate(commitment_headers):
+        down_price[c] = _price_of(header, "downwards deviation price")
+        up_price[c] = _price_of(header, "upwards deviation price")
     cost[col_cdown : col_cdown + C] = down_price
     cost[col_cup : col_cup + C] = up_price
 
@@ -580,7 +579,7 @@ def device_scheduler_highspy(  # noqa C901
         quantity, jj, lb, ub = _active_rows(df)
         if len(jj) == 0:
             continue
-        is_stock = df["class"].apply(lambda cl: cl == StockCommitment).all()
+        is_stock = commitment_headers[c]["class"] == StockCommitment
         for g, devices_in_group in groups.items():
             if not devices_in_group:
                 continue
@@ -593,7 +592,7 @@ def device_scheduler_highspy(  # noqa C901
     for c, df in enumerate(commitments):
         if device_group_lookup.get(c):
             continue
-        if df["class"].iloc[0] != FlowCommitment:
+        if commitment_headers[c]["class"] != FlowCommitment:
             continue
         if "commodity" not in df.columns:
             # Legacy behavior: no commodity, so sum over all devices.
@@ -750,7 +749,9 @@ def device_scheduler_highspy(  # noqa C901
     model.commitment_costs = aggregate_subcommitment_costs(
         subcommitment_costs, commitment_mapping
     )
-    model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
+    model.commodity_costs = aggregate_commodity_costs(
+        commitment_headers, subcommitment_costs
+    )
     model.costs = planned_costs
     model.d = range(D)
     model.j = range(T)
