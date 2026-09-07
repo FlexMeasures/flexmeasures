@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import numbers
 import os
 
@@ -32,6 +31,21 @@ from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import ur
+
+DEFAULT_TRAIN_PERIOD = timedelta(days=30)
+
+
+def _fixed_length_or_none(value) -> timedelta | None:
+    """Return a duration as a timedelta, or None when it is not one of fixed length.
+
+    A duration given in years or months parses to a Duration rather than a timedelta,
+    and the two cannot be compared, so anything that compares durations has to know which it has.
+    """
+    try:
+        parsed = DurationField().deserialize(value)
+    except ValidationError:
+        return None
+    return parsed if isinstance(parsed, timedelta) else None
 
 
 def _is_parseable_quantity(value) -> bool:
@@ -267,32 +281,19 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
     train_period = DurationField(
         data_key="train-period",
-        load_default=timedelta(days=30),
+        load_default=DEFAULT_TRAIN_PERIOD,
         allow_none=True,
         metadata={
             "description": (
-                "Duration of the initial training period (ISO 8601 format, min 2 days). "
-                "Defaults to P30D (30 days). Ignored when --train-start is set: "
-                "the training window then runs from --train-start to --start, "
-                "capped to --max-training-period."
+                "How much history to train on (ISO 8601 format, min 2 days). Defaults to P30D (30 days). "
+                "Together with train-start this bounds the training window: training starts no earlier than train-start, and spans no more than train-period, so whichever of the two asks for less data decides. "
+                "max-training-period said the same thing, and is still accepted as a deprecated alias."
             ),
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
                 "option": "--train-period",
-            },
-        },
-    )
-    max_training_period = DurationField(
-        data_key="max-training-period",
-        load_default=timedelta(days=365),
-        allow_none=True,
-        metadata={
-            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
-            "example": "P1Y",
-            "cli": {
-                "cli-exclusive": True,
-                "option": "--max-training-period",
+                "aliases": ["--max-training-period"],
             },
         },
     )
@@ -311,13 +312,33 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
 
     @pre_load
-    def warn_when_train_period_is_ignored(self, data, **kwargs):
-        """An explicit train-start takes precedence over train-period (see _derive_training_period)."""
-        if data.get("train-start") is not None and data.get("train-period") is not None:
-            logging.warning(
-                "Both train-start and train-period are set; train-period is ignored "
-                "and the training window runs from train-start (capped to max-training-period)."
-            )
+    def fold_in_max_training_period(self, data, **kwargs):
+        """Read the deprecated max-training-period as the train-period it always was.
+
+        Both said how far back training may reach, so a config carrying both asks twice,
+        and the shorter of the two is all that either of them allows.
+        Folding it in here keeps configs written before the two were merged working, without keeping the merged name in the schema.
+        """
+        if not isinstance(data, dict) or "max-training-period" not in data:
+            return data
+        data = dict(data)
+        deprecated = data.pop("max-training-period")
+        if deprecated is None:
+            return data
+        stated = data.get("train-period")
+        if stated is None:
+            data["train-period"] = deprecated
+            return data
+        stated_length = _fixed_length_or_none(stated)
+        deprecated_length = _fixed_length_or_none(deprecated)
+        if stated_length is None or deprecated_length is None:
+            # One of them is malformed, or is a length that varies, such as a year.
+            # Hand that one to the field, which says what is wrong with it, rather than quietly going with the other.
+            data["train-period"] = stated if stated_length is None else deprecated
+            return data
+        data["train-period"] = (
+            stated if stated_length <= deprecated_length else deprecated
+        )
         return data
 
     @validates_schema
@@ -329,20 +350,20 @@ class TrainPredictPipelineConfigSchema(Schema):
             )
 
         train_period = data.get("train_period")
-        max_training_period = data.get("max_training_period")
+
+        # Say this first: a Duration cannot be compared to a timedelta, so any check below it would raise a TypeError rather than report the problem.
+        if isinstance(train_period, Duration):
+            # DurationField only returns Duration when years/months are present
+            raise ValidationError(
+                "train-period must be specified using days or smaller units "
+                "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="train_period",
+            )
 
         if train_period is not None and train_period < timedelta(days=2):
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
-            )
-
-        if isinstance(max_training_period, Duration):
-            # DurationField only returns Duration when years/months are present
-            raise ValidationError(
-                "max-training-period must be specified using days or smaller units "
-                "(e.g. P365D, PT48H). Years and months are not supported.",
-                field_name="max_training_period",
             )
 
     @validates_schema
@@ -393,22 +414,9 @@ class TrainPredictPipelineConfigSchema(Schema):
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
 
-        train_period_in_hours = (
-            data["train_period"] // timedelta(hours=1)
-            if data.get("train_period") is not None
-            else None
-        )
-        max_training_period = data["max_training_period"]
-        if (
-            train_period_in_hours is not None
-            and train_period_in_hours > max_training_period // timedelta(hours=1)
-        ):
-            train_period_in_hours = max_training_period // timedelta(hours=1)
-            logging.warning(
-                f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
-            )
-
-        data["train_period_in_hours"] = train_period_in_hours
+        # A null train-period asks for no limit of its own, which leaves the default to say how much history to use.
+        train_period = data.get("train_period") or DEFAULT_TRAIN_PERIOD
+        data["train_period_in_hours"] = train_period // timedelta(hours=1)
         return data
 
 

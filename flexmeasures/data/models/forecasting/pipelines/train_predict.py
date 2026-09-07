@@ -234,8 +234,9 @@ class TrainPredictPipeline(Forecaster):
         """
         Runs a single training and prediction cycle.
         """
+        # State the training span, because it decides how much work the cycle is, and it is derived rather than configured.
         logging.info(
-            f"Starting Train-Predict cycle from {train_start} to {predict_end}"
+            f"Starting Train-Predict cycle from {train_start} to {predict_end}, training on {train_end - train_start} of data"
         )
 
         # Train model
@@ -334,47 +335,40 @@ class TrainPredictPipeline(Forecaster):
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
 
-        Priority (most restrictive start date wins):
+        Training ends at ``predict_start``. Two settings say how far back it may reach:
+        ``train-start`` names the earliest moment to train from, and ``train-period`` says how much history to use.
+        Both are limits, so the window is the shorter of what they allow, which is the later of the two starting points.
 
-        1. ``train_start`` (if explicitly configured via ``--train-start``).
-        2. ``predict_start - train_period`` (if ``--train-period`` was explicitly set).
-        3. ``predict_start - max_training_period`` (always enforced as the outer bound).
-
-        When ``--train-start`` is set the ``--train-period`` is ignored – the
-        effective period is simply ``predict_start - train_start``, capped to
-        ``max_training_period``.  This prevents the old 30-day default from
-        silently overriding an explicit start date.
-
-        Additionally, the resulting training window is guaranteed to span
-        at least two days.
+        Additionally, the resulting training window is guaranteed to span at least two days.
 
         :return:    A tuple ``(train_start, train_end)`` defining the training window.
         """
         train_end = self._parameters["predict_start"]
 
         configured_start: datetime | None = self._config.get("train_start")
-        period_hours: int | None = self._config.get("train_period_in_hours")
+        period_hours: int = self._config["train_period_in_hours"]
 
-        # Outer bound: never go further back than max_training_period.
-        max_period_start = train_end - self._config["max_training_period"]
-
+        candidates = {"train-period": train_end - timedelta(hours=period_hours)}
         if configured_start is not None:
-            # Explicit train_start takes full precedence; period is ignored.
-            train_start = max(configured_start, max_period_start)
-        elif period_hours is not None:
-            # Explicit train_period without train_start.
-            train_start = max(
-                train_end - timedelta(hours=period_hours), max_period_start
-            )
-        else:
-            # Neither set: use the full max_training_period window.
-            train_start = max_period_start
+            candidates["train-start"] = configured_start
 
-        # Enforce minimum training period of 2 days
+        decisive, train_start = max(candidates.items(), key=lambda item: item[1])
+
+        # Enforce a minimum training period of 2 days.
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
-            train_start = train_end - min_training_period
+            decisive, train_start = (
+                "minimum training period",
+                train_end - min_training_period,
+            )
 
+        logging.debug(
+            "Training window spans %s, from %s to %s, as asked for by %s.",
+            train_end - train_start,
+            train_start,
+            train_end,
+            decisive,
+        )
         return train_start, train_end
 
     def run(
