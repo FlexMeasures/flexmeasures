@@ -9,7 +9,7 @@ v1.1.0 | September XX, 2026
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-             If you maintain indexes of your own on the ``timed_belief`` table, read `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_ first, as this release's migration reorders that table's primary key and drops the indexes it thereby makes redundant.
+             If you maintain indexes of your own on the ``timed_belief`` table, read `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_ first, as this release's migration reorders that table's primary key and names the indexes it thereby makes redundant, leaving you to decide which of them to drop.
 
 New features
 -------------
