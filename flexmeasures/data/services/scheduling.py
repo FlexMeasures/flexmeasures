@@ -657,7 +657,7 @@ def _assign_consumption_is_positive(
 
 
 def _set_flex_context_output_sensors_consumption_is_positive(
-    flex_context: dict,
+    flex_context: dict | None,
 ) -> None:
     """Set the ``consumption_is_positive`` attribute on aggregate output sensors.
 
@@ -675,7 +675,7 @@ def _set_flex_context_output_sensors_consumption_is_positive(
     Fields that do not resolve to a sensor are skipped,
     which keeps the function safe to call on a flex-context that a custom scheduler left undeserialized.
 
-    :param flex_context: Deserialized flex context.
+    :param flex_context: Deserialized flex context, or None when the scheduler has none.
     :raises ValueError:  When ``consumption_is_positive`` is already set to the wrong value for the given flex-context field.
     """
     if not isinstance(flex_context, dict):
