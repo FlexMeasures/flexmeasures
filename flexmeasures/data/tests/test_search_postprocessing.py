@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import timedelta
 
 import numpy as np
@@ -36,7 +37,7 @@ def make_random_deterministic_bdf(
 
 def naive_select_latest_version_and_belief_per_event(
     bdf: tb.BeliefsDataFrame,
-    preferred_sources: list[DataSource] | None = None,
+    preferred_sources: Sequence[DataSource | Sequence[DataSource]] | None = None,
 ) -> tb.BeliefsDataFrame:
     """Reference implementation, written per row rather than vectorised.
 
@@ -45,10 +46,15 @@ def naive_select_latest_version_and_belief_per_event(
     Then, among those, choose the source the caller named first,
     again falling back on the most recent belief and then the highest source id.
     """
+    # One entry is one preference, and an entry that named nothing still holds its place,
+    # so the rank for the unnamed clears every entry rather than every source found.
+    entries = preferred_sources or []
     positions: dict = {}
-    for position, source in enumerate(preferred_sources or []):
-        positions.setdefault(source.id, position)
-    unlisted = len(positions)
+    for position, entry in enumerate(entries):
+        group = entry if isinstance(entry, (list, tuple)) else [entry]
+        for source in group:
+            positions.setdefault(source.id, position)
+    unlisted = len(entries)
 
     per_family: dict = {}
     for i, (event_start, belief_time, source, _cp) in enumerate(bdf.index):
@@ -95,7 +101,15 @@ def test_select_latest_version_and_belief_per_event_equivalence():
         DataSource(id=5, name="s2", model="model 2", type="scheduler", version="1.0.0"),
         DataSource(id=6, name="s2", model="model 2", type="scheduler", version="9.0.0"),
     ]
-    for preference in (None, [sources[4], sources[0]], [sources[0], sources[5]]):
+    for preference in (
+        None,
+        [sources[4], sources[0]],
+        [sources[0], sources[5]],
+        # A name that matched two sources, given as one entry, ahead of a single source.
+        [[sources[1], sources[2]], sources[4]],
+        # An entry that matched nothing, before the ones that did.
+        [[], sources[5], sources[0]],
+    ):
         for _ in range(10):
             bdf = make_random_deterministic_bdf(
                 rng, sources, n_beliefs=int(rng.integers(2, 30))
