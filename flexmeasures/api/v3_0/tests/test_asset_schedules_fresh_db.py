@@ -22,6 +22,64 @@ from flexmeasures.data.services.utils import sort_jobs
 from flexmeasures.utils.unit_utils import ur
 
 
+@pytest.mark.parametrize("resolution", [None, "PT30M"])
+@pytest.mark.parametrize("sequential", [True, False])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_asset_trigger_rejects_off_tick_start(
+    app,
+    add_market_prices_fresh_db,
+    setup_roles_users_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    resolution,
+    sequential,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(resolution=resolution)
+    message["start"] = "2015-01-01T00:07:00+01:00"
+    message["duration"] = "PT6H"
+    message["sequential"] = sequential
+
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+    }
+
+    charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    power_sensor = charging_station.sensors[0]
+    soc_sensor = add_charging_station_assets_fresh_db["bi-soc"]
+    message["flex-model"]["sensor"] = power_sensor.id
+    message["flex-model"]["state-of-charge"] = {"sensor": soc_sensor.id}
+    message["flex-model"] = [message["flex-model"]]
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_schedule",
+                id=power_sensor.generic_asset.parent_asset.id,
+            ),
+            json=message,
+        )
+
+    assert response.status_code == 422
+    assert response.json["status"] == "UNPROCESSABLE_ENTITY"
+    assert (
+        "Start 2015-01-01T00:07:00+01:00 is not aligned"
+        in response.json["message"]["json"]
+    )
+    expected_resolution = resolution or "PT15M"
+    assert (
+        f"effective schedule resolution {expected_resolution}"
+        in response.json["message"]["json"]
+    )
+    assert len(app.queues["scheduling"]) == 0
+
+
 @pytest.mark.parametrize(
     "message_without_targets, message_with_targets, asset_name",
     [
