@@ -33,6 +33,9 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
 
+# Source types from which we expect data about future events.
+FUTURE_DATA_SOURCE_TYPES = ("scheduler", "forecaster")
+
 _REMOVE = object()
 
 #: The keys a stored sensor reference may carry (see SensorReferenceSchema):
@@ -457,14 +460,13 @@ def _sensor_sources_by_type(
 
     Reading which sources ever recorded for this sensor is a lookup in the ``sensor_data_source`` summary,
     so it costs a handful of rows rather than a scan of the beliefs table.
-    Only the default source types are considered, since those are the ones a status is reported for.
+    Every source type that recorded here is considered, not just the default ones, since a status is reported for each of them.
 
     The summary is a superset (see :class:`~flexmeasures.data.models.data_sources.SensorDataSource`),
     so a source may be listed whose beliefs have since been deleted.
     That only costs a belief query returning nothing; no source that has data can be missing.
     """
     sources = sensor.search_data_sources(
-        source_types=DEFAULT_DATASOURCE_TYPES,
         exclude_source_types=staleness_search.get("exclude_source_types"),
     )
     requested_sources = parse_source_arg(staleness_search.get("source"))
@@ -482,7 +484,8 @@ def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
-    We only look for the default data source types!
+    We look for the source types that recorded on this sensor, so that a sensor recorded by a source type we do not know about,
+    such as data added from the CLI or by a plugin, is still reported on.
 
     Each type is searched for by naming its sources explicitly, rather than by filtering on the type of the source.
     A type filter cannot be served by an index on the beliefs table,
@@ -494,6 +497,14 @@ def _get_sensor_bdfs_by_source_type(
     """
     sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
 
+    # Report the default types in their usual order, and any other type that recorded here after them.
+    source_types = [
+        source_type
+        for source_type in DEFAULT_DATASOURCE_TYPES
+        if source_type in sources_by_type
+    ]
+    source_types += sorted(set(sources_by_type) - set(DEFAULT_DATASOURCE_TYPES))
+
     # The source filters are already applied by the source lookup above,
     # so passing them on as well would only re-apply them.
     belief_search = {
@@ -503,16 +514,30 @@ def _get_sensor_bdfs_by_source_type(
     }
 
     bdfs_by_source = dict()
-    for source_type in DEFAULT_DATASOURCE_TYPES:
-        sources = sources_by_type.get(source_type)
-        if not sources:
-            continue
+    for source_type in source_types:
+        sources = sources_by_type[source_type]
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,
             source=sources,
             **belief_search,
         )
+        if bdf.empty and staleness_search.get("beliefs_before") is not None:
+            # The most-recent-only fast track picks the single most recent event in the database,
+            # and only afterwards drops beliefs that were formed after `beliefs_before`.
+            # For sensors with a knowledge horizon, such as day-ahead prices, that can drop the only row we fetched,
+            # which would make a sensor with plenty of data look like it never recorded anything.
+            # So search again without the fast track, and pick the most recent event ourselves.
+            bdf = TimedBelief.search(
+                sensors=sensor,
+                most_recent_beliefs_only=True,
+                source=sources,
+                **belief_search,
+            )
+            if not bdf.empty:
+                bdf = bdf[
+                    bdf.index.get_level_values("event_start") == bdf.event_starts[-1]
+                ]
         if not bdf.empty:
             bdfs_by_source[source_type] = bdf
     return None if not bdfs_by_source else bdfs_by_source
@@ -540,7 +565,7 @@ def get_staleness_start_times(
         time_column = "knowledge_times"
         source_type = str(source_type)
         has_relevant_data = True
-        if source_type in ("scheduler", "forecaster"):
+        if source_type in FUTURE_DATA_SOURCE_TYPES:
             # filter to get only future events
             bdf_filtered = bdf[bdf.event_starts > now]
             time_column = "event_starts"
@@ -650,6 +675,15 @@ def get_statuses(
                 else "Found no future data which this source should have"
             )
             staleness = None
+        elif staleness <= timedelta(0) and source_type not in FUTURE_DATA_SOURCE_TYPES:
+            # The most recent data is about an event we could not even know about yet,
+            # so this source is ahead of schedule rather than stale.
+            # Only sources that are expected to deliver future data, such as forecasters and schedulers,
+            # are held to a minimum lead time (see max_future_staleness).
+            staleness_since = now - staleness
+            stale = False
+            staleness = -staleness
+            reason = f"most recent data is {precisedelta(staleness)} in the future, which is more recent than we could expect"
         else:
             max_source_staleness = (
                 max_staleness if staleness > timedelta(0) else max_future_staleness
@@ -686,10 +720,15 @@ def _get_sensor_asset_relation(
     inflexible_device_sensors: list[Sensor],
     context_sensors: dict[str, Sensor],
 ) -> str:
-    """Get the relation of a sensor to an asset."""
+    """Get the relation of a sensor to an asset.
+
+    The asset is the one whose status is being reported on, which is not necessarily the asset that the sensor belongs to.
+    """
     relations = list()
     if sensor.generic_asset_id == asset.id:
         relations.append("sensor belongs to this asset")
+    else:
+        relations.append(f"sensor belongs to asset '{sensor.generic_asset.name}'")
     inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
     if sensor.id in inflexible_device_sensors_ids:
         relations.append("flex context (inflexible device)")
@@ -752,14 +791,17 @@ def get_asset_sensors_metadata(
 
 def serialize_sensor_status_data(
     sensor: Sensor,
+    asset: Asset | None = None,
 ) -> list[dict]:
     """
-    Serialize the status of a sensor belonging to an asset.
+    Serialize the status of a sensor, in the context of an asset.
 
-    :param sensor: Sensor to get the status of
-    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor
+    :param sensor: Sensor to get the status of.
+    :param asset: Asset whose status page the sensor is reported on, which is not necessarily the asset that the sensor belongs to. Defaults to the asset that the sensor belongs to.
+    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor.
     """
-    asset = sensor.generic_asset
+    if asset is None:
+        asset = sensor.generic_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
     context_sensors = {
@@ -783,7 +825,7 @@ def serialize_sensor_status_data(
             if sensor_status["staleness_since"] is not None
             else None
         )
-        sensor_status["asset_name"] = asset.name
+        sensor_status["asset_name"] = sensor.generic_asset.name
         sensor_status["relation"] = _get_sensor_asset_relation(
             asset, sensor, inflexible_device_sensors, context_sensors
         )

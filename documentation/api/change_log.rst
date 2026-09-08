@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-35 | September 4, 2026
+"""""""""""""""""""""""""""
+- ``GET /api/v3_0/sensors/<id>/status`` now accepts an optional ``asset_id`` query parameter, naming the asset whose status page the sensor is reported on. It only affects the reported ``relation``, which previously always claimed that the sensor belongs to the asset shown, also for a sensor of another asset that is only listed because the asset's flex-context or graphs page refers to it. Without it, the sensor is still reported relative to the asset it belongs to. Reading the status of a sensor in the context of an asset requires read permission on that asset, too.
+
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""
 - Added ``POST /api/v3_0/assets/<id>/automations/<automation_id>/trigger``, to run one automation now, once, on top of its recurring runs. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. An on-demand run does not affect the automation's recurrence, and inactive automations can be triggered, too. Triggering requires the same permission as writing data under the asset, and falls under the stricter rate limit that the other triggering endpoints share.

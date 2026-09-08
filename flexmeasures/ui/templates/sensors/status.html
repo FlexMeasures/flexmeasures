@@ -56,6 +56,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   const assetId = "{{ asset.id }}";
   const sensors = {{ sensors | tojson }};
 
+  // escape, as these cells are rendered as HTML and may contain user-defined names
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function SensorStatusRow(sensor) {
     const lastCallTime = Date.now();
     const timeAgo = getTimeAgo(lastCallTime);
@@ -63,8 +70,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
 
     return {
-      sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
-        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
+      sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
+        <span class="fa fa-info" title="Resolution: ${escapeHtml(sensor.resolution)}, Asset: '${escapeHtml(sensor.asset_name)}', Relation: ${escapeHtml(sensor.relation)}" style="margin-left: 10px;"></span>`,
       source_type: sensor.source_type || "None",
       staleness_since: `
         <span title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
@@ -75,7 +82,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           }
         </span>
       `,
-      status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
+      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span><br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };
@@ -99,10 +106,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       `,
       queue: job.queue,
       entity: job.entity,
-      // escape, as this cell is rendered as HTML and may contain a user-defined automation name
-      created_via: String(job.created_via || "").replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-      }[c])),
+      created_via: escapeHtml(job.created_via),
       status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
       info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
         <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
@@ -143,7 +147,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         let completed = 0;
         sensors.forEach(sensor => {
           $.ajax({
-            url: `/api/v3_0/sensors/${sensor.id}/status`,
+            url: `/api/v3_0/sensors/${sensor.id}/status?asset_id=${assetId}`,
             method: "GET",
             success: function (res) {
               res.sensors_data.forEach(sensorData => {
@@ -184,7 +188,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       console.log("Refreshing sensor:", sensorId);
 
       $.ajax({
-        url: `/api/v3_0/sensors/${sensorId}/status`,
+        url: `/api/v3_0/sensors/${sensorId}/status?asset_id=${assetId}`,
         method: "GET",
         success: function (res) {
           if (!res.sensors_data || !res.sensors_data.length) return;
