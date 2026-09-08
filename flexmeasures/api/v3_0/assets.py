@@ -1596,9 +1596,10 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
-    # Managing automations requires the same principals that may delete the asset
-    # (i.e. account admins and consultants), matching the Automation ACL.
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def post_automation(self, id: int, asset: GenericAsset):
         """
@@ -1612,7 +1613,7 @@ class AssetAPI(FlaskView):
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasts`, or a schedule trigger message
             (without the asset id) for type `schedules`.
-            Requires account admin or consultant rights.
+            Requires permission to add data under the asset.
 
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from, and permission to record data
@@ -1692,9 +1693,10 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing automations requires the same principals that may delete the asset
-    # (i.e. account admins and consultants), matching the Automation ACL.
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def patch_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -1706,7 +1708,7 @@ class AssetAPI(FlaskView):
           description: |
             Any subset of the fields `name`, `cronstr` and `active` can be sent.
             Other automation fields cannot be updated; instead, create a new automation.
-            Requires account admin or consultant rights.
+            Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1773,9 +1775,10 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing automations requires the same principals that may delete the asset
-    # (i.e. account admins and consultants), matching the Automation ACL.
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def delete_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -1786,7 +1789,7 @@ class AssetAPI(FlaskView):
           summary: Delete an automation.
           description: |
             Delete the automation. Any jobs it already queued are unaffected.
-            Requires account admin or consultant rights.
+            Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
           parameters:

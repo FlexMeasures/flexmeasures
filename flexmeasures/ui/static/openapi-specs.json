@@ -3369,7 +3369,7 @@
     "/api/v3_0/assets/{id}/automations/{automation_id}": {
       "delete": {
         "summary": "Delete an automation.",
-        "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires account admin or consultant rights.\n",
+        "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3525,7 +3525,7 @@
       },
       "patch": {
         "summary": "Update an automation's name, cron string or activation status.",
-        "description": "Any subset of the fields `name`, `cronstr` and `active` can be sent.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires account admin or consultant rights.\n",
+        "description": "Any subset of the fields `name`, `cronstr` and `active` can be sent.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3667,7 +3667,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires account admin or consultant rights.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from, and permission to record data\non the sensors it writes to.\n",
+        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from, and permission to record data\non the sensors it writes to.\n",
         "security": [
           {
             "ApiKeyAuth": []

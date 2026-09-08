@@ -258,8 +258,8 @@ class AssetCrudUI(FlaskView):
             "assets/asset_automations.html",
             asset=asset,
             available_timezones=all_timezones,
-            # managing automations requires the same principals that may delete the asset
-            user_can_manage_automations=user_can_delete(asset),
+            # Managing an automation is gated like running one, so both follow create-children.
+            user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
             current_page="Automations",
         )

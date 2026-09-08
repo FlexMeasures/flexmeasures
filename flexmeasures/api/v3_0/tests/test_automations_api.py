@@ -179,7 +179,7 @@ def test_get_nonexistent_automation(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_prosumer_user@seita.nl", 403),  # plain account member
+        ("test_prosumer_user@seita.nl", 201),  # plain account member
         ("test_prosumer_user_2@seita.nl", 201),  # account admin
         ("test_dummy_user_3@seita.nl", 403),  # different account
     ],
@@ -192,7 +192,7 @@ def test_post_automation(
     requesting_user,
     expected_status_code,
 ):
-    """Only account admins (and consultants) can create automations; parameters are validated by type."""
+    """Whoever may add data under the asset can create automations on it; parameters are validated by type."""
     battery = add_battery_assets_fresh_db["Test battery"]
     with app.test_client() as client:
         response = client.post(
@@ -465,7 +465,7 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_prosumer_user@seita.nl", 403),  # plain account member
+        ("test_prosumer_user@seita.nl", 200),  # plain account member
         ("test_prosumer_user_2@seita.nl", 200),  # account admin
     ],
     indirect=["requesting_user"],
