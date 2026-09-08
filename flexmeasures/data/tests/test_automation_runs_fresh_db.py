@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DatabaseError, IntegrityError
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.automations import (
     Automation,
     AutomationRun,
+    AutomationRunAttempt,
     AutomationRunJob,
 )
 
@@ -701,3 +703,98 @@ def test_a_later_success_does_not_hide_an_earlier_job_failure(
     assert sorted(i.status for i in run.job_intents) == sorted(
         ["failed"] + ["succeeded"] * len(run.job_intents[1:])
     )
+
+
+def _add_finished_runs(db, automation: Automation, count: int) -> None:
+    """Give an automation a run history, each run with one attempt and three jobs."""
+    first_scheduled_at = datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc)
+    for index in range(count):
+        run = AutomationRun(
+            automation=automation,
+            scheduled_at=first_scheduled_at + timedelta(minutes=index),
+            schedule_revision=automation.schedule_revision,
+            automation_type="forecasts",
+            generator_id=automation.generator_id,
+            dispatch_state="queued" if index % 2 else "failed",
+            execution_state="succeeded" if index % 2 else "pending",
+            attempt_count=1,
+            parameters=dict(automation.parameters),
+            plan={},
+        )
+        db.session.add(run)
+        db.session.flush()
+        db.session.add(
+            AutomationRunAttempt(
+                run=run,
+                attempt_no=1,
+                owner="runner:1",
+                outcome="queued",
+                queued_job_count=3,
+            )
+        )
+        for logical_job_key in ("cycle-001", "cycle-002", "wrap-up"):
+            db.session.add(
+                AutomationRunJob(
+                    run=run,
+                    logical_job_key=logical_job_key,
+                    rq_job_id=f"automation-run-{run.id}-{logical_job_key}",
+                    queue="forecasting",
+                    kind="forecast-cycle",
+                    status="succeeded",
+                    depends_on=[],
+                    payload={},
+                )
+            )
+    db.session.commit()
+
+
+def test_run_stats_do_not_load_the_whole_run_history(fresh_db, due_forecast_automation):
+    """The status summary counts runs in the database and reads only the most recent ones.
+
+    An automation keeps one run record per scheduled run, so its history grows without bound,
+    and loading all of it to render a panel would get slower for the automations that run most often.
+    """
+    from flexmeasures.data.services.automations import (
+        AUTOMATION_RUN_STATS_RECENT_LIMIT,
+        get_automation_run_stats,
+    )
+
+    history_size = AUTOMATION_RUN_STATS_RECENT_LIMIT * 5
+    _add_finished_runs(fresh_db, due_forecast_automation, history_size)
+    fresh_db.session.remove()
+    automation = fresh_db.session.scalars(select(Automation)).one()
+
+    statements: list[str] = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append(" ".join(statement.split()))
+
+    event.listen(Engine, "before_cursor_execute", record_statement)
+    try:
+        stats = get_automation_run_stats(automation)
+    finally:
+        event.remove(Engine, "before_cursor_execute", record_statement)
+
+    # The counts cover the whole history, even though it was never all loaded.
+    assert stats["total"] == history_size
+    assert stats["dispatch"] == {
+        "queued": history_size // 2,
+        "failed": history_size // 2,
+    }
+    assert stats["execution"] == {
+        "succeeded": history_size // 2,
+        "pending": history_size // 2,
+    }
+    assert len(stats["recent_runs"]) == AUTOMATION_RUN_STATS_RECENT_LIMIT
+    assert stats["latest_run"] == stats["recent_runs"][0]
+    # The most recent runs are the ones described, newest first.
+    scheduled_times = [run["scheduled_at"] for run in stats["recent_runs"]]
+    assert scheduled_times == sorted(scheduled_times, reverse=True)
+
+    # Counting happens in the database, and the runs that are read are limited,
+    # so no query may select whole run rows without a limit on how many.
+    run_selects = [s for s in statements if "FROM automation_run " in s]
+    unbounded = [s for s in run_selects if "count(" not in s and "LIMIT" not in s]
+    assert not unbounded, f"a query reads the whole run history: {unbounded}"
+    # Two aggregates, the limited read of recent runs, and one eager load per child relationship.
+    assert len(statements) <= 6, f"{len(statements)} queries: {statements}"

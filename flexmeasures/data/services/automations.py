@@ -19,8 +19,9 @@ from flask import current_app
 import isodate
 from marshmallow import ValidationError
 from rq.job import Job
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from flexmeasures import Forecaster
 from flexmeasures.data import db
@@ -38,6 +39,8 @@ from flexmeasures.data.queries.generic_assets import (
 from flexmeasures.utils.time_utils import server_now
 
 AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
+# How many of an automation's most recent runs its status summary describes in full.
+AUTOMATION_RUN_STATS_RECENT_LIMIT = 10
 # Dispatch is only finished once `dispatch_completed_at` is set, so every other dispatch state is resumable.
 # A run in one of these states is nevertheless off limits while another runner still holds a live claim on it.
 AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
@@ -886,27 +889,49 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
     }
 
 
+def _count_automation_runs_per_state(
+    automation_id: int, state_column
+) -> dict[str, int]:
+    """Count an automation's runs per value of one state column, in the database."""
+    rows = db.session.execute(
+        select(state_column, func.count())
+        .where(AutomationRun.automation_id == automation_id)
+        .group_by(state_column)
+    ).all()
+    return {state: count for state, count in rows}
+
+
 def get_automation_run_stats(automation: Automation) -> dict[str, Any]:
-    """Summarize durable automation runs for API and UI status displays."""
-    runs = list(automation.runs)
-    dispatch_counts: dict[str, int] = {}
-    execution_counts: dict[str, int] = {}
-    for run in runs:
-        dispatch_counts[run.dispatch_state] = (
-            dispatch_counts.get(run.dispatch_state, 0) + 1
+    """Summarize durable automation runs for API and UI status displays.
+
+    An automation keeps a run record per scheduled run, so its history grows without bound,
+    while this summary only ever shows counts and the most recent few.
+    Count in the database and read only those few in full, rather than loading a year of runs to render a panel.
+    """
+    dispatch_counts = _count_automation_runs_per_state(
+        automation.id, AutomationRun.dispatch_state
+    )
+    execution_counts = _count_automation_runs_per_state(
+        automation.id, AutomationRun.execution_state
+    )
+    recent_runs = db.session.scalars(
+        select(AutomationRun)
+        .where(AutomationRun.automation_id == automation.id)
+        .order_by(AutomationRun.scheduled_at.desc(), AutomationRun.id.desc())
+        .limit(AUTOMATION_RUN_STATS_RECENT_LIMIT)
+        .options(
+            # The serialization reads both of these for every run, so fetch them in one query each, not per run.
+            selectinload(AutomationRun.attempts),
+            selectinload(AutomationRun.job_intents),
         )
-        execution_counts[run.execution_state] = (
-            execution_counts.get(run.execution_state, 0) + 1
-        )
-    latest_run = runs[0] if runs else None
+    ).all()
+    serialized_runs = [serialize_automation_run(run) for run in recent_runs]
     return {
-        "total": len(runs),
+        "total": sum(dispatch_counts.values()),
         "dispatch": dispatch_counts,
         "execution": execution_counts,
-        "latest_run": (
-            serialize_automation_run(latest_run) if latest_run is not None else None
-        ),
-        "recent_runs": [serialize_automation_run(run) for run in runs[:10]],
+        "latest_run": serialized_runs[0] if serialized_runs else None,
+        "recent_runs": serialized_runs,
     }
 
 
