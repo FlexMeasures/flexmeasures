@@ -975,7 +975,9 @@ def _select_latest_version_and_belief_per_event(
     entries = preferred_sources or []
     positions: dict = {}
     for position, entry in enumerate(entries):
-        group = entry if isinstance(entry, (list, tuple)) else [entry]
+        # One source, or any sequence of them: test for the single case,
+        # so that the check cannot fall behind what the annotation allows.
+        group = [entry] if isinstance(entry, DataSource) else list(entry)
         for source in group:
             positions.setdefault(source.id, position)
     unnamed_rank = len(entries)
