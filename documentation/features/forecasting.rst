@@ -230,7 +230,7 @@ Here is how you create a forecast automation in the CLI, asking for daily (at 6 
 
 .. code-block:: bash
 
-    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasts \
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
 A forecast automation accepts everything ``flexmeasures add forecast`` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it.

@@ -49,7 +49,7 @@ class ProfitOrLossReporter(Reporter):
 
     @property
     def input_sensors(self) -> list:
-        """The flow input and price sensors read to compute profit or loss."""
+        """Return the flow and price sensors read by this reporter."""
         return self._resolve_sensors(
             super().input_sensors,
             self._config.get("consumption_price_sensor"),

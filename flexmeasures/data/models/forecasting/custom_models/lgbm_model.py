@@ -1,6 +1,9 @@
 from darts.models import LightGBMModel
 
-from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
+from flexmeasures.data.models.forecasting.custom_models.base_model import (
+    BaseModel,
+    resolve_n_jobs,
+)
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 DEFAULT_SEASONAL_LAGS_STEPS = [1, 24]
@@ -36,18 +39,17 @@ class CustomLGBM(BaseModel):
         seasonal_lags_steps: list[int] | None = None,
         training_sample_count: int | None = None,
         min_samples_per_horizon: int = 2,
+        n_jobs: int | None = None,
     ) -> None:
         """
         Initialize the LightGBM forecasting model.
 
         :param max_forecast_horizon: Maximum number of sensor-resolution steps to forecast.
         :param probabilistic: Whether to configure LightGBM for quantile predictions.
-        :param models_params: LightGBM parameter overrides, merged over the defaults
-                              below. Pass only the keys you want to change; anything you
-                              leave out keeps its default. Keys are handed to
-                              :class:`darts.models.LightGBMModel`, so besides LightGBM's
-                              own parameters this also reaches Darts' ``add_encoders``
-                              and ``categorical_future_covariates``.
+        :param models_params: LightGBM parameter overrides, merged over the defaults below.
+                              Pass only the keys you want to change; anything you leave out keeps its default.
+                              Keys are handed to :class:`darts.models.LightGBMModel`,
+                              so besides LightGBM's own parameters this also reaches Darts' ``add_encoders`` and ``categorical_future_covariates``.
         :param auto_regressive: Whether the target history should provide autoregressive features.
         :param use_past_covariates: Whether past covariates are used for fitting and prediction.
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
@@ -55,7 +57,10 @@ class CustomLGBM(BaseModel):
         :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain. Include 1 in the list to account for the most recent observation (recommended).
         :param training_sample_count: Optional number of target training samples, used to decide which lags are eligible.
         :param min_samples_per_horizon: Minimum training rows required for each horizon model.
+        :param n_jobs: How many horizon sub-models to fit or predict at the same time. Defaults to one per core.
         """
+        # Resolved here rather than in BaseModel, because the thread count below depends on it.
+        n_jobs = resolve_n_jobs(n_jobs)
         self.models_params = {
             "output_chunk_length": 1,
             "likelihood": "quantile",
@@ -72,6 +77,13 @@ class CustomLGBM(BaseModel):
                 }  # Cyclic features handled by Darts library
             },
             "verbose": -1,
+            # How a sub-model should thread depends on whether the horizons run side by side.
+            # Fitted concurrently, each sub-model takes one thread, so the cores are not oversubscribed;
+            # fitted one after another, LightGBM's own threading is what uses those cores, so leave it at its default.
+            # Single-threading the sub-models without the concurrency is the worst of both, and measurably slower.
+            "num_threads": (
+                1 if n_jobs > 1 else 0
+            ),  # 0 lets LightGBM pick, which is its default
         }
         if models_params:
             # A shallow merge, so overriding one key of e.g. add_encoders means
@@ -92,6 +104,7 @@ class CustomLGBM(BaseModel):
             use_past_covariates=use_past_covariates,
             use_future_covariates=use_future_covariates,
             ensure_positive=ensure_positive,
+            n_jobs=n_jobs,
         )
 
     @staticmethod

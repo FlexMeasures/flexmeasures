@@ -33,20 +33,27 @@ def get_initial_cursor() -> datetime:
 class Automation(db.Model, AuthModelMixin):
     """A recurring task on an asset, such as computing forecasts.
 
-    The recurrence is defined by a cron string. Forecast automations use a data
-    generator (e.g. a forecaster linked through a data source), while schedule
-    automations use only their stored parameters.
+    The recurrence is defined by a cron string.
+    Every automation has a data generator, linked through a data source:
+    a forecaster and its configuration for a forecast automation,
+    a scheduler and the flex config it computes under for a schedule automation,
+    and a reporter and its configuration for a report automation.
+    A forecast automation's generator is chosen when it is created, and so is a report automation's.
+    A schedule automation's is assembled from the trigger message and what its asset stores,
+    so the runner puts it together afresh on every run.
     """
 
     __tablename__ = "automation"
-    __table_args__ = (
-        db.CheckConstraint(
-            "type NOT IN ('forecasts', 'reports') OR generator_id IS NOT NULL",
-            name="automation_generator",
-        ),
-    )
 
-    SUPPORTED_TYPES = ["forecasts", "schedules", "reports"]
+    SUPPORTED_TYPES = ["forecasting", "scheduling", "reporting"]
+
+    # What one result of each type is called, for messages that talk about a single result,
+    # such as the parameters an automation of that type computes with.
+    RESULT_NOUNS = {
+        "forecasting": "forecast",
+        "scheduling": "schedule",
+        "reporting": "report",
+    }
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
@@ -58,7 +65,7 @@ class Automation(db.Model, AuthModelMixin):
         nullable=False,
         index=True,
     )
-    type = db.Column(db.String(80), nullable=False, default="forecasts")
+    type = db.Column(db.String(80), nullable=False, default="forecasting")
     name = db.Column(db.String(80), nullable=False)
     cronstr = db.Column(db.String(80), nullable=False)
     timezone = db.Column(
@@ -73,7 +80,9 @@ class Automation(db.Model, AuthModelMixin):
         default=get_initial_cursor,
     )
     active = db.Column(db.Boolean, nullable=False, default=True)
-    generator_id = db.Column(db.Integer, db.ForeignKey("data_source.id"), nullable=True)
+    generator_id = db.Column(
+        db.Integer, db.ForeignKey("data_source.id"), nullable=False
+    )
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     asset = db.relationship(
@@ -95,16 +104,16 @@ class Automation(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         Whoever can read the asset can read its automations.
-        Updating and deleting automations is allowed for whoever can delete
-        the asset (i.e. account admins and consultants).
+        Updating and deleting automations is allowed for whoever may add data under the asset,
+        which is what defining an automation amounts to.
         """
         if self.asset is None:
             return {}
         asset_acl = self.asset.__acl__()
         return {
             "read": asset_acl["read"],
-            "update": asset_acl["delete"],
-            "delete": asset_acl["delete"],
+            "update": asset_acl["create-children"],
+            "delete": asset_acl["create-children"],
         }
 
     def __repr__(self):

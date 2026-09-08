@@ -46,6 +46,7 @@ from flexmeasures.data.schemas.automations import (
     AutomationUpdateSchema,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.schemas.reporting import ReportTriggerSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import (
     AccountSchema,
@@ -228,6 +229,7 @@ def create_openapi_specs(app: Flask):
         ("AnnotationSchema", AnnotationSchema),
         ("AutomationCreationSchema", AutomationCreationSchema),
         ("AutomationUpdateSchema", AutomationUpdateSchema),
+        ("ReportTriggerSchema", ReportTriggerSchema),
         ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),

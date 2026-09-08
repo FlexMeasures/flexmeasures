@@ -17,6 +17,12 @@ We added an infrastructure that allows us to define computation pipelines and CL
 - ``flexmeasures show reporters``
 - ``flexmeasures add report``
 
+Reports can be queued for asynchronous processing with ``flexmeasures add report --as-job``.
+Run ``flexmeasures jobs run-worker --queue reporting`` to process these jobs. A one-off report
+can also be queued through ``POST /api/v3_0/assets/<id>/reports/trigger``. The caller needs read
+access to every input and configuration sensor and permission to record data on each output;
+outputs are limited to the asset in the URL and its descendants.
+
 The reporter classes we are designing are using pandas under the hood and can be sub-classed, allowing us to build new reporters from stable simpler ones, and even pipelines. Remember: re-use is developer power!
 
 We believe this infrastructure will become very powerful and enable FlexMeasures hosts and plugin developers to implement exciting new features.
@@ -129,14 +135,14 @@ The report sensor will now store all costs which we know will be made tomorrow b
 Automating reports
 --------------------
 
-Reports can be queued as background jobs (add ``--as-job`` to ``flexmeasures add report``, and let a worker process the ``reporting`` queue, see :ref:`redis-queue`),
-and computed on a recurring basis by an *automation* defined on the asset (see :ref:`automations` for the full concept, including how to manage and run automations).
+Besides running a report once, a report can be computed on a recurring basis by an *automation* defined on the asset.
+See :ref:`automations` for the full concept, including how to manage and run automations.
 
-The reporter and its configuration are stored on a data source (steady across runs, so all report results attribute to the same source),
-while the report parameters are stored on the automation itself and their timing is resolved freshly on each run:
+The reporter and its configuration are stored on a data source, which stays the same across runs, so all of the automation's report results attribute to one source.
+The report parameters are stored on the automation itself, and their timing is resolved afresh on each run:
 
-- Use ``start-offset`` and/or ``end-offset`` fields (comma-separated Pandas offsets, like the CLI options above) for a rolling window relative to the claimed cron occurrence,
-  in the timezone of the first output sensor. For instance, ``"start-offset": "-1D,DB"`` with ``"end-offset": "DB"`` reports on the whole previous day.
+- Use ``start-offset`` and/or ``end-offset`` fields (comma-separated Pandas offsets, like the CLI options above) for a rolling window relative to the claimed cron occurrence, in the timezone of the first output sensor.
+  For instance, ``"start-offset": "-1D,DB"`` with ``"end-offset": "DB"`` reports on the whole previous day.
 - Omit timing fields entirely to report from the end of the latest successfully completed report window through the claimed cron occurrence.
   When no completed window is known, such as on the first run, the start falls back to the previous cron occurrence in the automation's timezone.
   The completion marker only moves forward, so concurrent reporting workers that finish out of order cannot reopen an already covered period.
@@ -146,5 +152,5 @@ For example, this automation computes a report over each past day, every morning
 
 .. code-block:: bash
 
-    flexmeasures add automation --asset 3 --name "Daily aggregation report" --cron "0 1 * * *" --type reports \
+    flexmeasures add automation --asset 3 --name "Daily aggregation report" --cron "0 1 * * *" --type reporting \
       --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
