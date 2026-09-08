@@ -51,6 +51,7 @@ from flexmeasures.data.models.planning.soc_projection import (
 from flexmeasures.data.schemas.scheduling.utils import (
     flex_model_has_off_tick_soc_constraints,
     get_soc_constraint_resolution,
+    is_on_schedule_tick,
     should_project_off_tick_soc_constraints,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
@@ -58,8 +59,11 @@ from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
-from flexmeasures.utils.time_utils import get_max_planning_horizon
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    duration_isoformat,
+    get_max_planning_horizon,
+)
 from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
@@ -145,6 +149,32 @@ class MetaStorageScheduler(Scheduler):
 
         return commodity_contexts
 
+    def _get_effective_schedule_resolution(self) -> timedelta:
+        """Return the resolution used to construct the scheduling grid."""
+        if self.resolution is not None:
+            return self.resolution
+        if self.sensor is not None:
+            return self.sensor.event_resolution
+        assert self.device_inventory is not None
+        return determine_minimum_resampling_resolution(
+            [
+                sensor.event_resolution
+                for sensor in self.device_inventory.power_sensors
+                if sensor is not None
+            ],
+            fallback_resolution=self.default_resolution,
+        )
+
+    def _validate_start_alignment(self) -> None:
+        """Reject a start that cannot anchor sensor-backed scheduling inputs."""
+        resolution = self._get_effective_schedule_resolution()
+        if is_on_schedule_tick(self.start, resolution):
+            return
+        raise ValueError(
+            f"Start {self.start.isoformat()} is not aligned with the effective schedule resolution "
+            f"{duration_isoformat(resolution)}. Choose a start on a {duration_isoformat(resolution)} scheduling tick."
+        )
+
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
             - price data
@@ -160,7 +190,6 @@ class MetaStorageScheduler(Scheduler):
 
         start = self.start
         end = self.end
-        resolution = self.resolution
         belief_time = self.belief_time
 
         # Look up the device inventory: every flex-model entry (and the flex-context's
@@ -274,15 +303,10 @@ class MetaStorageScheduler(Scheduler):
         # List the asset(s) and sensor(s) being scheduled
         sensors: list[Sensor | None] = inventory.power_sensors
         assets: list[Asset | None] = inventory.assets
+        resolution = self._get_effective_schedule_resolution()
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
                 self.flex_model = [self.flex_model]
-            if resolution is None:
-                # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
-                resolution = determine_minimum_resampling_resolution(
-                    [s.event_resolution for s in sensors if s is not None],
-                    fallback_resolution=self.default_resolution,
-                )
 
         # Work on copies of the device flex-models (aligned with the device indices,
         # unlike the unfiltered self.flex_model), so the defaults applied here don't
@@ -1959,6 +1983,7 @@ class MetaStorageScheduler(Scheduler):
         self.device_inventory = DeviceInventory.from_flex_config(
             self.flex_model, self.flex_context, sensor=self.sensor
         )
+        self._validate_start_alignment()
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
