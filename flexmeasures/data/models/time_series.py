@@ -306,7 +306,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     ) -> tb.BeliefsDataFrame:
         """Search the most recent event for this sensor, and return the most recent ex-post belief.
 
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Where a list is given, its order says which source to prefer for an event that several of them report.
         """
         return self.search_beliefs(
             horizons_at_most=timedelta(0),
@@ -1135,7 +1135,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Where a list is given, its order says which source to prefer for an event that several of them report.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
