@@ -4,7 +4,7 @@ import json
 import time
 import hashlib
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 from flask import current_app
 from sqlalchemy import delete
 from werkzeug.exceptions import Forbidden, Unauthorized
@@ -26,6 +26,7 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
+from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
@@ -452,26 +453,74 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
+def _sensor_sources_by_type(
+    sensor: Sensor, staleness_search: dict
+) -> dict[str, list[DataSource]]:
+    """Group the sensor's data sources by source type, honouring the source filters of the staleness search.
+
+    Reading which sources ever recorded for this sensor is a lookup in the ``sensor_data_source`` summary,
+    so it costs a handful of rows rather than a scan of the beliefs table.
+    Every source type that recorded here is considered, not just the default ones, since a status is reported for each of them.
+
+    The summary is a superset (see :class:`~flexmeasures.data.models.data_sources.SensorDataSource`),
+    so a source may be listed whose beliefs have since been deleted.
+    That only costs a belief query returning nothing; no source that has data can be missing.
+    """
+    sources = sensor.search_data_sources(
+        exclude_source_types=staleness_search.get("exclude_source_types"),
+    )
+    requested_sources = parse_source_arg(staleness_search.get("source"))
+    if requested_sources is not None:
+        requested_source_ids = {source.id for source in requested_sources}
+        sources = [source for source in sources if source.id in requested_source_ids]
+
+    sources_by_type: dict[str, list[DataSource]] = {}
+    for source in sources:
+        sources_by_type.setdefault(source.type, []).append(source)
+    return sources_by_type
+
+
 def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
+    We look for the source types that recorded on this sensor, so that a sensor recorded by a source type we do not know about,
+    such as data added from the CLI or by a plugin, is still reported on.
 
-    We look for the source types that actually recorded on this sensor, plus the default source types,
-    so that a sensor recorded by a source type we do not know about, such as data added from the CLI or by a plugin, is still reported on.
+    Each type is searched for by naming its sources explicitly, rather than by filtering on the type of the source.
+    A type filter cannot be served by an index on the beliefs table,
+    so the "most recent belief" query would walk the sensor's events from the newest backwards,
+    rechecking the type of each belief's source until it found a match;
+    it would read every belief the sensor has whenever this type recorded none of them.
+    Naming the sources instead lets the primary key answer the query directly,
+    and lets a type with no sources at all be skipped without a query.
     """
-    source_types = list(DEFAULT_DATASOURCE_TYPES)
-    source_types += sorted(
-        {source.type for source in sensor.data_sources if source.type is not None}
-        - set(source_types)
-    )
+    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+
+    # Report the default types in their usual order, and any other type that recorded here after them.
+    source_types = [
+        source_type
+        for source_type in DEFAULT_DATASOURCE_TYPES
+        if source_type in sources_by_type
+    ]
+    source_types += sorted(set(sources_by_type) - set(DEFAULT_DATASOURCE_TYPES))
+
+    # The source filters are already applied by the source lookup above,
+    # so passing them on as well would only re-apply them.
+    belief_search = {
+        key: value
+        for key, value in staleness_search.items()
+        if key not in ("source", "exclude_source_types")
+    }
+
     bdfs_by_source = dict()
     for source_type in source_types:
+        sources = sources_by_type[source_type]
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,
-            source_types=[source_type],
-            **staleness_search,
+            source=sources,
+            **belief_search,
         )
         if bdf.empty and staleness_search.get("beliefs_before") is not None:
             # The most-recent-only fast track picks the single most recent event in the database,
@@ -482,8 +531,8 @@ def _get_sensor_bdfs_by_source_type(
             bdf = TimedBelief.search(
                 sensors=sensor,
                 most_recent_beliefs_only=True,
-                source_types=[source_type],
-                **staleness_search,
+                source=sources,
+                **belief_search,
             )
             if not bdf.empty:
                 bdf = bdf[
@@ -843,6 +892,15 @@ def build_asset_jobs_data(
                 current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
             )
         )
+        jobs.append(
+            (
+                "reporting",
+                "sensor",
+                sensor.id,
+                sensor.name,
+                current_app.job_cache.get(sensor.id, "reporting", "sensor"),
+            )
+        )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
@@ -857,7 +915,7 @@ def build_asset_jobs_data(
                 ),
             )
             job_err = (
-                f"Scheduling job failed with {type(e).__name__}: {e}"
+                f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
                 if job.is_failed
                 else None
             )
@@ -894,6 +952,11 @@ def build_asset_jobs_data(
     return jobs_data
 
 
+# The key under which the statistics covering every source are reported.
+# Keys for individual sources always end in " (ID: <id>)", so this one cannot collide with them.
+ALL_SOURCES_KEY = "All sources"
+
+
 def _get_sensor_stats(
     sensor: Sensor,
     event_end_time: str,
@@ -926,6 +989,8 @@ def _get_sensor_stats(
             filtered_agg(sa.func.avg).label("avg_event_value"),
             filtered_agg(sa.func.sum).label("sum_event_value"),
             sa.func.count(TimedBelief.event_value).label("count_event_value"),
+            # Not reported, but needed to combine the per-source means; see _combine_stats.
+            filtered_agg(sa.func.count).label("count_non_nan_event_value"),
         )
         .select_from(TimedBelief)
         .join(DataSource, DataSource.id == TimedBelief.source_id)
@@ -937,14 +1002,14 @@ def _get_sensor_stats(
     if end_dt:
         q = q.filter(TimedBelief.event_start < end_dt)
 
+    # Group on DataSource, and keep the join in front of the aggregate rather than grouping on TimedBelief.source_id and joining afterwards.
+    # This lets the planner use the (sensor_id, source_id, event_start) index as one range per source, instead of scanning the sensor's whole history and filtering on event_start.
     raw_stats = db.session.execute(q.group_by(DataSource.id)).fetchall()
 
     def to_local_iso(ts):
         return pd.Timestamp(ts).tz_convert(sensor.timezone).isoformat()
 
-    stats = dict()
-    for (
-        data_source_obj,
+    def record(
         min_event_start,
         max_event_start,
         max_belief_time,
@@ -953,12 +1018,10 @@ def _get_sensor_stats(
         mean_value,
         sum_values,
         count_values,
-    ) in raw_stats:
-        data_source = f"{data_source_obj.description} (ID: {data_source_obj.id})"
-        last_event_end = max_event_start + sensor.event_resolution
-        stats[data_source] = {
+    ) -> dict:
+        return {
             "First event start": to_local_iso(min_event_start),
-            "Last event end": to_local_iso(last_event_end),
+            "Last event end": to_local_iso(max_event_start + sensor.event_resolution),
             "Last recorded": to_local_iso(max_belief_time),
             "Min value": min_value,
             "Max value": max_value,
@@ -966,9 +1029,66 @@ def _get_sensor_stats(
             "Sum over values": sum_values,
             "Number of values": count_values,
         }
-        if not sort_keys:
-            stats[data_source] = stats[data_source].items()
+
+    stats = dict()
+    if len(raw_stats) > 1:
+        # Report the combined statistics first, and only when more than one source recorded,
+        # because with a single source they would just repeat that source's own record.
+        stats[ALL_SOURCES_KEY] = _combine_stats(raw_stats, record)
+    for row in raw_stats:
+        data_source = f"{row[0].description} (ID: {row[0].id})"
+        stats[data_source] = record(
+            row.min_event_start,
+            row.max_event_start,
+            row.max_belief_time,
+            row.min_event_value,
+            row.max_event_value,
+            row.avg_event_value,
+            row.sum_event_value,
+            row.count_event_value,
+        )
+    if not sort_keys:
+        stats = {source: values.items() for source, values in stats.items()}
     return stats
+
+
+def _combine_stats(raw_stats: list, record: Callable[..., dict]) -> dict:
+    """Fold the per-source statistics into one record covering every source.
+
+    Every field is derived from aggregates the query already returned, so summarising costs no extra database work.
+    Doing it in SQL instead, as a GROUP BY GROUPING SETS rollup, is free while the query is time-filtered but not otherwise:
+    a rollup cannot be aggregated in parallel, which over a sensor's whole history is markedly slower than the plain grouping.
+
+    The mean is the one field that cannot be derived from what the record reports.
+    "Number of values" counts every row, NaN ones included, while the sum leaves NaN rows out,
+    so weighting each source's mean by that count would understate the combined mean.
+    The query selects a NaN-excluded count for this purpose, which is not itself reported.
+
+    Counts are summed, so an event that two sources both recorded counts once per source,
+    just as a single source's count already counts an event once per belief held about it.
+    """
+    # A source whose rows are all NaN contributes a row count but no value aggregates.
+    min_values = [
+        row.min_event_value for row in raw_stats if row.min_event_value is not None
+    ]
+    max_values = [
+        row.max_event_value for row in raw_stats if row.max_event_value is not None
+    ]
+    sum_values = [
+        row.sum_event_value for row in raw_stats if row.sum_event_value is not None
+    ]
+    total = sum(sum_values) if sum_values else None
+    count_non_nan = sum(row.count_non_nan_event_value for row in raw_stats)
+    return record(
+        min_event_start=min(row.min_event_start for row in raw_stats),
+        max_event_start=max(row.max_event_start for row in raw_stats),
+        max_belief_time=max(row.max_belief_time for row in raw_stats),
+        min_value=min(min_values) if min_values else None,
+        max_value=max(max_values) if max_values else None,
+        mean_value=total / count_non_nan if count_non_nan else None,
+        sum_values=total,
+        count_values=sum(row.count_event_value for row in raw_stats),
+    )
 
 
 # Per-key TTL cache for sensor stats.
