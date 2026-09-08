@@ -23,7 +23,10 @@ from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE, CONSULT
 from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.data_sources import keep_latest_version
-from flexmeasures.data.models.parsing_utils import parse_source_arg
+from flexmeasures.data.models.parsing_utils import (
+    parse_source_arg,
+    parse_source_arg_per_entry,
+)
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.data.queries.utils import get_source_criteria
@@ -922,7 +925,7 @@ def _belief_recency(bdf: tb.BeliefsDataFrame) -> np.ndarray:
 
 def _select_latest_version_and_belief_per_event(
     bdf: tb.BeliefsDataFrame,
-    preferred_sources: list["DataSource"] | None = None,
+    preferred_sources: list | None = None,
 ) -> tb.BeliefsDataFrame:
     """Keep one belief per event, choosing between the sources that reported it.
 
@@ -935,6 +938,8 @@ def _select_latest_version_and_belief_per_event(
 
     Between families, the order the caller named its sources in wins, for a caller that named any,
     then the most recent belief, then the highest source id.
+    One entry of `preferred_sources` is one preference, so a group of sources given together,
+    as a name that matched several of them does, shares a rank rather than being ordered among itself.
     That order is how a caller says which source it prefers where two of them report one event,
     which is what `AggregatorReporter` offers through its `sources` field.
 
@@ -965,8 +970,10 @@ def _select_latest_version_and_belief_per_event(
     )
     # Sources the caller did not name rank behind the ones it did, in the order it gave them.
     positions: dict = {}
-    for position, source in enumerate(preferred_sources or []):
-        positions.setdefault(source.id, position)
+    for position, entry in enumerate(preferred_sources or []):
+        group = entry if isinstance(entry, (list, tuple)) else [entry]
+        for source in group:
+            positions.setdefault(source.id, position)
     position_per_source = np.array(
         [positions.get(source.id, len(positions)) for source in unique_sources]
     )
@@ -1162,7 +1169,16 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             ).all()
             sensors.extend(sensors_from_names)
 
-        parsed_sources = parse_source_arg(source)
+        parsed_source_entries = parse_source_arg_per_entry(source)
+        parsed_sources = (
+            None
+            if parsed_source_entries is None
+            else [
+                parsed_source
+                for entry in parsed_source_entries
+                for parsed_source in entry
+            ]
+        )
         source_criteria = get_source_criteria(
             cls=cls,
             user_source_ids=user_source_ids,
@@ -1214,7 +1230,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                         # Make the beliefs deterministic, so that one of them can be chosen.
                         bdf = bdf.for_each_belief(get_median_belief)
                     bdf = _select_latest_version_and_belief_per_event(
-                        bdf, preferred_sources=parsed_sources
+                        bdf, preferred_sources=parsed_source_entries
                     )
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:

@@ -189,6 +189,29 @@ def test_a_caller_that_names_its_sources_says_which_it_prefers():
     assert _chosen_value(beliefs) == 1.0
 
 
+def test_sources_named_together_share_one_preference():
+    """A name can match several sources, and they arrive in no particular order.
+
+    Reading an order into that would let the database decide precedence,
+    so one entry is one preference, and the sources in it are told apart by belief time and id instead.
+    """
+    # Two sources of one name, which is what `source="rep"` would match.
+    older = DataSource(id=1, name="rep", model="A", type="reporter")
+    newer = DataSource(id=2, name="rep", model="B", type="reporter")
+    other = DataSource(id=3, name="other", model="C", type="reporter")
+    beliefs = [
+        (older, "2024-12-31T06:00+00:00", 1.0),
+        (newer, "2024-12-31T00:00+00:00", 2.0),
+        (other, "2024-12-31T12:00+00:00", 3.0),
+    ]
+    # Named first as one entry, the pair outranks the other source, and the fresher of the pair wins.
+    assert _chosen_value(beliefs, preferred_sources=[[older, newer], other]) == 1.0
+    # Whichever way round that entry lists them, since one entry is one preference.
+    assert _chosen_value(beliefs, preferred_sources=[[newer, older], other]) == 1.0
+    # Naming the other source first still puts it ahead of both.
+    assert _chosen_value(beliefs, preferred_sources=[other, [older, newer]]) == 3.0
+
+
 def test_a_tie_no_one_broke_is_answered_the_same_way_every_time():
     """Two sources that nothing else tells apart are settled by the highest id.
 
