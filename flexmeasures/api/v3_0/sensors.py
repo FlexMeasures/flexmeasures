@@ -275,7 +275,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
         format="iso",
         required=True,
         metadata=dict(
-            description="Start time of the schedule, in ISO 8601 datetime format.",
+            description="Start time of the schedule, in ISO 8601 datetime format. For the built-in storage scheduler, this must align with the effective schedule resolution.",
             example="2026-01-15T10:00+01:00",
         ),
     )
