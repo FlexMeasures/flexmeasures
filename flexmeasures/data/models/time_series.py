@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
 from functools import cached_property
@@ -925,7 +926,7 @@ def _belief_recency(bdf: tb.BeliefsDataFrame) -> np.ndarray:
 
 def _select_latest_version_and_belief_per_event(
     bdf: tb.BeliefsDataFrame,
-    preferred_sources: list | None = None,
+    preferred_sources: Sequence[DataSource | Sequence[DataSource]] | None = None,
 ) -> tb.BeliefsDataFrame:
     """Keep one belief per event, choosing between the sources that reported it.
 
