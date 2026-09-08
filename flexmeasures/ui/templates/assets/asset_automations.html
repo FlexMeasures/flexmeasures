@@ -53,8 +53,8 @@ An active automation follows its cron recurrence in the timezone shown below. If
                 <div class="mb-3">
                   <label for="automationType" class="form-label">Type</label>
                   <select class="form-select" id="automationType">
-                    <option value="forecasts" selected>forecasts</option>
-                    <option value="schedules">schedules</option>
+                    <option value="forecasting" selected>forecasting</option>
+                    <option value="scheduling">scheduling</option>
                   </select>
                 </div>
                 <div class="mb-3">
@@ -71,7 +71,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
                   <label for="automationParameters" class="form-label">Parameters (JSON)</label>
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
                   <div class="form-text">
-                    Forecast parameters (for type forecasts) or a schedule trigger message (for type schedules).
+                    Forecast parameters (for type forecasting) or a schedule trigger message (for type scheduling).
                   </div>
                 </div>
                 <div class="form-check mb-3">
@@ -129,24 +129,24 @@ An active automation follows its cron recurrence in the timezone shown below. If
 
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab" aria-controls="forecasts-tab-pane" aria-selected="true">Forecasts</button>
+            <button class="nav-link active" id="forecasting-tab" data-bs-toggle="tab" data-bs-target="#forecasting-tab-pane" type="button" role="tab" aria-controls="forecasting-tab-pane" aria-selected="true">Forecasts</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab" aria-controls="schedules-tab-pane" aria-selected="false">Schedules</button>
+            <button class="nav-link" id="scheduling-tab" data-bs-toggle="tab" data-bs-target="#scheduling-tab-pane" type="button" role="tab" aria-controls="scheduling-tab-pane" aria-selected="false">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
           </li>
         </ul>
         <div class="tab-content">
-          <div class="tab-pane fade show active" id="forecasts-tab-pane" role="tabpanel">
+          <div class="tab-pane fade show active" id="forecasting-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable-forecasts" class="table table-striped w-100"></table>
+              <table id="automationsTable-forecasting" class="table table-striped w-100"></table>
             </div>
           </div>
-          <div class="tab-pane fade" id="schedules-tab-pane" role="tabpanel">
+          <div class="tab-pane fade" id="scheduling-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable-schedules" class="table table-striped w-100"></table>
+              <table id="automationsTable-scheduling" class="table table-striped w-100"></table>
             </div>
           </div>
         </div>
@@ -339,7 +339,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
       method: "GET",
       success: function (res) {
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of ["forecasts", "schedules"]) {
+        for (const automationType of ["forecasting", "scheduling"]) {
           makeAutomationsTable(
             automationType,
             res.automations.filter(automation => automation.type === automationType),
@@ -347,7 +347,7 @@ An active automation follows its cron recurrence in the timezone shown below. If
         }
       },
       error: function (xhr) {
-        for (const automationType of ["forecasts", "schedules"]) {
+        for (const automationType of ["forecasting", "scheduling"]) {
           makeAutomationsTable(automationType, []);
           $(`#automationsTable-${automationType}`).hide();
         }

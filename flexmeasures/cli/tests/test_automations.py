@@ -92,7 +92,7 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     ).scalar_one_or_none()
     assert automation is not None
     assert automation.active is True
-    assert automation.type == "forecasts"
+    assert automation.type == "forecasting"
     assert automation.cronstr == "0 6 * * *"
     assert automation.timezone == "Europe/Amsterdam"
     # CLI option values are stored as provided (strings); they are coerced by the schema when the automation runs
@@ -781,7 +781,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
             "--asset", "1",
             "--name", "Bad schedules",
             "--cron", "0 * * * *",
-            "--type", "schedules",
+            "--type", "scheduling",
             "--parameters", str(parameters_file),
         ],
     )  # fmt: skip
@@ -796,7 +796,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
             "--asset", "1",
             "--name", "Half-day schedules",
             "--cron", "0 * * * *",
-            "--type", "schedules",
+            "--type", "scheduling",
             "--parameters", str(parameters_file),
         ],
     )  # fmt: skip
@@ -804,7 +804,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     automation = fresh_db.session.execute(
         select(Automation).filter_by(name="Half-day schedules")
     ).scalar_one()
-    assert automation.type == "schedules"
+    assert automation.type == "scheduling"
     assert automation.generator_id is None
     assert automation.parameters == {"duration": "PT12H"}
 
@@ -816,7 +816,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
             "--asset", "1",
             "--name", "Fixed-start schedules",
             "--cron", "0 * * * *",
-            "--type", "schedules",
+            "--type", "scheduling",
             "--parameters", str(parameters_file),
         ],
     )  # fmt: skip
@@ -851,7 +851,7 @@ def test_add_schedule_automation_rejects_unsupported_durations(
             "--cron",
             "0 * * * *",
             "--type",
-            "schedules",
+            "scheduling",
             "--parameters",
             str(parameters_file),
         ],
@@ -876,14 +876,14 @@ def test_add_schedule_automation_rejects_forecast_config(
             "--cron",
             "0 * * * *",
             "--type",
-            "schedules",
+            "scheduling",
             "--regressors",
             str(setup_dummy_data[0]),
         ],
     )
 
     assert result.exit_code == 2
-    assert "--regressors cannot be combined with --type schedules" in result.output
+    assert "--regressors cannot be combined with --type scheduling" in result.output
     assert "Traceback" not in result.output
 
 
@@ -907,14 +907,14 @@ def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
             "--cron",
             "0 * * * *",
             "--type",
-            "schedules",
+            "scheduling",
             "--forecaster",
             "TrainPredictPipeline",
         ],
     )
 
     assert result.exit_code == 2
-    assert "--forecaster cannot be combined with --type schedules" in result.output
+    assert "--forecaster cannot be combined with --type scheduling" in result.output
     assert (
         fresh_db.session.execute(
             select(Automation).filter_by(name="Schedule naming the default forecaster")
@@ -965,7 +965,7 @@ def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monke
     asset = fresh_db.session.get(GenericAsset, 1)
     automation = Automation(
         asset_id=asset.id,
-        type="schedules",
+        type="scheduling",
         name="Test schedules",
         cronstr="0 * * * *",
         parameters={"duration": "PT12H", "resolution": "PT15M"},

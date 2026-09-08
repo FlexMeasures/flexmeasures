@@ -20,7 +20,7 @@ def upgrade():
     op.create_check_constraint(
         "forecast_generator",
         "automation",
-        "type != 'forecasts' OR generator_id IS NOT NULL",
+        "type != 'forecasting' OR generator_id IS NOT NULL",
     )
 
 

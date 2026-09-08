@@ -17,10 +17,10 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
 
 .. code-block:: bash
 
-    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasts \
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says what the automation computes, and defaults to ``forecasts``.
+``--type`` says what the automation computes, and defaults to ``forecasting``.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.

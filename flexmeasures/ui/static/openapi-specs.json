@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -3439,7 +3439,7 @@
                       "id": 1,
                       "created_at": "2026-07-11T00:00:00+00:00",
                       "asset_id": 1,
-                      "type": "forecasts",
+                      "type": "forecasting",
                       "name": "Day-ahead PV forecasts",
                       "cronstr": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
@@ -3610,7 +3610,7 @@
                           "id": 1,
                           "created_at": "2026-07-11T00:00:00+00:00",
                           "asset_id": 1,
-                          "type": "forecasts",
+                          "type": "forecasting",
                           "name": "Day-ahead PV forecasts",
                           "cronstr": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
@@ -3676,7 +3676,7 @@
                   "value": {
                     "name": "Day-ahead PV forecasts",
                     "cronstr": "0 6 * * *",
-                    "type": "forecasts",
+                    "type": "forecasting",
                     "parameters": {
                       "sensor": 2092
                     }
@@ -6419,10 +6419,10 @@
         "properties": {
           "type": {
             "type": "string",
-            "default": "forecasts",
+            "default": "forecasting",
             "enum": [
-              "forecasts",
-              "schedules"
+              "forecasting",
+              "scheduling"
             ]
           },
           "name": {
@@ -6453,11 +6453,11 @@
           "forecaster": {
             "type": "string",
             "default": "TrainPredictPipeline",
-            "description": "Forecaster class (only used for type 'forecasts')."
+            "description": "Forecaster class (only used for type 'forecasting')."
           },
           "config": {
             "type": "object",
-            "description": "Forecaster configuration (only used for type 'forecasts').",
+            "description": "Forecaster configuration (only used for type 'forecasting').",
             "additionalProperties": {}
           }
         },

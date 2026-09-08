@@ -41,12 +41,16 @@ class Automation(db.Model, AuthModelMixin):
     __tablename__ = "automation"
     __table_args__ = (
         db.CheckConstraint(
-            "type != 'forecasts' OR generator_id IS NOT NULL",
+            "type != 'forecasting' OR generator_id IS NOT NULL",
             name="forecast_generator",
         ),
     )
 
-    SUPPORTED_TYPES = ["forecasts", "schedules"]  # later also "reports"
+    SUPPORTED_TYPES = ["forecasting", "scheduling"]  # later also "reporting"
+
+    # What one result of each type is called, for messages that talk about a single result,
+    # such as the parameters an automation of that type computes with.
+    RESULT_NOUNS = {"forecasting": "forecast", "scheduling": "schedule"}
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
@@ -58,7 +62,7 @@ class Automation(db.Model, AuthModelMixin):
         nullable=False,
         index=True,
     )
-    type = db.Column(db.String(80), nullable=False, default="forecasts")
+    type = db.Column(db.String(80), nullable=False, default="forecasting")
     name = db.Column(db.String(80), nullable=False)
     cronstr = db.Column(db.String(80), nullable=False)
     timezone = db.Column(

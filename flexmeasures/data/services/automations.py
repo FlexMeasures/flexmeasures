@@ -450,7 +450,7 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
-    if automation.type == "schedules":
+    if automation.type == "scheduling":
         try:
             return resolve_schedule_automation_sensors(
                 dict(automation.parameters or {}), automation.asset_id
@@ -573,7 +573,7 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
     # Determine the job cache entries to scan.
-    if automation.type == "schedules":
+    if automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual sensors (per-device jobs).
         assets = [automation.asset, *automation.asset.offspring]
@@ -613,7 +613,7 @@ def create_automation(
     name: str,
     cronstr: str,
     timezone: str | None = None,
-    automation_type: str = "forecasts",
+    automation_type: str = "forecasting",
     active: bool = True,
     parameters: dict | None = None,
     forecaster_class: str = "TrainPredictPipeline",
@@ -649,7 +649,7 @@ def create_automation(
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
     forecast_output_sensor: Sensor | None = None
-    if automation_type == "forecasts":
+    if automation_type == "forecasting":
         from flexmeasures.data.schemas.forecasting.pipeline import (
             ForecasterParametersSchema,
         )
@@ -680,7 +680,7 @@ def create_automation(
         input_sensors = forecast_sensors["input_sensors"]
         output_sensors = forecast_sensors["output_sensors"]
         forecast_output_sensor = output_sensors[0] if output_sensors else None
-    elif automation_type == "schedules":
+    elif automation_type == "scheduling":
         # A schedule is recorded on the sensors that the scheduler returns its results
         # for, and reads whatever other sensors the flex-model and flex-context refer to
         # (such as price sensors and the sensors of inflexible devices).
@@ -826,9 +826,9 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    if automation.type == "forecasts":
+    if automation.type == "forecasting":
         return _run_forecast_automation(automation)
-    elif automation.type == "schedules":
+    elif automation.type == "scheduling":
         return _run_schedule_automation(automation)
     raise NotImplementedError(
         f"Automations of type '{automation.type}' cannot be run yet."

@@ -390,4 +390,4 @@ For example, this automation queues a scheduling job every hour, each time sched
 .. code-block:: bash
 
     echo 'duration: "PT12H"' > trigger-message.yml
-    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type schedules --parameters trigger-message.yml
+    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml

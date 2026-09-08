@@ -1422,7 +1422,7 @@ class AssetAPI(FlaskView):
                           - id: 1
                             created_at: "2026-07-11T00:00:00+00:00"
                             asset_id: 1
-                            type: forecasts
+                            type: forecasting
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
@@ -1502,7 +1502,7 @@ class AssetAPI(FlaskView):
                         id: 1
                         created_at: "2026-07-11T00:00:00+00:00"
                         asset_id: 1
-                        type: forecasts
+                        type: forecasting
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
@@ -1628,7 +1628,7 @@ class AssetAPI(FlaskView):
                     value:
                       name: Day-ahead PV forecasts
                       cronstr: "0 6 * * *"
-                      type: forecasts
+                      type: forecasting
                       parameters:
                         sensor: 2092
           responses:

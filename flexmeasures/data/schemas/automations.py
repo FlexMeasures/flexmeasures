@@ -73,7 +73,7 @@ class AutomationCreationSchema(Schema):
     """
 
     type = fields.Str(
-        load_default="forecasts",
+        load_default="forecasting",
         validate=validate.OneOf(Automation.SUPPORTED_TYPES),
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
@@ -89,13 +89,15 @@ class AutomationCreationSchema(Schema):
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     forecaster = fields.Str(
         load_default="TrainPredictPipeline",
-        metadata={"description": "Forecaster class (only used for type 'forecasts')."},
+        metadata={
+            "description": "Forecaster class (only used for type 'forecasting')."
+        },
     )
     config = fields.Dict(
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Forecaster configuration (only used for type 'forecasts')."
+            "description": "Forecaster configuration (only used for type 'forecasting')."
         },
     )
 

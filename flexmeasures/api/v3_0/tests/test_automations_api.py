@@ -25,7 +25,7 @@ def add_automations(fresh_db, add_battery_assets_fresh_db):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Day-ahead forecasts",
             cronstr="0 6 * * *",
             timezone="Europe/Amsterdam",
@@ -36,7 +36,7 @@ def add_automations(fresh_db, add_battery_assets_fresh_db):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Intraday forecasts",
             cronstr="0 * * * *",
             timezone="UTC",
@@ -92,7 +92,7 @@ def test_get_automations(
     automations = response.json["automations"]
     assert len(automations) == 2
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
-    assert day_ahead["type"] == "forecasts"
+    assert day_ahead["type"] == "forecasting"
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"
@@ -200,7 +200,7 @@ def test_post_automation(
             json={
                 "name": "Posted schedules",
                 "cronstr": "0 0 * * *",
-                "type": "schedules",
+                "type": "scheduling",
                 "parameters": {"duration": "PT12H"},
             },
         )
@@ -231,7 +231,7 @@ def test_post_automation_with_invalid_parameters(
             json={
                 "name": "Bad forecasts",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {},  # missing required sensor
             },
         )
@@ -257,7 +257,7 @@ def test_post_and_patch_automation_timezone(
                 "name": "Seoul forecasts",
                 "cronstr": "0 6 * * *",
                 "timezone": "Asia/Seoul",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
             },
         )
@@ -323,7 +323,7 @@ def test_post_automation_with_inaccessible_source_filtered_regressor(
             json={
                 "name": "Forecasts regressing on another account's sensor",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
                 "config": {
                     "regressors": [
@@ -382,7 +382,7 @@ def test_post_automation_with_inaccessible_sensor(
             json={
                 "name": "Forecasts of another account's sensor",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": someone_elses_sensor.id},
             },
         )
@@ -404,7 +404,7 @@ def test_post_automation_with_inaccessible_sensor(
             json={
                 "name": "Forecasts of their own sensor",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": own_sensor.id},
             },
         )
@@ -447,7 +447,7 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
             json={
                 "name": "Schedules aggregated onto another account's sensor",
                 "cronstr": "0 0 * * *",
-                "type": "schedules",
+                "type": "scheduling",
                 "parameters": {
                     "duration": "PT12H",
                     "flex-context": {
@@ -515,7 +515,7 @@ def test_delete_automation(
         asset_id=battery.id,
         # a forecast automation is required to have a data generator holding its forecaster config
         generator=add_automations[0].generator,
-        type="forecasts",
+        type="forecasting",
         name="To be deleted",
         cronstr="0 6 * * *",
         parameters={"sensor": battery.sensors[0].id},
