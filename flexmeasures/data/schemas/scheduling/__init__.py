@@ -18,9 +18,14 @@ from marshmallow import (
     post_load,
 )
 
-from flexmeasures import Sensor
+from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.scheduling.config import (  # noqa: F401
+    SchedulerConfigSchema,
+    find_momentary_flex_config_fields,
+    strip_momentary_flex_fields,
+)
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,

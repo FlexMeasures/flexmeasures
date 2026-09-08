@@ -260,6 +260,7 @@ class AssetCrudUI(FlaskView):
             available_timezones=all_timezones,
             # managing automations requires the same principals that may delete the asset
             user_can_manage_automations=user_can_delete(asset),
+            user_can_create_children=user_can_create_children(asset),
             current_page="Automations",
         )
 

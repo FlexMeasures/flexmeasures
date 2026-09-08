@@ -766,6 +766,104 @@ def test_add_automation_rejects_malformed_yaml_file(
     assert "Traceback" not in result.output
 
 
+@pytest.mark.parametrize("automation_type", ("forecasting", "scheduling"))
+def test_add_automation_rejects_dry_run(
+    app, fresh_db, setup_dummy_data, tmp_path, automation_type
+):
+    """An automation records what it computes, so asking it not to record is refused.
+
+    The option reaches every automation type, whatever it computes,
+    so it is answered before the parameters are read as a forecast or as a schedule trigger.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('duration: "PT12H"\n')
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Dry run",
+            "--cron", "0 * * * *",
+            "--type", automation_type,
+            "--parameters", str(parameters_file),
+            "--dry-run",
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0, result.output
+    assert "dry-run option is not supported for automations" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Dry run")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_add_schedule_automation_rejects_momentary_flex_fields(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A flex config field describing one moment cannot configure a recurring schedule automation.
+
+    Such a value is stale on the next run, and it would misdescribe the automation on its data source,
+    which records the configuration the scheduler computes under.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+    parameters_file = tmp_path / "parameters.yml"
+
+    # a state of charge that held at one moment
+    parameters_file.write_text(
+        'duration: "PT12H"\n'
+        "flex-model:\n"
+        "  - sensor: 1\n"
+        '    soc-at-start: "5 kWh"\n'
+    )
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Momentary state of charge",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code == 2, result.output
+    assert "flex-model[0].soc-at-start fixes a moment in time" in result.output
+    assert "Traceback" not in result.output
+
+    # a target tied to a datetime
+    parameters_file.write_text(
+        'duration: "PT12H"\n'
+        "flex-model:\n"
+        "  - sensor: 1\n"
+        "    soc-targets:\n"
+        '      - datetime: "2026-01-15T10:00+01:00"\n'
+        '        value: "5 kWh"\n'
+    )
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Momentary target",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code == 2, result.output
+    assert "flex-model[0].soc-targets[0] fixes a moment in time" in result.output
+
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Momentary state of charge")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
 def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     """Create a schedules automation; parameters are validated as a schedule trigger message."""
     from flexmeasures.cli.data_add import add_automation
@@ -805,7 +903,13 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
         select(Automation).filter_by(name="Half-day schedules")
     ).scalar_one()
     assert automation.type == "scheduling"
-    assert automation.generator_id is None
+    # The scheduler and the flex config it computes under are the automation's data generator.
+    assert automation.generator is not None
+    assert automation.generator.type == "scheduler"
+    assert (
+        automation.generator.attributes["data_generator"]["config"]["asset"]
+        == automation.asset_id
+    )
     assert automation.parameters == {"duration": "PT12H"}
 
     # a fixed start draws a warning
@@ -959,16 +1063,21 @@ def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monke
     """
     from flexmeasures.data.models.generic_assets import GenericAsset
     from flexmeasures.data.services import scheduling
-    from flexmeasures.data.services.automations import run_automation
+    from flexmeasures.data.services.automations import (
+        resolve_schedule_generator,
+        run_automation,
+    )
     from flexmeasures.utils.time_utils import server_now
 
     asset = fresh_db.session.get(GenericAsset, 1)
+    parameters = {"duration": "PT12H", "resolution": "PT15M"}
     automation = Automation(
         asset_id=asset.id,
         type="scheduling",
         name="Test schedules",
         cronstr="0 * * * *",
-        parameters={"duration": "PT12H", "resolution": "PT15M"},
+        parameters=parameters,
+        generator_id=resolve_schedule_generator(asset.id, parameters).id,
     )
     fresh_db.session.add(automation)
     fresh_db.session.flush()
@@ -1004,7 +1113,9 @@ def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monke
     assert calls["kwargs"]["end"] - start == timedelta(hours=12)
 
 
-def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
+def test_run_automations(
+    app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
+):
     """Active automations due this minute queue forecasting jobs (with trigger meta data); inactive ones do not.
 
     We use two automations with the same forecaster config (thus sharing a generator data source),
@@ -1013,6 +1124,10 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.jobs import run_automations
 
+    # Freeze the clock, as this test runs the runner twice and asserts that the second
+    # run finds nothing due. Without freezing, a slow first run can cross a minute
+    # boundary, after which an every-minute automation is legitimately due again.
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
     sensor1_id, sensor2_id = setup_dummy_data[0], setup_dummy_data[1]
     runner = app.test_cli_runner()
     for name, sensor_id in [
@@ -1177,4 +1292,130 @@ def test_run_automation_revalidates_output_scope(
 
     assert run_result.exit_code == 1
     assert "must belong to asset" in run_result.output
+    assert app.queues["forecasting"].count == 0
+
+
+def test_run_one_automation_on_demand(
+    app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
+):
+    """An on-demand run queues the automation's jobs without claiming its next scheduled run."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    cli_input = {
+        "asset": 1,
+        "name": "Daily forecasts",
+        "cron": "0 10 * * *",  # not due at the time we trigger it by hand
+        "timezone": "UTC",
+        "sensor": setup_dummy_data[0],
+    }
+    add_result = runner.invoke(add_automation, to_flags(cli_input))
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    cursor_before = automation.cursor
+
+    run_result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "queued" in run_result.output
+    n_jobs = app.queues["forecasting"].count
+    assert n_jobs > 0
+    # the jobs are recorded as this automation's jobs, just like those of a recurring run.
+    assert all(
+        job.meta["trigger"]["origin"] == "automation"
+        and job.meta["trigger"]["automation_id"] == automation.id
+        for job in app.queues["forecasting"].jobs
+    )
+    assert fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like("Triggered a run of automation%")
+        )
+    ).scalar_one_or_none()
+
+    # the cursor stayed put, so the scheduled run still happens.
+    fresh_db.session.expire_all()
+    assert automation.cursor == cursor_before
+    freeze_server_now(datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc))
+    scheduled_result = runner.invoke(run_automations)
+    assert scheduled_result.exit_code == 0, scheduled_result.output
+    assert scheduled_result.output.count("queued") == 1, scheduled_result.output
+    assert app.queues["forecasting"].count > n_jobs
+
+
+def test_run_one_automation_runs_inactive_automation(
+    app, fresh_db, setup_dummy_data, clean_redis
+):
+    """An inactive automation can be tried out on demand, while it stays out of the recurring runs."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Not active yet",
+                "cron": "* * * * *",
+                "sensor": setup_dummy_data[0],
+            }
+        )
+        + ["--inactive"],
+    )
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+
+    scheduled_result = runner.invoke(run_automations)
+    assert "No automations due" in scheduled_result.output, scheduled_result.output
+
+    run_result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "queued" in run_result.output
+    assert app.queues["forecasting"].count > 0
+
+
+def test_run_one_automation_without_queued_job_is_an_error(
+    app, fresh_db, setup_dummy_data, clean_redis, mocker
+):
+    """A run which reports no job is an error, rather than a success which recorded nothing."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Reports no job",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data[0],
+            }
+        ),
+    )
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    mocker.patch("flexmeasures.cli.jobs.run_automation", return_value=None)
+
+    result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert result.exit_code == 1, result.output
+    assert "did not queue any job" in result.output
+    assert not fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like("Triggered a run of automation%")
+        )
+    ).scalar_one_or_none()
+
+
+def test_run_one_automation_reports_unknown_automation(app, fresh_db, clean_redis):
+    from flexmeasures.cli.jobs import run_one_automation
+
+    result = app.test_cli_runner().invoke(run_one_automation, ["--automation", "9999"])
+
+    assert result.exit_code == 2, result.output
+    assert "No automation found with id 9999" in result.output
     assert app.queues["forecasting"].count == 0
