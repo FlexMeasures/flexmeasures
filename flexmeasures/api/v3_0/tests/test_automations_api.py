@@ -555,13 +555,13 @@ def test_delete_automation(
 )
 def test_trigger_automation_auth(
     app,
-    add_battery_assets,
+    add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
     expected_status_code,
     mocker,
 ):
-    battery = add_battery_assets["Test battery"]
+    battery = add_battery_assets_fresh_db["Test battery"]
     automation = add_automations[0]
     run_automation = mocker.patch(
         "flexmeasures.api.v3_0.assets.run_automation",
@@ -587,14 +587,14 @@ def test_trigger_automation_auth(
 )
 def test_trigger_automation(
     app,
-    db,
-    add_battery_assets,
+    fresh_db,
+    add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
     mocker,
 ):
     """Triggering a run reports the queued job, and leaves the automation's recurrence alone."""
-    battery = add_battery_assets["Test battery"]
+    battery = add_battery_assets_fresh_db["Test battery"]
     automation = add_automations[1]  # inactive automations can be triggered, too.
     cursor_before = automation.cursor
     mocker.patch(
@@ -613,7 +613,7 @@ def test_trigger_automation(
     assert response.json["status"] == "ACCEPTED"
     assert response.json["job"] == "364bfd06-c1fa-430b-8d25-8f5a547651fb"
     assert response.json["n_jobs"] == 2
-    db.session.expire_all()
+    fresh_db.session.expire_all()
     assert automation.cursor == cursor_before
     assert automation.active is False
 
@@ -623,13 +623,13 @@ def test_trigger_automation(
 )
 def test_trigger_automation_that_cannot_run(
     app,
-    add_battery_assets,
+    add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
     mocker,
 ):
     """A run which cannot be set up is reported as such, rather than as a queued job."""
-    battery = add_battery_assets["Test battery"]
+    battery = add_battery_assets_fresh_db["Test battery"]
     automation = add_automations[0]
     mocker.patch(
         "flexmeasures.api.v3_0.assets.run_automation",
@@ -655,7 +655,7 @@ def test_trigger_automation_that_cannot_run(
 @pytest.mark.parametrize("via_other_asset", [True, False])
 def test_trigger_unknown_automation(
     app,
-    add_battery_assets,
+    add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
     via_other_asset,
@@ -665,10 +665,10 @@ def test_trigger_unknown_automation(
     run_automation = mocker.patch("flexmeasures.api.v3_0.assets.run_automation")
     if via_other_asset:
         # an existing automation, requested through an asset it does not belong to.
-        asset = add_battery_assets["Test small battery"]
+        asset = add_battery_assets_fresh_db["Test small battery"]
         automation_id = add_automations[0].id
     else:
-        asset = add_battery_assets["Test battery"]
+        asset = add_battery_assets_fresh_db["Test battery"]
         automation_id = 9999
     with app.test_client() as client:
         response = client.post(
