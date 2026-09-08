@@ -1808,7 +1808,10 @@ class SensorAPI(FlaskView):
         ---
         get:
           summary: Get sensor stats
-          description: This endpoint fetches sensor stats for all the historical data.
+          description: |
+            This endpoint fetches sensor stats for all the historical data.
+            Stats are reported per data source that recorded data for this sensor.
+            When more than one source recorded data, an extra "All sources" entry summarises them together.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1848,6 +1851,15 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor stats
                       value:
+                        "All sources":
+                          "First event start": "2015-06-02T10:00:00+00:00"
+                          "Last event end": "2015-10-03T10:00:00+00:00"
+                          "Last recorded": "2015-10-03T10:02:24+00:00"
+                          "Min value": 0.0
+                          "Max value": 120.0
+                          "Mean value": 55.0
+                          "Sum over values": 1100.0
+                          "Number of values": 20
                         "some data source":
                           "First event start": "2015-06-02T10:00:00+00:00"
                           "Last event end": "2015-10-02T10:00:00+00:00"
@@ -1856,6 +1868,15 @@ class SensorAPI(FlaskView):
                           "Max value": 100.0
                           "Mean value": 50.0
                           "Sum over values": 500.0
+                          "Number of values": 10
+                        "some other data source":
+                          "First event start": "2015-07-02T10:00:00+00:00"
+                          "Last event end": "2015-10-03T10:00:00+00:00"
+                          "Last recorded": "2015-10-03T10:02:24+00:00"
+                          "Min value": 10.0
+                          "Max value": 120.0
+                          "Mean value": 60.0
+                          "Sum over values": 600.0
                           "Number of values": 10
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1942,7 +1963,11 @@ class SensorAPI(FlaskView):
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,
-            exclude=EXCLUDED_FORECASTING_FIELDS,
+            # The API always queues a job, whose results only make sense when they are recorded,
+            # so dry runs are supported on the CLI only.
+            # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            exclude=EXCLUDED_FORECASTING_FIELDS
+            + ["dry_run"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,
