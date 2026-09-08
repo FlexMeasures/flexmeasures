@@ -297,8 +297,7 @@ def test_run_plan_snapshot_is_immutable_after_automation_edit(
 def test_live_partial_dispatch_claim_is_not_stolen(fresh_db, due_forecast_automation):
     """A runner which is still queueing keeps its claim, even while partially queued.
 
-    The dispatch state turns to 'partially_queued' as soon as the first job is queued, so a second runner
-    must fall back on the claim lease to decide whether the first runner is gone.
+    The dispatch state turns to 'partially_queued' as soon as the first job is queued, so a second runner must fall back on the claim lease to decide whether the first runner is gone.
     """
     from flexmeasures.data.services.automations import (
         claim_due_automation_run,
