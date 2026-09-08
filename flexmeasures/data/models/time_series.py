@@ -938,8 +938,8 @@ def _select_latest_version_and_belief_per_event(
     That order is how a caller says which source it prefers where two of them report one event,
     which is what `AggregatorReporter` offers through its `sources` field.
 
-    The highest source id is a last resort, so that a tie no one else broke is at least answered the
-    same way every time, and does not move when a source is renamed.
+    The highest source id is a last resort, so that a tie no one else broke is answered the same way every time,
+    and does not move when a source is renamed.
 
     Assumes deterministic beliefs (probabilistic depth 1).
     """
