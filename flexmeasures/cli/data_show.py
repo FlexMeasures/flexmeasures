@@ -964,7 +964,7 @@ def show_report_templates(name: str | None = None):
     Show prepared report templates: ready-made report definitions to start from.
 
     Fill in your own sensors (replacing the FILL_IN placeholders) and pass a template
-    to `flexmeasures add report` or `flexmeasures add automation --type reports`
+    to `flexmeasures add report` or `flexmeasures add automation --type reporting`
     using the --template option.
     """
     from flexmeasures.data.services.report_templates import (
@@ -996,7 +996,7 @@ def show_report_templates(name: str | None = None):
     )
     click.echo(
         "\nUse `flexmeasures show report-templates --name <name>` to print a template in full,"
-        "\nor pass `--template <name>` to `flexmeasures add report` or `flexmeasures add automation --type reports`."
+        "\nor pass `--template <name>` to `flexmeasures add report` or `flexmeasures add automation --type reporting`."
     )
 
 

@@ -73,7 +73,7 @@ class AutomationCreationSchema(Schema):
     """
 
     type = fields.Str(
-        load_default="forecasts",
+        load_default="forecasting",
         validate=validate.OneOf(Automation.SUPPORTED_TYPES),
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
@@ -92,15 +92,15 @@ class AutomationCreationSchema(Schema):
         allow_none=True,
         metadata={
             "description": "Data generator class, e.g. a forecaster (defaults to TrainPredictPipeline)"
-            " or a reporter (required for type 'reports', e.g. PandasReporter)."
-            " Not used for type 'schedules'."
+            " or a reporter (required for type 'reporting', e.g. PandasReporter)."
+            " Not used for type 'scheduling'."
         },
     )
     config = fields.Dict(
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Data generator configuration (only used for types 'forecasts' and 'reports')."
+            "description": "Data generator configuration (only used for types 'forecasting' and 'reporting')."
         },
     )
 

@@ -52,7 +52,10 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.services.automations import create_automation
+from flexmeasures.data.services.automations import (
+    create_automation,
+    RecurringScheduleFixesAMoment,
+)
 from flexmeasures.data.services.report_templates import (
     PLACEHOLDER,
     find_placeholders,
@@ -112,6 +115,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.cli.utils import (
@@ -224,7 +228,7 @@ def new_account_role(name: str, description: str):
 @click.option(
     "--trigger-rate-limit",
     callback=validate_rate_limit_cli,
-    help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
+    help="How often accounts on this plan may trigger a schedule, forecast or report, e.g. '60 per 5 minutes'."
     " Defaults to the FLEXMEASURES_API_TRIGGER_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
 )
 @click.option(
@@ -1655,20 +1659,25 @@ def add_forecast(  # noqa: C901
 
     \b
     Workflow
-      - Training window: defaults to a 30-day period in advance of the CLI execution time.
+      - Training window: spans --train-period, 30 days by default,
+        and begins no earlier than --train-start when one is given.
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Forecasts are saved to the database; use --dry-run to compute them without saving.
       - Sensor 2093 is used as a regressor in this example.
 
     \b
     Notes:
     - Use --from-date to explicitly set when the forecasts will start.
-    - Use --train-period to set the training window, which will grow each cycle
-        until the specified --to-date is reached.
-    - Use --predict-period to set the prediction window. It rolls forward by the
-        forecast period each cycle, similar to the training window, but its size
-        does not grow.
+    - Use --train-period to set the training window,
+        which will grow each cycle until the specified --to-date is reached.
+    - Setting both --train-start and --train-period trains on whichever of the two asks for less data:
+        --train-start says where training may begin, --train-period says how much history to use.
+    - --max-training-period is a deprecated alias of --train-period, which now says the same thing.
+    - Use --predict-period to set the prediction window.
+        It rolls forward by the forecast period each cycle, similar to the training window,
+        but its size does not grow.
     """
 
     # Deprecation warnings for CLI options specific to rolling viewpoint predictions
@@ -1693,6 +1702,18 @@ def add_forecast(  # noqa: C901
         edit_config,
         edit_parameters,
     )
+
+    # Read the flag from the assembled parameters, so that it counts however it was supplied:
+    # as the --dry-run option, or through the --parameters file or the --edit-parameters editor.
+    dry_run = parameters.get("dry-run", False)
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the forecast that a dry run computes would be discarded unseen."
+            " Drop --as-job to compute the forecast here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     try:
         forecaster = get_data_generator(
@@ -1728,8 +1749,34 @@ def add_forecast(  # noqa: C901
         unique_belief_times = {
             ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
         }
+        if dry_run:
+            sensor_to_save = forecaster.output_sensors[0]
+            # Only frames with beliefs have an event range; without any, we still report the rest.
+            frames_with_beliefs = [
+                item["data"] for item in pipeline_returns if not item["data"].empty
+            ]
+            event_range = (
+                f" covering events from {min(data.event_starts.min() for data in frames_with_beliefs)}"
+                f" until {max(data.event_ends.max() for data in frames_with_beliefs)},"
+                if frames_with_beliefs
+                else ""
+            )
+            click.secho(
+                f"Not saving forecasts to the database (because of --dry-run), but this is what I computed:"
+                f"\n{pluralize('forecast belief', total_beliefs, include_count=True)}"
+                f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+                f"{event_range}"
+                f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
+                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            for item in pipeline_returns:
+                click.echo(item["data"])
+            return
+
         click.secho(
-            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
             **MsgStyle.SUCCESS,
         )
 
@@ -1774,7 +1821,7 @@ def add_forecast(  # noqa: C901
 @click.option(
     "--type",
     "automation_type",
-    default="forecasts",
+    default="forecasting",
     show_default=True,
     type=click.Choice(Automation.SUPPORTED_TYPES),
     help="Type of task to automate.",
@@ -1799,7 +1846,7 @@ def add_forecast(  # noqa: C901
     "reporter_class",
     required=False,
     type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin (only used for --type reports)."
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin (only used for --type reporting)."
     " Use the command `flexmeasures show reporters` to list all the available reporters.",
 )
 @click.option(
@@ -1808,7 +1855,7 @@ def add_forecast(  # noqa: C901
     required=False,
     type=click.STRING,
     help="Name of a prepared report template to use as defaults for the reporter, config and parameters"
-    " (only used for --type reports). Any --config/--parameters files and other options override it."
+    " (only used for --type reporting). Any --config/--parameters files and other options override it."
     " Cannot be combined with --source, which already determines the reporter and configuration."
     " Use the command `flexmeasures show report-templates` to list all the available templates.",
 )
@@ -1834,8 +1881,8 @@ def add_forecast(  # noqa: C901
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
-    " forecast parameters for --type forecasts, a schedule trigger message for --type schedules,"
-    " or report parameters for --type reports.",
+    " forecast parameters for --type forecasting, a schedule trigger message for --type scheduling,"
+    " or report parameters for --type reporting.",
 )
 @add_cli_options_from_schema(
     ForecasterParametersSchema(), hidden=True, force_optional=True
@@ -1867,10 +1914,11 @@ def add_automation(
         --cron "0 6 * * *" --timezone Europe/Amsterdam
         --parameters forecast-parameters.yml
       flexmeasures add automation --asset 3 --name "Hourly schedules"
-        --cron "0 * * * *" --type schedules --parameters trigger-message.yml
+        --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
       flexmeasures add automation --asset 3 --name "Daily self-consumption report"
-        --cron "0 1 * * *" --type reports --template self-consumption
+        --cron "0 1 * * *" --type reporting --template self-consumption
         --parameters report-parameters.yml
+
 
     For forecasts and reports, the data generator configuration is stored on a
     data source, and the parameters are validated and stored on the automation itself.
@@ -1895,9 +1943,9 @@ def add_automation(
     if forecaster_class is None:
         forecaster_class = "TrainPredictPipeline"
 
-    if template_name is not None and automation_type != "reports":
+    if template_name is not None and automation_type != "reporting":
         click.secho(
-            "The --template option is only supported for report automations (--type reports).",
+            "The --template option is only supported for report automations (--type reporting).",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
@@ -1907,13 +1955,23 @@ def add_automation(
         kwargs, source, config_file, parameters_file
     )
 
+    # An automation exists to record what it computes, so a dry run would render it pointless.
+    # Popping the parameter also keeps it out of the parameters stored on the automation,
+    # where a schedule trigger message would reject it as an unknown field.
+    if parameters.pop("dry-run", False):
+        click.secho(
+            "The dry-run option is not supported for automations, which exist to record what they compute.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     if template_name is not None:
         reporter_class, config, parameters = _apply_report_template(
             template_name, reporter_class, config, parameters
         )
-    if automation_type == "reports":
+    if automation_type == "reporting":
         _abort_on_unfilled_placeholders(config, parameters)
-    if automation_type == "schedules":
+    if automation_type == "scheduling":
         # Only options actually given on the command line count: the forecaster and the
         # configuration options that were left out still show up here, with their defaults.
         forecast_options = _find_options_given_on_command_line(
@@ -1928,7 +1986,7 @@ def add_automation(
         if forecast_options:
             raise click.UsageError(
                 f"{flexmeasures_inflection.join_words_into_a_list(forecast_options)} cannot be"
-                " combined with --type schedules: a schedule automation is not computed by a forecaster."
+                " combined with --type scheduling: a schedule automation is not computed by a forecaster."
             )
 
     # The service validates the parameters by automation type (we store them serialized)
@@ -1942,7 +2000,7 @@ def add_automation(
             active=not inactive,
             parameters=parameters,
             generator_class=(
-                reporter_class if automation_type == "reports" else forecaster_class
+                reporter_class if automation_type == "reporting" else forecaster_class
             ),
             config=config,
             source=source,
@@ -1950,10 +2008,13 @@ def add_automation(
         )
     except ValidationError as e:
         click.secho(
-            f"Invalid {automation_type[:-1]} parameters: {e.messages}",
+            f"Invalid {Automation.RESULT_NOUNS[automation_type]} parameters: {e.messages}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
+    except RecurringScheduleFixesAMoment as e:
+        # A usage error: the automation cannot be defined this way, whatever the data says.
+        raise click.UsageError(str(e))
     except ValueError as e:
         click.secho(str(e), **MsgStyle.ERROR)
         raise click.Abort()
@@ -1962,7 +2023,7 @@ def add_automation(
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
-        f" to compute {automation_type} for asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
+        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
         **MsgStyle.SUCCESS,
     )
 
@@ -2070,6 +2131,16 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the schedule that a dry run computes would be discarded unseen,"
+            " and where it would be saved to the database, which is exactly what --dry-run asks it not to do."
+            " Drop --as-job to compute the schedule here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     asset_or_sensor = None
     if not power_sensor and not asset:
         click.secho(
@@ -2144,6 +2215,11 @@ def add_schedule(  # noqa C901
         )
         if not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+        else:
+            click.secho(
+                "The schedule above was computed but not stored (because of --dry-run).",
+                **MsgStyle.SUCCESS,
+            )
 
 
 @fm_add_data.command("report")
@@ -2268,7 +2344,7 @@ def add_schedule(  # noqa C901
     "--as-job",
     is_flag=True,
     help="Whether to queue a reporting job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'reporting' queue. Defaults to False.",
+    "Process it with a worker on the 'reporting' queue.",
 )
 def add_report(  # noqa: C901
     reporter_class: str | None = None,
@@ -2303,7 +2379,7 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
     if as_job and not save_config:
-        # the worker rebuilds the reporter from its data source, so the config must be stored there
+
         click.secho(
             "Saving the reporter config to its data source (required for --as-job).",
             **MsgStyle.WARN,

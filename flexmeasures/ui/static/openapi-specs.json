@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -909,7 +909,7 @@
     "/api/v3_0/sensors/{id}/stats": {
       "get": {
         "summary": "Get sensor stats",
-        "description": "This endpoint fetches sensor stats for all the historical data.",
+        "description": "This endpoint fetches sensor stats for all the historical data.\nStats are reported per data source that recorded data for this sensor.\nWhen more than one source recorded data, an extra \"All sources\" entry summarises them together.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -969,6 +969,16 @@
                     "summary": "Successful response",
                     "description": "A successful response with sensor stats",
                     "value": {
+                      "All sources": {
+                        "First event start": "2015-06-02T10:00:00+00:00",
+                        "Last event end": "2015-10-03T10:00:00+00:00",
+                        "Last recorded": "2015-10-03T10:02:24+00:00",
+                        "Min value": 0.0,
+                        "Max value": 120.0,
+                        "Mean value": 55.0,
+                        "Sum over values": 1100.0,
+                        "Number of values": 20
+                      },
                       "some data source": {
                         "First event start": "2015-06-02T10:00:00+00:00",
                         "Last event end": "2015-10-02T10:00:00+00:00",
@@ -977,6 +987,16 @@
                         "Max value": 100.0,
                         "Mean value": 50.0,
                         "Sum over values": 500.0,
+                        "Number of values": 10
+                      },
+                      "some other data source": {
+                        "First event start": "2015-07-02T10:00:00+00:00",
+                        "Last event end": "2015-10-03T10:00:00+00:00",
+                        "Last recorded": "2015-10-03T10:02:24+00:00",
+                        "Min value": 10.0,
+                        "Max value": 120.0,
+                        "Mean value": 60.0,
+                        "Sum over values": 600.0,
                         "Number of values": 10
                       }
                     }
@@ -3349,7 +3369,7 @@
     "/api/v3_0/assets/{id}/automations/{automation_id}": {
       "delete": {
         "summary": "Delete an automation.",
-        "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires account admin or consultant rights.\n",
+        "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3439,7 +3459,7 @@
                       "id": 1,
                       "created_at": "2026-07-11T00:00:00+00:00",
                       "asset_id": 1,
-                      "type": "forecasts",
+                      "type": "forecasting",
                       "name": "Day-ahead PV forecasts",
                       "cronstr": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
@@ -3505,7 +3525,7 @@
       },
       "patch": {
         "summary": "Update an automation's name, cron string or activation status.",
-        "description": "Any subset of the fields `name`, `cronstr` and `active` can be sent.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires account admin or consultant rights.\n",
+        "description": "Any subset of the fields `name`, `cronstr` and `active` can be sent.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3610,7 +3630,7 @@
                           "id": 1,
                           "created_at": "2026-07-11T00:00:00+00:00",
                           "asset_id": 1,
-                          "type": "forecasts",
+                          "type": "forecasting",
                           "name": "Day-ahead PV forecasts",
                           "cronstr": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
@@ -3647,7 +3667,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires account admin or consultant rights.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from, and permission to record data\non the sensors it writes to.\n",
+        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from, and permission to record data\non the sensors it writes to.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3676,7 +3696,7 @@
                   "value": {
                     "name": "Day-ahead PV forecasts",
                     "cronstr": "0 6 * * *",
-                    "type": "forecasts",
+                    "type": "forecasting",
                     "parameters": {
                       "sensor": 2092
                     }
@@ -4653,6 +4673,167 @@
           },
           "429": {
             "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/automations/{automation_id}/trigger": {
+      "post": {
+        "summary": "Trigger a single run of an automation.",
+        "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset the automation is defined on.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation to run.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "PROCESSING",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "triggered": {
+                    "summary": "Automation run accepted",
+                    "description": "The automation queued its jobs, which will be picked up by a worker.\nThe `job` field holds the Universally Unique Identifier (UUID) of the job to follow,\nand `n_jobs` says how many jobs the run queued in total.\n",
+                    "value": {
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "n_jobs": 2,
+                      "message": "Request has been accepted for processing."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/reports/trigger": {
+      "post": {
+        "summary": "Trigger a one-off reporting job for this asset.",
+        "description": "Queue a one-off report for a worker processing the `reporting` queue.\nThe caller must be able to read every input/configuration sensor and\nrecord data on every output sensor. Each output must belong to the\nasset in the URL or one of its descendants.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "$ref": "#/components/parameters/AssetIdPath"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportTriggerSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "ACCEPTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "message",
+                    "job",
+                    "job-url"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACCEPTED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "job": {
+                      "type": "string",
+                      "description": "UUID of the queued reporting job."
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ACCEPTED",
+                  "message": "Request has been accepted for processing.",
+                  "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                  "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -6419,11 +6600,11 @@
         "properties": {
           "type": {
             "type": "string",
-            "default": "forecasts",
+            "default": "forecasting",
             "enum": [
-              "forecasts",
-              "schedules",
-              "reports"
+              "forecasting",
+              "scheduling",
+              "reporting"
             ]
           },
           "name": {
@@ -6457,11 +6638,11 @@
               "null"
             ],
             "default": null,
-            "description": "Data generator class, e.g. a forecaster (defaults to TrainPredictPipeline) or a reporter (required for type 'reports', e.g. PandasReporter). Not used for type 'schedules'."
+            "description": "Data generator class, e.g. a forecaster (defaults to TrainPredictPipeline) or a reporter (required for type 'reporting', e.g. PandasReporter). Not used for type 'scheduling'."
           },
           "config": {
             "type": "object",
-            "description": "Data generator configuration (only used for types 'forecasts' and 'reports').",
+            "description": "Data generator configuration (only used for types 'forecasting' and 'reporting').",
             "additionalProperties": {}
           }
         },
@@ -6491,6 +6672,27 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false
+      },
+      "ReportTriggerSchema": {
+        "type": "object",
+        "properties": {
+          "reporter": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "parameters",
+          "reporter"
+        ],
         "additionalProperties": false
       },
       "CopyAssetSchema": {

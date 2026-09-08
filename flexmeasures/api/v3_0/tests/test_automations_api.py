@@ -25,7 +25,7 @@ def add_automations(fresh_db, add_battery_assets_fresh_db):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Day-ahead forecasts",
             cronstr="0 6 * * *",
             timezone="Europe/Amsterdam",
@@ -36,7 +36,7 @@ def add_automations(fresh_db, add_battery_assets_fresh_db):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Intraday forecasts",
             cronstr="0 * * * *",
             timezone="UTC",
@@ -92,7 +92,7 @@ def test_get_automations(
     automations = response.json["automations"]
     assert len(automations) == 2
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
-    assert day_ahead["type"] == "forecasts"
+    assert day_ahead["type"] == "forecasting"
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"
@@ -179,7 +179,7 @@ def test_get_nonexistent_automation(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_prosumer_user@seita.nl", 403),  # plain account member
+        ("test_prosumer_user@seita.nl", 201),  # plain account member
         ("test_prosumer_user_2@seita.nl", 201),  # account admin
         ("test_dummy_user_3@seita.nl", 403),  # different account
     ],
@@ -192,7 +192,7 @@ def test_post_automation(
     requesting_user,
     expected_status_code,
 ):
-    """Only account admins (and consultants) can create automations; parameters are validated by type."""
+    """Whoever may add data under the asset can create automations on it; parameters are validated by type."""
     battery = add_battery_assets_fresh_db["Test battery"]
     with app.test_client() as client:
         response = client.post(
@@ -200,7 +200,7 @@ def test_post_automation(
             json={
                 "name": "Posted schedules",
                 "cronstr": "0 0 * * *",
-                "type": "schedules",
+                "type": "scheduling",
                 "parameters": {"duration": "PT12H"},
             },
         )
@@ -252,7 +252,7 @@ def test_post_automation_with_foreign_sensor(
             json={
                 "name": "Sneaky forecasts",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": foreign_sensor.id},
             },
         )
@@ -305,7 +305,7 @@ def test_post_report_automation_with_foreign_config_sensor(
             json={
                 "name": "Cross-organisation profit report",
                 "cronstr": "0 1 * * *",
-                "type": "reports",
+                "type": "reporting",
                 "generator": "ProfitOrLossReporter",
                 "config": {
                     "consumption_price_sensor": foreign_price_sensor.id,
@@ -355,7 +355,7 @@ def test_post_report_automation_rejects_output_outside_asset_subtree(
             json={
                 "name": "Misplaced report output",
                 "cronstr": "0 1 * * *",
-                "type": "reports",
+                "type": "reporting",
                 "generator": "PandasReporter",
                 "config": {
                     "required_input": [{"name": "flow"}],
@@ -395,7 +395,7 @@ def test_post_automation_with_invalid_parameters(
             json={
                 "name": "Bad forecasts",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {},  # missing required sensor
             },
         )
@@ -421,7 +421,7 @@ def test_post_and_patch_automation_timezone(
                 "name": "Seoul forecasts",
                 "cronstr": "0 6 * * *",
                 "timezone": "Asia/Seoul",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
             },
         )
@@ -487,7 +487,7 @@ def test_post_automation_with_inaccessible_source_filtered_regressor(
             json={
                 "name": "Forecasts regressing on another account's sensor",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
                 "config": {
                     "regressors": [
@@ -546,7 +546,7 @@ def test_post_automation_with_inaccessible_sensor(
             json={
                 "name": "Forecasts of another account's sensor",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": someone_elses_sensor.id},
             },
         )
@@ -568,7 +568,7 @@ def test_post_automation_with_inaccessible_sensor(
             json={
                 "name": "Forecasts of their own sensor",
                 "cronstr": "0 6 * * *",
-                "type": "forecasts",
+                "type": "forecasting",
                 "parameters": {"sensor": own_sensor.id},
             },
         )
@@ -611,7 +611,7 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
             json={
                 "name": "Schedules aggregated onto another account's sensor",
                 "cronstr": "0 0 * * *",
-                "type": "schedules",
+                "type": "scheduling",
                 "parameters": {
                     "duration": "PT12H",
                     "flex-context": {
@@ -629,7 +629,7 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_prosumer_user@seita.nl", 403),  # plain account member
+        ("test_prosumer_user@seita.nl", 200),  # plain account member
         ("test_prosumer_user_2@seita.nl", 200),  # account admin
     ],
     indirect=["requesting_user"],
@@ -679,7 +679,7 @@ def test_delete_automation(
         asset_id=battery.id,
         # a forecast automation is required to have a data generator holding its forecaster config
         generator=add_automations[0].generator,
-        type="forecasts",
+        type="forecasting",
         name="To be deleted",
         cronstr="0 6 * * *",
         parameters={"sensor": battery.sensors[0].id},
@@ -706,3 +706,141 @@ def test_delete_automation(
             ),
         )
         assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        (None, 401),  # not logged in
+        ("test_prosumer_user@seita.nl", 202),  # same account
+        ("test_dummy_user_3@seita.nl", 403),  # different account
+    ],
+    indirect=["requesting_user"],
+)
+def test_trigger_automation_auth(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+    expected_status_code,
+    mocker,
+):
+    battery = add_battery_assets_fresh_db["Test battery"]
+    automation = add_automations[0]
+    run_automation = mocker.patch(
+        "flexmeasures.api.v3_0.assets.run_automation",
+        return_value={"job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb", "n_jobs": 2},
+    )
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == expected_status_code
+    if expected_status_code == 202:
+        assert run_automation.call_args.args[0].id == automation.id
+    else:
+        run_automation.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+    mocker,
+):
+    """Triggering a run reports the queued job, and leaves the automation's recurrence alone."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    automation = add_automations[1]  # inactive automations can be triggered, too.
+    cursor_before = automation.cursor
+    mocker.patch(
+        "flexmeasures.api.v3_0.assets.run_automation",
+        return_value={"job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb", "n_jobs": 2},
+    )
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == 202
+    assert response.json["status"] == "ACCEPTED"
+    assert response.json["job"] == "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+    assert response.json["n_jobs"] == 2
+    fresh_db.session.expire_all()
+    assert automation.cursor == cursor_before
+    assert automation.active is False
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_automation_that_cannot_run(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+    mocker,
+):
+    """A run which cannot be set up is reported as such, rather than as a queued job."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    automation = add_automations[0]
+    mocker.patch(
+        "flexmeasures.api.v3_0.assets.run_automation",
+        side_effect=ValueError(
+            "Forecast automation output sensor 3 must belong to asset 1 or one of its descendants."
+        ),
+    )
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == 422
+    assert "must belong to asset" in str(response.json["message"])
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("via_other_asset", [True, False])
+def test_trigger_unknown_automation(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+    via_other_asset,
+    mocker,
+):
+    """Triggering an automation the asset does not have returns 404, without running anything."""
+    run_automation = mocker.patch("flexmeasures.api.v3_0.assets.run_automation")
+    if via_other_asset:
+        # an existing automation, requested through an asset it does not belong to.
+        asset = add_battery_assets_fresh_db["Test small battery"]
+        automation_id = add_automations[0].id
+    else:
+        asset = add_battery_assets_fresh_db["Test battery"]
+        automation_id = 9999
+    with app.test_client() as client:
+        response = client.post(
+            url_for(
+                "AssetAPI:trigger_automation",
+                id=asset.id,
+                automation_id=automation_id,
+            ),
+        )
+    assert response.status_code == 404
+    run_automation.assert_not_called()

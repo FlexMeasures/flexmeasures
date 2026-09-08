@@ -21,24 +21,18 @@ class Reporter(DataGenerator):
 
     @property
     def input_sensors(self) -> list:
-        """The sensors from which the report reads its input data."""
+        """Return the sensors from which the report reads input data."""
         parameters = self._parameters or {}
         return self._resolve_sensors(
-            [
-                input_description.get("sensor")
-                for input_description in parameters.get("input", [])
-            ]
+            [item.get("sensor") for item in parameters.get("input", [])]
         )
 
     @property
     def output_sensors(self) -> list:
-        """The sensors on which the report records its results."""
+        """Return the sensors on which the report records its results."""
         parameters = self._parameters or {}
         return self._resolve_sensors(
-            [
-                output_description.get("sensor")
-                for output_description in parameters.get("output", [])
-            ]
+            [item.get("sensor") for item in parameters.get("output", [])]
         )
 
     def _compute(
@@ -50,8 +44,9 @@ class Reporter(DataGenerator):
 
         :param check_output_resolution: If True, checks each output for whether the event_resolution
                                         matches that of the sensor it is supposed to be recorded on.
-        :param as_job:                  If True, a job to compute (and save) the report is queued instead,
-                                        and a dict like {"job_id": <uuid>, "n_jobs": 1} is returned.
+        :param as_job:                  If True, queue a reporting job instead of computing immediately.
+        :returns:                       A dictionary with ``job_id`` and ``n_jobs`` when queued,
+                                        otherwise the computed report results.
         """
         if as_job:
             from flexmeasures.data.services.reporting import create_reporting_job

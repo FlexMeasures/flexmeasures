@@ -166,7 +166,7 @@ def test_add_and_run_report_automation_with_template(
             "--asset", str(daily_sensor.generic_asset_id),
             "--name", "Daily self-consumption",
             "--cron", "* * * * *",  # due every minute
-            "--type", "reports",
+            "--type", "reporting",
             "--template", "self-consumption",
             "--parameters", str(parameters_file),
         ],
@@ -174,7 +174,7 @@ def test_add_and_run_report_automation_with_template(
     assert "Successfully created" in result.output, result.output
 
     automation = fresh_db.session.execute(select(Automation)).scalar_one()
-    assert automation.type == "reports"
+    assert automation.type == "reporting"
     assert automation.generator is not None
     assert automation.generator.model == "PandasReporter"
     # the reporter config came from the template
@@ -217,7 +217,7 @@ def test_report_template_placeholders_must_be_filled(app, fresh_db, setup_dummy_
             "--asset", "1",
             "--name", "Unfilled report",
             "--cron", "0 1 * * *",
-            "--type", "reports",
+            "--type", "reporting",
             "--template", "self-consumption",
         ],
     )  # fmt: skip
@@ -238,7 +238,7 @@ def test_report_template_placeholders_must_be_filled(app, fresh_db, setup_dummy_
             "--asset", "1",
             "--name", "Unknown template",
             "--cron", "0 1 * * *",
-            "--type", "reports",
+            "--type", "reporting",
             "--template", "unknown",
         ],
     )  # fmt: skip
@@ -285,7 +285,7 @@ def test_report_template_cannot_be_combined_with_source(
             "--name",
             "Ambiguous report configuration",
             "--type",
-            "reports",
+            "reporting",
             "--source",
             str(source_id),
             "--template",

@@ -94,9 +94,11 @@ class ProfitOrLossReporterParametersSchema(ReporterParametersSchema):
         }
     """
 
-    # redefining output to restrict the input length to 1
+    # redefining input to restrict the input length to 1
     input = fields.List(
-        fields.Nested(Input()), required=True, validate=validate.Length(min=1, max=1)
+        fields.Nested(Input()),
+        required=True,
+        validate=validate.Length(min=1, max=1),
     )
 
     @validates("input")

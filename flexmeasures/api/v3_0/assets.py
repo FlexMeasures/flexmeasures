@@ -26,7 +26,6 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
-    get_sensor_stats,
 )
 from flexmeasures.api.common.schemas.scheduling import (
     flex_context_schema_openAPI,
@@ -61,16 +60,25 @@ from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_automation_job_stats,
     resolve_automation_sensors,
+    run_automation,
     update_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
+    asset_is_in_subtree,
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.schemas.reporting import ReportTriggerSchema
+from flexmeasures.data.services.data_generators import (
+    check_sensor_access,
+    resolve_data_generator_sensors,
+)
+from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -1422,7 +1430,7 @@ class AssetAPI(FlaskView):
                           - id: 1
                             created_at: "2026-07-11T00:00:00+00:00"
                             asset_id: 1
-                            type: forecasts
+                            type: forecasting
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
@@ -1502,7 +1510,7 @@ class AssetAPI(FlaskView):
                         id: 1
                         created_at: "2026-07-11T00:00:00+00:00"
                         asset_id: 1
-                        type: forecasts
+                        type: forecasting
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
@@ -1588,9 +1596,10 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
-    # Managing automations requires the same principals that may delete the asset
-    # (i.e. account admins and consultants), matching the Automation ACL.
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def post_automation(self, id: int, asset: GenericAsset):
         """
@@ -1604,7 +1613,7 @@ class AssetAPI(FlaskView):
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasts`, or a schedule trigger message
             (without the asset id) for type `schedules`.
-            Requires account admin or consultant rights.
+            Requires permission to add data under the asset.
 
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from, and permission to record data
@@ -1628,7 +1637,7 @@ class AssetAPI(FlaskView):
                     value:
                       name: Day-ahead PV forecasts
                       cronstr: "0 6 * * *"
-                      type: forecasts
+                      type: forecasting
                       parameters:
                         sensor: 2092
           responses:
@@ -1684,9 +1693,10 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing automations requires the same principals that may delete the asset
-    # (i.e. account admins and consultants), matching the Automation ACL.
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def patch_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -1698,7 +1708,7 @@ class AssetAPI(FlaskView):
           description: |
             Any subset of the fields `name`, `cronstr` and `active` can be sent.
             Other automation fields cannot be updated; instead, create a new automation.
-            Requires account admin or consultant rights.
+            Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1765,9 +1775,10 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing automations requires the same principals that may delete the asset
-    # (i.e. account admins and consultants), matching the Automation ACL.
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def delete_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -1778,7 +1789,7 @@ class AssetAPI(FlaskView):
           summary: Delete an automation.
           description: |
             Delete the automation. Any jobs it already queued are unaffected.
-            Requires account admin or consultant rights.
+            Requires permission to add data under the asset.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1816,6 +1827,114 @@ class AssetAPI(FlaskView):
         remove_automation(automation, origin="API")
         db.session.commit()
         return {}, 204
+
+    @route("/<id>/automations/<int:automation_id>/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Running an automation writes data under the asset, which is what create-children means here.
+    # The sensors it writes to were checked against the same permission when the automation was created,
+    # and its output scope is checked again on each run (see validate_forecast_output_scope).
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a single run of an automation.
+
+        ---
+        post:
+          summary: Trigger a single run of an automation.
+          description: |
+            Run one automation now, once, in addition to its recurring runs.
+            This is useful to try out a new automation, to re-run one after fixing what made it fail,
+            or to refresh its results after late input data arrived.
+
+            The automation runs with the parameters it was created with,
+            and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+
+            An on-demand run does not affect the automation's recurrence: its cursor stays where it was,
+            so the next recurring run still happens as scheduled, and a missed run is still caught up.
+            Inactive automations can be triggered, too, which is how you can try one out before activating it.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset the automation is defined on.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation to run.
+              schema:
+                type: integer
+          responses:
+            202:
+              description: PROCESSING
+              content:
+                application/json:
+                  examples:
+                    triggered:
+                      summary: Automation run accepted
+                      description: |
+                        The automation queued its jobs, which will be picked up by a worker.
+                        The `job` field holds the Universally Unique Identifier (UUID) of the job to follow,
+                        and `n_jobs` says how many jobs the run queued in total.
+                      value:
+                        status: ACCEPTED
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        n_jobs: 2
+                        message: "Request has been accepted for processing."
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        try:
+            returns = run_automation(automation)
+        except (NotImplementedError, ValueError, ValidationError) as e:
+            db.session.rollback()
+            return unprocessable_entity(
+                e.messages if isinstance(e, ValidationError) else str(e)
+            )
+        job_id = (returns or {}).get("job_id")
+        if job_id is None:
+            db.session.rollback()
+            current_app.logger.error(
+                "Automation %s ran on demand, but reported no job: %r",
+                automation.id,
+                returns,
+            )
+            return unprocessable_entity(
+                f"Automation {automation.id} did not queue any job."
+            )
+        AssetAuditLog.add_record(
+            asset,
+            f"Triggered a run of automation '{automation.name}' ({automation.id}).",
+        )
+        db.session.commit()
+        response, status_code = request_accepted_for_processing(job_id)
+        response["n_jobs"] = returns.get("n_jobs")
+        return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(
@@ -2024,6 +2143,129 @@ class AssetAPI(FlaskView):
         return {
             "message": "Default legend position updated successfully.",
         }, 200
+
+    @route("/<id>/reports/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_report(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a one-off reporting job for this asset.
+        ---
+        post:
+          summary: Trigger a one-off reporting job for this asset.
+          description: |
+            Queue a one-off report for a worker processing the `reporting` queue.
+            The caller must be able to read every input/configuration sensor and
+            record data on every output sensor. Each output must belong to the
+            asset in the URL or one of its descendants.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              $ref: '#/components/parameters/AssetIdPath'
+          requestBody:
+            content:
+              application/json:
+                schema: ReportTriggerSchema
+          responses:
+            202:
+              description: ACCEPTED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required:
+                      - status
+                      - message
+                      - job
+                      - job-url
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - ACCEPTED
+                      message:
+                        type: string
+                      job:
+                        type: string
+                        description: UUID of the queued reporting job.
+                      job-url:
+                        type: string
+                        format: uri
+                        description: URL to query the generic job status API.
+                  example:
+                    status: ACCEPTED
+                    message: Request has been accepted for processing.
+                    job: 364bfd06-c1fa-430b-8d25-8f5a547651fb
+                    job-url: /api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            report_data = ReportTriggerSchema().load(body)
+        except ValidationError as exc:
+            return unprocessable_entity(exc.messages)
+
+        try:
+            reporter = get_data_generator(
+                source=None,  # pre-defined app.data_generators
+                model=report_data["reporter"],
+                config=report_data["config"],
+                save_config=True,
+                data_generator_type=Reporter,
+            )
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"config": exc.messages})
+        if reporter is None:
+            db.session.rollback()
+            return unprocessable_entity(
+                f"Reporter class `{report_data['reporter']}` not available."
+            )
+
+        parameters = report_data["parameters"]
+        try:
+            deserialized_parameters = reporter._parameters_schema.load(parameters)
+            report_sensors = resolve_data_generator_sensors(
+                reporter, deserialized_parameters
+            )
+            check_sensor_access(
+                report_sensors["input_sensors"], report_sensors["output_sensors"]
+            )
+            for output_sensor in report_sensors["output_sensors"]:
+                if not asset_is_in_subtree(asset.id, output_sensor.generic_asset_id):
+                    raise ValueError(
+                        f"Report output sensor {output_sensor.id} must belong to asset"
+                        f" {asset.id} or one of its descendants."
+                    )
+            reporter.set_job_trigger("API")
+            result = reporter.compute(as_job=True, parameters=parameters)
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"parameters": exc.messages})
+        except ValueError as exc:
+            db.session.rollback()
+            return unprocessable_entity(str(exc))
+        except Forbidden:
+            db.session.rollback()
+            raise
+
+        return request_accepted_for_processing(result["job_id"])
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @limit_triggers()
@@ -2342,10 +2584,23 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            sensor_stats = get_sensor_stats(sensor, start, end, sort_keys=False)
+            # The beliefs the chart draws: one value per event, the most recent one.
+            # Aggregating belief rows instead would count a revision on top of what it revised,
+            # and would count each source separately when several report the same sensor.
+            beliefs = sensor.search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                most_recent_beliefs_only=True,
+            )
+            # Count each event once, under the window it starts in.
+            # The search also returns events that merely overlap the window, which the chart draws,
+            # but a total that included them would count one event under two adjacent selections.
+            event_starts = beliefs.index.get_level_values("event_start")
+            beliefs = beliefs[(event_starts >= start) & (event_starts < end)]
+            values = beliefs["event_value"].dropna()
 
             downsample_function, downsample_value = get_downsample_function_and_value(
-                kpi, sensor, sensor_stats
+                kpi, sensor, values
             )
             kpi_dict = {
                 "title": kpi["title"],
