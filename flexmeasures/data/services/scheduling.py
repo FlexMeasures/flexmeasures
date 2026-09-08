@@ -671,7 +671,7 @@ def _set_flex_context_output_sensors_consumption_is_positive(
     following the default convention for power sensors (see :func:`_resolve_schedule_output_sign`).
 
     Both the single-dict flex-context and each entry of its ``commodities`` list can define these sensors,
-    so both are visited here.
+    so both are visited here (the list is keyed ``commodity_contexts`` once deserialized).
     Fields that do not resolve to a sensor are skipped,
     which keeps the function safe to call on a flex-context that a custom scheduler left undeserialized.
 

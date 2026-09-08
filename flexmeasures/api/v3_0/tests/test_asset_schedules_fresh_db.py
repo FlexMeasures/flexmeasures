@@ -315,11 +315,10 @@ def test_asset_trigger_and_get_aggregate_schedule(
     """Test that aggregate-consumption and aggregate-production flex-context fields get filled with data.
 
     This test verifies:
-    1. Aggregate-consumption sensor receives the total consumption schedule with correct sign
-    2. Aggregate-production sensor receives the total production schedule with correct sign
+    1. Aggregate-consumption sensor receives the aggregate consumption schedule with correct sign
+    2. Aggregate-production sensor, when one is defined, receives the aggregate production schedule with correct sign
     3. The data source is correctly set to the scheduler
-    4. The sign convention is the one implied by each field name, and is recorded on the sensor
-       through its ``consumption_is_positive`` attribute
+    4. The sign convention is the one implied by each field name, and is recorded on the sensor through its ``consumption_is_positive`` attribute
 
     The two parametrizations cover both documented cases:
     with an aggregate-production sensor defined, the aggregate-consumption sensor only records the non-negative part of the aggregate schedule;
