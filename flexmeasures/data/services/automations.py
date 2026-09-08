@@ -90,8 +90,8 @@ def _claim_expires_at(now: datetime, lease: timedelta) -> datetime:
 def _claim_is_available(now: datetime):
     """Return the criterion for a run whose claim is free to take at ``now``.
 
-    A claim is free when no runner holds it, or when the runner holding it let its lease expire, which is how a
-    runner that died mid-dispatch releases its occurrence.
+    A claim is free when no runner holds it, or when the runner holding it let its lease expire,
+    which is how a runner that died mid-dispatch releases its occurrence.
     """
     return or_(
         AutomationRun.claim_expires_at.is_(None),
