@@ -698,7 +698,7 @@ def test_status_page_lists_only_real_sensors(
     assert power_sensor.id in [sensor["id"] for sensor in listed_sensors]
     assert not [sensor for sensor in listed_sensors if sensor["id"] < 0]
 
-    
+
 def test_asset_status_page_tabs(db, client, setup_assets, as_prosumer_user1):
     """The status page splits sensor data from jobs, and opens the tab the user last looked at."""
     user = find_user_by_email("test_prosumer_user@seita.nl")
