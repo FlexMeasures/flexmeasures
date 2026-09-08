@@ -916,3 +916,129 @@ def test_run_automation_revalidates_output_scope(
     assert run_result.exit_code == 1
     assert "must belong to asset" in run_result.output
     assert app.queues["forecasting"].count == 0
+
+
+def test_run_one_automation_on_demand(
+    app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
+):
+    """An on-demand run queues the automation's jobs without claiming its next scheduled run."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+
+    freeze_server_now(datetime(2026, 1, 15, 8, 58, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    cli_input = {
+        "asset": 1,
+        "name": "Daily forecasts",
+        "cron": "0 10 * * *",  # not due at the time we trigger it by hand
+        "timezone": "UTC",
+        "sensor": setup_dummy_data[0],
+    }
+    add_result = runner.invoke(add_automation, to_flags(cli_input))
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    cursor_before = automation.cursor
+
+    run_result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "queued" in run_result.output
+    n_jobs = app.queues["forecasting"].count
+    assert n_jobs > 0
+    # the jobs are recorded as this automation's jobs, just like those of a recurring run.
+    assert all(
+        job.meta["trigger"]["origin"] == "automation"
+        and job.meta["trigger"]["automation_id"] == automation.id
+        for job in app.queues["forecasting"].jobs
+    )
+    assert fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like("Triggered a run of automation%")
+        )
+    ).scalar_one_or_none()
+
+    # the cursor stayed put, so the scheduled run still happens.
+    fresh_db.session.expire_all()
+    assert automation.cursor == cursor_before
+    freeze_server_now(datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc))
+    scheduled_result = runner.invoke(run_automations)
+    assert scheduled_result.exit_code == 0, scheduled_result.output
+    assert scheduled_result.output.count("queued") == 1, scheduled_result.output
+    assert app.queues["forecasting"].count > n_jobs
+
+
+def test_run_one_automation_runs_inactive_automation(
+    app, fresh_db, setup_dummy_data, clean_redis
+):
+    """An inactive automation can be tried out on demand, while it stays out of the recurring runs."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Not active yet",
+                "cron": "* * * * *",
+                "sensor": setup_dummy_data[0],
+            }
+        )
+        + ["--inactive"],
+    )
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+
+    scheduled_result = runner.invoke(run_automations)
+    assert "No automations due" in scheduled_result.output, scheduled_result.output
+
+    run_result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "queued" in run_result.output
+    assert app.queues["forecasting"].count > 0
+
+
+def test_run_one_automation_without_queued_job_is_an_error(
+    app, fresh_db, setup_dummy_data, clean_redis, mocker
+):
+    """A run which reports no job is an error, rather than a success which recorded nothing."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_one_automation
+
+    runner = app.test_cli_runner()
+    add_result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Reports no job",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data[0],
+            }
+        ),
+    )
+    assert add_result.exit_code == 0, add_result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    mocker.patch("flexmeasures.cli.jobs.run_automation", return_value=None)
+
+    result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+
+    assert result.exit_code == 1, result.output
+    assert "did not queue any job" in result.output
+    assert not fresh_db.session.execute(
+        select(AssetAuditLog).filter(
+            AssetAuditLog.event.like("Triggered a run of automation%")
+        )
+    ).scalar_one_or_none()
+
+
+def test_run_one_automation_reports_unknown_automation(app, fresh_db, clean_redis):
+    from flexmeasures.cli.jobs import run_one_automation
+
+    result = app.test_cli_runner().invoke(run_one_automation, ["--automation", "9999"])
+
+    assert result.exit_code == 2, result.output
+    assert "No automation found with id 9999" in result.output
+    assert app.queues["forecasting"].count == 0

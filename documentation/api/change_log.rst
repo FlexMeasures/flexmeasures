@@ -5,10 +5,16 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-34 | September 2, 2026
+"""""""""""""""""""""""""""
+- Added ``POST /api/v3_0/assets/<id>/automations/<automation_id>/trigger``, to run one automation now, once, on top of its recurring runs. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. An on-demand run does not affect the automation's recurrence, and inactive automations can be triggered, too. Triggering requires the same permission as writing data under the asset, and falls under the stricter rate limit that the other triggering endpoints share.
+
 v3.0-33 | September 1, 2026
 """""""""""""""""""""""""""
+- Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off report as a background job. It returns ``202 Accepted`` with the canonical ``job`` and ``job-url`` fields, and shares the trigger rate limit with forecast and schedule endpoints.
 - Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Each automation shows the IANA ``timezone`` in which its cron expression is interpreted, and a ``cursor``: the offset-aware UTC time of the most recent run it committed to. The cursor advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
 - Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
+- ``GET /api/v3_0/sensors/<id>/stats`` now reports an ``All sources`` entry summarising every data source, whenever more than one recorded. Its mean divides by the values that were summed, not by ``Number of values``, which also counts rows holding NaN.
 
 v3.0-32 | August 11, 2026
 """""""""""""""""""""""""
@@ -19,7 +25,7 @@ v3.0-32 | August 11, 2026
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
 - **Field canonicalization** for background job tracking:
   * The ``job`` field is now the canonical way to identify background jobs returned by `/sensors/<id>/schedules/trigger`, `/assets/<id>/schedules/trigger`, and `/sensors/<id>/forecasts/trigger` endpoints. If applicable, the triggered response now also returns a ``results-url`` pointing to the sensor-specific results endpoint, alongside the generic ``job-url``.
-  * Legacy ``schedule`` field (in scheduling endpoints) and ``forecast`` field (in forecasting endpoints) remain in responses, unchanged, for backward compatibility. New clients should prefer ``job``; see :ref:`api_background_jobs` for the full response format. These fields are not (yet) formally deprecated — see the "Planned API v4" discussion linked from :ref:`api_deprecation` for where and when their removal is being tracked.
+  * Legacy ``schedule`` field (in scheduling endpoints) and ``forecast`` field (in forecasting endpoints) remain in responses, unchanged, for backward compatibility. New clients should prefer ``job``; see :ref:`api_background_jobs` for the full response format and the "Planned API v4" discussion linked from :ref:`api_deprecation` for where and when their removal is being tracked.
 - ``GET /api/v3_0/jobs/<uuid>`` now returns ``202 Accepted`` while a job is queued or running, ``422 Unprocessable Entity`` for failed jobs, and ``200 OK`` for finished jobs. See :ref:`api_background_jobs` for the response format and polling flow.
 - ``GET /api/v3_0/jobs/<uuid>`` now also returns kebab-case metadata fields such as ``func-name`` and ``enqueued-at``, alongside the existing snake_case fields (``func_name``, ``enqueued_at``, etc.), which remain unchanged for backward compatibility. New clients should prefer the kebab-case fields.
 - Sensor-data ingestion normally uses a connected ingestion worker, and scheduling and forecasting triggers normally return ``202 Accepted``. As a compatibility exception, configured legacy clients receive synchronous ingestion, ``200 OK`` from these triggers, and the legacy ``400`` response while polling an unfinished schedule. Configure this with ``FLEXMEASURES_LEGACY_JOB_RESPONSES_MAX_INCOMPATIBLE_CLIENT_VERSION``.
