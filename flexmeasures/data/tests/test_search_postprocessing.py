@@ -36,12 +36,37 @@ def make_random_deterministic_bdf(
 
 def naive_select_latest_version_and_belief_per_event(
     bdf: tb.BeliefsDataFrame,
+    preferred_sources: list[DataSource] | None = None,
 ) -> tb.BeliefsDataFrame:
-    """Reference implementation: per event, pick the belief with the latest
-    source version, breaking version ties by most recent belief time."""
-    winners: dict = {}
+    """Reference implementation, written per row rather than vectorised.
+
+    Per event, keep one belief per family of sources sharing a name, type and model,
+    choosing the latest version, then the most recent belief, then the highest source id.
+    Then, among those, choose the source the caller named first,
+    again falling back on the most recent belief and then the highest source id.
+    """
+    positions: dict = {}
+    for position, source in enumerate(preferred_sources or []):
+        positions.setdefault(source.id, position)
+    unlisted = len(positions)
+
+    per_family: dict = {}
     for i, (event_start, belief_time, source, _cp) in enumerate(bdf.index):
-        candidate = (Version(source.version or "0.0.0"), belief_time)
+        family = (event_start, source.name, source.type, source.model)
+        candidate = (Version(source.version or "0.0.0"), belief_time, source.id or -1)
+        incumbent = per_family.get(family)
+        if incumbent is None or candidate > incumbent[0]:
+            per_family[family] = (candidate, i)
+
+    winners: dict = {}
+    for (event_start, _name, _type, _model), (_key, i) in per_family.items():
+        _, belief_time, source, _cp = bdf.index[i]
+        # A lower position is preferred, so it is negated to keep "greater is better".
+        candidate = (
+            -positions.get(source.id, unlisted),
+            belief_time,
+            source.id or -1,
+        )
         incumbent = winners.get(event_start)
         if incumbent is None or candidate > incumbent[0]:
             winners[event_start] = (candidate, i)
@@ -50,26 +75,134 @@ def naive_select_latest_version_and_belief_per_event(
 
 
 def test_select_latest_version_and_belief_per_event_equivalence():
+    """The vectorised choice agrees with the plainly written one, over random frames.
+
+    The sources span two families, so that the two steps of the choice are both exercised,
+    and each trial is run with and without a caller's preference.
+    """
     rng = np.random.default_rng(7)
     sources = [
+        DataSource(id=1, name="s1", model="model 1", type="forecaster", version=None),
         DataSource(
-            id=i + 1,
-            name="s1",
-            model="model 1",
-            type="forecaster",
-            version=version,
-        )
-        for i, version in enumerate([None, "0.1.0", "0.2.0", "0.2.0", "1.0.0"])
+            id=2, name="s1", model="model 1", type="forecaster", version="0.1.0"
+        ),
+        DataSource(
+            id=3, name="s1", model="model 1", type="forecaster", version="0.2.0"
+        ),
+        DataSource(
+            id=4, name="s1", model="model 1", type="forecaster", version="0.2.0"
+        ),
+        DataSource(id=5, name="s2", model="model 2", type="scheduler", version="1.0.0"),
+        DataSource(id=6, name="s2", model="model 2", type="scheduler", version="9.0.0"),
     ]
-    for trial in range(10):
-        bdf = make_random_deterministic_bdf(
-            rng, sources, n_beliefs=int(rng.integers(2, 30))
+    for preference in (None, [sources[4], sources[0]], [sources[0], sources[5]]):
+        for _ in range(10):
+            bdf = make_random_deterministic_bdf(
+                rng, sources, n_beliefs=int(rng.integers(2, 30))
+            )
+            result = _select_latest_version_and_belief_per_event(
+                bdf, preferred_sources=preference
+            )
+            expected = naive_select_latest_version_and_belief_per_event(
+                bdf, preferred_sources=preference
+            )
+            pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(expected))
+            # Exactly one belief per event
+            assert not result.index.get_level_values("event_start").duplicated().any()
+
+
+def _one_event_frame(
+    beliefs: list[tuple[DataSource, str, float]],
+) -> tb.BeliefsDataFrame:
+    """A frame of beliefs about one event, each given as its source, belief time and value."""
+    sensor = tb.Sensor("precedence sensor", event_resolution=timedelta(hours=1))
+    event_start = pd.Timestamp("2025-01-01T00:00:00+00:00")
+    return tb.BeliefsDataFrame(
+        [
+            tb.TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=pd.Timestamp(belief_time),
+                event_value=value,
+            )
+            for source, belief_time, value in beliefs
+        ]
+    )
+
+
+def _chosen_value(beliefs, preferred_sources=None) -> float:
+    frame = _select_latest_version_and_belief_per_event(
+        _one_event_frame(beliefs), preferred_sources=preferred_sources
+    )
+    assert len(frame) == 1
+    return frame["event_value"].iloc[0]
+
+
+def test_a_later_version_of_one_source_wins_its_family():
+    """Within a family, the version says which code produced the value, so it comes first."""
+    old = DataSource(id=1, name="rep", model="Rep", type="reporter", version="1.0.0")
+    new = DataSource(id=2, name="rep", model="Rep", type="reporter", version="2.0.0")
+    # The older version spoke more recently, and still loses.
+    assert (
+        _chosen_value(
+            [(new, "2024-12-31T00:00+00:00", 2.0), (old, "2024-12-31T06:00+00:00", 1.0)]
         )
-        result = _select_latest_version_and_belief_per_event(bdf)
-        expected = naive_select_latest_version_and_belief_per_event(bdf)
-        pd.testing.assert_frame_equal(pd.DataFrame(result), pd.DataFrame(expected))
-        # Exactly one belief per event
-        assert not result.index.get_level_values("event_start").duplicated().any()
+        == 2.0
+    )
+
+
+def test_versions_are_not_compared_between_families():
+    """A version number orders one source's releases, and says nothing about another source.
+
+    A scheduler at v1 and a forecaster at v9 are unrelated numbering,
+    so the choice falls to the more recent belief instead.
+    """
+    scheduler = DataSource(
+        id=1, name="Seita", model="StorageScheduler", type="scheduler", version="1"
+    )
+    forecaster = DataSource(
+        id=2, name="Seita", model="Prophet", type="forecaster", version="9"
+    )
+    assert (
+        _chosen_value(
+            [
+                (scheduler, "2024-12-31T06:00+00:00", 1.0),
+                (forecaster, "2024-12-31T00:00+00:00", 9.0),
+            ]
+        )
+        == 1.0
+    )
+
+
+def test_a_caller_that_names_its_sources_says_which_it_prefers():
+    """Between families, the order the caller named its sources in decides, whatever the belief times say."""
+    meter = DataSource(id=1, name="meter", model="M", type="other")
+    scheduler = DataSource(id=2, name="Seita", model="S", type="scheduler")
+    beliefs = [
+        (meter, "2024-12-31T06:00+00:00", 1.0),
+        (scheduler, "2024-12-31T00:00+00:00", 2.0),
+    ]
+    assert _chosen_value(beliefs, preferred_sources=[scheduler, meter]) == 2.0
+    assert _chosen_value(beliefs, preferred_sources=[meter, scheduler]) == 1.0
+    # Naming neither leaves the more recent belief to decide.
+    assert _chosen_value(beliefs) == 1.0
+
+
+def test_a_tie_no_one_broke_is_answered_the_same_way_every_time():
+    """Two sources that nothing else tells apart are settled by the highest id.
+
+    The id does not move when a source is renamed, where sorting on the name would.
+    """
+    first = DataSource(id=1, name="zzz", model="M", type="reporter")
+    second = DataSource(id=2, name="aaa", model="M", type="reporter")
+    beliefs = [
+        (first, "2024-12-31T00:00+00:00", 1.0),
+        (second, "2024-12-31T00:00+00:00", 2.0),
+    ]
+    assert _chosen_value(beliefs) == 2.0
+    # And the same answer whichever order the rows arrive in.
+    assert _chosen_value(list(reversed(beliefs))) == 2.0
 
 
 def naive_compress_belief_records(df: pd.DataFrame, sensor_id: int):
