@@ -969,13 +969,17 @@ def _select_latest_version_and_belief_per_event(
         [source.id if source.id is not None else -1 for source in unique_sources]
     )
     # Sources the caller did not name rank behind the ones it did, in the order it gave them.
+    # An entry that named nothing this database knows still holds its place,
+    # so the rank for the unnamed has to clear every entry, not merely the ones that matched.
+    entries = preferred_sources or []
     positions: dict = {}
-    for position, entry in enumerate(preferred_sources or []):
+    for position, entry in enumerate(entries):
         group = entry if isinstance(entry, (list, tuple)) else [entry]
         for source in group:
             positions.setdefault(source.id, position)
+    unnamed_rank = len(entries)
     position_per_source = np.array(
-        [positions.get(source.id, len(positions)) for source in unique_sources]
+        [positions.get(source.id, unnamed_rank) for source in unique_sources]
     )
 
     events = bdf.index.get_level_values("event_start").asi8

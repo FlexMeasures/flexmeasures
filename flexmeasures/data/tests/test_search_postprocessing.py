@@ -212,6 +212,23 @@ def test_sources_named_together_share_one_preference():
     assert _chosen_value(beliefs, preferred_sources=[other, [older, newer]]) == 3.0
 
 
+def test_an_entry_that_named_nothing_does_not_demote_the_ones_that_did():
+    """A caller can name a source this database does not know, and still be heard about the others.
+
+    An unknown id or name leaves an entry that matched nothing,
+    and that entry still holds its place, so the sources named after it must keep outranking the unnamed.
+    """
+    named = DataSource(id=1, name="scheduler", model="S", type="scheduler")
+    unnamed = DataSource(id=2, name="meter", model="M", type="other")
+    beliefs = [
+        (named, "2024-12-31T00:00+00:00", 1.0),
+        # The source nobody named holds the fresher belief, so only the naming can decide this.
+        (unnamed, "2024-12-31T06:00+00:00", 2.0),
+    ]
+    # Two entries matched nothing, and the third named the scheduler.
+    assert _chosen_value(beliefs, preferred_sources=[[], [], named]) == 1.0
+
+
 def test_a_tie_no_one_broke_is_answered_the_same_way_every_time():
     """Two sources that nothing else tells apart are settled by the highest id.
 
