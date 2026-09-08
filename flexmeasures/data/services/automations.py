@@ -406,7 +406,8 @@ def record_automation_job_started(
         return
     intent.status = "running"
     intent.started_at = intent.started_at or now
-    intent.run.execution_state = "running"
+    if intent.run.execution_state != "failed":
+        intent.run.execution_state = "running"
     intent.run.execution_started_at = intent.run.execution_started_at or now
     db.session.commit()
 
