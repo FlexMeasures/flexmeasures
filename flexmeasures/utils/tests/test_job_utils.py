@@ -137,6 +137,7 @@ def test_app_queues_use_default_job_timeout(app):
     assert app.queues["forecasting"]._default_timeout == 180
     assert app.queues["scheduling"]._default_timeout == 180
     assert app.queues["ingestion"]._default_timeout == 180
+    assert app.queues["reporting"]._default_timeout == 180
 
 
 def test_app_queues_use_custom_global_and_queue_job_timeout(tmp_path, monkeypatch):
@@ -164,3 +165,4 @@ def test_app_queues_use_custom_global_and_queue_job_timeout(tmp_path, monkeypatc
     assert custom_app.queues["forecasting"]._default_timeout == 3600
     assert custom_app.queues["scheduling"]._default_timeout == 300
     assert custom_app.queues["ingestion"]._default_timeout == 300
+    assert custom_app.queues["reporting"]._default_timeout == 300

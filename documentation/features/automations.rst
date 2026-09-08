@@ -3,10 +3,12 @@
 Automations
 ============
 
-Hosts and users often want the three main FlexMeasures features — :ref:`forecasting`, :ref:`scheduling` and :ref:`reporting` — to run on a recurring basis, across larger numbers of sites.
-*Automations* make that a first-class concept: an automation is a recurring task defined on an asset, and each time it runs, it queues jobs.
+An **automation** is a recurring task defined on an asset.
+An automation computes forecasts, schedules or reports.
 
-An automation consists of:
+On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting``, ``scheduling`` or ``reporting`` queue, whichever the automation needs, see :ref:`redis-queue`).
+The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
+Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results.
 
 - a **type**: ``forecasts``, ``schedules`` or ``reports``;
 - a **recurrence**: a cron string (e.g. ``"0 6 * * *"`` for daily at 6 AM), interpreted in the automation's own IANA timezone;
@@ -22,13 +24,78 @@ Managing automations
 
 Automations can be managed in three ways:
 
-- **CLI**: ``flexmeasures add automation``, ``flexmeasures edit automation`` (name, cron string, timezone and activation status) and ``flexmeasures delete automation``.
-- **API**: list and inspect with ``[GET] /assets/(id)/automations`` and ``[GET] /assets/(id)/automations/(automation_id)``;
-  create, update and delete with ``[POST|PATCH|DELETE]`` on the same paths (see the `API documentation <../api/v3_0.html>`_).
-- **UI**: each asset has an *Automations* page (in the breadcrumbs dropdown), with a tab per automation type.
-  It lists each automation's recurrence and recent job counts, and lets you create, edit, (de)activate and delete automations.
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
+        --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-Creating, updating and deleting automations requires account admin or consultant rights, and is recorded in the asset's audit log.
+``--type`` says which task to automate (``forecasting``, ``scheduling`` or ``reporting``, matching the queue the jobs go to), and defaults to ``forecasting``.
+The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
+The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
+That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
+
+The recurrence is defined by a standard five-field cron string (minute, hour, day of month, month, and day of week), which defaults to ``"0 0 * * *"`` (daily at midnight).
+It is interpreted in the automation's IANA timezone.
+If ``--timezone`` is omitted, the current ``FLEXMEASURES_TIMEZONE`` value is copied to the automation.
+Changing that configuration later does not change existing automations.
+Cron aliases and optional seconds or year fields are not supported.
+
+Automations are active by default (use ``--inactive`` to create them in deactivated state).
+Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), change the timezone, activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
+These changes are recorded in the asset's audit log.
+
+For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
+This relationship is checked both when the automation is created and immediately before each run.
+
+Automating schedules
+--------------------
+
+A schedule automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ API endpoint (without the asset id).
+Use the canonical API field names, including ``flex-model``, ``flex-context`` and ``force-new-job-creation``.
+The message is passed in a file, through ``--parameters``, and validated when the automation is created.
+The forecaster options above configure a forecaster, so they do not apply here, and are refused when combined with ``--type scheduling``.
+
+A schedule automation has a data generator too, but you do not name it separately.
+It is put together from choices you have already made: the flex config in the trigger message, the flex config saved on the asset tree, and the scheduler that the asset resolves to.
+Because those live in two places, and the asset can be edited without touching the automation, the runner puts the generator together again on every run, and moves the automation to another data source when the combination has changed.
+Editing an asset's flex-model is therefore a configuration change, and shows up as one: the schedules computed before and after it carry different data sources.
+
+Because the schedule is recomputed on every run, the flex config may only describe the site and its devices, not one moment.
+A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.
+Refer to a sensor instead, which says where to look rather than what was true once.
+
+Omit the ``start`` field to calculate it afresh from the server time on each run.
+It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
+A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
+The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
+As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
+
+For example, this automation queues a scheduling job every hour, each time scheduling the next 12 hours:
+
+.. code-block:: bash
+
+    echo 'duration: "PT12H"' > trigger-message.yml
+    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+
+Automating reports
+------------------
+
+A report automation's parameters are report parameters, as ``flexmeasures add report`` accepts them, and its reporter is named with ``--reporter`` and configured with ``--config`` (see :ref:`reporting`).
+As for a forecast automation, the reporter and its configuration are stored on a data source, so ``--source`` can reuse the data source of an existing reporter instead.
+
+The report window is resolved on every run, so that each run reports on a fresh period.
+Give ``start-offset`` and ``end-offset`` in the parameters for a rolling window: both take comma-separated Pandas offsets, plus ``DB`` (day begin) and ``HB`` (hour begin), applied to the run time.
+For instance, ``start-offset: "-1D,DB"`` with ``end-offset: "DB"`` reports on the whole of the previous day.
+Offsets are resolved in the timezone of the first output sensor, falling back to the platform timezone.
+
+Leave the timing fields out to report on the period since the automation last covered one, falling back to the last cron period on the first run.
+That coverage is recorded by the reporting job itself, once it has succeeded, so a failed report leaves no permanent gap: the next run starts where the last successful one ended.
+An absolute ``start`` or ``end`` is passed through untouched, which means every run then reports on the same period.
+
+For example, this automation queues a reporting job every night, reporting on the previous day:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Daily self-consumption report" --cron "0 1 * * *" --type reporting \
+        --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
 
 Running automations
 --------------------
@@ -39,15 +106,40 @@ An automation is due whenever its cron string matches the current minute in its 
 
     * * * * * flexmeasures jobs run-automations
 
-Each due automation then queues its jobs — so make sure workers are processing the relevant queues (``forecasting``, ``scheduling`` and/or ``reporting``, see :ref:`redis-queue`).
-Each scheduled run receives at most one automatic queueing attempt, so the command is safe to run more than once within a minute.
+Each due automation then queues its jobs.
+If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
+Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast or schedule.
+
+Each scheduled run receives at most one automatic queueing attempt.
 If the process crashes, or queueing fails after creating some jobs, that run is not retried automatically, because a retry could duplicate partial work.
 
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
 Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current result.
 
-Jobs record how they were created (via the CLI, the API or an automation), which is shown in the *Created Via* column
-of the jobs table on the asset's status page, where recent jobs are listed.
+Running one automation on demand
+--------------------------------
+
+Besides its recurring runs, a single automation can be run now, once.
+This is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived.
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation 4
+
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation_id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation_id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+
+The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
+An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
+Inactive automations can be run this way, too, which is how you can try one out before activating it.
+
+Unlike a recurring run, an on-demand run is not protected against being started twice: asking for two runs in a row queues two runs.
+
+Viewing automations
+-------------------
+
+Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
+An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
+Conversely, a sensor's page lists the automations that write data to it.
 
 Automating each feature
 -----------------------

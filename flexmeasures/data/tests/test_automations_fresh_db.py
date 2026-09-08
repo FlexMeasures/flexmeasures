@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.services.automations import resolve_schedule_generator
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
@@ -17,6 +18,19 @@ from flexmeasures.data.services.automations import (
     resolve_automation_sensors,
     run_automation,
 )
+
+
+def build_schedule_automation(asset, **kwargs) -> Automation:
+    """Build a schedule automation, with the data generator that its creation and its runs resolve.
+
+    A schedule automation's generator describes the scheduler the asset resolves to, and the flex config it computes under,
+    so it is derived from the asset and the parameters rather than chosen.
+    """
+    automation = Automation(asset=asset, type="scheduling", **kwargs)
+    automation.generator_id = resolve_schedule_generator(
+        asset.id, automation.parameters
+    ).id
+    return automation
 
 
 @pytest.fixture()
@@ -31,7 +45,7 @@ def automation_with_generator(fresh_db):
     automation = Automation(
         asset=asset,
         generator=generator,
-        type="forecasts",
+        type="forecasting",
         name="automation generator lifecycle test",
         cronstr="0 6 * * *",
         parameters={},
@@ -78,7 +92,7 @@ def test_report_automation_requires_generator(fresh_db, automation_with_generato
     forecast_automation, _ = automation_with_generator
     report_automation = Automation(
         asset=forecast_automation.asset,
-        type="reports",
+        type="reporting",
         name="generator-free report",
         cronstr="0 1 * * *",
         parameters={},
@@ -89,21 +103,28 @@ def test_report_automation_requires_generator(fresh_db, automation_with_generato
         fresh_db.session.commit()
 
 
-def test_schedule_automation_does_not_require_generator(
+def test_schedule_automation_generator_describes_its_scheduler_and_config(
     fresh_db, automation_with_generator
 ):
+    """A schedule automation's generator names the scheduler, and records the flex config it computes under."""
     forecast_automation, _ = automation_with_generator
-    schedule_automation = Automation(
-        asset=forecast_automation.asset,
-        type="schedules",
-        name="generator-free schedule",
+    schedule_automation = build_schedule_automation(
+        forecast_automation.asset,
+        name="scheduling the asset",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H"},
     )
     fresh_db.session.add(schedule_automation)
     fresh_db.session.commit()
 
-    assert schedule_automation.generator_id is None
+    generator = schedule_automation.generator
+    assert generator is not None
+    assert generator.type == "scheduler"
+    assert generator.model == "StorageScheduler"
+    config = generator.attributes["data_generator"]["config"]
+    assert config["asset"] == forecast_automation.asset.id
+    # The flex config is recorded as the asset tree and the trigger message spell it, not as timing.
+    assert set(config) == {"asset", "flex-model", "flex-context"}
 
 
 @pytest.fixture()
@@ -126,9 +147,8 @@ def test_run_schedule_automation(
     flex_model = message.pop("flex-model")
     flex_model["sensor"] = battery.sensors[0].id
 
-    automation = Automation(
-        asset_id=battery.id,
-        type="schedules",
+    automation = build_schedule_automation(
+        battery,
         name="Nightly schedules",
         cronstr="0 0 * * *",
         parameters={**message, "flex-model": [flex_model]},
@@ -171,9 +191,8 @@ def test_run_minimal_schedule_automation_with_stored_flex_config(
         "soc-max": "5 MWh",
         "power-capacity": "2 MW",
     }
-    automation = Automation(
-        asset=building,
-        type="schedules",
+    automation = build_schedule_automation(
+        building,
         name="Minimal stored-flex schedule",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H", "sequential": sequential},
@@ -196,6 +215,58 @@ def test_run_minimal_schedule_automation_with_stored_flex_config(
         assert job.meta["asset_or_sensor"] == {"id": building.id, "class": "Asset"}
 
 
+def test_schedule_automation_follows_its_asset_flex_config(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """Editing the asset's flex config moves the automation to another data generator.
+
+    A schedule automation's generator describes the flex config the scheduler computes under,
+    and that config is the trigger message merged with what the asset tree stores,
+    so a change to the asset shows up as a different generator on the automation's next run.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    automation = build_schedule_automation(
+        building,
+        name="Schedule following the asset",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT1H"},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    run_automation(automation)
+    generator_before = automation.generator
+    assert "2 MW" in str(
+        generator_before.attributes["data_generator"]["config"]["flex-model"]
+    )
+
+    # The site can now draw less power, which is a different configuration to schedule under.
+    battery.flex_model = {**battery.flex_model, "power-capacity": "1 MW"}
+    fresh_db.session.commit()
+
+    run_automation(automation)
+    generator_after = automation.generator
+    assert generator_after.id != generator_before.id
+    assert "1 MW" in str(
+        generator_after.attributes["data_generator"]["config"]["flex-model"]
+    )
+    # Both describe the same scheduler, so only the configuration tells them apart.
+    assert generator_after.model == generator_before.model
+    assert generator_after.version == generator_before.version
+
+
 def test_minimal_schedule_automation_reports_stored_flex_sensors(
     fresh_db, add_battery_assets_fresh_db
 ):
@@ -216,9 +287,8 @@ def test_minimal_schedule_automation_reports_stored_flex_sensors(
         "soc-max": "5 MWh",
         "power-capacity": "2 MW",
     }
-    automation = Automation(
-        asset=building,
-        type="schedules",
+    automation = build_schedule_automation(
+        building,
         name="Minimal stored-flex sensor details",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H"},
@@ -249,9 +319,8 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
         event_resolution=timedelta(minutes=15),
         unit="MW",
     )
-    schedule_automation = Automation(
-        asset=root,
-        type="schedules",
+    schedule_automation = build_schedule_automation(
+        root,
         name="descendant schedules",
         cronstr="0 * * * *",
         parameters={"duration": "PT1H"},

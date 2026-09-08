@@ -42,6 +42,18 @@ class ReporterParametersSchema(Schema):
     belief_horizon = DurationField(required=False)
 
 
+class ReportTriggerSchema(Schema):
+    """Validate the request envelope for a one-off reporting job.
+
+    The selected reporter subsequently validates ``config`` and ``parameters``
+    with its concrete configuration and parameter schemas.
+    """
+
+    reporter = fields.Str(required=True)
+    config = fields.Dict(keys=fields.Str(), load_default=dict)
+    parameters = fields.Dict(keys=fields.Str(), required=True)
+
+
 class BeliefsSearchConfigSchema(Schema):
     """
     This schema implements the required fields to perform a TimedBeliefs search

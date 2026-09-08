@@ -1,4 +1,4 @@
-import logging
+from datetime import timedelta
 
 import pytest
 
@@ -551,7 +551,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=30),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(hours=12),
                 "train-period-in-hours": 24 * 30,
             },
@@ -572,7 +571,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=3),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(days=2),
                 "train-period-in-hours": 24 * 3,
             },
@@ -593,7 +591,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=20),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(days=2),
                 "train-period-in-hours": 24 * 20,
             },
@@ -614,7 +611,6 @@ def test_timing_parameters_of_forecaster_parameters_schema(
             {
                 "model": "CustomLGBM",
                 "train-period": pd.Timedelta(days=30),
-                "max-training-period": pd.Timedelta(days=365),
                 "retrain-frequency": pd.Timedelta(days=3),
                 "train-period-in-hours": 24 * 30,
             },
@@ -833,25 +829,79 @@ def test_forecaster_config_schema_rejects_missing_or_ambiguous_annotation_source
     )
 
 
-def test_forecaster_config_schema_warns_when_train_start_overrides_train_period(
-    caplog,
-):
-    with caplog.at_level(logging.WARNING):
-        TrainPredictPipelineConfigSchema().load(
-            {
-                "train-start": "2025-01-01T00:00:00+01:00",
-                "train-period": "P7D",
-            }
-        )
-    assert any("train-period is ignored" in record.message for record in caplog.records)
+def test_forecaster_config_schema_reads_max_training_period_as_train_period():
+    """The deprecated name says how much history to train on, which is what train-period says."""
+    config = TrainPredictPipelineConfigSchema().load({"max-training-period": "P90D"})
+    assert config["train_period"] == timedelta(days=90)
+    assert config["train_period_in_hours"] == 90 * 24
 
 
-def test_forecaster_config_schema_does_not_warn_for_train_period_alone(caplog):
-    with caplog.at_level(logging.WARNING):
-        TrainPredictPipelineConfigSchema().load({"train-period": "P7D"})
-    assert not any(
-        "train-period is ignored" in record.message for record in caplog.records
+def test_forecaster_config_schema_takes_the_shorter_of_two_training_limits():
+    """A config carrying both names asks twice, and the shorter of the two is all either allows."""
+    config = TrainPredictPipelineConfigSchema().load(
+        {"train-period": "P30D", "max-training-period": "P365D"}
     )
+    assert config["train_period"] == timedelta(days=30)
+
+    the_other_way_around = TrainPredictPipelineConfigSchema().load(
+        {"train-period": "P365D", "max-training-period": "P30D"}
+    )
+    assert the_other_way_around["train_period"] == timedelta(days=30)
+
+
+def test_forecaster_config_schema_no_longer_stores_the_deprecated_name():
+    """Storing a config writes the name that remains, so the deprecated one dies out on its own."""
+    schema = TrainPredictPipelineConfigSchema()
+    dumped = schema.dump(schema.load({"max-training-period": "P90D"}))
+    assert dumped["train-period"] == "P90D"
+    assert "max-training-period" not in dumped
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"train-period": "P1Y"},
+        {"train-period": "P1M"},
+        {"max-training-period": "P1Y"},
+    ],
+)
+def test_forecaster_config_schema_says_why_years_and_months_do_not_work(payload):
+    """A year or a month is not a fixed length, and saying so beats failing to compare it.
+
+    A Duration cannot be compared to a timedelta, so this has to be reported before anything measures it.
+    """
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(payload)
+    assert "days or smaller units" in str(exc.value.messages)
+
+
+@pytest.mark.parametrize(
+    ["payload", "expected"],
+    [
+        (
+            {"train-period": "P30D", "max-training-period": "P1Y"},
+            "days or smaller units",
+        ),
+        ({"train-period": "P30D", "max-training-period": "nonsense"}, "Cannot parse"),
+        ({"train-period": "nonsense", "max-training-period": "P30D"}, "Cannot parse"),
+    ],
+)
+def test_forecaster_config_schema_reports_a_bad_training_limit_under_either_name(
+    payload, expected
+):
+    """A limit that cannot be measured is reported, rather than passed over for the other one.
+
+    Reading the deprecated name as the one that remains must not quietly drop what is wrong with either.
+    """
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(payload)
+    assert expected in str(exc.value.messages)
+
+
+def test_forecaster_config_schema_falls_back_to_the_default_training_period():
+    """Asking for no period of its own leaves the default to say how much history to use."""
+    config = TrainPredictPipelineConfigSchema().load({"train-period": None})
+    assert config["train_period_in_hours"] == 30 * 24
 
 
 def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():

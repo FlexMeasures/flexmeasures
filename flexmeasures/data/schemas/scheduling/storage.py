@@ -14,7 +14,8 @@ from marshmallow import (
 )
 from marshmallow.validate import OneOf, ValidationError
 
-from flexmeasures import Asset, Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset as Asset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata

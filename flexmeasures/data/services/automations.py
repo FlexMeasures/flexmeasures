@@ -30,6 +30,7 @@ from flexmeasures.data.models.automations import (
     Automation,
     get_initial_cursor,
 )
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
@@ -370,6 +371,13 @@ def claim_due_automation(due_automation: DueAutomation) -> bool:
     return True
 
 
+class RecurringScheduleFixesAMoment(ValueError):
+    """Raised when a schedule automation's flex config pins a moment in time.
+
+    Such a value would be stale on the automation's next run, so it cannot configure a recurring schedule.
+    """
+
+
 class AutomationSensorsUnknown(Exception):
     """Raised when the sensors an automation involves cannot be worked out.
 
@@ -453,7 +461,7 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
-    if automation.type == "schedules":
+    if automation.type == "scheduling":
         try:
             return resolve_schedule_automation_sensors(
                 dict(automation.parameters or {}), automation.asset_id
@@ -469,7 +477,7 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     try:
         data_generator = automation.generator.data_generator
         parameters = dict(automation.parameters or {})
-        if automation.type == "reports":
+        if automation.type == "reporting":
             parameters = prepare_report_parameters(
                 parameters,
                 automation.cronstr,
@@ -746,6 +754,37 @@ def _relevant_sensor_ids(automation: Automation, parameter_values: list) -> set[
     return sensor_ids
 
 
+def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
+    """The data source describing the scheduler a schedule automation runs, and the flex config it runs with.
+
+    The scheduler class follows from the asset, and the config is the trigger message merged with what the asset tree stores,
+    so both can change without the automation changing.
+    That is why this is resolved afresh on every run, rather than only when the automation is created.
+    """
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+    from flexmeasures.data.services.scheduling import (
+        find_scheduler_class,
+        get_scheduler_instance,
+    )
+
+    message = prepare_schedule_trigger_message(dict(parameters or {}), asset_id)
+    trigger_data = AssetTriggerSchema().load(message)
+    asset = trigger_data["asset"]
+    scheduler = get_scheduler_instance(
+        scheduler_class=find_scheduler_class(asset),
+        asset_or_sensor=asset,
+        scheduler_params=dict(
+            start=trigger_data["start_of_schedule"],
+            end=trigger_data["start_of_schedule"] + trigger_data["duration"],
+            # The flex config goes in as the message spells it, which is the form the data source records.
+            flex_model=message.get("flex-model"),
+            flex_context=message.get("flex-context"),
+            return_multiple=True,
+        ),
+    )
+    return scheduler.data_source
+
+
 def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     """Find the automations that read from or write to the given sensor.
 
@@ -779,9 +818,13 @@ def _asset_subtree_sensor_ids(asset_id: int) -> set[int]:
 def _job_cache_refs(
     automation: Automation, schedule_sensor_ids: set[int] | None = None
 ) -> set[tuple[int, str, str]]:
-    """Return the job-cache entries in which an automation's jobs may live."""
+    """The job-cache entries in which an automation's jobs may live.
+
+    Forecasting and reporting jobs are cached under their target/output sensor(s),
+    which may belong to a different asset than the automation's own asset.
+    """
     parameters = automation.parameters or {}
-    if automation.type == "schedules":
+    if automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual device sensors (per-device jobs), which may belong
         # to child assets rather than the automation's own (site) asset.
@@ -790,7 +833,7 @@ def _job_cache_refs(
         return {(automation.asset_id, "scheduling", "asset")} | {
             (sensor_id, "scheduling", "sensor") for sensor_id in schedule_sensor_ids
         }
-    elif automation.type == "reports":
+    elif automation.type == "reporting":
         sensor_ids = _relevant_sensor_ids(
             automation,
             [
@@ -842,7 +885,7 @@ def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
         return {}
     schedule_sensor_ids = (
         _asset_subtree_sensor_ids(asset.id)
-        if any(automation.type == "schedules" for automation in automations)
+        if any(automation.type == "scheduling" for automation in automations)
         else None
     )
     cache_refs: set[tuple[int, str, str]] = set()
@@ -855,8 +898,8 @@ def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
 
 def _prepare_forecast_automation(
     asset, parameters: dict, generator_class: str | None, config: dict | None, source
-) -> tuple[int, list[str]]:
-    """Validate forecast automation parameters and set up the forecaster's data source."""
+) -> tuple[Forecaster, dict, list[str]]:
+    """Validate forecast automation parameters and set up the forecaster, without creating a data source."""
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.schemas.forecasting.pipeline import (
         ForecasterParametersSchema,
@@ -879,25 +922,7 @@ def _prepare_forecast_automation(
     )
     if forecaster is None:
         raise ValueError(f"Could not set up forecaster '{generator_class}'.")
-    generator = (
-        forecaster.data_source
-    )  # looks up or creates the data source storing the forecaster config
-    db.session.flush()
-    return generator.id, warnings
-
-
-def _prepare_schedule_automation(asset, parameters: dict) -> tuple[None, list[str]]:
-    """Validate schedule automation parameters (the scheduler's data source is resolved at job time)."""
-    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
-
-    warnings = []
-    AssetTriggerSchema().load(prepare_schedule_trigger_message(parameters, asset.id))
-    if "start" in parameters:
-        warnings.append(
-            "The schedule 'start' is fixed, so each run will compute the same period."
-            " Omit 'start' to schedule from the run time instead."
-        )
-    return None, warnings
+    return forecaster, deserialized_parameters, warnings
 
 
 def _prepare_report_automation(
@@ -953,7 +978,7 @@ def create_automation(
     name: str,
     cronstr: str,
     timezone: str | None = None,
-    automation_type: str = "forecasts",
+    automation_type: str = "forecasting",
     active: bool = True,
     parameters: dict | None = None,
     generator_class: str | None = None,
@@ -987,27 +1012,13 @@ def create_automation(
     data_generator = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
-    if automation_type == "forecasts":
-        from flexmeasures.data.services.data_sources import get_data_generator
-        from flexmeasures.data.schemas.forecasting.pipeline import (
-            ForecasterParametersSchema,
-        )
-
-        deserialized_parameters = ForecasterParametersSchema().load(parameters)
-        sensor = deserialized_parameters.get("sensor")
-        if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
-            warnings.append(
-                f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
+    if automation_type == "forecasting":
+        forecaster, deserialized_parameters, forecast_warnings = (
+            _prepare_forecast_automation(
+                asset, parameters, generator_class, config, source
             )
-        forecaster = get_data_generator(
-            source=source,
-            model=generator_class or "TrainPredictPipeline",
-            config=config or {},
-            save_config=True,
-            data_generator_type=Forecaster,
         )
-        if forecaster is None:
-            raise ValueError(f"Could not set up forecaster '{generator_class}'.")
+        warnings.extend(forecast_warnings)
         data_generator = forecaster
 
         # A forecast reads the history of the sensor to forecast, plus its regressors,
@@ -1018,7 +1029,25 @@ def create_automation(
         )
         input_sensors = forecast_sensors["input_sensors"]
         output_sensors = forecast_sensors["output_sensors"]
-    elif automation_type == "schedules":
+    elif automation_type == "scheduling":
+        from flexmeasures.utils import flexmeasures_inflection
+        from flexmeasures.data.schemas.scheduling import (
+            find_momentary_flex_config_fields,
+        )
+
+        # The flex config has to describe the site and its devices, rather than one moment:
+        # the automation computes a fresh schedule on every run,
+        # so a value tied to a fixed moment would be stale on the next one.
+        momentary_fields = find_momentary_flex_config_fields(
+            prepare_schedule_trigger_message(dict(parameters), asset.id)
+        )
+        if momentary_fields:
+            raise RecurringScheduleFixesAMoment(
+                f"{flexmeasures_inflection.join_words_into_a_list(momentary_fields)} fixes a moment in time,"
+                " so it cannot configure a recurring schedule automation, which computes a fresh schedule on every run."
+                " Refer to a sensor instead of a fixed value, or leave the field out."
+            )
+
         # A schedule is recorded on the sensors that the scheduler returns its results
         # for, and reads whatever other sensors the flex-model and flex-context refer to
         # (such as price sensors and the sensors of inflexible devices).
@@ -1030,10 +1059,11 @@ def create_automation(
                 "The schedule 'start' is fixed, so each run will compute the same period."
                 " Omit 'start' to schedule from the run time instead."
             )
-    elif automation_type == "reports":
-        reporter, deserialized_parameters, warnings = _prepare_report_automation(
+    elif automation_type == "reporting":
+        reporter, deserialized_parameters, report_warnings = _prepare_report_automation(
             parameters, cronstr, generator_class, config, source
         )
+        warnings.extend(report_warnings)
         data_generator = reporter
         report_sensors = resolve_data_generator_sensors(
             reporter, deserialized_parameters
@@ -1050,7 +1080,7 @@ def create_automation(
 
     # Only once the sensors are known to be the user's to involve do we say anything about them,
     # so that this does not reveal where a sensor sits to someone who may not read it.
-    if automation_type in ("forecasts", "reports"):
+    if automation_type in ("forecasting", "reporting"):
         for output_sensor in output_sensors:
             validate_automation_output_scope(asset.id, output_sensor, automation_type)
 
@@ -1060,6 +1090,12 @@ def create_automation(
         generator = data_generator.data_source
         db.session.flush()
         generator_id = generator.id
+    elif automation_type == "scheduling":
+        # The scheduler and its configuration make up the automation's data generator,
+        # the same way a forecaster and its configuration do for a forecast automation.
+        # It is resolved here, rather than above, for the same reason as the forecaster's.
+        generator_id = resolve_schedule_generator(asset.id, parameters).id
+        db.session.flush()
 
     automation_fields = dict(
         asset_id=asset.id,
@@ -1180,11 +1216,11 @@ def run_automation(
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
     now = server_now()
-    if automation.type == "forecasts":
+    if automation.type == "forecasting":
         returns = _run_forecast_automation(automation)
-    elif automation.type == "schedules":
+    elif automation.type == "scheduling":
         returns = _run_schedule_automation(automation)
-    elif automation.type == "reports":
+    elif automation.type == "reporting":
         # NB the reporting job itself records the end of the report window upon
         # success (see run_report_job), so failed jobs do not create gaps in the
         # reported periods.
@@ -1261,6 +1297,13 @@ def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
         create_sequential_scheduling_job,
         create_simultaneous_scheduling_job,
     )
+
+    # The scheduler and the flex config it merges in can both change between runs,
+    # so record which data source this run actually computes under.
+    generator = resolve_schedule_generator(automation.asset_id, automation.parameters)
+    if automation.generator_id != generator.id:
+        automation.generator_id = generator.id
+        db.session.commit()
 
     message = prepare_schedule_trigger_message(
         dict(automation.parameters), automation.asset_id
