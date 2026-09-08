@@ -262,6 +262,7 @@ def create_scheduling_job(
     # Set consumption_is_positive on output sensors now (at trigger time) so that any
     # attribute conflict raises an error immediately, before the job is enqueued.
     _set_flex_model_output_sensors_consumption_is_positive(scheduler.flex_model)
+    _set_flex_context_output_sensors_consumption_is_positive(scheduler.flex_context)
 
     asset_or_sensor = get_asset_or_sensor_ref(asset_or_sensor)
     job = Job.create(
@@ -631,15 +632,69 @@ def _set_flex_model_output_sensors_consumption_is_positive(
             if sensor is None:
                 continue
             field_name = "consumption_schedule" if intended else "production_schedule"
-            existing = sensor.attributes.get("consumption_is_positive")
-            if existing is not None and existing != intended:
-                raise ValueError(
-                    f"Sensor {sensor} already has `consumption_is_positive={existing}`, "
-                    f"which conflicts with the '{field_name}' output schedule "
-                    f"(expected `consumption_is_positive={intended}`). "
-                    f"Remove or correct the attribute before running the scheduler."
-                )
-            sensor.attributes["consumption_is_positive"] = intended
+            _assign_consumption_is_positive(sensor, intended, field_name)
+
+
+def _assign_consumption_is_positive(
+    sensor: Sensor, intended: bool, field_name: str
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on a single output sensor.
+
+    :param sensor:      The output sensor to mark.
+    :param intended:    True when the sensor records consumption as positive values, False when it records production as positive values.
+    :param field_name:  Name of the flex-model or flex-context field referencing the sensor, used in the error message.
+    :raises ValueError: When the attribute is already set to a value other than *intended*.
+    """
+    existing = sensor.attributes.get("consumption_is_positive")
+    if existing is not None and existing != intended:
+        raise ValueError(
+            f"Sensor {sensor} already has `consumption_is_positive={existing}`, "
+            f"which conflicts with the '{field_name}' output schedule "
+            f"(expected `consumption_is_positive={intended}`). "
+            f"Remove or correct the attribute before running the scheduler."
+        )
+    sensor.attributes["consumption_is_positive"] = intended
+
+
+def _set_flex_context_output_sensors_consumption_is_positive(
+    flex_context: dict,
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on aggregate output sensors.
+
+    The flex-context's ``aggregate-consumption`` and ``aggregate-production`` sensors record the aggregate power schedule of all devices scheduled together,
+    so they follow the same sign conventions as the flex-model's per-device ``consumption`` and ``production`` output sensors::
+
+        aggregate-consumption sensor -> consumption_is_positive = True
+        aggregate-production sensor  -> consumption_is_positive = False
+
+    Without the attribute, the scheduler's consumption-positive values would be saved sign-flipped,
+    following the default convention for power sensors (see :func:`_resolve_schedule_output_sign`).
+
+    Both the single-dict flex-context and each entry of its ``commodities`` list can define these sensors,
+    so both are visited here.
+    Fields that do not resolve to a sensor are skipped,
+    which keeps the function safe to call on a flex-context that a custom scheduler left undeserialized.
+
+    :param flex_context: Deserialized flex context.
+    :raises ValueError:  When ``consumption_is_positive`` is already set to the wrong value for the given flex-context field.
+    """
+    if not isinstance(flex_context, dict):
+        return
+    contexts = [flex_context] + list(flex_context.get("commodity_contexts") or [])
+    for context in contexts:
+        if not isinstance(context, dict):
+            continue
+        for field_name, intended in [
+            ("aggregate_consumption", True),
+            ("aggregate_production", False),
+        ]:
+            field = context.get(field_name)
+            sensor = field.get("sensor") if isinstance(field, dict) else None
+            if not isinstance(sensor, Sensor):
+                continue
+            _assign_consumption_is_positive(
+                sensor, intended, field_name.replace("_", "-")
+            )
 
 
 def _set_output_sensor_consumption_is_positive(
@@ -707,6 +762,8 @@ def _resolve_schedule_output_sign(
         by :func:`_set_flex_model_output_sensors_consumption_is_positive`, and again (as a
         safety-net for direct :func:`make_schedule` calls) by
         :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.
+        The flex-context's aggregate output sensors are marked in the same two places,
+        by :func:`_set_flex_context_output_sensors_consumption_is_positive`.
 
     :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
     :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
@@ -806,6 +863,14 @@ def make_schedule(  # noqa: C901
         rq_job.meta["scheduler_info"] = scheduler.info
 
     consumption_schedule: SchedulerOutputType = scheduler.compute()
+
+    # Mark the flex-context's aggregate output sensors with their sign convention.
+    # At job-creation time this is already done eagerly;
+    # calling it here again acts as a safety net for direct make_schedule invocations,
+    # and can only be done now that compute() has deserialized the flex-context.
+    _set_flex_context_output_sensors_consumption_is_positive(
+        getattr(scheduler, "flex_context", None)
+    )
 
     # in case we are getting a custom Scheduler that hasn't implemented the multiple output return
     # this should only be called whenever the Scheduler applies to the Sensor.
