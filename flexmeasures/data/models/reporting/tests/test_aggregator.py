@@ -189,6 +189,18 @@ def test_source_transition(setup_dummy_data, db):
     )  # the data from the first source is used
     assert (result[13:] == -1).all().event_value
 
+    # Naming the sources the other way round hands the overlapping event to the other source,
+    # which is what "the first source defined in the sources array" means.
+    reversed_result = agg_reporter.compute(
+        start=tz.localize(datetime(2023, 4, 24)),
+        end=tz.localize(datetime(2023, 4, 25)),
+        input=[dict(sensor=s3, sources=[ds2, ds1])],
+        output=[dict(sensor=report_sensor)],
+        belief_time=tz.localize(datetime(2023, 12, 1)),
+    )[0]["data"]
+    assert (reversed_result[:12] == 1).all().event_value
+    assert (reversed_result[12:] == -1).all().event_value
+
     # only considering DataSource 1
     result = agg_reporter.compute(
         start=tz.localize(datetime(2023, 4, 24)),
