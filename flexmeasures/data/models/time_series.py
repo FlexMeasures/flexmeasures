@@ -902,6 +902,10 @@ def _select_latest_version_and_belief_per_event(
     """Keep, per event, the single belief with the latest source version,
     breaking version ties by most recent belief time.
 
+    Beliefs that tie on both keep the order they came in,
+    which is what lets a caller express its own precedence by the order in which it passes its sources.
+    See `test_source_transition`, where the first source in the list wins the events both sources report.
+
     Assumes deterministic beliefs (probabilistic depth 1) and a belief_time index level.
     """
     source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))

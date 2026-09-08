@@ -131,6 +131,10 @@ Currently, this supports only a daily resolution (which fits the date picker on 
 So you will need a sensor with daily resolution (probably generated with FlexMeasures' reporting tooling).
 From this data, you can display summed totals, means, max or min values (the image above shows two KPIs with totals).
 
+The function is applied to one value per event.
+Where several data sources reported the same event, the value is the one from the latest source version, and from the most recent belief within that, rather than each source's value in turn.
+The chart beside the KPI still draws every source, so it can show more points than the KPI counted.
+
 We aim to support a graphical tool to edit these KPIs in the future.
 For now, you can set them by editing the asset's `kpi_sensors_to_show` field in the properties page, which will validate that the format is correct and tell you what to change. Read more about the format below.
 
