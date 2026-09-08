@@ -110,6 +110,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
 from flexmeasures.cli.utils import (
@@ -222,7 +223,7 @@ def new_account_role(name: str, description: str):
 @click.option(
     "--trigger-rate-limit",
     callback=validate_rate_limit_cli,
-    help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
+    help="How often accounts on this plan may trigger a schedule, forecast or report, e.g. '60 per 5 minutes'."
     " Defaults to the FLEXMEASURES_API_TRIGGER_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
 )
 @click.option(
@@ -1595,20 +1596,25 @@ def add_forecast(  # noqa: C901
 
     \b
     Workflow
-      - Training window: defaults to a 30-day period in advance of the CLI execution time.
+      - Training window: spans --train-period, 30 days by default,
+        and begins no earlier than --train-start when one is given.
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
+      - Forecasts are saved to the database; use --dry-run to compute them without saving.
       - Sensor 2093 is used as a regressor in this example.
 
     \b
     Notes:
     - Use --from-date to explicitly set when the forecasts will start.
-    - Use --train-period to set the training window, which will grow each cycle
-        until the specified --to-date is reached.
-    - Use --predict-period to set the prediction window. It rolls forward by the
-        forecast period each cycle, similar to the training window, but its size
-        does not grow.
+    - Use --train-period to set the training window,
+        which will grow each cycle until the specified --to-date is reached.
+    - Setting both --train-start and --train-period trains on whichever of the two asks for less data:
+        --train-start says where training may begin, --train-period says how much history to use.
+    - --max-training-period is a deprecated alias of --train-period, which now says the same thing.
+    - Use --predict-period to set the prediction window.
+        It rolls forward by the forecast period each cycle, similar to the training window,
+        but its size does not grow.
     """
 
     # Deprecation warnings for CLI options specific to rolling viewpoint predictions
@@ -1633,6 +1639,18 @@ def add_forecast(  # noqa: C901
         edit_config,
         edit_parameters,
     )
+
+    # Read the flag from the assembled parameters, so that it counts however it was supplied:
+    # as the --dry-run option, or through the --parameters file or the --edit-parameters editor.
+    dry_run = parameters.get("dry-run", False)
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the forecast that a dry run computes would be discarded unseen."
+            " Drop --as-job to compute the forecast here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     try:
         forecaster = get_data_generator(
@@ -1668,8 +1686,34 @@ def add_forecast(  # noqa: C901
         unique_belief_times = {
             ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
         }
+        if dry_run:
+            sensor_to_save = forecaster.output_sensors[0]
+            # Only frames with beliefs have an event range; without any, we still report the rest.
+            frames_with_beliefs = [
+                item["data"] for item in pipeline_returns if not item["data"].empty
+            ]
+            event_range = (
+                f" covering events from {min(data.event_starts.min() for data in frames_with_beliefs)}"
+                f" until {max(data.event_ends.max() for data in frames_with_beliefs)},"
+                if frames_with_beliefs
+                else ""
+            )
+            click.secho(
+                f"Not saving forecasts to the database (because of --dry-run), but this is what I computed:"
+                f"\n{pluralize('forecast belief', total_beliefs, include_count=True)}"
+                f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+                f"{event_range}"
+                f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
+                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            for item in pipeline_returns:
+                click.echo(item["data"])
+            return
+
         click.secho(
-            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
             **MsgStyle.SUCCESS,
         )
 
@@ -1834,6 +1878,16 @@ def add_automation(
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
     )
+
+    # An automation exists to record what it computes, so a dry run would render it pointless.
+    # Popping the parameter also keeps it out of the parameters stored on the automation,
+    # where a schedule trigger message would reject it as an unknown field.
+    if parameters.pop("dry-run", False):
+        click.secho(
+            "The dry-run option is not supported for automations, which exist to record what they compute.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
 
     if automation_type == "scheduling":
         # Only options actually given on the command line count: the forecaster and the
@@ -2024,6 +2078,16 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
+    if as_job and dry_run:
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run:"
+            " a queued job runs on a worker, where the schedule that a dry run computes would be discarded unseen,"
+            " and where it would be saved to the database, which is exactly what --dry-run asks it not to do."
+            " Drop --as-job to compute the schedule here.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     asset_or_sensor = None
     if not power_sensor and not asset:
         click.secho(
@@ -2098,6 +2162,11 @@ def add_schedule(  # noqa C901
         )
         if not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
+        else:
+            click.secho(
+                "The schedule above was computed but not stored (because of --dry-run).",
+                **MsgStyle.SUCCESS,
+            )
 
 
 @fm_add_data.command("report")
@@ -2207,6 +2276,12 @@ def add_schedule(  # noqa C901
     is_flag=True,
     help="Add this flag to save the `config` in the attributes of the DataSource for future reference.",
 )
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a reporting job instead of computing directly. "
+    "Process it with a worker on the 'reporting' queue.",
+)
 def add_report(  # noqa: C901
     reporter_class: str,
     source: DataSource | None = None,
@@ -2223,11 +2298,25 @@ def add_report(  # noqa: C901
     edit_parameters: bool = False,
     save_config: bool = False,
     timezone: str | None = None,
+    as_job: bool = False,
 ):
     """
     Create a new report using the Reporter class and save the results
     to the database or export them as CSV or Excel file.
     """
+    if as_job and (dry_run or output_file_pattern):
+        click.secho(
+            "The --as-job flag cannot be combined with --dry-run or --output-file:"
+            " the job saves the report to the database only.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if as_job and not save_config:
+        click.secho(
+            "Saving the reporter config to its data source (required for --as-job).",
+            **MsgStyle.WARN,
+        )
+        save_config = True
 
     config = dict()
 
@@ -2329,6 +2418,16 @@ def add_report(  # noqa: C901
         parameters["end"] = end.isoformat()
     if ("resolution" not in parameters) and (resolution is not None):
         parameters["resolution"] = pd.Timedelta(resolution).isoformat()
+
+    reporter.set_job_trigger("CLI")
+
+    if as_job:
+        returns = reporter.compute(as_job=True, parameters=parameters)
+        click.secho(
+            f"Created reporting job {returns['job_id']} (the report will be saved to the database once processed).",
+            **MsgStyle.SUCCESS,
+        )
+        return
 
     click.echo("Report computation is running...")
 
