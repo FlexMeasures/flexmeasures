@@ -39,6 +39,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 
+* Triggering a schedule no longer fails with a server error when a device's output sensor is referenced by ID rather than by a sensor the scheduler already resolved [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Asking the API for sensor data, a chart or a schedule at a resolution that spans no time (such as ``PT0S``), or at a negative one, now gets the same clear rejection as any other unsupported resolution, instead of a server error or a silently empty result [see `PR #2502 <https://www.github.com/FlexMeasures/flexmeasures/pull/2502>`_]
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
 * Schedules saved to the flex-context's ``aggregate-consumption`` sensor had their sign flipped, showing production where consumption was scheduled and vice versa, because the sign convention implied by the field name was never recorded on the sensor [see `PR #2499 <https://www.github.com/FlexMeasures/flexmeasures/pull/2499>`_]
