@@ -80,6 +80,37 @@ class DurationField(MarshmallowClickMixin, fields.Str):
         return duration
 
 
+class ResolutionField(DurationField):
+    """Field that deserializes to an ISO8601 Duration to be used as a resolution.
+
+    On top of what DurationField accepts, a resolution must span a positive amount of time.
+    A zero resolution describes no event frequency at all,
+    and a negative resolution describes events going back in time,
+    neither of which can be turned into a series of events.
+    """
+
+    def _deserialize(self, value, attr, data, **kwargs) -> timedelta | isodate.Duration:
+        duration_value = super()._deserialize(value, attr, data, **kwargs)
+        if not _spans_positive_time(duration_value):
+            raise DurationValidationError(
+                f"FlexMeasures only supports a positive resolution, got: {value}."
+            )
+        return duration_value
+
+
+def _spans_positive_time(duration: timedelta | isodate.Duration) -> bool:
+    """Whether the given duration spans a positive amount of time.
+
+    Nominal durations (such as "P1M") are not grounded to an actual time span here,
+    because their sign does not depend on the time span they are grounded to.
+    """
+    if isinstance(duration, isodate.Duration):
+        return (
+            duration.years > 0 or duration.months > 0 or duration.tdelta > timedelta(0)
+        )
+    return duration > timedelta(0)
+
+
 class PlanningDurationField(DurationField):
     @classmethod
     def load_default(cls):

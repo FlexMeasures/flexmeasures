@@ -37,6 +37,7 @@ from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     DurationField,
     PlanningDurationField,
+    ResolutionField,
 )
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p
@@ -1799,7 +1800,7 @@ class AssetTriggerSchema(Schema):
             example="PT24H",
         ),
     )
-    resolution = DurationField(
+    resolution = ResolutionField(
         metadata=dict(
             description="The resolution of the requested schedule in ISO 8601 duration format. "
             "This governs how often setpoints are allowed to change. "

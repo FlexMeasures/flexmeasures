@@ -4,7 +4,11 @@ import pytest
 import pytz
 import isodate
 
-from flexmeasures.data.schemas.times import DurationField, DurationValidationError
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    DurationValidationError,
+    ResolutionField,
+)
 
 
 @pytest.mark.parametrize(
@@ -73,3 +77,49 @@ def test_duration_field_invalid(duration_input, error_msg):
     with pytest.raises(DurationValidationError) as ve:
         df.deserialize(duration_input, None, None)
     assert error_msg in str(ve)
+
+
+@pytest.mark.parametrize(
+    "resolution_input, exp_deserialization",
+    [
+        ("PT15M", timedelta(minutes=15)),
+        ("PT1H", timedelta(hours=1)),
+        ("P1D", timedelta(days=1)),
+        ("P1M", isodate.Duration(months=1)),
+    ],
+)
+def test_resolution_field_positive(resolution_input, exp_deserialization):
+    """A resolution spanning a positive amount of time deserializes like any other duration."""
+    rf = ResolutionField()
+    assert rf.deserialize(resolution_input, None, None) == exp_deserialization
+
+
+@pytest.mark.parametrize(
+    "resolution_input",
+    [
+        "PT0S",
+        "PT0M",
+        "P0D",
+        "-PT15M",
+        "-P1D",
+        "-P1M",
+    ],
+)
+def test_resolution_field_not_positive(resolution_input):
+    """A resolution that does not span a positive amount of time is rejected.
+
+    Without this validation, a zero resolution would crash the API with a ZeroDivisionError,
+    and a negative resolution would silently describe an empty set of events.
+    """
+    rf = ResolutionField()
+    with pytest.raises(DurationValidationError) as ve:
+        rf.deserialize(resolution_input, None, None)
+    assert "FlexMeasures only supports a positive resolution" in str(ve)
+
+
+def test_resolution_field_still_validates_duration():
+    """A resolution is still subject to the validation that any duration is subject to."""
+    rf = ResolutionField()
+    with pytest.raises(DurationValidationError) as ve:
+        rf.deserialize("PT40S", None, None)
+    assert "FlexMeasures only support multiples of 1 minute." in str(ve)
