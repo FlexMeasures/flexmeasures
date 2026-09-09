@@ -58,6 +58,7 @@ from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     DurationField,
     NominalDurationField,
+    needs_a_calendar,
 )
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.account import AccountIdField
@@ -141,10 +142,14 @@ class TimedEventSchema(Schema):
             data["start"] = dt
             data["end"] = dt
         elif duration is not None:
-            # A calendar duration needs a timezone to be counted in, and this field is not always given one.
-            # Without one, ground_from counts against the bound's own UTC offset, which never shifts,
-            # so a calendar day comes out as 24 hours rather than being refused.
-            if all([p is None for p in (start, end)]) or all(
+            # Without a timezone, ground_from counts against the bound's own UTC offset, which never shifts,
+            # so a calendar day comes out as 24 hours, which is the length it has always been given here.
+            # A duration in years or months has no such fallback length, so it is still refused.
+            if self.timezone is None and needs_a_calendar(duration):
+                raise ValidationError(
+                    "Cannot interpret nominal duration used in the 'duration' field without a known timezone."
+                )
+            elif all([p is None for p in (start, end)]) or all(
                 [p is not None for p in (start, end)]
             ):
                 raise ValidationError(

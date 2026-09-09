@@ -11,6 +11,7 @@ from isodate.isoduration import ISO8601_PERIOD_REGEX
 from isodate.isoerror import ISO8601Error
 import pandas as pd
 from pytz.exceptions import UnknownTimeZoneError
+from zoneinfo import ZoneInfoNotFoundError
 
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 
@@ -77,6 +78,11 @@ class DurationField(MarshmallowClickMixin, fields.Str):
         This matters: a start datetime parsed from an ISO 8601 string carries a fixed UTC offset rather than a zone,
         and a fixed offset never shifts, so counting against it would make every calendar day 24 hours long.
         Without a timezone, the start is used as it comes.
+
+        Note that an isodate.Duration cannot say whether its days came from a calendar component ("P1D")
+        or from a time component ("PT24H"), so this counts all of them as calendar days.
+        For a duration such as "P1MT25H" starting just before a transition, that is an hour out.
+        NominalDurationField does not have this problem, because it reads the components off the ISO string itself.
         """
         if isinstance(duration, (isodate.Duration, pd.DateOffset)) and start:
             if isinstance(duration, isodate.Duration):
@@ -92,10 +98,15 @@ class DurationField(MarshmallowClickMixin, fields.Str):
             if timezone is not None and anchor.tzinfo is not None:
                 try:
                     anchor = anchor.tz_convert(timezone)
-                except UnknownTimeZoneError:
-                    # fall back to counting against whatever the start datetime carries.
+                except (UnknownTimeZoneError, ZoneInfoNotFoundError):
+                    # Which of the two is raised depends on whether pandas is backed by pytz or zoneinfo.
+                    # Either way, fall back to counting against whatever the start datetime carries.
                     pass
-            return (anchor + offset).to_pydatetime() - start
+            # Subtract the two Timestamps rather than the datetimes they convert to.
+            # Python subtracts two datetimes sharing one zoneinfo timezone on wall-clock time,
+            # which would hide the very hour a transition adds or removes,
+            # whereas pandas always subtracts on the underlying instants.
+            return ((anchor + offset) - anchor).to_pytimedelta()
         return duration
 
 
@@ -158,6 +169,40 @@ class NominalDurationField(DurationField):
             seconds=fixed_seconds,
         )
         return -offset if groups.get("sign") == "-" else offset
+
+
+def needs_a_calendar(duration: timedelta | isodate.Duration | pd.DateOffset) -> bool:
+    """Whether this duration can only be resolved by counting months on a calendar.
+
+    A duration in years or months has no length at all until it is placed on one,
+    where a day or a week still has a defensible fixed length of 24 or 168 hours.
+    """
+    if isinstance(duration, isodate.Duration):
+        return bool(duration.years or duration.months)
+    if isinstance(duration, pd.DateOffset):
+        kwds = duration.kwds
+        return bool(kwds.get("years") or kwds.get("months"))
+    return False
+
+
+class FixedDurationField(DurationField):
+    """Field for a duration that has to be a fixed amount of time.
+
+    Use this where there is no start to count a calendar span against,
+    so that a duration in years or months cannot be resolved at all.
+    Such a value is rejected here,
+    rather than travelling on as an isodate.Duration that the arithmetic downstream would choke on.
+    Days and weeks are fine: DurationField already reports those as a fixed number of hours.
+    """
+
+    def _deserialize(self, value, attr, data, **kwargs) -> timedelta:
+        duration = super()._deserialize(value, attr, data, **kwargs)
+        if isinstance(duration, isodate.Duration):
+            raise DurationValidationError(
+                f"FlexMeasures cannot interpret a duration in years or months here, got: {value}. "
+                "Say how long it should be in weeks, days, hours or minutes instead."
+            )
+        return duration
 
 
 class ResolutionField(DurationField):

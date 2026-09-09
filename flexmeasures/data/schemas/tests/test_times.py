@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 import pytz
@@ -9,6 +10,7 @@ from flexmeasures.data.schemas.times import (
     DurationValidationError,
     NominalDurationField,
     ResolutionField,
+    needs_a_calendar,
 )
 
 
@@ -195,3 +197,65 @@ def test_nominal_duration_field_still_validates_duration():
     with pytest.raises(DurationValidationError) as ve:
         NominalDurationField().deserialize("P1DT40S", None, None)
     assert "FlexMeasures only support multiples of 1 minute." in str(ve)
+
+
+@pytest.mark.parametrize(
+    "tzinfo_flavour",
+    ["pytz", "zoneinfo", "fixed-offset", "utc"],
+)
+def test_nominal_duration_field_grounds_on_instants_not_wall_clock(tzinfo_flavour):
+    """Grounding must not depend on which flavour of tzinfo the start datetime carries.
+
+    Python subtracts two datetimes sharing one zoneinfo timezone on wall-clock time,
+    so a calendar day across a transition would come out as 24 hours rather than 23.
+    pytz sidesteps that by giving each instant its own fixed-offset tzinfo,
+    which is why this only shows up once pandas hands back zoneinfo timezones.
+    """
+    naive = datetime(2023, 3, 26)
+    if tzinfo_flavour == "pytz":
+        start = pytz.timezone("Europe/Amsterdam").localize(naive)
+    elif tzinfo_flavour == "zoneinfo":
+        start = naive.replace(tzinfo=ZoneInfo("Europe/Amsterdam"))
+    elif tzinfo_flavour == "fixed-offset":
+        start = isodate.parse_datetime("2023-03-26T00:00:00+01:00")
+    else:
+        start = isodate.parse_datetime("2023-03-25T23:00:00+00:00")
+
+    deser = NominalDurationField().deserialize("P1D", None, None)
+    grounded = DurationField.ground_from(deser, start, timezone="Europe/Amsterdam")
+    assert grounded == timedelta(hours=23)
+
+
+def test_ground_from_falls_back_on_an_unknown_timezone():
+    """An unknown timezone is not fatal, whether pandas is backed by pytz or by zoneinfo.
+
+    The two raise different exceptions, so both have to be caught.
+    """
+    deser = NominalDurationField().deserialize("P1D", None, None)
+    start = isodate.parse_datetime("2023-03-26T00:00:00+01:00")
+    assert DurationField.ground_from(deser, start, timezone="Not/AZone") == timedelta(
+        hours=24
+    )
+
+
+@pytest.mark.parametrize(
+    "duration_input, exp_needs_calendar",
+    [
+        ("P1Y", True),
+        ("P1M", True),
+        ("P1Y2M", True),
+        ("P1W", False),
+        ("P1D", False),
+        ("PT24H", False),
+        ("P1DT1H", False),
+    ],
+)
+def test_needs_a_calendar(duration_input, exp_needs_calendar):
+    """Only years and months have no length at all until placed on a calendar."""
+    deser = NominalDurationField().deserialize(duration_input, None, None)
+    assert needs_a_calendar(deser) is exp_needs_calendar
+    # the same verdict is reached for what a plain DurationField reports.
+    assert (
+        needs_a_calendar(DurationField().deserialize(duration_input, None, None))
+        is exp_needs_calendar
+    )
