@@ -86,7 +86,7 @@ def test_duration_field_invalid(duration_input, error_msg):
         ("PT1H", timedelta(hours=1)),
         ("P1D", timedelta(days=1)),
         ("P1M", isodate.Duration(months=1)),
-        # a nominal duration holds its days and seconds in its tdelta, not next to it
+        # a nominal duration holds its days and seconds in its tdelta, not next to it.
         ("P1M1D", isodate.Duration(months=1, days=1)),
         ("P1Y1D", isodate.Duration(years=1, days=1)),
         ("P1MT1H", isodate.Duration(months=1, hours=1)),
