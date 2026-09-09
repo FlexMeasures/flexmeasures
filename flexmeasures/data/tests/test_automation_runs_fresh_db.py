@@ -65,7 +65,7 @@ def test_automation_run_unique_per_revision(fresh_db, due_forecast_automation):
         automation=due_forecast_automation,
         scheduled_at=scheduled_at,
         schedule_revision=due_forecast_automation.schedule_revision,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
         execution_state="pending",
@@ -79,7 +79,7 @@ def test_automation_run_unique_per_revision(fresh_db, due_forecast_automation):
         automation=due_forecast_automation,
         scheduled_at=scheduled_at,
         schedule_revision=due_forecast_automation.schedule_revision,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
         execution_state="pending",
@@ -96,7 +96,7 @@ def test_automation_run_unique_per_revision(fresh_db, due_forecast_automation):
         automation=due_forecast_automation,
         scheduled_at=scheduled_at,
         schedule_revision=due_forecast_automation.schedule_revision + 1,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
         execution_state="pending",
@@ -113,7 +113,7 @@ def test_job_intents_are_unique_per_run(fresh_db, due_forecast_automation):
         automation=due_forecast_automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
         schedule_revision=due_forecast_automation.schedule_revision,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=due_forecast_automation.generator_id,
         dispatch_state="pending",
         execution_state="pending",
@@ -713,7 +713,7 @@ def _add_finished_runs(db, automation: Automation, count: int) -> None:
             automation=automation,
             scheduled_at=first_scheduled_at + timedelta(minutes=index),
             schedule_revision=automation.schedule_revision,
-            automation_type="forecasts",
+            automation_type="forecasting",
             generator_id=automation.generator_id,
             dispatch_state="queued" if index % 2 else "failed",
             execution_state="succeeded" if index % 2 else "pending",
@@ -798,3 +798,58 @@ def test_run_stats_do_not_load_the_whole_run_history(fresh_db, due_forecast_auto
     assert not unbounded, f"a query reads the whole run history: {unbounded}"
     # Two aggregates, the limited read of recent runs, and one eager load per child relationship.
     assert len(statements) <= 6, f"{len(statements)} queries: {statements}"
+
+
+def _add_partially_queued_run(
+    db, automation: Automation, automation_type: str, scheduled_at: datetime
+) -> AutomationRun:
+    """Give an automation a run whose previous dispatch stopped halfway, with its claim released."""
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=scheduled_at,
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation_type,
+        generator_id=automation.generator_id,
+        dispatch_state="partially_queued",
+        execution_state="pending",
+        attempt_count=1,
+        parameters=dict(automation.parameters),
+        plan={},
+    )
+    db.session.add(run)
+    db.session.commit()
+    return run
+
+
+def test_only_a_forecast_run_is_dispatched_a_second_time(
+    fresh_db, due_forecast_automation, freeze_server_now
+):
+    """A forecast run resumes where it stopped, while a schedule run is left where it failed.
+
+    A forecast run's jobs carry IDs derived from the run, so a retry can tell which of them it already queued,
+    whereas a schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules.
+    """
+    from flexmeasures.data.services.automations import (
+        get_dispatchable_automation_runs,
+    )
+
+    freeze_server_now(datetime(2026, 8, 5, 2, 0, tzinfo=timezone.utc))
+    forecast_run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        "forecasting",
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+    schedule_run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        "scheduling",
+        datetime(2026, 8, 5, 1, 30, tzinfo=timezone.utc),
+    )
+
+    claimed_ids = {
+        claimed.run.id for claimed in get_dispatchable_automation_runs(owner="runner:1")
+    }
+
+    assert forecast_run.id in claimed_ids
+    assert schedule_run.id not in claimed_ids

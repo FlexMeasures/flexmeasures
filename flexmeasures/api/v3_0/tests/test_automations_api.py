@@ -28,7 +28,7 @@ def add_automations(db, add_battery_assets):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Day-ahead forecasts",
             cronstr="0 6 * * *",
             timezone="Europe/Amsterdam",
@@ -39,7 +39,7 @@ def add_automations(db, add_battery_assets):
         Automation(
             asset_id=battery.id,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name="Intraday forecasts",
             cronstr="0 * * * *",
             timezone="UTC",
@@ -54,7 +54,7 @@ def add_automations(db, add_battery_assets):
         automation=automations[0],
         scheduled_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
         schedule_revision=automations[0].schedule_revision,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=generator.id,
         dispatch_state="partially_queued",
         execution_state="pending",
@@ -97,7 +97,7 @@ def add_automations(db, add_battery_assets):
         automation=automations[1],
         scheduled_at=datetime(2026, 7, 11, 5, 0, tzinfo=timezone.utc),
         schedule_revision=automations[1].schedule_revision,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=generator.id,
         dispatch_state="failed",
         execution_state="pending",
@@ -111,7 +111,7 @@ def add_automations(db, add_battery_assets):
         automation=automations[1],
         scheduled_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
         schedule_revision=automations[1].schedule_revision,
-        automation_type="forecasts",
+        automation_type="forecasting",
         generator_id=generator.id,
         dispatch_state="queued",
         execution_state="succeeded",
@@ -218,7 +218,7 @@ def test_get_automations(
     automations = response.json["automations"]
     assert len(automations) == 2
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
-    assert day_ahead["type"] == "forecasts"
+    assert day_ahead["type"] == "forecasting"
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"

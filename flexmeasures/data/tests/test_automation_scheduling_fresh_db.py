@@ -42,7 +42,7 @@ def automation_factory(fresh_db):
         automation = Automation(
             asset=asset,
             generator=generator,
-            type="forecasts",
+            type="forecasting",
             name=name,
             cronstr=cronstr,
             timezone=timezone_name,

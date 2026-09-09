@@ -1,7 +1,7 @@
 """add durable automation runs
 
 Revision ID: f3d8e2c9a741
-Revises: 8f4a1d0c2e77
+Revises: c7a2f13b9e04
 Create Date: 2026-08-28 13:10:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "f3d8e2c9a741"
-down_revision = "8f4a1d0c2e77"
+down_revision = "c7a2f13b9e04"
 branch_labels = None
 depends_on = None
 

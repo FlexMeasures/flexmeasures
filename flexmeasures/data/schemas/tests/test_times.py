@@ -4,7 +4,11 @@ import pytest
 import pytz
 import isodate
 
-from flexmeasures.data.schemas.times import DurationField, DurationValidationError
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    DurationValidationError,
+    ResolutionField,
+)
 
 
 @pytest.mark.parametrize(
@@ -46,7 +50,8 @@ def test_duration_field_nominal_grounded(
     We want to test if we can ground them as expected.
     We use a particular datetime to ground, in a leap year February.
     For the Europe/Amsterdam timezone, daylight saving time started on March 29th 2020.
-    # todo: the commented out tests would work if isodate.parse_duration would have the option to stop coercing ISO 8601 days into datetime.timedelta days
+    # todo: the commented out tests pass as soon as we parse with isodate.parse_duration(..., as_timedelta_if_possible=False), which stops it coercing ISO 8601 days into datetime.timedelta days.
+    # That option landed in https://github.com/gweis/isodate/pull/64, after this todo was written, but adopting it needs each caller to ground its duration first.
     """
     df = DurationField()
     deser = df.deserialize(duration_input, None, None)
@@ -73,3 +78,54 @@ def test_duration_field_invalid(duration_input, error_msg):
     with pytest.raises(DurationValidationError) as ve:
         df.deserialize(duration_input, None, None)
     assert error_msg in str(ve)
+
+
+@pytest.mark.parametrize(
+    "resolution_input, exp_deserialization",
+    [
+        ("PT15M", timedelta(minutes=15)),
+        ("PT1H", timedelta(hours=1)),
+        ("P1D", timedelta(days=1)),
+        ("P1M", isodate.Duration(months=1)),
+        # a nominal duration holds its days and seconds in its tdelta, not next to it.
+        ("P1M1D", isodate.Duration(months=1, days=1)),
+        ("P1Y1D", isodate.Duration(years=1, days=1)),
+        ("P1MT1H", isodate.Duration(months=1, hours=1)),
+    ],
+)
+def test_resolution_field_positive(resolution_input, exp_deserialization):
+    """A resolution spanning a positive amount of time deserializes like any other duration."""
+    rf = ResolutionField()
+    assert rf.deserialize(resolution_input, None, None) == exp_deserialization
+
+
+@pytest.mark.parametrize(
+    "resolution_input",
+    [
+        "PT0S",
+        "PT0M",
+        "P0D",
+        "-PT15M",
+        "-P1D",
+        "-P1M",
+        "-P1M1D",
+    ],
+)
+def test_resolution_field_not_positive(resolution_input):
+    """A resolution that does not span a positive amount of time is rejected.
+
+    Without this validation, a zero resolution would crash the API with a ZeroDivisionError,
+    and a negative resolution would silently describe an empty set of events.
+    """
+    rf = ResolutionField()
+    with pytest.raises(DurationValidationError) as ve:
+        rf.deserialize(resolution_input, None, None)
+    assert "FlexMeasures only supports a positive resolution" in str(ve)
+
+
+def test_resolution_field_still_validates_duration():
+    """A resolution is still subject to the validation that any duration is subject to."""
+    rf = ResolutionField()
+    with pytest.raises(DurationValidationError) as ve:
+        rf.deserialize("PT40S", None, None)
+    assert "FlexMeasures only support multiples of 1 minute." in str(ve)

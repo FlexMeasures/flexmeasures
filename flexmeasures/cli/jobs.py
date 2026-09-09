@@ -101,7 +101,7 @@ def run_automations():
             returns = dispatch_automation_run(claimed_run)
             n_jobs = returns["n_jobs"]
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} forecasting job(s), scheduled for {claimed_run.run.scheduled_at}.",
+                f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
             )
             n_run += 1

@@ -4,11 +4,11 @@ Automations
 ============
 
 An **automation** is a recurring task defined on an asset.
-For now, an automation computes forecasts; automating schedules and reports is planned.
+For now, an automation computes forecasts or schedules; automating reports is planned.
 
-On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
+On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting`` or ``scheduling`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
-Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
+Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results.
 
 Creating an automation
 ----------------------
@@ -17,10 +17,10 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
 
 .. code-block:: bash
 
-    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasts \
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says what the automation computes, and defaults to ``forecasts``.
+``--type`` says which task to automate (``forecasting`` or ``scheduling``, matching the queue the jobs go to), and defaults to ``forecasting``.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
@@ -38,6 +38,36 @@ These changes are recorded in the asset's audit log.
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
 This relationship is checked both when the automation is created and immediately before each run.
 
+Automating schedules
+--------------------
+
+A schedule automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ API endpoint (without the asset id).
+Use the canonical API field names, including ``flex-model``, ``flex-context`` and ``force-new-job-creation``.
+The message is passed in a file, through ``--parameters``, and validated when the automation is created.
+The forecaster options above configure a forecaster, so they do not apply here, and are refused when combined with ``--type scheduling``.
+
+A schedule automation has a data generator too, but you do not name it separately.
+It is put together from choices you have already made: the flex config in the trigger message, the flex config saved on the asset tree, and the scheduler that the asset resolves to.
+Because those live in two places, and the asset can be edited without touching the automation, the runner puts the generator together again on every run, and moves the automation to another data source when the combination has changed.
+Editing an asset's flex-model is therefore a configuration change, and shows up as one: the schedules computed before and after it carry different data sources.
+
+Because the schedule is recomputed on every run, the flex config may only describe the site and its devices, not one moment.
+A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.
+Refer to a sensor instead, which says where to look rather than what was true once.
+
+Omit the ``start`` field to calculate it afresh from the server time on each run.
+It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
+A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
+The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
+As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
+
+For example, this automation queues a scheduling job every hour, each time scheduling the next 12 hours:
+
+.. code-block:: bash
+
+    echo 'duration: "PT12H"' > trigger-message.yml
+    flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+
 Running automations
 -------------------
 
@@ -49,7 +79,7 @@ For automations to actually run, let a cron job execute the following command on
 
 Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
-Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast.
+Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast or schedule.
 
 Each scheduled run a runner picks up is recorded durably, so a queueing attempt which fails can be retried without duplicating the jobs it already created.
 See :ref:`automation_runs`.
@@ -70,6 +100,9 @@ This is what makes a retry safe.
 A run which failed before queueing anything is dispatched again in full.
 A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
 Because the plan is stored, a retry hours later still uses the parameters and timings the run was originally planned with, even if the automation has been edited since.
+
+Retrying a failed dispatch this way is what a forecast run does.
+A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
 
 A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
