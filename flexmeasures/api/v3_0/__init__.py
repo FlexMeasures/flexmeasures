@@ -39,6 +39,7 @@ from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
     DefaultAssetViewJSONSchema,
+    StatusPageTabJSONSchema,
 )
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
@@ -226,6 +227,7 @@ def create_openapi_specs(app: Flask):
         ("ReportTriggerSchema", ReportTriggerSchema),
         ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
+        ("StatusPageTabJSONSchema", StatusPageTabJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountCreateSchema", AccountCreateSchema()),
         ("AccountPatchSchema", AccountPatchSchema()),
