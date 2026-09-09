@@ -102,8 +102,12 @@ This can be a Python list (e.g. ``["plugin1", "plugin2"]``) or a comma-separated
 
 Two types of entries are possible here:
 
-* File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
-* Names of installed Python modules. 
+* File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined.
+* Names of installed Python modules.
+
+An entry that is not spelled out as a path (i.e. a bare name like ``my_plugin``) is imported the way Python imports any module, i.e. resolved along ``sys.path``, rather than loaded from the folder of that name in the working directory ― which is easily the case when you start FlexMeasures from your plugin's own repository.
+So an installed plugin is used even when such a folder is present, unless the working directory itself comes first on ``sys.path``, in which case normal import resolution applies and that copy is imported (as a module, not a second time by path).
+To load a folder on purpose, spell out its path, e.g. ``./my_plugin``.
 
 Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`plugins` for more information and examples.
 
