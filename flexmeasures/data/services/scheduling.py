@@ -609,7 +609,7 @@ def _set_flex_model_output_sensors_consumption_is_positive(
     so that a flex-model which reached this function undeserialized still gets its sign conventions recorded.
 
     :param flex_model: Flex model — either a single-device ``dict`` or a ``list`` of per-device dicts.
-                       Consumption/production fields are expected to be dicts with a ``"sensor"`` key.
+                       Consumption/production fields are expected to reference a sensor, in any of the shapes :func:`_resolve_output_sensor` accepts.
     :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value for the given flex-model field,
                         or when an output-sensor reference does not resolve to a sensor.
     """
@@ -642,9 +642,9 @@ def _set_flex_model_output_sensors_consumption_is_positive(
 def _resolve_output_sensor(field, field_name: str) -> Sensor | None:
     """The sensor that an output-sensor field refers to, if it refers to one at all.
 
-    Such a field is a dict with a ``"sensor"`` key, whose value is a ``Sensor`` once the flex-config has been deserialized,
-    and the ID the client posted when it has not.
-    Both forms resolve here, rather than the latter being skipped,
+    Such a field carries its sensor under ``"sensor"``: as a key when the field is a dict, and as an attribute when it is a sensor reference object.
+    The value there is a ``Sensor`` once the flex-config has been deserialized, and the ID the client posted when it has not.
+    All of these shapes resolve here, rather than the undeserialized ones being skipped,
     so that a reference which reached its caller undeserialized is still handled instead of silently ignored.
     A field that is not a sensor reference at all is not our business, and returns None:
     a custom scheduler is free to use these field names for something else entirely.
@@ -698,7 +698,7 @@ def _assign_consumption_is_positive(
 
 
 def _set_flex_context_output_sensors_consumption_is_positive(
-    flex_context: dict | None,
+    flex_context: dict | list | None,
 ) -> None:
     """Set the ``consumption_is_positive`` attribute on aggregate output sensors.
 
