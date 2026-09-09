@@ -763,12 +763,10 @@ def _resolve_schedule_output_sign(
     and the default convention for main power sensors) the sign is inverted.
 
     .. note::
-        For consumption/production output sensors the ``consumption_is_positive`` attribute
-        must be set before this function is called. It is set eagerly at job-creation time
-        by :func:`_set_flex_model_output_sensors_consumption_is_positive`, and again (as a
-        safety-net for direct :func:`make_schedule` calls) by that same function after
-        ``compute()``, and by :func:`_set_output_sensor_consumption_is_positive` earlier in the
-        same loop iteration.
+        For consumption/production output sensors the ``consumption_is_positive`` attribute must be set before this function is called.
+        It is set eagerly at job-creation time by :func:`_set_flex_model_output_sensors_consumption_is_positive`,
+        and again by that same function after ``compute()``, as a safety-net for direct :func:`make_schedule` calls,
+        and by :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.
         The flex-context's aggregate output sensors are marked in both those places,
         by :func:`_set_flex_context_output_sensors_consumption_is_positive`.
 
