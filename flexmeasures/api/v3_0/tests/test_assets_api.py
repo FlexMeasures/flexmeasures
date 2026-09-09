@@ -290,7 +290,8 @@ def test_get_assets_does_not_scale_query_count_with_catalog_size(
 
     def seed_assets(num_assets: int, tag: str) -> GenericAssetType:
         """Create num_assets assets, each with its own owner (so the identity map can't mask
-        an N+1 by reusing an already-loaded owner) and a sensor, under a shared, tagged type."""
+        an N+1 by reusing an already-loaded owner) and a sensor, under a shared, tagged type.
+        """
         asset_type = GenericAssetType(name=f"n1-bench-type-{tag}")
         db.session.add(asset_type)
         db.session.flush()
