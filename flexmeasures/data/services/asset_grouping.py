@@ -5,7 +5,6 @@ For example, group by asset type or by location.
 
 from __future__ import annotations
 
-import inflect
 from sqlalchemy import select, Select
 
 from flexmeasures.data import db
@@ -13,13 +12,14 @@ from flexmeasures.data.queries.generic_assets import (
     get_asset_group_queries as get_asset_group_queries_new,
 )
 from flexmeasures.utils.coding_utils import deprecated
-from flexmeasures.utils.flexmeasures_inflection import parameterize
+from flexmeasures.utils.flexmeasures_inflection import (
+    parameterize,
+    join_words_into_a_list,
+)
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
 )
-
-p = inflect.engine()
 
 
 @deprecated(get_asset_group_queries_new)
@@ -110,12 +110,13 @@ class AssetGroup:
     @property
     def hover_label(self) -> str | None:
         """Attempt to get a hover label to show if possible."""
-        label = p.join(
+        label = join_words_into_a_list(
             [
                 asset_type.description
                 for asset_type in self.unique_asset_types
                 if asset_type.description is not None
-            ]
+            ],
+            final_sep=",",
         )
         return label if label else None
 

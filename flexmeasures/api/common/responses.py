@@ -1,14 +1,11 @@
 from __future__ import annotations
 from typing import Sequence
-import inflect
 from functools import wraps
 
 from flask import url_for
 
 from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
-
-p = inflect.engine()
-
+from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
 ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
@@ -188,7 +185,7 @@ def invalid_sender(
     """
     message = message or FORBIDDEN_MSG
     if required_permissions:
-        message += f" It requires {p.join(required_permissions)} permission(s)."
+        message += f" It requires {join_words_into_a_list(required_permissions, final_sep=',')} permission(s)."
     return (
         dict(result="Rejected", status="INVALID_SENDER", message=message),
         FORBIDDEN_STATUS_CODE,
@@ -210,7 +207,11 @@ def invalid_unit(
     quantity_str = (
         "for %s " % quantity.replace("_", " ") if quantity is not None else ""
     )
-    unit_str = "in %s" % p.join(units, conj="or") if units is not None else "a unit"
+    unit_str = (
+        "in %s" % join_words_into_a_list(units, conj="or", final_sep=",")
+        if units is not None
+        else "a unit"
+    )
     return (
         dict(
             result="Rejected",
