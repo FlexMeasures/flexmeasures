@@ -36,6 +36,7 @@ from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     DurationField,
+    NominalDurationField,
     PlanningDurationField,
     ResolutionField,
 )
@@ -1919,7 +1920,7 @@ class ScheduleSignConvention:
 class GetScheduleSchema(Schema):
     sensor = SensorIdField(required=True, data_key="id")
     job_id = fields.Str(required=True, data_key="uuid")
-    duration = DurationField(load_default=timedelta(hours=6))
+    duration = NominalDurationField(load_default=timedelta(hours=6))
     unit = UnitField(load_default=None)
     sign_convention = fields.Str(
         data_key="sign-convention",
@@ -1961,6 +1962,7 @@ class GetScheduleSchema(Schema):
         data["duration"] = DurationField.ground_from(
             duration,
             data.get("start", data.get("datetime")),
+            timezone=sensor.timezone,
         )
 
         return data

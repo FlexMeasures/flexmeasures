@@ -10,6 +10,7 @@ from .sources import DataSourceIdField as SourceIdField
 from .times import (
     AwareDateTimeField,
     DurationField,
+    NominalDurationField,
     ResolutionField,
     TimeIntervalField,
     StartEndTimeSchema,

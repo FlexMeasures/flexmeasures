@@ -5,7 +5,6 @@ from datetime import timedelta
 from difflib import get_close_matches
 import numbers
 import pytz
-from pytz.exceptions import UnknownTimeZoneError
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -31,7 +30,6 @@ from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
 
 import re
-import isodate
 from marshmallow_oneofschema import OneOfSchema
 import pandas as pd
 
@@ -56,7 +54,11 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 from flexmeasures.data.schemas.attributes import JSON
-from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    NominalDurationField,
+)
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -72,7 +74,7 @@ class TimedEventSchema(Schema):
     datetime = AwareDateTimeField(required=False)
     start = AwareDateTimeField(required=False)
     end = AwareDateTimeField(required=False)
-    duration = DurationField(required=False)
+    duration = NominalDurationField(required=False)
 
     def __init__(
         self,
@@ -139,32 +141,25 @@ class TimedEventSchema(Schema):
             data["start"] = dt
             data["end"] = dt
         elif duration is not None:
-            if self.timezone is None and isinstance(duration, isodate.Duration):
-                raise ValidationError(
-                    "Cannot interpret nominal duration used in the 'duration' field without a known timezone."
-                )
-            elif all([p is None for p in (start, end)]) or all(
+            # A calendar duration needs a timezone to be counted in, and this field is not always given one.
+            # Without one, ground_from counts against the bound's own UTC offset, which never shifts,
+            # so a calendar day comes out as 24 hours rather than being refused.
+            if all([p is None for p in (start, end)]) or all(
                 [p is not None for p in (start, end)]
             ):
                 raise ValidationError(
                     "If using the 'duration' field, either 'start' or 'end' is expected."
                 )
             if start is not None:
-                try:
-                    grounded = DurationField.ground_from(
-                        duration, pd.Timestamp(start).tz_convert(self.timezone)
-                    )
-                except UnknownTimeZoneError:
-                    grounded = DurationField.ground_from(duration, pd.Timestamp(start))
+                grounded = DurationField.ground_from(
+                    duration, pd.Timestamp(start), timezone=self.timezone
+                )
                 data["start"] = start
                 data["end"] = start + grounded
             else:
-                try:
-                    grounded = DurationField.ground_from(
-                        -duration, pd.Timestamp(end).tz_convert(self.timezone)
-                    )
-                except UnknownTimeZoneError:
-                    grounded = DurationField.ground_from(-duration, pd.Timestamp(end))
+                grounded = DurationField.ground_from(
+                    -duration, pd.Timestamp(end), timezone=self.timezone
+                )
                 data["start"] = end + grounded
                 data["end"] = end
         else:

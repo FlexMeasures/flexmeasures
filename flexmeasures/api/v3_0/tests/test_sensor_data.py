@@ -5,7 +5,7 @@ from flask import current_app, url_for
 import pandas as pd
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
-from sqlalchemy import event
+from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
 
 from flexmeasures import Sensor, Source, User
@@ -43,6 +43,70 @@ def test_get_no_sensor_data(
     values = response.json["values"]
     # We expect only null values (which are converted to None by .json)
     assert all(a == b for a, b in zip(values, [None, None, None, None]))
+
+
+# Daylight saving time in Europe/Amsterdam started on 2023-03-26 and ended on 2023-10-29.
+@pytest.mark.parametrize(
+    "duration, start, exp_duration, exp_n_values",
+    [
+        # a calendar day is an hour shorter going into DST, and an hour longer coming out of it
+        ("P1D", "2023-03-26T00:00:00+01:00", "PT23H", 23),
+        ("P1D", "2023-10-29T00:00:00+02:00", "PT25H", 25),
+        # a fixed duration is unaffected
+        ("PT24H", "2023-03-26T00:00:00+01:00", "PT24H", 24),
+        ("PT24H", "2023-10-29T00:00:00+02:00", "PT24H", 24),
+        # away from a transition, the two agree
+        ("P1D", "2023-06-01T00:00:00+02:00", "PT24H", 24),
+        # a calendar month follows the calendar too
+        ("P1M", "2023-03-26T00:00:00+01:00", "PT743H", 743),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_over_a_calendar_window(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    duration,
+    start,
+    exp_duration,
+    exp_n_values,
+    requesting_user,
+    db,
+):
+    """Check that a calendar duration is counted in the sensor's own calendar.
+
+    An ISO 8601 duration of a day or longer describes a calendar span, not a fixed number of hours,
+    so a "P1D" window is 23 or 25 hours long across a daylight saving time transition.
+    """
+    # This test module shares one database setup, so re-use the sensor across parametrizations.
+    sensor = db.session.execute(
+        select(Sensor).filter_by(name="a sensor in Amsterdam")
+    ).scalar_one_or_none()
+    if sensor is None:
+        sensor = Sensor(
+            name="a sensor in Amsterdam",
+            unit="m³/h",
+            event_resolution=timedelta(hours=1),
+            timezone="Europe/Amsterdam",
+            generic_asset=setup_api_test_data["some gas sensor"].generic_asset,
+        )
+        db.session.add(sensor)
+        db.session.flush()
+
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string={
+            "start": start,
+            "duration": duration,
+            "unit": "m³/h",
+            "resolution": "PT1H",
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert response.json["duration"] == exp_duration
+    assert len(response.json["values"]) == exp_n_values
 
 
 @pytest.mark.parametrize("resolution", ["PT0S", "PT0M", "P0D", "-PT20M"])
