@@ -16,6 +16,7 @@ import sentry_sdk
 from flask import Flask, Blueprint
 
 from flexmeasures.utils.coding_utils import get_classes_module
+from flexmeasures.utils.config_utils import parse_bool_env
 
 
 def is_written_as_path(plugin: str) -> bool:
@@ -282,7 +283,7 @@ def parse_setting_from_env(
         return value
     try:
         if parse_as is bool:
-            return value.strip().lower() in ("1", "true", "yes", "on")
+            return parse_bool_env(value)
         if parse_as in (int, float):
             return parse_as(value)
         if parse_as in (list, dict):
