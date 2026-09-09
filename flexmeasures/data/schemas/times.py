@@ -132,8 +132,14 @@ class NominalDurationField(DurationField):
     #: The ISO 8601 components that are counted in calendar units rather than in fixed time.
     nominal_components = ("years", "months", "weeks", "days")
 
-    def _deserialize(self, value, attr, data, **kwargs) -> timedelta | pd.DateOffset:
-        """Deserialize to a DateOffset if the duration spans calendar units, else to a timedelta."""
+    def _deserialize(
+        self, value, attr, data, **kwargs
+    ) -> timedelta | isodate.Duration | pd.DateOffset:
+        """Deserialize to a DateOffset if the duration spans calendar units, else to a timedelta.
+
+        A value that carries no calendar units is passed on exactly as DurationField reported it,
+        which for a degenerate input such as "P0.5M" is an isodate.Duration.
+        """
         # Run DurationField's parsing first, so that we accept and reject exactly what it does.
         duration = super()._deserialize(value, attr, data, **kwargs)
         match = ISO8601_PERIOD_REGEX.match(value)
