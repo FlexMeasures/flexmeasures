@@ -238,7 +238,10 @@ FlexMeasures then reads ``parse_as: int`` and ``parse_as: float`` settings as nu
 ``parse_as: bool`` settings as ``True`` for ``1``, ``true``, ``yes`` or ``on`` (case-insensitively) and ``False`` otherwise,
 and ``parse_as: list`` and ``parse_as: dict`` settings as JSON.
 
-.. note:: While the test suite and the documentation build are running, FlexMeasures reads no settings from the environment ― neither its own, nor your plugin's.
+.. note:: While the test suite and the documentation build are running, FlexMeasures runs on defaults:
+          it reads neither your config file nor the environment, so your plugin's settings are not read from the environment either.
+          (A few of FlexMeasures' own settings are exceptions, among them ``FLEXMEASURES_ENV``, ``SECRET_KEY`` and ``SQLALCHEMY_TEST_DATABASE_URI``.)
+          If your plugin has its own test suite, set your plugin's settings on the app config directly.
 
 
 Set config programmatically - Example of using a custom logo
