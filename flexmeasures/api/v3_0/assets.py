@@ -15,9 +15,9 @@ from flask_sqlalchemy.pagination import SelectPagination
 from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, Select
 from sqlalchemy import exc as sa_exc
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -429,6 +429,37 @@ class AssetTypesAPI(FlaskView):
         return response, 200
 
 
+def _eager_load_asset_relations_dumped_by(
+    query: Select, response_schema: Schema
+) -> Select:
+    """Eager-load the relations ``response_schema`` will dump, avoiding an N+1 lazy load per relation per asset.
+
+    ``owner`` and ``generic_asset_type`` are many-to-one, so ``joinedload`` is cheapest; ``sensors`` and
+    ``child_assets`` are one-to-many, so ``selectinload`` avoids row multiplication from the join.
+    Failing to install a loader is never fatal: the relation then simply lazy-loads as before.
+    """
+    try:
+        root_entity = query.column_descriptions[0]["entity"]
+    except (KeyError, IndexError, sa_exc.ArgumentError):
+        return query
+    loaders_by_field = {
+        "sensors": selectinload(root_entity.sensors),
+        "owner": joinedload(root_entity.owner),
+        "generic_asset_type": joinedload(root_entity.generic_asset_type),
+        "child_assets": selectinload(root_entity.child_assets),
+    }
+    try:
+        return query.options(
+            *(
+                loader
+                for field, loader in loaders_by_field.items()
+                if field in response_schema.dump_fields
+            )
+        )
+    except sa_exc.ArgumentError:
+        return query
+
+
 class AssetAPI(FlaskView):
     """
     This API view exposes generic assets.
@@ -570,15 +601,7 @@ class AssetAPI(FlaskView):
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
 
-        # Eager-load sensors only when the response schema will dump them, avoiding an N+1 lazy load per asset that made this endpoint take seconds on large catalogs.
-        # The loader is anchored on the query's own root entity, which is an aliased GenericAsset under search filters or owner sorting.
-        # Failing to install the loader is never fatal: sensors then simply lazy-load as before.
-        if "sensors" in response_schema.dump_fields:
-            try:
-                root_entity = query.column_descriptions[0]["entity"]
-                query = query.options(selectinload(root_entity.sensors))
-            except (KeyError, IndexError, sa_exc.ArgumentError):
-                pass
+        query = _eager_load_asset_relations_dumped_by(query, response_schema)
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
