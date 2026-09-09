@@ -103,6 +103,8 @@ def _spans_positive_time(duration: timedelta | isodate.Duration) -> bool:
 
     Nominal durations (such as "P1M") are not grounded to an actual time span here,
     because their sign does not depend on the time span they are grounded to.
+    Only years and months sit outside an isodate.Duration's tdelta;
+    its days and seconds are held by that tdelta, so checking it covers them both.
     """
     if isinstance(duration, isodate.Duration):
         return (
