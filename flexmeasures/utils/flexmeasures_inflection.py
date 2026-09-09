@@ -3,17 +3,12 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Sequence
 
-import inflect
 import inflection
 
-p = inflect.engine()
-
 # Give the inflection module some help for our domain
-inflection.UNCOUNTABLES.add("solar")
-inflection.UNCOUNTABLES.add("wind")
-inflection.UNCOUNTABLES.add("evse")
+inflection.UNCOUNTABLES.update(["solar", "wind", "evse"])
 ACRONYMS = ["EVSE"]
 
 
@@ -38,9 +33,21 @@ def parameterize(word):
 
 
 def pluralize(word, count: str | int | None = None, include_count: bool = False):
-    if word.lower().split()[-1] not in inflection.UNCOUNTABLES:
-        word = p.plural(word, count)
+    if word.lower().split()[-1] not in inflection.UNCOUNTABLES and count not in (
+        1,
+        "1",
+    ):
+        word = inflection.pluralize(word)
     return f"{count} {word}" if include_count else word
+
+
+def indefinite_article(word: str) -> str:
+    """Return "a" or "an", whichever fits in front of word, e.g. "power" -> "a", "energy price" -> "an".
+
+    This is a simple vowel-letter heuristic (not a full pronunciation lookup), good enough
+    for FlexMeasures' domain vocabulary (units, field names).
+    """
+    return "an" if word[:1].lower() in "aeiou" else "a"
 
 
 def titleize(word):
@@ -61,8 +68,22 @@ def titleize(word):
     return word
 
 
-def join_words_into_a_list(words: list[str]) -> str:
-    return p.join(words, final_sep="")
+def join_words_into_a_list(
+    words: Sequence[str], conj: str = "and", final_sep: str = ""
+) -> str:
+    """Join words into a human-readable list, e.g. ["a", "b", "c"] -> "a, b and c".
+
+    Pass final_sep="," for an Oxford comma before the conjunction (e.g. "a, b, and c"),
+    and conj="or" for a disjunction (e.g. "a, b or c").
+    """
+    words = list(words)
+    if not words:
+        return ""
+    if len(words) == 1:
+        return words[0]
+    if len(words) == 2:
+        return f"{words[0]} {conj} {words[1]}"
+    return f"{', '.join(words[:-1])}{final_sep} {conj} {words[-1]}"
 
 
 def atoi(text):
