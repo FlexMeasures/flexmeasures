@@ -67,6 +67,8 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
+    DurationField,
+    NominalDurationField,
     PlanningDurationField,
     ResolutionField,
 )
@@ -279,7 +281,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
             example="2026-01-15T10:00+01:00",
         ),
     )
-    duration = PlanningDurationField(
+    duration = NominalDurationField(
         load_default=PlanningDurationField.load_default,
         metadata=dict(
             description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
@@ -1062,6 +1064,11 @@ class SensorAPI(FlaskView):
                 f"Resolution of {resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
             )
 
+        # A planning horizon of a day or longer is counted on the sensor's calendar,
+        # so that scheduling "P1D" ahead covers 23 or 25 hours across a transition.
+        duration = DurationField.ground_from(
+            duration, start_of_schedule, timezone=sensor.timezone
+        )
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             asset_or_sensor=sensor,

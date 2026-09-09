@@ -7,8 +7,11 @@ from flask import current_app
 from marshmallow import fields, Schema, validates_schema
 from marshmallow.exceptions import ValidationError
 import isodate
+from isodate.isoduration import ISO8601_PERIOD_REGEX
 from isodate.isoerror import ISO8601Error
 import pandas as pd
+from pytz.exceptions import UnknownTimeZoneError
+from zoneinfo import ZoneInfoNotFoundError
 
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 
@@ -59,24 +62,152 @@ class DurationField(MarshmallowClickMixin, fields.Str):
 
     @staticmethod
     def ground_from(
-        duration: timedelta | isodate.Duration, start: datetime | None
-    ) -> timedelta:
+        duration: timedelta | isodate.Duration | pd.DateOffset,
+        start: datetime | None,
+        timezone: str | None = None,
+    ) -> timedelta | isodate.Duration | pd.DateOffset:
         """
-        For some valid duration strings (such as "P1M", a month),
-        converting to a datetime.timedelta is not possible (no obvious
-        number of days). In this case, `_deserialize` returned an
-        `isodate.Duration`. We can derive the timedelta by grounding to an
-        actual time span, for which we require a timezone-aware start datetime.
+        For some valid duration strings (such as "P1M", a month, or "P1D", a calendar day),
+        converting to a datetime.timedelta is not possible, as they span no obvious number of hours.
+        In that case, `_deserialize` returned an `isodate.Duration` or a `pandas.DateOffset`,
+        and we derive the timedelta by grounding it to an actual time span,
+        for which we require a timezone-aware start datetime.
+        Without such a start, the duration is returned as it came.
+
+        Pass a `timezone` (an IANA name, such as "Europe/Amsterdam") to say which calendar to count in.
+        This matters: a start datetime parsed from an ISO 8601 string carries a fixed UTC offset rather than a zone,
+        and a fixed offset never shifts, so counting against it would make every calendar day 24 hours long.
+        Without a timezone, the start is used as it comes.
+
+        Note that an isodate.Duration cannot say whether its days came from a calendar component ("P1D")
+        or from a time component ("PT24H"), so this counts all of them as calendar days.
+        For a duration such as "P1MT25H" starting just before a transition, that is an hour out.
+        NominalDurationField does not have this problem, because it reads the components off the ISO string itself.
         """
-        if isinstance(duration, isodate.Duration) and start:
-            years = duration.years
-            months = duration.months
-            days = duration.days
-            seconds = duration.tdelta.seconds
-            offset = pd.DateOffset(
-                years=years, months=months, days=days, seconds=seconds
+        if isinstance(duration, (isodate.Duration, pd.DateOffset)) and start:
+            if isinstance(duration, isodate.Duration):
+                offset = pd.DateOffset(
+                    years=duration.years,
+                    months=duration.months,
+                    days=duration.days,
+                    seconds=duration.tdelta.seconds,
+                )
+            else:
+                offset = duration
+            anchor = pd.Timestamp(start)
+            if timezone is not None and anchor.tzinfo is not None:
+                try:
+                    anchor = anchor.tz_convert(timezone)
+                except (UnknownTimeZoneError, ZoneInfoNotFoundError):
+                    # Which of the two is raised depends on whether pandas is backed by pytz or zoneinfo.
+                    # Either way, fall back to counting against whatever the start datetime carries.
+                    pass
+            # Subtract the two Timestamps rather than the datetimes they convert to.
+            # Python subtracts two datetimes sharing one zoneinfo timezone on wall-clock time,
+            # which would hide the very hour a transition adds or removes,
+            # whereas pandas always subtracts on the underlying instants.
+            return ((anchor + offset) - anchor).to_pytimedelta()
+        return duration
+
+
+class NominalDurationField(DurationField):
+    """Field for a duration that spans a window, and so is counted against the calendar.
+
+    ISO 8601 tells calendar spans and fixed spans apart, and so does this field:
+    "P1D" is one calendar day, which lasts 23 or 25 hours across a daylight saving time transition,
+    while "PT24H" is always exactly 24 hours.
+    A plain DurationField collapses both into 24 hours.
+    That is what most settings want (a training period, a staleness threshold, a retry frequency),
+    but not what a window wants: asking for "P1D" of data means asking for a day of the sensor's calendar.
+
+    A value carrying years, months, weeks or days therefore deserializes to a pandas DateOffset,
+    which keeps its calendar parts apart from its fixed parts.
+    Ground it with `DurationField.ground_from` before using it as a timedelta,
+    passing the timezone whose calendar to count in, usually the sensor's.
+    Note that isodate cannot draw this distinction itself:
+    with `as_timedelta_if_possible=False` it reports both "P1D" and "PT24H" as one day,
+    see https://github.com/gweis/isodate/issues/74.
+    """
+
+    #: The ISO 8601 components that are counted in calendar units rather than in fixed time.
+    nominal_components = ("years", "months", "weeks", "days")
+
+    def _deserialize(
+        self, value, attr, data, **kwargs
+    ) -> timedelta | isodate.Duration | pd.DateOffset:
+        """Deserialize to a DateOffset if the duration spans calendar units, else to a timedelta.
+
+        A value that carries no calendar units is passed on exactly as DurationField reported it,
+        which for a degenerate input such as "P0.5M" is an isodate.Duration.
+        """
+        # Run DurationField's parsing first, so that we accept and reject exactly what it does.
+        duration = super()._deserialize(value, attr, data, **kwargs)
+        match = ISO8601_PERIOD_REGEX.match(value)
+        if match is None:
+            # The alternative "P<datetime>" format, which DurationField parses separately.
+            return duration
+        groups = match.groupdict()
+        nominal = {
+            name: float(groups[name][:-1])
+            for name in self.nominal_components
+            if groups.get(name) is not None
+        }
+        if not any(nominal.values()):
+            return duration
+        if any(amount != int(amount) for amount in nominal.values()):
+            # A fraction of a calendar unit has no calendar meaning, so read the whole duration as fixed time.
+            return duration
+        # Every remaining component is a fixed amount of time, which is unambiguous in seconds.
+        # DurationField has already rejected anything finer than a minute, so this is a whole number.
+        fixed_seconds = int(
+            sum(
+                float(groups[name][:-1]) * unit_seconds
+                for name, unit_seconds in (
+                    ("hours", 3600),
+                    ("minutes", 60),
+                    ("seconds", 1),
+                )
+                if groups.get(name) is not None
             )
-            return (pd.Timestamp(start) + offset).to_pydatetime() - start
+        )
+        offset = pd.DateOffset(
+            **{name: int(amount) for name, amount in nominal.items()},
+            seconds=fixed_seconds,
+        )
+        return -offset if groups.get("sign") == "-" else offset
+
+
+def needs_a_calendar(duration: timedelta | isodate.Duration | pd.DateOffset) -> bool:
+    """Whether this duration can only be resolved by counting months on a calendar.
+
+    A duration in years or months has no length at all until it is placed on one,
+    where a day or a week still has a defensible fixed length of 24 or 168 hours.
+    """
+    if isinstance(duration, isodate.Duration):
+        return bool(duration.years or duration.months)
+    if isinstance(duration, pd.DateOffset):
+        kwds = duration.kwds
+        return bool(kwds.get("years") or kwds.get("months"))
+    return False
+
+
+class FixedDurationField(DurationField):
+    """Field for a duration that has to be a fixed amount of time.
+
+    Use this where there is no start to count a calendar span against,
+    so that a duration in years or months cannot be resolved at all.
+    Such a value is rejected here,
+    rather than travelling on as an isodate.Duration that the arithmetic downstream would choke on.
+    Days and weeks are fine: DurationField already reports those as a fixed number of hours.
+    """
+
+    def _deserialize(self, value, attr, data, **kwargs) -> timedelta:
+        duration = super()._deserialize(value, attr, data, **kwargs)
+        if isinstance(duration, isodate.Duration):
+            raise DurationValidationError(
+                f"FlexMeasures cannot interpret a duration in years or months here, got: {value}. "
+                "Say how long it should be in weeks, days, hours or minutes instead."
+            )
         return duration
 
 

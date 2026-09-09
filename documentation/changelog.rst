@@ -21,7 +21,6 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-
 * Automations: recurring tasks defined per asset, computing forecasts or schedules, managed with new CLI commands (``flexmeasures add|edit|delete automation``), run by ``flexmeasures jobs run-automations``, and viewable in a new UI page and API endpoints (``[GET] /assets/(id)/automations``); each automation interprets its recurrence in its own timezone, and runs missed while the runner was down are caught up once, coalesced into one current forecast; a forecast automation points at a data source holding its forecaster configuration, while a schedule automation stores what the schedule trigger endpoint accepts, and schedules from each run's own time, unless the trigger message fixes a ``start``; an automation's details link to the sensors it reads from and writes to, a sensor's page lists the automations feeding it, and deleting a sensor warns about the automations that use it; jobs now also record whether they were created via the CLI, the API or an automation [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_, `PR #2396 <https://www.github.com/FlexMeasures/flexmeasures/pull/2396>`_ and `PR #2293 <https://www.github.com/FlexMeasures/flexmeasures/pull/2293>`_]
 * A scheduler's data source now also records the flex config the scheduler computed under, so a schedule can be traced back to the configuration that produced it, and a schedule automation points at such a data source, the way a forecast automation points at its forecaster's [see `PR #2444 <https://www.github.com/FlexMeasures/flexmeasures/pull/2444>`_]
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
@@ -49,7 +48,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-
+* Asking the API for a window of a day or longer, or scheduling that far ahead, now follows the calendar, as ISO 8601 says it should: a ``P1D`` window of a sensor in Europe/Amsterdam covers 23 hours on the day daylight saving time starts and 25 on the day it ends, where it used to always cover 24, while ``PT24H`` keeps meaning exactly 24 hours [see `PR #2506 <https://www.github.com/FlexMeasures/flexmeasures/pull/2506>`_]
+* Asking for a schedule with a duration in years or months now gets a clear validation error instead of a server error [see `PR #2506 <https://www.github.com/FlexMeasures/flexmeasures/pull/2506>`_]
 * Triggering a schedule no longer fails with a server error when a device's output sensor is referenced by ID rather than by a sensor the scheduler already resolved [see `PR #2507 <https://www.github.com/FlexMeasures/flexmeasures/pull/2507>`_]
 * Asking the API for sensor data, a chart or a schedule at a resolution that spans no time (such as ``PT0S``), or at a negative one, now gets the same clear rejection as any other unsupported resolution, instead of a server error or a silently empty result [see `PR #2502 <https://www.github.com/FlexMeasures/flexmeasures/pull/2502>`_]
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
@@ -68,7 +68,6 @@ Bugfixes
 * ``flexmeasures jobs run-job`` ran each job twice, and always as if it were a scheduling job, which lost the queue-specific reporting of why a job failed [see `PR #2480 <https://www.github.com/FlexMeasures/flexmeasures/pull/2480>`_]
 * An asset's status page showed only some of the sensors it reported on, in an order that changed between reloads, and it reported on fixed quantities from the flex-context, which have no data to be up to date with [see `PR #2489 <https://www.github.com/FlexMeasures/flexmeasures/pull/2489>`_]
 * A plugin listed in ``FLEXMEASURES_PLUGINS`` by name is now imported by name, instead of being loaded from a folder of that name in the working directory (which is easily the case when starting FlexMeasures from the plugin's own repository), where it appeared to load but its routes and CLI commands went missing; spell out a path (e.g. ``./my_plugin``) to load such a folder on purpose, and such a path that does not exist is now reported as missing rather than quietly resolved as a package name [see `PR #2419 <https://www.github.com/FlexMeasures/flexmeasures/pull/2419>`_]
-
 
 
 v1.0.0 | August 25, 2026
@@ -97,7 +96,6 @@ v1.0.0 | August 25, 2026
 
 New features
 -------------
-
 * ``flexmeasures show data-sources`` now shows which organisation a data source belongs to, and can list the sensors holding data recorded by a given source [see `PR #2401 <https://www.github.com/FlexMeasures/flexmeasures/pull/2401>`_]
 * The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #1946 <https://www.github.com/FlexMeasures/flexmeasures/pull/1946>`_, `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_, `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_, `PR #2271 <https://www.github.com/FlexMeasures/flexmeasures/pull/2271>`_, `PR #2355 <https://www.github.com/FlexMeasures/flexmeasures/pull/2355>`_ and `PR #2380 <https://www.github.com/FlexMeasures/flexmeasures/pull/2380>`_]
 * Support multiple feeders to a shared storage [see `PR #2001 <https://www.github.com/FlexMeasures/flexmeasures/pull/2001>`_, `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_, `PR #2322 <https://www.github.com/FlexMeasures/flexmeasures/pull/2322>`_, `PR #2325 <https://www.github.com/FlexMeasures/flexmeasures/pull/2325>`_ and `PR #2431 <https://www.github.com/FlexMeasures/flexmeasures/pull/2431>`_]
@@ -141,7 +139,6 @@ New features
 
 Infrastructure / Support
 -------------------------
-
 * Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
 * Standardize job-trigger API responses to return ``202 Accepted`` and a canonical ``job`` field, and likewise return ``202 Accepted`` when polling a schedule whose job has not finished yet; legacy response fields such as ``schedule`` and ``forecast`` are preserved for backward-compatibility but marked deprecated with migration guidance in :ref:`api_background_jobs`. Hosts still serving clients that require synchronous ingestion or the previous trigger and schedule-polling status codes can opt individual assets back in, see :ref:`legacy-job-client-config` [see `PR #2224 <https://github.com/FlexMeasures/flexmeasures/pull/2224>`_, `PR #2429 <https://github.com/FlexMeasures/flexmeasures/pull/2429>`_ and `PR #2432 <https://github.com/FlexMeasures/flexmeasures/pull/2432>`_].
 * Warn on startup when ``TRUSTED_HOSTS`` is unset, as that lets clients poison the URLs FlexMeasures generates, such as password reset links; the setting can now also be given as a comma-separated environment variable, and the ``development`` environment trusts loopback hosts by default (so reaching a development server by its LAN address or through a tunnel now means listing that host) [see `PR #2389 <https://www.github.com/FlexMeasures/flexmeasures/pull/2389>`_]

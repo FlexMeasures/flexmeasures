@@ -23,6 +23,7 @@ from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import (
     AwareDateTimeField,
     DurationField,
+    NominalDurationField,
     ResolutionField,
     SourceIdField,
 )
@@ -78,6 +79,19 @@ def select_schema_to_ensure_list_of_floats(
         return SingleValueField()
 
 
+def ground_duration(data: dict) -> timedelta:
+    """Ground the requested duration against the requested start, in the sensor's timezone.
+
+    ISO 8601 durations of a day or longer describe calendar spans, not fixed amounts of time:
+    "P1D" is 23 or 25 hours across a daylight saving time transition, and "P1M" is 28 to 31 days.
+    The sensor's timezone says which calendar to count in;
+    the start datetime alone cannot, because it arrives carrying a fixed UTC offset rather than a zone.
+    """
+    return DurationField.ground_from(
+        data["duration"], data["start"], timezone=data["sensor"].timezone
+    )
+
+
 class SensorDataTimingDescriptionSchema(ma.Schema):
     """
     Schema describing sensor data (specifically, the timing of the data).
@@ -91,7 +105,7 @@ class SensorDataTimingDescriptionSchema(ma.Schema):
             example="2026-01-15T10:00+01:00",
         ),
     )
-    duration = DurationField(
+    duration = NominalDurationField(
         required=True,
         metadata=dict(
             description="Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
@@ -257,8 +271,8 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
         """
         sensor: Sensor = sensor_data_description["sensor"]
         start = sensor_data_description["start"]
-        duration = sensor_data_description["duration"]
-        end = sensor_data_description["start"] + duration
+        duration = ground_duration(sensor_data_description)
+        end = start + duration
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
         source = sensor_data_description.get("source")
@@ -393,7 +407,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         """Reject inputs where a non-instantaneous sensor cannot infer any resolution."""
 
         required_resolution = data["sensor"].event_resolution
-        inferred_resolution = data["duration"] / len(data["values"])
+        inferred_resolution = ground_duration(data) / len(data["values"])
 
         if (
             required_resolution != timedelta(hours=0)
@@ -421,7 +435,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
         # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
         # The event resolution is assumed to be equal to the event frequency.
-        inferred_resolution = data["duration"] / len(data["values"])
+        inferred_resolution = ground_duration(data) / len(data["values"])
         if inferred_resolution % required_resolution != timedelta(
             hours=0
         ) and required_resolution % inferred_resolution != timedelta(hours=0):
@@ -435,7 +449,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         That is, two values spanning the same moment (a zero duration).
         """
 
-        if len(data["values"]) > 1 and data["duration"] / len(
+        if len(data["values"]) > 1 and ground_duration(data) / len(
             data["values"]
         ) == timedelta(0):
             raise ValidationError(
@@ -474,7 +488,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             data["values"],
             from_unit=data["unit"],
             to_unit=data["sensor"].unit,
-            event_resolution=data["duration"] / len(data["values"]),
+            event_resolution=ground_duration(data) / len(data["values"]),
         )
         return data
 
@@ -491,7 +505,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
         # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
         # The event resolution is assumed to be equal to the event frequency.
-        inferred_resolution = data["duration"] / len(data["values"])
+        inferred_resolution = ground_duration(data) / len(data["values"])
 
         # we already know resolutions are compatible (see validation)
         if inferred_resolution != required_resolution:
@@ -523,7 +537,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         """
         source = get_or_create_source(self.source_user or current_user)
         num_values = len(sensor_data["values"])
-        event_resolution = sensor_data["duration"] / num_values
+        event_resolution = ground_duration(sensor_data) / num_values
         start = sensor_data["start"]
         sensor = sensor_data["sensor"]
 
@@ -572,7 +586,7 @@ class PostSensorDataRequestSchema(PostSensorDataSchema):
         sensor_data = {
             "values": data["values"],
             "start": datetime_isoformat(data["start"]),
-            "duration": duration_isoformat(data["duration"]),
+            "duration": duration_isoformat(ground_duration(data)),
             "unit": data["unit"],
         }
         if "prior" in data:

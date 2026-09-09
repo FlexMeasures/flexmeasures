@@ -64,7 +64,7 @@ from flexmeasures.data.queries.generic_assets import (
     query_assets_by_search_terms,
 )
 from flexmeasures.data.queries.utils import id_prefix_filter
-from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.reporting import ReportTriggerSchema
 from flexmeasures.data.services.data_generators import (
@@ -2282,6 +2282,11 @@ class AssetAPI(FlaskView):
           tags:
               - Assets
         """
+        # A planning horizon of a day or longer is counted on the asset's calendar,
+        # so that scheduling "P1D" ahead covers 23 or 25 hours across a transition.
+        duration = DurationField.ground_from(
+            duration, start_of_schedule, timezone=asset.timezone
+        )
         end_of_schedule = start_of_schedule + duration
 
         scheduler_kwargs = dict(

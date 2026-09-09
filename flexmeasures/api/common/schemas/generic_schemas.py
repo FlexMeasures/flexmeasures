@@ -1,7 +1,13 @@
+from flask import current_app
 from marshmallow import Schema, fields, validate, post_load, ValidationError
+
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.utils import SupportsLegacyFieldAliases
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    NominalDurationField,
+)
 
 
 class PaginationSchema(SupportsLegacyFieldAliases, Schema):
@@ -72,7 +78,7 @@ class EventWindowSchema(SupportsLegacyFieldAliases, Schema):
             example="2025-05-06T00:00:00+02:00",
         ),
     )
-    duration = DurationField(
+    duration = NominalDurationField(
         required=False,
         metadata=dict(
             description="Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
@@ -87,13 +93,20 @@ class EventWindowSchema(SupportsLegacyFieldAliases, Schema):
             return data
         has_start = "event_starts_after" in data
         has_end = "event_ends_before" in data
+        # Nominal durations (e.g. "P1D" or "P1M") can't be added to a datetime directly,
+        # so ground them to a concrete timedelta relative to the known bound first.
+        # These endpoints take the sensor or asset in the path rather than in this schema,
+        # so there is no sensor timezone to count in here, and we fall back to the instance-wide one.
+        timezone = current_app.config.get("FLEXMEASURES_TIMEZONE")
         if has_start and not has_end:
-            # Nominal durations (e.g. "P1M") can't be added to a datetime directly,
-            # so ground them to a concrete timedelta relative to the known bound first.
-            grounded = DurationField.ground_from(duration, data["event_starts_after"])
+            grounded = DurationField.ground_from(
+                duration, data["event_starts_after"], timezone=timezone
+            )
             data["event_ends_before"] = data["event_starts_after"] + grounded
         elif has_end and not has_start:
-            grounded = DurationField.ground_from(-duration, data["event_ends_before"])
+            grounded = DurationField.ground_from(
+                -duration, data["event_ends_before"], timezone=timezone
+            )
             data["event_starts_after"] = data["event_ends_before"] + grounded
         elif not has_start and not has_end:
             raise ValidationError(

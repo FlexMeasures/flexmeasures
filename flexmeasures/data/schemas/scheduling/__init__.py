@@ -41,6 +41,8 @@ from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     DurationField,
+    FixedDurationField,
+    NominalDurationField,
     PlanningDurationField,
     ResolutionField,
 )
@@ -1798,7 +1800,7 @@ class AssetTriggerSchema(Schema):
         "By default, the most recent sensor data is used. This field is especially useful for running simulations.",
         example="2026-01-15T10:00+01:00",
     )
-    duration = PlanningDurationField(
+    duration = NominalDurationField(
         load_default=PlanningDurationField.load_default,
         metadata=dict(
             description="The duration for which to create the schedule, also known as the planning horizon, in ISO 8601 duration format.",
@@ -1944,7 +1946,10 @@ class ScheduleSignConvention:
 class GetScheduleSchema(Schema):
     sensor = SensorIdField(required=True, data_key="id")
     job_id = fields.Str(required=True, data_key="uuid")
-    duration = DurationField(load_default=timedelta(hours=6))
+    # This schema carries no start to count a calendar span against,
+    # and the duration is compared against the planning horizon before the schedule's own start is known,
+    # so a duration in years or months is refused rather than crashing that comparison.
+    duration = FixedDurationField(load_default=timedelta(hours=6))
     unit = UnitField(load_default=None)
     sign_convention = fields.Str(
         data_key="sign-convention",

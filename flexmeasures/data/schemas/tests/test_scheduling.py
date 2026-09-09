@@ -1,11 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import pytest
 
 from marshmallow.validate import ValidationError
 import pandas as pd
 
-from flexmeasures.data.schemas.scheduling import FlexContextSchema, DBFlexContextSchema
+from flexmeasures.data.schemas.scheduling import (
+    FlexContextSchema,
+    DBFlexContextSchema,
+    GetScheduleSchema,
+)
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
@@ -40,17 +44,17 @@ from flexmeasures.utils.unit_utils import ur
             "2023-03-26T00:00:00+01:00",
             "2023-03-27T01:00:00+02:00",
         ),
-        # https://github.com/gweis/isodate/issues/74
-        # (
-        #     {"start": "2023-03-26T00:00:00+01:00", "duration": "P1D"},
-        #     "2023-03-26T00:00:00+01:00",
-        #     "2023-03-27T00:00:00+02:00",
-        # ),
-        # (
-        #     {"start": "2023-03-26T00:00:00+01:00", "duration": "P1W"},
-        #     "2023-03-26T00:00:00+01:00",
-        #     "2023-04-02T00:00:00+02:00",
-        # ),
+        # a calendar day and a calendar week are an hour shorter across the start of DST.
+        (
+            {"start": "2023-03-26T00:00:00+01:00", "duration": "P1D"},
+            "2023-03-26T00:00:00+01:00",
+            "2023-03-27T00:00:00+02:00",
+        ),
+        (
+            {"start": "2023-03-26T00:00:00+01:00", "duration": "P1W"},
+            "2023-03-26T00:00:00+01:00",
+            "2023-04-02T00:00:00+02:00",
+        ),
         (
             {"start": "2023-03-26T00:00:00+01:00", "duration": "P1M"},
             "2023-03-26T00:00:00+01:00",
@@ -66,17 +70,17 @@ from flexmeasures.utils.unit_utils import ur
             "2023-10-29T00:00:00+02:00",
             "2023-10-29T23:00:00+01:00",
         ),
-        # https://github.com/gweis/isodate/issues/74
-        # (
-        #     {"start": "2023-10-29T00:00:00+02:00", "duration": "P1D"},
-        #     "2023-10-29T00:00:00+02:00",
-        #     "2023-10-30T00:00:00+01:00",
-        # ),
-        # (
-        #     {"start": "2023-10-29T00:00:00+02:00", "duration": "P1W"},
-        #     "2023-10-29T00:00:00+02:00",
-        #     "2023-11-05T00:00:00+01:00",
-        # ),
+        # and an hour longer across the end of it.
+        (
+            {"start": "2023-10-29T00:00:00+02:00", "duration": "P1D"},
+            "2023-10-29T00:00:00+02:00",
+            "2023-10-30T00:00:00+01:00",
+        ),
+        (
+            {"start": "2023-10-29T00:00:00+02:00", "duration": "P1W"},
+            "2023-10-29T00:00:00+02:00",
+            "2023-11-05T00:00:00+01:00",
+        ),
         (
             {"start": "2023-10-29T00:00:00+02:00", "duration": "P1M"},
             "2023-10-29T00:00:00+02:00",
@@ -2203,3 +2207,36 @@ def test_explicit_device_breach_price_is_not_overwritten():
     # The opposite direction is left alone too:
     # pricing one direction explicitly puts the caller in charge of both, rather than mixing their price with our default.
     assert loaded.get("production_breach_price") is None
+
+
+@pytest.mark.parametrize("duration", ["P1D", "PT24H", "P2W"])
+def test_get_schedule_schema_yields_a_timedelta(db, app, setup_dummy_sensors, duration):
+    """The schedule endpoint compares this duration against the planning horizon.
+
+    This schema carries no start to count a calendar span against,
+    so its duration has to come out as a plain timedelta rather than as a calendar offset.
+    """
+    sensor, _, _, _ = setup_dummy_sensors
+    data = GetScheduleSchema().load(
+        {"id": sensor.id, "uuid": "some-job-id", "duration": duration}
+    )
+    assert isinstance(data["duration"], timedelta)
+    # this is what the endpoint does with it.
+    assert min(data["duration"], timedelta(hours=48)) is not None
+
+
+@pytest.mark.parametrize("duration", ["P1M", "P1Y"])
+def test_get_schedule_schema_refuses_a_duration_it_cannot_resolve(
+    db, app, setup_dummy_sensors, duration
+):
+    """A duration in years or months has no fixed length, and this schema has no start to resolve it against.
+
+    It used to travel on as an isodate.Duration and crash the comparison against the planning horizon,
+    which the endpoint reported as a bare 500.
+    """
+    sensor, _, _, _ = setup_dummy_sensors
+    with pytest.raises(ValidationError) as ve:
+        GetScheduleSchema().load(
+            {"id": sensor.id, "uuid": "some-job-id", "duration": duration}
+        )
+    assert "cannot interpret a duration in years or months here" in str(ve.value)

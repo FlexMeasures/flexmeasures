@@ -5,6 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-36 | September 9, 2026
+"""""""""""""""""""""""""""
+- A ``duration`` of a day or longer is now read as a calendar span rather than as a fixed number of hours, following ISO 8601. Over a daylight saving time transition, a ``P1D`` window therefore covers 23 or 25 hours instead of always 24, and ``P1W``, ``P1M`` and ``P1Y`` shift likewise. The calendar counted in is the sensor's own timezone (the asset's, for asset-level scheduling), or ``FLEXMEASURES_TIMEZONE`` on the ``chart``/``chart_data``/``chart_annotations`` endpoints, which take the sensor or asset in the path rather than as a field. Durations given in hours or smaller are unaffected: ``PT24H`` still means exactly 24 hours, which is now a different request from ``P1D``. This applies to ``duration`` on ``GET`` and ``POST /api/v3_0/sensors/<id>/data``, on the event-window fields of the chart endpoints, on the ``POST`` schedule trigger endpoints (where it is the planning horizon), and on the flex-model fields that describe a value over a time span (such as ``soc-minima``).
+- Fixed: a ``duration`` of ``P1M`` or ``P1Y`` on ``GET /api/v3_0/sensors/<id>/data`` was echoed back as ``PT0H``, and is now echoed as the span actually served.
+- Fixed: a ``duration`` of ``P1M`` or ``P1Y`` on ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` answered with a ``500``. That endpoint receives no start to count a calendar span against, so such a duration is now rejected with a ``422 (Unprocessable Entity)`` naming the units it can take instead.
+
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
 - The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
