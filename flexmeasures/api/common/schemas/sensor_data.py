@@ -20,7 +20,12 @@ from flexmeasures.api.common.schemas.sensors import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    ResolutionField,
+    SourceIdField,
+)
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
@@ -154,7 +159,7 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
 class GetSensorDataFilterSchemaMixin:
     """Shared filters for GET sensor data request parsing and docs."""
 
-    resolution = DurationField(
+    resolution = ResolutionField(
         required=False,
         metadata=dict(
             description="Resolution of the returned sensor data in ISO 8601 duration format.",
