@@ -118,6 +118,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     };
   }
 
+  // Cells below are rendered as HTML and carry user-defined names, so escape what goes into them.
+  function escapeHtml(text) {
+    return String(text ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function JobRow(job) {
     const jobStatusMessage = job.err ? `${job.status}: ${job.err}` : job.status;
     const jobStatusIcon = job.status === "finished" ? "🟢" :
@@ -135,12 +142,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         </span>
       `,
       queue: job.queue,
-      entity: job.entity,
-      // escape, as this cell is rendered as HTML and may contain a user-defined automation name
-      created_via: String(job.created_via || "").replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-      }[c])),
-      status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
+      asset: `${escapeHtml(job.asset_name)} (<a href="/assets/${job.asset_id}">${job.asset_id}</a>)`,
+      entity: escapeHtml(job.entity),
+      created_via: escapeHtml(job.created_via),
+      status: `<span title="${escapeHtml(jobStatusMessage)}">${jobStatusIcon}</span>`,
       info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
         <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
           <div class="modal-dialog"><div class="modal-content">
@@ -205,6 +210,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
         { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
         { data: "queue", title: "Queue", orderable: true},
+        { data: "asset", title: "Asset", orderable: false},
         { data: "entity", title: "Entity", orderable: false},
         { data: "created_via", title: "Created Via", orderable: false},
         { data: "status", title: "Status", className: "text-right", orderable: false},

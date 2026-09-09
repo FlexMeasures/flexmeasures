@@ -596,6 +596,13 @@ def test_build_asset_jobs_data_includes_child_assets(
     assert scheduling_job.id in {
         json.loads(job_data["metadata"])["job_id"] for job_data in jobs_data
     }, "the building lists the job triggered on the battery below it"
+    reported_job = [
+        job_data for job_data in jobs_data if job_data["job_id"] == scheduling_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        battery_asset.id,
+        battery_asset.name,
+    ), "a job on a sensor names the asset that sensor belongs to, which its entity does not say"
 
     own_jobs_data = build_asset_jobs_data(building_asset, include_child_assets=False)
     assert scheduling_job.id not in {

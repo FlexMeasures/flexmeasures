@@ -2273,6 +2273,13 @@ def test_get_jobs_of_child_assets(
     assert f"asset: {child.name} (Id: {child.id})" in [
         job["entity"] for job in response.json["jobs"]
     ], "the job is reported against the child asset it was triggered on"
+    reported_job = [
+        job for job in response.json["jobs"] if job["job_id"] == child_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        child.id,
+        child.name,
+    ), "the job names the asset it happened on, rather than the asset that was asked about"
 
     response = client.get(
         url_for("AssetAPI:get_jobs", id=parent.id),

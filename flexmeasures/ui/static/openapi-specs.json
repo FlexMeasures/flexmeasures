@@ -3930,7 +3930,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.\nPass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.\n",
+        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.\nPass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3971,6 +3971,8 @@
                           "queue": "scheduling",
                           "asset_or_sensor_type": "asset",
                           "asset_id": 1,
+                          "asset_name": "my battery",
+                          "entity": "asset: my battery (Id: 1)",
                           "status": "finished",
                           "err": null,
                           "enqueued_at": "2023-10-01T00:00:00",

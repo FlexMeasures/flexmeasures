@@ -808,7 +808,10 @@ def _can_read_automation(automation: Automation | None) -> bool:
 
 
 def _collect_asset_jobs(asset: Asset) -> list[tuple]:
-    """List the cached jobs of one asset and of its own sensors, as (queue, entity type, entity id, entity name, jobs) tuples."""
+    """List the cached jobs of one asset and of its own sensors.
+
+    Each tuple is (queue, entity type, entity id, entity name, jobs), and the asset the jobs happened on is the one passed in.
+    """
     jobs = list()
 
     # try to get scheduling jobs for asset first (only scheduling jobs can be stored by asset id)
@@ -850,7 +853,9 @@ def build_asset_jobs_data(
                                  - job_id: id of a job
                                  - queue: job queue (scheduling or forecasting)
                                  - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
-                                 - asset_id: id of sensor or asset
+                                 - asset_id: id of the asset the job happened on
+                                 - asset_name: name of the asset the job happened on
+                                 - entity: the asset or sensor the job was triggered on
                                  - status: job status (e.g finished, failed, etc)
                                  - err: job error (equals to None when there was no error for a job)
                                  - enqueued_at: time when the job was enqueued
@@ -861,11 +866,21 @@ def build_asset_jobs_data(
 
     jobs = list()
     for asset_to_report_on in assets:
-        jobs.extend(_collect_asset_jobs(asset_to_report_on))
+        # Pair each entry with the asset it came from, so that every job can name the asset it happened on.
+        jobs.extend(
+            (asset_to_report_on, entry)
+            for entry in _collect_asset_jobs(asset_to_report_on)
+        )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
-    for queue, asset_or_sensor_type, entity_id, entity_name, jobs in jobs:
+    for job_asset, (
+        queue,
+        asset_or_sensor_type,
+        entity_id,
+        entity_name,
+        jobs,
+    ) in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -901,6 +916,8 @@ def build_asset_jobs_data(
                     "metadata": metadata,
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
+                    "asset_id": job_asset.id,
+                    "asset_name": job_asset.name,
                     "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,

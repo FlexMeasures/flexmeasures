@@ -210,6 +210,7 @@ For each asset, you can also visit a status page to see if your data connectivit
 For data connectivity, all sensors on the asset's graph page and from its flex context are tracked.
 
 For jobs, those of the asset's sub-assets are listed as well, so that a site asset shows what happened anywhere below it, even when jobs are triggered on a child asset.
+The *Asset* column names the asset each job happened on, which is what tells the levels apart.
 Switch off "Include jobs of sub-assets" to list only the jobs of the asset itself, and we will remember that for the rest of your session.
 
 Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.

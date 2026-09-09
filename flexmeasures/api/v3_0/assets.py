@@ -1742,6 +1742,7 @@ class AssetAPI(FlaskView):
 
             By default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.
             Pass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.
+            Each job names the asset it happened on, in `asset_id` and `asset_name`.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1771,6 +1772,8 @@ class AssetAPI(FlaskView):
                             queue: scheduling
                             asset_or_sensor_type: asset
                             asset_id: 1
+                            asset_name: my battery
+                            entity: "asset: my battery (Id: 1)"
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
