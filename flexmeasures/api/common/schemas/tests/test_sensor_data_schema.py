@@ -392,6 +392,38 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
     asset.sensors_to_show = []
 
 
+def test_asset_sensors_metadata_skips_fixed_value_sensors(db, add_weather_sensors):
+    """
+    Regression test: the status page listed the fixed-value sensors that stand in for flex-config quantities,
+    and then queried the status endpoint for their negative IDs, which cannot resolve to a sensor.
+    """
+    asset = add_weather_sensors["asset"]
+    wind_sensor = add_weather_sensors["wind"]
+
+    # Flush to ensure the asset and its sensors have database IDs before referring to them.
+    db.session.flush()
+
+    asset.flex_context = {"site-power-capacity": "1 MW"}
+    asset.sensors_to_show = [
+        {"title": "Wind", "sensor": wind_sensor.id},
+        {
+            "title": "Capacity",
+            "plots": [{"asset": asset.id, "flex-context": "site-power-capacity"}],
+        },
+    ]
+    db.session.add(asset)
+
+    status_data = get_asset_sensors_metadata(asset=asset)
+
+    sensor_ids = [s["id"] for s in status_data]
+    assert wind_sensor.id in sensor_ids
+    assert not [sensor_id for sensor_id in sensor_ids if sensor_id < 0]
+
+    # Reset module-scoped fixture state so later tests are not affected.
+    asset.sensors_to_show = []
+    asset.flex_context = {}
+
+
 def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):

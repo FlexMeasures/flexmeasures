@@ -331,6 +331,17 @@ class DefaultAssetViewJSONSchema(Schema):
     )
 
 
+class StatusPageTabJSONSchema(Schema):
+    status_page_tab = fields.Str(
+        required=True,
+        validate=validate.OneOf(["jobs", "sensors"]),
+        metadata={
+            "enum": ["jobs", "sensors"],
+            "description": "The tab to open on the asset's status page.",
+        },
+    )
+
+
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
@@ -1397,7 +1408,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
@@ -1469,8 +1480,8 @@ class AssetAPI(FlaskView):
           summary: Get details of one automation defined on an asset.
           description: |
             In addition to the fields shown when listing automations, the response shows
-            the automation's parameters (for forecasts, these are the forecast parameters
-            used on each run), information about the data generator that runs it,
+            the automation's parameters (forecast parameters or a schedule trigger message),
+            information about its data generator (null for schedule automations),
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
@@ -1838,6 +1849,61 @@ class AssetAPI(FlaskView):
 
         return {
             "message": "Default asset view updated successfully.",
+        }, 200
+
+    @route("/status_page_tab", methods=["POST"])
+    @as_json
+    @use_kwargs(StatusPageTabJSONSchema, location="json")
+    def update_status_page_tab(self, **kwargs):
+        """
+        .. :quickref: Assets; Remember which tab of the asset status page the current user last opened.
+        ---
+        post:
+          summary: Remember which tab of the asset status page the current user last opened.
+          description: |
+            The status page shows a sensor data tab and a jobs tab, of which only the opened one loads its data.
+            This endpoint records the user's choice in their session, so their next visit to a status page opens the same tab.
+            Without a recorded choice, the jobs tab opens.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: StatusPageTabJSONSchema
+                examples:
+                  status_page_tab:
+                    summary: Opening the sensor data tab from now on
+                    value:
+                      status_page_tab: "sensors"
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Preferred status page tab updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Update the request.values, as that is where set_session_variables reads from.
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        set_session_variables("status_page_tab")
+
+        return {
+            "message": "Preferred status page tab updated successfully.",
         }, 200
 
     @route("/keep_legends_below_graphs", methods=["POST"])
@@ -2222,10 +2288,11 @@ class AssetAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,  # server time if no prior time was sent
-            resolution=resolution,
             flex_model=flex_model,
             flex_context=flex_context,
         )
+        if resolution is not None:
+            scheduler_kwargs["resolution"] = resolution
         if sequential:
             f = create_sequential_scheduling_job
         else:
@@ -2235,6 +2302,7 @@ class AssetAPI(FlaskView):
                 asset=asset,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
                 **scheduler_kwargs,
             )
         except ValidationError as err:
@@ -2338,13 +2406,17 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            # The beliefs the chart draws: one value per event, the most recent one.
-            # Aggregating belief rows instead would count a revision on top of what it revised,
-            # and would count each source separately when several report the same sensor.
+            # One value per event, which is what a KPI reduces.
+            # Aggregating belief rows instead would count a revision on top of the belief it revised,
+            # and would count each source separately when several report the same event,
+            # so that a total came out higher than anything anyone reported.
+            # Where several do report an event, the value is the one from the latest source version,
+            # and from the most recent belief within that.
             beliefs = sensor.search_beliefs(
                 event_starts_after=start,
                 event_ends_before=end,
                 most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
             # Count each event once, under the window it starts in.
             # The search also returns events that merely overlap the window, which the chart draws,

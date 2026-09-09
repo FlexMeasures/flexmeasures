@@ -16,6 +16,8 @@ from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
 from marshmallow import Schema, fields
 
+from packaging.version import Version
+
 from flexmeasures import __version__ as fm_version
 from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.api.v3_0.sensors import (
@@ -39,6 +41,7 @@ from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
     DefaultAssetViewJSONSchema,
+    StatusPageTabJSONSchema,
 )
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
@@ -165,9 +168,10 @@ def create_openapi_specs(app: Flask):
     Create OpenAPI specs for the API and save them to a JSON file in the static folder.
     This function should be called when generating docs (and needs extra dependencies).
     """
-    version = ".".join(
-        fm_version.split(".")[:3]
-    )  # only keep major, minor and patch parts
+    # Only keep major, minor and patch: a naive dot-split mistakes a pre-release suffix
+    # glued onto the patch number (e.g. "1.1.0rc2") for part of the version itself.
+    parsed_version = Version(fm_version)
+    version = f"{parsed_version.major}.{parsed_version.minor}.{parsed_version.micro}"
     platform_name = app.config.get("FLEXMEASURES_PLATFORM_NAME", "FlexMeasures")
     token_header_name = app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
 
@@ -226,6 +230,7 @@ def create_openapi_specs(app: Flask):
         ("ReportTriggerSchema", ReportTriggerSchema),
         ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
+        ("StatusPageTabJSONSchema", StatusPageTabJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountCreateSchema", AccountCreateSchema()),
         ("AccountPatchSchema", AccountPatchSchema()),
