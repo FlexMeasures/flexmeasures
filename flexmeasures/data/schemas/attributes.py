@@ -1,7 +1,6 @@
 from typing import Any
 import json
 
-from altair.vegalite.schema import Interpolate
 from marshmallow import fields, ValidationError
 
 
@@ -27,4 +26,8 @@ class JSON(fields.Field):
 def validate_special_attributes(key: str, value: Any):
     """Validate attributes with a special meaning in FlexMeasures."""
     if key == "interpolate":
+        # Deferred: altair is only needed here, so we keep it out of
+        # FlexMeasures' eager app-boot import chain.
+        from altair.vegalite.schema import Interpolate
+
         Interpolate.validate(value)

@@ -8,6 +8,7 @@ live connections across processes, corrupting query results under concurrent loa
 in ``post_fork`` forces each worker to open its own connections on first use.
 """
 
+
 def post_fork(_server, _worker):
     # Imported here, not at module level: gunicorn loads this config file before --preload
     # loads the app, and importing wsgi here would trigger a second, redundant create_app().
