@@ -93,7 +93,7 @@ services:
       else
         echo "Not creating toy account (already happened once). You can run 'flexmeasures add toy-account' any time."
       fi
-      gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
+      gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 --preload --config gunicorn.conf.py wsgi:application
   worker:
     build:
       context: .

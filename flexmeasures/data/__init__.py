@@ -104,6 +104,7 @@ def register_at(app: Flask):
         )
 
         revision_status = get_database_schema_revision_status(app)
+        app.database_schema_revision_status = revision_status
         app.database_schema_is_migrated_to_head = revision_status.is_migrated_to_head
         if (
             not app.database_schema_is_migrated_to_head
