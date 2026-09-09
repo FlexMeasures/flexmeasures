@@ -1078,6 +1078,7 @@ class SensorAPI(FlaskView):
                 **scheduler_kwargs,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
             )
         except ValidationError as err:
             return unprocessable_entity(err.messages)

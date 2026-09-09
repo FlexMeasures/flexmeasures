@@ -1,6 +1,4 @@
-"""
-Automations: recurring tasks (for now: forecasting) defined per asset.
-"""
+"""Automations: recurring forecasting or scheduling tasks defined per asset."""
 
 from __future__ import annotations
 
@@ -35,14 +33,18 @@ def get_initial_cursor() -> datetime:
 class Automation(db.Model, AuthModelMixin):
     """A recurring task on an asset, such as computing forecasts.
 
-    The recurrence is defined by a cron string, and the work to be done is defined
-    by a data generator (e.g. a forecaster, linked through a data source) together
-    with the parameters to call it with.
+    The recurrence is defined by a cron string.
+    Every automation has a data generator, linked through a data source:
+    a forecaster and its configuration for a forecast automation,
+    and a scheduler and the flex config it computes under for a schedule automation.
+    A forecast automation's generator is chosen when it is created.
+    A schedule automation's is assembled from the trigger message and what its asset stores,
+    so the runner puts it together afresh on every run.
     """
 
     __tablename__ = "automation"
 
-    SUPPORTED_TYPES = ["forecasts"]  # later also "schedules" and "reports"
+    SUPPORTED_TYPES = ["forecasting", "scheduling"]  # later also "reporting"
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
@@ -54,7 +56,7 @@ class Automation(db.Model, AuthModelMixin):
         nullable=False,
         index=True,
     )
-    type = db.Column(db.String(80), nullable=False, default="forecasts")
+    type = db.Column(db.String(80), nullable=False, default="forecasting")
     name = db.Column(db.String(80), nullable=False)
     cronstr = db.Column(db.String(80), nullable=False)
     timezone = db.Column(
