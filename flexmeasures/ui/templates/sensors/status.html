@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
 {% set status_page_tab = session.get("status_page_tab") if session.get("status_page_tab") in ["jobs", "sensors"] else "jobs" %}
+{% set include_child_assets = session.get("status_page_include_child_assets", True) %}
 
 {% block title %} {{ asset.name }} - Status {% endblock %}
 
@@ -36,6 +37,16 @@
                 </small>
               </span>
             </h4>
+
+            {% if asset.child_assets %}
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="includeChildAssets" {{ 'checked' if include_child_assets }}>
+              <label class="form-check-label" for="includeChildAssets">
+                Include jobs of sub-assets
+                <span class="fa fa-info-circle" title="Jobs are often triggered on a sub-asset rather than on the asset you are looking at. Keep this on to see everything that happened below this asset, too."></span>
+              </label>
+            </div>
+            {% endif %}
 
             <div class="table-responsive">
               <!-- Neither the "paginate" nor the "nav-on-click" class: both make flexmeasures.js build the table on page load, and this page builds each table itself, when its tab is first shown. -->
@@ -80,6 +91,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
 <script>
   const assetId = "{{ asset.id }}";
   const sensors = {{ sensors | tojson }};
+  let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
 
   function SensorStatusRow(sensor) {
     const lastCallTime = Date.now();
@@ -201,7 +213,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       ],
       ajax: function (data, callback) {
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include_child_assets=${includeChildAssets}`,
           method: "GET",
           success: function (res) {
             if (res.redis_connection_err) {
@@ -245,6 +257,16 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     });
   }
 
+  function rememberIncludeChildAssets(include) {
+    fetch(`${window.location.origin}/api/v3_0/assets/status_page_child_jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ include_child_assets: include }),
+    }).catch((error) => {
+      console.error("Error remembering whether to include the jobs of sub-assets:", error);
+    });
+  }
+
   $(document).ready(function () {
     initTable("{{ status_page_tab }}");
 
@@ -252,6 +274,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       const tabName = $(this).data("status-page-tab");
       initTable(tabName);
       rememberStatusPageTab(tabName);
+    });
+
+    $("#includeChildAssets").on("change", function () {
+      includeChildAssets = this.checked;
+      rememberIncludeChildAssets(includeChildAssets);
+      // Only reload the jobs table if it has been built, which it has not while the sensor data tab is open.
+      if (jobsTable) jobsTable.ajax.reload();
     });
 
     $(document).on("click", ".sensor_refresh", function () {
