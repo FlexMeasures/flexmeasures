@@ -7,7 +7,7 @@ API change log
 
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
-- The ``resolution`` query parameter is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies to ``GET /api/v3_0/sensors/<id>/data``, to the ``chart_data`` endpoints under ``api/dev``, and to the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
+- The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
 
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""
