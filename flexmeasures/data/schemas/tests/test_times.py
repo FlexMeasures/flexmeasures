@@ -133,10 +133,10 @@ def test_resolution_field_still_validates_duration():
 @pytest.mark.parametrize(
     "duration_input, start, exp_grounded",
     [
-        # a fixed duration stays fixed, even across a transition
+        # a fixed duration stays fixed, even across a transition.
         ("PT24H", "2023-03-26T00:00:00+01:00", timedelta(hours=24)),
         ("PT168H", "2023-03-26T00:00:00+01:00", timedelta(hours=168)),
-        # a calendar duration follows the calendar, so it loses an hour going into DST
+        # a calendar duration follows the calendar, so it loses an hour going into DST.
         ("P1D", "2023-03-26T00:00:00+01:00", timedelta(hours=23)),
         ("P1W", "2023-03-26T00:00:00+01:00", timedelta(days=7) - timedelta(hours=1)),
         ("P8W", "2020-02-22T18:07:00+01:00", timedelta(weeks=8) - timedelta(hours=1)),
@@ -147,11 +147,11 @@ def test_resolution_field_still_validates_duration():
         ),
         ("P1M", "2020-02-22T18:07:00+01:00", timedelta(days=29)),
         ("P1Y", "2020-02-22T18:07:00+01:00", timedelta(days=366)),
-        # and gains one coming back out of it
+        # and gains one coming back out of it.
         ("P1D", "2023-10-29T00:00:00+02:00", timedelta(hours=25)),
-        # a duration mixing the two counts each part in its own way
+        # a duration mixing the two counts each part in its own way.
         ("P1DT1H", "2023-03-26T00:00:00+01:00", timedelta(hours=24)),
-        # away from a transition, both kinds agree
+        # away from a transition, both kinds agree.
         ("P1D", "2023-06-01T00:00:00+02:00", timedelta(hours=24)),
     ],
 )
@@ -186,7 +186,7 @@ def test_nominal_duration_field_leaves_fixed_durations_alone():
     field = NominalDurationField()
     assert field.deserialize("PT24H", None, None) == timedelta(hours=24)
     assert field.deserialize("PT30M", None, None) == timedelta(minutes=30)
-    # a fraction of a calendar unit has no calendar meaning, so it is read as fixed time
+    # a fraction of a calendar unit has no calendar meaning, so it is read as fixed time.
     assert field.deserialize("P0.5D", None, None) == timedelta(hours=12)
 
 

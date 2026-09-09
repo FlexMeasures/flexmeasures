@@ -64,13 +64,14 @@ class DurationField(MarshmallowClickMixin, fields.Str):
         duration: timedelta | isodate.Duration | pd.DateOffset,
         start: datetime | None,
         timezone: str | None = None,
-    ) -> timedelta:
+    ) -> timedelta | isodate.Duration | pd.DateOffset:
         """
         For some valid duration strings (such as "P1M", a month, or "P1D", a calendar day),
-        converting to a datetime.timedelta is not possible (no obvious
-        number of hours). In that case, `_deserialize` returned an
-        `isodate.Duration` or a `pandas.DateOffset`. We can derive the timedelta by grounding to an
-        actual time span, for which we require a timezone-aware start datetime.
+        converting to a datetime.timedelta is not possible, as they span no obvious number of hours.
+        In that case, `_deserialize` returned an `isodate.Duration` or a `pandas.DateOffset`,
+        and we derive the timedelta by grounding it to an actual time span,
+        for which we require a timezone-aware start datetime.
+        Without such a start, the duration is returned as it came.
 
         Pass a `timezone` (an IANA name, such as "Europe/Amsterdam") to say which calendar to count in.
         This matters: a start datetime parsed from an ISO 8601 string carries a fixed UTC offset rather than a zone,
@@ -92,7 +93,7 @@ class DurationField(MarshmallowClickMixin, fields.Str):
                 try:
                     anchor = anchor.tz_convert(timezone)
                 except UnknownTimeZoneError:
-                    # fall back to counting against whatever the start datetime carries
+                    # fall back to counting against whatever the start datetime carries.
                     pass
             return (anchor + offset).to_pydatetime() - start
         return duration
@@ -140,10 +141,17 @@ class NominalDurationField(DurationField):
             # A fraction of a calendar unit has no calendar meaning, so read the whole duration as fixed time.
             return duration
         # Every remaining component is a fixed amount of time, which is unambiguous in seconds.
-        fixed_seconds = sum(
-            float(groups[name][:-1]) * unit_seconds
-            for name, unit_seconds in (("hours", 3600), ("minutes", 60), ("seconds", 1))
-            if groups.get(name) is not None
+        # DurationField has already rejected anything finer than a minute, so this is a whole number.
+        fixed_seconds = int(
+            sum(
+                float(groups[name][:-1]) * unit_seconds
+                for name, unit_seconds in (
+                    ("hours", 3600),
+                    ("minutes", 60),
+                    ("seconds", 1),
+                )
+                if groups.get(name) is not None
+            )
         )
         offset = pd.DateOffset(
             **{name: int(amount) for name, amount in nominal.items()},

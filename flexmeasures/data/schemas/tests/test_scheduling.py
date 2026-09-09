@@ -40,7 +40,7 @@ from flexmeasures.utils.unit_utils import ur
             "2023-03-26T00:00:00+01:00",
             "2023-03-27T01:00:00+02:00",
         ),
-        # a calendar day and a calendar week are an hour shorter across the start of DST
+        # a calendar day and a calendar week are an hour shorter across the start of DST.
         (
             {"start": "2023-03-26T00:00:00+01:00", "duration": "P1D"},
             "2023-03-26T00:00:00+01:00",
@@ -66,7 +66,7 @@ from flexmeasures.utils.unit_utils import ur
             "2023-10-29T00:00:00+02:00",
             "2023-10-29T23:00:00+01:00",
         ),
-        # and an hour longer across the end of it
+        # and an hour longer across the end of it.
         (
             {"start": "2023-10-29T00:00:00+02:00", "duration": "P1D"},
             "2023-10-29T00:00:00+02:00",

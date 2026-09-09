@@ -49,15 +49,15 @@ def test_get_no_sensor_data(
 @pytest.mark.parametrize(
     "duration, start, exp_duration, exp_n_values",
     [
-        # a calendar day is an hour shorter going into DST, and an hour longer coming out of it
+        # a calendar day is an hour shorter going into DST, and an hour longer coming out of it.
         ("P1D", "2023-03-26T00:00:00+01:00", "PT23H", 23),
         ("P1D", "2023-10-29T00:00:00+02:00", "PT25H", 25),
-        # a fixed duration is unaffected
+        # a fixed duration is unaffected.
         ("PT24H", "2023-03-26T00:00:00+01:00", "PT24H", 24),
         ("PT24H", "2023-10-29T00:00:00+02:00", "PT24H", 24),
-        # away from a transition, the two agree
+        # away from a transition, the two agree.
         ("P1D", "2023-06-01T00:00:00+02:00", "PT24H", 24),
-        # a calendar month follows the calendar too
+        # a calendar month follows the calendar too.
         ("P1M", "2023-03-26T00:00:00+01:00", "PT743H", 743),
     ],
 )
