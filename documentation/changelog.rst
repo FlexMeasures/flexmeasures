@@ -53,6 +53,7 @@ Bugfixes
 * ``flexmeasures add schedule --dry-run`` no longer saves a schedule when it is combined with ``--as-job``, where the flag used to be dropped without a word and the queued job stored its schedule anyway; that combination is now rejected, and a dry run says how many beliefs it would have saved and which events they cover [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * An asset's status page showed only some of the sensors it reported on, in an order that changed between reloads, and it reported on fixed quantities from the flex-context, which have no data to be up to date with [see `PR #2489 <https://www.github.com/FlexMeasures/flexmeasures/pull/2489>`_]
+* A chart of a sensor with a single data point in view, such as a daily sensor of which only one day was recorded, drew that point as a bar spanning most of the chart and stretched the shown time range around it; a bar now covers exactly the event it reports, whatever the chart holds [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 
