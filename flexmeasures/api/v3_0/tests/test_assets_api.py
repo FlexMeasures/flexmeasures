@@ -2250,3 +2250,52 @@ def test_update_status_page_tab_rejects_unknown_tab(
     assert response.status_code == 422
     with client.session_transaction() as session:
         assert "status_page_tab" not in session
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_of_child_assets(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """A parent asset lists the jobs of its children, unless the caller opts out."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_cache.add(
+        child.id,
+        child_job.id,
+        queue="scheduling",
+        asset_or_sensor_type="asset",
+    )
+
+    response = client.get(url_for("AssetAPI:get_jobs", id=parent.id))
+    assert response.status_code == 200
+    assert child_job.id in [job["job_id"] for job in response.json["jobs"]]
+    assert f"asset: {child.name} (Id: {child.id})" in [
+        job["entity"] for job in response.json["jobs"]
+    ], "the job is reported against the child asset it was triggered on"
+
+    response = client.get(
+        url_for("AssetAPI:get_jobs", id=parent.id),
+        query_string={"include_child_assets": "false"},
+    )
+    assert response.status_code == 200
+    assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
+
+    app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("include_child_assets", [True, False])
+def test_update_status_page_child_jobs(
+    client, setup_api_test_data, requesting_user, include_child_assets
+):
+    """Posting the job scope of the status page records it in the session, for the next status page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_child_jobs"),
+        json={"include_child_assets": include_child_assets},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["status_page_include_child_assets"] == include_child_assets
