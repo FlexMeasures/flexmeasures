@@ -608,9 +608,8 @@ def _set_flex_model_output_sensors_consumption_is_positive(
     Fields that do not resolve to a sensor are skipped,
     which keeps the function safe to call on a flex-model that a custom scheduler left undeserialized.
 
-    :param flex_model: Deserialized flex model — either a single-device ``dict`` or a
-                       ``list`` of per-device dicts. Consumption/production fields are
-                       expected to be dicts with a ``"sensor"`` key.
+    :param flex_model: Deserialized flex model — either a single-device ``dict`` or a ``list`` of per-device dicts.
+                       Consumption/production fields are expected to be dicts with a ``"sensor"`` key.
     :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value
                         for the given flex-model field.
     """
