@@ -188,6 +188,7 @@ Config settings can be registered by setting the (optional) ``__settings__`` att
         "MY_PLUGIN_COLOR": {
             "description": "Color used to override the default plugin color.",
             "level": "info",
+            "default": "blue",
         },
     }
 
@@ -208,7 +209,36 @@ Alternatively, use ``from my_plugin import __settings__`` in your plugin module,
     MY_PLUGIN_COLOR = {
         "description": "Color used to override the default plugin color.",
         "level": "info",
+        "default": "blue",
     }
+
+
+Each setting is described with the following (all optional) keys:
+
+- ``description``: what the setting is used for. It is included in the log message when the setting is missing.
+- ``level``: the level to log at when the setting is missing (``error`` by default).
+- ``message_if_missing``: extra advice to log when the setting is missing, for instance where to get a token.
+- ``parse_as``: the type the setting should have. FlexMeasures logs a warning if it has another type,
+  and uses this type to interpret the setting when it is read from an environment variable (see below).
+- ``default``: the value to fall back to when the setting is missing.
+  FlexMeasures says in its log message whether a missing setting falls back to a default or stays unset,
+  so declare a ``default`` here rather than only promising one in ``message_if_missing``.
+
+Where these settings can be set
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Plugin settings are set just like FlexMeasures' own settings (see :ref:`configuration`):
+in your FlexMeasures config file, or as environment variables.
+
+Your plugin is registered after the config file has been read, so a setting that the config file sets keeps that value,
+and the environment is only consulted for settings that are still unset.
+
+Environment variables are strings, so declare a ``parse_as`` for any setting that should not be one.
+FlexMeasures then reads ``parse_as: int`` and ``parse_as: float`` settings as numbers,
+``parse_as: bool`` settings as ``True`` for ``1``, ``true``, ``yes`` or ``on`` (case-insensitively) and ``False`` otherwise,
+and ``parse_as: list`` and ``parse_as: dict`` settings as JSON.
+
+.. note:: While the test suite and the documentation build are running, FlexMeasures reads no settings from the environment ― neither its own, nor your plugin's.
 
 
 Set config programmatically - Example of using a custom logo
