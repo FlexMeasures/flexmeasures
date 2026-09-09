@@ -187,6 +187,7 @@ def check_config_settings(app, settings: dict[str, dict]):
     so a plugin setting can be set the same way a FlexMeasures setting can.
     Settings that are still missing afterwards are logged,
     and are set to the "default" that the plugin declared for them, if any.
+    Whatever a setting ends up holding, a declared default included, is checked against its "parse_as" type.
 
     For example:
 
@@ -223,25 +224,23 @@ def check_config_settings(app, settings: dict[str, dict]):
 
     read_plugin_settings_from_env(app, settings)
 
-    missing_config_settings = []
-    config_settings_with_wrong_type = []
+    # Report what is missing, and fall back to the declared default where there is one.
     for setting_name, setting_fields in settings.items():
-        setting = app.config.get(setting_name)
-        if setting is None:
-            missing_config_settings.append(setting_name)
-        elif "parse_as" in setting_fields and not isinstance(
-            setting, setting_fields["parse_as"]
-        ):
-            config_settings_with_wrong_type.append((setting_name, setting))
-    for setting_name, setting in config_settings_with_wrong_type:
-        log_wrong_type_for_config_setting(
-            app, setting_name, settings[setting_name], type(setting)
-        )
-    for setting_name in missing_config_settings:
-        setting_fields = settings[setting_name]
+        if app.config.get(setting_name) is not None:
+            continue
         log_missing_config_setting(app, setting_name, setting_fields)
         if "default" in setting_fields:
             app.config[setting_name] = setting_fields["default"]
+
+    # Check the type of every setting that has a value by now, defaults included.
+    for setting_name, setting_fields in settings.items():
+        setting = app.config.get(setting_name)
+        if setting is None or "parse_as" not in setting_fields:
+            continue
+        if not isinstance(setting, setting_fields["parse_as"]):
+            log_wrong_type_for_config_setting(
+                app, setting_name, setting_fields, type(setting)
+            )
 
 
 def read_plugin_settings_from_env(app: Flask, settings: dict[str, dict]):
