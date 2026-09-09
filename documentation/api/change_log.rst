@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-33 | September 9, 2026
+"""""""""""""""""""""""""""
+- The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
+
 v3.0-32 | August 11, 2026
 """"""""""""""""""""""""""
 - API endpoints are now rate-limited. A request which exceeds a limit is answered with a ``429 (Too Many Requests)`` status code and a ``Retry-After`` header stating how many seconds to wait. Responses also carry ``X-RateLimit-*`` headers, describing the limit that applied, how much of it is left, and when it resets. A stricter limit applies to ``POST /assets/<id>/schedules/trigger``, ``POST /sensors/<id>/schedules/trigger`` and ``POST /sensors/<id>/forecasts/trigger`` than to other endpoints; the health endpoints are exempt. Per-account overrides are set by assigning the account a plan (a ``Plan`` database row), rather than through an account attribute.

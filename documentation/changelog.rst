@@ -5,17 +5,27 @@ FlexMeasures Changelog
 
 
 
-v1.1.0 | September XX, 2026
+v1.0.1 | September 9, 2026
 ============================
-
-New features
--------------
 
 Infrastructure / Support
 -------------------------
+* Train and predict a forecaster's per-horizon models side by side rather than one after another, which cuts the training time of a long forecast horizon several-fold while leaving the forecasts themselves unchanged [see `PR #2479 <https://www.github.com/FlexMeasures/flexmeasures/pull/2479>`_]
 
 Bugfixes
 -----------
+* Avoid crashing on startup when the database is stamped with an Alembic revision unknown to this FlexMeasures checkout [see `PR #2465 <https://www.github.com/FlexMeasures/flexmeasures/pull/2465>`_]
+* Upgrading a database old enough to still carry the pre-``GenericAsset``/``Sensor`` tables now works, where the v0.18.0 migration that removes them crashed twice over: once while checking whether those tables hold data, as soon as one of them held more than a single row, and once while dropping them, because it dropped each table before the ones referencing it [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
+* Sensor data ingestion now preserves ``null`` gaps when converting posted values to the sensor's unit, instead of failing the request [see `PR #2461 <https://www.github.com/FlexMeasures/flexmeasures/pull/2461>`_]
+* Schedules saved to the flex-context's ``aggregate-consumption`` sensor had their sign flipped, showing production where consumption was scheduled and vice versa, because the sign convention implied by the field name was never recorded on the sensor [see `PR #2499 <https://www.github.com/FlexMeasures/flexmeasures/pull/2499>`_]
+* Asking the API for sensor data, a chart or a schedule at a resolution that spans no time (such as ``PT0S``), or at a negative one, now gets the same clear rejection as any other unsupported resolution, instead of a server error or a silently empty result [see `PR #2502 <https://www.github.com/FlexMeasures/flexmeasures/pull/2502>`_]
+* ``flexmeasures jobs run-job`` ran each job twice, and always as if it were a scheduling job, which lost the queue-specific reporting of why a job failed [see `PR #2480 <https://www.github.com/FlexMeasures/flexmeasures/pull/2480>`_]
+* A plugin listed in ``FLEXMEASURES_PLUGINS`` by name is now imported by name, instead of being loaded from a folder of that name in the working directory (which is easily the case when starting FlexMeasures from the plugin's own repository), where it appeared to load but its routes and CLI commands went missing; spell out a path (e.g. ``./my_plugin``) to load such a folder on purpose, and such a path that does not exist is now reported as missing rather than quietly resolved as a package name [see `PR #2419 <https://www.github.com/FlexMeasures/flexmeasures/pull/2419>`_]
+* The "module not installed" error for an unresolved ``FLEXMEASURES_PLUGINS`` entry now hints at the expected comma-separated format, which helps people who accidentally use an incorrect format like a JSON-array [see `PR #2473 <https://www.github.com/FlexMeasures/flexmeasures/pull/2473>`_]
+* KPIs on the asset page counted one day more than the selected time range [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
+* KPIs on the asset page now total the values the chart beside them draws, counting each event under the day it starts in: a sensor reported by several sources counted only one of them, and a revised value was counted on top of the value it revised [see `PR #2434 <https://www.github.com/FlexMeasures/flexmeasures/pull/2434>`_]
+* A forecaster that is told both where to start training and how much history to train on now trains on whichever of the two asks for less data, rather than training back to the start date: ``train-start`` says where training may begin, and ``train-period`` says how much history to use [see `PR #2482 <https://www.github.com/FlexMeasures/flexmeasures/pull/2482>`_]
+* ``max-training-period`` said the same thing as ``train-period``, so the two are now one setting, and the former is a deprecated alias that hosts should stop using [see `PR #2482 <https://www.github.com/FlexMeasures/flexmeasures/pull/2482>`_]
 
 
 
@@ -127,7 +137,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* A plugin listed in ``FLEXMEASURES_PLUGINS`` by name is now imported by name, instead of being loaded from a folder of that name in the working directory (which is easily the case when starting FlexMeasures from the plugin's own repository), where it appeared to load but its routes and CLI commands went missing; spell out a path (e.g. ``./my_plugin``) to load such a folder on purpose, and such a path that does not exist is now reported as missing rather than quietly resolved as a package name [see `PR #2419 <https://www.github.com/FlexMeasures/flexmeasures/pull/2419>`_]
 * Clear cached authentication state between tests, so that one test's login can no longer leak into later tests [see `PR #2424 <https://www.github.com/FlexMeasures/flexmeasures/pull/2424>`_]
 * Include the Excel reader in default installations so XLSX sensor-data uploads work outside test environments [see `PR #2376 <https://www.github.com/FlexMeasures/flexmeasures/pull/2376>`_]
 * In a multi-device flex-model, a device without a stock (e.g. a converter port or curtailable generator) silently disabled constraint validation for all devices after it; validation now covers every device, and also newly checks that each device's power bounds do not contradict each other, so a contradictory hard bound fails with a clear per-time-step message instead of a bare solver infeasibility [see `PR #2252 <https://www.github.com/FlexMeasures/flexmeasures/pull/2252>`_]
