@@ -50,7 +50,8 @@ def test_duration_field_nominal_grounded(
     We want to test if we can ground them as expected.
     We use a particular datetime to ground, in a leap year February.
     For the Europe/Amsterdam timezone, daylight saving time started on March 29th 2020.
-    # todo: the commented out tests would work if isodate.parse_duration would have the option to stop coercing ISO 8601 days into datetime.timedelta days
+    # todo: the commented out tests pass as soon as we parse with isodate.parse_duration(..., as_timedelta_if_possible=False), which stops it coercing ISO 8601 days into datetime.timedelta days.
+    # That option landed in https://github.com/gweis/isodate/pull/64, after this todo was written, but adopting it needs each caller to ground its duration first.
     """
     df = DurationField()
     deser = df.deserialize(duration_input, None, None)
