@@ -68,7 +68,7 @@ dependencies = [
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
     # 4.2.0: stopped declaring single-column indexes on event_start and sensor_id, which migration b7e5a2c40f18 drops.
-    "timely-beliefs>=4.2.0",
+    "timely-beliefs>=4.3.0",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
