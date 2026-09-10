@@ -631,9 +631,16 @@ class AssetAPI(FlaskView):
             select_pagination: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
             )
-            num_records = db.session.scalar(
-                select(func.count(GenericAsset.id)).filter(filter_statement)
+            # `num-records` reports the size of the scope the search filter was applied to,
+            # so it must respect the same subtree constraint as the paginated query itself.
+            num_records_query = select(func.count(GenericAsset.id)).filter(
+                filter_statement
             )
+            if root_asset is not None or max_depth is not None:
+                num_records_query = filter_assets_under_root(
+                    query=num_records_query, root_asset=root_asset, max_depth=max_depth
+                )
+            num_records = db.session.scalar(num_records_query)
             response = {
                 "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
