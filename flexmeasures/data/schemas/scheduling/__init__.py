@@ -18,9 +18,14 @@ from marshmallow import (
     post_load,
 )
 
-from flexmeasures import Sensor
+from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.scheduling.config import (  # noqa: F401
+    SchedulerConfigSchema,
+    find_momentary_flex_config_fields,
+    strip_momentary_flex_fields,
+)
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
@@ -37,6 +42,7 @@ from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     DurationField,
     PlanningDurationField,
+    ResolutionField,
 )
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p
@@ -1799,7 +1805,7 @@ class AssetTriggerSchema(Schema):
             example="PT24H",
         ),
     )
-    resolution = DurationField(
+    resolution = ResolutionField(
         metadata=dict(
             description="The resolution of the requested schedule in ISO 8601 duration format. "
             "This governs how often setpoints are allowed to change. "
@@ -1830,6 +1836,26 @@ class AssetTriggerSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+    @validates_schema
+    def validate_schedule_durations(self, data, **kwargs):
+        """Require a positive horizon and a positive fixed resolution."""
+        start = data["start_of_schedule"]
+        duration = DurationField.ground_from(data["duration"], start)
+        if duration <= timedelta(0):
+            raise ValidationError(
+                "Schedule duration must be positive.", field_name="duration"
+            )
+        data["duration"] = duration
+
+        resolution = data.get("resolution")
+        if resolution is not None and (
+            not isinstance(resolution, timedelta) or resolution <= timedelta(0)
+        ):
+            raise ValidationError(
+                "Schedule resolution must be a positive, fixed duration.",
+                field_name="resolution",
+            )
 
     @pre_load
     def normalize_flex_context_format(self, data, **kwargs):

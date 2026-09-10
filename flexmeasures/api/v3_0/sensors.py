@@ -67,8 +67,8 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
-    DurationField,
     PlanningDurationField,
+    ResolutionField,
 )
 from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
@@ -286,7 +286,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
             example="PT24H",
         ),
     )
-    resolution = DurationField(
+    resolution = ResolutionField(
         metadata=dict(
             description="The resolution of the requested schedule in ISO 8601 duration format. "
             "This governs how often setpoints are allowed to change. "
@@ -1078,6 +1078,7 @@ class SensorAPI(FlaskView):
                 **scheduler_kwargs,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
             )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
