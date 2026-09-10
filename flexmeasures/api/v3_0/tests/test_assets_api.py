@@ -442,6 +442,58 @@ def test_get_asset_with_children(client, add_asset_with_children, requesting_use
     assert len(get_assets_response.json["child_assets"]) == 2
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only(client, add_asset_with_children, requesting_user):
+    """
+    Listing assets with `depth=0` returns only assets without a parent asset.
+    The unfiltered listing is checked as well, to show that the children would otherwise be included.
+    """
+    parent = add_asset_with_children["parent"]
+    child_ids = {add_asset_with_children[f"child_{i}"].id for i in (1, 2)}
+
+    full_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert full_response.status_code == 200
+    full_asset_ids = {asset["id"] for asset in full_response.json}
+    assert parent.id in full_asset_ids
+    assert child_ids <= full_asset_ids
+
+    top_level_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "depth": 0},
+    )
+    print("Server responded with:\n%s" % top_level_response.json)
+    assert top_level_response.status_code == 200
+    top_level_asset_ids = {asset["id"] for asset in top_level_response.json}
+    assert parent.id in top_level_asset_ids
+    assert not child_ids & top_level_asset_ids
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only_record_counts(
+    client, add_asset_with_children, requesting_user
+):
+    """
+    `num-records` reports the size of the scope that the search filter is applied to, so it respects `depth` just like the paginated query does.
+    Without that, a client showing the listing would report the descendants as having been filtered out by the search.
+    """
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "all_accessible": "true",
+            "depth": 0,
+            "page": 1,
+            "per_page": 100,
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert response.json["num-records"] == len(response.json["data"])
+    assert response.json["num-records"] == response.json["filtered-records"]
+
+
 @pytest.mark.parametrize("requesting_user", [None], indirect=True)
 def test_get_public_assets_noauth(
     client, setup_api_test_data, setup_accounts, requesting_user
