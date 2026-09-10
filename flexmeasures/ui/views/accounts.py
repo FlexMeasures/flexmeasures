@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import request
+from flask import current_app, request
 from sqlalchemy import or_, select
 from werkzeug.exceptions import Forbidden, Unauthorized, NotFound
 from flask_classful import FlaskView, route
@@ -142,6 +142,22 @@ class AccountCrudUI(FlaskView):
             role.name: role.id for role in db.session.scalars(select(AccountRole)).all()
         }
         selected_account_roles = [role.name for role in account.account_roles]
+        plan = account.plan
+        effective_default_rate_limit = (
+            plan.default_rate_limit
+            if plan is not None and plan.default_rate_limit is not None
+            else current_app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
+        )
+        effective_trigger_rate_limit = (
+            plan.trigger_rate_limit
+            if plan is not None and plan.trigger_rate_limit is not None
+            else current_app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
+        )
+        effective_rate_limit_key = (
+            plan.rate_limit_key.value
+            if plan is not None and plan.rate_limit_key is not None
+            else current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
+        )
 
         return render_flexmeasures_template(
             "accounts/account.html",
@@ -152,6 +168,9 @@ class AccountCrudUI(FlaskView):
             can_add_client_account=can_add_client_account,
             account_role_options=account_role_options,
             selected_account_roles=selected_account_roles,
+            effective_default_rate_limit=effective_default_rate_limit,
+            effective_trigger_rate_limit=effective_trigger_rate_limit,
+            effective_rate_limit_key=effective_rate_limit_key,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
