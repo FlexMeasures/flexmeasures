@@ -39,8 +39,9 @@
       if (latitude !=  null && longitude != null) this.location = `LAT: ${latitude}, LONG: ${longitude}`;
   };
 
-  $(document).ready(function() {  
-    $("#assetTable").dataTable({
+  $(document).ready(function() {
+    let topLevelAssetsOnly = $("#topLevelAssetsOnlyCheckbox").is(":checked");
+    const assetsTable = $("#assetTable").dataTable({
       order: [[0, "asc"]],
       serverSide: true,
       columns: [
@@ -64,6 +65,11 @@
         }&per_page=${data["length"]}`;
 
         url += "&fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
+
+        if (topLevelAssetsOnly) {
+          // depth=0 keeps the descendants of top-level assets out of the list
+          url += "&depth=0";
+        }
 
         {% if account %}
           url += "&account_id={{ account.id }}";
@@ -95,6 +101,12 @@
         });
       }
     });
+
+    // Event listener for the checkbox to toggle the topLevelAssetsOnly state
+    $("#topLevelAssetsOnlyCheckbox").change(function () {
+      topLevelAssetsOnly = this.checked;
+      assetsTable.api().ajax.reload();
+    });
   })
 
 </script>
@@ -117,6 +129,17 @@
             for account {{ account.name }}
           {% endif %}
         </h3>
+        <div class="form-check form-check-inline">
+          <label class="form-check-label">
+            <input
+              id="topLevelAssetsOnlyCheckbox"
+              name="top_level_assets_only"
+              type="checkbox"
+              checked
+            />
+            Top-level only
+          </label>
+        </div>
         <div class="table-responsive">
           <table class="table table-striped paginate nav-on-click" title="View this asset" id="assetTable"></table>
         </div>
