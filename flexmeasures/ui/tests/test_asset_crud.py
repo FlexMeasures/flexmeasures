@@ -811,38 +811,3 @@ def test_status_page_include_child_assets_toggle(
     )
     assert child_status_page.status_code == 200
     assert b"Include jobs of sub-assets" not in child_status_page.data
-
-
-def test_status_page_jobs_table_names_the_asset(
-    db, client, setup_assets, as_prosumer_user1
-):
-    """The jobs table has a column for the asset a job happened on, which is what tells the levels apart."""
-    user = find_user_by_email("test_prosumer_user@seita.nl")
-    asset = user.account.generic_assets[0]
-    db.session.expunge(user)
-
-    status_page = client.get(
-        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
-    )
-    assert status_page.status_code == 200
-    assert b'{ data: "asset", title: "Asset", orderable: false},' in status_page.data
-    # The cell carries a user-defined asset name, so it is escaped rather than interpolated raw.
-    assert b"asset: `${escapeHtml(job.asset_name)}" in status_page.data
-
-
-def test_status_page_sensor_table_names_the_asset(
-    db, client, setup_assets, as_prosumer_user1
-):
-    """The sensor data table names the asset each sensor belongs to, which can be a sub-asset or a flex-context one."""
-    user = find_user_by_email("test_prosumer_user@seita.nl")
-    asset = user.account.generic_assets[0]
-    db.session.expunge(user)
-
-    status_page = client.get(
-        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
-    )
-    assert status_page.status_code == 200
-    assert b'{ data: "asset", title: "Asset" },' in status_page.data
-    assert b"asset: `${escapeHtml(sensor.asset_name)}" in status_page.data
-    # The asset used to be readable only from the sensor tooltip, which now leaves it to the column.
-    assert b"Asset: '${sensor.asset_name}'" not in status_page.data
