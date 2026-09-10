@@ -48,7 +48,7 @@ COPY .flaskenv wsgi.py ./
 ARG FLEXMEASURES_VERSION=
 RUN --mount=type=cache,target=/root/.cache/uv \
     SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
-    uv sync --frozen --reinstall-package flexmeasures --no-dev
+    uv sync --frozen --reinstall-package flexmeasures --no-dev --no-editable
 
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -91,9 +91,10 @@ ENV VIRTUAL_ENV=/app/.venv \
 # Copy virtual environment from builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-# Copy application code
-COPY --from=builder /app/flexmeasures ./flexmeasures
+# Copy application code (flexmeasures itself is already installed non-editable inside
+# ${VIRTUAL_ENV}, so only wsgi.py and its supporting files need to be copied separately)
 COPY --from=builder /app/.flaskenv /app/wsgi.py ./
+COPY gunicorn.conf.py ./
 
 # Set environment variables to optimize Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -105,9 +106,14 @@ EXPOSE 5000
 # - worker-tmp-dir is set to /dev/shm instead of /tmp (default) to avoid stalls from Docker overlay filesystem
 #   http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
 # - Using 2 workers to avoid health check timeouts when another request is taking a long time
+# - preload loads the app once in the master instead of once per worker, cutting boot time;
+#   gunicorn.conf.py's post_fork hook disposes the inherited connection pool so workers don't
+#   share live connections (see that file's docstring)
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
      "--worker-tmp-dir", "/dev/shm", \
      "--workers", "2", \
      "--threads", "4", \
+     "--preload", \
+     "--config", "gunicorn.conf.py", \
      "wsgi:application"]

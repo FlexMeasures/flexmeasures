@@ -52,17 +52,25 @@ class DatabaseSchemaRevisionStatus:
         )
 
 
+def _get_alembic_script_directory(app) -> ScriptDirectory | None:
+    """Build the Alembic `ScriptDirectory` for the app's migrations."""
+    migrate_extension = app.extensions.get("migrate")
+    if migrate_extension is None:
+        return None
+
+    alembic_config = AlembicConfig()
+    alembic_config.set_main_option("script_location", migrate_extension.directory)
+    return ScriptDirectory.from_config(alembic_config)
+
+
 def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
     """Return current and expected Alembic head revisions for the connected database."""
     from sqlalchemy.exc import OperationalError, ProgrammingError
 
-    migrate_extension = app.extensions.get("migrate")
-    if migrate_extension is None:
+    script = _get_alembic_script_directory(app)
+    if script is None:
         return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
 
-    alembic_config = AlembicConfig()
-    alembic_config.set_main_option("script_location", migrate_extension.directory)
-    script = ScriptDirectory.from_config(alembic_config)
     expected_heads = tuple(sorted(script.get_heads()))
     if not expected_heads:
         return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
@@ -88,21 +96,23 @@ def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
 
 
 def database_schema_has_revision(app, required_revision: str) -> bool:
-    """Return whether the connected database includes a specific Alembic revision."""
-    revision_status = get_database_schema_revision_status(app)
+    """Return whether the connected database includes a specific Alembic revision.
+
+    Reuses the revision status cached on `app` by `register_at()`, avoiding a second
+    database round trip during startup.
+    """
+    revision_status = getattr(app, "database_schema_revision_status", None)
+    if revision_status is None:
+        revision_status = get_database_schema_revision_status(app)
     if (
         revision_status.inspection_error is not None
         or not revision_status.current_heads
     ):
         return False
 
-    migrate_extension = app.extensions.get("migrate")
-    if migrate_extension is None:
+    script = _get_alembic_script_directory(app)
+    if script is None:
         return False
-
-    alembic_config = AlembicConfig()
-    alembic_config.set_main_option("script_location", migrate_extension.directory)
-    script = ScriptDirectory.from_config(alembic_config)
 
     for current_head in revision_status.current_heads:
         try:
