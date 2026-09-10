@@ -93,6 +93,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   const sensors = {{ sensors | tojson }};
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
 
+  // Cells below are rendered as HTML and carry user-defined names, so escape what goes into them.
+  function escapeHtml(text) {
+    return String(text ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function SensorStatusRow(sensor) {
     const lastCallTime = Date.now();
     const timeAgo = getTimeAgo(lastCallTime);
@@ -100,9 +107,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
 
     return {
-      sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
-        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
-      source_type: sensor.source_type || "None",
+      sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
+        <span class="fa fa-info" title="Resolution: ${escapeHtml(sensor.resolution)}, Reason: ${escapeHtml(sensor.relation)}" style="margin-left: 10px;"></span>`,
+      asset: `${escapeHtml(sensor.asset_name)} (<a href="/assets/${sensor.asset_id}">${sensor.asset_id}</a>)`,
+      source_type: escapeHtml(sensor.source_type || "None"),
       staleness_since: `
         <span title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
           ${
@@ -116,13 +124,6 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };
-  }
-
-  // Cells below are rendered as HTML and carry user-defined names, so escape what goes into them.
-  function escapeHtml(text) {
-    return String(text ?? "").replace(/[&<>"']/g, c => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
   }
 
   function JobRow(job) {
@@ -172,6 +173,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       ordering: false,
       columns: [
         { data: "sensor_info", title: "Sensor" },
+        { data: "asset", title: "Asset" },
         { data: "source_type", title: "Data source type" },
         { data: "staleness_since", title: "Time of latest record" },
         { data: "status", title: "Status", className: "text-right" },
@@ -187,10 +189,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           .then(sensorsData => callback({ data: sensorsData.map(SensorStatusRow) }));
       },
       headerCallback: function (thead, data, start, end, display) {
-        // target the 3rd column header (index 2)
+        // target the "Time of latest record" header
         $(thead)
         .find("th")
-        .eq(2)
+        .eq(3)
         .attr(
             "title",
             "This is the knowledge time of the most recent event recorded (potentially in the future, for forecasts and schedules)."
@@ -314,11 +316,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           if (rowIndexes.length > 0) {
             const idx = rowIndexes[0];
 
-            // Update only the cells we need (0..3)
-            sensorTable.cell(idx, 0).data(newRowData.sensor_info).invalidate(); // sensor_info
-            sensorTable.cell(idx, 1).data(newRowData.source_type).invalidate(); // source_type
-            sensorTable.cell(idx, 2).data(newRowData.staleness_since).invalidate(); // staleness_since
-            sensorTable.cell(idx, 3).data(newRowData.status).invalidate(); // status
+            // Replace the row by its keys rather than cell by cell, so that adding a column cannot silently write to the wrong one.
+            sensorTable.row(idx).data(newRowData).invalidate();
 
             // redraw once, without resetting paging/order
             sensorTable.draw(false);
