@@ -3,14 +3,11 @@ from __future__ import annotations
 from typing import Any
 from datetime import timedelta
 
-import inflect
 from flask import current_app
 import pandas as pd
 import timely_beliefs as tb
 
 from flexmeasures.data.queries.utils import simplify_index
-
-p = inflect.engine()
 
 
 def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
