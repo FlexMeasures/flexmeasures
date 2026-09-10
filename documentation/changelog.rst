@@ -51,6 +51,7 @@ Bugfixes
 * ``flexmeasures add schedule --dry-run`` no longer saves a schedule when it is combined with ``--as-job``, where the flag used to be dropped without a word and the queued job stored its schedule anyway; that combination is now rejected, and a dry run says how many beliefs it would have saved and which events they cover [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * An asset's status page showed only some of the sensors it reported on, in an order that changed between reloads, and it reported on fixed quantities from the flex-context, which have no data to be up to date with [see `PR #2489 <https://www.github.com/FlexMeasures/flexmeasures/pull/2489>`_]
+* Saving an asset chart as PNG or SVG drew the legend over the graph whenever it listed more sensors than fit beside a subplot; the exported image now makes room for every entry beside its own plot, without shrinking the plot, and spells out the sensor names that the on-screen legend abbreviates [see `PR #2517 <https://www.github.com/FlexMeasures/flexmeasures/pull/2517>`_]
 
 
 
