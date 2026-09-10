@@ -1445,7 +1445,7 @@ requires-dist = [
     { name = "setuptools", specifier = ">=83.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
-    { name = "timely-beliefs", specifier = ">=4.2.0" },
+    { name = "timely-beliefs", specifier = ">=4.3.0" },
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "uniplot", specifier = ">=0.12.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
@@ -4616,7 +4616,7 @@ wheels = [
 
 [[package]]
 name = "timely-beliefs"
-version = "4.2.0"
+version = "4.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-metadata" },
@@ -4633,9 +4633,9 @@ dependencies = [
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0e/cc/c4c2114dc098a89796f2697bfcd2419f51fdb483f94671bee53d271a90c0/timely_beliefs-4.2.0.tar.gz", hash = "sha256:cfd3be10aab15e6c3eedae6d1d6de994a4cdbf7f5174a235095399759f14bcbf", size = 805752, upload-time = "2026-08-03T10:28:36.714Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/6c/aa4bee525c7548ccecafbd4770169b697e2a2a6064627aee60ee11b1c3a5/timely_beliefs-4.3.0.tar.gz", hash = "sha256:58d43389b6e8e58d04a16b44bee16439cd6b7dd194bb5f6647310d02ab2fac59", size = 815403, upload-time = "2026-09-08T08:06:07.136Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/31/21909375dd54d9c883687c0f9ded62244abe6f992bcafdf2a188ff0b94b7/timely_beliefs-4.2.0-py2.py3-none-any.whl", hash = "sha256:d955b71a269aafe7380575a155850667d602649020235aedd4498b32cdacd85b", size = 817900, upload-time = "2026-08-03T10:28:34.991Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/a9/80effd54111ba16ae030b90c38ab3480db2d0d0ec5ccfb8792414b6493df/timely_beliefs-4.3.0-py2.py3-none-any.whl", hash = "sha256:0f6289ca9d53a9754f9acd0a75217d3fa1e405a5ce7c4a5e22aabba94da3a406", size = 827766, upload-time = "2026-09-08T08:06:05.476Z" },
 ]
 
 [[package]]
