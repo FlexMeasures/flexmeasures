@@ -29,9 +29,7 @@ SIDE_LEGEND_CHART = """
 
 def test_export_legend_clears_the_plot(assert_js):
     """Every legend entry shows in an export, to the right of the plot (issue #2513)."""
-    assert_js(
-        SIDE_LEGEND_CHART
-        + """
+    assert_js(SIDE_LEGEND_CHART + """
         import { buildExportOption } from "/js/fast-chart.js";
         const exported = buildExportOption(chart(13), 1200, 400);
         const legend = exported.option.legend[0];
@@ -42,15 +40,12 @@ def test_export_legend_clears_the_plot(assert_js):
               `width ${exported.width}`);
         eq("the plot keeps its width", plotRight(exported) - exported.option.grid[0].left, 1200 - 260 - 70);
         eq("the exported chart keeps its height", exported.height, 400);
-        """
-    )
+        """)
 
 
 def test_export_legend_uses_the_full_band_beside_its_subplot(assert_js):
     """One subplot means the legend may run past the plot's height, into a single column."""
-    assert_js(
-        SIDE_LEGEND_CHART
-        + """
+    assert_js(SIDE_LEGEND_CHART + """
         import { buildExportOption } from "/js/fast-chart.js";
         const exported = buildExportOption(chart(13), 1200, 400);
         const legend = exported.option.legend[0];
@@ -58,15 +53,12 @@ def test_export_legend_uses_the_full_band_beside_its_subplot(assert_js):
         check("the legend may use the height below the plot too", legend.height > 150,
               `height ${legend.height}`);
         check("13 entries fit in one column", legend.height >= 13 * 25, `height ${legend.height}`);
-        """
-    )
+        """)
 
 
 def test_export_legend_shows_names_in_full(assert_js):
     """An image has no hover to reveal a truncated name, so the export shows them all."""
-    assert_js(
-        SIDE_LEGEND_CHART
-        + """
+    assert_js(SIDE_LEGEND_CHART + """
         import { buildExportOption } from "/js/fast-chart.js";
         const exported = buildExportOption(chart(13), 1200, 400);
         eq("labels are no longer truncated", exported.option.legend[0].textStyle.overflow, "none");
@@ -78,14 +70,12 @@ def test_export_legend_shows_names_in_full(assert_js):
         eq("a very long name stays truncated", wide.option.legend[0].textStyle.overflow, "truncate");
         check("the exported image stays a sane width", wide.width < 1200 + 500,
               `width ${wide.width}`);
-        """
-    )
+        """)
 
 
 def test_export_leaves_a_legend_below_the_plots_alone(assert_js):
     """With legends below (the "keep legends below graphs" setting), the chart already fits them."""
-    assert_js(
-        """
+    assert_js("""
         import { buildExportOption } from "/js/fast-chart.js";
         const option = {
             grid: [{top: 66, height: 150, left: 70, right: 30}],
@@ -96,15 +86,12 @@ def test_export_leaves_a_legend_below_the_plots_alone(assert_js):
         eq("the canvas is not widened", exported.width, 1200);
         eq("the legend stays where it is", exported.option.legend[0].left, 70);
         eq("the plot keeps its margins", exported.option.grid[0].right, 30);
-        """
-    )
+        """)
 
 
 def test_export_hides_the_toolbox(assert_js):
     """The zoom/pan/save buttons are chrome, not part of the picture."""
-    assert_js(
-        SIDE_LEGEND_CHART
-        + """
+    assert_js(SIDE_LEGEND_CHART + """
         import { buildExportOption } from "/js/fast-chart.js";
         const exported = buildExportOption(chart(3), 1200, 400);
         eq("the toolbox is hidden", exported.option.toolbox.show, false);
@@ -112,5 +99,4 @@ def test_export_hides_the_toolbox(assert_js):
            exported.option.backgroundColor, "#fff");
         eq("progressive rendering is off, so every series is drawn in one pass",
            exported.option.series[0].progressive, 0);
-        """
-    )
+        """)
