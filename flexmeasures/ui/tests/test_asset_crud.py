@@ -765,3 +765,49 @@ def test_status_page_tables_are_not_built_on_page_load(
         b'clickableTable(document.getElementById("jobsTable"), "URL")'
         in status_page.data
     )
+
+
+def test_status_page_include_child_assets_toggle(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """The jobs tab offers a toggle for the jobs of sub-assets, which follows the user's session and is on by default."""
+    parent = GenericAsset(
+        name="parent-for-status-page-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    db.session.add(parent)
+    db.session.flush()
+    child = GenericAsset(
+        name="child-for-status-page-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset_id=parent.id,
+    )
+    db.session.add(child)
+    db.session.commit()
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=parent.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b"Include jobs of sub-assets" in status_page.data
+    # Without a recorded preference, the jobs of sub-assets are included.
+    assert b'id="includeChildAssets" checked' in status_page.data
+    assert b"let includeChildAssets = true;" in status_page.data
+
+    with client.session_transaction() as session:
+        session["status_page_include_child_assets"] = False
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=parent.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b'id="includeChildAssets" checked' not in status_page.data
+    assert b"let includeChildAssets = false;" in status_page.data
+
+    # An asset without sub-assets has nothing to include, so it is not asked about.
+    child_status_page = client.get(
+        url_for("AssetCrudUI:status", id=child.id), follow_redirects=True
+    )
+    assert child_status_page.status_code == 200
+    assert b"Include jobs of sub-assets" not in child_status_page.data

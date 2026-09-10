@@ -761,7 +761,8 @@ def serialize_sensor_status_data(
     Serialize the status of a sensor belonging to an asset.
 
     :param sensor: Sensor to get the status of
-    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor
+    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor.
+             Each status names the asset the sensor belongs to, in asset_id and asset_name, as that need not be the asset whose status page is being looked at.
     """
     asset = sensor.generic_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
@@ -787,6 +788,7 @@ def serialize_sensor_status_data(
             if sensor_status["staleness_since"] is not None
             else None
         )
+        sensor_status["asset_id"] = asset.id
         sensor_status["asset_name"] = asset.name
         sensor_status["relation"] = _get_sensor_asset_relation(
             asset, sensor, inflexible_device_sensors, context_sensors
@@ -807,21 +809,11 @@ def _can_read_automation(automation: Automation | None) -> bool:
     return True
 
 
-def build_asset_jobs_data(
-    asset: Asset,
-) -> list[dict]:
-    """Get all jobs data for an asset
-    Returns a list of dictionaries, each containing the following keys:
-    - job_id: id of a job
-    - queue: job queue (scheduling or forecasting)
-    - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
-    - asset_id: id of sensor or asset
-    - status: job status (e.g finished, failed, etc)
-    - err: job error (equals to None when there was no error for a job)
-    - enqueued_at: time when the job was enqueued
-    - metadata_hash: hash of job metadata (internal field)
-    """
+def _collect_asset_jobs(asset: Asset) -> list[tuple]:
+    """List the cached jobs of one asset and of its own sensors.
 
+    Each tuple is (queue, entity type, entity id, entity name, jobs), and the asset the jobs happened on is the one passed in.
+    """
     jobs = list()
 
     # try to get scheduling jobs for asset first (only scheduling jobs can be stored by asset id)
@@ -836,37 +828,61 @@ def build_asset_jobs_data(
     )
 
     for sensor in asset.sensors:
-        jobs.append(
-            (
-                "scheduling",
-                "sensor",
-                sensor.id,
-                sensor.name,
-                current_app.job_cache.get(sensor.id, "scheduling", "sensor"),
+        for queue in ("scheduling", "forecasting", "reporting"):
+            jobs.append(
+                (
+                    queue,
+                    "sensor",
+                    sensor.id,
+                    sensor.name,
+                    current_app.job_cache.get(sensor.id, queue, "sensor"),
+                )
             )
-        )
-        jobs.append(
-            (
-                "forecasting",
-                "sensor",
-                sensor.id,
-                sensor.name,
-                current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
-            )
-        )
-        jobs.append(
-            (
-                "reporting",
-                "sensor",
-                sensor.id,
-                sensor.name,
-                current_app.job_cache.get(sensor.id, "reporting", "sensor"),
-            )
+
+    return jobs
+
+
+def build_asset_jobs_data(
+    asset: Asset,
+    include_child_assets: bool = True,
+) -> list[dict]:
+    """Get all jobs data for an asset
+
+    :param asset:                Asset to get the jobs for.
+    :param include_child_assets: Whether to also include the jobs of the asset's descendants, so that a site asset shows what happened anywhere below it.
+                                 Whoever may read an asset may read its descendants, too, as a child asset belongs to the same account as its parent.
+    :returns:                    A list of dictionaries, each containing the following keys:
+                                 - job_id: id of a job
+                                 - queue: job queue (scheduling or forecasting)
+                                 - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
+                                 - asset_id: id of the asset the job happened on
+                                 - asset_name: name of the asset the job happened on
+                                 - entity: the asset or sensor the job was triggered on
+                                 - status: job status (e.g finished, failed, etc)
+                                 - err: job error (equals to None when there was no error for a job)
+                                 - enqueued_at: time when the job was enqueued
+                                 - metadata_hash: hash of job metadata (internal field)
+    """
+
+    assets = [asset] + (asset.offspring if include_child_assets else [])
+
+    jobs = list()
+    for asset_to_report_on in assets:
+        # Pair each entry with the asset it came from, so that every job can name the asset it happened on.
+        jobs.extend(
+            (asset_to_report_on, entry)
+            for entry in _collect_asset_jobs(asset_to_report_on)
         )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
-    for queue, asset_or_sensor_type, entity_id, entity_name, jobs in jobs:
+    for job_asset, (
+        queue,
+        asset_or_sensor_type,
+        entity_id,
+        entity_name,
+        jobs,
+    ) in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -902,6 +918,8 @@ def build_asset_jobs_data(
                     "metadata": metadata,
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
+                    "asset_id": job_asset.id,
+                    "asset_name": job_asset.name,
                     "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,
