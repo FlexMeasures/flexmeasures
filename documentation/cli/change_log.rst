@@ -30,6 +30,8 @@ since v1.0.0 | August 11, 2026
 * Add ``flexmeasures jobs run-automation --automation <id>`` to queue the jobs for a single run of one automation, now, on top of its recurring runs. This leaves the automation's cursor alone, so its next recurring run still happens as scheduled, and inactive automations can be run this way, too.
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
 * ``flexmeasures show data-sources`` now shows the account a data source belongs to, and lists the sensors holding data recorded by a single source with ``--show-sensors``.
+* Add ``flexmeasures show report-templates`` to list prepared report templates, or print one in full (with ``--name``).
+* Add a ``--template`` option to ``flexmeasures add report`` and ``flexmeasures add automation`` (type ``reports``), to start from a prepared report template (any ``--config``/``--parameters`` files and other options override it).
 
 since v0.33.0 | June 01, 2026
 =================================
