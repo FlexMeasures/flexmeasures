@@ -85,6 +85,48 @@ This parameterizes the computation (from which sensors does data come from, whic
     These correspond to the same filters available on ``Sensor.search_beliefs``.
 
 
+Aggregating everything below an asset
+--------------------------------------
+
+Naming every sensor one by one is fine for two of them, but not for a site with a dozen PV inverters, let alone one where inverters get added over time.
+The ``AggregatorReporter`` can therefore also be told *which* sensors to aggregate in its configuration, rather than in its parameters:
+
+- ``asset``: aggregate the sensors of this asset and of all of its offspring, so pointing at a site asset covers everything below it.
+- ``sensors``: aggregate these sensors, listed by ID.
+- ``sensor_name_pattern``: keep only the sensors whose name matches this regular expression.
+- ``sensor_units``: keep only the sensors that record in one of these units, or in a unit measuring the same quantity, so ``["MW"]`` also keeps a sensor recording in ``kW``, but not one recording in ``MWh``.
+
+For example, to report the total PV power of a site, whose asset has ID 3:
+
+.. code-block:: json
+
+    {
+        "method" : "sum",
+        "asset" : 3,
+        "sensor_name_pattern" : "(?i)pv",
+        "sensor_units" : ["MW"]
+    }
+
+.. code-block:: json
+
+    {
+        "output": [
+            {
+                "sensor": 10
+            }
+        ],
+        "start" : "2023-01-01T00:00:00+00:00",
+        "end" : "2023-01-03T00:00:00+00:00"
+    }
+
+Values are converted to the unit of the output sensor, and read at its resolution, so sensors recording in different units and at different resolutions can be aggregated onto one sensor.
+Set ``convert_units`` to ``false`` to aggregate the values as they are recorded, and pass a ``resolution`` parameter to read at another resolution than the output sensor's.
+A sensor without a unit is never converted, because an empty unit says nothing about what its values mean, and a sensor recording a quantity that the output sensor cannot express (a temperature onto a power sensor, say) is reported as an error rather than silently added up.
+
+The output sensor itself is left out of the aggregation, so a report can be recorded on a sensor that sits below the very asset being aggregated.
+Sensors named in the ``input`` parameters are read as described there, and the selected sensors are added to them.
+
+
 Example: Profits & losses
 ---------------------------
 
