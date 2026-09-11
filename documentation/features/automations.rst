@@ -99,7 +99,8 @@ Before queueing anything, the runner writes down the plan for the run: the param
 This is what makes a retry safe.
 A run which failed before queueing anything is dispatched again in full.
 A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
-Because the plan is stored, a retry hours later still uses the parameters and timings the run was originally planned with, even if the automation has been edited since.
+Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
+Timings the automation left to the run time are not part of those parameters, so they are resolved afresh on each attempt: a resumed run's jobs can therefore cover a later window than the ones its first attempt queued.
 
 Retrying a failed dispatch this way is what a forecast run does.
 A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
