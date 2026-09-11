@@ -21,10 +21,7 @@ from flask import current_app
 from marshmallow import ValidationError
 from sqlalchemy import select, update
 
-from werkzeug.exceptions import Forbidden
-
 from flexmeasures import Forecaster, Reporter
-from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import (
     Automation,
@@ -35,6 +32,10 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
     asset_is_in_subtree,
+)
+from flexmeasures.data.services.data_generators import (
+    check_sensor_access,
+    resolve_data_generator_sensors,
 )
 from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
 
@@ -136,31 +137,6 @@ def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
         )
     collect_sensors(message.get("flex_context"), sensors, only_under_output_field=True)
     return list(sensors.values())
-
-
-def check_sensor_access(
-    input_sensors: list[Sensor], output_sensors: list[Sensor]
-) -> None:
-    """Require access to the sensors that an automation would read from and write to.
-
-    Reading a sensor's data requires read access to it, and recording data on a sensor
-    requires the same permission as recording data through the API (create-children).
-    """
-    for sensors, permission, action in (
-        (input_sensors, "read", "read data from"),
-        (output_sensors, "create-children", "record data on"),
-    ):
-        for sensor in sensors:
-            try:
-                check_access(sensor, permission)
-            except Forbidden as exc:
-                setattr(
-                    exc,
-                    "api_message",
-                    f"You cannot set up an automation that would {action} sensor"
-                    f" {sensor.id}, because you cannot {action} it yourself.",
-                )
-                raise
 
 
 def describe_cronstr(cronstr: str) -> str:
@@ -383,26 +359,6 @@ class AutomationSensorsUnknown(Exception):
     Callers that decide whether something is allowed must let this propagate rather than treat it as "no sensors",
     because an automation with no known sensors would otherwise pass every check on the sensors it involves.
     """
-
-
-def resolve_data_generator_sensors(
-    data_generator, deserialized_parameters: dict
-) -> dict[str, list[Sensor]]:
-    """Ask a data generator which sensors it would read from and write to, given these parameters.
-
-    A data generator derives this from its own config and parameters, so it also picks up a regressor that filters on sources,
-    which is a sensor reference rather than a plain sensor.
-    Work out the answer here rather than in each caller, so that displaying the sensors involved
-    and checking access to them can never disagree about what they are.
-    """
-    # Work on a copy, as the data generator is cached on the data source,
-    # which may be shared by several automations.
-    data_generator = copy(data_generator)
-    data_generator._parameters = deserialized_parameters
-    return {
-        "input_sensors": data_generator.input_sensors,
-        "output_sensors": data_generator.output_sensors,
-    }
 
 
 def resolve_schedule_automation_sensors(

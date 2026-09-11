@@ -676,3 +676,155 @@ def test_group_field_hints_on_properties_page(
     assert lone_page.status_code == 200
     assert b"Consider setting" not in lone_page.data
     assert b"Child assets can" not in lone_page.data
+
+
+def test_status_page_lists_only_real_sensors(
+    db, client, setup_accounts, setup_generic_asset_types, as_admin
+):
+    """The status page asks the status endpoint about each sensor it lists.
+
+    Fixed-value sensors stand in for flex-config quantities and have no row in the database,
+    so listing them would only lead to status requests for their negative IDs, which cannot resolve to a sensor.
+    """
+    asset = GenericAsset(
+        name="status-page-asset",
+        generic_asset_type=setup_generic_asset_types["wind"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10.0,
+        longitude=100.0,
+        flex_context={"site-power-capacity": "1 MVA"},
+    )
+    db.session.add(asset)
+    power_sensor = Sensor(
+        name="power",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(power_sensor)
+    db.session.flush()
+
+    asset.sensors_to_show = [
+        {"title": "Power", "sensor": power_sensor.id},
+        {
+            "title": "Capacity",
+            "plots": [{"asset": asset.id, "flex-context": "site-power-capacity"}],
+        },
+    ]
+    db.session.commit()
+
+    page = client.get(url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True)
+    assert page.status_code == 200
+
+    listed_sensors = json.loads(
+        re.search(r"const sensors = (\[.*?\]);", page.data.decode(), re.DOTALL).group(1)
+    )
+    assert power_sensor.id in [sensor["id"] for sensor in listed_sensors]
+    assert not [sensor for sensor in listed_sensors if sensor["id"] < 0]
+
+
+def test_asset_status_page_tabs(db, client, setup_assets, as_prosumer_user1):
+    """The status page splits sensor data from jobs, and opens the tab the user last looked at."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b"Latest jobs of" in status_page.data
+    assert b"Data connectivity for sensors of" in status_page.data
+    # Without a recorded preference, the jobs tab opens, so only the jobs table loads.
+    assert b'<a class="nav-link active" id="jobs-tab"' in status_page.data
+    assert b'<a class="nav-link " id="sensors-tab"' in status_page.data
+    assert b'initTable("jobs")' in status_page.data
+
+    with client.session_transaction() as session:
+        session["status_page_tab"] = "sensors"
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b'<a class="nav-link active" id="sensors-tab"' in status_page.data
+    assert b'<a class="nav-link " id="jobs-tab"' in status_page.data
+    assert b'initTable("sensors")' in status_page.data
+
+
+@pytest.mark.parametrize("remembered_tab", ["jobs", "sensors"])
+def test_status_page_tables_are_not_built_on_page_load(
+    db, client, setup_assets, as_prosumer_user1, remembered_tab
+):
+    """Neither status table opts into a class by which flexmeasures.js builds a DataTable on page load.
+
+    Both the 'paginate' and the 'nav-on-click' class do so, the latter through clickableTable().
+    Either one would build whichever table sits in the tab that is not open, using default options and no data source,
+    and the page could then no longer initialise that table once its tab is opened, leaving it empty until a reload.
+    """
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    with client.session_transaction() as session:
+        session["status_page_tab"] = remembered_tab
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=asset.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    for table_id in (b"jobsTable", b"sensorStatusTable"):
+        table_tag = re.search(
+            rb'<table id="%s"[^>]*>' % table_id, status_page.data
+        ).group()
+        assert b"paginate" not in table_tag, table_tag
+        assert b"nav-on-click" not in table_tag, table_tag
+    # The jobs rows stay navigable, by the page applying that helper itself once it has built the table.
+    assert (
+        b'clickableTable(document.getElementById("jobsTable"), "URL")'
+        in status_page.data
+    )
+
+
+def test_status_page_include_child_assets_toggle(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """The jobs tab offers a toggle for the jobs of sub-assets, which follows the user's session and is on by default."""
+    parent = GenericAsset(
+        name="parent-for-status-page-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    db.session.add(parent)
+    db.session.flush()
+    child = GenericAsset(
+        name="child-for-status-page-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset_id=parent.id,
+    )
+    db.session.add(child)
+    db.session.commit()
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=parent.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b"Include jobs of sub-assets" in status_page.data
+    # Without a recorded preference, the jobs of sub-assets are included.
+    assert b'id="includeChildAssets" checked' in status_page.data
+    assert b"let includeChildAssets = true;" in status_page.data
+
+    with client.session_transaction() as session:
+        session["status_page_include_child_assets"] = False
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=parent.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b'id="includeChildAssets" checked' not in status_page.data
+    assert b"let includeChildAssets = false;" in status_page.data
+
+    # An asset without sub-assets has nothing to include, so it is not asked about.
+    child_status_page = client.get(
+        url_for("AssetCrudUI:status", id=child.id), follow_redirects=True
+    )
+    assert child_status_page.status_code == 200
+    assert b"Include jobs of sub-assets" not in child_status_page.data

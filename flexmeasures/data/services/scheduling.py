@@ -275,6 +275,7 @@ def create_scheduling_job(
     # Set consumption_is_positive on output sensors now (at trigger time) so that any
     # attribute conflict raises an error immediately, before the job is enqueued.
     _set_flex_model_output_sensors_consumption_is_positive(scheduler.flex_model)
+    _set_flex_context_output_sensors_consumption_is_positive(scheduler.flex_context)
 
     asset_or_sensor = get_asset_or_sensor_ref(asset_or_sensor)
     job = Job.create(
@@ -669,7 +670,7 @@ def _is_consumption_production_output(
 
 
 def _set_flex_model_output_sensors_consumption_is_positive(
-    flex_model: dict | list,
+    flex_model: dict | list | None,
 ) -> None:
     """Set the ``consumption_is_positive`` attribute on consumption and production output sensors.
 
@@ -682,42 +683,148 @@ def _set_flex_model_output_sensors_consumption_is_positive(
     but has the wrong value for the flex-model field that references it. Calling this function
     at job-creation time lets the API surface conflicts before any work is queued.
 
-    :param flex_model: Deserialized flex model — either a single-device ``dict`` or a
-                       ``list`` of per-device dicts. Consumption/production fields are
-                       expected to be dicts with a ``"sensor"`` key.
-    :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value
-                        for the given flex-model field.
+    A reference that is still a sensor ID is looked up rather than skipped,
+    so that a flex-model which reached this function undeserialized still gets its sign conventions recorded.
+
+    :param flex_model: Flex model — either a single-device ``dict`` or a ``list`` of per-device dicts.
+                       Consumption/production fields are expected to reference a sensor, in any of the shapes :func:`_resolve_output_sensor` accepts.
+    :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value for the given flex-model field,
+                        or when an output-sensor reference does not resolve to a sensor.
     """
+    if flex_model is None:
+        return
     models = flex_model if isinstance(flex_model, list) else [flex_model]
     for flex_model_d in models:
-        consumption_field = flex_model_d.get("consumption")
-        production_field = flex_model_d.get("production")
-        consumption_sensor = (
-            consumption_field.get("sensor")
-            if isinstance(consumption_field, dict)
-            else None
+        if not isinstance(flex_model_d, dict):
+            continue
+        # A device's flex-model is nested under its own key in the multi-sensor form,
+        # which is how a flex-model travels between the API and the scheduler (see MultiSensorFlexModelSchema).
+        nested = flex_model_d.get(
+            "sensor_flex_model", flex_model_d.get("sensor-flex-model")
         )
-        production_sensor = (
-            production_field.get("sensor")
-            if isinstance(production_field, dict)
-            else None
-        )
-        for sensor, intended in [
-            (consumption_sensor, True),
-            (production_sensor, False),
+        if isinstance(nested, dict):
+            _set_flex_model_output_sensors_consumption_is_positive(nested)
+        for field_name, intended in [
+            ("consumption", True),
+            ("production", False),
         ]:
+            sensor = _resolve_output_sensor(flex_model_d.get(field_name), field_name)
             if sensor is None:
                 continue
-            field_name = "consumption_schedule" if intended else "production_schedule"
-            existing = sensor.attributes.get("consumption_is_positive")
-            if existing is not None and existing != intended:
-                raise ValueError(
-                    f"Sensor {sensor} already has `consumption_is_positive={existing}`, "
-                    f"which conflicts with the '{field_name}' output schedule "
-                    f"(expected `consumption_is_positive={intended}`). "
-                    f"Remove or correct the attribute before running the scheduler."
-                )
-            sensor.attributes["consumption_is_positive"] = intended
+            schedule_name = (
+                "consumption_schedule" if intended else "production_schedule"
+            )
+            _assign_consumption_is_positive(sensor, intended, schedule_name)
+
+
+def _resolve_output_sensor(field, field_name: str) -> Sensor | None:
+    """The sensor that an output-sensor field refers to, if it refers to one at all.
+
+    Such a field carries its sensor under ``"sensor"``: as a key when the field is a dict, and as an attribute when it is a sensor reference object.
+    The value there is a ``Sensor`` once the flex-config has been deserialized, and the ID the client posted when it has not.
+    All of these shapes resolve here, rather than the undeserialized ones being skipped,
+    so that a reference which reached its caller undeserialized is still handled instead of silently ignored.
+    A field that is not a sensor reference at all is not our business, and returns None:
+    a custom scheduler is free to use these field names for something else entirely.
+
+    :param field:       The output-sensor field, or None when the flex-config does not set it.
+    :param field_name:  Name of the field, used in the error message.
+    :returns:           The referenced sensor, or None when the field does not reference one.
+    :raises ValueError: When the field references a sensor that cannot be resolved.
+    """
+    if isinstance(field, dict):
+        reference = field.get("sensor")
+    else:
+        reference = getattr(field, "sensor", None)
+    if reference is None:
+        return None
+    if isinstance(reference, Sensor):
+        return reference
+    if isinstance(reference, int) or (
+        isinstance(reference, str) and reference.isdigit()
+    ):
+        sensor = db.session.get(Sensor, int(reference))
+        if sensor is None:
+            raise ValueError(
+                f"The '{field_name}' output sensor references sensor {reference}, which does not exist."
+            )
+        return sensor
+    raise ValueError(
+        f"The '{field_name}' output sensor reference could not be resolved to a sensor: {reference!r}."
+    )
+
+
+def _assign_consumption_is_positive(
+    sensor: Sensor, intended: bool, field_name: str
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on a single output sensor.
+
+    :param sensor:      The output sensor to mark.
+    :param intended:    True when the sensor records consumption as positive values, False when it records production as positive values.
+    :param field_name:  Name of the flex-model or flex-context field referencing the sensor, used in the error message.
+    :raises ValueError: When the attribute is already set to a value other than *intended*.
+    """
+    existing = sensor.attributes.get("consumption_is_positive")
+    if existing is not None and existing != intended:
+        raise ValueError(
+            f"Sensor {sensor} already has `consumption_is_positive={existing}`, "
+            f"which conflicts with the '{field_name}' output schedule "
+            f"(expected `consumption_is_positive={intended}`). "
+            f"Remove or correct the attribute before running the scheduler."
+        )
+    sensor.attributes["consumption_is_positive"] = intended
+
+
+def _set_flex_context_output_sensors_consumption_is_positive(
+    flex_context: dict | list | None,
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on aggregate output sensors.
+
+    The flex-context's ``aggregate-consumption`` and ``aggregate-production`` sensors record the aggregate power schedule of all devices scheduled together,
+    so they follow the same sign conventions as the flex-model's per-device ``consumption`` and ``production`` output sensors::
+
+        aggregate-consumption sensor -> consumption_is_positive = True
+        aggregate-production sensor  -> consumption_is_positive = False
+
+    Without the attribute, the scheduler's consumption-positive values would be saved sign-flipped,
+    following the default convention for power sensors (see :func:`_resolve_schedule_output_sign`).
+
+    Both the single-dict flex-context and each entry of its ``commodities`` list can define these sensors,
+    so both are visited here.
+    A flex-context which reached this function undeserialized is handled rather than skipped,
+    so its sign conventions are still recorded: a multi-commodity flex-context is a list before deserialization and a dict after,
+    its per-commodity contexts are keyed ``commodities`` before and ``commodity_contexts`` after,
+    and a reference that is still a sensor ID is looked up.
+
+    :param flex_context: Flex context, or None when the scheduler has none.
+    :raises ValueError:  When ``consumption_is_positive`` is already set to the wrong value for the given flex-context field,
+                         or when an aggregate output-sensor reference does not resolve to a sensor.
+    """
+    if flex_context is None:
+        return
+    top_level = flex_context if isinstance(flex_context, list) else [flex_context]
+    contexts = []
+    for context in top_level:
+        if not isinstance(context, dict):
+            continue
+        contexts.append(context)
+        contexts.extend(
+            context.get("commodity_contexts") or context.get("commodities") or []
+        )
+    for context in contexts:
+        if not isinstance(context, dict):
+            continue
+        for field_name, intended in [
+            ("aggregate_consumption", True),
+            ("aggregate_production", False),
+        ]:
+            # The field is keyed with an underscore once deserialized, and with a dash as posted.
+            field_label = field_name.replace("_", "-")
+            field = context.get(field_name, context.get(field_label))
+            sensor = _resolve_output_sensor(field, field_label)
+            if sensor is None:
+                continue
+            _assign_consumption_is_positive(sensor, intended, field_label)
 
 
 def _set_output_sensor_consumption_is_positive(
@@ -780,11 +887,12 @@ def _resolve_schedule_output_sign(
     and the default convention for main power sensors) the sign is inverted.
 
     .. note::
-        For consumption/production output sensors the ``consumption_is_positive`` attribute
-        must be set before this function is called. It is set eagerly at job-creation time
-        by :func:`_set_flex_model_output_sensors_consumption_is_positive`, and again (as a
-        safety-net for direct :func:`make_schedule` calls) by
-        :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.
+        For consumption/production output sensors the ``consumption_is_positive`` attribute must be set before this function is called.
+        It is set eagerly at job-creation time by :func:`_set_flex_model_output_sensors_consumption_is_positive`,
+        and again by that same function after ``compute()``, as a safety-net for direct :func:`make_schedule` calls,
+        and by :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.
+        The flex-context's aggregate output sensors are marked in both those places,
+        by :func:`_set_flex_context_output_sensors_consumption_is_positive`.
 
     :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
     :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
@@ -885,6 +993,19 @@ def make_schedule(  # noqa: C901
         rq_job.meta["scheduler_info"] = scheduler.info
 
     consumption_schedule: SchedulerOutputType = scheduler.compute()
+
+    # Mark the output sensors with their sign convention.
+    # At job-creation time this is already done eagerly;
+    # calling it here again acts as a safety net for direct make_schedule invocations,
+    # and can only be done now that compute() has deserialized the flex-model and flex-context.
+    # The per-result net below covers a flex-model output sensor only when it sits on another asset,
+    # so a device that records its schedule on a sensor of the very asset being scheduled needs this pass.
+    _set_flex_model_output_sensors_consumption_is_positive(
+        getattr(scheduler, "flex_model", None)
+    )
+    _set_flex_context_output_sensors_consumption_is_positive(
+        getattr(scheduler, "flex_context", None)
+    )
 
     # in case we are getting a custom Scheduler that hasn't implemented the multiple output return
     # this should only be called whenever the Scheduler applies to the Sensor.

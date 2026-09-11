@@ -302,6 +302,7 @@ def test_asset_trigger_and_get_schedule(
             assert_almost_equal(power_schedule, expected_uni_schedule)
 
 
+@pytest.mark.parametrize("define_production_sensor", [True, False])
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
@@ -313,14 +314,19 @@ def test_asset_trigger_and_get_aggregate_schedule(
     add_charging_station_assets_fresh_db,
     keep_scheduling_queue_empty,
     requesting_user,
+    define_production_sensor,
 ):
     """Test that aggregate-consumption and aggregate-production flex-context fields get filled with data.
 
     This test verifies:
-    1. Aggregate-consumption sensor receives the total consumption schedule with correct sign
-    2. Aggregate-production sensor receives the total production schedule with correct sign
-    3. The data source is correctly set to the scheduler
-    4. The sign convention matches the scheduler's output (consumption positive, production negative)
+    1. Aggregate-consumption sensor receives the aggregate consumption schedule with correct sign.
+    2. Aggregate-production sensor, when one is defined, receives the aggregate production schedule with correct sign.
+    3. The data source is correctly set to the scheduler.
+    4. The sign convention is the one implied by each field name, and is recorded on the sensor through its ``consumption_is_positive`` attribute.
+
+    The two parametrizations cover both documented cases:
+    with an aggregate-production sensor defined, the aggregate-consumption sensor only records the non-negative part of the aggregate schedule;
+    without one, it records the full aggregate schedule.
     """
     # Set up charging hub with aggregate sensors
     bidirectional_charging_station = add_charging_station_assets_fresh_db[
@@ -335,14 +341,15 @@ def test_asset_trigger_and_get_aggregate_schedule(
         unit="MW",
         event_resolution=pd.Timedelta(minutes=15),
     )
-    aggregate_production_sensor = Sensor(
-        name="aggregate-production",
-        generic_asset=charging_hub,
-        unit="MW",
-        event_resolution=pd.Timedelta(minutes=15),
-    )
     fresh_db.session.add(aggregate_consumption_sensor)
-    fresh_db.session.add(aggregate_production_sensor)
+    if define_production_sensor:
+        aggregate_production_sensor = Sensor(
+            name="aggregate-production",
+            generic_asset=charging_hub,
+            unit="MW",
+            event_resolution=pd.Timedelta(minutes=15),
+        )
+        fresh_db.session.add(aggregate_production_sensor)
     fresh_db.session.flush()
 
     # Set up price sensor
@@ -366,8 +373,11 @@ def test_asset_trigger_and_get_aggregate_schedule(
         "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",
         "aggregate-consumption": {"sensor": aggregate_consumption_sensor.id},
-        "aggregate-production": {"sensor": aggregate_production_sensor.id},
     }
+    if define_production_sensor:
+        message["flex-context"]["aggregate-production"] = {
+            "sensor": aggregate_production_sensor.id
+        }
 
     # Set up flex-models for both charging stations
     CP_1_flex_model = message["flex-model"].copy()
@@ -404,6 +414,17 @@ def test_asset_trigger_and_get_aggregate_schedule(
     scheduler_source = get_data_source_for_job(scheduling_job)
     assert scheduler_source is not None
 
+    # The sign convention implied by each field name is recorded on the sensor itself,
+    # so that the aggregate schedule is saved (and read back) with that convention.
+    assert (
+        aggregate_consumption_sensor.get_attribute("consumption_is_positive") is True
+    ), "the aggregate-consumption sensor should be marked as recording consumption as positive values"
+    if define_production_sensor:
+        assert (
+            aggregate_production_sensor.get_attribute("consumption_is_positive")
+            is False
+        ), "the aggregate-production sensor should be marked as recording production as positive values"
+
     # Verify aggregate-consumption sensor got filled with data
     consumption_beliefs = (
         TimedBelief.query.filter(
@@ -414,41 +435,74 @@ def test_asset_trigger_and_get_aggregate_schedule(
     )
     assert len(consumption_beliefs) > 0, "aggregate-consumption sensor should have data"
 
-    # Extract consumption schedule (consumption is positive in the scheduler)
+    # The aggregate-consumption sensor stores consumption as positive values
     consumption_schedule = pd.Series(
-        [
-            -v.event_value for v in consumption_beliefs
-        ],  # Negate because DB stores consumption as negative
+        [v.event_value for v in consumption_beliefs],
         index=pd.DatetimeIndex([v.event_start for v in consumption_beliefs]),
     )
 
-    # Verify aggregate-production sensor got filled with data
-    production_beliefs = (
-        TimedBelief.query.filter(
-            TimedBelief.sensor_id == aggregate_production_sensor.id
-        )
-        .filter(TimedBelief.source_id == scheduler_source.id)
-        .all()
-    )
-    assert len(production_beliefs) > 0, "aggregate-production sensor should have data"
-
-    # Extract production schedule (production is negative in the scheduler, but stored as positive in DB for production sensors)
-    production_schedule = pd.Series(
-        [v.event_value for v in production_beliefs],
-        index=pd.DatetimeIndex([v.event_start for v in production_beliefs]),
-    )
-
-    # Verify sign conventions: some values should be positive (consumption), some negative (production)
-    # At least one consumption value should be positive
+    # Verify sign conventions: charging the stations shows up as positive consumption
     assert (
         consumption_schedule > 0
     ).any(), "consumption schedule should have some positive values"
 
-    # For a test with charging, we might not have discharge, so production could be all zeros
-    # But we still verify the schedule structure is correct
-    assert (
-        production_schedule >= 0
-    ).all(), "production schedule should have non-negative values (production flows are positive)"
+    if not define_production_sensor:
+        # Without an aggregate-production sensor, the consumption sensor records the full aggregate schedule,
+        # so it should match the sum of the scheduled device power flows.
+        # Those are stored on the device power sensors in the default production-positive convention,
+        # hence the sign flip.
+        device_schedule = None
+        for device_sensor in (sensor_1, sensor_2):
+            device_beliefs = (
+                TimedBelief.query.filter(TimedBelief.sensor_id == device_sensor.id)
+                .filter(TimedBelief.source_id == scheduler_source.id)
+                .all()
+            )
+            series = -pd.Series(
+                [v.event_value for v in device_beliefs],
+                index=pd.DatetimeIndex([v.event_start for v in device_beliefs]),
+            ).sort_index()
+            device_schedule = (
+                series if device_schedule is None else device_schedule + series
+            )
+        # Each schedule is rounded to its own sensor's precision before being saved,
+        # so the aggregate and the sum of the device schedules can differ in the last decimal.
+        assert_almost_equal(
+            consumption_schedule.sort_index().values, device_schedule.values, decimal=5
+        )
+        assert (
+            consumption_schedule < 0
+        ).any(), "the full aggregate schedule should go negative while the site is net-producing"
+
+    if define_production_sensor:
+        # Only the non-negative part of the aggregate schedule lands on the consumption sensor
+        assert (
+            consumption_schedule >= 0
+        ).all(), "consumption schedule should have non-negative values when an aggregate-production sensor takes the production part"
+
+        # Verify aggregate-production sensor got filled with data
+        production_beliefs = (
+            TimedBelief.query.filter(
+                TimedBelief.sensor_id == aggregate_production_sensor.id
+            )
+            .filter(TimedBelief.source_id == scheduler_source.id)
+            .all()
+        )
+        assert (
+            len(production_beliefs) > 0
+        ), "aggregate-production sensor should have data"
+
+        # The aggregate-production sensor stores production as positive values
+        production_schedule = pd.Series(
+            [v.event_value for v in production_beliefs],
+            index=pd.DatetimeIndex([v.event_start for v in production_beliefs]),
+        )
+
+        # For a test with charging, we might not have discharge, so production could be all zeros
+        # But we still verify the schedule structure is correct
+        assert (
+            production_schedule >= 0
+        ).all(), "production schedule should have non-negative values (production flows are positive)"
 
 
 @pytest.mark.parametrize(

@@ -495,6 +495,10 @@ An active automation follows its cron recurrence in the timezone shown below. If
         success: () => location.reload(),
         error: function (xhr) {
           $("#newAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not create the automation."));
+        },
+      });
+    });
+
     $(document).on("click", ".run-automation", function () {
       const button = $(this);
       const automationId = button.data("automation-id");

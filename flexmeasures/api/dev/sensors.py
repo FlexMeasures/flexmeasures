@@ -12,7 +12,7 @@ from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.schemas import (
     AssetIdField,
-    DurationField,
+    ResolutionField,
     SensorIdField,
 )
 from flexmeasures.api.common.schemas.generic_schemas import (
@@ -102,7 +102,7 @@ class SensorChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
         "compress_json": "compress-json",
     }
 
-    resolution = DurationField(
+    resolution = ResolutionField(
         required=False,
         metadata=dict(
             description="Resolution of the requested data, in ISO 8601 duration format.",
