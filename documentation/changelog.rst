@@ -32,6 +32,7 @@ New features
 * Both tabs of an asset's status page now name the asset each row belongs to, and the jobs tab also lists the jobs of the asset's sub-assets, so a site asset shows what happened anywhere below it, which you can switch off per session [see `PR #2500 <https://www.github.com/FlexMeasures/flexmeasures/pull/2500>`_]
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 * The statistics table on a sensor page now shows all data sources together by default, as the graph does [see `PR #2462 <https://www.github.com/FlexMeasures/flexmeasures/pull/2462>`_]
+* Report an aggregated signal for a whole site, by telling the ``AggregatorReporter`` which asset to aggregate below, rather than naming every sensor by hand, optionally narrowed down by a pattern on the sensor name and by the units the sensors record in, with values converted to the unit of the sensor the report is recorded on and read at its resolution, so sensors recording in different units and at different resolutions can be aggregated [see `PR #2525 <https://www.github.com/FlexMeasures/flexmeasures/pull/2525>`_]
 
 Infrastructure / Support
 -------------------------
