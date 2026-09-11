@@ -3,15 +3,17 @@ from datetime import datetime, timedelta
 
 from flask import url_for
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import select, func, event
 
 from pytz import utc
 
+from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
@@ -273,6 +275,69 @@ def test_get_assets_filtered_by_asset_type(
     assert all(
         asset["generic_asset_type"]["id"] == requested_type_id
         for asset in response.json
+    )
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_does_not_scale_query_count_with_catalog_size(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """The assets-list endpoint dumps each asset's owner, generic_asset_type, sensors and child_assets.
+
+    Those relations must be eager-loaded, so the SQL statement count stays constant as the
+    catalog grows, rather than scaling with it (an N+1 query per asset per relation).
+    """
+
+    def seed_assets(num_assets: int, tag: str) -> GenericAssetType:
+        """Create num_assets assets, each with its own owner (so the identity map can't mask
+        an N+1 by reusing an already-loaded owner) and a sensor, under a shared, tagged type.
+        """
+        asset_type = GenericAssetType(name=f"n1-bench-type-{tag}")
+        db.session.add(asset_type)
+        db.session.flush()
+        for i in range(num_assets):
+            asset = GenericAsset(
+                name=f"n1-bench-asset-{tag}-{i}",
+                generic_asset_type=asset_type,
+                owner=Account(name=f"n1-bench-account-{tag}-{i}"),
+            )
+            db.session.add(asset)
+            db.session.flush()
+            db.session.add(
+                Sensor(
+                    name=f"n1-bench-sensor-{tag}-{i}",
+                    generic_asset=asset,
+                    event_resolution="PT15M",
+                    unit="MW",
+                )
+            )
+        db.session.commit()
+        return asset_type
+
+    def count_queries_for_index_request(asset_type: GenericAssetType) -> int:
+        count = {"n": 0}
+
+        def _count(*args, **kwargs):
+            count["n"] += 1
+
+        event.listen(db.engine, "before_cursor_execute", _count)
+        try:
+            response = client.get(
+                url_for("AssetAPI:index"),
+                query_string={"all_accessible": "true", "asset_type": asset_type.id},
+            )
+        finally:
+            event.remove(db.engine, "before_cursor_execute", _count)
+        assert response.status_code == 200
+        return count["n"]
+
+    small_count = count_queries_for_index_request(seed_assets(2, tag="small"))
+    large_count = count_queries_for_index_request(seed_assets(20, tag="large"))
+
+    # A few extra statements (auth, account lookups) are fine, but the count must not grow with catalog size.
+    assert large_count <= small_count + 5, (
+        f"SQL statement count grew with catalog size ({small_count} for 2 assets vs "
+        f"{large_count} for 20), which points to a reintroduced N+1 query pattern."
     )
 
 
@@ -2250,3 +2315,59 @@ def test_update_status_page_tab_rejects_unknown_tab(
     assert response.status_code == 422
     with client.session_transaction() as session:
         assert "status_page_tab" not in session
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_of_child_assets(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """A parent asset lists the jobs of its children, unless the caller opts out."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_cache.add(
+        child.id,
+        child_job.id,
+        queue="scheduling",
+        asset_or_sensor_type="asset",
+    )
+
+    response = client.get(url_for("AssetAPI:get_jobs", id=parent.id))
+    assert response.status_code == 200
+    assert child_job.id in [job["job_id"] for job in response.json["jobs"]]
+    assert f"asset: {child.name} (Id: {child.id})" in [
+        job["entity"] for job in response.json["jobs"]
+    ], "the job is reported against the child asset it was triggered on"
+    reported_job = [
+        job for job in response.json["jobs"] if job["job_id"] == child_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        child.id,
+        child.name,
+    ), "the job names the asset it happened on, rather than the asset that was asked about"
+
+    response = client.get(
+        url_for("AssetAPI:get_jobs", id=parent.id),
+        query_string={"include_child_assets": "false"},
+    )
+    assert response.status_code == 200
+    assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
+
+    app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("include_child_assets", [True, False])
+def test_update_status_page_child_jobs(
+    client, setup_api_test_data, requesting_user, include_child_assets
+):
+    """Posting the job scope of the status page records it in the session, for the next status page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_child_jobs"),
+        json={"include_child_assets": include_child_assets},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["status_page_include_child_assets"] == include_child_assets
