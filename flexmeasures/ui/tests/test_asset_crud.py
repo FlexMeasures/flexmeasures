@@ -92,6 +92,21 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Location".encode() in asset_page.data
 
 
+def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
+    asset = setup_assets["wind-asset-1"]
+
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+
+    assert response.status_code == 200
+    assert b'id="automationTimezone"' in response.data
+    assert f'value="{asset.timezone}"'.encode() in response.data
+    assert b'<option value="Europe/Amsterdam"></option>' in response.data
+    assert b'id="editAutomationModal"' in response.data
+    assert b'id="editAutomationTimezone"' in response.data
+    assert b'timezone: $("#automationTimezone").val()' in response.data
+    assert b'timezone: $("#editAutomationTimezone").val()' in response.data
+
+
 @pytest.mark.parametrize(
     "args, error",
     [

@@ -46,6 +46,10 @@ class Automation(db.Model, AuthModelMixin):
 
     SUPPORTED_TYPES = ["forecasting", "scheduling"]  # later also "reporting"
 
+    # What one result of each type is called, for messages that talk about a single result,
+    # such as the parameters an automation of that type computes with.
+    RESULT_NOUNS = {"forecasting": "forecast", "scheduling": "schedule"}
+
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
         db.DateTime(timezone=True), nullable=False, default=server_now
@@ -95,16 +99,16 @@ class Automation(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         Whoever can read the asset can read its automations.
-        Updating and deleting automations is allowed for whoever can delete
-        the asset (i.e. account admins and consultants).
+        Updating and deleting automations is allowed for whoever may add data under the asset,
+        which is what defining an automation amounts to.
         """
         if self.asset is None:
             return {}
         asset_acl = self.asset.__acl__()
         return {
             "read": asset_acl["read"],
-            "update": asset_acl["delete"],
-            "delete": asset_acl["delete"],
+            "update": asset_acl["create-children"],
+            "delete": asset_acl["create-children"],
         }
 
     def __repr__(self):

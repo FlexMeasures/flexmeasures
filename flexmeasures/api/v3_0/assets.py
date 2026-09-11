@@ -48,13 +48,20 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.schemas.automations import AutomationSchema
+from flexmeasures.data.schemas.automations import (
+    AutomationCreationSchema,
+    AutomationSchema,
+    AutomationUpdateSchema,
+)
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
+    create_automation,
+    delete_automation as remove_automation,
     describe_cronstr,
     get_automation_job_stats,
     resolve_automation_sensors,
     run_automation,
+    update_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
@@ -1476,7 +1483,7 @@ class AssetAPI(FlaskView):
                           - id: 1
                             created_at: "2026-07-11T00:00:00+00:00"
                             asset_id: 1
-                            type: forecasts
+                            type: forecasting
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
@@ -1556,7 +1563,7 @@ class AssetAPI(FlaskView):
                         id: 1
                         created_at: "2026-07-11T00:00:00+00:00"
                         asset_id: 1
-                        type: forecasts
+                        type: forecasting
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
@@ -1636,6 +1643,243 @@ class AssetAPI(FlaskView):
             redis_connection_err = e.args[0]
         automation_data["redis_connection_err"] = redis_connection_err
         return automation_data, 200
+
+    @route("/<id>/automations", methods=["POST"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def post_automation(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Create an automation on an asset.
+
+        ---
+        post:
+          summary: Create an automation on an asset.
+          description: |
+            Create a recurring task (computing forecasts or schedules) on the asset.
+            The parameters are validated by the schema matching the automation type:
+            forecast parameters for type `forecasts`, or a schedule trigger message
+            (without the asset id) for type `schedules`.
+            Requires permission to add data under the asset.
+
+            The automation can only involve sensors that you have access to yourself:
+            read access to the sensors it reads data from, and permission to record data
+            on the sensors it writes to.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to create the automation on.
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AutomationCreationSchema
+                examples:
+                  daily_forecasts:
+                    summary: Daily forecasts of sensor 2092
+                    value:
+                      name: Day-ahead PV forecasts
+                      cronstr: "0 6 * * *"
+                      type: forecasting
+                      parameters:
+                        sensor: 2092
+          responses:
+            201:
+              description: CREATED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            automation_data = AutomationCreationSchema().load(body)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+        try:
+            automation, warnings = create_automation(
+                asset=asset,
+                name=automation_data["name"],
+                cronstr=automation_data["cronstr"],
+                timezone=automation_data["timezone"],
+                automation_type=automation_data["type"],
+                active=automation_data["active"],
+                parameters=automation_data["parameters"],
+                forecaster_class=automation_data["forecaster"],
+                config=automation_data["config"],
+                origin="API",
+                check_permissions=True,
+            )
+        except ValidationError as e:
+            return unprocessable_entity({"parameters": e.messages})
+        except ValueError as e:
+            return unprocessable_entity(str(e))
+        db.session.commit()
+        response = automation_schema.dump(automation)
+        response["recurrence_description"] = describe_cronstr(automation.cronstr)
+        response["warnings"] = warnings
+        return response, 201
+
+    @route("/<id>/automations/<int:automation_id>", methods=["PATCH"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def patch_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Update an automation's name, cron string or activation status.
+
+        ---
+        patch:
+          summary: Update an automation's name, cron string or activation status.
+          description: |
+            Any subset of the fields `name`, `cronstr` and `active` can be sent.
+            Other automation fields cannot be updated; instead, create a new automation.
+            Requires permission to add data under the asset.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AutomationUpdateSchema
+                examples:
+                  deactivate:
+                    summary: Deactivate the automation
+                    value:
+                      active: false
+          responses:
+            200:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            automation_data = AutomationUpdateSchema().load(body)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+        update_automation(automation, origin="API", **automation_data)
+        db.session.commit()
+        response = automation_schema.dump(automation)
+        response["recurrence_description"] = describe_cronstr(automation.cronstr)
+        return response, 200
+
+    @route("/<id>/automations/<int:automation_id>", methods=["DELETE"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Managing an automation is gated like running one: an automation exists to write data
+    # under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def delete_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Delete an automation.
+
+        ---
+        delete:
+          summary: Delete an automation.
+          description: |
+            Delete the automation. Any jobs it already queued are unaffected.
+            Requires permission to add data under the asset.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          responses:
+            204:
+              description: DELETED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        remove_automation(automation, origin="API")
+        db.session.commit()
+        return {}, 204
 
     @route("/<id>/automations/<int:automation_id>/trigger", methods=["POST"])
     @limit_triggers()
