@@ -36,19 +36,24 @@ class Automation(db.Model, AuthModelMixin):
     The recurrence is defined by a cron string.
     Every automation has a data generator, linked through a data source:
     a forecaster and its configuration for a forecast automation,
-    and a scheduler and the flex config it computes under for a schedule automation.
-    A forecast automation's generator is chosen when it is created.
+    a scheduler and the flex config it computes under for a schedule automation,
+    and a reporter and its configuration for a report automation.
+    A forecast automation's generator is chosen when it is created, and so is a report automation's.
     A schedule automation's is assembled from the trigger message and what its asset stores,
     so the runner puts it together afresh on every run.
     """
 
     __tablename__ = "automation"
 
-    SUPPORTED_TYPES = ["forecasting", "scheduling"]  # later also "reporting"
+    SUPPORTED_TYPES = ["forecasting", "scheduling", "reporting"]
 
     # What one result of each type is called, for messages that talk about a single result,
     # such as the parameters an automation of that type computes with.
-    RESULT_NOUNS = {"forecasting": "forecast", "scheduling": "schedule"}
+    RESULT_NOUNS = {
+        "forecasting": "forecast",
+        "scheduling": "schedule",
+        "reporting": "report",
+    }
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(

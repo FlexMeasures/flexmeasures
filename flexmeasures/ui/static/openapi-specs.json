@@ -6737,7 +6737,8 @@
             "default": "forecasting",
             "enum": [
               "forecasting",
-              "scheduling"
+              "scheduling",
+              "reporting"
             ]
           },
           "name": {
@@ -6765,14 +6766,17 @@
             "type": "object",
             "additionalProperties": {}
           },
-          "forecaster": {
-            "type": "string",
-            "default": "TrainPredictPipeline",
-            "description": "Forecaster class (only used for type 'forecasting')."
+          "generator": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Data generator class, e.g. a forecaster (defaults to TrainPredictPipeline) or a reporter (required for type 'reporting', e.g. PandasReporter). Not used for type 'scheduling'."
           },
           "config": {
             "type": "object",
-            "description": "Forecaster configuration (only used for type 'forecasting').",
+            "description": "Data generator configuration (only used for types 'forecasting' and 'reporting').",
             "additionalProperties": {}
           }
         },
