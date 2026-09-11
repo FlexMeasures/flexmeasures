@@ -30,6 +30,18 @@ def test_assets_page_empty(db, client, as_prosumer_user1):
     assert asset_index.status_code == 200
 
 
+def test_assets_page_defaults_to_top_level_assets(db, client, as_prosumer_user1):
+    """The asset listing offers a 'Top-level only' checkbox, which starts out checked."""
+    asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
+    assert asset_index.status_code == 200
+    assert b'id="topLevelAssetsOnlyCheckbox"' in asset_index.data
+    checkbox = re.search(
+        rb"<input[^>]*id=\"topLevelAssetsOnlyCheckbox\"[^>]*>", asset_index.data
+    )
+    assert checkbox is not None
+    assert b"checked" in checkbox.group(0)
+
+
 def test_new_asset_page(client, setup_assets, as_admin):
     asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200

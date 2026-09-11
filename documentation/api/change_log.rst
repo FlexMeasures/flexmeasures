@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-36 | September 11, 2026
+""""""""""""""""""""""""""""
+- ``GET /api/v3_0/assets`` now applies the ``root`` and ``depth`` constraints to ``num-records``, too, so a listing scoped to an asset subtree reports how many assets that subtree holds. Previously, ``num-records`` counted every asset in the account and asset-type scope, which made a paginated client report the assets outside the subtree as having been filtered out by the search term.
+
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
 - The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.

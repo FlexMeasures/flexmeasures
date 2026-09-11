@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from flask import url_for
@@ -32,6 +34,20 @@ def test_account_page(db, client, as_prosumer_user1):
     assert str(f"Account: {current_user.account.name}") in str(account_page.data)
     assert b"All users" in account_page.data
     assert str(current_user.username) in str(account_page.data)
+
+
+def test_account_page_defaults_to_top_level_assets(db, client, as_prosumer_user1):
+    """The account's asset listing offers a 'Top-level only' checkbox, which starts out checked."""
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=current_user.account_id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 200
+    checkbox = re.search(
+        rb"<input\s[^>]*id=\"topLevelAssetsOnlyCheckbox\"[^>]*>", account_page.data
+    )
+    assert checkbox is not None
+    assert b"checked" in checkbox.group(0)
 
 
 def test_account_page_breadcrumb(db, client, as_prosumer_user1):
