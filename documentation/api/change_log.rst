@@ -23,6 +23,7 @@ v3.0-33 | September 1, 2026
 - Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Each automation shows the IANA ``timezone`` in which its cron expression is interpreted, and a ``cursor``: the offset-aware UTC time of the most recent run it committed to. The cursor advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
 - Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
 - ``GET /api/v3_0/sensors/<id>/stats`` now reports an ``All sources`` entry summarising every data source, whenever more than one recorded. Its mean divides by the values that were summed, not by ``Number of values``, which also counts rows holding NaN.
+- Automation list entries now include recent ``job_stats`` counts, collected in one batched cache pass. If Redis is unavailable, the list remains available with empty counts and a ``redis_connection_err`` message.
 
 v3.0-32 | August 11, 2026
 """""""""""""""""""""""""
