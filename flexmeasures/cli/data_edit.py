@@ -129,6 +129,7 @@ def edit_automation(
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
     if rebase_schedule:
+        automation.schedule_revision += 1
         automation.cursor = get_initial_cursor()
     AssetAuditLog.add_record(
         automation.asset,

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
+import isodate
 import pytest
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.services.automations import resolve_schedule_generator
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -149,6 +150,62 @@ def test_run_schedule_automation(
         "origin": "automation",
         "automation_id": automation.id,
     }
+
+
+def test_a_durable_run_schedules_what_it_was_planned_with(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A run dispatched from its own record schedules its stored parameters, and names itself on the job.
+
+    The automation's parameters may have moved on since the run was planned,
+    so a retry must re-queue the run's plan rather than today's settings.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    planned_parameters = {**message, "flex-model": [flex_model]}
+
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters=planned_parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=planned_parameters,
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.flush()
+    # The automation is edited after the run was planned, to a duration the run must not pick up.
+    automation.parameters = {**planned_parameters, "duration": "PT6H"}
+    fresh_db.session.flush()
+
+    returns = run_automation(automation, automation_run=run)
+
+    job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
+    assert job.meta["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+        "automation_run_id": run.id,
+    }
+    assert job.kwargs["end"] - job.kwargs["start"] == isodate.parse_duration(
+        planned_parameters["duration"]
+    )
 
 
 @pytest.mark.parametrize("sequential", (False, True))
