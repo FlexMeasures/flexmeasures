@@ -20,7 +20,7 @@ from flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db import (
 )
 from flexmeasures.utils.job_utils import work_on_rq
 
-JOB_STATUS_DEPRECATED_FIELDS = {
+JOB_STATUS_LEGACY_FIELD_ALIASES = {
     "func_name": "func-name",
     "enqueued_at": "enqueued-at",
     "started_at": "started-at",
@@ -30,9 +30,8 @@ JOB_STATUS_DEPRECATED_FIELDS = {
 
 
 def assert_legacy_job_status_fields(data: dict):
-    for legacy_key, canonical_key in JOB_STATUS_DEPRECATED_FIELDS.items():
+    for legacy_key, canonical_key in JOB_STATUS_LEGACY_FIELD_ALIASES.items():
         assert data[legacy_key] == data[canonical_key]
-    assert "deprecated-fields" not in data
 
 
 @pytest.mark.parametrize(

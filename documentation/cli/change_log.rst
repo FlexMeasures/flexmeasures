@@ -7,7 +7,13 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
+* Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
+* Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
+
+since v1.0.1 | September 9, 2026
+=================================
+
 * ``flexmeasures jobs run-job`` now performs the job exactly once (it used to perform it a second time, outside the job timeout, repeating any side effects), on the queue the job belongs to, so that the queue's own exception handler records why a job failed and the job's registries are updated on that queue.
 
 since v1.0.0 | August 11, 2026
@@ -18,7 +24,8 @@ since v1.0.0 | August 11, 2026
 * Add ``flexmeasures add plan``, ``flexmeasures show plans`` and ``flexmeasures edit plan``, to manage the rate limits and quotas which apply to the accounts on a plan.
 * Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
-* Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset; for now, computing forecasts). Each automation carries its own IANA timezone (``--timezone``), in which its cron expression is interpreted.
+* Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset, with ``--type forecasting`` or ``--type scheduling`` saying which task to automate). Each automation carries its own IANA timezone (``--timezone``), in which its cron expression is interpreted.
+* ``flexmeasures add automation --type scheduling`` refuses a flex config field which fixes a moment in time, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, naming the field: a recurring schedule automation computes a fresh schedule on every run, so such a value would be stale on the next one.
 * Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions. Run this command once per minute. It makes at most one queueing attempt per automation per minute, including when an attempt fails after partially queueing jobs. Runs missed while the runner was down are caught up once, with several missed forecast runs coalesced into the latest useful forecast, and a run at a skipped or repeated daylight-saving-time hour happens exactly once.
 * Add ``flexmeasures jobs run-automation --automation <id>`` to queue the jobs for a single run of one automation, now, on top of its recurring runs. This leaves the automation's cursor alone, so its next recurring run still happens as scheduled, and inactive automations can be run this way, too.
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
