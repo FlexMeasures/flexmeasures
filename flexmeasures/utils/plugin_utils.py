@@ -183,7 +183,7 @@ def register_plugins(app: Flask):  # noqa: C901
 def check_config_settings(app, settings: dict[str, dict]):
     """Make sure expected config settings exist.
 
-    Settings that are not in the app config yet are looked up in the environment,
+    Plugin settings that are not in the app config yet are looked up in the environment,
     so a plugin setting can be set the same way a FlexMeasures setting can.
     Settings that are still missing afterwards are logged,
     and are set to the "default" that the plugin declared for them, if any.
