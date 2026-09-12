@@ -113,6 +113,8 @@ Finally, it is possible to set custom titles for any graph by clicking on the "e
 Internally, the asset has a `sensors_to_show` field, which controls which sensor data appears in the plot. This can also be set by a script or through the API. 
 The accepted format is a dictionary with a graph title followed by a plot containing sensors or asset flex-config reference (e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensor":5},{"asset":10,"flex-model":"soc-min"},]}]`).
 
+Optionally, each graph entry may include a ``description`` string. When using the ECharts renderer, this description is shown as a small-font line directly below the subplot title. The Vega-Lite renderer ignores this field, so charts produced with Vega-Lite remain unchanged.
+
 
 Showing daily KPIs
 ^^^^^^^^^^^^^^^^^^^^^^

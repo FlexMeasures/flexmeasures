@@ -125,7 +125,8 @@
             sensorIds: {{ entry.sensors | map(attribute="id") | list | tojson }},
             sensorType: {{ entry_sensor_type | tojson }},
             {# Per-sub-chart y-axis mode (PR #2244): "zero"/"data"/[min,max]/{min,max} #}
-            yAxis: {{ item.get("y-axis") | tojson }}
+            yAxis: {{ item.get("y-axis") | tojson }},
+            description: {{ item.get("description") | tojson }}
         }{% if not loop.last %},{% endif %}
         {% endfor %}
     ];
@@ -195,6 +196,7 @@
                 sensorIds: sensorIds,
                 sensorType: sensorType,
                 yAxis: (item["y-axis"] !== undefined ? item["y-axis"] : null),
+                description: (item["description"] !== undefined ? item["description"] : undefined),
             };
         });
     }

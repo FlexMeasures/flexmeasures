@@ -267,11 +267,12 @@ function groupData(data, groupSpec) {
   const groupsBySensorId = new Map(); // sensor id -> [group, ...]
   const groupByUnit = new Map(); // fallback for rows not covered by the spec
 
-  function newGroup(title, sensorType, yAxis) {
+  function newGroup(title, sensorType, yAxis, description) {
     const group = {
       title: title,
       sensorType: sensorType || "",
       yAxis: yAxis != null ? yAxis : null, // per-sub-chart y-axis mode (PR #2244)
+      description: description != null ? description : null,
       units: new Set(),
       sensorNames: new Set(),
       series: new Map(),
@@ -282,7 +283,7 @@ function groupData(data, groupSpec) {
 
   if (Array.isArray(groupSpec)) {
     for (const entry of groupSpec) {
-      const group = newGroup(entry.title || "", entry.sensorType || "", entry.yAxis);
+      const group = newGroup(entry.title || "", entry.sensorType || "", entry.yAxis, entry.description);
       for (const sensorId of entry.sensorIds || []) {
         if (!groupsBySensorId.has(sensorId)) {
           groupsBySensorId.set(sensorId, []);
@@ -362,6 +363,7 @@ function groupData(data, groupSpec) {
     const sensorNames = Array.from(group.sensorNames);
     return {
       title: group.title || sensorNames.join(", "),
+      description: group.description,
       units: Array.from(group.units),
       sensorType: group.sensorType,
       yAxis: group.yAxis, // per-sub-chart y-axis mode (PR #2244)
@@ -1324,13 +1326,23 @@ function buildLineBarOption(elementId, groups, opts) {
       right: gridRight,
       containLabel: false,
     });
+    const titleTop = top - TITLE_RAISE; // raised so it sits clearly above the y-axis title
     titles.push({
       text: group.title,
       left: plotCenter,
       textAlign: "center",
-      top: top - TITLE_RAISE, // raised so it sits clearly above the y-axis title
+      top: titleTop,
       textStyle: { fontSize: Math.round(FONT_SIZE * 1.25), color: "#222" }, // matches Vega-Lite title size (20 px)
     });
+    if (group.description) {
+      titles.push({
+        text: group.description,
+        left: plotCenter,
+        textAlign: "center",
+        top: titleTop + Math.round(FONT_SIZE * 1.25) + 6,
+        textStyle: { fontSize: Math.round(FONT_SIZE * 0.85), color: "#555" },
+      });
+    }
     if (!legendsBelow) {
       const legendNames = Array.from(new Set(group.series.map((s) => s.name)));
       // Vertically center the legend beside its subplot rather than pinning it
