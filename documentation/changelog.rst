@@ -44,6 +44,7 @@ Infrastructure / Support
 * Speed up ``GET /api/v3_0/assets`` on large catalogs by eager-loading the ``owner``, ``generic_asset_type`` and ``child_assets`` relations alongside the already eager-loaded ``sensors``, instead of lazy-loading each of them once per asset, which made the SQL statement count grow linearly with the number of assets returned [see `PR #2515 <https://www.github.com/FlexMeasures/flexmeasures/pull/2515>`_]
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
+* Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
 
 Bugfixes
 -----------
