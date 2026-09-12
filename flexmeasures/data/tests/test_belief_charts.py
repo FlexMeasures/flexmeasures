@@ -19,6 +19,7 @@ import pytest
 import pytz
 
 from flexmeasures import Sensor
+from flexmeasures.data.models.charts.belief_charts import create_line_layer
 from flexmeasures.data.models.charts.utils import source_legend_label_transformation
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.data_sources import DataSource
@@ -942,3 +943,114 @@ def test_validate_sensors_to_show_omits_y_axis_by_default(
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
     assert "y-axis" not in rows[0]
+
+
+# ---------------------------------------------------------------------------
+# Tests for create_line_layer interpolation (#2253)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="function")
+def battery_with_interval_sensor_and_soc_min(app, fresh_db):
+    """Battery asset (public, no owner) with:
+
+    * A real, non-instantaneous sensor (unit ``kWh``, 15-min resolution).
+    * ``soc-min: "20 kWh"`` in the flex_model, i.e. a fixed-value/constant
+      sensor, which always has ``event_resolution == timedelta(0)`` by
+      construction (see ``GenericAsset._create_fixed_value_sensors``).
+    * ``sensors_to_show`` configured so both appear together in **one row**
+      (same Vega-Lite layer), reproducing the row shape that triggers #2253.
+    """
+    battery_type = GenericAssetType(name="test_battery_type_for_charts_interval")
+    fresh_db.session.add(battery_type)
+    fresh_db.session.flush()
+
+    battery = GenericAsset(
+        name="Test Battery (interval sensor chart tests)",
+        generic_asset_type=battery_type,
+        flex_model={
+            "soc-min": "20 kWh",
+        },
+    )
+    fresh_db.session.add(battery)
+    fresh_db.session.flush()
+
+    interval_sensor = Sensor(
+        name="energy per interval",
+        unit="kWh",
+        event_resolution=timedelta(minutes=15),  # real, non-instantaneous sensor
+        generic_asset=battery,
+    )
+    fresh_db.session.add(interval_sensor)
+    fresh_db.session.flush()
+
+    battery.sensors_to_show = [
+        {
+            "title": None,
+            "plots": [
+                {"sensor": interval_sensor.id},
+                {"asset": battery.id, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+    fresh_db.session.flush()
+
+    return battery, interval_sensor
+
+
+def test_mixed_row_with_fixed_value_sensor_keeps_step_after(
+    battery_with_interval_sensor_and_soc_min,
+):
+    """A row mixing a real, non-instantaneous sensor with a fixed-value/constant
+    sensor must keep step-after interpolation.
+
+    Regression test for #2253: fixed-value sensors (always
+    ``event_resolution == timedelta(0)``) used to force the whole row to
+    linear interpolation, even when the real sensor in that row was not
+    instantaneous.
+    """
+    battery, interval_sensor = battery_with_interval_sensor_and_soc_min
+
+    rows = battery.validate_sensors_to_show()
+    all_sensors = rows[0]["plots"][0]["sensors"]
+
+    # Sanity-check the fixture: one real (non-instantaneous) sensor plus one
+    # fixed-value (instantaneous-by-construction) sensor, in the same row.
+    assert interval_sensor.event_resolution == timedelta(minutes=15)
+    fixed_value_sensors = [s for s in all_sensors if s.id < 0]
+    assert len(fixed_value_sensors) == 1
+    assert fixed_value_sensors[0].event_resolution == timedelta(0)
+
+    layer = create_line_layer(
+        all_sensors,
+        event_start_field_definition={},
+        event_value_field_definition={},
+        sensor_field_definition={},
+        combine_legend=True,
+    )
+
+    assert layer["mark"]["interpolate"] == "step-after"
+
+
+def test_real_instantaneous_sensor_still_uses_linear(battery_with_soc_flex_model):
+    """Guard case: a row containing only a real, instantaneous sensor must
+    still use linear interpolation (proves the #2253 fix didn't change
+    behavior for the original, non-mixed case)."""
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    rows = battery.validate_sensors_to_show()
+    all_sensors = rows[0]["plots"][0]["sensors"]
+    real_sensors = [s for s in all_sensors if s.id >= 0]
+
+    assert real_sensors == [soc_sensor]
+    assert soc_sensor.event_resolution == timedelta(0)
+
+    layer = create_line_layer(
+        real_sensors,
+        event_start_field_definition={},
+        event_value_field_definition={},
+        sensor_field_definition={},
+        combine_legend=True,
+    )
+
+    assert layer["mark"]["interpolate"] == "linear"
