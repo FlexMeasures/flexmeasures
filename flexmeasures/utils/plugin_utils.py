@@ -4,7 +4,9 @@ Utils for registering FlexMeasures plugins
 
 from __future__ import annotations
 
+import importlib.machinery
 import importlib.util
+import json
 import os
 import sys
 from importlib.abc import Loader
@@ -14,6 +16,34 @@ import sentry_sdk
 from flask import Flask, Blueprint
 
 from flexmeasures.utils.coding_utils import get_classes_module
+from flexmeasures.utils.config_utils import parse_bool_env
+
+
+def is_written_as_path(plugin: str) -> bool:
+    """Whether this FLEXMEASURES_PLUGINS entry is spelled out as a file path.
+
+    A bare name like ``my_plugin`` is not: it may well name an installed package.
+    """
+    separators = [sep for sep in (os.sep, os.altsep) if sep is not None]
+    return os.path.isabs(plugin) or any(sep in plugin for sep in separators)
+
+
+def find_importable_module(pkg_name: str) -> importlib.machinery.ModuleSpec | None:
+    """Find the spec of an importable module, if there is one.
+
+    A single-file module counts, just like a package: ``register_plugins`` imports either by name.
+    Namespace packages do not.
+    A folder without an ``__init__.py`` is importable, but accepting it here would shadow the clearer error that the file path branch of ``register_plugins`` reports for such a folder.
+    """
+    try:
+        spec = importlib.util.find_spec(pkg_name)
+    except (ImportError, ValueError):
+        # ImportError: a dotted name whose parent package is missing.
+        # ValueError: a name that is in sys.modules without a spec.
+        return None
+    if spec is None or spec.origin is None:
+        return None
+    return spec
 
 
 def register_plugins(app: Flask):  # noqa: C901
@@ -29,6 +59,11 @@ def register_plugins(app: Flask):  # noqa: C901
 
     If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
     (last part of the path).
+
+    An entry that is not spelled out as a file path is imported by name, so that normal import resolution along ``sys.path`` applies,
+    rather than loaded from the folder of that name in the working directory.
+    An installed plugin therefore wins from such a folder, unless the working directory itself comes first on ``sys.path``.
+    To load a folder on purpose, spell out its path (e.g. ``./my_plugin``).
     """
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
     if isinstance(plugins, str):
@@ -42,16 +77,32 @@ def register_plugins(app: Flask):  # noqa: C901
         return
     app.config["LOADED_PLUGINS"] = {}
     for plugin in plugins:
-        plugin_name = plugin.split("/")[-1]
+        plugin_name = os.path.basename(os.path.normpath(plugin))
         app.logger.info(f"Importing plugin {plugin_name} ...")
         module = None
-        if not os.path.exists(plugin):  # assume plugin is a package
-            pkg_name = os.path.split(plugin)[
-                -1
-            ]  # rule out attempts for relative package imports
-            app.logger.debug(
-                f"Attempting to import {pkg_name} as an installed package ..."
+        pkg_name = plugin_name  # rule out attempts for relative package imports
+        # An entry that is spelled out as a file path always loads the folder it points to.
+        # For a bare name, an installed module wins from a folder of the same name in the working directory.
+        # Loading such a folder by path would execute its __init__.py a second time, under a new module object,
+        # while submodules imported by the first execution keep referring to the old one,
+        # so that, for instance, routes end up on a Blueprint that is never registered. See GH issue #2415.
+        written_as_path = is_written_as_path(plugin)
+        prefer_installed = not written_as_path and (
+            find_importable_module(pkg_name) is not None
+        )
+        folder_exists = os.path.exists(plugin)
+        if written_as_path and not folder_exists:
+            app.logger.error(
+                f"Plugin {plugin_name} is spelled out as a file path, but {plugin} does not exist. Cannot load plugin {plugin_name}."
             )
+            continue
+        if not folder_exists or prefer_installed:  # assume plugin is a package
+            if prefer_installed and folder_exists:
+                app.logger.debug(
+                    f"Importing plugin {plugin_name} by name, rather than from the folder of the same name in the working directory."
+                    f" Spell out its path (e.g. '.{os.sep}{plugin}') to load that folder instead."
+                )
+            app.logger.debug(f"Attempting to import {pkg_name} by name ...")
             try:
                 module = importlib.import_module(pkg_name)
             except ModuleNotFoundError:
@@ -60,6 +111,12 @@ def register_plugins(app: Flask):  # noqa: C901
                 )
                 continue
         else:  # assume plugin is a file path
+            if not written_as_path:
+                app.logger.warning(
+                    f"Loading plugin {plugin_name} from the folder of that name in the working directory,"
+                    f" as no installed package goes by that name."
+                    f" Spell out its path (e.g. '.{os.sep}{plugin}') to make this explicit."
+                )
             if not os.path.exists(os.path.join(plugin, "__init__.py")):
                 app.logger.error(
                     f"Plugin {plugin_name} is a valid file path, but does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
@@ -126,6 +183,12 @@ def register_plugins(app: Flask):  # noqa: C901
 def check_config_settings(app, settings: dict[str, dict]):
     """Make sure expected config settings exist.
 
+    Plugin settings that are not in the app config yet are looked up in the environment,
+    so a plugin setting can be set the same way a FlexMeasures setting can.
+    Settings that are still missing afterwards are logged,
+    and are set to the "default" that the plugin declared for them, if any.
+    Whatever a setting ends up holding, a declared default included, is checked against its "parse_as" type.
+
     For example:
 
         settings = {
@@ -136,12 +199,13 @@ def check_config_settings(app, settings: dict[str, dict]):
             "MY_PLUGIN_TOKEN": {
                 "description": "Token used by my plugin for y.",
                 "level": "warning",
-                "message": "Without this token, my plugin will not do y.",
+                "message_if_missing": "Without this token, my plugin will not do y.",
                 "parse_as": str,
             },
             "MY_PLUGIN_COLOR": {
                 "description": "Color used to override the default plugin color.",
                 "level": "info",
+                "default": "blue",
             },
         }
 
@@ -158,22 +222,79 @@ def check_config_settings(app, settings: dict[str, dict]):
     for setting_name, setting_fields in settings.items():
         assert isinstance(setting_fields, dict), f"{setting_name} should be a dict"
 
-    missing_config_settings = []
-    config_settings_with_wrong_type = []
+    read_plugin_settings_from_env(app, settings)
+
+    # Report what is missing, and fall back to the declared default where there is one.
+    for setting_name, setting_fields in settings.items():
+        if app.config.get(setting_name) is not None:
+            continue
+        log_missing_config_setting(app, setting_name, setting_fields)
+        if "default" in setting_fields:
+            app.config[setting_name] = setting_fields["default"]
+
+    # Check the type of every setting that has a value by now, defaults included.
     for setting_name, setting_fields in settings.items():
         setting = app.config.get(setting_name)
-        if setting is None:
-            missing_config_settings.append(setting_name)
-        elif "parse_as" in setting_fields and not isinstance(
-            setting, setting_fields["parse_as"]
-        ):
-            config_settings_with_wrong_type.append((setting_name, setting))
-    for setting_name, setting in config_settings_with_wrong_type:
-        log_wrong_type_for_config_setting(
-            app, setting_name, settings[setting_name], type(setting)
+        if setting is None or "parse_as" not in setting_fields:
+            continue
+        if not isinstance(setting, setting_fields["parse_as"]):
+            log_wrong_type_for_config_setting(
+                app, setting_name, setting_fields, type(setting)
+            )
+
+
+def read_plugin_settings_from_env(app: Flask, settings: dict[str, dict]):
+    """Fill in plugin-declared settings that are still unset from the environment.
+
+    Plugins are registered after the config file has been read,
+    so a setting that already has a value keeps it, and the environment only fills the gaps.
+    That is the same precedence that FlexMeasures' own settings get,
+    where the environment is read first and the config file may then override it.
+
+    Like FlexMeasures' own settings,
+    plugin settings are not read from the environment while testing or while building the documentation,
+    which both run on defaults.
+    """
+    if app.testing or app.config.get("FLEXMEASURES_ENV") == "documentation":
+        return
+    for setting_name, setting_fields in settings.items():
+        if app.config.get(setting_name) is not None:
+            continue
+        env_value = os.environ.get(setting_name)
+        if env_value is None:
+            continue
+        app.config[setting_name] = parse_setting_from_env(
+            app, setting_name, env_value, setting_fields.get("parse_as")
         )
-    for setting_name in missing_config_settings:
-        log_missing_config_setting(app, setting_name, settings[setting_name])
+
+
+def parse_setting_from_env(
+    app: Flask, setting_name: str, value: str, parse_as: type | None
+):
+    """Interpret an environment variable as the type the plugin declared for it.
+
+    Environment variables are always strings, so a setting that should be, say, an int is converted here.
+    Lists and dicts are expected to be JSON-encoded.
+    A value we cannot convert is passed on unconverted,
+    which lets the type check in check_config_settings report it to the plugin author.
+    """
+    if parse_as is None or parse_as is str:
+        return value
+    try:
+        if parse_as is bool:
+            return parse_bool_env(value)
+        if parse_as in (int, float):
+            return parse_as(value)
+        if parse_as in (list, dict):
+            parsed_value = json.loads(value)
+            if not isinstance(parsed_value, parse_as):
+                raise ValueError(f"{parsed_value} is not a {parse_as}")
+            return parsed_value
+    except ValueError as e:
+        app.logger.warning(
+            f"Could not read config setting '{setting_name}' from the environment as a {parse_as}: {e}"
+        )
+    return value
 
 
 def log_wrong_type_for_config_setting(
@@ -190,6 +311,9 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
 
     The logging level is taken from the 'level' key. If missing, we default to error.
     If present, we also log the 'description' and the 'message_if_missing' keys.
+
+    We close with whether the setting falls back to the 'default' the plugin declared, or stays unset,
+    so that a 'message_if_missing' promising a fallback cannot leave the impression that a setting without one is optional.
     """
     message_if_missing = (
         f" {setting_fields['message_if_missing']}"
@@ -199,6 +323,10 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
     description = (
         f" ({setting_fields['description']})" if "description" in setting_fields else ""
     )
+    if "default" in setting_fields:
+        fallback = f" Falling back to the default declared by the plugin: {setting_fields['default']!r}."
+    else:
+        fallback = " No default is declared for it, so it stays unset."
     level = setting_fields["level"] if "level" in setting_fields else "error"
     if not hasattr(app.logger, level):
         app.logger.warning(
@@ -206,5 +334,5 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
         )
         level = "error"
     getattr(app.logger, level)(
-        f"Missing config setting '{setting_name}'{description}.{message_if_missing}",
+        f"Missing config setting '{setting_name}'{description}.{message_if_missing}{fallback}",
     )

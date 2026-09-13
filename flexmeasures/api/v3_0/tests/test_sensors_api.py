@@ -780,10 +780,16 @@ def test_fetch_sensor_stats(
 
         del response_content["status"]
         assert sorted(list(response_content.keys())) == [
+            "All sources",
             "Other source (ID: 12)",
             "Test Admin User (ID: 7)",
             "Test Supplier User (ID: 6)",
         ]
+
+        # The combined entry summarises the sources rather than being one of them,
+        # so take it out before checking the sources one by one.
+        combined = response_content.pop("All sources")
+
         for source, record in response_content.items():
             assert record["First event start"]
             assert record["Last event end"]
@@ -812,6 +818,32 @@ def test_fetch_sensor_stats(
                 record["Sum over values"], sum_values, rel_tol=1e-5
             ), f"sum_values is close to {sum_values}"
             assert record["Number of values"] == count_values
+
+        # The combined entry reports the sources as if they were one.
+        assert combined["Number of values"] == 39 + 3 + 3
+        assert math.isclose(
+            combined["Sum over values"], 267.0 + 275.1 + 183.4, rel_tol=1e-5
+        )
+        # One of "Other source"'s three rows holds NaN, which is why that source's own mean is 183.4 / 2 rather than 183.4 / 3.
+        # The combined mean divides by the 44 values that were summed, not by the 45 rows that were counted.
+        assert math.isclose(
+            combined["Mean value"], (267.0 + 275.1 + 183.4) / 44, rel_tol=1e-5
+        )
+        assert combined["Min value"] == min(
+            record["Min value"] for record in response_content.values()
+        )
+        assert combined["Max value"] == max(
+            record["Max value"] for record in response_content.values()
+        )
+        assert combined["First event start"] == min(
+            record["First event start"] for record in response_content.values()
+        )
+        assert combined["Last event end"] == max(
+            record["Last event end"] for record in response_content.values()
+        )
+        assert combined["Last recorded"] == max(
+            record["Last recorded"] for record in response_content.values()
+        )
 
     with QueryCounter(db.session.connection()) as counter2:
         response = client.get(
