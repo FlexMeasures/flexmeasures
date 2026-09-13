@@ -523,11 +523,13 @@ def _get_sensor_bdfs_by_source_type(
             **belief_search,
         )
         if bdf.empty and staleness_search.get("beliefs_before") is not None:
-            # The most-recent-only fast track picks the single most recent event in the database,
-            # and only afterwards drops beliefs that were formed after `beliefs_before`.
-            # For sensors with a knowledge horizon, such as day-ahead prices, that can drop the only row we fetched,
-            # which would make a sensor with plenty of data look like it never recorded anything.
-            # So search again without the fast track, and pick the most recent event ourselves.
+            # The most-recent-only fast track fetches the single most recent event first,
+            # and only then drops the beliefs that were formed after `beliefs_before`.
+            # So whenever the most recent event is one we could not know about yet, such as tomorrow's day-ahead prices,
+            # the fast track comes back empty, and a sensor holding plenty of data looks like it never recorded anything.
+            # Widening `beliefs_before` would not help, as those are exactly the beliefs we should not be using yet.
+            # What we are after is the most recent event we could know about by now,
+            # so search again without the fast track, and pick that event ourselves.
             bdf = TimedBelief.search(
                 sensors=sensor,
                 most_recent_beliefs_only=True,
