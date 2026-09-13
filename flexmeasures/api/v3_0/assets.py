@@ -15,9 +15,9 @@ from flask_sqlalchemy.pagination import SelectPagination
 from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, Select
 from sqlalchemy import exc as sa_exc
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -342,6 +342,25 @@ class StatusPageTabJSONSchema(Schema):
     )
 
 
+class AssetJobsQuerySchema(Schema):
+    include_child_assets = fields.Bool(
+        required=False,
+        load_default=True,
+        metadata={
+            "description": "Whether to also list the jobs of the asset's child assets.",
+        },
+    )
+
+
+class StatusPageChildJobsJSONSchema(Schema):
+    include_child_assets = fields.Bool(
+        required=True,
+        metadata={
+            "description": "Whether the asset's status page should list the jobs of its child assets, too.",
+        },
+    )
+
+
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
@@ -427,6 +446,37 @@ class AssetTypesAPI(FlaskView):
             db.session.scalars(select(GenericAssetType)).all(), many=True
         )
         return response, 200
+
+
+def _eager_load_asset_relations_dumped_by(
+    query: Select, response_schema: Schema
+) -> Select:
+    """Eager-load the relations ``response_schema`` will dump, avoiding an N+1 lazy load per relation per asset.
+
+    ``owner`` and ``generic_asset_type`` are many-to-one, so ``joinedload`` is cheapest; ``sensors`` and
+    ``child_assets`` are one-to-many, so ``selectinload`` avoids row multiplication from the join.
+    Failing to install a loader is never fatal: the relation then simply lazy-loads as before.
+    """
+    try:
+        root_entity = query.column_descriptions[0]["entity"]
+    except (KeyError, IndexError, sa_exc.ArgumentError):
+        return query
+    loaders_by_field = {
+        "sensors": selectinload(root_entity.sensors),
+        "owner": joinedload(root_entity.owner),
+        "generic_asset_type": joinedload(root_entity.generic_asset_type),
+        "child_assets": selectinload(root_entity.child_assets),
+    }
+    try:
+        return query.options(
+            *(
+                loader
+                for field, loader in loaders_by_field.items()
+                if field in response_schema.dump_fields
+            )
+        )
+    except sa_exc.ArgumentError:
+        return query
 
 
 class AssetAPI(FlaskView):
@@ -570,15 +620,7 @@ class AssetAPI(FlaskView):
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
 
-        # Eager-load sensors only when the response schema will dump them, avoiding an N+1 lazy load per asset that made this endpoint take seconds on large catalogs.
-        # The loader is anchored on the query's own root entity, which is an aliased GenericAsset under search filters or owner sorting.
-        # Failing to install the loader is never fatal: sensors then simply lazy-load as before.
-        if "sensors" in response_schema.dump_fields:
-            try:
-                root_entity = query.column_descriptions[0]["entity"]
-                query = query.options(selectinload(root_entity.sensors))
-            except (KeyError, IndexError, sa_exc.ArgumentError):
-                pass
+        query = _eager_load_asset_relations_dumped_by(query, response_schema)
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
@@ -1708,9 +1750,10 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
+    @use_kwargs(AssetJobsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_jobs(self, id: int, asset: GenericAsset):
+    def get_jobs(self, id: int, asset: GenericAsset, include_child_assets: bool = True):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
         ---
@@ -1719,6 +1762,10 @@ class AssetAPI(FlaskView):
           description: |
             The response will be a list of jobs.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
+
+            By default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.
+            Pass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.
+            Each job names the asset it happened on, in `asset_id` and `asset_name`.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1728,6 +1775,12 @@ class AssetAPI(FlaskView):
               description: ID of the asset to get the jobs for.
               schema:
                 type: integer
+            - in: query
+              name: include_child_assets
+              required: false
+              description: Whether to also list the jobs of the asset's child assets (default true).
+              schema:
+                type: boolean
           responses:
             200:
               description: PROCESSED
@@ -1742,6 +1795,8 @@ class AssetAPI(FlaskView):
                             queue: scheduling
                             asset_or_sensor_type: asset
                             asset_id: 1
+                            asset_name: my battery
+                            entity: "asset: my battery (Id: 1)"
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
@@ -1762,7 +1817,9 @@ class AssetAPI(FlaskView):
         redis_connection_err = None
         all_jobs_data = list()
         try:
-            jobs_data = build_asset_jobs_data(asset)
+            jobs_data = build_asset_jobs_data(
+                asset, include_child_assets=include_child_assets
+            )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
@@ -1904,6 +1961,65 @@ class AssetAPI(FlaskView):
 
         return {
             "message": "Preferred status page tab updated successfully.",
+        }, 200
+
+    @route("/status_page_child_jobs", methods=["POST"])
+    @as_json
+    @use_kwargs(StatusPageChildJobsJSONSchema, location="json")
+    def update_status_page_child_jobs(self, **kwargs):
+        """
+        .. :quickref: Assets; Remember whether the current user wants the asset status page to list the jobs of child assets, too.
+        ---
+        post:
+          summary: Remember whether the current user wants the asset status page to list the jobs of child assets, too.
+          description: |
+            The jobs tab of the status page lists the jobs of the asset's child assets as well, so that a site asset shows what happened anywhere below it.
+            This endpoint records the user's choice in their session, so their next visit to a status page keeps to it.
+            Without a recorded choice, the jobs of child assets are included.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: StatusPageChildJobsJSONSchema
+                examples:
+                  status_page_child_jobs:
+                    summary: Listing only the asset's own jobs from now on
+                    value:
+                      include_child_assets: false
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Preferred status page job scope updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Update the request.values, as that is where set_session_variables reads from.
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        # The session key is namespaced to the status page, while the request key reads naturally next to the one of [GET] /assets/(id)/jobs.
+        set_session_variables(
+            "status_page_include_child_assets",
+            aliases={"status_page_include_child_assets": "include_child_assets"},
+        )
+
+        return {
+            "message": "Preferred status page job scope updated successfully.",
         }, 200
 
     @route("/keep_legends_below_graphs", methods=["POST"])

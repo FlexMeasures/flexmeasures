@@ -61,6 +61,14 @@ const IS_TOUCH =
 const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
 const LEGEND_WIDTH = 220; // width of the legend column beside each subplot
+// Legend geometry used to size image exports (see buildExportOption): the height
+// of one entry row, the offset of a label from its column's left edge (symbol +
+// gap), the gap between columns, and a cap on how wide a single label may get.
+const LEGEND_ROW_HEIGHT = FONT_SIZE + 9;
+const LEGEND_LABEL_OFFSET = 28;
+const LEGEND_COLUMN_GAP = 20;
+const LEGEND_PLOT_GAP = 12;
+const MAX_EXPORT_LABEL_WIDTH = 400;
 
 // Diverging color scale approximating Vega's "blueorange" scheme (centered at 0)
 const BLUE_ORANGE = ["#2166ac", "#67a9cf", "#d1e5f0", "#f7f7f7", "#fee0b6", "#f1a340", "#b35806"];
@@ -69,6 +77,19 @@ const BLUE_ORANGE = ["#2166ac", "#67a9cf", "#d1e5f0", "#f7f7f7", "#fee0b6", "#f1
 const instances = {};
 
 /* ============================== formatting ============================== */
+
+// Width of a label in the chart font, used to size the legend column of an
+// image export. Measured on a scratch canvas, since ECharts only exposes text
+// metrics once a chart is rendered.
+let measureContext = null;
+function textWidth(text) {
+  if (!measureContext) {
+    measureContext = document.createElement("canvas").getContext("2d");
+  }
+  if (!measureContext) return 0;
+  measureContext.font = FONT_SIZE + "px " + CHART_FONT;
+  return measureContext.measureText(String(text == null ? "" : text)).width;
+}
 
 // Build a label for a single source. Mirrors the Vega-Lite "source_legend_label"
 // transform: keep source.name visible, and only when sources share a name do we
@@ -850,32 +871,90 @@ function exportCSV(elementId, datasetName) {
 
 // Build the option used for image exports: no toolbox buttons, and "scroll"
 // legends switched to "plain" so every entry renders instead of just one page.
-function buildExportOption(lastOption) {
-  const legend = (
-    Array.isArray(lastOption.legend)
-      ? lastOption.legend
-      : lastOption.legend
-      ? [lastOption.legend]
-      : []
-  ).map((l) => Object.assign({}, l, { type: "plain" }));
+//
+// A plain legend needs more room than the paginated one it replaces: on screen
+// only one page of entries shows beside its subplot, but all of them have to
+// fit in the export. So each side legend gets the full vertical band beside its
+// subplot and its labels in full (an image has no hover to reveal a truncated
+// name), and when that still leaves entries wrapping into extra columns, the
+// exported canvas grows to the right by just enough for them — otherwise the
+// extra columns would spill over the plot (see #2513).
+//
+// Returns the option together with the canvas size the export should use.
+// (Exported for the JavaScript tests, which check the legend never covers a plot.)
+export function buildExportOption(lastOption, width, height) {
+  const asList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+  const grids = asList(lastOption.grid);
+  // The room the on-screen layout reserves beside the plots for the legend
+  // column (grid.right, minus the gap the legend keeps from the plot).
+  const availableLegendWidth = LEGEND_WIDTH + 40 - LEGEND_PLOT_GAP;
+  let extraWidth = 0;
+
+  const legend = asList(lastOption.legend).map((l) => {
+    const exportLegend = Object.assign({}, l, { type: "plain" });
+    // Only the side legends are constrained; the legends-below layout already
+    // grows the chart to fit every entry.
+    if (l.orient !== "vertical" || typeof l.top !== "number" || l.height == null) {
+      return exportLegend;
+    }
+    const grid = grids.find(
+      (g) => l.top >= g.top && l.top <= g.top + g.height
+    );
+    if (!grid) return exportLegend;
+    // The band beside this subplot: from its grid top down to where the next
+    // subplot's title starts, or to the bottom of the canvas for the last one.
+    const next = grids
+      .filter((g) => g.top > grid.top)
+      .reduce((a, g) => (a === null || g.top < a.top ? g : a), null);
+    const bandTop = grid.top;
+    const bandBottom = (next ? next.top - TITLE_RAISE : height) - 8;
+    const bandHeight = Math.max(LEGEND_ROW_HEIGHT, bandBottom - bandTop);
+    const labels = l.data || [];
+    const rows = Math.max(1, Math.floor(bandHeight / LEGEND_ROW_HEIGHT));
+    const columns = Math.ceil(labels.length / rows);
+    // Show the names in full — an image has no hover to reveal a truncated one —
+    // but keep a cap, so one very long sensor name cannot blow up the exported
+    // image; only labels past that cap stay truncated.
+    const widestLabel = labels.reduce((w, label) => Math.max(w, textWidth(label)), 0);
+    const capped = widestLabel > MAX_EXPORT_LABEL_WIDTH;
+    const labelWidth = capped ? MAX_EXPORT_LABEL_WIDTH : widestLabel;
+    const columnWidth = LEGEND_LABEL_OFFSET + labelWidth + LEGEND_COLUMN_GAP;
+    extraWidth = Math.max(extraWidth, columns * columnWidth - availableLegendWidth);
+    exportLegend.top = bandTop;
+    exportLegend.height = bandHeight;
+    // Anchor the legend to the plot instead of to the right edge, so a legend
+    // that needs fewer columns than the widest one still sits beside its own
+    // subplot rather than drifting off to the right.
+    exportLegend.left = width - grid.right + LEGEND_PLOT_GAP;
+    exportLegend.right = null;
+    exportLegend.textStyle = Object.assign({}, l.textStyle, {
+      width: capped ? MAX_EXPORT_LABEL_WIDTH : null,
+      overflow: capped ? "truncate" : "none",
+    });
+    return exportLegend;
+  });
+  extraWidth = Math.max(0, Math.ceil(extraWidth));
+
   // Render every series in a single synchronous pass. Heatmaps use progressive
   // rendering (cells drawn across animation frames); the export reads the
   // canvas/SVG immediately after setOption, so without this a large heatmap
   // (e.g. a year of data, > 5000 cells) loses every cell past the first chunk.
-  const series = (
-    Array.isArray(lastOption.series)
-      ? lastOption.series
-      : lastOption.series
-      ? [lastOption.series]
-      : []
-  ).map((s) => Object.assign({}, s, { progressive: 0, animation: false }));
-  return Object.assign({}, lastOption, {
+  const series = asList(lastOption.series).map((s) =>
+    Object.assign({}, s, { progressive: 0, animation: false })
+  );
+  // Widening the canvas must not stretch the plots: every grid keeps its width
+  // by giving the added space to its right margin.
+  const option = Object.assign({}, lastOption, {
     animation: false,
     backgroundColor: "#fff",
     toolbox: { show: false },
     legend: legend,
     series: series,
   });
+  if (extraWidth > 0) {
+    option.grid = grids.map((g) => Object.assign({}, g, { right: g.right + extraWidth }));
+  }
+  return { option: option, width: width + extraWidth, height: height };
 }
 
 function exportSVG(elementId, datasetName) {
@@ -884,14 +963,19 @@ function exportSVG(elementId, datasetName) {
     return;
   }
   // Render the current option to SVG with a temporary server-side-rendering instance
+  const exported = buildExportOption(
+    instance.lastOption,
+    instance.chart.getWidth(),
+    instance.chart.getHeight()
+  );
   const svgChart = echarts.init(null, null, {
     renderer: "svg",
     ssr: true,
-    width: instance.chart.getWidth(),
-    height: instance.chart.getHeight(),
+    width: exported.width,
+    height: exported.height,
   });
   try {
-    svgChart.setOption(buildExportOption(instance.lastOption));
+    svgChart.setOption(exported.option);
     downloadBlob(svgChart.renderToSVGString(), "image/svg+xml", (datasetName || "chart") + ".svg");
   } finally {
     svgChart.dispose();
@@ -905,12 +989,21 @@ function exportPNG(elementId, datasetName) {
   }
   // Render to a detached canvas instance so the saved PNG shows all legend
   // entries and no toolbox, instead of snapshotting the paginated on-screen chart.
+  const exported = buildExportOption(
+    instance.lastOption,
+    instance.chart.getWidth(),
+    instance.chart.getHeight()
+  );
   const holder = document.createElement("div");
-  holder.style.width = instance.chart.getWidth() + "px";
-  holder.style.height = instance.chart.getHeight() + "px";
-  const pngChart = echarts.init(holder, null, { renderer: "canvas" });
+  holder.style.width = exported.width + "px";
+  holder.style.height = exported.height + "px";
+  const pngChart = echarts.init(holder, null, {
+    renderer: "canvas",
+    width: exported.width,
+    height: exported.height,
+  });
   try {
-    pngChart.setOption(buildExportOption(instance.lastOption));
+    pngChart.setOption(exported.option);
     const url = pngChart.getDataURL({
       type: "png",
       pixelRatio: 2,
