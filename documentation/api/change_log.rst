@@ -5,9 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-36 | September 11, 2026
+v3.0-36 | September 14, 2026
 """"""""""""""""""""""""""""
 - ``GET /api/v3_0/assets`` now applies the ``root`` and ``depth`` constraints to ``num-records``, too, so a listing scoped to an asset subtree reports how many assets that subtree holds. Previously, ``num-records`` counted every asset in the account and asset-type scope, which made a paginated client report the assets outside the subtree as having been filtered out by the search term.
+- ``GET /api/v3_0/assets`` now honours an explicit ``include_public=false``. Leaving the parameter out keeps the behaviour it had: ``all_accessible`` and ``root`` include public assets, a listing of a single account does not. Passing it no longer loses out to those two, so a client can offer the choice.
 
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""

@@ -33,6 +33,7 @@ New features
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 * The statistics table on a sensor page now shows all data sources together by default, as the graph does [see `PR #2462 <https://www.github.com/FlexMeasures/flexmeasures/pull/2462>`_]
 * The asset lists on an organisation's page and on the asset overview now show only top-level assets per default, so the sites you are looking for are no longer buried among their sub-assets; untick *Top-level only* to see the whole tree again [see `PR #2523 <https://www.github.com/FlexMeasures/flexmeasures/pull/2523>`_]
+* The asset overview now offers the *Include public assets* checkbox that an organisation's page already had, off per default, so both asset lists filter the same way [see `PR #2523 <https://www.github.com/FlexMeasures/flexmeasures/pull/2523>`_]
 
 Infrastructure / Support
 -------------------------
