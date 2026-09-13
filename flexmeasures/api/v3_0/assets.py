@@ -495,7 +495,7 @@ class AssetAPI(FlaskView):
         self,
         fields_in_response: list[str] | None,
         all_accessible: bool,
-        include_public: bool,
+        include_public: bool | None,
         asset_type: GenericAssetType | None = None,
         account: Account | None = None,
         root_asset: GenericAsset | None = None,
@@ -516,7 +516,7 @@ class AssetAPI(FlaskView):
 
               - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
-              - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `include_public` query parameter decides whether public assets are included in the response. It defaults to `true` when `all_accessible` or `root` is used, and to `false` otherwise, so pass `false` explicitly to leave public assets out of a listing across accounts.
               - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
@@ -578,15 +578,19 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
+        # Per default, public assets come along when listing across accounts or under a root asset, and stay out otherwise.
+        # An explicit `include_public` overrules that, which is how a client offers the choice as a checkbox.
+        if include_public is None:
+            include_public = account is None and (
+                all_accessible or root_asset is not None
+            )
+
         # Find out which accounts are relevant
         if account is not None:
             check_access(account, "read")
             account_ids = [account.id]
         else:
             use_all_accounts = all_accessible or (root_asset is not None)
-            include_public = (
-                all_accessible or include_public or (root_asset is not None)
-            )
             if use_all_accounts:
                 account_ids = [a.id for a in get_accessible_accounts()]
             else:
