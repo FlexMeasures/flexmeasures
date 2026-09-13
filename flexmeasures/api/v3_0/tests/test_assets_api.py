@@ -494,6 +494,30 @@ def test_get_assets_top_level_only_record_counts(
     assert response.json["num-records"] == response.json["filtered-records"]
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_can_exclude_public(client, setup_api_test_data, requesting_user):
+    """An explicit include_public=false leaves public assets out of a listing across accounts, where they come along per default.
+
+    The default listing is checked as well, to show that the public asset would otherwise be included.
+    """
+    default_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert default_response.status_code == 200
+    assert "troposphere" in {asset["name"] for asset in default_response.json}
+
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "include_public": "false"},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    names = {asset["name"] for asset in response.json}
+    assert "troposphere" not in names
+    assert names, "excluding public assets should not empty the listing"
+
+
 @pytest.mark.parametrize("requesting_user", [None], indirect=True)
 def test_get_public_assets_noauth(
     client, setup_api_test_data, setup_accounts, requesting_user
