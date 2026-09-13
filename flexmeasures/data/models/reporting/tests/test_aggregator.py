@@ -1,4 +1,5 @@
 import pytest
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
 from flexmeasures.data.models.data_sources import DataSource
@@ -286,3 +287,157 @@ def test_source_transition(setup_dummy_data, db):
     assert len(result) == 6
     assert (result[:5] == -1).all().event_value  # beliefs from the older version
     assert (result[5:] == 3).all().event_value  # belief from the latest version
+
+
+def test_aggregator_over_asset(setup_site_data, db):
+    """Aggregate every PV sensor below the site, whatever asset it sits on.
+
+    The roof records 100 kW in quarter-hourly events and the carport records 0.2 MW in hourly events,
+    so reporting onto an hourly sensor in MW needs both a unit conversion and a resampling step to arrive at 0.3 MW.
+    """
+    site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, sensor_name_pattern="PV")
+    )
+
+    assert sorted(sensor.id for sensor in agg_reporter.input_sensors) == sorted(
+        [roof_pv_sensor.id, carport_pv_sensor.id]
+    )
+
+    result = agg_reporter.compute(
+        output=[dict(sensor=site_power_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )[0]["data"]
+
+    assert len(result) == 24
+    assert result["event_value"].values == pytest.approx(0.3)
+
+
+def test_aggregator_over_asset_leaves_out_output_sensor(setup_site_data, db):
+    """The sensor a report is recorded on sits below the site, but must not be aggregated into itself.
+
+    It already holds a previous report of 99 MW, which would show up in the aggregate if it were read along with the rest.
+    """
+    site, site_power_sensor, _, _, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, sensor_units=["MW"])
+    )
+
+    result = agg_reporter.compute(
+        output=[dict(sensor=site_power_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )[0]["data"]
+
+    assert len(result) == 24
+    assert result["event_value"].values == pytest.approx(0.3)
+
+
+def test_aggregator_over_listed_sensors(setup_site_data, db):
+    """Select the sensors to aggregate by ID, and weigh one of them by its generated name."""
+    site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(
+            method="sum",
+            sensors=[roof_pv_sensor.id, carport_pv_sensor.id],
+            weights={f"sensor_{carport_pv_sensor.id}": -1.0},
+        )
+    )
+
+    result = agg_reporter.compute(
+        output=[dict(sensor=site_power_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )[0]["data"]
+
+    assert len(result) == 24
+    assert result["event_value"].values == pytest.approx(-0.1)
+
+
+def test_aggregator_without_unit_conversion(setup_site_data, db):
+    """Without unit conversion, the reporter adds up what the sensors record, however they record it."""
+    site, site_power_sensor, _, _, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(
+            method="sum",
+            asset=site.id,
+            sensor_name_pattern="PV",
+            convert_units=False,
+        )
+    )
+
+    result = agg_reporter.compute(
+        output=[dict(sensor=site_power_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )[0]["data"]
+
+    assert len(result) == 24
+    assert result["event_value"].values == pytest.approx(100.2)
+
+
+def test_aggregator_refuses_incompatible_units(setup_site_data, db):
+    """Aggregating a temperature onto a power sensor says so, rather than silently adding up degrees and megawatts."""
+    site, site_power_sensor, _, _, temperature_sensor = setup_site_data
+
+    agg_reporter = AggregatorReporter(config=dict(method="sum", asset=site.id))
+
+    with pytest.raises(ValueError, match="°C"):
+        agg_reporter.compute(
+            output=[dict(sensor=site_power_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+            belief_time=datetime(2023, 12, 1, tzinfo=utc),
+        )
+
+
+def test_aggregator_without_sensors(setup_site_data, db):
+    """A reporter that selects no sensor at all says what to do about it."""
+    site, site_power_sensor, _, _, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, sensor_name_pattern="no such sensor")
+    )
+
+    with pytest.raises(ValueError, match="no sensors to aggregate"):
+        agg_reporter.compute(
+            output=[dict(sensor=site_power_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+            belief_time=datetime(2023, 12, 1, tzinfo=utc),
+        )
+
+
+def test_aggregator_invalid_sensor_name_pattern(setup_site_data, db):
+    """An unparsable regular expression is caught where it is configured, not where it is used."""
+    with pytest.raises(ValidationError, match="not a valid regular expression"):
+        AggregatorReporter(config=dict(method="sum", sensor_name_pattern="PV("))
+
+
+def test_aggregator_data_source_records_sensor_selection(setup_site_data, db):
+    """The data source of the report records how its sensors were selected, so the report can be traced back to it."""
+    site, site_power_sensor, _, _, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, sensor_name_pattern="PV")
+    )
+
+    agg_reporter.compute(
+        output=[dict(sensor=site_power_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )
+
+    config = agg_reporter.data_source.attributes["data_generator"]["config"]
+    assert config["asset"] == site.id
+    assert config["sensor_name_pattern"] == "PV"

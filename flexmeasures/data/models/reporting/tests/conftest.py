@@ -301,3 +301,90 @@ def setup_dummy_data(db, app, generic_report):
     db.session.commit()
 
     yield sensor1, sensor2, sensor3, sensor4, report_sensor, daily_report_sensor
+
+
+@pytest.fixture(scope="module")
+def setup_site_data(db, app, setup_dummy_data):
+    """Create a site asset with sensors spread over its offspring, to aggregate over.
+
+    The site holds the sensor the aggregate is reported on, so that a reporter aggregating everything below the site must leave its own output out.
+    Its PV sensors record in different units and at different resolutions, so that aggregating them needs both a unit conversion and a resampling step.
+    """
+
+    site_type = GenericAssetType(name="AggregationSiteType")
+    db.session.add(site_type)
+
+    site = GenericAsset(name="Aggregation Site", generic_asset_type=site_type)
+    db.session.add(site)
+
+    building = GenericAsset(
+        name="Building", generic_asset_type=site_type, parent_asset=site
+    )
+    db.session.add(building)
+
+    carport = GenericAsset(
+        name="Carport", generic_asset_type=site_type, parent_asset=building
+    )
+    db.session.add(carport)
+
+    site_power_sensor = Sensor(
+        "site power",
+        generic_asset=site,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        timezone="UTC",
+    )
+    roof_pv_sensor = Sensor(
+        "roof PV power",
+        generic_asset=building,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+        timezone="UTC",
+    )
+    carport_pv_sensor = Sensor(
+        "carport PV power",
+        generic_asset=carport,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        timezone="UTC",
+    )
+    temperature_sensor = Sensor(
+        "temperature",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="°C",
+        timezone="UTC",
+    )
+    db.session.add_all(
+        [site_power_sensor, roof_pv_sensor, carport_pv_sensor, temperature_sensor]
+    )
+
+    site_source = DataSource("site source", type="A")
+    db.session.add(site_source)
+
+    start = datetime(2023, 5, 10, tzinfo=utc)
+
+    def save_values(sensor, value, n_events):
+        db.session.add_all(
+            [
+                TimedBelief(
+                    event_start=start + event * sensor.event_resolution,
+                    belief_horizon=timedelta(hours=24),
+                    event_value=value,
+                    sensor=sensor,
+                    source=site_source,
+                )
+                for event in range(n_events)
+            ]
+        )
+
+    save_values(roof_pv_sensor, 100, 24 * 4)  # 100 kW, in quarter-hourly events
+    save_values(carport_pv_sensor, 0.2, 24)  # 0.2 MW, in hourly events
+    save_values(temperature_sensor, 20, 24)  # 20 °C, in hourly events
+
+    # a previous report on the output sensor, which aggregating over the site should not pick up again
+    save_values(site_power_sensor, 99, 24)
+
+    db.session.commit()
+
+    yield site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, temperature_sensor
