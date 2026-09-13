@@ -97,6 +97,7 @@ dependencies = [
     "marshmallow-polyfield>=5.11",
     "marshmallow-sqlalchemy>=0.23.1",
     # OpenAPI Documentation
+    "packaging>=26.2",
     "apispec>=6.9.0",
     "apispec-oneofschema>=3.0.2",
     "apispec-webframeworks>=1.2.0",
