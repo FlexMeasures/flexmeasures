@@ -224,6 +224,7 @@ class Config(object):
     FLEXMEASURES_API_SUNSET_LINK: str | None = (
         None  # e.g. https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset
     )
+    FLEXMEASURES_DEPRECATION_AND_SUNSET: dict = dict()
 
     # if True, all requests are forced to be via HTTPS.
     FLEXMEASURES_FORCE_HTTPS: bool = False

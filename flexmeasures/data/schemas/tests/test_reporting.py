@@ -6,6 +6,9 @@ from flexmeasures.data.schemas.reporting.profit import (
     ProfitOrLossReporterConfigSchema,
     ProfitOrLossReporterParametersSchema,
 )
+from flexmeasures.data.schemas.reporting.aggregation import (
+    AggregatorParametersSchema,
+)
 from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 from marshmallow.exceptions import ValidationError
 
@@ -229,6 +232,31 @@ def test_profit_reporter_parameters_schema(
     else:
         with pytest.raises(ValidationError):
             schema.load(parameters)
+
+
+def test_specialized_reporter_schemas_preserve_required_dataflow_fields(
+    db, app, setup_dummy_sensors
+):
+    """Overridden input/output fields remain required by the reporter contract."""
+    with pytest.raises(ValidationError) as aggregator_error:
+        AggregatorParametersSchema().load(
+            {
+                "input": [{"sensor": 1}],
+                "start": start,
+                "end": end,
+            }
+        )
+    assert "output" in aggregator_error.value.messages
+
+    with pytest.raises(ValidationError) as profit_error:
+        ProfitOrLossReporterParametersSchema().load(
+            {
+                "output": [{"sensor": 3}],
+                "start": start,
+                "end": end,
+            }
+        )
+    assert "input" in profit_error.value.messages
 
 
 @pytest.mark.parametrize(

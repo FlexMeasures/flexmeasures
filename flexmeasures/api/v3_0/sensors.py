@@ -67,8 +67,8 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
-    DurationField,
     PlanningDurationField,
+    ResolutionField,
 )
 from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
@@ -286,7 +286,7 @@ class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
             example="PT24H",
         ),
     )
-    resolution = DurationField(
+    resolution = ResolutionField(
         metadata=dict(
             description="The resolution of the requested schedule in ISO 8601 duration format. "
             "This governs how often setpoints are allowed to change. "
@@ -1078,6 +1078,7 @@ class SensorAPI(FlaskView):
                 **scheduler_kwargs,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
             )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
@@ -1808,7 +1809,10 @@ class SensorAPI(FlaskView):
         ---
         get:
           summary: Get sensor stats
-          description: This endpoint fetches sensor stats for all the historical data.
+          description: |
+            This endpoint fetches sensor stats for all the historical data.
+            Stats are reported per data source that recorded data for this sensor.
+            When more than one source recorded data, an extra "All sources" entry summarises them together.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1848,6 +1852,15 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor stats
                       value:
+                        "All sources":
+                          "First event start": "2015-06-02T10:00:00+00:00"
+                          "Last event end": "2015-10-03T10:00:00+00:00"
+                          "Last recorded": "2015-10-03T10:02:24+00:00"
+                          "Min value": 0.0
+                          "Max value": 120.0
+                          "Mean value": 55.0
+                          "Sum over values": 1100.0
+                          "Number of values": 20
                         "some data source":
                           "First event start": "2015-06-02T10:00:00+00:00"
                           "Last event end": "2015-10-02T10:00:00+00:00"
@@ -1856,6 +1869,15 @@ class SensorAPI(FlaskView):
                           "Max value": 100.0
                           "Mean value": 50.0
                           "Sum over values": 500.0
+                          "Number of values": 10
+                        "some other data source":
+                          "First event start": "2015-07-02T10:00:00+00:00"
+                          "Last event end": "2015-10-03T10:00:00+00:00"
+                          "Last recorded": "2015-10-03T10:02:24+00:00"
+                          "Min value": 10.0
+                          "Max value": 120.0
+                          "Mean value": 60.0
+                          "Sum over values": 600.0
                           "Number of values": 10
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1917,6 +1939,7 @@ class SensorAPI(FlaskView):
                           id: 64907
                           name: "temperature"
                           resolution: "PT5M"
+                          asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
             400:
@@ -1942,7 +1965,11 @@ class SensorAPI(FlaskView):
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,
-            exclude=EXCLUDED_FORECASTING_FIELDS,
+            # The API always queues a job, whose results only make sense when they are recorded,
+            # so dry runs are supported on the CLI only.
+            # Note that dry-run is already left out of the OpenAPI schema, being a CLI-exclusive field.
+            exclude=EXCLUDED_FORECASTING_FIELDS
+            + ["dry_run"],
         ),
         location="combined_sensor_data_description",
         as_kwargs=True,

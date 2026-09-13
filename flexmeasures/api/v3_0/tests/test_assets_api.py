@@ -3,15 +3,17 @@ from datetime import datetime, timedelta
 
 from flask import url_for
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import select, func, event
 
 from pytz import utc
 
+from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
@@ -273,6 +275,69 @@ def test_get_assets_filtered_by_asset_type(
     assert all(
         asset["generic_asset_type"]["id"] == requested_type_id
         for asset in response.json
+    )
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_does_not_scale_query_count_with_catalog_size(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """The assets-list endpoint dumps each asset's owner, generic_asset_type, sensors and child_assets.
+
+    Those relations must be eager-loaded, so the SQL statement count stays constant as the
+    catalog grows, rather than scaling with it (an N+1 query per asset per relation).
+    """
+
+    def seed_assets(num_assets: int, tag: str) -> GenericAssetType:
+        """Create num_assets assets, each with its own owner (so the identity map can't mask
+        an N+1 by reusing an already-loaded owner) and a sensor, under a shared, tagged type.
+        """
+        asset_type = GenericAssetType(name=f"n1-bench-type-{tag}")
+        db.session.add(asset_type)
+        db.session.flush()
+        for i in range(num_assets):
+            asset = GenericAsset(
+                name=f"n1-bench-asset-{tag}-{i}",
+                generic_asset_type=asset_type,
+                owner=Account(name=f"n1-bench-account-{tag}-{i}"),
+            )
+            db.session.add(asset)
+            db.session.flush()
+            db.session.add(
+                Sensor(
+                    name=f"n1-bench-sensor-{tag}-{i}",
+                    generic_asset=asset,
+                    event_resolution="PT15M",
+                    unit="MW",
+                )
+            )
+        db.session.commit()
+        return asset_type
+
+    def count_queries_for_index_request(asset_type: GenericAssetType) -> int:
+        count = {"n": 0}
+
+        def _count(*args, **kwargs):
+            count["n"] += 1
+
+        event.listen(db.engine, "before_cursor_execute", _count)
+        try:
+            response = client.get(
+                url_for("AssetAPI:index"),
+                query_string={"all_accessible": "true", "asset_type": asset_type.id},
+            )
+        finally:
+            event.remove(db.engine, "before_cursor_execute", _count)
+        assert response.status_code == 200
+        return count["n"]
+
+    small_count = count_queries_for_index_request(seed_assets(2, tag="small"))
+    large_count = count_queries_for_index_request(seed_assets(20, tag="large"))
+
+    # A few extra statements (auth, account lookups) are fine, but the count must not grow with catalog size.
+    assert large_count <= small_count + 5, (
+        f"SQL statement count grew with catalog size ({small_count} for 2 assets vs "
+        f"{large_count} for 20), which points to a reintroduced N+1 query pattern."
     )
 
 
@@ -1911,6 +1976,155 @@ def test_kpi_window_honours_the_offset_it_is_given(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_counts_an_event_once_when_two_sources_report_it(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """Two sources reporting one event are two claims about it, not two contributions to it.
+
+    Summing them produced a number no source ever reported, and that no point on the chart showed.
+    The KPI now reduces one value per event, and these two sources are of the same version,
+    so the one that believed the event more recently is the one it counts.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi with two sources on one event",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi with two sources sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    sources = list(setup_sources.values())
+    reported, corrected = sources[0], sources[-1]
+    assert reported.id != corrected.id, "this test needs two distinct sources"
+
+    window_start = datetime(2030, 3, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # One event, claimed by two sources, the second more recently than the first.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=2),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=reported.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=1),
+                event_value=80.0,
+                sensor_id=sensor.id,
+                source_id=corrected.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=1)).isoformat(),
+    )
+    assert total == pytest.approx(
+        80.0
+    ), "the more recent belief about the event, rather than 180.0, which neither source reported"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_prefers_the_latest_source_version_over_the_most_recent_belief(
+    db, client, setup_api_test_data, requesting_user
+):
+    """A newer version of a source wins the event, even when an older version believed it more recently.
+
+    Version comes first because it says which code produced the value,
+    where the belief time only says when it was said.
+    """
+    from flexmeasures.data.models.data_sources import DataSource
+
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi with two source versions",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi with two source versions sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    # Two versions of one reporter, which is what a release upgrade leaves behind.
+    older_version = DataSource(
+        name="Reporter", type="reporter", model="Rep", version="1"
+    )
+    newer_version = DataSource(
+        name="Reporter", type="reporter", model="Rep", version="2"
+    )
+    db.session.add_all([older_version, newer_version])
+    db.session.flush()
+
+    window_start = datetime(2030, 4, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # The newer version spoke first, and the older version spoke later.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=2),
+                event_value=42.0,
+                sensor_id=sensor.id,
+                source_id=newer_version.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=1),
+                event_value=99.0,
+                sensor_id=sensor.id,
+                source_id=older_version.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=1)).isoformat(),
+    )
+    assert total == pytest.approx(
+        42.0
+    ), "the newer version's value, despite the older belief time"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_kpi_reports_what_the_chart_draws(
     db, client, setup_api_test_data, setup_sources, requesting_user
 ):
@@ -2070,3 +2284,90 @@ def test_kpi_counts_each_event_under_one_day_only(
     assert sum(totals.values()) == pytest.approx(
         222.0
     ), "each event counts once across neighbouring days, not twice"
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("tab", ["jobs", "sensors"])
+def test_update_status_page_tab(client, setup_api_test_data, requesting_user, tab):
+    """Posting a status page tab records it in the session, for the next status page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_tab"),
+        json={"status_page_tab": tab},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["status_page_tab"] == tab
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_update_status_page_tab_rejects_unknown_tab(
+    client, setup_api_test_data, requesting_user
+):
+    """Only the two tabs the status page actually has are accepted."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_tab"),
+        json={"status_page_tab": "automations"},
+    )
+    assert response.status_code == 422
+    with client.session_transaction() as session:
+        assert "status_page_tab" not in session
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_of_child_assets(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """A parent asset lists the jobs of its children, unless the caller opts out."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_cache.add(
+        child.id,
+        child_job.id,
+        queue="scheduling",
+        asset_or_sensor_type="asset",
+    )
+
+    response = client.get(url_for("AssetAPI:get_jobs", id=parent.id))
+    assert response.status_code == 200
+    assert child_job.id in [job["job_id"] for job in response.json["jobs"]]
+    assert f"asset: {child.name} (Id: {child.id})" in [
+        job["entity"] for job in response.json["jobs"]
+    ], "the job is reported against the child asset it was triggered on"
+    reported_job = [
+        job for job in response.json["jobs"] if job["job_id"] == child_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        child.id,
+        child.name,
+    ), "the job names the asset it happened on, rather than the asset that was asked about"
+
+    response = client.get(
+        url_for("AssetAPI:get_jobs", id=parent.id),
+        query_string={"include_child_assets": "false"},
+    )
+    assert response.status_code == 200
+    assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
+
+    app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("include_child_assets", [True, False])
+def test_update_status_page_child_jobs(
+    client, setup_api_test_data, requesting_user, include_child_assets
+):
+    """Posting the job scope of the status page records it in the session, for the next status page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_status_page_child_jobs"),
+        json={"include_child_assets": include_child_assets},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["status_page_include_child_assets"] == include_child_assets

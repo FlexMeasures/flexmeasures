@@ -22,6 +22,7 @@ import hashlib
 from marshmallow import Schema
 
 if TYPE_CHECKING:
+    from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.models.user import User
 
 
@@ -125,7 +126,7 @@ class DataGenerator:
         return []
 
     @staticmethod
-    def _resolve_sensors(*values) -> list:
+    def _resolve_sensors(*values) -> list[Sensor]:
         """Turn (lists of) sensors, sensor references or sensor IDs into a list of unique sensors.
 
         A sensor reference contributes the sensor it wraps, as the source filters only narrow down

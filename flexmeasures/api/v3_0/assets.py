@@ -15,9 +15,9 @@ from flask_sqlalchemy.pagination import SelectPagination
 from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, Select
 from sqlalchemy import exc as sa_exc
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -57,13 +57,21 @@ from flexmeasures.data.services.automations import (
     run_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.queries.generic_assets import (
+    asset_is_in_subtree,
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.schemas.reporting import ReportTriggerSchema
+from flexmeasures.data.services.data_generators import (
+    check_sensor_access,
+    resolve_data_generator_sensors,
+)
+from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
@@ -323,6 +331,36 @@ class DefaultAssetViewJSONSchema(Schema):
     )
 
 
+class StatusPageTabJSONSchema(Schema):
+    status_page_tab = fields.Str(
+        required=True,
+        validate=validate.OneOf(["jobs", "sensors"]),
+        metadata={
+            "enum": ["jobs", "sensors"],
+            "description": "The tab to open on the asset's status page.",
+        },
+    )
+
+
+class AssetJobsQuerySchema(Schema):
+    include_child_assets = fields.Bool(
+        required=False,
+        load_default=True,
+        metadata={
+            "description": "Whether to also list the jobs of the asset's child assets.",
+        },
+    )
+
+
+class StatusPageChildJobsJSONSchema(Schema):
+    include_child_assets = fields.Bool(
+        required=True,
+        metadata={
+            "description": "Whether the asset's status page should list the jobs of its child assets, too.",
+        },
+    )
+
+
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
@@ -408,6 +446,37 @@ class AssetTypesAPI(FlaskView):
             db.session.scalars(select(GenericAssetType)).all(), many=True
         )
         return response, 200
+
+
+def _eager_load_asset_relations_dumped_by(
+    query: Select, response_schema: Schema
+) -> Select:
+    """Eager-load the relations ``response_schema`` will dump, avoiding an N+1 lazy load per relation per asset.
+
+    ``owner`` and ``generic_asset_type`` are many-to-one, so ``joinedload`` is cheapest; ``sensors`` and
+    ``child_assets`` are one-to-many, so ``selectinload`` avoids row multiplication from the join.
+    Failing to install a loader is never fatal: the relation then simply lazy-loads as before.
+    """
+    try:
+        root_entity = query.column_descriptions[0]["entity"]
+    except (KeyError, IndexError, sa_exc.ArgumentError):
+        return query
+    loaders_by_field = {
+        "sensors": selectinload(root_entity.sensors),
+        "owner": joinedload(root_entity.owner),
+        "generic_asset_type": joinedload(root_entity.generic_asset_type),
+        "child_assets": selectinload(root_entity.child_assets),
+    }
+    try:
+        return query.options(
+            *(
+                loader
+                for field, loader in loaders_by_field.items()
+                if field in response_schema.dump_fields
+            )
+        )
+    except sa_exc.ArgumentError:
+        return query
 
 
 class AssetAPI(FlaskView):
@@ -551,15 +620,7 @@ class AssetAPI(FlaskView):
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
 
-        # Eager-load sensors only when the response schema will dump them, avoiding an N+1 lazy load per asset that made this endpoint take seconds on large catalogs.
-        # The loader is anchored on the query's own root entity, which is an aliased GenericAsset under search filters or owner sorting.
-        # Failing to install the loader is never fatal: sensors then simply lazy-load as before.
-        if "sensors" in response_schema.dump_fields:
-            try:
-                root_entity = query.column_descriptions[0]["entity"]
-                query = query.options(selectinload(root_entity.sensors))
-            except (KeyError, IndexError, sa_exc.ArgumentError):
-                pass
+        query = _eager_load_asset_relations_dumped_by(query, response_schema)
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
@@ -1389,7 +1450,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
@@ -1461,8 +1522,8 @@ class AssetAPI(FlaskView):
           summary: Get details of one automation defined on an asset.
           description: |
             In addition to the fields shown when listing automations, the response shows
-            the automation's parameters (for forecasts, these are the forecast parameters
-            used on each run), information about the data generator that runs it,
+            the automation's parameters (forecast parameters or a schedule trigger message),
+            information about its data generator (null for schedule automations),
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
@@ -1689,9 +1750,10 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
+    @use_kwargs(AssetJobsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_jobs(self, id: int, asset: GenericAsset):
+    def get_jobs(self, id: int, asset: GenericAsset, include_child_assets: bool = True):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
         ---
@@ -1700,6 +1762,10 @@ class AssetAPI(FlaskView):
           description: |
             The response will be a list of jobs.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
+
+            By default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.
+            Pass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.
+            Each job names the asset it happened on, in `asset_id` and `asset_name`.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1709,6 +1775,12 @@ class AssetAPI(FlaskView):
               description: ID of the asset to get the jobs for.
               schema:
                 type: integer
+            - in: query
+              name: include_child_assets
+              required: false
+              description: Whether to also list the jobs of the asset's child assets (default true).
+              schema:
+                type: boolean
           responses:
             200:
               description: PROCESSED
@@ -1723,6 +1795,8 @@ class AssetAPI(FlaskView):
                             queue: scheduling
                             asset_or_sensor_type: asset
                             asset_id: 1
+                            asset_name: my battery
+                            entity: "asset: my battery (Id: 1)"
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
@@ -1743,7 +1817,9 @@ class AssetAPI(FlaskView):
         redis_connection_err = None
         all_jobs_data = list()
         try:
-            jobs_data = build_asset_jobs_data(asset)
+            jobs_data = build_asset_jobs_data(
+                asset, include_child_assets=include_child_assets
+            )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
@@ -1832,6 +1908,120 @@ class AssetAPI(FlaskView):
             "message": "Default asset view updated successfully.",
         }, 200
 
+    @route("/status_page_tab", methods=["POST"])
+    @as_json
+    @use_kwargs(StatusPageTabJSONSchema, location="json")
+    def update_status_page_tab(self, **kwargs):
+        """
+        .. :quickref: Assets; Remember which tab of the asset status page the current user last opened.
+        ---
+        post:
+          summary: Remember which tab of the asset status page the current user last opened.
+          description: |
+            The status page shows a sensor data tab and a jobs tab, of which only the opened one loads its data.
+            This endpoint records the user's choice in their session, so their next visit to a status page opens the same tab.
+            Without a recorded choice, the jobs tab opens.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: StatusPageTabJSONSchema
+                examples:
+                  status_page_tab:
+                    summary: Opening the sensor data tab from now on
+                    value:
+                      status_page_tab: "sensors"
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Preferred status page tab updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Update the request.values, as that is where set_session_variables reads from.
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        set_session_variables("status_page_tab")
+
+        return {
+            "message": "Preferred status page tab updated successfully.",
+        }, 200
+
+    @route("/status_page_child_jobs", methods=["POST"])
+    @as_json
+    @use_kwargs(StatusPageChildJobsJSONSchema, location="json")
+    def update_status_page_child_jobs(self, **kwargs):
+        """
+        .. :quickref: Assets; Remember whether the current user wants the asset status page to list the jobs of child assets, too.
+        ---
+        post:
+          summary: Remember whether the current user wants the asset status page to list the jobs of child assets, too.
+          description: |
+            The jobs tab of the status page lists the jobs of the asset's child assets as well, so that a site asset shows what happened anywhere below it.
+            This endpoint records the user's choice in their session, so their next visit to a status page keeps to it.
+            Without a recorded choice, the jobs of child assets are included.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: StatusPageChildJobsJSONSchema
+                examples:
+                  status_page_child_jobs:
+                    summary: Listing only the asset's own jobs from now on
+                    value:
+                      include_child_assets: false
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Preferred status page job scope updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Update the request.values, as that is where set_session_variables reads from.
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        # The session key is namespaced to the status page, while the request key reads naturally next to the one of [GET] /assets/(id)/jobs.
+        set_session_variables(
+            "status_page_include_child_assets",
+            aliases={"status_page_include_child_assets": "include_child_assets"},
+        )
+
+        return {
+            "message": "Preferred status page job scope updated successfully.",
+        }, 200
+
     @route("/keep_legends_below_graphs", methods=["POST"])
     @as_json
     @use_kwargs(
@@ -1891,6 +2081,129 @@ class AssetAPI(FlaskView):
         return {
             "message": "Default legend position updated successfully.",
         }, 200
+
+    @route("/<id>/reports/trigger", methods=["POST"])
+    @limit_triggers()
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_report(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a one-off reporting job for this asset.
+        ---
+        post:
+          summary: Trigger a one-off reporting job for this asset.
+          description: |
+            Queue a one-off report for a worker processing the `reporting` queue.
+            The caller must be able to read every input/configuration sensor and
+            record data on every output sensor. Each output must belong to the
+            asset in the URL or one of its descendants.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              $ref: '#/components/parameters/AssetIdPath'
+          requestBody:
+            content:
+              application/json:
+                schema: ReportTriggerSchema
+          responses:
+            202:
+              description: ACCEPTED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required:
+                      - status
+                      - message
+                      - job
+                      - job-url
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - ACCEPTED
+                      message:
+                        type: string
+                      job:
+                        type: string
+                        description: UUID of the queued reporting job.
+                      job-url:
+                        type: string
+                        format: uri
+                        description: URL to query the generic job status API.
+                  example:
+                    status: ACCEPTED
+                    message: Request has been accepted for processing.
+                    job: 364bfd06-c1fa-430b-8d25-8f5a547651fb
+                    job-url: /api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            report_data = ReportTriggerSchema().load(body)
+        except ValidationError as exc:
+            return unprocessable_entity(exc.messages)
+
+        try:
+            reporter = get_data_generator(
+                source=None,  # pre-defined app.data_generators
+                model=report_data["reporter"],
+                config=report_data["config"],
+                save_config=True,
+                data_generator_type=Reporter,
+            )
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"config": exc.messages})
+        if reporter is None:
+            db.session.rollback()
+            return unprocessable_entity(
+                f"Reporter class `{report_data['reporter']}` not available."
+            )
+
+        parameters = report_data["parameters"]
+        try:
+            deserialized_parameters = reporter._parameters_schema.load(parameters)
+            report_sensors = resolve_data_generator_sensors(
+                reporter, deserialized_parameters
+            )
+            check_sensor_access(
+                report_sensors["input_sensors"], report_sensors["output_sensors"]
+            )
+            for output_sensor in report_sensors["output_sensors"]:
+                if not asset_is_in_subtree(asset.id, output_sensor.generic_asset_id):
+                    raise ValueError(
+                        f"Report output sensor {output_sensor.id} must belong to asset"
+                        f" {asset.id} or one of its descendants."
+                    )
+            reporter.set_job_trigger("API")
+            result = reporter.compute(as_job=True, parameters=parameters)
+        except ValidationError as exc:
+            db.session.rollback()
+            return unprocessable_entity({"parameters": exc.messages})
+        except ValueError as exc:
+            db.session.rollback()
+            return unprocessable_entity(str(exc))
+        except Forbidden:
+            db.session.rollback()
+            raise
+
+        return request_accepted_for_processing(result["job_id"])
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @limit_triggers()
@@ -2091,10 +2404,11 @@ class AssetAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,  # server time if no prior time was sent
-            resolution=resolution,
             flex_model=flex_model,
             flex_context=flex_context,
         )
+        if resolution is not None:
+            scheduler_kwargs["resolution"] = resolution
         if sequential:
             f = create_sequential_scheduling_job
         else:
@@ -2104,6 +2418,7 @@ class AssetAPI(FlaskView):
                 asset=asset,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
                 **scheduler_kwargs,
             )
         except ValidationError as err:
@@ -2207,13 +2522,17 @@ class AssetAPI(FlaskView):
         kpis = []
         for kpi in asset_kpis:
             sensor = Sensor.query.get(kpi["sensor"])
-            # The beliefs the chart draws: one value per event, the most recent one.
-            # Aggregating belief rows instead would count a revision on top of what it revised,
-            # and would count each source separately when several report the same sensor.
+            # One value per event, which is what a KPI reduces.
+            # Aggregating belief rows instead would count a revision on top of the belief it revised,
+            # and would count each source separately when several report the same event,
+            # so that a total came out higher than anything anyone reported.
+            # Where several do report an event, the value is the one from the latest source version,
+            # and from the most recent belief within that.
             beliefs = sensor.search_beliefs(
                 event_starts_after=start,
                 event_ends_before=end,
                 most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
             # Count each event once, under the window it starts in.
             # The search also returns events that merely overlap the window, which the chart draws,

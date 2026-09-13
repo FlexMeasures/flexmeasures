@@ -30,7 +30,7 @@ runs:
       with:
         enable-cache: true
         python-version: ${{ inputs.python-version }}
-        version: "0.10.9"
+        version: "0.12.7"
 
     - name: Get history and tags for hatch-vcs versioning to work
       shell: bash

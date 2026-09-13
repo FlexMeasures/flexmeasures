@@ -8,6 +8,7 @@ from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
 )
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Plan, RateLimitKey
 
 from flexmeasures.cli.tests.utils import (
@@ -207,6 +208,130 @@ def test_cli_help(app):
         result = runner.invoke(cmd, ["--help"])
         check_command_ran_without_error(result)
         assert "Usage" in result.output
+
+
+def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+    """The report CLI can persist its reporter and queue work for a worker."""
+    from flexmeasures.cli.data_add import add_report
+
+    input_1, input_2, output, _ = setup_dummy_data
+    reporter_config = {
+        "required_input": [{"name": "one"}, {"name": "two"}],
+        "required_output": [{"name": "sum"}],
+        "transformations": [
+            {
+                "df_input": "one",
+                "method": "add",
+                "args": ["@two"],
+                "df_output": "sum",
+            }
+        ],
+    }
+    config_file = tmp_path / "report-config.json"
+    config_file.write_text(json.dumps(reporter_config))
+    parameters_file = tmp_path / "report-parameters.json"
+    parameters_file.write_text(
+        json.dumps(
+            {
+                "input": [
+                    {"name": "one", "sensor": input_1},
+                    {"name": "two", "sensor": input_2},
+                ],
+                "output": [{"name": "sum", "sensor": output}],
+            }
+        )
+    )
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        [
+            "--config",
+            str(config_file),
+            "--parameters",
+            str(parameters_file),
+            "--start",
+            "2023-04-10T00:00:00+00:00",
+            "--end",
+            "2023-04-10T10:00:00+00:00",
+            "--as-job",
+        ],
+    )
+
+    check_command_ran_without_error(result)
+    assert "Created reporting job" in result.output
+    job = app.queues["reporting"].jobs[0]
+    assert job.timeout == app.queues["reporting"]._default_timeout
+    assert job.meta["trigger"] == {"origin": "CLI"}
+    source = fresh_db.session.get(DataSource, job.kwargs["data_source_id"])
+    assert source is not None
+    assert source.attributes["data_generator"]["config"] == {
+        **reporter_config,
+        "droplevels": False,
+    }
+
+
+def test_add_profit_report_as_job_requires_input(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path
+):
+    """The CLI must not queue a profit report without its flow sensor."""
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    price_sensor = Sensor(
+        "price sensor",
+        generic_asset=report_sensor.generic_asset,
+        event_resolution=report_sensor.event_resolution,
+        unit="EUR/kWh",
+    )
+    cost_sensor = Sensor(
+        "cost sensor",
+        generic_asset=report_sensor.generic_asset,
+        event_resolution=report_sensor.event_resolution,
+        unit="EUR",
+    )
+    fresh_db.session.add_all([price_sensor, cost_sensor])
+    fresh_db.session.flush()
+
+    config_file = tmp_path / "profit-config.json"
+    config_file.write_text(json.dumps({"consumption_price_sensor": price_sensor.id}))
+    parameters_file = tmp_path / "profit-parameters.json"
+    parameters_file.write_text(json.dumps({"output": [{"sensor": cost_sensor.id}]}))
+    source_count = fresh_db.session.scalar(
+        select(func.count())
+        .select_from(DataSource)
+        .where(DataSource.type == "reporter")
+    )
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        [
+            "--reporter",
+            "ProfitOrLossReporter",
+            "--config",
+            str(config_file),
+            "--parameters",
+            str(parameters_file),
+            "--start",
+            "2023-04-10T00:00:00+00:00",
+            "--end",
+            "2023-04-10T10:00:00+00:00",
+            "--as-job",
+        ],
+        catch_exceptions=True,
+    )
+
+    assert result.exit_code != 0
+    assert "input" in str(result.exception)
+    assert app.queues["reporting"].jobs == []
+    assert (
+        fresh_db.session.scalar(
+            select(func.count())
+            .select_from(DataSource)
+            .where(DataSource.type == "reporter")
+        )
+        == source_count
+    )
 
 
 def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(

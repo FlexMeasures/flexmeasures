@@ -124,7 +124,11 @@ def create(  # noqa C901
             name="ingestion",
             default_timeout=get_job_timeout("ingestion", app.config, app.logger),
         ),
-        # reporting=Queue(connection=redis_conn, name="reporting"),
+        reporting=Queue(
+            connection=redis_conn,
+            name="reporting",
+            default_timeout=get_job_timeout("reporting", app.config, app.logger),
+        ),
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )

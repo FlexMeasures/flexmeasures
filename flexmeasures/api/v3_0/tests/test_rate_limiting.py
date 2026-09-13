@@ -474,6 +474,7 @@ def test_trigger_limited_views_are_registered():
     from flexmeasures.api.common.rate_limiting import TRIGGER_LIMITED_VIEWS
 
     assert {
+        "AssetAPI.trigger_report",
         "AssetAPI.trigger_schedule",
         "SensorAPI.trigger_schedule",
         "SensorAPI.trigger_forecast",

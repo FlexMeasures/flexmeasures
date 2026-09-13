@@ -5,7 +5,7 @@ import logging
 import os
 from datetime import datetime
 import pytz
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
@@ -27,6 +27,111 @@ def test_add_forecast(app, setup_dummy_data):
     runner = app.test_cli_runner()
     result = runner.invoke(add_forecast, to_flags(cli_input))
     assert result.exit_code == 0, result.output
+
+
+def _count_beliefs(db, sensor_id: int) -> int:
+    """Count the beliefs recorded on the given sensor."""
+    return db.session.scalar(
+        select(func.count()).select_from(TimedBelief).filter_by(sensor_id=sensor_id)
+    )
+
+
+def _count_sources(db) -> int:
+    """Count the data sources on record."""
+    return db.session.scalar(select(func.count()).select_from(DataSource))
+
+
+def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
+    """A dry run reports the forecast it computed, without recording any belief."""
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    runner = app.test_cli_runner()
+
+    beliefs_before_dry_run = _count_beliefs(fresh_db, sensor_id)
+    sources_before_dry_run = _count_sources(fresh_db)
+    result = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    assert (
+        "Not saving forecasts to the database (because of --dry-run)" in result.output
+    )
+    assert f"for sensor `sensor 1` (ID {sensor_id})" in result.output
+
+    # The forecaster's data source is flushed, because the dry run reports which source it would have recorded under,
+    # but it is never committed, so no more of it survives the session than of the beliefs.
+    fresh_db.session.rollback()
+    assert _count_beliefs(fresh_db, sensor_id) == beliefs_before_dry_run
+    assert _count_sources(fresh_db) == sources_before_dry_run
+
+    # A normal run does record beliefs, so the dry run really skipped that step
+    result = runner.invoke(add_forecast, to_flags({"sensor": sensor_id}))
+    assert result.exit_code == 0, result.output
+    assert "Successfully created" in result.output
+    assert _count_beliefs(fresh_db, sensor_id) > beliefs_before_dry_run
+
+
+def test_add_forecast_dry_run_reports_an_empty_forecast(
+    app, fresh_db, setup_dummy_data, monkeypatch
+):
+    """A dry run that computes no beliefs at all still reports, rather than crashing on an empty frame."""
+    import timely_beliefs as tb
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+
+    sensor_id, *_ = setup_dummy_data
+    sensor = fresh_db.session.get(Sensor, sensor_id)
+
+    def compute_nothing(self, *args, **kwargs):
+        self._parameters = {"sensor": sensor, "sensor_to_save": sensor}
+        return [{"data": tb.BeliefsDataFrame(sensor=sensor), "sensor": sensor}]
+
+    monkeypatch.setattr(TrainPredictPipeline, "compute", compute_nothing)
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "0 forecast beliefs across 0 unique belief times" in result.output
+    assert "covering events from" not in result.output
+
+
+def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data):
+    """A dry run cannot be queued, because its results would never reach the user."""
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run", "--as-job"]
+    )
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
+
+
+def test_add_forecast_rejects_dry_run_as_job_from_parameters_file(
+    app, setup_dummy_data, tmp_path
+):
+    """A dry run set in a parameters file is rejected in combination with --as-job, too."""
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(yaml.safe_dump({"dry-run": True}))
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast,
+        to_flags({"sensor": sensor_id, "parameters": str(parameters_file)})
+        + ["--as-job"],
+    )
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
 
 
 def test_add_forecast_reports_invalid_annotation_regressor(app, setup_dummy_data):
@@ -366,6 +471,81 @@ def test_add_process(
     # check if the schedule is not empty more detailed testing can be found
     # in data/models/planning/tests/test_process.py.
     assert (schedule == -0.4).event_value.sum() == 4
+
+
+def _process_schedule_cli_input(db, process_power_sensor_id: int) -> dict:
+    """Build the CLI input for scheduling a shiftable process, as used by the dry-run tests."""
+    epex_da = get_test_sensor(db)
+    return {
+        "sensor": process_power_sensor_id,
+        "start": "2015-01-02T00:00:00+01:00",
+        "duration": "PT24H",
+        "scheduler": "ProcessScheduler",
+        "flex-context": json.dumps({"consumption-price": {"sensor": epex_da.id}}),
+        "flex-model": json.dumps(
+            {"duration": "PT4H", "power": "0.4", "process-type": "SHIFTABLE"}
+        ),
+    }
+
+
+def test_add_schedule_dry_run_saves_no_beliefs(
+    app, fresh_db, process_power_sensor, add_market_prices_fresh_db
+):
+    """A dry run shows the schedule it computed, without recording any belief."""
+    from flexmeasures.cli.data_add import add_schedule
+
+    runner = app.test_cli_runner()
+    cli_input = to_flags(_process_schedule_cli_input(fresh_db, process_power_sensor))
+
+    result = runner.invoke(add_schedule, cli_input + ["--dry-run"])
+    check_command_ran_without_error(result)
+    assert "Not saving schedule for sensor `power`" in result.output
+    assert "covering events from" in result.output
+    assert "computed but not stored (because of --dry-run)" in result.output
+    assert "New schedule is stored." not in result.output
+    sensor = fresh_db.session.get(Sensor, process_power_sensor)
+    assert len(sensor.search_beliefs()) == 0
+
+    # A normal run does record the schedule, so the dry run really skipped that step
+    result = runner.invoke(add_schedule, cli_input)
+    check_command_ran_without_error(result)
+    assert "New schedule is stored." in result.output
+    assert len(sensor.search_beliefs()) > 0
+
+
+def test_add_schedule_rejects_dry_run_as_job(app, fresh_db, add_market_prices_fresh_db):
+    """A dry run cannot be queued: the worker would save the schedule that the flag rules out."""
+    from flexmeasures.cli.data_add import add_schedule, add_toy_account
+
+    runner = app.test_cli_runner()
+    runner.invoke(add_toy_account)
+    toy_account = fresh_db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one_or_none()
+    battery = fresh_db.session.execute(
+        select(Asset).filter_by(name="toy-battery", owner=toy_account)
+    ).scalar_one_or_none()
+    power_sensor = battery.sensors[0]
+    prices = add_market_prices_fresh_db["epex_da"]
+
+    cli_input = to_flags(
+        {
+            "start": "2014-12-31T23:00:00+00",
+            "duration": "PT12H",
+            "sensor": power_sensor.id,
+            "scheduler": "StorageScheduler",
+            "soc-at-start": "50%",
+            "flex-context": json.dumps({"consumption-price": {"sensor": prices.id}}),
+            "flex-model": json.dumps({"roundtrip-efficiency": "90%"}),
+        }
+    )
+    result = runner.invoke(add_schedule, cli_input + ["--dry-run", "--as-job"])
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
+    # Without the guard, the flag would be dropped and the queued job would store a schedule.
+    assert app.queues["scheduling"].count == 0
+    assert len(power_sensor.search_beliefs()) == 0
 
 
 @pytest.mark.parametrize(
