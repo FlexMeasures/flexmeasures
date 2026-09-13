@@ -7,8 +7,7 @@ API change log
 
 v3.0-36 | September 14, 2026
 """"""""""""""""""""""""""""
-- ``GET /api/v3_0/assets`` now applies the ``root`` and ``depth`` constraints to ``num-records``, too, so a listing scoped to an asset subtree reports how many assets that subtree holds. Previously, ``num-records`` counted every asset in the account and asset-type scope, which made a paginated client report the assets outside the subtree as having been filtered out by the search term.
-- ``GET /api/v3_0/assets`` now honours an explicit ``include_public=false``. Leaving the parameter out keeps the behaviour it had: ``all_accessible`` and ``root`` include public assets, a listing of a single account does not. Passing it no longer loses out to those two, so a client can offer the choice.
+- ``GET /api/v3_0/assets`` now scopes a listing the way its parameters say. ``num-records`` respects the ``root`` and ``depth`` constraints, so a listing scoped to an asset subtree reports how many assets that subtree holds, where it used to count every asset in the account and asset-type scope, making a paginated client report the rest as having been filtered out by the search term. And an explicit ``include_public=false`` is now honoured: leaving the parameter out keeps the behaviour it had, where ``all_accessible`` and ``root`` include public assets and a listing of a single account does not, but passing it no longer loses out to those two, so a client can offer the choice.
 
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
