@@ -6,6 +6,15 @@
 {% block divs %}
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
+<style>
+  .automation-actions {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    justify-content: center;
+    gap: .25rem;
+  }
+</style>
+
 <div class="container-fluid">
   <div class="row">
     <div class="col-sm-2"></div>
@@ -205,8 +214,21 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     if (!userCanRunAutomations) {
       return "";
     }
-    return `<button type="button" class="btn btn-default btn-primary run-automation" data-automation-id="${automation.id}"
+    return `<button type="button" class="btn btn-sm btn-primary run-automation" data-automation-id="${automation.id}"
       title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button>`;
+  }
+
+  function actionButtons(automation) {
+    const manageButtons = userCanManage ? `
+      <button type="button" class="btn btn-sm btn-outline-primary automation-edit" data-id="${automation.id}">Edit</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
+        ${automation.active ? "Deactivate" : "Activate"}
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-danger automation-delete" data-id="${automation.id}" data-name="${esc(automation.name)}">Delete</button>
+    ` : "";
+    return `<div class="automation-actions" role="group" aria-label="Actions for ${esc(automation.name)}">
+      ${runButton(automation)}${manageButtons}
+    </div>`;
   }
 
   function nextRun(automation) {
@@ -255,8 +277,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: esc(automation.timezone),
       next_run: nextRun(automation),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
-      details: `${runButton(automation)}
-        <a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
+      details: `<button type="button" class="btn btn-sm btn-outline-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</button>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
@@ -266,13 +287,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
             <div class="modal-body" id="AutomationDetailsBody-${automation.id}">Loading ...</div>
           </div></div>
         </div>`,
-      actions: `
-        <button class="btn btn-sm btn-outline-primary automation-edit" data-id="${automation.id}">Edit</button>
-        <button class="btn btn-sm btn-outline-secondary automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
-          ${automation.active ? "Deactivate" : "Activate"}
-        </button>
-        <button class="btn btn-sm btn-outline-danger automation-delete" data-id="${automation.id}" data-name="${esc(automation.name)}">Delete</button>
-      `,
+      actions: actionButtons(automation),
     };
   }
 
@@ -352,8 +367,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         { data: "timezone", title: "Schedule timezone" },
         { data: "next_run", title: "Next run (local)", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
-        { data: "details", title: "", className: "text-right", orderable: false },
-        ...(userCanManage ? [{ data: "actions", title: "", className: "text-right", orderable: false }] : []),
+        { data: "details", title: "", className: "text-center align-middle", orderable: false },
+        ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "Actions", className: "text-center align-middle", orderable: false }] : []),
       ],
       data: automations.map(AutomationRow),
     });
