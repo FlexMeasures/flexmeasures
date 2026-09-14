@@ -7,11 +7,22 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <style>
+  /* Size the two columns the same in every row, so a shorter toggle label ("Activate" against
+     "Deactivate") cannot shift a row's buttons out of line with the rows above and below it. */
   .automation-actions {
     display: grid;
-    grid-template-columns: repeat(2, max-content);
+    grid-template-columns: repeat(2, minmax(6rem, max-content));
     justify-content: center;
     gap: .25rem;
+  }
+  .automation-actions .btn {
+    white-space: nowrap;
+  }
+  /* The site theme paints every button.btn in the navigation colours, so Bootstrap's outline
+     variants all render as the same dark block. Keep that house style, and mark out only the
+     destructive action, the way the asset page's own delete button does. */
+  .automation-actions .automation-delete:hover {
+    color: var(--delete-color);
   }
 </style>
 
