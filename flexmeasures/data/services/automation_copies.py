@@ -28,6 +28,12 @@ from flexmeasures.data.services.automations import (
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
 
+# The automation types whose output sensor has to sit in the automation's own asset subtree.
+# Both spellings are listed because PR #2294 renames 'forecasts' to 'forecasting', after the queue and job names.
+# Keying on the old spelling alone would silently stop validating output scope the moment that lands,
+# so drop the old spelling only once this branch sits on top of it.
+FORECAST_AUTOMATION_TYPES = frozenset({"forecasts", "forecasting"})
+
 
 @dataclass(frozen=True)
 class SkippedAutomation:
@@ -146,7 +152,7 @@ def _copy_automation(
     parameters = _copy_parameters(automation, data_generator, remapper)
 
     copied_asset_id = asset_id_map[automation.asset_id]
-    if automation.type == "forecasts":
+    if automation.type in FORECAST_AUTOMATION_TYPES:
         # Reject a copy whose forecast would land outside its own asset, rather than let it fail on every run.
         try:
             validate_forecast_output_scope(

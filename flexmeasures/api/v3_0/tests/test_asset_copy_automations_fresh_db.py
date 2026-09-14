@@ -14,6 +14,7 @@ from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.automation_copies import FORECAST_AUTOMATION_TYPES
 from flexmeasures.data.services.data_sources import get_data_generator
 
 OLD_CURSOR = datetime(2020, 1, 1, 6, 0, tzinfo=timezone.utc)
@@ -151,6 +152,18 @@ def _sensor_named(db, asset: GenericAsset, name: str) -> Sensor:
     return db.session.scalars(
         select(Sensor).filter(Sensor.generic_asset_id == asset.id, Sensor.name == name)
     ).one()
+
+
+def test_a_forecast_automation_type_is_still_recognised():
+    """The copy validates forecast output scope by type name, and that name is being renamed.
+
+    PR #2294 renames 'forecasts' to 'forecasting'. Whichever spelling is in force,
+    one of them has to stay recognised, or copied forecast automations quietly stop being checked.
+    """
+    assert FORECAST_AUTOMATION_TYPES & set(Automation.SUPPORTED_TYPES), (
+        f"none of {sorted(FORECAST_AUTOMATION_TYPES)} is a supported automation type any more"
+        f" (supported: {Automation.SUPPORTED_TYPES}), so the output-scope check never runs"
+    )
 
 
 def test_copy_copies_direct_and_descendant_automations(fresh_db, automated_site):
