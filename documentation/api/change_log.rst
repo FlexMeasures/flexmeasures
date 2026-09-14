@@ -8,6 +8,9 @@ API change log
 v3.0-35 | September 14, 2026
 """"""""""""""""""""""""""""
 - ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where the destination organisation may read it. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped_automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
+v3.0-35 | September 9, 2026
+"""""""""""""""""""""""""""
+- The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
 
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""
