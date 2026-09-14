@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-35 | September 14, 2026
+""""""""""""""""""""""""""""
+- ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where the destination organisation may read it. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped_automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
+
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""
 - Added ``POST /api/v3_0/assets/<id>/automations/<automation_id>/trigger``, to run one automation now, once, on top of its recurring runs. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. An on-demand run does not affect the automation's recurrence, and inactive automations can be triggered, too. Triggering requires the same permission as writing data under the asset, and falls under the stricter rate limit that the other triggering endpoints share.
