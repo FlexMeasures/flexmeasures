@@ -20,6 +20,28 @@ def test_report_skipped_automations_says_which_ones_and_why(assert_js):
         """)
 
 
+def test_report_skipped_automations_escapes_the_automation_name(assert_js):
+    """An automation name is whatever a user typed, and the toast renders its message as HTML."""
+    assert_js("""
+        import { reportSkippedAutomations } from "/js/ui-utils.js";
+        const toasts = [];
+        window.showToast = (message, type) => toasts.push({message, type});
+        reportSkippedAutomations({
+            asset: 99,
+            skipped_automations: [
+                {id: 7, name: "<img src=x onerror=alert(1)>", asset: 10, reason: "<b>bold</b>"},
+            ],
+        });
+        const message = toasts[0].message;
+        check("no raw tag survives into the message", !message.includes("<img"), message);
+        check("no raw markup survives from the reason either", !message.includes("<b>"), message);
+        check("the name is still readable as text", message.includes("&lt;img src=x onerror=alert(1)&gt;"), message);
+        const holder = document.createElement("div");
+        holder.innerHTML = message;
+        check("rendering the message creates no elements of its own", holder.querySelector("img, b") === null, holder.innerHTML);
+        """)
+
+
 def test_report_skipped_automations_stays_quiet_when_all_were_copied(assert_js):
     """A copy that left nothing out should not raise a warning of its own."""
     assert_js("""
