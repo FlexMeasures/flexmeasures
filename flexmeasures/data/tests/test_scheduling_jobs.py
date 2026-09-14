@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.tests.utils import exception_reporter
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
+    get_data_source_for_job,
     create_scheduling_job,
     load_custom_scheduler,
     handle_scheduling_exception,
@@ -77,12 +78,16 @@ def test_scheduling_a_battery(
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
-    scheduler_source = fresh_db.session.execute(
-        select(DataSource).filter_by(name="Seita", type="scheduler")
-    ).scalar_one_or_none()
+    # Ask the job which source it wrote with, rather than looking one up by name:
+    # a scheduler's source also records the flex config it computed under,
+    # so several sources can share the scheduler's name, model and version.
+    scheduler_source = get_data_source_for_job(
+        Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    )
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
+    assert scheduler_source.name == "Seita" and scheduler_source.type == "scheduler"
 
     power_values = fresh_db.session.scalars(
         select(TimedBelief)
