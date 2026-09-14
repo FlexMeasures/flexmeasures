@@ -7,22 +7,63 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <style>
-  /* Size the two columns the same in every row, so a shorter toggle label ("Activate" against
-     "Deactivate") cannot shift a row's buttons out of line with the rows above and below it. */
+  /* One Actions menu per row, so the listing carries two controls instead of five. */
   .automation-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(6rem, max-content));
-    justify-content: center;
-    gap: .25rem;
+    display: inline-block;
   }
-  .automation-actions .btn {
+  .automation-actions .dropdown-toggle {
     white-space: nowrap;
   }
-  /* The site theme paints every button.btn in the navigation colours, so Bootstrap's outline
-     variants all render as the same dark block. Keep that house style, and mark out only the
-     destructive action, the way the asset page's own delete button does. */
-  .automation-actions .automation-delete:hover {
-    color: var(--delete-color);
+  /* Bootstrap's active state would flip the open toggle to its own blue, over the theme's navy. */
+  .automation-actions .dropdown-toggle.show {
+    color: var(--nav-hover-color);
+    background: var(--nav-hover-background-color);
+    border-color: var(--nav-hover-background-color);
+  }
+  /* DataTables gives the table a clipping wrapper, which would cut the open menu off. */
+  .dataTables_wrapper, .dt-container, .table-responsive {
+    overflow: visible;
+  }
+  /* The theme paints every .dropdown-menu in the navigation colours, for the navbar's own menus, but
+     only re-colours the <a> links inside one. These items are buttons, so they would keep Bootstrap's
+     dark text on that dark menu. Give them the same light treatment the navbar's links get. */
+  .automation-actions .dropdown-item {
+    color: var(--nav-default-color);
+    background-color: transparent;
+    text-align: center;
+    cursor: pointer;
+  }
+  .automation-actions .dropdown-item:hover,
+  .automation-actions .dropdown-item:focus {
+    color: var(--nav-hover-color);
+    background-color: var(--nav-hover-background-color);
+  }
+  /* Delete keeps its warning colour, lightened so it stays legible on the dark menu. */
+  .automation-actions .automation-delete.dropdown-item {
+    color: #ff8a9b;
+  }
+  .automation-actions .automation-delete.dropdown-item:hover,
+  .automation-actions .automation-delete.dropdown-item:focus {
+    color: var(--white);
+    background-color: var(--delete-color);
+  }
+  .automation-actions .dropdown-divider {
+    border-top-color: rgba(255, 255, 255, .25);
+  }
+  /* button.btn paints every button in the navigation colours, which the old <a class="btn"> Details
+     control never matched. Run now, Edit and the activation toggle keep that navy, so the row stays
+     calm across a long listing. Only the two controls worth spotting at a glance are handed back to
+     Bootstrap's own button variables: Details in the green it carried before it became a button, and
+     Delete in red, as the one action here that cannot be undone. */
+  .automation-details.btn {
+    color: var(--bs-btn-color);
+    background: var(--bs-btn-bg);
+    border-color: var(--bs-btn-border-color);
+  }
+  .automation-details.btn:hover {
+    color: var(--bs-btn-hover-color);
+    background: var(--bs-btn-hover-bg);
+    border-color: var(--bs-btn-hover-border-color);
   }
 </style>
 
@@ -230,15 +271,22 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   }
 
   function actionButtons(automation) {
-    const manageButtons = userCanManage ? `
-      <button type="button" class="btn btn-sm btn-outline-primary automation-edit" data-id="${automation.id}">Edit</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
-        ${automation.active ? "Deactivate" : "Activate"}
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-danger automation-delete" data-id="${automation.id}" data-name="${esc(automation.name)}">Delete</button>
+    const runItem = userCanRunAutomations ? `
+      <li><button type="button" class="dropdown-item run-automation" data-automation-id="${automation.id}"
+        title="Run this automation once, now. Its recurrence is not affected: the next recurring run still happens as scheduled.">Run now</button></li>
     ` : "";
-    return `<div class="automation-actions" role="group" aria-label="Actions for ${esc(automation.name)}">
-      ${runButton(automation)}${manageButtons}
+    const manageItems = userCanManage ? `
+      <li><button type="button" class="dropdown-item automation-edit" data-id="${automation.id}">Edit</button></li>
+      <li><button type="button" class="dropdown-item automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
+        ${automation.active ? "Deactivate" : "Activate"}
+      </button></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item automation-delete" data-id="${automation.id}" data-name="${esc(automation.name)}">Delete</button></li>
+    ` : "";
+    return `<div class="dropdown automation-actions">
+      <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-bs-toggle="dropdown"
+        data-bs-display="static" aria-expanded="false" aria-label="Actions for ${esc(automation.name)}">Actions</button>
+      <ul class="dropdown-menu dropdown-menu-end">${runItem}${manageItems}</ul>
     </div>`;
   }
 
@@ -288,7 +336,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: esc(automation.timezone),
       next_run: nextRun(automation),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
-      details: `<button type="button" class="btn btn-sm btn-outline-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</button>
+      details: `<button type="button" class="btn btn-sm btn-success automation-details" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</button>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
@@ -379,7 +427,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         { data: "next_run", title: "Next run (local)", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
         { data: "details", title: "", className: "text-center align-middle", orderable: false },
-        ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "Actions", className: "text-center align-middle", orderable: false }] : []),
+        ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "", className: "text-center align-middle", orderable: false }] : []),
       ],
       data: automations.map(AutomationRow),
     });
