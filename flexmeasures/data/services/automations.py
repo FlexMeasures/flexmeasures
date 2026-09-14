@@ -285,8 +285,8 @@ def get_latest_scheduled_run(automation: Automation, now: datetime) -> datetime:
 def get_next_scheduled_run(automation: Automation, now: datetime) -> datetime | None:
     """Return the next canonical run after ``now``, or none while inactive.
 
-    Use the same wall-clock and DST rules as the dispatcher. The cursor is not
-    consulted: this is the next scheduled clock time, not a pending catch-up run.
+    Use the same wall-clock and DST rules as the dispatcher.
+    The cursor is not consulted: this is the next scheduled clock time, not a pending catch-up run.
     """
     if not automation.active:
         return None
