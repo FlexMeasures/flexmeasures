@@ -71,11 +71,15 @@ For example, this automation queues a scheduling job every hour, each time sched
 Running automations
 -------------------
 
-For automations to actually run, let a cron job execute the following command once per minute:
+For automations to run on schedule, invoke the dispatcher once per minute.
+The provided Docker Compose stack does this with its ``automation-runner`` service, which starts after the web server is ready.
+If you host FlexMeasures without that service, set up a cron job instead:
 
 .. code-block:: bash
 
     * * * * * flexmeasures jobs run-automations
+
+Use one dispatcher for a deployment; the Docker Compose service already runs the command, so it does not need a host cron job as well.
 
 Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
@@ -119,7 +123,7 @@ Appendix: how the runner decides what is due
 This section describes the bookkeeping behind the catch-up behaviour above.
 You do not need it to use automations.
 
-The runner is a stateless command, executed once a minute by cron, so it needs a durable record of how far each automation has got.
+The runner is a stateless command, executed once a minute by Docker Compose or cron, so it needs a durable record of how far each automation has got.
 That record is one UTC timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
 Runs at or before the cursor are never queued again.
 Before queueing any jobs, the runner advances the cursor to the run it is about to queue, and saves it.
