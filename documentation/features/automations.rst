@@ -112,6 +112,7 @@ Viewing automations
 -------------------
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
+The page shows the next scheduled run in each automation's own local timezone, with its UTC offset. Inactive automations have no next run; this upcoming clock time does not include a pending catch-up run.
 An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
 Conversely, a sensor's page lists the automations that write data to it.
 
