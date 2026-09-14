@@ -1,13 +1,13 @@
 # ------------------------------------------------------------------
 # This runs your local FlexMeasures code in a docker compose stack.
-# Two FlexMeasures instances are spun up, one for serving the web
-# UI & API, one to work on computation jobs.
+# Three FlexMeasures instances are spun up, one for serving the web
+# UI & API, one to work on computation jobs, and one to dispatch due automations.
 # The server is adding a toy account when it starts.
 # (user: toy-user@flexmeasures.io, password: toy-password)
 # 
 # Instead of local code (which is useful for development purposes),
 # you can also use the official (and stable) FlexMeasures docker image
-# (lfenergy/flexmeasures). Replace the two `build` directives with
+# (lfenergy/flexmeasures). Replace the three `build` directives with
 # an `image` directive.
 # ------------------------------------------------------------------
 
@@ -123,6 +123,39 @@ services:
         pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
       fi
       flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling\|ingestion\|reporting
+  automation-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      server:
+        condition: service_healthy
+      queue-db:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
+      FLEXMEASURES_REDIS_URL: queue-db
+      FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
+      SECRET_KEY: notsecret
+      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
+      FLEXMEASURES_ENV: development
+      MAIL_SERVER: mailhog
+      MAIL_PORT: 1025
+      LOGGING_LEVEL: INFO
+    volumes:
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+    - |
+      set -e
+      if [ -f /usr/var/flexmeasures-instance/requirements.txt ]; then
+        pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
+      fi
+      while :; do
+        sleep "$((60 - $(date +%s) % 60))"
+        flexmeasures jobs run-automations || echo "Automation dispatch failed; retrying next minute" >&2
+      done
   test-db:
     image: postgres
     expose:
