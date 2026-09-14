@@ -81,7 +81,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Timezone"' in asset_page.data
+        assert b'title: "Schedule timezone"' in asset_page.data
+        assert b'title: "Next run (local)"' in asset_page.data
+        assert b"timeZone: automation.timezone" in asset_page.data
+        assert b"next_run: nextRun(automation)" in asset_page.data
         assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
@@ -103,6 +106,11 @@ def test_automations_page_manager_can_set_timezones(client, setup_assets, as_adm
     assert b'<option value="Europe/Amsterdam"></option>' in response.data
     assert b'id="editAutomationModal"' in response.data
     assert b'id="editAutomationTimezone"' in response.data
+    assert (
+        b"Use five fields: minute, hour, day of month, month, day of week."
+        in response.data
+    )
+    assert b"The local clock used by the schedule." in response.data
     assert b'timezone: $("#automationTimezone").val()' in response.data
     assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 

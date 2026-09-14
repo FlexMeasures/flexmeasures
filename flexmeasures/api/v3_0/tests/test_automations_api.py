@@ -82,8 +82,13 @@ def test_get_automations(
     add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
+    mocker,
 ):
     battery = add_battery_assets_fresh_db["Test battery"]
+    mocker.patch(
+        "flexmeasures.data.models.automations.server_now",
+        return_value=datetime(2026, 7, 11, 3, 30, tzinfo=timezone.utc),
+    )
     with app.test_client() as client:
         response = client.get(
             url_for("AssetAPI:get_automations", id=battery.id),
@@ -96,9 +101,12 @@ def test_get_automations(
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"
+    assert day_ahead["next_run"] == "2026-07-11T04:00:00+00:00"
     assert day_ahead["recurrence_description"] == "At 06:00"
     assert day_ahead["active"] is True
     assert day_ahead["created_at"] is not None
+    intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
+    assert intraday["next_run"] is None
     # generator and parameters are not listed
     assert "generator_id" not in day_ahead
     assert "generator" not in day_ahead
@@ -113,9 +121,14 @@ def test_get_automation_details(
     add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
+    mocker,
 ):
     battery = add_battery_assets_fresh_db["Test battery"]
     automation = add_automations[0]
+    mocker.patch(
+        "flexmeasures.data.models.automations.server_now",
+        return_value=datetime(2026, 7, 11, 3, 30, tzinfo=timezone.utc),
+    )
     with app.test_client() as client:
         response = client.get(
             url_for(
@@ -128,6 +141,7 @@ def test_get_automation_details(
     assert response.json["name"] == "Day-ahead forecasts"
     assert response.json["timezone"] == "Europe/Amsterdam"
     assert response.json["cursor"] == "2026-07-11T04:00:00+00:00"
+    assert response.json["next_run"] == "2026-07-11T04:00:00+00:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
