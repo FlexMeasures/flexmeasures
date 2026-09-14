@@ -252,7 +252,7 @@
 </script>
 
 <script type="module">
-import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+import { getAccount, reportSkippedAutomations } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 (function () {
     const perPage = 15;
@@ -445,9 +445,10 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
                     })
                     .then(function (data) {
                         showToast("Asset created successfully.", "success");
+                        const redirectDelay = reportSkippedAutomations(data) ? 8000 : 2000;
                         setTimeout(function () {
                            window.location.href = "/assets/" + data.asset + "/properties";
-                        }, 2000);
+                        }, redirectDelay);
                     })
                     .catch(function (err) {
                         showToast("Failed to create asset: " + err.message, "error");

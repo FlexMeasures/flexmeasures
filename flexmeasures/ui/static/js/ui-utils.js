@@ -418,6 +418,29 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
 }
 
 /**
+ * Report the automations that an asset copy left out, as returned by the copy endpoint.
+ *
+ * Copying an asset copies its automations too, but an automation that cannot be copied safely is skipped,
+ * so say which ones those were and why, rather than let the user find out when a forecast never arrives.
+ *
+ * @param {object} data - The copy endpoint's response body.
+ * @returns {boolean} - Whether anything was reported, so the caller can leave the toast up long enough to read.
+ */
+export function reportSkippedAutomations(data) {
+  const skipped = (data && data.skipped_automations) || [];
+  if (skipped.length === 0) return false;
+  const details = skipped
+    .map((automation) => '"' + automation.name + '" — ' + automation.reason)
+    .join(" ");
+  showToast(
+    skipped.length + " automation(s) could not be copied: " + details,
+    "info",
+    { delay: 10000 },
+  );
+  return true;
+}
+
+/**
  * Attach click handlers to all elements with the "js-copy-asset-btn" class.
  * Each button must carry a data-asset-id attribute.
  * An optional data-target-account-id attribute causes the copy to land in that
@@ -451,6 +474,7 @@ export function initCopyAssetButtons() {
         (response) =>
           response.json().then((data) => {
             showToast("Asset copied successfully.", "success");
+            const redirectDelay = reportSkippedAutomations(data) ? 8000 : 1500;
             setTimeout(() => {
               const dest = "/assets/" + data.asset + "/properties";
               if (openInNewTab) {
@@ -458,7 +482,7 @@ export function initCopyAssetButtons() {
               } else {
                 window.location.href = dest;
               }
-            }, 1500);
+            }, redirectDelay);
           }),
         "Failed to copy asset",
       );
