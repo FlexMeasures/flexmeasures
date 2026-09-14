@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import json
 import os
 import sys
 from importlib.abc import Loader
@@ -15,6 +16,7 @@ import sentry_sdk
 from flask import Flask, Blueprint
 
 from flexmeasures.utils.coding_utils import get_classes_module
+from flexmeasures.utils.config_utils import parse_bool_env
 
 
 def is_written_as_path(plugin: str) -> bool:
@@ -181,6 +183,12 @@ def register_plugins(app: Flask):  # noqa: C901
 def check_config_settings(app, settings: dict[str, dict]):
     """Make sure expected config settings exist.
 
+    Plugin settings that are not in the app config yet are looked up in the environment,
+    so a plugin setting can be set the same way a FlexMeasures setting can.
+    Settings that are still missing afterwards are logged,
+    and are set to the "default" that the plugin declared for them, if any.
+    Whatever a setting ends up holding, a declared default included, is checked against its "parse_as" type.
+
     For example:
 
         settings = {
@@ -191,12 +199,13 @@ def check_config_settings(app, settings: dict[str, dict]):
             "MY_PLUGIN_TOKEN": {
                 "description": "Token used by my plugin for y.",
                 "level": "warning",
-                "message": "Without this token, my plugin will not do y.",
+                "message_if_missing": "Without this token, my plugin will not do y.",
                 "parse_as": str,
             },
             "MY_PLUGIN_COLOR": {
                 "description": "Color used to override the default plugin color.",
                 "level": "info",
+                "default": "blue",
             },
         }
 
@@ -213,22 +222,79 @@ def check_config_settings(app, settings: dict[str, dict]):
     for setting_name, setting_fields in settings.items():
         assert isinstance(setting_fields, dict), f"{setting_name} should be a dict"
 
-    missing_config_settings = []
-    config_settings_with_wrong_type = []
+    read_plugin_settings_from_env(app, settings)
+
+    # Report what is missing, and fall back to the declared default where there is one.
+    for setting_name, setting_fields in settings.items():
+        if app.config.get(setting_name) is not None:
+            continue
+        log_missing_config_setting(app, setting_name, setting_fields)
+        if "default" in setting_fields:
+            app.config[setting_name] = setting_fields["default"]
+
+    # Check the type of every setting that has a value by now, defaults included.
     for setting_name, setting_fields in settings.items():
         setting = app.config.get(setting_name)
-        if setting is None:
-            missing_config_settings.append(setting_name)
-        elif "parse_as" in setting_fields and not isinstance(
-            setting, setting_fields["parse_as"]
-        ):
-            config_settings_with_wrong_type.append((setting_name, setting))
-    for setting_name, setting in config_settings_with_wrong_type:
-        log_wrong_type_for_config_setting(
-            app, setting_name, settings[setting_name], type(setting)
+        if setting is None or "parse_as" not in setting_fields:
+            continue
+        if not isinstance(setting, setting_fields["parse_as"]):
+            log_wrong_type_for_config_setting(
+                app, setting_name, setting_fields, type(setting)
+            )
+
+
+def read_plugin_settings_from_env(app: Flask, settings: dict[str, dict]):
+    """Fill in plugin-declared settings that are still unset from the environment.
+
+    Plugins are registered after the config file has been read,
+    so a setting that already has a value keeps it, and the environment only fills the gaps.
+    That is the same precedence that FlexMeasures' own settings get,
+    where the environment is read first and the config file may then override it.
+
+    Like FlexMeasures' own settings,
+    plugin settings are not read from the environment while testing or while building the documentation,
+    which both run on defaults.
+    """
+    if app.testing or app.config.get("FLEXMEASURES_ENV") == "documentation":
+        return
+    for setting_name, setting_fields in settings.items():
+        if app.config.get(setting_name) is not None:
+            continue
+        env_value = os.environ.get(setting_name)
+        if env_value is None:
+            continue
+        app.config[setting_name] = parse_setting_from_env(
+            app, setting_name, env_value, setting_fields.get("parse_as")
         )
-    for setting_name in missing_config_settings:
-        log_missing_config_setting(app, setting_name, settings[setting_name])
+
+
+def parse_setting_from_env(
+    app: Flask, setting_name: str, value: str, parse_as: type | None
+):
+    """Interpret an environment variable as the type the plugin declared for it.
+
+    Environment variables are always strings, so a setting that should be, say, an int is converted here.
+    Lists and dicts are expected to be JSON-encoded.
+    A value we cannot convert is passed on unconverted,
+    which lets the type check in check_config_settings report it to the plugin author.
+    """
+    if parse_as is None or parse_as is str:
+        return value
+    try:
+        if parse_as is bool:
+            return parse_bool_env(value)
+        if parse_as in (int, float):
+            return parse_as(value)
+        if parse_as in (list, dict):
+            parsed_value = json.loads(value)
+            if not isinstance(parsed_value, parse_as):
+                raise ValueError(f"{parsed_value} is not a {parse_as}")
+            return parsed_value
+    except ValueError as e:
+        app.logger.warning(
+            f"Could not read config setting '{setting_name}' from the environment as a {parse_as}: {e}"
+        )
+    return value
 
 
 def log_wrong_type_for_config_setting(
@@ -245,6 +311,9 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
 
     The logging level is taken from the 'level' key. If missing, we default to error.
     If present, we also log the 'description' and the 'message_if_missing' keys.
+
+    We close with whether the setting falls back to the 'default' the plugin declared, or stays unset,
+    so that a 'message_if_missing' promising a fallback cannot leave the impression that a setting without one is optional.
     """
     message_if_missing = (
         f" {setting_fields['message_if_missing']}"
@@ -254,6 +323,10 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
     description = (
         f" ({setting_fields['description']})" if "description" in setting_fields else ""
     )
+    if "default" in setting_fields:
+        fallback = f" Falling back to the default declared by the plugin: {setting_fields['default']!r}."
+    else:
+        fallback = " No default is declared for it, so it stays unset."
     level = setting_fields["level"] if "level" in setting_fields else "error"
     if not hasattr(app.logger, level):
         app.logger.warning(
@@ -261,5 +334,5 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
         )
         level = "error"
     getattr(app.logger, level)(
-        f"Missing config setting '{setting_name}'{description}.{message_if_missing}",
+        f"Missing config setting '{setting_name}'{description}.{message_if_missing}{fallback}",
     )

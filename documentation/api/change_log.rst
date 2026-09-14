@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-35 | September 9, 2026
+"""""""""""""""""""""""""""
+- The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
+
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""
 - Added ``POST /api/v3_0/assets/<id>/automations/<automation_id>/trigger``, to run one automation now, once, on top of its recurring runs. The response is the standard job response, extended with ``n_jobs``: how many jobs the run queued. An on-demand run does not affect the automation's recurrence, and inactive automations can be triggered, too. Triggering requires the same permission as writing data under the asset, and falls under the stricter rate limit that the other triggering endpoints share.
