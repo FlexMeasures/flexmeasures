@@ -116,7 +116,6 @@ class AssetGroup:
                 for asset_type in self.unique_asset_types
                 if asset_type.description is not None
             ],
-            final_sep=",",
         )
         return label if label else None
 

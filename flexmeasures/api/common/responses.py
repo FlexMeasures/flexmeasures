@@ -185,7 +185,7 @@ def invalid_sender(
     """
     message = message or FORBIDDEN_MSG
     if required_permissions:
-        message += f" It requires {join_words_into_a_list(required_permissions, final_sep=',')} permission(s)."
+        message += f" It requires {join_words_into_a_list(required_permissions)} permission(s)."
     return (
         dict(result="Rejected", status="INVALID_SENDER", message=message),
         FORBIDDEN_STATUS_CODE,
@@ -208,7 +208,7 @@ def invalid_unit(
         "for %s " % quantity.replace("_", " ") if quantity is not None else ""
     )
     unit_str = (
-        "in %s" % join_words_into_a_list(units, conj="or", final_sep=",")
+        "in %s" % join_words_into_a_list(units, conj="or")
         if units is not None
         else "a unit"
     )
