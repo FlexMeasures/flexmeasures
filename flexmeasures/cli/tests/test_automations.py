@@ -1466,15 +1466,14 @@ def test_show_automations_lists_all_and_shows_one(app, fresh_db, setup_dummy_dat
     # the list view holds the ID to pass to the edit, delete and run commands
     result = runner.invoke(list_automations, [])
     assert result.exit_code == 0, result.output
-    row = next(
-        line
-        for line in result.output.splitlines()
-        if "Day-ahead PV forecasts" in line and "===" not in line
+    name = "Day-ahead PV forecasts"
+    assert automation_row_cell(result.output, name, "ID") == str(automation.id)
+    assert automation_row_cell(result.output, name, "Type") == "forecasting"
+    assert automation_row_cell(result.output, name, "Cron") == "0 6 * * *"
+    assert automation_row_cell(result.output, name, "Timezone") == "Europe/Amsterdam"
+    assert (
+        automation_row_cell(result.output, name, "Asset") == "DummyGenericAsset (ID: 1)"
     )
-    assert row.split()[0] == str(automation.id)
-    assert "0 6 * * *" in row
-    assert "Europe/Amsterdam" in row
-    assert "forecasts" in row
 
     # the detail view adds the recurrence in words, the cursor, the parameters and the sensors
     result = runner.invoke(list_automations, ["--id", automation.id])
@@ -1483,6 +1482,10 @@ def test_show_automations_lists_all_and_shows_one(app, fresh_db, setup_dummy_dat
     assert "At 06:00" in result.output
     assert automation.cursor.isoformat() in result.output
     assert str(regressor_id) in result.output
+    assert (
+        f"{automation.generator.name} (ID: {automation.generator.id}, model: {automation.generator.model})"
+        in result.output
+    )
     assert "Reads from" in result.output
     assert "Writes to" in result.output
     reads_from, writes_to = result.output.split("Reads from:")[1].split("Writes to:")
@@ -1492,6 +1495,53 @@ def test_show_automations_lists_all_and_shows_one(app, fresh_db, setup_dummy_dat
     # showing an automation is not running it, so the next recurring run still happens as scheduled
     fresh_db.session.refresh(automation)
     assert automation.cursor == cursor_before
+
+
+def test_show_automations_are_listed_by_asset_and_id(
+    app, fresh_db, automation_scope_assets
+):
+    """The listing is ordered by asset and then by ID, whatever order the automations were created in."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    root_asset = automation_scope_assets["root_asset"]
+    child_asset = automation_scope_assets["child_asset"]
+    sensors = automation_scope_assets["sensors"]
+    assert root_asset.id < child_asset.id
+
+    runner = app.test_cli_runner()
+    # created out of order, so that insertion order cannot pass for the promised order
+    for asset, sensor_name, name in (
+        (child_asset, "child", "Second"),
+        (root_asset, "root", "First"),
+        (child_asset, "child", "Third"),
+    ):
+        result = runner.invoke(
+            add_automation,
+            to_flags(
+                {"asset": asset.id, "name": name, "sensor": sensors[sensor_name].id}
+            ),
+        )
+        assert "Successfully created" in result.output, result.output
+
+    automations = {
+        automation.name: automation
+        for automation in fresh_db.session.scalars(select(Automation)).all()
+    }
+    # the root asset's automation comes first, and the child asset's two follow in ID order
+    expected_ids = [
+        automations["First"].id,
+        automations["Second"].id,
+        automations["Third"].id,
+    ]
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    printed_ids = [
+        int(line.split()[0])
+        for line in result.output.splitlines()
+        if line.strip() and line.strip()[0].isdigit()
+    ]
+    assert printed_ids == expected_ids
 
 
 def test_show_automations_includes_inactive_ones(app, fresh_db, setup_dummy_data):
@@ -1566,6 +1616,7 @@ def test_show_automations_handles_unresolved_sensors(app, fresh_db, setup_dummy_
     assert result.exit_code == 0, result.output
     assert f"Automation {automation.id}: Broken forecasts" in result.output
     assert automation.cronstr in result.output
+    assert f"Automation {automation.id} ('Broken forecasts')" in result.output
     assert (
         f"Could not determine the sensors of automation {automation.id}"
         in result.output
@@ -1573,30 +1624,77 @@ def test_show_automations_handles_unresolved_sensors(app, fresh_db, setup_dummy_
     assert "Reads from" not in result.output
 
 
-def test_show_automations_is_not_specific_to_forecasts(app, fresh_db, setup_dummy_data):
-    """Automation types beyond forecasts are shown as they come, rather than assumed away."""
+def test_show_automations_names_the_automation_when_schedule_sensors_are_unknown(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A schedule automation's own message names its asset, which does not say which automation broke.
+
+    An asset may carry several of them, so the command names the automation itself.
+    """
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.data_show import list_automations
 
-    sensor_id = setup_dummy_data[0]
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('duration: "PT12H"\n')
     runner = app.test_cli_runner()
     result = runner.invoke(
         add_automation,
-        # a name which does not itself contain the type, so that the type column is really checked
-        to_flags({"asset": 1, "name": "Nightly run", "sensor": sensor_id}),
-    )
+        [
+            "--asset", "1",
+            "--name", "Broken schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Broken schedules")
+    ).scalar_one()
+
+    # the parameters no longer load, as happens when a flex-model sensor has been deleted
+    automation.parameters = {"duration": "not a duration"}
+    fresh_db.session.commit()
+
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert f"Automation {automation.id} ('Broken schedules')" in result.output
+    assert "Could not determine the sensors of schedule automation" in result.output
+    assert "Reads from" not in result.output
+
+
+def test_show_automations_shows_a_schedule_automation(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A schedule automation lists and shows like a forecast one, as nothing here is specific to forecasts."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('duration: "PT12H"\n')
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            # a name which does not itself contain the type, so that the Type cell is really checked
+            "--name", "Nightly run",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
     assert "Successfully created" in result.output, result.output
     automation = fresh_db.session.execute(
         select(Automation).filter_by(name="Nightly run")
     ).scalar_one()
-    # written directly, as only forecast automations can be created for now
-    automation.type = "schedules"
-    fresh_db.session.commit()
+    assert automation.type == "scheduling"
 
     result = runner.invoke(list_automations, [])
     assert result.exit_code == 0, result.output
-    assert automation_row_cell(result.output, "Nightly run", "Type") == "schedules"
+    assert automation_row_cell(result.output, "Nightly run", "Type") == "scheduling"
 
     result = runner.invoke(list_automations, ["--id", automation.id])
     assert result.exit_code == 0, result.output
-    assert re.search(r"^Type\s+schedules$", result.output, re.MULTILINE)
+    assert re.search(r"^Type\s+scheduling$", result.output, re.MULTILINE)
+    assert automation.parameters["duration"] in result.output

@@ -17,6 +17,7 @@ import vl_convert as vlc
 from string import Template
 import json
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User, Role
@@ -433,7 +434,10 @@ def list_automations(automation: Automation | None = None):
         return
 
     automations = db.session.scalars(
-        select(Automation).order_by(Automation.asset_id, Automation.id)
+        # the listing names each automation's asset, which would otherwise be a query per asset
+        select(Automation)
+        .options(selectinload(Automation.asset))
+        .order_by(Automation.asset_id, Automation.id)
     ).all()
     if not automations:
         click.secho(
@@ -508,7 +512,11 @@ def _show_automation(automation: Automation):
     except AutomationSensorsUnknown as e:
         # One automation whose sensors no longer resolve should still show its other details,
         # which are often exactly what is needed to work out why they do not.
-        click.secho(f"\n{e}", **MsgStyle.WARN)
+        # A schedule automation's message names its asset rather than itself, so name the automation here,
+        # as an asset may carry several of them.
+        click.secho(
+            f"\nAutomation {automation.id} ('{automation.name}'): {e}", **MsgStyle.WARN
+        )
         return
     for role, header in (
         ("input_sensors", "Reads from"),
