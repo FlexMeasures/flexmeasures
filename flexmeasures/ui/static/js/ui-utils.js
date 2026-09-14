@@ -418,10 +418,25 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
 }
 
 /**
+ * Render a value as text, safe to place in a string that is later assigned to innerHTML.
+ *
+ * @param {*} value - The value to render.
+ * @returns {string} - The value with any markup characters escaped.
+ */
+function escapeHtml(value) {
+  const holder = document.createElement("div");
+  holder.textContent = String(value);
+  return holder.innerHTML;
+}
+
+/**
  * Report the automations that an asset copy left out, as returned by the copy endpoint.
  *
  * Copying an asset copies its automations too, but an automation that cannot be copied safely is skipped,
  * so say which ones those were and why, rather than let the user find out when a forecast never arrives.
+ *
+ * An automation's name is whatever a user typed, and `showToast` renders the message as HTML,
+ * so the parts that come from the response are escaped here.
  *
  * @param {object} data - The copy endpoint's response body.
  * @returns {boolean} - Whether anything was reported, so the caller can leave the toast up long enough to read.
@@ -430,7 +445,13 @@ export function reportSkippedAutomations(data) {
   const skipped = (data && data.skipped_automations) || [];
   if (skipped.length === 0) return false;
   const details = skipped
-    .map((automation) => '"' + automation.name + '" — ' + automation.reason)
+    .map(
+      (automation) =>
+        '"' +
+        escapeHtml(automation.name) +
+        '" — ' +
+        escapeHtml(automation.reason),
+    )
     .join(" ");
   showToast(
     skipped.length + " automation(s) could not be copied: " + details,
