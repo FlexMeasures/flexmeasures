@@ -129,17 +129,14 @@ class SensorsToShowSchema(fields.Field):
             if validated_y_axis != "zero":
                 y_axis_kwargs["y-axis"] = validated_y_axis
 
-        def _make_base():
-            base = {"title": title, **y_axis_kwargs}
-            if description is not None:
-                base["description"] = description
-            return base
+        base = {"title": title, **y_axis_kwargs}
+        if description is not None:
+            base["description"] = description
 
         if "sensor" in item:
             sensor = item["sensor"]
             if not isinstance(sensor, int):
                 raise ValidationError("'sensor' value must be an integer.")
-            base = _make_base()
             base["plots"] = [{"sensor": sensor}]
             return base
 
@@ -149,7 +146,6 @@ class SensorsToShowSchema(fields.Field):
                 isinstance(sensor_id, int) for sensor_id in sensors
             ):
                 raise ValidationError("'sensors' value must be a list of integers.")
-            base = _make_base()
             base["plots"] = [{"sensors": sensors}]
             return base
 
@@ -159,7 +155,6 @@ class SensorsToShowSchema(fields.Field):
                 raise ValidationError("'plots' must be a list or dictionary.")
             for plot in plots:
                 self._validate_single_plot(plot)
-            base = _make_base()
             base["plots"] = plots
             return base
 
