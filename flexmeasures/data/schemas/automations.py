@@ -144,6 +144,13 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "2026-08-05T06:00:00+00:00",
         },
     )
+    next_run = fields.DateTime(
+        dump_only=True,
+        metadata={
+            "description": "UTC time of the next scheduled run after the response was generated. Null for an inactive automation. Pending catch-up runs are not included.",
+            "example": "2026-08-05T06:00:00+00:00",
+        },
+    )
     active = ma.auto_field()
 
     @validates("type")

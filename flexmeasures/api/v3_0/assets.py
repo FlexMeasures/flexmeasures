@@ -1460,7 +1460,8 @@ class AssetAPI(FlaskView):
             The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
-            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
+            its cursor, and the next scheduled run in UTC (null while inactive). The next run excludes pending catch-up work.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1488,6 +1489,7 @@ class AssetAPI(FlaskView):
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
                             cursor: "2026-07-11T04:00:00+00:00"
+                            next_run: "2026-07-12T04:00:00+00:00"
                             recurrence_description: "At 06:00"
                             active: true
             400:
@@ -1568,6 +1570,7 @@ class AssetAPI(FlaskView):
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
                         cursor: "2026-07-11T04:00:00+00:00"
+                        next_run: "2026-07-12T04:00:00+00:00"
                         recurrence_description: "At 06:00"
                         active: true
                         parameters:

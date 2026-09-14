@@ -121,6 +121,13 @@ class Automation(db.Model, AuthModelMixin):
         )
 
     @property
+    def next_run(self) -> datetime | None:
+        """The next scheduled clock time, excluding any pending catch-up run."""
+        from flexmeasures.data.services.automations import get_next_scheduled_run
+
+        return get_next_scheduled_run(self, server_now())
+
+    @property
     def input_sensors(self) -> list:
         """The sensors that this automation reads data from on each run, as far as they can be worked out.
 

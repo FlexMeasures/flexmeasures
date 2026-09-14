@@ -282,6 +282,26 @@ def get_latest_scheduled_run(automation: Automation, now: datetime) -> datetime:
     return scheduled_at
 
 
+def get_next_scheduled_run(automation: Automation, now: datetime) -> datetime | None:
+    """Return the next canonical run after ``now``, or none while inactive.
+
+    Use the same wall-clock and DST rules as the dispatcher. The cursor is not
+    consulted: this is the next scheduled clock time, not a pending catch-up run.
+    """
+    if not automation.active:
+        return None
+    now = floor_to_minute(now)
+    try:
+        timezone_info = ZoneInfo(automation.timezone)
+        evaluation_time = _cron_evaluation_time(now, timezone_info)
+        nominal_run = croniter(automation.cronstr, evaluation_time).get_next(datetime)
+        scheduled_at = _canonical_run_time(nominal_run, timezone_info)
+        return scheduled_at if scheduled_at > now else None
+    except (CroniterError, ValueError, ZoneInfoNotFoundError):
+        # A stale or invalid stored recurrence should not break the listing API.
+        return None
+
+
 def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     """Return the newest unhandled run for each active automation."""
     if now is None:
