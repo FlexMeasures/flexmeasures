@@ -74,7 +74,7 @@ A simple asset form, including a map selector:
 You can also copy an exisiting asset, including its child assets, sensors and flex-config.
 The automations on the copied assets come along, pointed at the copied sensors, but switched off and without any run history,
 so you can go through them and try them out before you let them run.
-An automation that cannot be copied safely, for instance because it reads a sensor that the receiving organisation cannot,
+An automation that cannot be copied safely, for instance because it reads a sensor that the receiving organisation cannot read,
 is left out and reported, while the rest of the copy goes ahead.
 You can search for the asset you want to copy:
 

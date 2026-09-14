@@ -198,8 +198,8 @@ def _copy_generator(
 
     The original data source is reused as long as its configuration needs no remapping,
     which is how data sources are shared between automations that are configured alike.
-    A configuration that does need remapping goes onto its own data source, so that editing or deleting the copy
-    cannot change the original automation's generator.
+    A configuration that does need remapping goes onto its own data source,
+    so that editing or deleting the copy cannot change the original automation's generator.
 
     :raises AutomationNotCopyable: if the remapped configuration does not validate.
     """
@@ -270,8 +270,8 @@ def _account_can_read(
 ) -> bool:
     """Whether the organisation a copy lands in may read data owned by another organisation.
 
-    Anything public is readable, and so is anything owned by the destination organisation itself
-    or by an organisation it consults for.
+    Anything public is readable,
+    and so is anything owned by the destination organisation itself or by an organisation it consults for.
     A public copy may only rely on public data, as it is readable by every organisation.
     """
     if owner_account_id is None:

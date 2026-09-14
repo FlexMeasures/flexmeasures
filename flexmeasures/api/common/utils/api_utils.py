@@ -490,8 +490,8 @@ def _copy_asset_subtree(
 ) -> tuple[GenericAsset, dict[int, int], dict[int, int]]:
     """Recursively copy one asset and all descendants.
 
-    Returns a tuple of (copied_asset, sensor_id_map, asset_id_map), where each map takes
-    every original ID in the entire subtree to the corresponding new ID.
+    Returns a tuple of (copied_asset, sensor_id_map, asset_id_map),
+    where each map takes every original ID in the entire subtree to the corresponding new ID.
     """
     asset_kwargs = asset_schema.dump(source_asset)
 
