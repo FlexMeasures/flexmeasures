@@ -54,6 +54,7 @@ of which some are referred to in this documentation.
 ``flexmeasures show asset-types``                 List available asset types.
 ``flexmeasures show asset``                       Show an asset and its sensors.
 ``flexmeasures show assets``                      Show all assets for a given account or public assets.
+``flexmeasures show automations``                 List automations, or show one automation in detail.
 ``flexmeasures show plans``                       List plans, with the rate limits they set.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.

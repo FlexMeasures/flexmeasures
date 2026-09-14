@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
+import re
 
 import pytest
 from types import SimpleNamespace
@@ -1042,3 +1043,183 @@ def test_run_one_automation_reports_unknown_automation(app, fresh_db, clean_redi
     assert result.exit_code == 2, result.output
     assert "No automation found with id 9999" in result.output
     assert app.queues["forecasting"].count == 0
+
+
+def automation_row_cell(output: str, name: str, header: str) -> str:
+    """Read one cell of the `show automations` table, by the column position of its header.
+
+    Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
+    """
+    headers = ["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone"]
+    lines = output.splitlines()
+    header_line = next(line for line in lines if all(h in line for h in headers))
+    starts = [header_line.index(h) for h in headers]
+    row = next(line for line in lines if name in line and line != header_line)
+    column = headers.index(header)
+    end = starts[column + 1] if column + 1 < len(starts) else len(row)
+    return row[starts[column] : end].strip()
+
+
+def test_show_automations_lists_all_and_shows_one(app, fresh_db, setup_dummy_data):
+    """`show automations` lists automations with their IDs, and shows one in detail with --id."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id, regressor_id = setup_dummy_data[0], setup_dummy_data[1]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Day-ahead PV forecasts",
+                "cron": "0 6 * * *",
+                "timezone": "Europe/Amsterdam",
+                "sensor": sensor_id,
+                "regressors": regressor_id,
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Day-ahead PV forecasts")
+    ).scalar_one()
+    cursor_before = automation.cursor
+
+    # the list view holds the ID to pass to the edit, delete and run commands
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    row = next(
+        line
+        for line in result.output.splitlines()
+        if "Day-ahead PV forecasts" in line and "===" not in line
+    )
+    assert row.split()[0] == str(automation.id)
+    assert "0 6 * * *" in row
+    assert "Europe/Amsterdam" in row
+    assert "forecasts" in row
+
+    # the detail view adds the recurrence in words, the cursor, the parameters and the sensors
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert f"Automation {automation.id}: Day-ahead PV forecasts" in result.output
+    assert "At 06:00" in result.output
+    assert automation.cursor.isoformat() in result.output
+    assert str(regressor_id) in result.output
+    assert "Reads from" in result.output
+    assert "Writes to" in result.output
+    reads_from, writes_to = result.output.split("Reads from:")[1].split("Writes to:")
+    assert "sensor 1" in writes_to
+    assert "sensor 1" in reads_from and "sensor 2" in reads_from
+
+    # showing an automation is not running it, so the next recurring run still happens as scheduled
+    fresh_db.session.refresh(automation)
+    assert automation.cursor == cursor_before
+
+
+def test_show_automations_includes_inactive_ones(app, fresh_db, setup_dummy_data):
+    """An automation which is not running is exactly the one an operator is looking for, so it is listed, too."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Paused forecasts",
+                "sensor": sensor_id,
+            }
+        )
+        + ["--inactive"],
+    )
+    assert "Successfully created" in result.output, result.output
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
+
+
+def test_show_automations_without_any_automations(app, fresh_db, setup_dummy_data):
+    """Without automations, the command says so rather than printing an empty table."""
+    from flexmeasures.cli.data_show import list_automations
+
+    result = app.test_cli_runner().invoke(list_automations, [])
+
+    assert result.exit_code == 0, result.output
+    assert "No automations created yet" in result.output
+
+
+def test_show_automations_reports_unknown_automation(app, fresh_db, setup_dummy_data):
+    """An ID which does not exist is reported as such."""
+    from flexmeasures.cli.data_show import list_automations
+
+    result = app.test_cli_runner().invoke(list_automations, ["--id", "9999"])
+
+    assert result.exit_code == 2, result.output
+    assert "No automation found with id 9999" in result.output
+
+
+def test_show_automations_handles_unresolved_sensors(app, fresh_db, setup_dummy_data):
+    """When the sensors cannot be worked out, the rest of the automation is still shown.
+
+    Those other details are often what is needed to work out why the sensors do not resolve.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags({"asset": 1, "name": "Broken forecasts", "sensor": sensor_id}),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Broken forecasts")
+    ).scalar_one()
+
+    # the parameters no longer load, as happens when a sensor referred to has been deleted
+    automation.parameters = {"sensor": "no-such-sensor"}
+    fresh_db.session.commit()
+
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert f"Automation {automation.id}: Broken forecasts" in result.output
+    assert automation.cronstr in result.output
+    assert (
+        f"Could not determine the sensors of automation {automation.id}"
+        in result.output
+    )
+    assert "Reads from" not in result.output
+
+
+def test_show_automations_is_not_specific_to_forecasts(app, fresh_db, setup_dummy_data):
+    """Automation types beyond forecasts are shown as they come, rather than assumed away."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        # a name which does not itself contain the type, so that the type column is really checked
+        to_flags({"asset": 1, "name": "Nightly run", "sensor": sensor_id}),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Nightly run")
+    ).scalar_one()
+    # written directly, as only forecast automations can be created for now
+    automation.type = "schedules"
+    fresh_db.session.commit()
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert automation_row_cell(result.output, "Nightly run", "Type") == "schedules"
+
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert re.search(r"^Type\s+schedules$", result.output, re.MULTILINE)
