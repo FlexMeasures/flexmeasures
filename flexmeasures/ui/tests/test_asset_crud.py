@@ -11,6 +11,7 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.tests.utils import (
+    assert_asset_listing_filter_row,
     mock_asset_data,
     mock_asset_data_with_kpis,
     mock_asset_data_as_form_input,
@@ -28,6 +29,13 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 def test_assets_page_empty(db, client, as_prosumer_user1):
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
+
+
+def test_assets_page_filter_checkboxes(db, client, as_prosumer_user1):
+    """The asset listing offers both filter checkboxes in one row: 'Top-level only' checked, 'Include public assets' not."""
+    asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
+    assert asset_index.status_code == 200
+    assert_asset_listing_filter_row(asset_index.data)
 
 
 def test_new_asset_page(client, setup_assets, as_admin):
