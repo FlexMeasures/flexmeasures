@@ -19,6 +19,9 @@ v1.1.0 | September XX, 2026
              Select a data source to see the schedule computed under one configuration.
              One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
 
+.. warning:: FlexMeasures no longer depends on ``inflect``.
+             Use the ``pluralize``, ``join_words_into_a_list`` and ``indefinite_article`` helpers in ``flexmeasures.utils.flexmeasures_inflection`` instead, or require ``inflect`` yourself if your plugin relied on FlexMeasures importing it for you.
+
 New features
 -------------
 

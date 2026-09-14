@@ -44,9 +44,24 @@ def test_join_words_into_a_list(words, conj, final_sep, expected):
 @pytest.mark.parametrize(
     "word, expected",
     [
+        # Words used at our own call sites.
         ("power", "a"),
         ("energy price", "an"),
         ("capacity price", "a"),
+        # Words a plain vowel-letter heuristic would get wrong.
+        ("unit", "a"),
+        ("hour", "an"),
+        ("one-way_evse", "a"),
+        ("euro", "a"),
+        ("honest", "an"),
+        # Capitalised abbreviations, which are read out letter by letter.
+        ("MW", "an"),
+        ("MWh", "an"),
+        ("kW", "a"),
+        ("EVSE", "an"),
+        # Case matters here: "a UN resolution", but "an unusual day".
+        ("UN", "a"),
+        ("unusual", "an"),
     ],
 )
 def test_indefinite_article(word, expected):
