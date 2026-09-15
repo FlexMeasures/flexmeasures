@@ -11,9 +11,8 @@ from sqlalchemy import select
 from flexmeasures import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.cli.tests.utils import to_flags
-from flexmeasures.utils.time_utils import get_timezone
 
 
 @pytest.fixture(scope="function")
@@ -144,8 +143,9 @@ def test_add_automation_default_cron(
         get_due_automations,
     )
 
-    # create the automation before the midnight we check, as an automation does not replay runs from before it existed
-    midnight = get_timezone().localize(datetime(2026, 7, 11, 0, 0))
+    # create the automation before the midnight we check, as an automation does not replay runs from before it existed.
+    # The automation takes its timezone from its asset, whose sensors carry the default UTC.
+    midnight = datetime(2026, 7, 11, 0, 0, tzinfo=pytz.utc)
     freeze_server_now(midnight - timedelta(hours=3))
 
     sensor_id = setup_dummy_data[0]
@@ -202,7 +202,7 @@ def test_add_automation_source_conflicts_with_forecaster(
         ),
     )
     assert result.exit_code != 0
-    assert "--forecaster cannot be combined with --source" in result.output
+    assert "--data-generator cannot be combined with --source" in result.output
 
     # a configuration option given on the command line conflicts, too
     result = runner.invoke(
@@ -396,12 +396,21 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data, cronstr):
     assert "Invalid value" in result.output
 
 
-def test_add_automation_defaults_to_configured_timezone(
+def test_add_automation_defaults_to_the_assets_timezone(
     app, fresh_db, setup_dummy_data, monkeypatch
 ):
+    """An automation recurs in the timezone of what it automates, not of where the server stands.
+
+    The asset's timezone is read from its own attribute, or else from one of its sensors,
+    and only an asset with neither falls back to the server's setting.
+    """
     from flexmeasures.cli.data_add import add_automation
 
     monkeypatch.setitem(app.config, "FLEXMEASURES_TIMEZONE", "America/New_York")
+    asset = fresh_db.session.get(GenericAsset, 1)
+    # NB set_attribute only updates an attribute that is already there, so write it directly.
+    asset.attributes = {**asset.attributes, "timezone": "Europe/Amsterdam"}
+    fresh_db.session.commit()
     result = app.test_cli_runner().invoke(
         add_automation,
         [
@@ -413,12 +422,14 @@ def test_add_automation_defaults_to_configured_timezone(
             "0 6 * * *",
             "--sensor",
             str(setup_dummy_data[0]),
+            "--sensor-to-save",
+            str(setup_dummy_data[0]),
         ],
     )
 
     assert result.exit_code == 0, result.output
     automation = fresh_db.session.scalars(select(Automation)).one()
-    assert automation.timezone == "America/New_York"
+    assert automation.timezone == "Europe/Amsterdam"
 
 
 def test_add_and_edit_automation_reject_invalid_timezone(
@@ -479,7 +490,7 @@ def test_add_and_edit_automation_reject_invalid_timezone(
         ["--activate"],
     ),
 )
-def test_edit_automation_rebases_cursor(
+def test_edit_automation_resets_cursor(
     app,
     fresh_db,
     setup_dummy_data,
@@ -1019,7 +1030,7 @@ def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
     )
 
     assert result.exit_code == 2
-    assert "--forecaster cannot be combined with --type scheduling" in result.output
+    assert "--data-generator cannot be combined with --type scheduling" in result.output
     assert (
         fresh_db.session.execute(
             select(Automation).filter_by(name="Schedule naming the default forecaster")
@@ -1420,6 +1431,67 @@ def test_run_one_automation_reports_unknown_automation(app, fresh_db, clean_redi
     assert result.exit_code == 2, result.output
     assert "No automation found with id 9999" in result.output
     assert app.queues["forecasting"].count == 0
+
+
+def test_the_configured_timezone_is_what_an_asset_without_one_falls_back_to(
+    app, fresh_db, setup_dummy_data, monkeypatch
+):
+    """Only an asset with neither a timezone attribute nor a sensor leaves the server's setting to decide.
+
+    A sensor carries a timezone of its own, defaulting to UTC, so an asset with sensors always has one to offer.
+    """
+    from flexmeasures.data.models.automations import get_default_automation_timezone
+
+    monkeypatch.setitem(app.config, "FLEXMEASURES_TIMEZONE", "America/New_York")
+    asset_type = fresh_db.session.scalars(select(GenericAssetType)).first()
+    bare_asset = GenericAsset(name="no timezone here", generic_asset_type=asset_type)
+    fresh_db.session.add(bare_asset)
+    fresh_db.session.flush()
+    assert not bare_asset.sensors
+
+    assert get_default_automation_timezone(bare_asset) == "America/New_York"
+
+    with_sensors = fresh_db.session.get(GenericAsset, 1)
+    assert with_sensors.sensors
+    assert get_default_automation_timezone(with_sensors) == "UTC"
+
+    with_sensors.attributes = {**with_sensors.attributes, "timezone": "Europe/Lisbon"}
+    assert get_default_automation_timezone(with_sensors) == "Europe/Lisbon"
+
+
+@pytest.mark.parametrize(
+    "option", ["--data-generator", "--forecaster", "--scheduler", "--reporter"]
+)
+def test_the_data_generator_can_be_named_by_what_it_is(
+    app, fresh_db, setup_dummy_data, option
+):
+    """All four spellings set the same thing, so a caller can name the generator by its kind.
+
+    The class a forecast automation runs is a data generator; `--forecaster` says which kind it is.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            f"Named by {option}",
+            "--cron",
+            "0 6 * * *",
+            "--sensor",
+            str(setup_dummy_data[0]),
+            option,
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name=f"Named by {option}")
+    ).one()
+    assert automation.generator.model == "TrainPredictPipeline"
 
 
 def automation_row_cell(output: str, name: str, header: str) -> str:

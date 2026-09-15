@@ -17,11 +17,13 @@ from sqlalchemy import delete, func, select
 from flexmeasures import Source
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
-from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.automations import AutomationIdField
-from flexmeasures.data.services.automations import get_automations_involving_sensor
+from flexmeasures.data.services.automations import (
+    delete_automation as remove_automation,
+    get_automations_involving_sensor,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -295,11 +297,7 @@ def delete_automation(automation: Automation, force: bool):
     if not force:
         prompt = f"Delete automation '{automation.name}' (ID: {automation.id}) of asset '{automation.asset.name}'?"
         click.confirm(prompt, abort=True)
-    AssetAuditLog.add_record(
-        automation.asset,
-        f"Deleted automation '{automation.name}' ({automation.id}) via CLI.",
-    )
-    db.session.delete(automation)
+    remove_automation(automation, origin="CLI")
     db.session.commit()
     click.secho(
         f"Successfully deleted automation '{automation.name}' (ID: {automation.id}).",
