@@ -41,7 +41,6 @@ dependencies = [
     "workalendar>=17.0.0",
     "holidays>=0.57",
     "inflection>=0.5.1",
-    "inflect>=7.5.0",
     "pydantic>=2.12.5",
     "humanize>=4.15.0",
     "psycopg2-binary>=2.9.11",
