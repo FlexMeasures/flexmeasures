@@ -2416,6 +2416,13 @@ def test_factory_chp_dispatch_through_storage_scheduler(app, db):
             err_msg=f"Unexpected schedule for {sensor.name}",
         )
 
+    commodity_costs = next(
+        r["data"] for r in results if r.get("name") == "commodity_costs"
+    )
+    assert set(commodity_costs.keys()) == {"electricity", "gas"}
+    assert commodity_costs["gas"] > 0
+    assert commodity_costs["electricity"] < 0  # CHP produces net electricity sales
+
 
 def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     add_battery_assets, db
