@@ -90,12 +90,21 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
         assert b'title: "Schedule timezone"' in asset_page.data
-        assert b'title: "Next run (local)"' in asset_page.data
-        assert b"timeZone: automation.timezone" in asset_page.data
+        # The cell says how far off the run is; the clock time moved to its tooltip.
+        assert b'title: "Next run"' in asset_page.data
+        assert b"timeZone: timezone" in asset_page.data
         assert b'"next-run": nextRun(automation)' in asset_page.data
+        assert b"getHumanFriendlyDeltaOrTimeStr(automation[\"next-run\"]" in asset_page.data
         assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
+        # The listing reaches below the asset, and refreshes itself.
+        assert b"include_child_assets=${includeChildAssets}" in asset_page.data
+        assert b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)" in asset_page.data
+        # The per-automation panel is called Info, and reports the data source's configuration.
+        assert b">Info</button>" in asset_page.data
+        assert b"<h6>Data source</h6>" in asset_page.data
+        assert b"res.source.config" in asset_page.data
     if view in ("get", "context"):
         assert "Show sensors".encode() in asset_page.data
         assert "Edit flex-context".encode() in asset_page.data
