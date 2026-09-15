@@ -3368,9 +3368,58 @@
       }
     },
     "/api/v3_0/assets/{id}/automations/{automation_id}": {
+      "delete": {
+        "summary": "Delete an automation.",
+        "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires permission to add data under the asset.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "DELETED"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3406,23 +3455,24 @@
                     "summary": "Automation details",
                     "value": {
                       "id": 1,
-                      "created_at": "2026-07-11T00:00:00+00:00",
-                      "asset_id": 1,
-                      "type": "forecasts",
+                      "created-at": "2026-07-11T00:00:00+00:00",
+                      "asset": 1,
+                      "type": "forecasting",
                       "name": "Day-ahead PV forecasts",
-                      "cronstr": "0 6 * * *",
+                      "cron": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
-                      "cursor": "2026-07-11T04:00:00+00:00",
-                      "recurrence_description": "At 06:00",
+                      "cursor": "2026-07-11T06:00:00+02:00",
+                      "next-run": "2026-07-12T06:00:00+02:00",
+                      "recurrence-description": "At 06:00",
                       "active": true,
                       "parameters": {
                         "sensor": 2092
                       },
-                      "generator": {
+                      "source": {
                         "id": 6,
                         "description": "forecaster 'TrainPredictPipeline' (v1)"
                       },
-                      "input_sensors": [
+                      "input-sensors": [
                         {
                           "id": 2092,
                           "name": "power"
@@ -3432,7 +3482,7 @@
                           "name": "irradiance"
                         }
                       ],
-                      "output_sensors": [
+                      "output-sensors": [
                         {
                           "id": 2092,
                           "name": "power"
@@ -3449,8 +3499,74 @@
               }
             }
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "patch": {
+        "summary": "Update an automation's name, cron string, timezone or activation status.",
+        "description": "Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation_id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationUpdateSchema"
+              },
+              "examples": {
+                "deactivate": {
+                  "summary": "Deactivate the automation",
+                  "value": {
+                    "active": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -3476,7 +3592,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3505,14 +3621,15 @@
                       "automations": [
                         {
                           "id": 1,
-                          "created_at": "2026-07-11T00:00:00+00:00",
-                          "asset_id": 1,
-                          "type": "forecasts",
+                          "created-at": "2026-07-11T00:00:00+00:00",
+                          "asset": 1,
+                          "type": "forecasting",
                           "name": "Day-ahead PV forecasts",
-                          "cronstr": "0 6 * * *",
+                          "cron": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
-                          "cursor": "2026-07-11T04:00:00+00:00",
-                          "recurrence_description": "At 06:00",
+                          "cursor": "2026-07-11T06:00:00+02:00",
+                          "next-run": "2026-07-12T06:00:00+02:00",
+                          "recurrence-description": "At 06:00",
                           "active": true
                         }
                       ]
@@ -3522,8 +3639,68 @@
               }
             }
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "post": {
+        "summary": "Create an automation on an asset.",
+        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\nor a schedule trigger message (without the asset id) for type `scheduling`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to create the automation on.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationCreationSchema"
+              },
+              "examples": {
+                "daily_forecasts": {
+                  "summary": "Daily forecasts of sensor 2092",
+                  "description": "Runs every day at 06:00, read as minute-then-hour, in the automation's own timezone.",
+                  "value": {
+                    "name": "Day-ahead PV forecasts",
+                    "cron": "0 6 * * *",
+                    "type": "forecasting",
+                    "parameters": {
+                      "sensor": 2092
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "CREATED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -4548,7 +4725,7 @@
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "n_jobs": 2,
+                      "n-jobs": 2,
                       "message": "Request has been accepted for processing."
                     }
                   }
@@ -6544,6 +6721,83 @@
           "end",
           "start"
         ],
+        "additionalProperties": false
+      },
+      "AutomationCreationSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "default": "forecasting",
+            "enum": [
+              "forecasting",
+              "scheduling"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "cron": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors, and to the server's FLEXMEASURES_TIMEZONE if the asset has neither.",
+            "example": "Europe/Amsterdam"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "data-generator": {
+            "type": "string",
+            "default": "TrainPredictPipeline",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. Only a forecast automation chooses one; a schedule automation's generator follows from the asset and the flex config.",
+            "example": "TrainPredictPipeline"
+          },
+          "config": {
+            "type": "object",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Only used by a forecast automation.",
+            "example": {},
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "cron",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AutomationUpdateSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "cron": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone in which the cron expression is interpreted.",
+            "example": "Europe/Amsterdam"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
         "additionalProperties": false
       },
       "ReportTriggerSchema": {
