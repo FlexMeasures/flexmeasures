@@ -54,14 +54,14 @@
   /* button.btn paints every button in the navigation colours, which the old <a class="btn"> Details control never matched.
      Run now, Edit and the activation toggle keep that navy, so the row stays calm across a long listing.
      Only the two controls worth spotting at a glance are handed back to Bootstrap's own button variables:
-     Details in the green it carried before it became a button,
+     Info in the green Details carried before it became a button,
      and Delete in red, as the one action here that cannot be undone. */
-  .automation-details.btn {
+  .automation-info.btn {
     color: var(--bs-btn-color);
     background: var(--bs-btn-bg);
     border-color: var(--bs-btn-border-color);
   }
-  .automation-details.btn:hover {
+  .automation-info.btn:hover {
     color: var(--bs-btn-hover-color);
     background: var(--bs-btn-hover-bg);
     border-color: var(--bs-btn-hover-border-color);
@@ -374,14 +374,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: esc(automation.timezone),
       "next-run": nextRun(automation),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
-      details: `<button type="button" class="btn btn-sm btn-success automation-details" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</button>
-        <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
+      info: `<button type="button" class="btn btn-sm btn-success automation-info" data-bs-target="#AutomationInfoModal-${automation.id}" data-bs-toggle="modal">Info</button>
+        <div class="modal fade" id="AutomationInfoModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">Automation '${esc(automation.name)}' (ID: ${automation.id})</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="AutomationDetailsBody-${automation.id}">Loading ...</div>
+            <div class="modal-body" id="AutomationInfoBody-${automation.id}">Loading ...</div>
           </div></div>
         </div>`,
       actions: actionButtons(automation),
@@ -399,7 +399,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     ).join(", ");
   }
 
-  function loadAutomationDetails(automationId) {
+  function loadAutomationInfo(automationId) {
     $.ajax({
       url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
       method: "GET",
@@ -415,7 +415,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         const generator = res.source
           ? `${res.source.description} (data source ${res.source.id})`
           : "None";
-        $(`#AutomationDetailsBody-${automationId}`).html(`
+        $(`#AutomationInfoBody-${automationId}`).html(`
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
           <h6>Cursor (UTC)</h6>
@@ -437,7 +437,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       },
       error: function (xhr) {
         $(`#automation-jobs-${automationId}`).text("unknown");
-        $(`#AutomationDetailsBody-${automationId}`).text("Could not load details.");
+        $(`#AutomationInfoBody-${automationId}`).text("Could not load this automation's info.");
         showAutomationsError(
           `Could not load automation details: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
         );
@@ -449,7 +449,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $(`#automationsTable-${automationType}`).DataTable({
       searching: false,
       paging: false,
-      info: false,
+      info: false,  // DataTables' own record count, not the Info column below.
       ordering: true,
       order: [[1, "desc"]],  // most recently created first
       language: {
@@ -464,13 +464,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         { data: "timezone", title: "Schedule timezone" },
         { data: "next-run", title: "Next run", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
-        { data: "details", title: "", className: "text-center align-middle", orderable: false },
+        { data: "info", title: "", className: "text-center align-middle", orderable: false },
         ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "", className: "text-center align-middle", orderable: false }] : []),
       ],
       data: automations.map(AutomationRow),
     });
     // Load more details per automation asynchronously
-    automations.forEach(automation => loadAutomationDetails(automation.id));
+    automations.forEach(automation => loadAutomationInfo(automation.id));
   }
 
   function apiError(xhr, fallbackMessage) {
@@ -624,7 +624,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           showAutomationsMessage(
             `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`
           );
-          loadAutomationDetails(automationId);  // refresh this automation's job stats.
+          loadAutomationInfo(automationId);  // refresh this automation's job stats.
         },
         error: function (xhr) {
           $("#automations_msg").addClass("d-none");

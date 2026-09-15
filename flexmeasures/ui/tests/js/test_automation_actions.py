@@ -52,8 +52,8 @@ def test_automation_actions_are_grouped_and_permission_gated(assert_js):
         const row = manager.AutomationRow(automation);
         check("one menu holds all four controls", ["run-automation", "automation-edit", "automation-toggle", "automation-delete"]
               .every(name => row.actions.includes(name)), row.actions);
-        check("run now is no longer mixed with details", !row.details.includes("run-automation"), row.details);
-        check("details stays its own button", row.details.includes("automation-details"), row.details);
+        check("run now is no longer mixed with info", !row.info.includes("run-automation"), row.info);
+        check("info stays its own button", row.info.includes("automation-info"), row.info);
         const holder = document.createElement("div");
         holder.innerHTML = row.actions;
         document.body.appendChild(holder);
