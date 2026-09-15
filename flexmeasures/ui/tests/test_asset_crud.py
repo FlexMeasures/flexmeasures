@@ -89,7 +89,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Timezone"' in asset_page.data
+        assert b'title: "Schedule timezone"' in asset_page.data
+        assert b'title: "Next run (local)"' in asset_page.data
+        assert b"timeZone: automation.timezone" in asset_page.data
+        assert b'"next-run": nextRun(automation)' in asset_page.data
         assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
@@ -98,6 +101,26 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Edit flex-context".encode() in asset_page.data
         assert "Structure".encode() in asset_page.data
         assert "Location".encode() in asset_page.data
+
+
+def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
+    asset = setup_assets["wind-asset-1"]
+
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+
+    assert response.status_code == 200
+    assert b'id="automationTimezone"' in response.data
+    assert f'value="{asset.timezone}"'.encode() in response.data
+    assert b'<option value="Europe/Amsterdam"></option>' in response.data
+    assert b'id="editAutomationModal"' in response.data
+    assert b'id="editAutomationTimezone"' in response.data
+    assert (
+        b"Use five fields: minute, hour, day of month, month, day of week."
+        in response.data
+    )
+    assert b"The local clock used by the schedule." in response.data
+    assert b'timezone: $("#automationTimezone").val()' in response.data
+    assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
 
 @pytest.mark.parametrize(
