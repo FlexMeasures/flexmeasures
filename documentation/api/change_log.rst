@@ -5,9 +5,13 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-35 | September 15, 2026
+v3.0-38 | September 15, 2026
 """"""""""""""""""""""""""""
 - ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where the destination organisation may read it. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped_automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
+
+v3.0-37 | September 15, 2026
+""""""""""""""""""""""""""""
+- Added ``POST /api/v3_0/assets/<id>/automations``, ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` and ``DELETE /api/v3_0/assets/<id>/automations/<automation_id>`` for managing an asset's automations. They require the same permission as writing data under the asset, and an automation may only involve sensors that its creator can access: read access to the sensors it reads data from, and permission to record data on the sensors it writes to (a ``403`` otherwise). Both the creation and the update accept a ``timezone``, in which the automation's cron expression is interpreted; it defaults to the asset's own timezone, taken from the asset's timezone attribute or one of its sensors, and to the server's ``FLEXMEASURES_TIMEZONE`` if the asset has neither. The automation endpoints also report a ``next_run``: the next scheduled run, null while the automation is inactive, and excluding any catch-up run still pending. Both ``next_run`` and ``cursor`` are now reported as clock times in the automation's own timezone, where ``cursor`` was previously reported in UTC, since a recurrence is read in that timezone.
 v3.0-36 | September 14, 2026
 """"""""""""""""""""""""""""
 - ``GET /api/v3_0/assets`` now scopes a listing the way its parameters say. ``num-records`` respects the ``root`` and ``depth`` constraints, so a listing scoped to an asset subtree reports how many assets that subtree holds, where it used to count every asset in the account and asset-type scope, making a paginated client report the rest as having been filtered out by the search term. And an explicit ``include_public=false`` is now honoured: leaving the parameter out keeps the behaviour it had, where ``all_accessible`` and ``root`` include public assets and a listing of a single account does not, but passing it no longer loses out to those two, so a client can offer the choice.

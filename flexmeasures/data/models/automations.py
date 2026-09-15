@@ -15,8 +15,22 @@ from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now
 
 
-def get_default_automation_timezone() -> str:
-    """Return the timezone to snapshot when an automation is created."""
+def get_default_automation_timezone(asset=None) -> str:
+    """Return the timezone to snapshot when an automation is created.
+
+    An automation recurs in the timezone of whatever it automates, so the asset's own timezone is the better guess,
+    and the server's setting only says where the server is.
+    The asset's is read the way `GenericAsset.timezone` reads it, from its attribute or else from one of its sensors,
+    except that the fallback is the server setting rather than UTC.
+    """
+    if asset is not None:
+        asset_timezone = None
+        if asset.has_attribute("timezone"):
+            asset_timezone = asset.get_attribute("timezone")
+        elif asset.sensors:
+            asset_timezone = asset.sensors[0].timezone
+        if asset_timezone in all_timezones_set:
+            return asset_timezone
     timezone_name = current_app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
     if timezone_name not in all_timezones_set:
         raise ValueError(f"Timezone '{timezone_name}' does not exist.")
@@ -45,6 +59,10 @@ class Automation(db.Model, AuthModelMixin):
     __tablename__ = "automation"
 
     SUPPORTED_TYPES = ["forecasting", "scheduling"]  # later also "reporting"
+
+    # What one result of each type is called, for messages that talk about a single result,
+    # such as the parameters an automation of that type computes with.
+    RESULT_NOUNS = {"forecasting": "forecast", "scheduling": "schedule"}
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
@@ -95,16 +113,16 @@ class Automation(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         Whoever can read the asset can read its automations.
-        Updating and deleting automations is allowed for whoever can delete
-        the asset (i.e. account admins and consultants).
+        Updating and deleting automations is allowed for whoever may add data under the asset,
+        which is what defining an automation amounts to.
         """
         if self.asset is None:
             return {}
         asset_acl = self.asset.__acl__()
         return {
             "read": asset_acl["read"],
-            "update": asset_acl["delete"],
-            "delete": asset_acl["delete"],
+            "update": asset_acl["create-children"],
+            "delete": asset_acl["create-children"],
         }
 
     def __repr__(self):
@@ -115,6 +133,13 @@ class Automation(db.Model, AuthModelMixin):
             self.asset_id,
             "active" if self.active else "inactive",
         )
+
+    @property
+    def next_run(self) -> datetime | None:
+        """The next scheduled clock time, excluding any pending catch-up run."""
+        from flexmeasures.data.services.automations import get_next_scheduled_run
+
+        return get_next_scheduled_run(self, server_now())
 
     @property
     def input_sensors(self) -> list:

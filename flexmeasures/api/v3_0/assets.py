@@ -48,13 +48,20 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.schemas.automations import AutomationSchema
+from flexmeasures.data.schemas.automations import (
+    AutomationCreationSchema,
+    AutomationSchema,
+    AutomationUpdateSchema,
+)
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
+    create_automation,
+    delete_automation as remove_automation,
     describe_cronstr,
     get_automation_job_stats,
     resolve_automation_sensors,
     run_automation,
+    update_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
@@ -1464,7 +1471,9 @@ class AssetAPI(FlaskView):
             The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
-            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
+            and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
+            The next run excludes pending catch-up work.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1485,17 +1494,16 @@ class AssetAPI(FlaskView):
                       value:
                         automations:
                           - id: 1
-                            created_at: "2026-07-11T00:00:00+00:00"
-                            asset_id: 1
-                            type: forecasts
+                            created-at: "2026-07-11T00:00:00+00:00"
+                            asset: 1
+                            type: forecasting
                             name: Day-ahead PV forecasts
-                            cronstr: "0 6 * * *"
+                            cron: "0 6 * * *"
                             timezone: Europe/Amsterdam
-                            cursor: "2026-07-11T04:00:00+00:00"
-                            recurrence_description: "At 06:00"
+                            cursor: "2026-07-11T06:00:00+02:00"
+                            next-run: "2026-07-12T06:00:00+02:00"
+                            recurrence-description: "At 06:00"
                             active: true
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1508,7 +1516,7 @@ class AssetAPI(FlaskView):
         automations_data = []
         for automation in asset.automations:
             automation_data = automation_schema.dump(automation)
-            automation_data["recurrence_description"] = describe_cronstr(
+            automation_data["recurrence-description"] = describe_cronstr(
                 automation.cronstr
             )
             automations_data.append(automation_data)
@@ -1534,11 +1542,11 @@ class AssetAPI(FlaskView):
           description: |
             In addition to the fields shown when listing automations, the response shows
             the automation's parameters (forecast parameters or a schedule trigger message),
-            information about its data generator (null for schedule automations),
+            the data source it records under, as its `source` (null for schedule automations),
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
-            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
             - ApiKeyAuth: []
@@ -1565,34 +1573,33 @@ class AssetAPI(FlaskView):
                       summary: Automation details
                       value:
                         id: 1
-                        created_at: "2026-07-11T00:00:00+00:00"
-                        asset_id: 1
-                        type: forecasts
+                        created-at: "2026-07-11T00:00:00+00:00"
+                        asset: 1
+                        type: forecasting
                         name: Day-ahead PV forecasts
-                        cronstr: "0 6 * * *"
+                        cron: "0 6 * * *"
                         timezone: Europe/Amsterdam
-                        cursor: "2026-07-11T04:00:00+00:00"
-                        recurrence_description: "At 06:00"
+                        cursor: "2026-07-11T06:00:00+02:00"
+                        next-run: "2026-07-12T06:00:00+02:00"
+                        recurrence-description: "At 06:00"
                         active: true
                         parameters:
                           sensor: 2092
-                        generator:
+                        source:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
-                        input_sensors:
+                        input-sensors:
                           - id: 2092
                             name: power
                           - id: 2093
                             name: irradiance
-                        output_sensors:
+                        output-sensors:
                           - id: 2092
                             name: power
                         job_stats:
                           finished: 3
                           failed: 1
                         redis_connection_err: null
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1610,9 +1617,9 @@ class AssetAPI(FlaskView):
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
         automation_data = automation_schema.dump(automation)
-        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["recurrence-description"] = describe_cronstr(automation.cronstr)
         automation_data["parameters"] = automation.parameters
-        automation_data["generator"] = (
+        automation_data["source"] = (
             {
                 "id": automation.generator.id,
                 "description": automation.generator.description,
@@ -1635,7 +1642,7 @@ class AssetAPI(FlaskView):
             }:
                 check_access(sensor, "read")
         for key in ("input_sensors", "output_sensors"):
-            automation_data[key] = [
+            automation_data[key.replace("_", "-")] = [
                 {"id": sensor.id, "name": sensor.name}
                 for sensor in automation_sensors[key]
             ]
@@ -1647,6 +1654,224 @@ class AssetAPI(FlaskView):
             redis_connection_err = e.args[0]
         automation_data["redis_connection_err"] = redis_connection_err
         return automation_data, 200
+
+    @route("/<id>/automations", methods=["POST"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @use_args(AutomationCreationSchema(), location="json")
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def post_automation(self, automation_data: dict, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Create an automation on an asset.
+
+        ---
+        post:
+          summary: Create an automation on an asset.
+          description: |
+            Create a recurring task (computing forecasts or schedules) on the asset.
+            The parameters are validated by the schema matching the automation type:
+            forecast parameters for type `forecasting`,
+            or a schedule trigger message (without the asset id) for type `scheduling`.
+            Requires permission to add data under the asset.
+
+            The automation can only involve sensors that you have access to yourself:
+            read access to the sensors it reads data from,
+            and permission to record data on the sensors it writes to.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to create the automation on.
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AutomationCreationSchema
+                examples:
+                  daily_forecasts:
+                    summary: Daily forecasts of sensor 2092
+                    description: >-
+                      Runs every day at 06:00, read as minute-then-hour,
+                      in the automation's own timezone.
+                    value:
+                      name: Day-ahead PV forecasts
+                      cron: "0 6 * * *"
+                      type: forecasting
+                      parameters:
+                        sensor: 2092
+          responses:
+            201:
+              description: CREATED
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        try:
+            automation, warnings = create_automation(
+                asset, origin="API", check_permissions=True, **automation_data
+            )
+        except ValidationError as e:
+            return unprocessable_entity({"parameters": e.messages})
+        except AutomationSensorsUnknown as e:
+            return unprocessable_entity(str(e))
+        except ValueError as e:
+            return unprocessable_entity(str(e))
+        db.session.commit()
+        response = automation_schema.dump(automation)
+        response["recurrence-description"] = describe_cronstr(automation.cronstr)
+        response["warnings"] = warnings
+        return response, 201
+
+    @route("/<id>/automations/<int:automation_id>", methods=["PATCH"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    @use_args(AutomationUpdateSchema(), location="json")
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def patch_automation(
+        self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
+    ):
+        """
+        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
+
+        ---
+        patch:
+          summary: Update an automation's name, cron string, timezone or activation status.
+          description: |
+            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
+            so runs from before it are not caught up on, while a run due in that very minute still is.
+            Other automation fields cannot be updated; instead, create a new automation.
+            Requires permission to add data under the asset.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AutomationUpdateSchema
+                examples:
+                  deactivate:
+                    summary: Deactivate the automation
+                    value:
+                      active: false
+          responses:
+            200:
+              description: PROCESSED
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        update_automation(automation, origin="API", **automation_data)
+        db.session.commit()
+        response = automation_schema.dump(automation)
+        response["recurrence-description"] = describe_cronstr(automation.cronstr)
+        return response, 200
+
+    @route("/<id>/automations/<int:automation_id>", methods=["DELETE"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation_id": fields.Int(),
+        },
+        location="path",
+    )
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
+    # The sensors it involves are checked separately, against the user's own access.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def delete_automation(self, id: int, automation_id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Delete an automation.
+
+        ---
+        delete:
+          summary: Delete an automation.
+          description: |
+            Delete the automation. Any jobs it already queued are unaffected.
+            Requires permission to add data under the asset.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          responses:
+            204:
+              description: DELETED
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+          tags:
+            - Assets
+        """
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
+            return {
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
+            }, 404
+        remove_automation(automation, origin="API")
+        db.session.commit()
+        return {}, 204
 
     @route("/<id>/automations/<int:automation_id>/trigger", methods=["POST"])
     @limit_triggers()
@@ -1711,7 +1936,7 @@ class AssetAPI(FlaskView):
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                        n_jobs: 2
+                        n-jobs: 2
                         message: "Request has been accepted for processing."
             401:
               description: UNAUTHORIZED
@@ -1753,7 +1978,7 @@ class AssetAPI(FlaskView):
         )
         db.session.commit()
         response, status_code = request_accepted_for_processing(job_id)
-        response["n_jobs"] = returns.get("n_jobs")
+        response["n-jobs"] = returns.get("n_jobs")
         return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])
