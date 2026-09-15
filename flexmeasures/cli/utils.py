@@ -5,6 +5,7 @@ Utils for FlexMeasures CLI
 from __future__ import annotations
 
 import ast
+import logging
 from typing import Any
 from datetime import datetime, timedelta
 
@@ -119,6 +120,36 @@ class DeprecatedOptionsCommand(click.Command):
             option.process = make_process(option)
 
         return parser
+
+
+class LoggedClickExceptionCommand(click.Command):
+    """A command that logs Click usage errors before Click reports them."""
+
+    def _log_click_exception(self, ctx: click.Context, exc: click.ClickException):
+        from flask import current_app, has_app_context
+
+        logger = (
+            current_app.logger if has_app_context() else logging.getLogger(__name__)
+        )
+        logger.error(
+            "Click error in `%s`: %s",
+            ctx.command_path,
+            exc.format_message(),
+        )
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, args)
+        except click.ClickException as exc:
+            self._log_click_exception(ctx, exc)
+            raise
+
+    def invoke(self, ctx: click.Context):
+        try:
+            return super().invoke(ctx)
+        except click.ClickException as exc:
+            self._log_click_exception(ctx, exc)
+            raise
 
 
 class DeprecatedDefaultGroup(DefaultGroup):

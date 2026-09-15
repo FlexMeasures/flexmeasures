@@ -188,6 +188,22 @@ def test_add_forecast_rejects_config_with_existing_source(
     )
 
 
+def test_add_report_logs_click_error_for_invalid_start(app, caplog):
+    """A Click parameter error is logged once, without the full usage text."""
+    runner = app.test_cli_runner()
+
+    with caplog.at_level(logging.ERROR):
+        result = runner.invoke(args=["add", "report", "--start", ""])
+
+    assert result.exit_code == 2
+    assert "Error: Invalid value for '--start': Not a valid datetime." in result.output
+    assert (
+        "Click error in `flexmeasures add report`: Invalid value for '--start': "
+        "Not a valid datetime." in caplog.text
+    )
+    assert "Usage: flexmeasures add report [OPTIONS]" not in caplog.text
+
+
 def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)

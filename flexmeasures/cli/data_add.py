@@ -43,6 +43,7 @@ from flexmeasures.cli.utils import (
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    LoggedClickExceptionCommand,
     add_cli_options_from_schema,
     split_commas,
 )
@@ -2096,7 +2097,7 @@ def add_schedule(  # noqa C901
             )
 
 
-@fm_add_data.command("report")
+@fm_add_data.command("report", cls=LoggedClickExceptionCommand)
 @with_appcontext
 @click.option(
     "--config",
