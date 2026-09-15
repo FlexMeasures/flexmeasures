@@ -9,6 +9,7 @@ import pandas as pd
 import timely_beliefs as tb
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 
 from datetime import datetime, timedelta
 
@@ -156,7 +157,7 @@ def data_to_bdf(
     data: pd.DataFrame,
     horizon: int,
     probabilistic: bool,
-    target_sensor: Sensor,
+    target_sensor: Sensor | SensorReference,
     sensor_to_save: Sensor,
     data_source: DataSource,
 ) -> tb.BeliefsDataFrame:
@@ -171,7 +172,7 @@ def data_to_bdf(
                             a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes,
                             a horizon of 4*48 represents a forecast horizon of 48 hours.
     :param probabilistic:   Whether the forecasts are probabilistic or deterministic.
-    :param target_sensor:   The Sensor object for which the predictions are made.
+    :param target_sensor:   The Sensor object for which the predictions are made, or a source-filtered reference to it.
     :param sensor_to_save:  The Sensor object to save the forecasts to.
     :param data_source:     The DataSource object to attribute the forecasts to.
     :returns:               A formatted BeliefsDataFrame ready for database insertion.

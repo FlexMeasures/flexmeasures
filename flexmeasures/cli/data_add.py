@@ -137,6 +137,23 @@ def _parse_regressor_cli_values(values: tuple | list) -> list:
     return parsed_values
 
 
+def _parse_target_sensor_cli_value(value):
+    """Parse the target sensor option: a bare sensor ID, or a JSON sensor reference with source filters.
+
+    Only a value shaped like a reference is parsed here, so that a bare ID reaches the schema just as it was typed.
+    """
+    if not isinstance(value, str) or not value.lstrip().startswith("{"):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as e:
+        raise click.UsageError(
+            f"--sensor looks like a JSON sensor reference, but it could not be parsed: {e}."
+            " Pass a sensor ID, or a JSON object naming the sensor and the sources to train on,"
+            ' such as \'{"sensor": 2092, "sources": [12]}\'.'
+        ) from e
+
+
 @click.group("add")
 def fm_add_data():
     """FlexMeasures: Add data."""
@@ -1500,6 +1517,10 @@ def _assemble_forecaster_config_and_parameters(
         kebab_key = snake_to_kebab(k)
         if kebab_key not in parameters:
             parameters[kebab_key] = v
+
+    # The target sensor is given either as a bare ID, or as a JSON sensor reference with source filters.
+    if "sensor" in parameters:
+        parameters["sensor"] = _parse_target_sensor_cli_value(parameters["sensor"])
 
     # Drop None values
     parameters = {k: v for k, v in parameters.items() if v is not None}

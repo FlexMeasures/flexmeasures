@@ -172,6 +172,35 @@ If you want to take regressors into account, in addition to merely past measurem
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
 
+Choosing which data sources to train on
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Where several data sources record on the same sensor, you can say which of them the forecaster should read.
+Anywhere a sensor ID is accepted — the three regressor options, and the target sensor itself — you can pass a *sensor reference* instead: a small object naming the sensor plus the source filters to apply to it.
+
+- ``sources``: only use beliefs from these data source IDs.
+- ``source-types``: only use beliefs from sources of these types, e.g. ``"user"``, ``"script"``, ``"forecaster"`` or ``"scheduler"``.
+- ``exclude-source-types``: leave out beliefs from sources of these types.
+- ``source-account``: only use beliefs from sources belonging to these accounts.
+
+When a reference lists multiple sources, the first listed source wins if two of them hold beliefs about the same event, recorded at the same time.
+
+.. code-block:: bash
+
+    flexmeasures add forecasts \
+      --sensor '{"sensor": 42, "sources": [12]}' \
+      --regressors '{"sensor": 43, "exclude-source-types": ["forecaster"]}'
+
+Here the model is trained on the readings that source 12 recorded on sensor 42, and ignores whatever else was recorded there.
+
+.. note::
+
+   A target given as a bare sensor ID is trained on every source recording on it, except forecasters, which are left out so that the forecaster does not learn from its own forecasts.
+   A reference replaces that default entirely, so add ``"exclude-source-types": ["forecaster"]`` yourself if you want forecasters kept out alongside another filter.
+
+Forecasts are always recorded on the sensor itself, never on a source-filtered view of it, so the source filters on a target only say what to train on.
+Over the API, the target sensor is named by the URL of the trigger endpoint, so references there apply to regressors only.
+
 Annotation regressors
 ~~~~~~~~~~~~~~~~~~~~~
 

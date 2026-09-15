@@ -345,12 +345,9 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     # to a different asset than the automation's own asset.
     sensor_ids = {sensor.id for sensor in automation.asset.sensors}
     for key in ("sensor", "sensor-to-save"):
-        value = (automation.parameters or {}).get(key)
-        if value is not None:
-            try:
-                sensor_ids.add(int(value))
-            except (TypeError, ValueError):
-                pass
+        sensor_id = _stored_sensor_id((automation.parameters or {}).get(key))
+        if sensor_id is not None:
+            sensor_ids.add(sensor_id)
 
     counts: dict[str, int] = {}
     seen_job_ids: set[str] = set()
@@ -365,6 +362,22 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def _stored_sensor_id(sensor_reference: Any) -> int | None:
+    """Return the sensor ID from a stored automation parameter naming a sensor.
+
+    A parameter may name a sensor by ID, or as a source-filtered sensor reference,
+    whose source filters say which beliefs to read and not which sensor is meant.
+    """
+    if isinstance(sensor_reference, Sensor):
+        return sensor_reference.id
+    if isinstance(sensor_reference, dict):
+        sensor_reference = sensor_reference.get("sensor")
+    try:
+        return int(sensor_reference)
+    except (TypeError, ValueError):
+        return None
+
+
 def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
     """Resolve the sensor on which a forecast automation registers beliefs."""
     sensor_reference = parameters.get("sensor-to-save")
@@ -375,10 +388,9 @@ def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
 
     if isinstance(sensor_reference, Sensor):
         return sensor_reference
-    try:
-        sensor_id = int(sensor_reference)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Forecast automation has no valid output sensor.") from exc
+    sensor_id = _stored_sensor_id(sensor_reference)
+    if sensor_id is None:
+        raise ValueError("Forecast automation has no valid output sensor.")
 
     sensor = db.session.get(Sensor, sensor_id)
     if sensor is None:
