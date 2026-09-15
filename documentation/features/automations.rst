@@ -112,8 +112,16 @@ Viewing automations
 -------------------
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
-The page shows the next scheduled run for each automation (excluding any pending catch-up run).
-An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
+Automations are usually defined on a sub-asset, so the page lists what runs anywhere below the asset as well, naming the asset each automation belongs to.
+Turn *Include automations of sub-assets* off to see only the automations defined on the asset itself; the choice is remembered for your next visit.
+The API endpoint does the same, and takes ``include_child_assets=false`` to narrow the listing.
+
+The page shows how far off each automation's next scheduled run is, such as "in 6 minutes" or "tomorrow" (excluding any pending catch-up run).
+Hovering it gives the exact time, read on the automation's own timezone, together with the recurrence it follows.
+Created At reads on that same clock.
+The page brings itself up to date about once a minute, so runs and job counts appear without reloading; it holds off while the tab is in the background, or while a panel or menu is open.
+
+An automation's *Info* panel shows the sensors it reads from and writes to, linking to each sensor's page, and the data source it records under, together with the configuration that data source was created with.
 Conversely, a sensor's page lists the automations that write data to it.
 
 .. _automation_cursor:
