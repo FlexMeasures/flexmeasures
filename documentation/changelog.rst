@@ -34,6 +34,7 @@ Infrastructure / Support
 * Train and predict a forecaster's per-horizon models side by side rather than one after another, which cuts the training time of a long forecast horizon several-fold while leaving the forecasts themselves unchanged [see `PR #2479 <https://www.github.com/FlexMeasures/flexmeasures/pull/2479>`_]
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
+* A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 
 Bugfixes
 -----------
