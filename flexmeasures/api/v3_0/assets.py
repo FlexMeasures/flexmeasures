@@ -1472,7 +1472,7 @@ class AssetAPI(FlaskView):
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
-            its cursor in UTC, and the next scheduled run as a clock time in that same timezone (null while inactive).
+            and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
             The next run excludes pending catch-up work.
           security:
             - ApiKeyAuth: []
@@ -1500,7 +1500,7 @@ class AssetAPI(FlaskView):
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
-                            cursor: "2026-07-11T04:00:00+00:00"
+                            cursor: "2026-07-11T06:00:00+02:00"
                             next_run: "2026-07-12T06:00:00+02:00"
                             recurrence_description: "At 06:00"
                             active: true
@@ -1549,7 +1549,7 @@ class AssetAPI(FlaskView):
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
-            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
             - ApiKeyAuth: []
@@ -1582,7 +1582,7 @@ class AssetAPI(FlaskView):
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
-                        cursor: "2026-07-11T04:00:00+00:00"
+                        cursor: "2026-07-11T06:00:00+02:00"
                         next_run: "2026-07-12T06:00:00+02:00"
                         recurrence_description: "At 06:00"
                         active: true

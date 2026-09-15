@@ -3423,7 +3423,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3465,7 +3465,7 @@
                       "name": "Day-ahead PV forecasts",
                       "cronstr": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
-                      "cursor": "2026-07-11T04:00:00+00:00",
+                      "cursor": "2026-07-11T06:00:00+02:00",
                       "next_run": "2026-07-12T06:00:00+02:00",
                       "recurrence_description": "At 06:00",
                       "active": true,
@@ -3601,7 +3601,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nits cursor in UTC, and the next scheduled run as a clock time in that same timezone (null while inactive).\nThe next run excludes pending catch-up work.\n",
+        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3636,7 +3636,7 @@
                           "name": "Day-ahead PV forecasts",
                           "cronstr": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
-                          "cursor": "2026-07-11T04:00:00+00:00",
+                          "cursor": "2026-07-11T06:00:00+02:00",
                           "next_run": "2026-07-12T06:00:00+02:00",
                           "recurrence_description": "At 06:00",
                           "active": true

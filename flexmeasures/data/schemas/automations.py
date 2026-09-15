@@ -138,11 +138,12 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "Europe/Amsterdam",
         }
     )
-    cursor = ma.auto_field(
+    cursor = fields.Method(
+        serialize="dump_cursor",
         dump_only=True,
         metadata={
-            "description": "UTC time of the most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.",
-            "example": "2026-08-05T06:00:00+00:00",
+            "description": "Time of the most recent run this automation committed to, in the automation's own timezone, as its recurrence is read there. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.",
+            "example": "2026-08-05T08:00:00+02:00",
         },
     )
     next_run = fields.Method(
@@ -155,20 +156,30 @@ class AutomationSchema(ma.SQLAlchemySchema):
     )
     active = ma.auto_field()
 
-    def dump_next_run(self, automation: Automation) -> str | None:
-        """Render the next run as a clock time in the automation's own timezone.
+    @staticmethod
+    def _in_automation_timezone(
+        automation: Automation, moment: datetime | None
+    ) -> str | None:
+        """Render a moment as a clock time in the automation's own timezone.
 
         A recurrence is written in that timezone,
-        so reading its next run back in UTC asks whoever reads it to undo the conversion themselves.
+        so reading the times it produces back in UTC asks whoever reads them to undo the conversion themselves.
         """
-        next_run = automation.next_run
-        if next_run is None:
+        if moment is None:
             return None
         try:
-            return next_run.astimezone(ZoneInfo(automation.timezone)).isoformat()
+            return moment.astimezone(ZoneInfo(automation.timezone)).isoformat()
         except (ValueError, ZoneInfoNotFoundError):
             # A stale or invalid stored timezone should not break the listing API.
-            return next_run.isoformat()
+            return moment.isoformat()
+
+    def dump_next_run(self, automation: Automation) -> str | None:
+        """Render the next scheduled run in the automation's own timezone."""
+        return self._in_automation_timezone(automation, automation.next_run)
+
+    def dump_cursor(self, automation: Automation) -> str | None:
+        """Render the cursor in the automation's own timezone."""
+        return self._in_automation_timezone(automation, automation.cursor)
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):

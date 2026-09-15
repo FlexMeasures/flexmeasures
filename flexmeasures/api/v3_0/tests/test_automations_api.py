@@ -100,7 +100,7 @@ def test_get_automations(
     assert day_ahead["type"] == "forecasting"
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
-    assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"
+    assert day_ahead["cursor"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["next_run"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["recurrence_description"] == "At 06:00"
     assert day_ahead["active"] is True
@@ -140,7 +140,7 @@ def test_get_automation_details(
     assert response.status_code == 200
     assert response.json["name"] == "Day-ahead forecasts"
     assert response.json["timezone"] == "Europe/Amsterdam"
-    assert response.json["cursor"] == "2026-07-11T04:00:00+00:00"
+    assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
     assert response.json["next_run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
