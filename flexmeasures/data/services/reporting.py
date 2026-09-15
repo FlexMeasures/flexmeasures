@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from flask import current_app
@@ -45,7 +45,11 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
 
     job = Job.create(
         run_report_job,
-        kwargs={"data_source_id": data_source_id, "parameters": parameters},
+        kwargs={
+            "data_source_id": data_source_id,
+            "parameters": parameters,
+            "automation_id": (reporter._job_trigger or {}).get("automation_id"),
+        },
         connection=current_app.queues[queue].connection,
         ttl=int(
             current_app.config.get(
@@ -83,8 +87,15 @@ def _count_persistable_values(data) -> int:
     return len(data.dropna(subset=["event_value"]))
 
 
-def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
-    """Compute and store a report in a reporting worker."""
+def run_report_job(
+    data_source_id: int, parameters: dict, automation_id: int | None = None
+) -> list[dict]:
+    """Compute and store a report in a reporting worker.
+
+    If the report was triggered by an automation, the end of the report window is recorded upon success,
+    so the automation's next default window starts where this one ended.
+    A failed report job therefore leaves no permanent gap in the reported periods.
+    """
     from flexmeasures.data.models.data_sources import DataSource
     from flexmeasures.data.models.reporting import Reporter
 
@@ -116,4 +127,12 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
             source,
             summary,
         )
+
+    if automation_id is not None and parameters.get("end"):
+        from flexmeasures.data.services.automations import record_automation_run
+
+        record_automation_run(
+            automation_id, now=datetime.fromisoformat(parameters["end"])
+        )
+
     return saved
