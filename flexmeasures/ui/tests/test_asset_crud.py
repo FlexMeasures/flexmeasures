@@ -11,6 +11,7 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.tests.utils import (
+    assert_asset_listing_filter_row,
     mock_asset_data,
     mock_asset_data_with_kpis,
     mock_asset_data_as_form_input,
@@ -28,6 +29,13 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 def test_assets_page_empty(db, client, as_prosumer_user1):
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
+
+
+def test_assets_page_filter_checkboxes(db, client, as_prosumer_user1):
+    """The asset listing offers both filter checkboxes in one row: 'Top-level only' checked, 'Include public assets' not."""
+    asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
+    assert asset_index.status_code == 200
+    assert_asset_listing_filter_row(asset_index.data)
 
 
 def test_new_asset_page(client, setup_assets, as_admin):
@@ -81,7 +89,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Timezone"' in asset_page.data
+        assert b'title: "Schedule timezone"' in asset_page.data
+        assert b'title: "Next run (local)"' in asset_page.data
+        assert b"timeZone: automation.timezone" in asset_page.data
+        assert b'"next-run": nextRun(automation)' in asset_page.data
         assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
@@ -90,6 +101,26 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Edit flex-context".encode() in asset_page.data
         assert "Structure".encode() in asset_page.data
         assert "Location".encode() in asset_page.data
+
+
+def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
+    asset = setup_assets["wind-asset-1"]
+
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+
+    assert response.status_code == 200
+    assert b'id="automationTimezone"' in response.data
+    assert f'value="{asset.timezone}"'.encode() in response.data
+    assert b'<option value="Europe/Amsterdam"></option>' in response.data
+    assert b'id="editAutomationModal"' in response.data
+    assert b'id="editAutomationTimezone"' in response.data
+    assert (
+        b"Use five fields: minute, hour, day of month, month, day of week."
+        in response.data
+    )
+    assert b"The local clock used by the schedule." in response.data
+    assert b'timezone: $("#automationTimezone").val()' in response.data
+    assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
 
 @pytest.mark.parametrize(
@@ -765,3 +796,49 @@ def test_status_page_tables_are_not_built_on_page_load(
         b'clickableTable(document.getElementById("jobsTable"), "URL")'
         in status_page.data
     )
+
+
+def test_status_page_include_child_assets_toggle(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """The jobs tab offers a toggle for the jobs of sub-assets, which follows the user's session and is on by default."""
+    parent = GenericAsset(
+        name="parent-for-status-page-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+    )
+    db.session.add(parent)
+    db.session.flush()
+    child = GenericAsset(
+        name="child-for-status-page-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset_id=parent.id,
+    )
+    db.session.add(child)
+    db.session.commit()
+
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=parent.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b"Include jobs of sub-assets" in status_page.data
+    # Without a recorded preference, the jobs of sub-assets are included.
+    assert b'id="includeChildAssets" checked' in status_page.data
+    assert b"let includeChildAssets = true;" in status_page.data
+
+    with client.session_transaction() as session:
+        session["status_page_include_child_assets"] = False
+    status_page = client.get(
+        url_for("AssetCrudUI:status", id=parent.id), follow_redirects=True
+    )
+    assert status_page.status_code == 200
+    assert b'id="includeChildAssets" checked' not in status_page.data
+    assert b"let includeChildAssets = false;" in status_page.data
+
+    # An asset without sub-assets has nothing to include, so it is not asked about.
+    child_status_page = client.get(
+        url_for("AssetCrudUI:status", id=child.id), follow_redirects=True
+    )
+    assert child_status_page.status_code == 200
+    assert b"Include jobs of sub-assets" not in child_status_page.data

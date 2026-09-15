@@ -1939,6 +1939,7 @@ class SensorAPI(FlaskView):
                           id: 64907
                           name: "temperature"
                           resolution: "PT5M"
+                          asset_id: 1
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
             400:

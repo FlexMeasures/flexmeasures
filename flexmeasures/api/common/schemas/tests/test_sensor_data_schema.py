@@ -572,3 +572,43 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     assert app.queues["scheduling"].count == 0
     assert app.queues["forecasting"].count == 0
     assert app.queues["reporting"].count == 0
+
+
+def test_build_asset_jobs_data_includes_child_assets(
+    db, app, add_battery_assets, clean_redis
+):
+    """A parent asset reports the jobs of its children too, unless asked not to."""
+    battery_asset = add_battery_assets["Test battery"]
+    building_asset = battery_asset.parent_asset
+    battery = battery_asset.sensors[0]
+    tz = pytz.timezone("Europe/Amsterdam")
+    start, end = tz.localize(datetime(2015, 1, 2)), tz.localize(datetime(2015, 1, 3))
+
+    scheduling_job = create_scheduling_job(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=timedelta(minutes=15),
+    )
+
+    jobs_data = build_asset_jobs_data(building_asset)
+    assert scheduling_job.id in {
+        json.loads(job_data["metadata"])["job_id"] for job_data in jobs_data
+    }, "the building lists the job triggered on the battery below it"
+    reported_job = [
+        job_data for job_data in jobs_data if job_data["job_id"] == scheduling_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        battery_asset.id,
+        battery_asset.name,
+    ), "a job on a sensor names the asset that sensor belongs to, which its entity does not say"
+
+    own_jobs_data = build_asset_jobs_data(building_asset, include_child_assets=False)
+    assert scheduling_job.id not in {
+        json.loads(job_data["metadata"])["job_id"] for job_data in own_jobs_data
+    }, "the building lists only its own jobs when the child assets are left out"
+
+    # Clean up queues
+    app.queues["scheduling"].empty()
+    assert app.queues["scheduling"].count == 0
