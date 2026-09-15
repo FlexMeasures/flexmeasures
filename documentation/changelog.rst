@@ -49,7 +49,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* A schedule computed by an automation is now refused if it would record data on a sensor that was not among the ones checked against the automation creator's permissions, instead of recording it on a sensor that was only ever checked for read access [see `PR #2524 <https://www.github.com/FlexMeasures/flexmeasures/pull/2524>`_]
+* A schedule computed by an automation is now refused if it would record data on a sensor that was not among the ones checked against the automation creator's permissions, instead of recording it on a sensor that was only ever checked for read access [see `PR #2524 <https://www.github.com/FlexMeasures/flexmeasures/pull/2536>`_]
 
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
 * A KPI on the asset page counted an event once per data source that reported it, so a total could come out higher than any source reported; it now reduces one value per event, from the latest source version and the most recent belief within it [see `PR #2472 <https://www.github.com/FlexMeasures/flexmeasures/pull/2472>`_]
