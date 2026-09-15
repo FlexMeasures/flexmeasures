@@ -439,7 +439,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   function apiError(xhr, fallbackMessage) {
     try {
       const response = JSON.parse(xhr.responseText);
-      return JSON.stringify(response.message || response);
+      const message = response.message || response;
+      // A message is usually a plain string, which JSON.stringify would hand back in quotes.
+      return typeof message === "string" ? message : JSON.stringify(message);
     } catch (e) {
       return fallbackMessage;
     }

@@ -3528,8 +3528,8 @@
         ]
       },
       "patch": {
-        "summary": "Update an automation's name, cron string or activation status.",
-        "description": "Any subset of the fields `name`, `cronstr` and `active` can be sent.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "summary": "Update an automation's name, cron string, timezone or activation status.",
+        "description": "Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to the time of the change,\nso runs from before it are not caught up on.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3601,7 +3601,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nits cursor, and the next scheduled run in UTC (null while inactive). The next run excludes pending catch-up work.\n",
+        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nits cursor in UTC, and the next scheduled run as a clock time in that same timezone (null while inactive).\nThe next run excludes pending catch-up work.\n",
         "security": [
           {
             "ApiKeyAuth": []

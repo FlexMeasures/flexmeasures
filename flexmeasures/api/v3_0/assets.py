@@ -1472,7 +1472,8 @@ class AssetAPI(FlaskView):
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
-            its cursor, and the next scheduled run in UTC (null while inactive). The next run excludes pending catch-up work.
+            its cursor in UTC, and the next scheduled run as a clock time in that same timezone (null while inactive).
+            The next run excludes pending catch-up work.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1768,13 +1769,15 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string or activation status.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
 
         ---
         patch:
-          summary: Update an automation's name, cron string or activation status.
+          summary: Update an automation's name, cron string, timezone or activation status.
           description: |
-            Any subset of the fields `name`, `cronstr` and `active` can be sent.
+            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to the time of the change,
+            so runs from before it are not caught up on.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
           security:
