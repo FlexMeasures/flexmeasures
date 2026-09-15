@@ -53,6 +53,7 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
     create_automation,
     RecurringScheduleFixesAMoment,
 )
@@ -1905,6 +1906,9 @@ def add_automation(
     except RecurringScheduleFixesAMoment as e:
         # A usage error: the automation cannot be defined this way, whatever the data says.
         raise click.UsageError(str(e))
+    except AutomationSensorsUnknown as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
     except ValueError as e:
         click.secho(str(e), **MsgStyle.ERROR)
         raise click.Abort()

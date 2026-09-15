@@ -694,3 +694,36 @@ def test_trigger_unknown_automation(
         )
     assert response.status_code == 404
     run_automation.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_creating_an_automation_whose_sensors_are_unknown_is_the_callers_fault(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user, mocker
+):
+    """A scheduler that cannot work out its config answers 422, not 500.
+
+    `create_automation` raises `AutomationSensorsUnknown`, which is not a `ValueError`,
+    so it would otherwise leave the endpoint uncaught.
+    """
+    from flexmeasures.data.services.automations import AutomationSensorsUnknown
+
+    mocker.patch(
+        "flexmeasures.api.v3_0.assets.create_automation",
+        side_effect=AutomationSensorsUnknown("no sensors to be had"),
+    )
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Unknowable",
+                "cronstr": "0 6 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    assert "no sensors to be had" in str(response.json)

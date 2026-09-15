@@ -1743,6 +1743,8 @@ class AssetAPI(FlaskView):
             )
         except ValidationError as e:
             return unprocessable_entity({"parameters": e.messages})
+        except AutomationSensorsUnknown as e:
+            return unprocessable_entity(str(e))
         except ValueError as e:
             return unprocessable_entity(str(e))
         db.session.commit()

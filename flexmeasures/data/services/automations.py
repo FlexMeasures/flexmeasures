@@ -59,7 +59,7 @@ class DueAutomation:
 # A scheduler that starts returning results for a sensor named by some other field would write to a sensor that was never checked against the creator's permissions,
 # as this reads that sensor as an input instead.
 # Extend this list whenever a flex-model or flex-context field starts naming somewhere results are recorded.
-# Holding a schedule job to the sensors predicted here would close the gap for good (see issue #2535).
+# Holding a schedule job to the sensors predicted here would close the gap for good (see issue #2421).
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
     "production",
