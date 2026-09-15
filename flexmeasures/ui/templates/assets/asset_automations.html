@@ -336,16 +336,33 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return sortable(when.getTime(), `<span title="${esc(tooltip)}">${esc(relative)}</span>`);
   }
 
+  /* When the automation was created, read on the clock the automation itself keeps,
+     so that the whole row speaks one timezone rather than mixing in the viewer's. */
+  function createdAt(automation) {
+    const created = automation["created-at"];
+    if (!created) {
+      return sortable("", '<span class="text-muted">Unknown</span>');
+    }
+    const when = new Date(created);
+    const precise = Number.isNaN(when.getTime())
+      ? null
+      : preciseOnScheduleClock(when, automation.timezone);
+    if (precise === null) {
+      // Without a clock to read it on, the stored moment is still better than nothing.
+      return sortable(created, `<span title="${esc(created)}">${esc(getHumanFriendlyDeltaOrTimeStr(created))}</span>`);
+    }
+    const tooltip = `${automation.timezone}: ${precise}`;
+    return sortable(
+      created,
+      `<span title="${esc(tooltip)}">${esc(getHumanFriendlyDeltaOrTimeStr(created, { fallback: precise }))}</span>`
+    );
+  }
+
   function AutomationRow(automation) {
-    const createdAt = automation["created-at"];
     return {
       id: automation.id,
       name: esc(automation.name),
-      "created-at": sortable(createdAt || "", `
-        <span title="${esc(createdAt)}">
-          ${createdAt ? esc(getHumanFriendlyDeltaOrTimeStr(createdAt)) : "Unknown"}
-        </span>
-      `),
+      "created-at": createdAt(automation),
       active: sortable(
         automation.active ? 1 : 0,
         `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
