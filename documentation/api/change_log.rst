@@ -5,6 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-38 | September 16, 2026
+""""""""""""""""""""""""""""
+- ``GET /api/v3_0/assets/<id>/automations`` now lists the automations of the asset's child assets as well, so that a site asset reports everything that runs below it, and each entry names the asset it is defined on in ``asset`` and ``asset-name``. Pass ``include_child_assets=false`` to list only the automations defined on the asset itself. Whoever may read an asset may read its descendants, too, as a child asset belongs to the same account as its parent.
+- ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` now reports the data generator's stored configuration as ``config`` on the automation's ``source``, such as the model a forecaster trains and the period it trains over. The configuration is what separates one data source from another of the same model.
+- Added ``POST /api/v3_0/assets/automations_page_child_assets``, which records in the session whether the automations page should list the automations of child assets, next to the endpoint the status page uses for its own job scope.
+
 v3.0-37 | September 15, 2026
 """"""""""""""""""""""""""""
 - Added ``POST /api/v3_0/assets/<id>/automations``, ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` and ``DELETE /api/v3_0/assets/<id>/automations/<automation_id>`` for managing an asset's automations. They require the same permission as writing data under the asset, and an automation may only involve sensors that its creator can access: read access to the sensors it reads data from, and permission to record data on the sensors it writes to (a ``403`` otherwise). Both the creation and the update accept a ``timezone``, in which the automation's cron expression is interpreted; it defaults to the asset's own timezone, taken from the asset's timezone attribute or one of its sensors, and to the server's ``FLEXMEASURES_TIMEZONE`` if the asset has neither. The automation endpoints also report a ``next_run``: the next scheduled run, null while the automation is inactive, and excluding any catch-up run still pending. Both ``next_run`` and ``cursor`` are now reported as clock times in the automation's own timezone, where ``cursor`` was previously reported in UTC, since a recurrence is read in that timezone.
