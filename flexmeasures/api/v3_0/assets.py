@@ -359,11 +359,30 @@ class AssetJobsQuerySchema(Schema):
     )
 
 
+class AssetAutomationsQuerySchema(Schema):
+    include_child_assets = fields.Bool(
+        required=False,
+        load_default=True,
+        metadata={
+            "description": "Whether to also list the automations of the asset's child assets.",
+        },
+    )
+
+
 class StatusPageChildJobsJSONSchema(Schema):
     include_child_assets = fields.Bool(
         required=True,
         metadata={
             "description": "Whether the asset's status page should list the jobs of its child assets, too.",
+        },
+    )
+
+
+class AutomationsPageChildAssetsJSONSchema(Schema):
+    include_child_assets = fields.Bool(
+        required=True,
+        metadata={
+            "description": "Whether the asset's automations page should list the automations of its child assets, too.",
         },
     )
 
@@ -1458,9 +1477,12 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
+    @use_kwargs(AssetAutomationsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_automations(self, id: int, asset: GenericAsset):
+    def get_automations(
+        self, id: int, asset: GenericAsset, include_child_assets: bool = True
+    ):
         """
         .. :quickref: Assets; Get all automations defined on an asset.
 
@@ -1474,6 +1496,10 @@ class AssetAPI(FlaskView):
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
             and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
             The next run excludes pending catch-up work.
+
+            By default, the automations of the asset's child assets are included as well, so that a site asset reports everything that runs below it.
+            Pass `include_child_assets=false` to list only the automations defined on the asset itself.
+            Each entry names the asset it is defined on, in `asset` and `asset-name`.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1483,6 +1509,12 @@ class AssetAPI(FlaskView):
               description: ID of the asset to get the automations for.
               schema:
                 type: integer
+            - in: query
+              name: include_child_assets
+              required: false
+              description: Whether to also list the automations of the asset's child assets (default true).
+              schema:
+                type: boolean
           responses:
             200:
               description: PROCESSED
@@ -1496,6 +1528,7 @@ class AssetAPI(FlaskView):
                           - id: 1
                             created-at: "2026-07-11T00:00:00+00:00"
                             asset: 1
+                            asset-name: Solar panels
                             type: forecasting
                             name: Day-ahead PV forecasts
                             cron: "0 6 * * *"
@@ -1513,13 +1546,19 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # Whoever may read an asset may read its descendants, too, as a child asset belongs to the same account as its parent.
+        assets = [asset] + (asset.offspring if include_child_assets else [])
+
         automations_data = []
-        for automation in asset.automations:
-            automation_data = automation_schema.dump(automation)
-            automation_data["recurrence-description"] = describe_cronstr(
-                automation.cronstr
-            )
-            automations_data.append(automation_data)
+        for asset_to_report_on in assets:
+            for automation in asset_to_report_on.automations:
+                automation_data = automation_schema.dump(automation)
+                automation_data["recurrence-description"] = describe_cronstr(
+                    automation.cronstr
+                )
+                # Name the asset here, so that a listing spanning several of them stays readable.
+                automation_data["asset-name"] = asset_to_report_on.name
+                automations_data.append(automation_data)
         return {"automations": automations_data}, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
@@ -2264,6 +2303,65 @@ class AssetAPI(FlaskView):
 
         return {
             "message": "Preferred status page job scope updated successfully.",
+        }, 200
+
+    @route("/automations_page_child_assets", methods=["POST"])
+    @as_json
+    @use_kwargs(AutomationsPageChildAssetsJSONSchema, location="json")
+    def update_automations_page_child_assets(self, **kwargs):
+        """
+        .. :quickref: Assets; Remember whether the current user wants the asset automations page to list the automations of child assets, too.
+        ---
+        post:
+          summary: Remember whether the current user wants the asset automations page to list the automations of child assets, too.
+          description: |
+            The automations page lists the automations of the asset's child assets as well, so that a site asset shows everything that runs below it.
+            This endpoint records the user's choice in their session, so their next visit to an automations page keeps to it.
+            Without a recorded choice, the automations of child assets are included.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: AutomationsPageChildAssetsJSONSchema
+                examples:
+                  automations_page_child_assets:
+                    summary: Listing only the asset's own automations from now on
+                    value:
+                      include_child_assets: false
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Preferred automations page scope updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Update the request.values, as that is where set_session_variables reads from.
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        # The session key is namespaced to the automations page, while the request key reads naturally next to the one of [GET] /assets/(id)/automations.
+        set_session_variables(
+            "automations_page_include_child_assets",
+            aliases={"automations_page_include_child_assets": "include_child_assets"},
+        )
+
+        return {
+            "message": "Preferred automations page scope updated successfully.",
         }, 200
 
     @route("/keep_legends_below_graphs", methods=["POST"])
