@@ -24,7 +24,6 @@ from flexmeasures.utils.config_defaults import (
 
 flexmeasures_logging_config = {
     "version": 1,
-    "disable_existing_loggers": False,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {
