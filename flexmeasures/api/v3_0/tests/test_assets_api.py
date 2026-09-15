@@ -2447,3 +2447,20 @@ def test_update_status_page_child_jobs(
     assert response.status_code == 200
     with client.session_transaction() as session:
         assert session["status_page_include_child_assets"] == include_child_assets
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("include_child_assets", [True, False])
+def test_update_automations_page_child_assets(
+    client, setup_api_test_data, requesting_user, include_child_assets
+):
+    """Posting the scope of the automations page records it in the session, for the next automations page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_automations_page_child_assets"),
+        json={"include_child_assets": include_child_assets},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["automations_page_include_child_assets"] == include_child_assets

@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -766,3 +767,127 @@ def test_a_forecast_automation_names_the_data_generator_it_runs(
 
     fresh_db.session.delete(automation)
     fresh_db.session.flush()
+
+
+@pytest.fixture(scope="function")
+def add_automation_on_a_child_asset(fresh_db, add_battery_assets_fresh_db):
+    """Put an automation on a sub-asset of the battery, where automations usually live."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    child = GenericAsset(
+        name="Battery inverter",
+        generic_asset_type=battery.generic_asset_type,
+        parent_asset_id=battery.id,
+        account_id=battery.account_id,
+    )
+    fresh_db.session.add(child)
+    fresh_db.session.flush()
+    automation = Automation(
+        asset_id=child.id,
+        generator=DataSource(
+            name="child asset generator",
+            type="forecaster",
+            model="TrainPredictPipeline",
+        ),
+        type="forecasting",
+        name="Inverter forecasts",
+        cronstr="0 7 * * *",
+        timezone="Europe/Amsterdam",
+        active=True,
+        parameters={"sensor": battery.sensors[0].id},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    return child, automation
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_automations_includes_those_of_child_assets(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    add_automation_on_a_child_asset,
+    requesting_user,
+):
+    """An asset reports what runs below it, so that a site asset does not look idle."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    child, child_automation = add_automation_on_a_child_asset
+    with app.test_client() as client:
+        response = client.get(url_for("AssetAPI:get_automations", id=battery.id))
+    assert response.status_code == 200
+    automations = response.json["automations"]
+    inverter = next(a for a in automations if a["id"] == child_automation.id)
+    assert inverter["asset"] == child.id
+    # Each entry names its asset, so that a listing spanning several of them stays readable.
+    assert inverter["asset-name"] == "Battery inverter"
+    assert {a["asset-name"] for a in automations} == {
+        "Test battery",
+        "Battery inverter",
+    }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_automations_can_be_narrowed_to_the_asset_itself(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    add_automation_on_a_child_asset,
+    requesting_user,
+):
+    battery = add_battery_assets_fresh_db["Test battery"]
+    _, child_automation = add_automation_on_a_child_asset
+    with app.test_client() as client:
+        response = client.get(
+            url_for("AssetAPI:get_automations", id=battery.id),
+            query_string={"include_child_assets": "false"},
+        )
+    assert response.status_code == 200
+    automations = response.json["automations"]
+    assert child_automation.id not in [a["id"] for a in automations]
+    assert {a["asset-name"] for a in automations} == {"Test battery"}
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_automation_details_report_the_data_source_configuration(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user
+):
+    """The config is what separates one data source from another of the same model, so it is reported with it."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    generator = DataSource(
+        name="configured generator",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={
+            "data_generator": {
+                "config": {"model": "CustomLGBM", "train-period": "P30D"}
+            }
+        },
+    )
+    automation = Automation(
+        asset_id=battery.id,
+        generator=generator,
+        type="forecasting",
+        name="Configured forecasts",
+        cronstr="0 6 * * *",
+        timezone="Europe/Amsterdam",
+        active=True,
+        parameters={"sensor": battery.sensors[0].id},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    with app.test_client() as client:
+        response = client.get(
+            url_for(
+                "AssetAPI:get_automation", id=battery.id, automation_id=automation.id
+            )
+        )
+    assert response.status_code == 200, response.json
+    assert response.json["source"]["config"] == {
+        "model": "CustomLGBM",
+        "train-period": "P30D",
+    }
