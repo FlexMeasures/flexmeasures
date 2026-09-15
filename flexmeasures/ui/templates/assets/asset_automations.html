@@ -205,6 +205,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         </div>
         {% endif %}
 
+        <div class="text-muted small mb-1" id="automationsRefreshedAt"
+          title="This page brings itself up to date about once a minute, while it is the tab in front and nothing is open over it."></div>
+
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="forecasting-tab" data-bs-toggle="tab" data-bs-target="#forecasting-tab-pane" type="button" role="tab" aria-controls="forecasting-tab-pane" aria-selected="true">Forecasts</button>
@@ -243,6 +246,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
   const automationsById = new Map();
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
+  // How often the listing catches up with the server, while the tab is in front and nothing is open.
+  const REFRESH_INTERVAL_MS = 60000;
+  let loadInFlight = false;
+  let lastRefreshedAt = null;
   // Only an asset with something below it can widen its scope, so only then is the Asset column worth a place.
   const assetHasChildren = {{ 'true' if asset.child_assets else 'false' }};
 
@@ -521,7 +528,28 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     automations.forEach(automation => loadAutomationInfo(automation.id));
   }
 
-  function loadAutomations() {
+  /* Put fresh rows into a table that already stands, keeping the sort the user chose
+     and the place they had scrolled to. A table that is not built yet, or whose columns
+     the scope has just changed, is built from scratch instead. */
+  function updateAutomationsTable(automationType, automations) {
+    const table = $(`#automationsTable-${automationType}`);
+    if (!$.fn.dataTable.isDataTable(table)) {
+      makeAutomationsTable(automationType, automations);
+      return;
+    }
+    const dataTable = table.DataTable();
+    dataTable.clear();
+    dataTable.rows.add(automations.map(AutomationRow));
+    dataTable.draw(false);  // false: hold the current paging and ordering rather than resetting them
+    automations.forEach(automation => loadAutomationInfo(automation.id));
+  }
+
+  function loadAutomations({ rebuild = false } = {}) {
+    // One refresh at a time: a slow response must not pile up behind the next tick.
+    if (loadInFlight) {
+      return;
+    }
+    loadInFlight = true;
     $.ajax({
       url: `/api/v3_0/assets/${assetId}/automations?include_child_assets=${includeChildAssets}`,
       method: "GET",
@@ -530,11 +558,14 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
         for (const automationType of ["forecasting", "scheduling"]) {
           $(`#automationsTable-${automationType}`).show();
-          makeAutomationsTable(
-            automationType,
-            res.automations.filter(automation => automation.type === automationType),
-          );
+          const ofThisType = res.automations.filter(automation => automation.type === automationType);
+          if (rebuild) {
+            makeAutomationsTable(automationType, ofThisType);
+          } else {
+            updateAutomationsTable(automationType, ofThisType);
+          }
         }
+        markAutomationsRefreshed();
       },
       error: function (xhr) {
         for (const automationType of ["forecasting", "scheduling"]) {
@@ -545,7 +576,38 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
         );
       },
+      complete: function () {
+        loadInFlight = false;
+      },
     });
+  }
+
+  /* Say when the listing last came from the server, so that nobody has to wonder
+     whether what they are reading is current. The stamp is re-rendered on its own,
+     because "2 minutes ago" goes stale without any new data arriving. */
+  function markAutomationsRefreshed() {
+    lastRefreshedAt = new Date();
+    renderRefreshedAt();
+  }
+
+  function renderRefreshedAt() {
+    if (lastRefreshedAt === null) {
+      return;
+    }
+    $("#automationsRefreshedAt").text(`Updated ${getHumanFriendlyDeltaOrTimeStr(lastRefreshedAt.toISOString())}`);
+  }
+
+  /* Refreshing under someone's hands would shut the panel they are reading,
+     or move the menu they are about to click, so wait for a quiet moment. */
+  function pageIsBusy() {
+    return $(".modal.show").length > 0 || $(".dropdown-menu.show").length > 0;
+  }
+
+  function refreshAutomationsWhenIdle() {
+    if (document.hidden || pageIsBusy()) {
+      return;
+    }
+    loadAutomations();
   }
 
   function rememberIncludeChildAssets(include) {
@@ -577,13 +639,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         table.DataTable().columns.adjust();
       }
     });
-    loadAutomations();
+    loadAutomations({ rebuild: true });
 
     // Widen or narrow what the page reports on, and keep that choice for the next visit.
     $("#includeChildAssets").on("change", function () {
       includeChildAssets = this.checked;
       rememberIncludeChildAssets(includeChildAssets);
-      loadAutomations();
+      loadAutomations({ rebuild: true });
+    });
+
+    /* Runs happen while the page is open, so it keeps itself current rather than
+       waiting to be reloaded by hand. */
+    setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS);
+    // Re-word the stamp between refreshes, so "just now" does not sit there for a minute.
+    setInterval(renderRefreshedAt, 15000);
+    /* A tab in the background is not refreshed, so whatever is on screen when someone
+       returns to it may be old. Catch up at that moment. */
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) {
+        refreshAutomationsWhenIdle();
+      }
     });
 
     // Edit an automation's recurrence settings
