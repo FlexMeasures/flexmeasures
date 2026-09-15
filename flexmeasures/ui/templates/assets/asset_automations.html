@@ -291,6 +291,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     </div>`;
   }
 
+  /* Spell a moment out in the automation's own timezone, which is the clock its recurrence follows.
+     e.g. "16 Sept 2026, 07:45 GMT+2".
+     Returns null for a timezone Intl cannot resolve, so callers can fall back. */
+  function preciseOnScheduleClock(moment, timezone) {
+    try {
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: timezone,
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+        timeZoneName: "shortOffset",
+      }).format(moment);
+    } catch (error) {
+      if (error instanceof RangeError) {
+        // An unknown timezone is data we cannot render, not a bug to report.
+        return null;
+      }
+      throw error;
+    }
+  }
+
   function nextRun(automation) {
     const last = Number.MAX_SAFE_INTEGER;
     if (!automation.active) {
@@ -303,17 +323,17 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     if (Number.isNaN(when.getTime())) {
       return sortable(last, '<span class="text-muted">Unavailable</span>');
     }
-    try {
-      const local = new Intl.DateTimeFormat("en-GB", {
-        timeZone: automation.timezone,
-        day: "2-digit", month: "short", year: "numeric",
-        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-        timeZoneName: "shortOffset",
-      }).format(when);
-      return sortable(when.getTime(), `<span title="${esc(automation.timezone)}: ${esc(automation["cron"])}">${esc(local)}</span>`);
-    } catch (error) {
+    const precise = preciseOnScheduleClock(when, automation.timezone);
+    if (precise === null) {
       return sortable(last, '<span class="text-muted">Unavailable</span>');
     }
+    /* How far off the run is answers the question this column is usually asked, so it leads.
+       The exact clock time is still needed, so it waits on hover, together with the recurrence it follows. */
+    const tooltip = `${automation.timezone}: ${precise} (${automation["cron"]})`;
+    /* Beyond a week there is no useful relative phrasing left, and the fallback would date the run by the
+       viewer's own clock, which is not the clock this automation keeps. Spell it out on the schedule's clock instead. */
+    const relative = getHumanFriendlyDeltaOrTimeStr(automation["next-run"], { fallback: precise });
+    return sortable(when.getTime(), `<span title="${esc(tooltip)}">${esc(relative)}</span>`);
   }
 
   function AutomationRow(automation) {
@@ -425,7 +445,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         { data: "active", title: "Active", render: renderSortable },
         { data: "recurrence", title: "Recurrence", render: renderSortable },
         { data: "timezone", title: "Schedule timezone" },
-        { data: "next-run", title: "Next run (local)", render: renderSortable },
+        { data: "next-run", title: "Next run", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
         { data: "details", title: "", className: "text-center align-middle", orderable: false },
         ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "", className: "text-center align-middle", orderable: false }] : []),
