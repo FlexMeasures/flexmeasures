@@ -27,6 +27,7 @@ def create(  # noqa C901
     env: str | None = None,
     path_to_config: str | None = None,
     plugins: list[str] | None = None,
+    do_configure_logging: bool = True,
 ) -> Flask:
     """
     Create a Flask app and configure it.
@@ -37,6 +38,8 @@ def create(  # noqa C901
     A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).
 
     Also, a list of plugins can be set. Usually this works as a config setting, but this is useful for automated testing.
+
+    Pass ``do_configure_logging=False`` to prevent reconfiguring root logger handlers (e.g. during custom test setup).
     """
 
     from flexmeasures.utils import config_defaults
@@ -53,7 +56,8 @@ def create(  # noqa C901
     from flexmeasures.utils.error_utils import add_basic_error_handlers
     from flexmeasures.utils.secrets_utils import set_secret_key, set_totp_secrets
 
-    configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
+    if do_configure_logging and not os.getenv("PYTEST_CURRENT_TEST"):
+        configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
     # Create app
     app = Flask("flexmeasures")
