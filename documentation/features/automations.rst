@@ -125,7 +125,7 @@ This section describes the bookkeeping behind the catch-up behaviour above.
 You do not need it to use automations.
 
 The runner is a stateless command, executed once a minute by Docker Compose or cron, so it needs a durable record of how far each automation has gotten.
-That record is one UTC timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
+That record is one timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
 Runs at or before the cursor are never queued again.
 Before queueing any jobs, the runner advances the cursor to the run it is about to queue, and saves it.
 The cursor therefore records that a run was claimed, not that queueing or the task itself succeeded.
