@@ -23,6 +23,7 @@ from flexmeasures import Forecaster
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import (
     Automation,
+    get_default_automation_timezone,
     get_initial_cursor,
 )
 from flexmeasures.data.models.data_sources import DataSource
@@ -50,16 +51,15 @@ class DueAutomation:
 
 
 # Fields naming a sensor that a scheduler records its results on, rather than reads from.
-# A scheduler hands its results to `make_schedule` as (sensor, data) pairs, and these are
-# the fields that decide which sensors those are: besides the power sensor of each device
-# in the flex-model, its state of charge and its consumption and production sensors, plus
-# the aggregates over all devices, which are defined in the flex-context.
+# A scheduler hands its results to `make_schedule` as (sensor, data) pairs, and these are the fields that decide which sensors those are:
+# besides the power sensor of each device in the flex-model, its state of charge and its consumption and production sensors,
+# plus the aggregates over all devices, which are defined in the flex-context.
 #
 # NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
-# A scheduler that starts returning results for a sensor named by some other field would write to a sensor
-# that was never checked against the creator's permissions, as this reads that sensor as an input instead.
+# A scheduler that starts returning results for a sensor named by some other field would write to a sensor that was never checked against the creator's permissions,
+# as this reads that sensor as an input instead.
 # Extend this list whenever a flex-model or flex-context field starts naming somewhere results are recorded.
-# Checking the sensors a scheduler actually returns, rather than the ones predicted here, would close the gap for good.
+# Holding a schedule job to the sensors predicted here would close the gap for good (see issue #2535).
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
     "production",
@@ -80,12 +80,10 @@ def collect_sensors(
 ) -> list[Sensor]:
     """Collect the sensors referenced anywhere in a (possibly nested) structure.
 
-    Both deserialized sensors and the sensor references that survive deserialization
-    as raw data (e.g. the flex-context and each device's flex-model, which schedulers
-    deserialize themselves) are picked up.
+    Both deserialized sensors and the sensor references that survive deserialization as raw data are picked up,
+    the latter being the flex-context and each device's flex-model, which schedulers deserialize themselves.
 
-    :param only_under_output_field: only collect the sensors that are referenced under
-                                    one of the OUTPUT_SENSOR_FIELDS, at any depth.
+    :param only_under_output_field: only collect the sensors that are referenced under one of the OUTPUT_SENSOR_FIELDS, at any depth.
     """
     if sensors is None:
         sensors = {}
@@ -120,9 +118,9 @@ def collect_sensors(
 def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
     """The sensors that scheduling with this trigger message would record data on.
 
-    That is the power sensor of each device in the flex-model, plus any sensor named by
-    a field that defines where generated data goes (see OUTPUT_SENSOR_FIELDS), both per
-    device and, for the aggregates, in the flex-context.
+    That is the power sensor of each device in the flex-model,
+    plus any sensor named by a field that defines where generated data goes (see OUTPUT_SENSOR_FIELDS),
+    both per device and, for the aggregates, in the flex-context.
     """
     sensors: dict[int, Sensor] = {}
     for device in message.get("flex_model") or []:
@@ -368,6 +366,8 @@ class RecurringScheduleFixesAMoment(ValueError):
     """Raised when a schedule automation's flex config pins a moment in time.
 
     Such a value would be stale on the automation's next run, so it cannot configure a recurring schedule.
+    It would also resolve to a different flex config every run, and so to a different data source each time,
+    leaving the sensor with an unbounded number of them, one per run.
     """
 
 
@@ -382,7 +382,15 @@ class AutomationSensorsUnknown(Exception):
 def resolve_schedule_automation_sensors(
     parameters: dict, asset_id: int
 ) -> dict[str, list[Sensor]]:
-    """Resolve the sensors declared by a prepared schedule trigger."""
+    """Resolve the sensors declared by a prepared schedule trigger.
+
+    A `ValidationError` is left to the caller, which reports it against the parameters the user sent.
+    Anything else the scheduler raises while working out its config says only that these sensors cannot be determined,
+    so it is reported as such rather than reaching the caller as an unexpected failure.
+
+    :raises marshmallow.ValidationError: if the parameters do not form a valid schedule trigger.
+    :raises AutomationSensorsUnknown: if the scheduler cannot work out the config the sensors follow from.
+    """
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import find_scheduler_class
     from flexmeasures.data.services.utils import get_scheduler_instance
@@ -390,22 +398,27 @@ def resolve_schedule_automation_sensors(
     trigger_data = AssetTriggerSchema().load(
         prepare_schedule_trigger_message(parameters, asset_id)
     )
-    start = trigger_data["start_of_schedule"]
-    scheduler_params = {
-        "start": start,
-        "end": start + trigger_data["duration"],
-        "belief_time": trigger_data.get("belief_time"),
-        "resolution": trigger_data.get("resolution"),
-        "flex_model": trigger_data["flex_model"],
-        "flex_context": trigger_data["flex_context"],
-    }
-    scheduler_class = find_scheduler_class(trigger_data["asset"])
-    scheduler = get_scheduler_instance(
-        scheduler_class=scheduler_class,
-        asset_or_sensor=trigger_data["asset"],
-        scheduler_params=scheduler_params,
-    )
-    scheduler.collect_flex_config()
+    try:
+        start = trigger_data["start_of_schedule"]
+        scheduler_params = {
+            "start": start,
+            "end": start + trigger_data["duration"],
+            "belief_time": trigger_data.get("belief_time"),
+            "resolution": trigger_data.get("resolution"),
+            "flex_model": trigger_data["flex_model"],
+            "flex_context": trigger_data["flex_context"],
+        }
+        scheduler_class = find_scheduler_class(trigger_data["asset"])
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=trigger_data["asset"],
+            scheduler_params=scheduler_params,
+        )
+        scheduler.collect_flex_config()
+    except (NotImplementedError, ValueError) as exc:
+        raise AutomationSensorsUnknown(
+            f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
+        ) from exc
 
     resolved_trigger = {
         "flex_model": scheduler.flex_model,
@@ -427,8 +440,8 @@ def resolve_schedule_automation_sensors(
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
-    Forecast sensors are derived from the data generator, while schedule sensors are
-    derived from the same prepared trigger message used to queue the scheduling job.
+    Forecast sensors are derived from the data generator,
+    while schedule sensors are derived from the same prepared trigger message used to queue the scheduling job.
     Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because a forecast automation has no data generator,
     because its generator is not registered in this FlexMeasures instance,
     or because its parameters no longer load (say, after a sensor was deleted).
@@ -631,7 +644,7 @@ def create_automation(
     automation_type: str = "forecasting",
     active: bool = True,
     parameters: dict | None = None,
-    forecaster_class: str = "TrainPredictPipeline",
+    generator_class: str = "TrainPredictPipeline",
     config: dict | None = None,
     source=None,
     origin: str = "API",
@@ -642,11 +655,10 @@ def create_automation(
     For forecasts, the forecaster config is stored on a data source.
     An audit log record is added to the asset.
 
-    :param check_permissions: whether to require that the current user may read the
-                              sensors that the automation reads from, and record data
-                              on the sensors it writes to. Set this for automations
-                              created by a user (through the API or the UI); the CLI
-                              runs without a user, and is trusted.
+    :param check_permissions: whether to require that the current user may read the sensors that the automation reads from,
+                              and record data on the sensors it writes to.
+                              Set this for automations created by a user (through the API or the UI);
+                              the CLI runs without a user, and is trusted.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the forecaster cannot be set up.
     :raises werkzeug.exceptions.Forbidden: if a sensor is not accessible to the user.
@@ -678,13 +690,13 @@ def create_automation(
             )
         forecaster = get_data_generator(
             source=source,
-            model=forecaster_class,
+            model=generator_class,
             config=config or {},
             save_config=True,
             data_generator_type=Forecaster,
         )
         if forecaster is None:
-            raise ValueError(f"Could not set up forecaster '{forecaster_class}'.")
+            raise ValueError(f"Could not set up forecaster '{generator_class}'.")
 
         # A forecast reads the history of the sensor to forecast, plus its regressors,
         # and records the forecast on the sensor to save to (the same sensor by default).
@@ -714,9 +726,9 @@ def create_automation(
                 " Refer to a sensor instead of a fixed value, or leave the field out."
             )
 
-        # A schedule is recorded on the sensors that the scheduler returns its results
-        # for, and reads whatever other sensors the flex-model and flex-context refer to
-        # (such as price sensors and the sensors of inflexible devices).
+        # A schedule is recorded on the sensors that the scheduler returns its results for,
+        # and reads whatever other sensors the flex-model and flex-context refer to,
+        # such as price sensors and the sensors of inflexible devices.
         schedule_sensors = resolve_schedule_automation_sensors(parameters, asset.id)
         input_sensors = schedule_sensors["input_sensors"]
         output_sensors = schedule_sensors["output_sensors"]
@@ -760,8 +772,7 @@ def create_automation(
         generator_id=generator_id,
         parameters=parameters,
     )
-    if timezone is not None:
-        automation_fields["timezone"] = timezone
+    automation_fields["timezone"] = timezone or get_default_automation_timezone(asset)
     automation = Automation(**automation_fields)
     db.session.add(automation)
     db.session.flush()
@@ -782,7 +793,7 @@ def update_automation(
     """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
-    also rebases the cursor, so that runs from before the change are not caught up on.
+    also resets the cursor to the time of the change, so that runs from before it are not caught up on.
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
@@ -790,24 +801,24 @@ def update_automation(
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
     changes = []
-    rebase_schedule = False
+    reset_cursor = False
     if name is not None and name != automation.name:
         changes.append(f"name: '{automation.name}' → '{name}'")
         automation.name = name
     if cronstr is not None and cronstr != automation.cronstr:
         changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
         automation.cronstr = cronstr
-        rebase_schedule = True
+        reset_cursor = True
     if timezone is not None and timezone != automation.timezone:
         changes.append(f"timezone: '{automation.timezone}' → '{timezone}'")
         automation.timezone = timezone
-        rebase_schedule = True
+        reset_cursor = True
     if active is not None and active != automation.active:
         changes.append("activated" if active else "deactivated")
         if active:
-            rebase_schedule = True
+            reset_cursor = True
         automation.active = active
-    if rebase_schedule:
+    if reset_cursor:
         automation.cursor = get_initial_cursor()
     if changes:
         AssetAuditLog.add_record(

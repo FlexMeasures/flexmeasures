@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from croniter.croniter import CroniterBadDateError
@@ -81,7 +82,7 @@ class AutomationCreationSchema(Schema):
     timezone = TimezoneField(
         load_default=None,
         metadata={
-            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the server's FLEXMEASURES_TIMEZONE.",
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors, and to the server's FLEXMEASURES_TIMEZONE if the asset has neither.",
             "example": "Europe/Amsterdam",
         },
     )
@@ -144,14 +145,30 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "2026-08-05T06:00:00+00:00",
         },
     )
-    next_run = fields.DateTime(
+    next_run = fields.Method(
+        serialize="dump_next_run",
         dump_only=True,
         metadata={
-            "description": "UTC time of the next scheduled run after the response was generated. Null for an inactive automation. Pending catch-up runs are not included.",
-            "example": "2026-08-05T06:00:00+00:00",
+            "description": "Time of the next scheduled run after the response was generated, in the automation's own timezone, so that it reads as the clock time the recurrence names. Null for an inactive automation. Pending catch-up runs are not included.",
+            "example": "2026-08-05T08:00:00+02:00",
         },
     )
     active = ma.auto_field()
+
+    def dump_next_run(self, automation: Automation) -> str | None:
+        """Render the next run as a clock time in the automation's own timezone.
+
+        A recurrence is written in that timezone, so reading its next run back in UTC
+        asks whoever reads it to undo the conversion themselves.
+        """
+        next_run = automation.next_run
+        if next_run is None:
+            return None
+        try:
+            return next_run.astimezone(ZoneInfo(automation.timezone)).isoformat()
+        except (ValueError, ZoneInfoNotFoundError):
+            # A stale or invalid stored timezone should not break the listing API.
+            return next_run.isoformat()
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):

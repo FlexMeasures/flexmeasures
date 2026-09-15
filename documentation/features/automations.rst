@@ -112,7 +112,8 @@ Viewing automations
 -------------------
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
-The page shows the next scheduled run in each automation's own local timezone, with its UTC offset. Inactive automations have no next run; this upcoming clock time does not include a pending catch-up run.
+The page shows the next scheduled run for each automation (excluding any pending catch-up run), as a clock time in the automation's own timezone, with its UTC offset.
+Inactive automations have no next run.
 An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
 Conversely, a sensor's page lists the automations that write data to it.
 
@@ -124,7 +125,7 @@ Appendix: how the runner decides what is due
 This section describes the bookkeeping behind the catch-up behaviour above.
 You do not need it to use automations.
 
-The runner is a stateless command, executed once a minute by Docker Compose or cron, so it needs a durable record of how far each automation has got.
+The runner is a stateless command, executed once a minute by Docker Compose or cron, so it needs a durable record of how far each automation has gotten.
 That record is one UTC timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
 Runs at or before the cursor are never queued again.
 Before queueing any jobs, the runner advances the cursor to the run it is about to queue, and saves it.

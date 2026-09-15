@@ -348,3 +348,37 @@ def test_automation_rejects_invalid_timezone(automation_with_generator):
 
     with pytest.raises(ValueError, match="does not exist"):
         automation.timezone = "Europe/NotAmsterdam"
+
+
+def test_a_scheduler_that_cannot_work_out_its_config_says_the_sensors_are_unknown(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A failure while collecting the flex config is reported as unknown sensors, not raised raw.
+
+    Callers handle `AutomationSensorsUnknown`, so letting a scheduler's own `ValueError` through
+    would reach the API as an unexpected failure instead.
+    A `ValidationError` is deliberately not wrapped: it says the parameters are wrong, which the caller reports as such.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.automations import (
+        AutomationSensorsUnknown,
+        resolve_schedule_automation_sensors,
+    )
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    parameters = {**message, "flex-model": [flex_model]}
+
+    mocker.patch(
+        "flexmeasures.data.models.planning.Scheduler.collect_flex_config",
+        side_effect=ValueError("no flex config to be had"),
+    )
+    with pytest.raises(AutomationSensorsUnknown, match="no flex config to be had"):
+        resolve_schedule_automation_sensors(parameters, battery.id)
+
+    # Parameters that do not form a schedule trigger at all stay a ValidationError.
+    with pytest.raises(ValidationError):
+        resolve_schedule_automation_sensors({"duration": "not a duration"}, battery.id)

@@ -1500,7 +1500,7 @@ class AssetAPI(FlaskView):
                             cronstr: "0 6 * * *"
                             timezone: Europe/Amsterdam
                             cursor: "2026-07-11T04:00:00+00:00"
-                            next_run: "2026-07-12T04:00:00+00:00"
+                            next_run: "2026-07-12T06:00:00+02:00"
                             recurrence_description: "At 06:00"
                             active: true
             400:
@@ -1513,6 +1513,7 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
+            - Automations
         """
         automations_data = []
         for automation in asset.automations:
@@ -1581,7 +1582,7 @@ class AssetAPI(FlaskView):
                         cronstr: "0 6 * * *"
                         timezone: Europe/Amsterdam
                         cursor: "2026-07-11T04:00:00+00:00"
-                        next_run: "2026-07-12T04:00:00+00:00"
+                        next_run: "2026-07-12T06:00:00+02:00"
                         recurrence_description: "At 06:00"
                         active: true
                         parameters:
@@ -1613,6 +1614,7 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
+            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
@@ -1663,12 +1665,13 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
-    # Managing an automation is gated like running one: an automation exists to write data
-    # under the asset, so the same principals that may add data there may define it.
+    @use_args(AutomationCreationSchema(), location="json")
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
-    def post_automation(self, id: int, asset: GenericAsset):
+    def post_automation(self, automation_data: dict, id: int, asset: GenericAsset):
         """
         .. :quickref: Assets; Create an automation on an asset.
 
@@ -1678,13 +1681,13 @@ class AssetAPI(FlaskView):
           description: |
             Create a recurring task (computing forecasts or schedules) on the asset.
             The parameters are validated by the schema matching the automation type:
-            forecast parameters for type `forecasts`, or a schedule trigger message
-            (without the asset id) for type `schedules`.
+            forecast parameters for type `forecasting`,
+            or a schedule trigger message (without the asset id) for type `scheduling`.
             Requires permission to add data under the asset.
 
             The automation can only involve sensors that you have access to yourself:
-            read access to the sensors it reads data from, and permission to record data
-            on the sensors it writes to.
+            read access to the sensors it reads data from,
+            and permission to record data on the sensors it writes to.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1701,6 +1704,9 @@ class AssetAPI(FlaskView):
                 examples:
                   daily_forecasts:
                     summary: Daily forecasts of sensor 2092
+                    description: >-
+                      Runs every day at 06:00, read as minute-then-hour,
+                      in the automation's own timezone.
                     value:
                       name: Day-ahead PV forecasts
                       cronstr: "0 6 * * *"
@@ -1710,8 +1716,6 @@ class AssetAPI(FlaskView):
           responses:
             201:
               description: CREATED
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1720,14 +1724,8 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
+            - Automations
         """
-        body = request.get_json(silent=True)
-        if not body:
-            return unprocessable_entity("No JSON data provided.")
-        try:
-            automation_data = AutomationCreationSchema().load(body)
-        except ValidationError as e:
-            return unprocessable_entity(e.messages)
         try:
             automation, warnings = create_automation(
                 asset=asset,
@@ -1737,7 +1735,7 @@ class AssetAPI(FlaskView):
                 automation_type=automation_data["type"],
                 active=automation_data["active"],
                 parameters=automation_data["parameters"],
-                forecaster_class=automation_data["forecaster"],
+                generator_class=automation_data["forecaster"],
                 config=automation_data["config"],
                 origin="API",
                 check_permissions=True,
@@ -1760,12 +1758,15 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing an automation is gated like running one: an automation exists to write data
-    # under the asset, so the same principals that may add data there may define it.
+    @use_args(AutomationUpdateSchema(), location="json")
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
-    def patch_automation(self, id: int, automation_id: int, asset: GenericAsset):
+    def patch_automation(
+        self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
+    ):
         """
         .. :quickref: Assets; Update an automation's name, cron string or activation status.
 
@@ -1803,8 +1804,6 @@ class AssetAPI(FlaskView):
           responses:
             200:
               description: PROCESSED
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1815,19 +1814,13 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
+            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        body = request.get_json(silent=True)
-        if not body:
-            return unprocessable_entity("No JSON data provided.")
-        try:
-            automation_data = AutomationUpdateSchema().load(body)
-        except ValidationError as e:
-            return unprocessable_entity(e.messages)
         update_automation(automation, origin="API", **automation_data)
         db.session.commit()
         response = automation_schema.dump(automation)
@@ -1842,8 +1835,8 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing an automation is gated like running one: an automation exists to write data
-    # under the asset, so the same principals that may add data there may define it.
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
@@ -1885,6 +1878,7 @@ class AssetAPI(FlaskView):
               description: NOT_FOUND
           tags:
             - Assets
+            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
@@ -1970,6 +1964,7 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
+            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:

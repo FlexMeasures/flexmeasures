@@ -75,10 +75,7 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.models.automations import (
-    Automation,
-    get_default_automation_timezone,
-)
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -1748,10 +1745,12 @@ def add_forecast(  # noqa: C901
 @click.option(
     "--timezone",
     "timezone",
-    default=get_default_automation_timezone,
-    show_default="FLEXMEASURES_TIMEZONE",
+    default=None,
+    show_default="the asset's timezone, else FLEXMEASURES_TIMEZONE",
     type=TimezoneField(),
-    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam". Defaults to FLEXMEASURES_TIMEZONE.',
+    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam".'
+    " Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors,"
+    " and to FLEXMEASURES_TIMEZONE if the asset has neither.",
 )
 @click.option(
     "--type",
@@ -1892,7 +1891,7 @@ def add_automation(
             automation_type=automation_type,
             active=not inactive,
             parameters=parameters,
-            forecaster_class=forecaster_class,
+            generator_class=forecaster_class,
             config=config,
             source=source,
             origin="CLI",

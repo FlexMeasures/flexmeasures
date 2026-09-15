@@ -15,8 +15,22 @@ from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now
 
 
-def get_default_automation_timezone() -> str:
-    """Return the timezone to snapshot when an automation is created."""
+def get_default_automation_timezone(asset=None) -> str:
+    """Return the timezone to snapshot when an automation is created.
+
+    An automation recurs in the timezone of whatever it automates, so the asset's own timezone is the better guess,
+    and the server's setting only says where the server is.
+    The asset's is read the way `GenericAsset.timezone` reads it, from its attribute or else from one of its sensors,
+    except that the fallback is the server setting rather than UTC.
+    """
+    if asset is not None:
+        asset_timezone = None
+        if asset.has_attribute("timezone"):
+            asset_timezone = asset.get_attribute("timezone")
+        elif asset.sensors:
+            asset_timezone = asset.sensors[0].timezone
+        if asset_timezone in all_timezones_set:
+            return asset_timezone
     timezone_name = current_app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
     if timezone_name not in all_timezones_set:
         raise ValueError(f"Timezone '{timezone_name}' does not exist.")

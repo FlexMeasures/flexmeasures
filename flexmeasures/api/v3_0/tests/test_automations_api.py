@@ -101,7 +101,7 @@ def test_get_automations(
     assert day_ahead["cronstr"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"
-    assert day_ahead["next_run"] == "2026-07-11T04:00:00+00:00"
+    assert day_ahead["next_run"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["recurrence_description"] == "At 06:00"
     assert day_ahead["active"] is True
     assert day_ahead["created_at"] is not None
@@ -141,7 +141,7 @@ def test_get_automation_details(
     assert response.json["name"] == "Day-ahead forecasts"
     assert response.json["timezone"] == "Europe/Amsterdam"
     assert response.json["cursor"] == "2026-07-11T04:00:00+00:00"
-    assert response.json["next_run"] == "2026-07-11T04:00:00+00:00"
+    assert response.json["next_run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
@@ -440,8 +440,8 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
 ):
     """Sensors that a schedule would be recorded on are checked, wherever they are named.
 
-    The aggregate power schedule is recorded on the flex-context's aggregate-consumption
-    sensor, so that one needs to be writable, too — not just the flex-model's own sensors.
+    The aggregate power schedule is recorded on the flex-context's aggregate-consumption sensor,
+    so that one needs to be writable, too, not just the flex-model's own sensors.
     """
     battery = add_battery_assets_fresh_db["Test battery"]
     someone_elses_sensor = Sensor(
