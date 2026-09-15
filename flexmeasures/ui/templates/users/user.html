@@ -31,6 +31,14 @@
              title="Reset the password and send instructions how to choose a new one.">Reset password</a>
         </div>
         {% endif %}
+
+        {% if can_edit_user_details %}
+        <div>
+          <button class="btn btn-sm btn-warning nav-button"
+                  onclick="resetAuthToken('{{ user.id }}')"
+                  title="Invalidate all outstanding API tokens for this user. Their browser session will remain active.">Reset access token</button>
+        </div>
+        {% endif %}
       </div>
 
     </div>
@@ -328,5 +336,17 @@
     initialRoles.forEach(role => currentRoles.add(role));
     renderTags();
   });
+
+async function resetAuthToken(userId) {
+  const response = await fetch('/api/v3_0/users/' + userId + '/reset-auth-token', {
+    method: 'PATCH',
+  });
+  if (response.ok) {
+    showToast('Access token has been reset. The user\'s browser session remains active.', 'success');
+  } else {
+    const data = await response.json();
+    showToast('Error: ' + (data.message || 'An unknown error occurred.'), 'error');
+  }
+}
 </script>
 {% endblock %}
