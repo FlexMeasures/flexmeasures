@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import json
 
 import pytest
+import pytz
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -9,9 +10,8 @@ from sqlalchemy import select
 from flexmeasures import Sensor
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.cli.tests.utils import to_flags
-from flexmeasures.utils.time_utils import get_timezone
 
 
 @pytest.fixture(scope="function")
@@ -121,7 +121,7 @@ def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     ).scalar_one_or_none()
     assert automation is not None
     assert automation.active is True
-    assert automation.type == "forecasts"
+    assert automation.type == "forecasting"
     assert automation.cronstr == "0 6 * * *"
     assert automation.timezone == "Europe/Amsterdam"
     # CLI option values are stored as provided (strings); they are coerced by the schema when the automation runs
@@ -172,8 +172,9 @@ def test_add_automation_default_cron(
         get_due_automations,
     )
 
-    # create the automation before the midnight we check, as an automation does not replay runs from before it existed
-    midnight = get_timezone().localize(datetime(2026, 7, 11, 0, 0))
+    # create the automation before the midnight we check, as an automation does not replay runs from before it existed.
+    # The automation takes its timezone from its asset, whose sensors carry the default UTC.
+    midnight = datetime(2026, 7, 11, 0, 0, tzinfo=pytz.utc)
     freeze_server_now(midnight - timedelta(hours=3))
 
     sensor_id = setup_dummy_data[0]
@@ -230,7 +231,7 @@ def test_add_automation_source_conflicts_with_forecaster(
         ),
     )
     assert result.exit_code != 0
-    assert "--forecaster cannot be combined with --source" in result.output
+    assert "--data-generator cannot be combined with --source" in result.output
 
     # a configuration option given on the command line conflicts, too
     result = runner.invoke(
@@ -424,12 +425,21 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data, cronstr):
     assert "Invalid value" in result.output
 
 
-def test_add_automation_defaults_to_configured_timezone(
+def test_add_automation_defaults_to_the_assets_timezone(
     app, fresh_db, setup_dummy_data, monkeypatch
 ):
+    """An automation recurs in the timezone of what it automates, not of where the server stands.
+
+    The asset's timezone is read from its own attribute, or else from one of its sensors,
+    and only an asset with neither falls back to the server's setting.
+    """
     from flexmeasures.cli.data_add import add_automation
 
     monkeypatch.setitem(app.config, "FLEXMEASURES_TIMEZONE", "America/New_York")
+    asset = fresh_db.session.get(GenericAsset, 1)
+    # NB set_attribute only updates an attribute that is already there, so write it directly.
+    asset.attributes = {**asset.attributes, "timezone": "Europe/Amsterdam"}
+    fresh_db.session.commit()
     result = app.test_cli_runner().invoke(
         add_automation,
         [
@@ -441,12 +451,14 @@ def test_add_automation_defaults_to_configured_timezone(
             "0 6 * * *",
             "--sensor",
             str(setup_dummy_data[0]),
+            "--sensor-to-save",
+            str(setup_dummy_data[0]),
         ],
     )
 
     assert result.exit_code == 0, result.output
     automation = fresh_db.session.scalars(select(Automation)).one()
-    assert automation.timezone == "America/New_York"
+    assert automation.timezone == "Europe/Amsterdam"
 
 
 def test_add_and_edit_automation_reject_invalid_timezone(
@@ -507,7 +519,7 @@ def test_add_and_edit_automation_reject_invalid_timezone(
         ["--activate"],
     ),
 )
-def test_edit_automation_rebases_cursor(
+def test_edit_automation_resets_cursor(
     app,
     fresh_db,
     setup_dummy_data,
@@ -764,6 +776,382 @@ def test_add_automation_rejects_non_object_yaml_file(
     assert result.exit_code == 2, result.output
     assert "must contain a YAML or JSON object at the top level" in result.output
     assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize("option_name", ("--config", "--parameters"))
+def test_add_automation_rejects_malformed_yaml_file(
+    app, fresh_db, setup_dummy_data, tmp_path, option_name
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    malformed_file = tmp_path / "malformed.yaml"
+    malformed_file.write_text("field: [\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Malformed YAML",
+            "--cron",
+            "0 6 * * *",
+            option_name,
+            str(malformed_file),
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert f"The {option_name} file is not valid YAML or JSON" in result.output
+    assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize("automation_type", ("forecasting", "scheduling"))
+def test_add_automation_rejects_dry_run(
+    app, fresh_db, setup_dummy_data, tmp_path, automation_type
+):
+    """An automation records what it computes, so asking it not to record is refused.
+
+    The option reaches every automation type, whatever it computes,
+    so it is answered before the parameters are read as a forecast or as a schedule trigger.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('duration: "PT12H"\n')
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Dry run",
+            "--cron", "0 * * * *",
+            "--type", automation_type,
+            "--parameters", str(parameters_file),
+            "--dry-run",
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0, result.output
+    assert "dry-run option is not supported for automations" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Dry run")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_add_schedule_automation_rejects_momentary_flex_fields(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A flex config field describing one moment cannot configure a recurring schedule automation.
+
+    Such a value is stale on the next run, and it would misdescribe the automation on its data source,
+    which records the configuration the scheduler computes under.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+    parameters_file = tmp_path / "parameters.yml"
+
+    # a state of charge that held at one moment
+    parameters_file.write_text(
+        'duration: "PT12H"\n'
+        "flex-model:\n"
+        "  - sensor: 1\n"
+        '    soc-at-start: "5 kWh"\n'
+    )
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Momentary state of charge",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code == 2, result.output
+    assert "flex-model[0].soc-at-start fixes a moment in time" in result.output
+    assert "Traceback" not in result.output
+
+    # a target tied to a datetime
+    parameters_file.write_text(
+        'duration: "PT12H"\n'
+        "flex-model:\n"
+        "  - sensor: 1\n"
+        "    soc-targets:\n"
+        '      - datetime: "2026-01-15T10:00+01:00"\n'
+        '        value: "5 kWh"\n'
+    )
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Momentary target",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code == 2, result.output
+    assert "flex-model[0].soc-targets[0] fixes a moment in time" in result.output
+
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Momentary state of charge")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
+    """Create a schedules automation; parameters are validated as a schedule trigger message."""
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+
+    # invalid parameters (unknown field) are rejected
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text("not-a-trigger-field: 1\n")
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Bad schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "Invalid schedule parameters" in result.output
+
+    # minimal valid parameters (flex config can live on the asset)
+    parameters_file.write_text('duration: "PT12H"\n')
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Half-day schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Half-day schedules")
+    ).scalar_one()
+    assert automation.type == "scheduling"
+    # The scheduler and the flex config it computes under are the automation's data generator.
+    assert automation.generator is not None
+    assert automation.generator.type == "scheduler"
+    assert (
+        automation.generator.attributes["data_generator"]["config"]["asset"]
+        == automation.asset_id
+    )
+    assert automation.parameters == {"duration": "PT12H"}
+
+    # a fixed start draws a warning
+    parameters_file.write_text('start: "2026-01-01T00:00:00+01:00"\n')
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Fixed-start schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    assert "each run will compute the same period" in result.output
+
+
+@pytest.mark.parametrize(
+    "parameters_yaml",
+    (
+        'resolution: "P1M"\n',
+        'resolution: "PT0S"\n',
+        'resolution: "-PT15M"\n',
+        'duration: "PT0S"\n',
+        'duration: "-PT1H"\n',
+    ),
+)
+def test_add_schedule_automation_rejects_unsupported_durations(
+    app, fresh_db, setup_dummy_data, tmp_path, parameters_yaml
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(parameters_yaml)
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Invalid schedule durations",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "scheduling",
+            "--parameters",
+            str(parameters_file),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid schedule parameters" in result.output
+
+
+def test_add_schedule_automation_rejects_forecast_config(
+    app, fresh_db, setup_dummy_data
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule with ignored forecast config",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "scheduling",
+            "--regressors",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--regressors cannot be combined with --type scheduling" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
+    app, fresh_db, setup_dummy_data
+):
+    """Naming the default forecaster is still naming a forecaster, so it is refused.
+
+    The check asks whether the option was given, rather than comparing its value against the default,
+    which would let the default pass silently and leave the user thinking it applied.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Schedule naming the default forecaster",
+            "--cron",
+            "0 * * * *",
+            "--type",
+            "scheduling",
+            "--forecaster",
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--data-generator cannot be combined with --type scheduling" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Schedule naming the default forecaster")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        ["--asset", "1", "--name", "No sensor", "--cron", "0 * * * *"],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid forecast parameters" in result.output
+
+
+@pytest.mark.parametrize("is_dst", (True, False))
+def test_prepare_schedule_start_floors_both_dst_folds(app, monkeypatch, is_dst):
+    from flexmeasures.data.services import automations
+
+    timezone = pytz.timezone("Europe/Amsterdam")
+    now = timezone.localize(datetime(2026, 10, 25, 2, 7, 30), is_dst=is_dst)
+    monkeypatch.setattr(automations, "server_now", lambda: now)
+    parameters = {"duration": "PT1H", "resolution": "PT15M"}
+
+    message = automations.prepare_schedule_trigger_message(parameters, asset_id=1)
+
+    assert datetime.fromisoformat(message["start"]) == now.replace(
+        minute=0, second=0, microsecond=0
+    )
+    assert parameters == {"duration": "PT1H", "resolution": "PT15M"}
+
+
+def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monkeypatch):
+    """Running a schedules automation queues a scheduling job with trigger meta data.
+
+    We monkeypatch the job creator to avoid needing a fully schedulable asset here.
+    """
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.data.services.automations import (
+        resolve_schedule_generator,
+        run_automation,
+    )
+    from flexmeasures.utils.time_utils import server_now
+
+    asset = fresh_db.session.get(GenericAsset, 1)
+    parameters = {"duration": "PT12H", "resolution": "PT15M"}
+    automation = Automation(
+        asset_id=asset.id,
+        type="scheduling",
+        name="Test schedules",
+        cronstr="0 * * * *",
+        parameters=parameters,
+        generator_id=resolve_schedule_generator(asset.id, parameters).id,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    calls = {}
+
+    def fake_create_simultaneous_scheduling_job(asset, **kwargs):
+        calls["asset"] = asset
+        calls["kwargs"] = kwargs
+
+        class FakeJob:
+            id = "fake-job-id"
+
+        return FakeJob()
+
+    monkeypatch.setattr(
+        scheduling,
+        "create_simultaneous_scheduling_job",
+        fake_create_simultaneous_scheduling_job,
+    )
+
+    returns = run_automation(automation)
+    assert returns == {"job_id": "fake-job-id", "n_jobs": 1}
+    assert calls["asset"].id == asset.id
+    assert calls["kwargs"]["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+    }
+    # start defaulted to (roughly) now, floored to the 15-minute resolution
+    start = calls["kwargs"]["start"]
+    assert start.minute % 15 == 0
+    assert abs((server_now() - start).total_seconds()) < 16 * 60
+    assert calls["kwargs"]["end"] - start == timedelta(hours=12)
 
 
 def test_run_automations(
@@ -1072,3 +1460,64 @@ def test_run_one_automation_reports_unknown_automation(app, fresh_db, clean_redi
     assert result.exit_code == 2, result.output
     assert "No automation found with id 9999" in result.output
     assert app.queues["forecasting"].count == 0
+
+
+def test_the_configured_timezone_is_what_an_asset_without_one_falls_back_to(
+    app, fresh_db, setup_dummy_data, monkeypatch
+):
+    """Only an asset with neither a timezone attribute nor a sensor leaves the server's setting to decide.
+
+    A sensor carries a timezone of its own, defaulting to UTC, so an asset with sensors always has one to offer.
+    """
+    from flexmeasures.data.models.automations import get_default_automation_timezone
+
+    monkeypatch.setitem(app.config, "FLEXMEASURES_TIMEZONE", "America/New_York")
+    asset_type = fresh_db.session.scalars(select(GenericAssetType)).first()
+    bare_asset = GenericAsset(name="no timezone here", generic_asset_type=asset_type)
+    fresh_db.session.add(bare_asset)
+    fresh_db.session.flush()
+    assert not bare_asset.sensors
+
+    assert get_default_automation_timezone(bare_asset) == "America/New_York"
+
+    with_sensors = fresh_db.session.get(GenericAsset, 1)
+    assert with_sensors.sensors
+    assert get_default_automation_timezone(with_sensors) == "UTC"
+
+    with_sensors.attributes = {**with_sensors.attributes, "timezone": "Europe/Lisbon"}
+    assert get_default_automation_timezone(with_sensors) == "Europe/Lisbon"
+
+
+@pytest.mark.parametrize(
+    "option", ["--data-generator", "--forecaster", "--scheduler", "--reporter"]
+)
+def test_the_data_generator_can_be_named_by_what_it_is(
+    app, fresh_db, setup_dummy_data, option
+):
+    """All four spellings set the same thing, so a caller can name the generator by its kind.
+
+    The class a forecast automation runs is a data generator; `--forecaster` says which kind it is.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            f"Named by {option}",
+            "--cron",
+            "0 6 * * *",
+            "--sensor",
+            str(setup_dummy_data[0]),
+            option,
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name=f"Named by {option}")
+    ).one()
+    assert automation.generator.model == "TrainPredictPipeline"

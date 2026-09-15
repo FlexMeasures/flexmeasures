@@ -52,7 +52,7 @@ def test_asset_jobs_redact_inaccessible_automation_provenance(
         asset=source_asset,
         generator=generator,
         name="Confidential source automation",
-        type="forecasts",
+        type="forecasting",
         cronstr="0 6 * * *",
         parameters={"sensor": target_sensor.id},
     )
