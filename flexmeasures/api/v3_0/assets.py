@@ -1494,15 +1494,15 @@ class AssetAPI(FlaskView):
                       value:
                         automations:
                           - id: 1
-                            created_at: "2026-07-11T00:00:00+00:00"
-                            asset_id: 1
+                            created-at: "2026-07-11T00:00:00+00:00"
+                            asset: 1
                             type: forecasting
                             name: Day-ahead PV forecasts
-                            cronstr: "0 6 * * *"
+                            cron: "0 6 * * *"
                             timezone: Europe/Amsterdam
                             cursor: "2026-07-11T06:00:00+02:00"
-                            next_run: "2026-07-12T06:00:00+02:00"
-                            recurrence_description: "At 06:00"
+                            next-run: "2026-07-12T06:00:00+02:00"
+                            recurrence-description: "At 06:00"
                             active: true
             401:
               description: UNAUTHORIZED
@@ -1516,7 +1516,7 @@ class AssetAPI(FlaskView):
         automations_data = []
         for automation in asset.automations:
             automation_data = automation_schema.dump(automation)
-            automation_data["recurrence_description"] = describe_cronstr(
+            automation_data["recurrence-description"] = describe_cronstr(
                 automation.cronstr
             )
             automations_data.append(automation_data)
@@ -1573,27 +1573,27 @@ class AssetAPI(FlaskView):
                       summary: Automation details
                       value:
                         id: 1
-                        created_at: "2026-07-11T00:00:00+00:00"
-                        asset_id: 1
+                        created-at: "2026-07-11T00:00:00+00:00"
+                        asset: 1
                         type: forecasting
                         name: Day-ahead PV forecasts
-                        cronstr: "0 6 * * *"
+                        cron: "0 6 * * *"
                         timezone: Europe/Amsterdam
                         cursor: "2026-07-11T06:00:00+02:00"
-                        next_run: "2026-07-12T06:00:00+02:00"
-                        recurrence_description: "At 06:00"
+                        next-run: "2026-07-12T06:00:00+02:00"
+                        recurrence-description: "At 06:00"
                         active: true
                         parameters:
                           sensor: 2092
                         generator:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
-                        input_sensors:
+                        input-sensors:
                           - id: 2092
                             name: power
                           - id: 2093
                             name: irradiance
-                        output_sensors:
+                        output-sensors:
                           - id: 2092
                             name: power
                         job_stats:
@@ -1617,7 +1617,7 @@ class AssetAPI(FlaskView):
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
         automation_data = automation_schema.dump(automation)
-        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["recurrence-description"] = describe_cronstr(automation.cronstr)
         automation_data["parameters"] = automation.parameters
         automation_data["generator"] = (
             {
@@ -1642,7 +1642,7 @@ class AssetAPI(FlaskView):
             }:
                 check_access(sensor, "read")
         for key in ("input_sensors", "output_sensors"):
-            automation_data[key] = [
+            automation_data[key.replace("_", "-")] = [
                 {"id": sensor.id, "name": sensor.name}
                 for sensor in automation_sensors[key]
             ]
@@ -1704,7 +1704,7 @@ class AssetAPI(FlaskView):
                       in the automation's own timezone.
                     value:
                       name: Day-ahead PV forecasts
-                      cronstr: "0 6 * * *"
+                      cron: "0 6 * * *"
                       type: forecasting
                       parameters:
                         sensor: 2092
@@ -1732,7 +1732,7 @@ class AssetAPI(FlaskView):
             return unprocessable_entity(str(e))
         db.session.commit()
         response = automation_schema.dump(automation)
-        response["recurrence_description"] = describe_cronstr(automation.cronstr)
+        response["recurrence-description"] = describe_cronstr(automation.cronstr)
         response["warnings"] = warnings
         return response, 201
 
@@ -1811,7 +1811,7 @@ class AssetAPI(FlaskView):
         update_automation(automation, origin="API", **automation_data)
         db.session.commit()
         response = automation_schema.dump(automation)
-        response["recurrence_description"] = describe_cronstr(automation.cronstr)
+        response["recurrence-description"] = describe_cronstr(automation.cronstr)
         return response, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["DELETE"])
@@ -1936,7 +1936,7 @@ class AssetAPI(FlaskView):
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                        n_jobs: 2
+                        n-jobs: 2
                         message: "Request has been accepted for processing."
             401:
               description: UNAUTHORIZED
@@ -1978,7 +1978,7 @@ class AssetAPI(FlaskView):
         )
         db.session.commit()
         response, status_code = request_accepted_for_processing(job_id)
-        response["n_jobs"] = returns.get("n_jobs")
+        response["n-jobs"] = returns.get("n_jobs")
         return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])

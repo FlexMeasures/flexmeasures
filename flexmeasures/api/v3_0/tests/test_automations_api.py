@@ -98,15 +98,15 @@ def test_get_automations(
     assert len(automations) == 2
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
     assert day_ahead["type"] == "forecasting"
-    assert day_ahead["cronstr"] == "0 6 * * *"
+    assert day_ahead["cron"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
     assert day_ahead["cursor"] == "2026-07-11T06:00:00+02:00"
-    assert day_ahead["next_run"] == "2026-07-11T06:00:00+02:00"
-    assert day_ahead["recurrence_description"] == "At 06:00"
+    assert day_ahead["next-run"] == "2026-07-11T06:00:00+02:00"
+    assert day_ahead["recurrence-description"] == "At 06:00"
     assert day_ahead["active"] is True
-    assert day_ahead["created_at"] is not None
+    assert day_ahead["created-at"] is not None
     intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
-    assert intraday["next_run"] is None
+    assert intraday["next-run"] is None
     # generator and parameters are not listed
     assert "generator_id" not in day_ahead
     assert "generator" not in day_ahead
@@ -141,13 +141,13 @@ def test_get_automation_details(
     assert response.json["name"] == "Day-ahead forecasts"
     assert response.json["timezone"] == "Europe/Amsterdam"
     assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
-    assert response.json["next_run"] == "2026-07-11T06:00:00+02:00"
+    assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
     sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
-    assert response.json["input_sensors"] == [sensor]
-    assert response.json["output_sensors"] == [sensor]
+    assert response.json["input-sensors"] == [sensor]
+    assert response.json["output-sensors"] == [sensor]
 
 
 @pytest.mark.parametrize(
@@ -213,7 +213,7 @@ def test_post_automation(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Posted schedules",
-                "cronstr": "0 0 * * *",
+                "cron": "0 0 * * *",
                 "type": "scheduling",
                 "parameters": {"duration": "PT12H"},
             },
@@ -222,7 +222,7 @@ def test_post_automation(
     if expected_status_code == 201:
         assert response.json["name"] == "Posted schedules"
         assert response.json["active"] is True
-        assert response.json["recurrence_description"] == "At 00:00"
+        assert response.json["recurrence-description"] == "At 00:00"
         automation = fresh_db.session.get(Automation, response.json["id"])
         assert automation.parameters == {"duration": "PT12H"}
         # clean up for other tests in this module
@@ -244,7 +244,7 @@ def test_post_automation_with_invalid_parameters(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Bad forecasts",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {},  # missing required sensor
             },
@@ -269,7 +269,7 @@ def test_post_and_patch_automation_timezone(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Seoul forecasts",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "timezone": "Asia/Seoul",
                 "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
@@ -336,7 +336,7 @@ def test_post_automation_with_inaccessible_source_filtered_regressor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Forecasts regressing on another account's sensor",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
                 "config": {
@@ -395,7 +395,7 @@ def test_post_automation_with_inaccessible_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Forecasts of another account's sensor",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": someone_elses_sensor.id},
             },
@@ -417,7 +417,7 @@ def test_post_automation_with_inaccessible_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Forecasts of their own sensor",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": own_sensor.id},
             },
@@ -460,7 +460,7 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Schedules aggregated onto another account's sensor",
-                "cronstr": "0 0 * * *",
+                "cron": "0 0 * * *",
                 "type": "scheduling",
                 "parameters": {
                     "duration": "PT12H",
@@ -626,7 +626,7 @@ def test_trigger_automation(
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
     assert response.json["job"] == "364bfd06-c1fa-430b-8d25-8f5a547651fb"
-    assert response.json["n_jobs"] == 2
+    assert response.json["n-jobs"] == 2
     fresh_db.session.expire_all()
     assert automation.cursor == cursor_before
     assert automation.active is False
@@ -719,7 +719,7 @@ def test_creating_an_automation_whose_sensors_are_unknown_is_the_callers_fault(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Unknowable",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "scheduling",
                 "parameters": {"duration": "PT12H"},
             },

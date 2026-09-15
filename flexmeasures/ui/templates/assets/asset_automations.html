@@ -296,10 +296,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     if (!automation.active) {
       return sortable(last, '<span class="text-muted">Inactive</span>');
     }
-    if (!automation.next_run) {
+    if (!automation["next-run"]) {
       return sortable(last, '<span class="text-muted" title="Could not calculate the next run">Unavailable</span>');
     }
-    const when = new Date(automation.next_run);
+    const when = new Date(automation["next-run"]);
     if (Number.isNaN(when.getTime())) {
       return sortable(last, '<span class="text-muted">Unavailable</span>');
     }
@@ -310,18 +310,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         hour: "2-digit", minute: "2-digit", hourCycle: "h23",
         timeZoneName: "shortOffset",
       }).format(when);
-      return sortable(when.getTime(), `<span title="${esc(automation.timezone)}: ${esc(automation.cronstr)}">${esc(local)}</span>`);
+      return sortable(when.getTime(), `<span title="${esc(automation.timezone)}: ${esc(automation["cron"])}">${esc(local)}</span>`);
     } catch (error) {
       return sortable(last, '<span class="text-muted">Unavailable</span>');
     }
   }
 
   function AutomationRow(automation) {
-    const createdAt = automation.created_at;
+    const createdAt = automation["created-at"];
     return {
       id: automation.id,
       name: esc(automation.name),
-      created_at: sortable(createdAt || "", `
+      "created-at": sortable(createdAt || "", `
         <span title="${esc(createdAt)}">
           ${createdAt ? esc(getHumanFriendlyDeltaOrTimeStr(createdAt)) : "Unknown"}
         </span>
@@ -331,11 +331,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
       ),
       recurrence: sortable(
-        automation.cronstr,
-        `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`
+        automation["cron"],
+        `<span title="${esc(automation["cron"])}">${esc(automation["recurrence-description"])}</span>`
       ),
       timezone: esc(automation.timezone),
-      next_run: nextRun(automation),
+      "next-run": nextRun(automation),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
       details: `<button type="button" class="btn btn-sm btn-success automation-details" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</button>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
@@ -386,9 +386,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
           <h6>Reads from</h6>
-          <p>${sensorLinks(res.input_sensors, res.generator)}</p>
+          <p>${sensorLinks(res["input-sensors"], res.generator)}</p>
           <h6>Writes to</h6>
-          <p>${sensorLinks(res.output_sensors, res.generator)}</p>
+          <p>${sensorLinks(res["output-sensors"], res.generator)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Recently created jobs</h6>
@@ -421,11 +421,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       },
       columns: [
         { data: "name", title: "Name" },
-        { data: "created_at", title: "Created At", render: renderSortable },
+        { data: "created-at", title: "Created At", render: renderSortable },
         { data: "active", title: "Active", render: renderSortable },
         { data: "recurrence", title: "Recurrence", render: renderSortable },
         { data: "timezone", title: "Schedule timezone" },
-        { data: "next_run", title: "Next run (local)", render: renderSortable },
+        { data: "next-run", title: "Next run (local)", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
         { data: "details", title: "", className: "text-center align-middle", orderable: false },
         ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "", className: "text-center align-middle", orderable: false }] : []),
@@ -487,7 +487,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       }
       $("#editAutomationId").val(automation.id);
       $("#editAutomationName").val(automation.name);
-      $("#editAutomationCron").val(automation.cronstr);
+      $("#editAutomationCron").val(automation["cron"]);
       $("#editAutomationTimezone").val(automation.timezone);
       $("#editAutomationActive").prop("checked", automation.active);
       $("#editAutomationErr").addClass("d-none").text("");
@@ -503,7 +503,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         contentType: "application/json",
         data: JSON.stringify({
           name: $("#editAutomationName").val(),
-          cronstr: $("#editAutomationCron").val(),
+          cron: $("#editAutomationCron").val(),
           timezone: $("#editAutomationTimezone").val(),
           active: $("#editAutomationActive").is(":checked"),
         }),
@@ -561,7 +561,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         data: JSON.stringify({
           name: $("#automationName").val(),
           type: $("#automationType").val(),
-          cronstr: $("#automationCron").val(),
+          cron: $("#automationCron").val(),
           timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
           parameters: parameters,
@@ -582,7 +582,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
-          const nJobs = res.n_jobs;
+          const nJobs = res["n-jobs"];
           const queued = nJobs == null ? "Queued the jobs" : `Queued ${nJobs} job(s)`;
           showAutomationsMessage(
             `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`

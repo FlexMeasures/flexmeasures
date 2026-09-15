@@ -92,7 +92,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b'title: "Schedule timezone"' in asset_page.data
         assert b'title: "Next run (local)"' in asset_page.data
         assert b"timeZone: automation.timezone" in asset_page.data
-        assert b"next_run: nextRun(automation)" in asset_page.data
+        assert b'"next-run": nextRun(automation)' in asset_page.data
         assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data

@@ -52,7 +52,7 @@ def test_a_creation_leaves_the_timezone_to_the_asset_unless_it_names_one(
     and `create_automation` is the one that decides what None means.
     """
     loaded = AutomationCreationSchema().load(
-        {"name": "Day-ahead forecasts", "cronstr": "0 6 * * *", **payload}
+        {"name": "Day-ahead forecasts", "cron": "0 6 * * *", **payload}
     )
 
     assert loaded["timezone"] == expected_timezone
@@ -63,7 +63,7 @@ def test_a_creation_still_rejects_a_timezone_that_does_not_exist():
         AutomationCreationSchema().load(
             {
                 "name": "Day-ahead forecasts",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "timezone": "Mars/Olympus",
             }
         )

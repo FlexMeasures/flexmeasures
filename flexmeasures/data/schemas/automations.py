@@ -80,7 +80,7 @@ class AutomationCreationSchema(Schema):
         validate=validate.OneOf(Automation.SUPPORTED_TYPES),
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
-    cronstr = CronField(required=True)
+    cronstr = CronField(required=True, data_key="cron")
     timezone = TimezoneField(
         load_default=None,
         metadata={
@@ -113,7 +113,7 @@ class AutomationUpdateSchema(Schema):
     """
 
     name = fields.Str(validate=validate.Length(min=1, max=80))
-    cronstr = CronField()
+    cronstr = CronField(data_key="cron")
     timezone = TimezoneField(
         metadata={
             "description": "IANA timezone in which the cron expression is interpreted.",
@@ -130,11 +130,11 @@ class AutomationSchema(ma.SQLAlchemySchema):
         model = Automation
 
     id = ma.auto_field(dump_only=True)
-    created_at = ma.auto_field(dump_only=True)
-    asset_id = ma.auto_field()
+    created_at = ma.auto_field(dump_only=True, data_key="created-at")
+    asset_id = ma.auto_field(data_key="asset")
     type = ma.auto_field()
     name = ma.auto_field(required=True)
-    cronstr = CronField(required=True)
+    cronstr = CronField(required=True, data_key="cron")
     timezone = TimezoneField(
         metadata={
             "description": "IANA timezone in which the cron expression is interpreted.",
@@ -151,6 +151,7 @@ class AutomationSchema(ma.SQLAlchemySchema):
     )
     next_run = fields.Method(
         serialize="dump_next_run",
+        data_key="next-run",
         dump_only=True,
         metadata={
             "description": "Time of the next scheduled run after the response was generated, in the automation's own timezone, so that it reads as the clock time the recurrence names. Null for an inactive automation. Pending catch-up runs are not included.",
