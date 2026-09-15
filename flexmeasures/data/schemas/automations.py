@@ -91,10 +91,10 @@ class AutomationCreationSchema(Schema):
     active = fields.Bool(load_default=True)
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
-        data_key="generator-class",
+        data_key="data-generator",
         load_default="TrainPredictPipeline",
         metadata={
-            "description": "Class of the data generator that computes this automation's results, named in the response as its `generator`. Only a forecast automation chooses one; a schedule automation's generator follows from the asset and the flex config.",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. Only a forecast automation chooses one; a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline",
         },
     )

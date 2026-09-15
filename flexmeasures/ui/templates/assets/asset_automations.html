@@ -375,8 +375,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         $(`#automation-jobs-${automationId}`).text(statsStr);
 
         // Fill the details modal
-        const generator = res.generator
-          ? `${res.generator.description} (data source ${res.generator.id})`
+        const generator = res.source
+          ? `${res.source.description} (data source ${res.source.id})`
           : "None";
         $(`#AutomationDetailsBody-${automationId}`).html(`
           <h6>Timezone</h6>
@@ -386,9 +386,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
           <h6>Reads from</h6>
-          <p>${sensorLinks(res["input-sensors"], res.generator)}</p>
+          <p>${sensorLinks(res["input-sensors"], res.source)}</p>
           <h6>Writes to</h6>
-          <p>${sensorLinks(res["output-sensors"], res.generator)}</p>
+          <p>${sensorLinks(res["output-sensors"], res.source)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Recently created jobs</h6>

@@ -1479,7 +1479,10 @@ def _assemble_forecaster_config_and_parameters(
         # that were left out still show up in the config, with their schema defaults.
         conflicting_options = _find_options_given_on_command_line(
             {
+                # `add forecasts` and `add automation` name this parameter differently,
+                # and a parameter the running command does not have is simply not reported.
                 "forecaster_class": "--forecaster",
+                "generator_class": "--data-generator",
                 "config_file": "--config",
                 "edit_config": "--edit-config",
             },
@@ -1768,13 +1771,17 @@ def add_forecast(  # noqa: C901
     help="Add this flag to create the automation in deactivated state.",
 )
 @click.option(
+    "--data-generator",
     "--forecaster",
-    "forecaster_class",
+    "--scheduler",
+    "--reporter",
+    "generator_class",
     default=None,
     type=click.STRING,
-    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
-    " Defaults to TrainPredictPipeline. Use the command `flexmeasures show forecasters` to list all the available forecasters."
-    " Cannot be combined with --source, which already determines the forecaster.",
+    help="Class of the data generator that computes this automation's results, registered in FlexMeasures or in an available plugin."
+    " Name it by what it is, if you prefer: --forecaster, --scheduler and --reporter all set the same thing."
+    " Defaults to TrainPredictPipeline for a forecast automation. Use `flexmeasures show forecasters` to list the available forecasters."
+    " Cannot be combined with --source, which already determines the data generator.",
 )
 @click.option(
     "--source",
@@ -1813,7 +1820,7 @@ def add_automation(
     timezone: str,
     automation_type: str,
     inactive: bool = False,
-    forecaster_class: str | None = None,
+    generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
@@ -1847,8 +1854,8 @@ def add_automation(
     A configuration option given on the command line overrides the same setting from --config,
     while a parameter from --parameters takes precedence over the matching command-line option.
     """
-    if forecaster_class is None:
-        forecaster_class = "TrainPredictPipeline"
+    if generator_class is None:
+        generator_class = "TrainPredictPipeline"
 
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
@@ -1869,7 +1876,7 @@ def add_automation(
         # configuration options that were left out still show up here, with their defaults.
         forecast_options = _find_options_given_on_command_line(
             {
-                "forecaster_class": "--forecaster",
+                "generator_class": "--data-generator",
                 "source": "--source",
                 "config_file": "--config",
                 "edit_config": "--edit-config",
@@ -1892,7 +1899,7 @@ def add_automation(
             automation_type=automation_type,
             active=not inactive,
             parameters=parameters,
-            generator_class=forecaster_class,
+            generator_class=generator_class,
             config=config,
             source=source,
             origin="CLI",

@@ -732,10 +732,10 @@ def test_creating_an_automation_whose_sensors_are_unknown_is_the_callers_fault(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_a_forecast_automation_names_the_generator_class_it_runs(
+def test_a_forecast_automation_names_the_data_generator_it_runs(
     app, fresh_db, add_battery_assets_fresh_db, requesting_user
 ):
-    """The class a forecast automation runs is chosen by `generator-class`, and the response names the generator it resolved.
+    """The class a forecast automation runs is chosen by `data-generator`, and the response names the source it resolved to.
 
     The request names a class; the response names the data source that class was set up as,
     which is why the two are not the same field.
@@ -749,7 +749,7 @@ def test_a_forecast_automation_names_the_generator_class_it_runs(
                 "name": "Named generator",
                 "cron": "0 6 * * *",
                 "type": "forecasting",
-                "generator-class": "TrainPredictPipeline",
+                "data-generator": "TrainPredictPipeline",
                 "parameters": {"sensor": sensor.id},
             },
         )
@@ -762,7 +762,7 @@ def test_a_forecast_automation_names_the_generator_class_it_runs(
         url_for("AssetAPI:get_automation", id=battery.id, automation_id=automation.id)
     )
     assert detail.status_code == 200, detail.json
-    assert detail.json["generator"]["id"] == automation.generator_id
+    assert detail.json["source"]["id"] == automation.generator_id
 
     fresh_db.session.delete(automation)
     fresh_db.session.flush()

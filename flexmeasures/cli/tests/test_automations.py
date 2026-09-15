@@ -201,7 +201,7 @@ def test_add_automation_source_conflicts_with_forecaster(
         ),
     )
     assert result.exit_code != 0
-    assert "--forecaster cannot be combined with --source" in result.output
+    assert "--data-generator cannot be combined with --source" in result.output
 
     # a configuration option given on the command line conflicts, too
     result = runner.invoke(
@@ -1029,7 +1029,7 @@ def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
     )
 
     assert result.exit_code == 2
-    assert "--forecaster cannot be combined with --type scheduling" in result.output
+    assert "--data-generator cannot be combined with --type scheduling" in result.output
     assert (
         fresh_db.session.execute(
             select(Automation).filter_by(name="Schedule naming the default forecaster")
@@ -1456,3 +1456,38 @@ def test_the_configured_timezone_is_what_an_asset_without_one_falls_back_to(
 
     with_sensors.attributes = {**with_sensors.attributes, "timezone": "Europe/Lisbon"}
     assert get_default_automation_timezone(with_sensors) == "Europe/Lisbon"
+
+
+@pytest.mark.parametrize(
+    "option", ["--data-generator", "--forecaster", "--scheduler", "--reporter"]
+)
+def test_the_data_generator_can_be_named_by_what_it_is(
+    app, fresh_db, setup_dummy_data, option
+):
+    """All four spellings set the same thing, so a caller can name the generator by its kind.
+
+    The class a forecast automation runs is a data generator; `--forecaster` says which kind it is.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            f"Named by {option}",
+            "--cron",
+            "0 6 * * *",
+            "--sensor",
+            str(setup_dummy_data[0]),
+            option,
+            "TrainPredictPipeline",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    automation = fresh_db.session.scalars(
+        select(Automation).filter_by(name=f"Named by {option}")
+    ).one()
+    assert automation.generator.model == "TrainPredictPipeline"
