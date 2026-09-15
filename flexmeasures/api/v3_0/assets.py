@@ -1778,8 +1778,8 @@ class AssetAPI(FlaskView):
           summary: Update an automation's name, cron string, timezone or activation status.
           description: |
             Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
-            Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to the time of the change,
-            so runs from before it are not caught up on.
+            Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
+            so runs from before it are not caught up on, while a run due in that very minute still is.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
           security:

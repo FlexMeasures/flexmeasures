@@ -793,7 +793,8 @@ def update_automation(
     """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
 
     Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
-    also resets the cursor to the time of the change, so that runs from before it are not caught up on.
+    also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
+    while a run due in that very minute still is.
     An audit log record is added to the asset.
 
     :returns: a list of (human-readable) changes; empty if nothing changed.
