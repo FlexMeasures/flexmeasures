@@ -90,6 +90,7 @@ def test_trigger_and_get_schedule(
         len(app.queues["scheduling"]) == 1
     )  # only 1 schedule should be made for 1 asset
     job = app.queues["scheduling"].jobs[0]
+    assert job.meta["trigger"] == {"origin": "API"}
     print(job.kwargs)
     assert job.kwargs["asset_or_sensor"]["id"] == sensor.id
     assert job.kwargs["start"] == parse_datetime(message["start"])
