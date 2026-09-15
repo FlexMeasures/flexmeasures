@@ -16,6 +16,7 @@ v3.0-36 | September 14, 2026
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
 - The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
+- Fixed: when a sequential schedule (triggered with ``"sequential": true`` on `/assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (POST)) cannot schedule one of its devices, and the scheduler defines no fallback scheduler, the job whose id was returned now reaches a terminal failed state, rather than staying deferred indefinitely. ``GET /api/v3_0/jobs/<uuid>`` answers such a job with ``422 Unprocessable Entity``, a ``FAILED`` status and a ``message`` naming the device that could not be scheduled (and the devices that were consequently not scheduled either); ``GET /sensors/<id>/schedules/<uuid>`` answers with ``UNKNOWN_SCHEDULE`` and the same reason.
 
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""
