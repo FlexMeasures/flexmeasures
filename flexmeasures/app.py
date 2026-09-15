@@ -38,6 +38,8 @@ def create(  # noqa C901
     A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).
 
     Also, a list of plugins can be set. Usually this works as a config setting, but this is useful for automated testing.
+
+    Pass ``do_configure_logging=False`` to prevent reconfiguring root logger handlers (e.g. during custom test setup).
     """
 
     from flexmeasures.utils import config_defaults
