@@ -1542,7 +1542,7 @@ class AssetAPI(FlaskView):
           description: |
             In addition to the fields shown when listing automations, the response shows
             the automation's parameters (forecast parameters or a schedule trigger message),
-            the data source it records under, as its `source` (null for schedule automations),
+            the data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
@@ -1588,6 +1588,9 @@ class AssetAPI(FlaskView):
                         source:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
+                          config:
+                            model: CustomLGBM
+                            train-period: P30D
                         input-sensors:
                           - id: 2092
                             name: power
@@ -1623,6 +1626,11 @@ class AssetAPI(FlaskView):
             {
                 "id": automation.generator.id,
                 "description": automation.generator.description,
+                # The static settings the data generator was configured with, such as the model it trains.
+                # They are what distinguishes this source from another one of the same model, so they belong with it.
+                "config": automation.generator.attributes.get("data_generator", {}).get(
+                    "config", {}
+                ),
             }
             if automation.generator is not None
             else None
