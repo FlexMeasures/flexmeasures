@@ -61,6 +61,11 @@
     background: var(--bs-btn-bg);
     border-color: var(--bs-btn-border-color);
   }
+  /* The modal centres its text, which suits the headings but leaves JSON hanging in mid-air.
+     Preformatted blocks need their left edge to be readable. */
+  [id^="AutomationInfoBody-"] pre {
+    text-align: left;
+  }
   .automation-info.btn:hover {
     color: var(--bs-btn-hover-color);
     background: var(--bs-btn-hover-bg);
@@ -411,17 +416,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           : "none";
         $(`#automation-jobs-${automationId}`).text(statsStr);
 
-        // Fill the details modal
+        // Fill the info modal
         const generator = res.source
           ? `${res.source.description} (data source ${res.source.id})`
           : "None";
+        /* The configuration belongs with the source it describes: it is what separates this data source
+           from another one of the same model, so it is read together with the source rather than apart from it. */
+        const generatorConfig = res.source && res.source.config && Object.keys(res.source.config).length
+          ? `<pre>${esc(JSON.stringify(res.source.config, null, 4))}</pre>`
+          : `<p class="text-muted">This data source records no configuration.</p>`;
         $(`#AutomationInfoBody-${automationId}`).html(`
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
           <h6>Cursor (UTC)</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
-          <h6>Data generator</h6>
+          <h6>Data source</h6>
           <p>${esc(generator)}</p>
+          <div title="The static settings this data source was created with. Changing one of them makes a new data source.">
+            <h6 class="h6 fw-normal fst-italic">Configuration</h6>
+            ${generatorConfig}
+          </div>
           <h6>Reads from</h6>
           <p>${sensorLinks(res["input-sensors"], res.source)}</p>
           <h6>Writes to</h6>
