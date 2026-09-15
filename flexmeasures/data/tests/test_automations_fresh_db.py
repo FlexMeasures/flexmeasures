@@ -355,8 +355,8 @@ def test_a_scheduler_that_cannot_work_out_its_config_says_the_sensors_are_unknow
 ):
     """A failure while collecting the flex config is reported as unknown sensors, not raised raw.
 
-    Callers handle `AutomationSensorsUnknown`, so letting a scheduler's own `ValueError` through
-    would reach the API as an unexpected failure instead.
+    Callers handle `AutomationSensorsUnknown`,
+    so letting a scheduler's own `ValueError` through would reach the API as an unexpected failure instead.
     A `ValidationError` is deliberately not wrapped: it says the parameters are wrong, which the caller reports as such.
     """
     from marshmallow import ValidationError

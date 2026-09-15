@@ -116,3 +116,33 @@ def test_action_menu_is_legible_over_the_theme(assert_js):
               contrasts.every(c => c.ratio >= 4.5),
               contrasts.map(c => `${{c.label}} ${{c.ratio.toFixed(1)}}:1`).join(", "));
         """)
+
+
+def test_a_name_with_an_apostrophe_survives_the_delete_confirmation(assert_js):
+    """The name shown in the delete prompt is the one the automation carries.
+
+    The row builder escapes the name into a data attribute, and the browser decodes
+    character references while parsing, so reading the attribute back gives the original.
+    """
+    manager_script = automation_script(can_manage=True, can_run=True)
+    assert_js(f"""
+        window.$ = () => ({{ready: () => {{}}}});
+        const manager = new Function({json.dumps(manager_script)} + "\\nreturn {{ AutomationRow }};")();
+        const name = "Ronan's <b>day-ahead</b> & \\"nightly\\" forecast";
+        const row = manager.AutomationRow({{
+            id: 7, name, type: "forecasting", active: true,
+            created_at: null, cronstr: "0 6 * * *", timezone: "Europe/Amsterdam",
+            recurrence_description: "At 06:00", next_run: null,
+        }});
+        const holder = document.createElement("div");
+        holder.innerHTML = row.actions;
+        document.body.appendChild(holder);
+        const del = holder.querySelector(".automation-delete");
+        check("the delete control carries the name unescaped once read back",
+              del.dataset.name === name, JSON.stringify(del.dataset.name));
+        check("no character reference leaks into the name",
+              !del.dataset.name.includes("&#") && !del.dataset.name.includes("&amp;"),
+              JSON.stringify(del.dataset.name));
+        check("the markup itself is escaped, so the name cannot inject elements",
+              holder.querySelector("b") === null, row.actions);
+        """)

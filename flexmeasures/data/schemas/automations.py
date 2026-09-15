@@ -158,8 +158,8 @@ class AutomationSchema(ma.SQLAlchemySchema):
     def dump_next_run(self, automation: Automation) -> str | None:
         """Render the next run as a clock time in the automation's own timezone.
 
-        A recurrence is written in that timezone, so reading its next run back in UTC
-        asks whoever reads it to undo the conversion themselves.
+        A recurrence is written in that timezone,
+        so reading its next run back in UTC asks whoever reads it to undo the conversion themselves.
         """
         next_run = automation.next_run
         if next_run is None:
