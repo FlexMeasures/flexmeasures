@@ -131,6 +131,10 @@ Currently, this supports only a daily resolution (which fits the date picker on 
 So you will need a sensor with daily resolution (probably generated with FlexMeasures' reporting tooling).
 From this data, you can display summed totals, means, max or min values (the image above shows two KPIs with totals).
 
+The function is applied to one value per event.
+Where several data sources reported the same event, the value is the one from the latest source version, and from the most recent belief within that, rather than each source's value in turn.
+The chart beside the KPI still draws every source, so it can show more points than the KPI counted.
+
 We aim to support a graphical tool to edit these KPIs in the future.
 For now, you can set them by editing the asset's `kpi_sensors_to_show` field in the properties page, which will validate that the format is correct and tell you what to change. Read more about the format below.
 
@@ -204,6 +208,11 @@ Status page
 For each asset, you can also visit a status page to see if your data connectivity and recent jobs are okay.
 
 For data connectivity, all sensors on the asset's graph page and from its flex context are tracked.
+Those can sit on a sub-asset or on another asset entirely, so the *Asset* column names the asset each sensor belongs to.
+
+For jobs, those of the asset's sub-assets are listed as well, so that a site asset shows what happened anywhere below it, even when jobs are triggered on a child asset.
+Here too, an *Asset* column names the asset each job happened on, which is what tells the levels apart.
+Switch off "Include jobs of sub-assets" to list only the jobs of the asset itself, and we will remember that for the rest of your session.
 
 Below is a fictious example, where the toy battery (from our tutorial) has schedules discharging data, but also some added by a user, and wind production data is part of the battery's flex context. There have been three succesful scheduling jobs.
 

@@ -5,9 +5,17 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-35 | September 8, 2026
+v3.0-37 | September 15, 2026
+""""""""""""""""""""""""""""
+- Added ``POST /api/v3_0/assets/<id>/automations``, ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` and ``DELETE /api/v3_0/assets/<id>/automations/<automation_id>`` for managing an asset's automations. They require the same permission as writing data under the asset, and an automation may only involve sensors that its creator can access: read access to the sensors it reads data from, and permission to record data on the sensors it writes to (a ``403`` otherwise). Both the creation and the update accept a ``timezone``, in which the automation's cron expression is interpreted; it defaults to the asset's own timezone, taken from the asset's timezone attribute or one of its sensors, and to the server's ``FLEXMEASURES_TIMEZONE`` if the asset has neither. The automation endpoints also report a ``next_run``: the next scheduled run, null while the automation is inactive, and excluding any catch-up run still pending. Both ``next_run`` and ``cursor`` are now reported as clock times in the automation's own timezone, where ``cursor`` was previously reported in UTC, since a recurrence is read in that timezone.
+
+v3.0-36 | September 14, 2026
+""""""""""""""""""""""""""""
+- ``GET /api/v3_0/assets`` now scopes a listing the way its parameters say. ``num-records`` respects the ``root`` and ``depth`` constraints, so a listing scoped to an asset subtree reports how many assets that subtree holds, where it used to count every asset in the account and asset-type scope, making a paginated client report the rest as having been filtered out by the search term. And an explicit ``include_public=false`` is now honoured: leaving the parameter out keeps the behaviour it had, where ``all_accessible`` and ``root`` include public assets and a listing of a single account does not, but passing it no longer loses out to those two, so a client can offer the choice.
+
+v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
-- Added ``POST /api/v3_0/assets/<id>/automations``, ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` and ``DELETE /api/v3_0/assets/<id>/automations/<automation_id>`` for managing an asset's automations. They require the same permission as writing data under the asset, and an automation may only involve sensors that its creator can access: read access to the sensors it reads data from, and permission to record data on the sensors it writes to (a ``403`` otherwise). Both the creation and the update accept a ``timezone``, in which the automation's cron expression is interpreted; it defaults to the server's ``FLEXMEASURES_TIMEZONE``.
+- The ``resolution`` field is now rejected with a ``422 (Unprocessable Entity)`` response unless it spans a positive amount of time. This applies wherever the API accepts one: as a query parameter on ``GET /api/v3_0/sensors/<id>/data`` and on the ``chart_data`` endpoints under ``api/dev``, and in the request body of the ``POST`` schedule trigger endpoints. Previously, a zero resolution (such as ``PT0S``) either crashed the request with a ``500`` or was silently ignored, and a negative resolution returned an empty set of values.
 
 v3.0-34 | September 2, 2026
 """""""""""""""""""""""""""

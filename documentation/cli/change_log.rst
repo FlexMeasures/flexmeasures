@@ -10,6 +10,10 @@ since v1.1.0 | September XX, 2026
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
 * Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
 * Add ``flexmeasures add report --as-job`` and the ``reporting`` worker queue for asynchronous one-off reports.
+
+since v1.0.1 | September 9, 2026
+=================================
+
 * ``flexmeasures jobs run-job`` now performs the job exactly once (it used to perform it a second time, outside the job timeout, repeating any side effects), on the queue the job belongs to, so that the queue's own exception handler records why a job failed and the job's registries are updated on that queue.
 
 since v1.0.0 | August 11, 2026
