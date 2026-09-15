@@ -3400,9 +3400,6 @@
           "204": {
             "description": "DELETED"
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -3422,7 +3419,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3458,23 +3455,24 @@
                     "summary": "Automation details",
                     "value": {
                       "id": 1,
-                      "created_at": "2026-07-11T00:00:00+00:00",
-                      "asset_id": 1,
+                      "created-at": "2026-07-11T00:00:00+00:00",
+                      "asset": 1,
                       "type": "forecasting",
                       "name": "Day-ahead PV forecasts",
-                      "cronstr": "0 6 * * *",
+                      "cron": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
-                      "cursor": "2026-07-11T04:00:00+00:00",
-                      "recurrence_description": "At 06:00",
+                      "cursor": "2026-07-11T06:00:00+02:00",
+                      "next-run": "2026-07-12T06:00:00+02:00",
+                      "recurrence-description": "At 06:00",
                       "active": true,
                       "parameters": {
                         "sensor": 2092
                       },
-                      "generator": {
+                      "source": {
                         "id": 6,
                         "description": "forecaster 'TrainPredictPipeline' (v1)"
                       },
-                      "input_sensors": [
+                      "input-sensors": [
                         {
                           "id": 2092,
                           "name": "power"
@@ -3484,7 +3482,7 @@
                           "name": "irradiance"
                         }
                       ],
-                      "output_sensors": [
+                      "output-sensors": [
                         {
                           "id": 2092,
                           "name": "power"
@@ -3500,9 +3498,6 @@
                 }
               }
             }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -3525,8 +3520,8 @@
         ]
       },
       "patch": {
-        "summary": "Update an automation's name, cron string or activation status.",
-        "description": "Any subset of the fields `name`, `cronstr` and `active` can be sent.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "summary": "Update an automation's name, cron string, timezone or activation status.",
+        "description": "Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3573,9 +3568,6 @@
           "200": {
             "description": "PROCESSED"
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -3600,7 +3592,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3629,14 +3621,15 @@
                       "automations": [
                         {
                           "id": 1,
-                          "created_at": "2026-07-11T00:00:00+00:00",
-                          "asset_id": 1,
+                          "created-at": "2026-07-11T00:00:00+00:00",
+                          "asset": 1,
                           "type": "forecasting",
                           "name": "Day-ahead PV forecasts",
-                          "cronstr": "0 6 * * *",
+                          "cron": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
-                          "cursor": "2026-07-11T04:00:00+00:00",
-                          "recurrence_description": "At 06:00",
+                          "cursor": "2026-07-11T06:00:00+02:00",
+                          "next-run": "2026-07-12T06:00:00+02:00",
+                          "recurrence-description": "At 06:00",
                           "active": true
                         }
                       ]
@@ -3645,9 +3638,6 @@
                 }
               }
             }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -3668,7 +3658,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasts`, or a schedule trigger message\n(without the asset id) for type `schedules`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from, and permission to record data\non the sensors it writes to.\n",
+        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\nor a schedule trigger message (without the asset id) for type `scheduling`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3694,9 +3684,10 @@
               "examples": {
                 "daily_forecasts": {
                   "summary": "Daily forecasts of sensor 2092",
+                  "description": "Runs every day at 06:00, read as minute-then-hour, in the automation's own timezone.",
                   "value": {
                     "name": "Day-ahead PV forecasts",
-                    "cronstr": "0 6 * * *",
+                    "cron": "0 6 * * *",
                     "type": "forecasting",
                     "parameters": {
                       "sensor": 2092
@@ -3710,9 +3701,6 @@
         "responses": {
           "201": {
             "description": "CREATED"
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -4292,7 +4280,7 @@
     "/api/v3_0/assets": {
       "get": {
         "summary": "List assets accessible by the user.",
-        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter decides whether public assets are included in the response. It defaults to `true` when `all_accessible` or `root` is used, and to `false` otherwise, so pass `false` explicitly to leave public assets out of a listing across accounts.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4410,10 +4398,13 @@
           {
             "in": "query",
             "name": "include_public",
-            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "description": "Whether to include public assets. Leave out to let `all_accessible` and `root` decide: those include public assets, while a listing of a single account does not. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "schema": {
-              "type": "boolean",
-              "default": false,
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null,
               "example": false
             },
             "required": false
@@ -4734,7 +4725,7 @@
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "n_jobs": 2,
+                      "n-jobs": 2,
                       "message": "Request has been accepted for processing."
                     }
                   }
@@ -6488,9 +6479,12 @@
             "example": false
           },
           "include_public": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Whether to include public assets. Leave out to let `all_accessible` and `root` decide: those include public assets, while a listing of a single account does not. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "example": false
           },
           "asset_type": {
@@ -6746,7 +6740,7 @@
             "minLength": 1,
             "maxLength": 80
           },
-          "cronstr": {
+          "cron": {
             "type": "string"
           },
           "timezone": {
@@ -6755,7 +6749,7 @@
               "null"
             ],
             "default": null,
-            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the server's FLEXMEASURES_TIMEZONE.",
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors, and to the server's FLEXMEASURES_TIMEZONE if the asset has neither.",
             "example": "Europe/Amsterdam"
           },
           "active": {
@@ -6766,22 +6760,24 @@
             "type": "object",
             "additionalProperties": {}
           },
-          "generator": {
+          "data-generator": {
             "type": [
               "string",
               "null"
             ],
             "default": null,
-            "description": "Data generator class, e.g. a forecaster (defaults to TrainPredictPipeline) or a reporter (required for type 'reporting', e.g. PandasReporter). Not used for type 'scheduling'."
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter), and a schedule automation's generator follows from the asset and the flex config.",
+            "example": "TrainPredictPipeline"
           },
           "config": {
             "type": "object",
-            "description": "Data generator configuration (only used for types 'forecasting' and 'reporting').",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by a forecast or report automation.",
+            "example": {},
             "additionalProperties": {}
           }
         },
         "required": [
-          "cronstr",
+          "cron",
           "name"
         ],
         "additionalProperties": false
@@ -6794,7 +6790,7 @@
             "minLength": 1,
             "maxLength": 80
           },
-          "cronstr": {
+          "cron": {
             "type": "string"
           },
           "timezone": {

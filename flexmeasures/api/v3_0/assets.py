@@ -502,7 +502,7 @@ class AssetAPI(FlaskView):
         self,
         fields_in_response: list[str] | None,
         all_accessible: bool,
-        include_public: bool,
+        include_public: bool | None,
         asset_type: GenericAssetType | None = None,
         account: Account | None = None,
         root_asset: GenericAsset | None = None,
@@ -523,7 +523,7 @@ class AssetAPI(FlaskView):
 
               - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
-              - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `include_public` query parameter decides whether public assets are included in the response. It defaults to `true` when `all_accessible` or `root` is used, and to `false` otherwise, so pass `false` explicitly to leave public assets out of a listing across accounts.
               - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
@@ -585,15 +585,19 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
+        # Per default, public assets come along when listing across accounts or under a root asset, and stay out otherwise.
+        # An explicit `include_public` overrules that, which is how a client offers the choice as a checkbox.
+        if include_public is None:
+            include_public = account is None and (
+                all_accessible or root_asset is not None
+            )
+
         # Find out which accounts are relevant
         if account is not None:
             check_access(account, "read")
             account_ids = [account.id]
         else:
             use_all_accounts = all_accessible or (root_asset is not None)
-            include_public = (
-                all_accessible or include_public or (root_asset is not None)
-            )
             if use_all_accounts:
                 account_ids = [a.id for a in get_accessible_accounts()]
             else:
@@ -638,9 +642,16 @@ class AssetAPI(FlaskView):
             select_pagination: SelectPagination = db.paginate(
                 query, per_page=per_page, page=page
             )
-            num_records = db.session.scalar(
-                select(func.count(GenericAsset.id)).filter(filter_statement)
+            # `num-records` reports the size of the scope the search filter was applied to,
+            # so it must respect the same subtree constraint as the paginated query itself.
+            num_records_query = select(func.count(GenericAsset.id)).filter(
+                filter_statement
             )
+            if root_asset is not None or max_depth is not None:
+                num_records_query = filter_assets_under_root(
+                    query=num_records_query, root_asset=root_asset, max_depth=max_depth
+                )
+            num_records = db.session.scalar(num_records_query)
             response = {
                 "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
@@ -1460,7 +1471,9 @@ class AssetAPI(FlaskView):
             The response will be a list of automations: recurring forecasting or scheduling tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
-            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.
+            and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
+            and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
+            The next run excludes pending catch-up work.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1481,17 +1494,16 @@ class AssetAPI(FlaskView):
                       value:
                         automations:
                           - id: 1
-                            created_at: "2026-07-11T00:00:00+00:00"
-                            asset_id: 1
+                            created-at: "2026-07-11T00:00:00+00:00"
+                            asset: 1
                             type: forecasting
                             name: Day-ahead PV forecasts
-                            cronstr: "0 6 * * *"
+                            cron: "0 6 * * *"
                             timezone: Europe/Amsterdam
-                            cursor: "2026-07-11T04:00:00+00:00"
-                            recurrence_description: "At 06:00"
+                            cursor: "2026-07-11T06:00:00+02:00"
+                            next-run: "2026-07-12T06:00:00+02:00"
+                            recurrence-description: "At 06:00"
                             active: true
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1504,7 +1516,7 @@ class AssetAPI(FlaskView):
         automations_data = []
         for automation in asset.automations:
             automation_data = automation_schema.dump(automation)
-            automation_data["recurrence_description"] = describe_cronstr(
+            automation_data["recurrence-description"] = describe_cronstr(
                 automation.cronstr
             )
             automations_data.append(automation_data)
@@ -1530,11 +1542,11 @@ class AssetAPI(FlaskView):
           description: |
             In addition to the fields shown when listing automations, the response shows
             the automation's parameters (forecast parameters or a schedule trigger message),
-            information about its data generator (null for schedule automations),
+            the data source it records under, as its `source` (null for schedule automations),
             the sensors it reads from and writes to,
             and counts of recently created jobs, per job status.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
-            The cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.
+            The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
             - ApiKeyAuth: []
@@ -1561,34 +1573,33 @@ class AssetAPI(FlaskView):
                       summary: Automation details
                       value:
                         id: 1
-                        created_at: "2026-07-11T00:00:00+00:00"
-                        asset_id: 1
+                        created-at: "2026-07-11T00:00:00+00:00"
+                        asset: 1
                         type: forecasting
                         name: Day-ahead PV forecasts
-                        cronstr: "0 6 * * *"
+                        cron: "0 6 * * *"
                         timezone: Europe/Amsterdam
-                        cursor: "2026-07-11T04:00:00+00:00"
-                        recurrence_description: "At 06:00"
+                        cursor: "2026-07-11T06:00:00+02:00"
+                        next-run: "2026-07-12T06:00:00+02:00"
+                        recurrence-description: "At 06:00"
                         active: true
                         parameters:
                           sensor: 2092
-                        generator:
+                        source:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
-                        input_sensors:
+                        input-sensors:
                           - id: 2092
                             name: power
                           - id: 2093
                             name: irradiance
-                        output_sensors:
+                        output-sensors:
                           - id: 2092
                             name: power
                         job_stats:
                           finished: 3
                           failed: 1
                         redis_connection_err: null
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1606,9 +1617,9 @@ class AssetAPI(FlaskView):
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
         automation_data = automation_schema.dump(automation)
-        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["recurrence-description"] = describe_cronstr(automation.cronstr)
         automation_data["parameters"] = automation.parameters
-        automation_data["generator"] = (
+        automation_data["source"] = (
             {
                 "id": automation.generator.id,
                 "description": automation.generator.description,
@@ -1631,7 +1642,7 @@ class AssetAPI(FlaskView):
             }:
                 check_access(sensor, "read")
         for key in ("input_sensors", "output_sensors"):
-            automation_data[key] = [
+            automation_data[key.replace("_", "-")] = [
                 {"id": sensor.id, "name": sensor.name}
                 for sensor in automation_sensors[key]
             ]
@@ -1649,12 +1660,13 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
-    # Managing an automation is gated like running one: an automation exists to write data
-    # under the asset, so the same principals that may add data there may define it.
+    @use_args(AutomationCreationSchema(), location="json")
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
-    def post_automation(self, id: int, asset: GenericAsset):
+    def post_automation(self, automation_data: dict, id: int, asset: GenericAsset):
         """
         .. :quickref: Assets; Create an automation on an asset.
 
@@ -1664,13 +1676,13 @@ class AssetAPI(FlaskView):
           description: |
             Create a recurring task (computing forecasts or schedules) on the asset.
             The parameters are validated by the schema matching the automation type:
-            forecast parameters for type `forecasts`, or a schedule trigger message
-            (without the asset id) for type `schedules`.
+            forecast parameters for type `forecasting`,
+            or a schedule trigger message (without the asset id) for type `scheduling`.
             Requires permission to add data under the asset.
 
             The automation can only involve sensors that you have access to yourself:
-            read access to the sensors it reads data from, and permission to record data
-            on the sensors it writes to.
+            read access to the sensors it reads data from,
+            and permission to record data on the sensors it writes to.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1687,17 +1699,18 @@ class AssetAPI(FlaskView):
                 examples:
                   daily_forecasts:
                     summary: Daily forecasts of sensor 2092
+                    description: >-
+                      Runs every day at 06:00, read as minute-then-hour,
+                      in the automation's own timezone.
                     value:
                       name: Day-ahead PV forecasts
-                      cronstr: "0 6 * * *"
+                      cron: "0 6 * * *"
                       type: forecasting
                       parameters:
                         sensor: 2092
           responses:
             201:
               description: CREATED
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1707,34 +1720,19 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        body = request.get_json(silent=True)
-        if not body:
-            return unprocessable_entity("No JSON data provided.")
-        try:
-            automation_data = AutomationCreationSchema().load(body)
-        except ValidationError as e:
-            return unprocessable_entity(e.messages)
         try:
             automation, warnings = create_automation(
-                asset=asset,
-                name=automation_data["name"],
-                cronstr=automation_data["cronstr"],
-                timezone=automation_data["timezone"],
-                automation_type=automation_data["type"],
-                active=automation_data["active"],
-                parameters=automation_data["parameters"],
-                generator_class=automation_data["generator"],
-                config=automation_data["config"],
-                origin="API",
-                check_permissions=True,
+                asset, origin="API", check_permissions=True, **automation_data
             )
         except ValidationError as e:
             return unprocessable_entity({"parameters": e.messages})
+        except AutomationSensorsUnknown as e:
+            return unprocessable_entity(str(e))
         except ValueError as e:
             return unprocessable_entity(str(e))
         db.session.commit()
         response = automation_schema.dump(automation)
-        response["recurrence_description"] = describe_cronstr(automation.cronstr)
+        response["recurrence-description"] = describe_cronstr(automation.cronstr)
         response["warnings"] = warnings
         return response, 201
 
@@ -1746,20 +1744,25 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing an automation is gated like running one: an automation exists to write data
-    # under the asset, so the same principals that may add data there may define it.
+    @use_args(AutomationUpdateSchema(), location="json")
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
-    def patch_automation(self, id: int, automation_id: int, asset: GenericAsset):
+    def patch_automation(
+        self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
+    ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string or activation status.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
 
         ---
         patch:
-          summary: Update an automation's name, cron string or activation status.
+          summary: Update an automation's name, cron string, timezone or activation status.
           description: |
-            Any subset of the fields `name`, `cronstr` and `active` can be sent.
+            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
+            so runs from before it are not caught up on, while a run due in that very minute still is.
             Other automation fields cannot be updated; instead, create a new automation.
             Requires permission to add data under the asset.
           security:
@@ -1789,8 +1792,6 @@ class AssetAPI(FlaskView):
           responses:
             200:
               description: PROCESSED
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1807,17 +1808,10 @@ class AssetAPI(FlaskView):
             return {
                 "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
-        body = request.get_json(silent=True)
-        if not body:
-            return unprocessable_entity("No JSON data provided.")
-        try:
-            automation_data = AutomationUpdateSchema().load(body)
-        except ValidationError as e:
-            return unprocessable_entity(e.messages)
         update_automation(automation, origin="API", **automation_data)
         db.session.commit()
         response = automation_schema.dump(automation)
-        response["recurrence_description"] = describe_cronstr(automation.cronstr)
+        response["recurrence-description"] = describe_cronstr(automation.cronstr)
         return response, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["DELETE"])
@@ -1828,8 +1822,8 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    # Managing an automation is gated like running one: an automation exists to write data
-    # under the asset, so the same principals that may add data there may define it.
+    # Managing an automation is gated like running one:
+    # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
@@ -1861,8 +1855,6 @@ class AssetAPI(FlaskView):
           responses:
             204:
               description: DELETED
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1944,7 +1936,7 @@ class AssetAPI(FlaskView):
                         status: ACCEPTED
                         job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                        n_jobs: 2
+                        n-jobs: 2
                         message: "Request has been accepted for processing."
             401:
               description: UNAUTHORIZED
@@ -1986,7 +1978,7 @@ class AssetAPI(FlaskView):
         )
         db.session.commit()
         response, status_code = request_accepted_for_processing(job_id)
-        response["n_jobs"] = returns.get("n_jobs")
+        response["n-jobs"] = returns.get("n_jobs")
         return response, status_code
 
     @route("/<id>/jobs", methods=["GET"])

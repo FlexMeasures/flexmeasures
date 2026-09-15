@@ -100,11 +100,16 @@ For example, this automation queues a reporting job every night, reporting on th
 Running automations
 --------------------
 
-An automation is due whenever its cron string matches the current minute in its configured timezone. To actually run due automations, let a cron job execute the following command once per minute:
+An automation is due whenever its cron string matches the current minute in its timezone,
+so the dispatcher has to be invoked once per minute.
+The provided Docker Compose stack does this with its ``automation-runner`` service, which starts after the web server is ready.
+If you host FlexMeasures without that service, set up a cron job instead:
 
 .. code-block:: bash
 
     * * * * * flexmeasures jobs run-automations
+
+Use one dispatcher for a deployment; the Docker Compose service already runs the command, so it does not need a host cron job as well.
 
 Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
@@ -138,6 +143,7 @@ Viewing automations
 -------------------
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
+The page shows the next scheduled run for each automation (excluding any pending catch-up run).
 An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
 Conversely, a sensor's page lists the automations that write data to it.
 
@@ -159,8 +165,8 @@ Appendix: how the runner decides what is due
 This section describes the bookkeeping behind the catch-up behaviour above.
 You do not need it to use automations.
 
-The runner is a stateless command, executed once a minute by cron, so it needs a durable record of how far each automation has got.
-That record is one UTC timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
+The runner is a stateless command, executed once a minute by Docker Compose or cron, so it needs a durable record of how far each automation has gotten.
+That record is one timestamp per automation, its *cursor*: the scheduled time of the most recent run the automation has committed to.
 Runs at or before the cursor are never queued again.
 Before queueing any jobs, the runner advances the cursor to the run it is about to queue, and saves it.
 The cursor therefore records that a run was claimed, not that queueing or the task itself succeeded.

@@ -53,6 +53,7 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
     create_automation,
     RecurringScheduleFixesAMoment,
 )
@@ -75,10 +76,7 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.models.automations import (
-    Automation,
-    get_default_automation_timezone,
-)
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -1482,7 +1480,10 @@ def _assemble_forecaster_config_and_parameters(
         # that were left out still show up in the config, with their schema defaults.
         conflicting_options = _find_options_given_on_command_line(
             {
+                # `add forecasts` and `add automation` name this parameter differently,
+                # and a parameter the running command does not have is simply not reported.
                 "forecaster_class": "--forecaster",
+                "generator_class": "--data-generator",
                 "config_file": "--config",
                 "edit_config": "--edit-config",
             },
@@ -1749,10 +1750,12 @@ def add_forecast(  # noqa: C901
 @click.option(
     "--timezone",
     "timezone",
-    default=get_default_automation_timezone,
-    show_default="FLEXMEASURES_TIMEZONE",
+    default=None,
+    show_default="the asset's timezone, else FLEXMEASURES_TIMEZONE",
     type=TimezoneField(),
-    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam". Defaults to FLEXMEASURES_TIMEZONE.',
+    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam".'
+    " Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors,"
+    " and to FLEXMEASURES_TIMEZONE if the asset has neither.",
 )
 @click.option(
     "--type",
@@ -1769,21 +1772,17 @@ def add_forecast(  # noqa: C901
     help="Add this flag to create the automation in deactivated state.",
 )
 @click.option(
+    "--data-generator",
     "--forecaster",
-    "forecaster_class",
+    "--scheduler",
+    "--reporter",
+    "generator_class",
     default=None,
     type=click.STRING,
-    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
-    " Defaults to TrainPredictPipeline. Use the command `flexmeasures show forecasters` to list all the available forecasters."
-    " Cannot be combined with --source, which already determines the forecaster.",
-)
-@click.option(
-    "--reporter",
-    "reporter_class",
-    required=False,
-    type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin (only used for --type reporting)."
-    " Use the command `flexmeasures show reporters` to list all the available reporters.",
+    help="Class of the data generator that computes this automation's results, registered in FlexMeasures or in an available plugin."
+    " Name it by what it is, if you prefer: --forecaster, --scheduler and --reporter all set the same thing."
+    " Defaults to TrainPredictPipeline for a forecast automation. Use `flexmeasures show forecasters` to list the available forecasters."
+    " Cannot be combined with --source, which already determines the data generator.",
 )
 @click.option(
     "--source",
@@ -1823,8 +1822,7 @@ def add_automation(
     timezone: str,
     automation_type: str,
     inactive: bool = False,
-    forecaster_class: str | None = None,
-    reporter_class: str | None = None,
+    generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
@@ -1865,8 +1863,10 @@ def add_automation(
     A configuration option given on the command line overrides the same setting from --config,
     while a parameter from --parameters takes precedence over the matching command-line option.
     """
-    if forecaster_class is None:
-        forecaster_class = "TrainPredictPipeline"
+    # Only a forecast automation has a default generator: a report automation has to name its
+    # reporter, and the service says so, while a schedule automation resolves its own.
+    if generator_class is None and automation_type == "forecasting":
+        generator_class = "TrainPredictPipeline"
 
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
@@ -1887,7 +1887,7 @@ def add_automation(
         # configuration options that were left out still show up here, with their defaults.
         forecast_options = _find_options_given_on_command_line(
             {
-                "forecaster_class": "--forecaster",
+                "generator_class": "--data-generator",
                 "source": "--source",
                 "config_file": "--config",
                 "edit_config": "--edit-config",
@@ -1910,9 +1910,7 @@ def add_automation(
             automation_type=automation_type,
             active=not inactive,
             parameters=parameters,
-            generator_class=(
-                reporter_class if automation_type == "reporting" else forecaster_class
-            ),
+            generator_class=generator_class,
             config=config,
             source=source,
             origin="CLI",
@@ -1926,6 +1924,9 @@ def add_automation(
     except RecurringScheduleFixesAMoment as e:
         # A usage error: the automation cannot be defined this way, whatever the data says.
         raise click.UsageError(str(e))
+    except AutomationSensorsUnknown as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
     except ValueError as e:
         click.secho(str(e), **MsgStyle.ERROR)
         raise click.Abort()

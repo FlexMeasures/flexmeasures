@@ -82,8 +82,13 @@ def test_get_automations(
     add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
+    mocker,
 ):
     battery = add_battery_assets_fresh_db["Test battery"]
+    mocker.patch(
+        "flexmeasures.data.models.automations.server_now",
+        return_value=datetime(2026, 7, 11, 3, 30, tzinfo=timezone.utc),
+    )
     with app.test_client() as client:
         response = client.get(
             url_for("AssetAPI:get_automations", id=battery.id),
@@ -93,15 +98,18 @@ def test_get_automations(
     assert len(automations) == 2
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
     assert day_ahead["type"] == "forecasting"
-    assert day_ahead["cronstr"] == "0 6 * * *"
+    assert day_ahead["cron"] == "0 6 * * *"
     assert day_ahead["timezone"] == "Europe/Amsterdam"
-    assert day_ahead["cursor"] == "2026-07-11T04:00:00+00:00"
-    assert day_ahead["recurrence_description"] == "At 06:00"
+    assert day_ahead["cursor"] == "2026-07-11T06:00:00+02:00"
+    assert day_ahead["next-run"] == "2026-07-11T06:00:00+02:00"
+    assert day_ahead["recurrence-description"] == "At 06:00"
     assert day_ahead["active"] is True
-    assert day_ahead["created_at"] is not None
+    assert day_ahead["created-at"] is not None
+    intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
+    assert intraday["next-run"] is None
     # generator and parameters are not listed
     assert "generator_id" not in day_ahead
-    assert "generator" not in day_ahead
+    assert "source" not in day_ahead
     assert "parameters" not in day_ahead
 
 
@@ -113,9 +121,14 @@ def test_get_automation_details(
     add_battery_assets_fresh_db,
     add_automations,
     requesting_user,
+    mocker,
 ):
     battery = add_battery_assets_fresh_db["Test battery"]
     automation = add_automations[0]
+    mocker.patch(
+        "flexmeasures.data.models.automations.server_now",
+        return_value=datetime(2026, 7, 11, 3, 30, tzinfo=timezone.utc),
+    )
     with app.test_client() as client:
         response = client.get(
             url_for(
@@ -127,13 +140,14 @@ def test_get_automation_details(
     assert response.status_code == 200
     assert response.json["name"] == "Day-ahead forecasts"
     assert response.json["timezone"] == "Europe/Amsterdam"
-    assert response.json["cursor"] == "2026-07-11T04:00:00+00:00"
+    assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
+    assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
     assert response.json["job_stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
     sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
-    assert response.json["input_sensors"] == [sensor]
-    assert response.json["output_sensors"] == [sensor]
+    assert response.json["input-sensors"] == [sensor]
+    assert response.json["output-sensors"] == [sensor]
 
 
 @pytest.mark.parametrize(
@@ -199,7 +213,7 @@ def test_post_automation(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Posted schedules",
-                "cronstr": "0 0 * * *",
+                "cron": "0 0 * * *",
                 "type": "scheduling",
                 "parameters": {"duration": "PT12H"},
             },
@@ -208,7 +222,7 @@ def test_post_automation(
     if expected_status_code == 201:
         assert response.json["name"] == "Posted schedules"
         assert response.json["active"] is True
-        assert response.json["recurrence_description"] == "At 00:00"
+        assert response.json["recurrence-description"] == "At 00:00"
         automation = fresh_db.session.get(Automation, response.json["id"])
         assert automation.parameters == {"duration": "PT12H"}
         # clean up for other tests in this module
@@ -251,7 +265,7 @@ def test_post_automation_with_foreign_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Sneaky forecasts",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": foreign_sensor.id},
             },
@@ -304,9 +318,9 @@ def test_post_report_automation_with_foreign_config_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Cross-organisation profit report",
-                "cronstr": "0 1 * * *",
+                "cron": "0 1 * * *",
                 "type": "reporting",
-                "generator": "ProfitOrLossReporter",
+                "data-generator": "ProfitOrLossReporter",
                 "config": {
                     "consumption_price_sensor": foreign_price_sensor.id,
                 },
@@ -354,9 +368,9 @@ def test_post_report_automation_rejects_output_outside_asset_subtree(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Misplaced report output",
-                "cronstr": "0 1 * * *",
+                "cron": "0 1 * * *",
                 "type": "reporting",
-                "generator": "PandasReporter",
+                "data-generator": "PandasReporter",
                 "config": {
                     "required_input": [{"name": "flow"}],
                     "required_output": [{"name": "copied_flow"}],
@@ -394,7 +408,7 @@ def test_post_automation_with_invalid_parameters(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Bad forecasts",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {},  # missing required sensor
             },
@@ -419,7 +433,7 @@ def test_post_and_patch_automation_timezone(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Seoul forecasts",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "timezone": "Asia/Seoul",
                 "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
@@ -486,7 +500,7 @@ def test_post_automation_with_inaccessible_source_filtered_regressor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Forecasts regressing on another account's sensor",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": battery.sensors[0].id},
                 "config": {
@@ -545,7 +559,7 @@ def test_post_automation_with_inaccessible_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Forecasts of another account's sensor",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": someone_elses_sensor.id},
             },
@@ -567,7 +581,7 @@ def test_post_automation_with_inaccessible_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Forecasts of their own sensor",
-                "cronstr": "0 6 * * *",
+                "cron": "0 6 * * *",
                 "type": "forecasting",
                 "parameters": {"sensor": own_sensor.id},
             },
@@ -590,8 +604,8 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
 ):
     """Sensors that a schedule would be recorded on are checked, wherever they are named.
 
-    The aggregate power schedule is recorded on the flex-context's aggregate-consumption
-    sensor, so that one needs to be writable, too — not just the flex-model's own sensors.
+    The aggregate power schedule is recorded on the flex-context's aggregate-consumption sensor,
+    so that one needs to be writable, too, not just the flex-model's own sensors.
     """
     battery = add_battery_assets_fresh_db["Test battery"]
     someone_elses_sensor = Sensor(
@@ -610,7 +624,7 @@ def test_post_schedule_automation_with_inaccessible_output_sensor(
             url_for("AssetAPI:post_automation", id=battery.id),
             json={
                 "name": "Schedules aggregated onto another account's sensor",
-                "cronstr": "0 0 * * *",
+                "cron": "0 0 * * *",
                 "type": "scheduling",
                 "parameters": {
                     "duration": "PT12H",
@@ -776,7 +790,7 @@ def test_trigger_automation(
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
     assert response.json["job"] == "364bfd06-c1fa-430b-8d25-8f5a547651fb"
-    assert response.json["n_jobs"] == 2
+    assert response.json["n-jobs"] == 2
     fresh_db.session.expire_all()
     assert automation.cursor == cursor_before
     assert automation.active is False
@@ -844,3 +858,75 @@ def test_trigger_unknown_automation(
         )
     assert response.status_code == 404
     run_automation.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_creating_an_automation_whose_sensors_are_unknown_is_the_callers_fault(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user, mocker
+):
+    """A scheduler that cannot work out its config answers 422, not 500.
+
+    `create_automation` raises `AutomationSensorsUnknown`, which is not a `ValueError`,
+    so it would otherwise leave the endpoint uncaught.
+    """
+    from flexmeasures.data.services.automations import AutomationSensorsUnknown
+
+    mocker.patch(
+        "flexmeasures.api.v3_0.assets.create_automation",
+        side_effect=AutomationSensorsUnknown("no sensors to be had"),
+    )
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Unknowable",
+                "cron": "0 6 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    assert "no sensors to be had" in str(response.json)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_a_forecast_automation_names_the_data_generator_it_runs(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user
+):
+    """The class a forecast automation runs is chosen by `data-generator`, and the response names the source it resolved to.
+
+    The request names a class; the response names the data source that class was set up as,
+    which is why the two are not the same field.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor = battery.sensors[0]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Named generator",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "data-generator": "TrainPredictPipeline",
+                "parameters": {"sensor": sensor.id},
+            },
+        )
+
+    assert response.status_code == 201, response.json
+    automation = fresh_db.session.get(Automation, response.json["id"])
+    assert automation.generator.model == "TrainPredictPipeline"
+
+    detail = client.get(
+        url_for("AssetAPI:get_automation", id=battery.id, automation_id=automation.id)
+    )
+    assert detail.status_code == 200, detail.json
+    assert detail.json["source"]["id"] == automation.generator_id
+
+    fresh_db.session.delete(automation)
+    fresh_db.session.flush()
