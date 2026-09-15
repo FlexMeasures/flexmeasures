@@ -3400,9 +3400,6 @@
           "204": {
             "description": "DELETED"
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -3417,8 +3414,7 @@
           }
         },
         "tags": [
-          "Assets",
-          "Automations"
+          "Assets"
         ]
       },
       "get": {
@@ -3503,9 +3499,6 @@
               }
             }
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -3523,8 +3516,7 @@
           }
         },
         "tags": [
-          "Assets",
-          "Automations"
+          "Assets"
         ]
       },
       "patch": {
@@ -3593,8 +3585,7 @@
           }
         },
         "tags": [
-          "Assets",
-          "Automations"
+          "Assets"
         ]
       }
     },
@@ -3648,9 +3639,6 @@
               }
             }
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
           "401": {
             "description": "UNAUTHORIZED"
           },
@@ -3665,8 +3653,7 @@
           }
         },
         "tags": [
-          "Assets",
-          "Automations"
+          "Assets"
         ]
       },
       "post": {
@@ -3729,8 +3716,7 @@
           }
         },
         "tags": [
-          "Assets",
-          "Automations"
+          "Assets"
         ]
       }
     },
@@ -4764,8 +4750,7 @@
           }
         },
         "tags": [
-          "Assets",
-          "Automations"
+          "Assets"
         ]
       }
     },

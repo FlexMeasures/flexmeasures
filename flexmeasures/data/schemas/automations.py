@@ -73,7 +73,9 @@ class AutomationCreationSchema(Schema):
     The parameters are validated separately, by the schema matching the automation type.
     """
 
-    type = fields.Str(
+    # The loaded names are the ones `create_automation` takes, so an endpoint can hand it the whole request.
+    automation_type = fields.Str(
+        data_key="type",
         load_default="forecasting",
         validate=validate.OneOf(Automation.SUPPORTED_TYPES),
     )
@@ -88,7 +90,8 @@ class AutomationCreationSchema(Schema):
     )
     active = fields.Bool(load_default=True)
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
-    forecaster = fields.Str(
+    generator_class = fields.Str(
+        data_key="forecaster",
         load_default="TrainPredictPipeline",
         metadata={
             "description": "Forecaster class (only used for type 'forecasting')."

@@ -1504,8 +1504,6 @@ class AssetAPI(FlaskView):
                             next_run: "2026-07-12T06:00:00+02:00"
                             recurrence_description: "At 06:00"
                             active: true
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1514,7 +1512,6 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
-            - Automations
         """
         automations_data = []
         for automation in asset.automations:
@@ -1603,8 +1600,6 @@ class AssetAPI(FlaskView):
                           finished: 3
                           failed: 1
                         redis_connection_err: null
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1615,7 +1610,6 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
-            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
@@ -1725,21 +1719,10 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
-            - Automations
         """
         try:
             automation, warnings = create_automation(
-                asset=asset,
-                name=automation_data["name"],
-                cronstr=automation_data["cronstr"],
-                timezone=automation_data["timezone"],
-                automation_type=automation_data["type"],
-                active=automation_data["active"],
-                parameters=automation_data["parameters"],
-                generator_class=automation_data["forecaster"],
-                config=automation_data["config"],
-                origin="API",
-                check_permissions=True,
+                asset, origin="API", check_permissions=True, **automation_data
             )
         except ValidationError as e:
             return unprocessable_entity({"parameters": e.messages})
@@ -1819,7 +1802,6 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
-            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
@@ -1873,8 +1855,6 @@ class AssetAPI(FlaskView):
           responses:
             204:
               description: DELETED
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
               description: UNAUTHORIZED
             403:
@@ -1883,7 +1863,6 @@ class AssetAPI(FlaskView):
               description: NOT_FOUND
           tags:
             - Assets
-            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
@@ -1969,7 +1948,6 @@ class AssetAPI(FlaskView):
               description: UNPROCESSABLE_ENTITY
           tags:
             - Assets
-            - Automations
         """
         automation = db.session.get(Automation, automation_id)
         if automation is None or automation.asset_id != asset.id:
