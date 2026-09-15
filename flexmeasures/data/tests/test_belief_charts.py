@@ -942,3 +942,83 @@ def test_validate_sensors_to_show_omits_y_axis_by_default(
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
     assert "y-axis" not in rows[0]
+
+
+# ---------------------------------------------------------------------------
+# Tests for the sensor page's chart data when a sensor holds a single data point
+#
+# The sensor page → fast chart fetches
+#   GET /api/dev/sensor/<id>/chart_data?compress_json=true
+# which calls sensor.search_beliefs(as_json=True, compress_json=True).
+# A bar is drawn one event resolution wide, so the chart needs that resolution
+# from the response — the spacing between data points does not reveal it when
+# there is only one point to show (issue #2454).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="function")
+def daily_sensor_with_one_data_point(app, fresh_db):
+    """Building asset with a daily energy-cost sensor holding a single data point.
+
+    This is the situation reported in issue #2454: a sensor with a one-day event resolution,
+    of which only one day has been recorded.
+    """
+    building_type = GenericAssetType(name="test_building_type_for_charts")
+    fresh_db.session.add(building_type)
+    fresh_db.session.flush()
+
+    building = GenericAsset(
+        name="Test Building (single data point)",
+        generic_asset_type=building_type,  # public asset, so no owner is needed
+    )
+    fresh_db.session.add(building)
+    fresh_db.session.flush()
+
+    sensor = Sensor(
+        name="daily-total-energy-costs",
+        unit="EUR",
+        event_resolution=timedelta(days=1),
+        timezone="Europe/Amsterdam",
+        generic_asset=building,
+    )
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+
+    data_source = DataSource(name="test script", type="demo script")
+    fresh_db.session.add(data_source)
+    fresh_db.session.flush()
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            event_start=datetime(2030, 1, 15, tzinfo=pytz.timezone("Europe/Amsterdam")),
+            event_value=122.4294,
+            belief_horizon=timedelta(0),
+            source=data_source,
+        )
+    )
+    fresh_db.session.flush()
+
+    return building, sensor
+
+
+def test_single_data_point_chart_data_carries_the_event_resolution(
+    daily_sensor_with_one_data_point,
+):
+    """One data point is served with the sensor's own resolution, which is what sizes its bar."""
+    _, sensor = daily_sensor_with_one_data_point
+
+    parsed = json.loads(
+        sensor.search_beliefs(
+            as_json=True,
+            compress_json=True,
+            event_starts_after=datetime(2030, 1, 14, tzinfo=pytz.utc),
+            event_ends_before=datetime(2030, 1, 17, tzinfo=pytz.utc),
+        )
+    )
+
+    assert len(parsed["data"]) == 1, "Expected the single recorded data point"
+    assert parsed["data"][0]["val"] == 122.4294
+    assert (
+        parsed["sensors"][str(sensor.id)]["event_resolution"] == 86400
+    ), "A day's resolution must reach the chart, which cannot infer it from a single point"
