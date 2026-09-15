@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
+{% set include_child_assets = session.get("automations_page_include_child_assets", True) %}
 
 {% block title %} {{ asset.name }} - Automations {% endblock %}
 
@@ -92,6 +93,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <a href="/assets/{{ asset.id }}/status">status page</a>.
           During daylight-saving-time changes, a run at a skipped local time happens once after the clock moves forward, and a run at a repeated local time happens only once.
         </p>
+
+        {% if asset.child_assets %}
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="includeChildAssets" {{ 'checked' if include_child_assets }}>
+          <label class="form-check-label" for="includeChildAssets">
+            Include automations of sub-assets
+            <span class="fa fa-info-circle" title="Automations are often defined on a sub-asset rather than on the asset you are looking at. Keep this on to see everything that runs below this asset, too."></span>
+          </label>
+        </div>
+        {% endif %}
 
         {% if user_can_manage_automations %}
         <div class="mb-2 text-end">
@@ -231,6 +242,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
   const automationsById = new Map();
+  let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
+  // Only an asset with something below it can widen its scope, so only then is the Asset column worth a place.
+  const assetHasChildren = {{ 'true' if asset.child_assets else 'false' }};
 
   // Escape user-controlled strings before interpolating them into HTML
   function esc(value) {
@@ -367,6 +381,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return {
       id: automation.id,
       name: esc(automation.name),
+      "asset-name": `<a href="/assets/${encodeURIComponent(automation.asset)}/automations">${esc(automation["asset-name"] || "")}</a>`,
       "created-at": createdAt(automation),
       active: sortable(
         automation.active ? 1 : 0,
@@ -404,9 +419,17 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     ).join(", ");
   }
 
+  /* An automation listed here may be defined on a sub-asset, and every per-automation endpoint
+     is addressed on the asset that owns it, which is also the asset whose permissions apply. */
+  function automationUrl(automationId, suffix = "") {
+    const automation = automationsById.get(Number(automationId));
+    const owningAssetId = automation ? automation.asset : assetId;
+    return `/api/v3_0/assets/${encodeURIComponent(owningAssetId)}/automations/${encodeURIComponent(automationId)}${suffix}`;
+  }
+
   function loadAutomationInfo(automationId) {
     $.ajax({
-      url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+      url: automationUrl(automationId),
       method: "GET",
       success: function (res) {
         // Show job stats in the table row
@@ -460,31 +483,79 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   }
 
   function makeAutomationsTable(automationType, automations) {
-    $(`#automationsTable-${automationType}`).DataTable({
+    const scope = includeChildAssets && assetHasChildren ? "on this asset or below it" : "on this asset";
+    const columns = [
+      { data: "name", title: "Name" },
+      ...(assetHasChildren && includeChildAssets ? [{ data: "asset-name", title: "Asset" }] : []),
+      { data: "created-at", title: "Created At", render: renderSortable },
+      { data: "active", title: "Active", render: renderSortable },
+      { data: "recurrence", title: "Recurrence", render: renderSortable },
+      { data: "timezone", title: "Schedule timezone" },
+      { data: "next-run", title: "Next run", render: renderSortable },
+      { data: "jobs", title: "Jobs", orderable: false },
+      { data: "info", title: "", className: "text-center align-middle", orderable: false },
+      ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "", className: "text-center align-middle", orderable: false }] : []),
+    ];
+    // The Asset column shifts the ones after it along, so order by where Created At actually sits.
+    const createdAtColumn = columns.findIndex(column => column.data === "created-at");
+    const table = $(`#automationsTable-${automationType}`);
+    // The set of columns depends on the scope, so a scope change rebuilds rather than redraws.
+    if ($.fn.dataTable.isDataTable(table)) {
+      table.DataTable().destroy();
+      table.empty();
+    }
+    table.DataTable({
       searching: false,
       paging: false,
       info: false,  // DataTables' own record count, not the Info column below.
       ordering: true,
-      order: [[1, "desc"]],  // most recently created first
+      order: [[createdAtColumn, "desc"]],  // most recently created first
       language: {
-        emptyTable: `No ${automationType} automations have been defined on this asset yet.`
+        emptyTable: `No ${automationType} automations have been defined ${scope} yet.`
           + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
       },
-      columns: [
-        { data: "name", title: "Name" },
-        { data: "created-at", title: "Created At", render: renderSortable },
-        { data: "active", title: "Active", render: renderSortable },
-        { data: "recurrence", title: "Recurrence", render: renderSortable },
-        { data: "timezone", title: "Schedule timezone" },
-        { data: "next-run", title: "Next run", render: renderSortable },
-        { data: "jobs", title: "Jobs", orderable: false },
-        { data: "info", title: "", className: "text-center align-middle", orderable: false },
-        ...(userCanManage || userCanRunAutomations ? [{ data: "actions", title: "", className: "text-center align-middle", orderable: false }] : []),
-      ],
+      columns: columns,
       data: automations.map(AutomationRow),
     });
     // Load more details per automation asynchronously
     automations.forEach(automation => loadAutomationInfo(automation.id));
+  }
+
+  function loadAutomations() {
+    $.ajax({
+      url: `/api/v3_0/assets/${assetId}/automations?include_child_assets=${includeChildAssets}`,
+      method: "GET",
+      success: function (res) {
+        automationsById.clear();
+        res.automations.forEach(automation => automationsById.set(automation.id, automation));
+        for (const automationType of ["forecasting", "scheduling"]) {
+          $(`#automationsTable-${automationType}`).show();
+          makeAutomationsTable(
+            automationType,
+            res.automations.filter(automation => automation.type === automationType),
+          );
+        }
+      },
+      error: function (xhr) {
+        for (const automationType of ["forecasting", "scheduling"]) {
+          makeAutomationsTable(automationType, []);
+          $(`#automationsTable-${automationType}`).hide();
+        }
+        showAutomationsError(
+          `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
+        );
+      },
+    });
+  }
+
+  function rememberIncludeChildAssets(include) {
+    fetch(`${window.location.origin}/api/v3_0/assets/automations_page_child_assets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ include_child_assets: include }),
+    }).catch((error) => {
+      console.error("Error remembering whether to include the automations of sub-assets:", error);
+    });
   }
 
   function apiError(xhr, fallbackMessage) {
@@ -506,27 +577,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         table.DataTable().columns.adjust();
       }
     });
-    $.ajax({
-      url: `/api/v3_0/assets/${assetId}/automations`,
-      method: "GET",
-      success: function (res) {
-        res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of ["forecasting", "scheduling"]) {
-          makeAutomationsTable(
-            automationType,
-            res.automations.filter(automation => automation.type === automationType),
-          );
-        }
-      },
-      error: function (xhr) {
-        for (const automationType of ["forecasting", "scheduling"]) {
-          makeAutomationsTable(automationType, []);
-          $(`#automationsTable-${automationType}`).hide();
-        }
-        showAutomationsError(
-          `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
-        );
-      },
+    loadAutomations();
+
+    // Widen or narrow what the page reports on, and keep that choice for the next visit.
+    $("#includeChildAssets").on("change", function () {
+      includeChildAssets = this.checked;
+      rememberIncludeChildAssets(includeChildAssets);
+      loadAutomations();
     });
 
     // Edit an automation's recurrence settings
@@ -549,7 +606,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       event.preventDefault();
       const automationId = $("#editAutomationId").val();
       $.ajax({
-        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        url: automationUrl(automationId),
         method: "PATCH",
         contentType: "application/json",
         data: JSON.stringify({
@@ -570,7 +627,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const automationId = $(this).data("id");
       const activate = !($(this).data("active") === true || $(this).data("active") === "true");
       $.ajax({
-        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        url: automationUrl(automationId),
         method: "PATCH",
         contentType: "application/json",
         data: JSON.stringify({ active: activate }),
@@ -585,7 +642,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const name = $(this).data("name");
       if (!confirm(`Delete automation '${name}'?`)) return;
       $.ajax({
-        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        url: automationUrl(automationId),
         method: "DELETE",
         success: () => location.reload(),
         error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
@@ -629,7 +686,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       const automationId = button.data("automation-id");
       button.prop("disabled", true).text("Queueing ...");
       $.ajax({
-        url: `/api/v3_0/assets/${assetId}/automations/${automationId}/trigger`,
+        url: automationUrl(automationId, "/trigger"),
         method: "POST",
         success: function (res) {
           $("#automations_err").addClass("d-none");
