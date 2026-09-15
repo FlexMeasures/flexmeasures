@@ -24,9 +24,10 @@
   .dataTables_wrapper, .dt-container, .table-responsive {
     overflow: visible;
   }
-  /* The theme paints every .dropdown-menu in the navigation colours, for the navbar's own menus, but
-     only re-colours the <a> links inside one. These items are buttons, so they would keep Bootstrap's
-     dark text on that dark menu. Give them the same light treatment the navbar's links get. */
+  /* The theme paints every .dropdown-menu in the navigation colours, for the navbar's own menus,
+     but only re-colours the <a> links inside one.
+     These items are buttons, so they would keep Bootstrap's dark text on that dark menu.
+     Give them the same light treatment the navbar's links get. */
   .automation-actions .dropdown-item {
     color: var(--nav-default-color);
     background-color: transparent;
@@ -50,11 +51,11 @@
   .automation-actions .dropdown-divider {
     border-top-color: rgba(255, 255, 255, .25);
   }
-  /* button.btn paints every button in the navigation colours, which the old <a class="btn"> Details
-     control never matched. Run now, Edit and the activation toggle keep that navy, so the row stays
-     calm across a long listing. Only the two controls worth spotting at a glance are handed back to
-     Bootstrap's own button variables: Details in the green it carried before it became a button, and
-     Delete in red, as the one action here that cannot be undone. */
+  /* button.btn paints every button in the navigation colours, which the old <a class="btn"> Details control never matched.
+     Run now, Edit and the activation toggle keep that navy, so the row stays calm across a long listing.
+     Only the two controls worth spotting at a glance are handed back to Bootstrap's own button variables:
+     Details in the green it carried before it became a button,
+     and Delete in red, as the one action here that cannot be undone. */
   .automation-details.btn {
     color: var(--bs-btn-color);
     background: var(--bs-btn-bg);
