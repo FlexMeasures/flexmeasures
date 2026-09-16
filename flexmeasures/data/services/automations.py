@@ -547,11 +547,10 @@ def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
 def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     """Find the automations that write data to the given sensor.
 
-    Only automations on the sensor's own asset or on one of its ancestors are
-    considered, as an automation may only write to its asset's subtree
-    (see `validate_automation_output_scope`). Working out the output sensors requires
-    setting up each candidate's data generator, so this keeps the work proportional
-    to the number of automations that could feed this sensor.
+    Only automations on the sensor's own asset or on one of its ancestors are considered,
+    as an automation may only write to its asset's subtree (see `validate_automation_output_scope`).
+    Working out the output sensors requires setting up each candidate's data generator,
+    so this keeps the work proportional to the number of automations that could feed this sensor.
 
     Note that this does not filter by permission: callers showing these to a user
     should check read access on each automation (e.g. with `user_can_read`).
@@ -658,8 +657,8 @@ def record_automation_run(automation_id: int, now: datetime | None = None) -> bo
                 pipeline.execute()
                 return True
             except WatchError:
-                # Another worker updated the coverage after our read. Re-read it
-                # and only advance from the new value.
+                # Another worker updated the coverage after our read.
+                # Re-read it, and only advance from the new value.
                 continue
 
 
@@ -690,13 +689,10 @@ def prepare_report_parameters(
 
     The (required) start and end of the report are resolved on each run:
 
-    - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets
-      (e.g. "-1D,DB" for the start of the previous day), applied to the run time,
-      in the automation's timezone.
-    - Without offsets, the window runs since the end of the automation's
-      last (successfully) covered window, falling back to the last cron period (from
-      the previous cron fire time until the run time) when none is known (e.g. on the
-      first run).
+    - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets, such as "-1D,DB" for the start of the previous day,
+      applied to the run time in the automation's timezone.
+    - Without offsets, the window runs since the end of the automation's last successfully covered window,
+      falling back to the last cron period, from the previous cron fire time until the run time, when none is known, such as on the first run.
     """
     message = dict(parameters)
     if scheduled_at is None:
@@ -722,8 +718,8 @@ def prepare_report_parameters(
         else None
     )
 
-    # Default to the window since the last covered window's end, falling back to
-    # the last cron period (from the previous cron fire time until the run time)
+    # Default to the window since the last covered window's end,
+    # falling back to the last cron period, from the previous cron fire time until the run time.
     if start is None:
         last_run = (
             get_automation_last_run(automation_id)
@@ -738,9 +734,8 @@ def prepare_report_parameters(
                 datetime
             )
             start = _canonical_run_time(previous_nominal, tz)
-            # A skipped wall time can canonicalize to the first valid instant after
-            # the gap, which may be the current run. Step back once more so
-            # the first report still covers a non-empty cron period.
+            # A skipped wall time can canonicalize to the first valid instant after the gap, which may be the current run.
+            # Step back once more, so the first report still covers a non-empty cron period.
             if start >= scheduled_at:
                 previous_nominal = croniter(cronstr, previous_nominal).get_prev(
                     datetime
@@ -1248,8 +1243,8 @@ def _run_report_automation(
         validate_automation_output_scope(
             automation.asset_id, output_sensor, automation.type
         )
-    # The data generator instance is cached on the data source, which may be shared
-    # by several automations, so wipe any parameter state from a previous run.
+    # The data generator instance is cached on the data source, which may be shared by several automations,
+    # so wipe any parameter state from a previous run.
     reporter._parameters = None
     reporter.set_job_trigger("automation", automation_id=automation.id)
     return reporter.compute(as_job=True, parameters=parameters)

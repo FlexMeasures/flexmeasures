@@ -1138,8 +1138,8 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     assert pd.Timestamp(message["end"]) == now
 
-    # The fallback cron period is interpreted in the automation timezone and
-    # ends at the claimed run rather than at a delayed runner's wall time.
+    # The fallback cron period is interpreted in the automation timezone,
+    # and ends at the claimed run rather than at a delayed runner's wall time.
     scheduled_at = datetime(2026, 1, 1, 16, 0, tzinfo=timezone.utc)
     message = prepare_report_parameters(
         {},

@@ -286,7 +286,7 @@ def job_cache(queue: str):
                 "force_new_job_creation", False
             )
 
-            # provenance meta data (how the job got created) must not affect job identity
+            # Provenance metadata, which says how the job got created, must not affect job identity.
             kwargs_for_hash.pop("trigger", None)
 
             # creating a hash from args and kwargs_for_hash
