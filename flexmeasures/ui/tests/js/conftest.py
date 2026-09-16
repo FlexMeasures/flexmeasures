@@ -58,7 +58,7 @@ window.addEventListener("unhandledrejection", (event) => {{
 }});
 setTimeout(() => {{
     if (document.title !== "done") {{
-        window.check("the test module finished within 20s", false, "timed out");
+        window.check(`the test module finished within ${{{page_budget_ms} / 1000}}s`, false, "timed out");
         window.__finish();
     }}
 }}, {page_budget_ms});
@@ -160,7 +160,9 @@ def js_runner():
 
     run_counter = itertools.count()
 
-    def run(body: str, timezone: str | None = None) -> list[dict]:
+    def run(
+        body: str, timezone: str | None = None, wait_s: float = WAIT_BUDGET_S
+    ) -> list[dict]:
         """Run a snippet, optionally pretending the browser sits in a given timezone.
 
         Overriding the timezone keeps tests that depend on one independent of the machine running them,
@@ -178,15 +180,14 @@ def js_runner():
             )
             driver.get(url + token)
             try:
-                WebDriverWait(driver, WAIT_BUDGET_S).until(lambda d: d.title == "done")
+                WebDriverWait(driver, wait_s).until(lambda d: d.title == "done")
             except TimeoutException:
-                # Report whatever the page managed to collect,
-                # so the failure says which check was outstanding rather than only that the wait ran out.
-                collected = driver.find_element("id", "results").text
-                checks = json.loads(collected) if collected else []
-                return checks + [
+                # Ask the page for what it has collected, rather than reading the element it
+                # writes on finishing: a page that timed out is precisely one that never did.
+                checks = driver.execute_script("return window.__results || [];")
+                return list(checks) + [
                     {
-                        "label": f"the page finished within {WAIT_BUDGET_S}s",
+                        "label": f"the page finished within {wait_s}s",
                         "passed": False,
                         "detail": f"{len(checks)} check(s) had been reported when the wait ran out",
                     }

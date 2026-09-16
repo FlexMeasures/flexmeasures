@@ -6,9 +6,14 @@ import socket
 
 import pytest
 
-from selenium.webdriver.remote.client_config import ClientConfig
+pytest.importorskip(
+    "selenium",
+    reason="install the test dependency group to run the JavaScript tests",
+)
 
-from flexmeasures.ui.tests.js.conftest import (
+from selenium.webdriver.remote.client_config import ClientConfig  # noqa: E402
+
+from flexmeasures.ui.tests.js.conftest import (  # noqa: E402
     CLIENT_TIMEOUT_S,
     PAGE_BUDGET_MS,
     WAIT_BUDGET_S,
@@ -82,3 +87,22 @@ def test_a_run_that_fails_before_loading_leaves_no_page_behind(
         js_runner('check("never reached", true, "");')
 
     assert set(js_pages) == registered_before
+
+
+def test_a_page_that_never_finishes_reports_what_it_had(js_runner):
+    """A wait that runs out comes back with the checks the page had already reported.
+
+    Reading the element the page writes on finishing would return nothing here,
+    a page that timed out being precisely one that never wrote it.
+    """
+    checks = js_runner(
+        'check("got this far", true, "");\n' "await new Promise(() => {});",
+        wait_s=2,
+    )
+
+    labels = [c["label"] for c in checks]
+    assert "got this far" in labels, checks
+    assert any(
+        not c["passed"] and c["label"].startswith("the page finished within")
+        for c in checks
+    ), checks
