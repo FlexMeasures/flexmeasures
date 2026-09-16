@@ -4,6 +4,11 @@ Utils around the data models and db sessions
 
 from __future__ import annotations
 
+import functools
+import re
+from pathlib import Path
+
+from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from alembic.script.revision import RevisionError
 from alembic.runtime.migration import MigrationContext
@@ -34,6 +39,22 @@ SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES = (
 )
 TEMPLATE_COPY_GUIDANCE_PREFIX = "Copy this"
 
+MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+VERSIONS_CURRENT_DIR = MIGRATIONS_DIR / "versions_current"
+VERSIONS_LEGACY_DIR = MIGRATIONS_DIR / "versions_legacy"
+
+# Head of the frozen legacy revision tree, which the squash baseline replaces.
+# It is a literal because that tree never gains another revision.
+LEGACY_HEAD = "c7a2f13b9e04"
+
+# Root of the current revision tree, i.e. the squash baseline.
+# It is a literal because the current tree's root never changes, only its head does
+# as new revisions are added; `test_migration_trees.py` reads the tree from disk to check it.
+SQUASH_BASELINE = "812621895c9c"
+
+# Matches a `revision = "abc123"` (or single-quoted) assignment line, capturing the id.
+_REVISION_LINE = re.compile(r"""^revision\s*=\s*["']([^"']+)["']""", re.MULTILINE)
+
 
 @dataclass(frozen=True)
 class DatabaseSchemaRevisionStatus:
@@ -52,34 +73,90 @@ class DatabaseSchemaRevisionStatus:
         )
 
 
-def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
-    """Return current and expected Alembic head revisions for the connected database."""
+def _read_revision_id(path: Path) -> str:
+    """Read a revision module's own revision id, without importing it.
+
+    Importing a revision module executes it, reading the file is what keeps app startup from paying that cost.
+    """
+    matches = _REVISION_LINE.findall(path.read_text(encoding="utf-8"))
+    if not matches:
+        raise ValueError(f"No `revision = ...` assignment found in {path}.")
+    if len(matches) > 1:
+        raise ValueError(f"Multiple `revision = ...` assignments found in {path}.")
+    return matches[0]
+
+
+def _current_tree_files() -> list[Path]:
+    """Return the current tree's revision files, in filename order.
+
+    Revision filenames are prefixed with their UTC creation timestamp (see `alembic.ini`'s
+    `file_template`), so filename order is creation order, and the last file is the head.
+    """
+    return sorted(
+        path
+        for path in VERSIONS_CURRENT_DIR.glob("*.py")
+        if not path.name.startswith("__")
+    )
+
+
+@functools.lru_cache(maxsize=1)
+def get_current_tree_head() -> str | None:
+    """Return the head revision of the current tree, read from the last filename.
+
+    Returns None if the tree is empty, which only happens in a broken installation.
+    """
+    files = _current_tree_files()
+    return _read_revision_id(files[-1]) if files else None
+
+
+@functools.lru_cache(maxsize=1)
+def get_current_tree_revisions() -> frozenset[str]:
+    """Return every revision id in the current tree."""
+    return frozenset(_read_revision_id(path) for path in _current_tree_files())
+
+
+def _get_database_heads(app) -> tuple[tuple[str, ...], str | None]:
+    """Return the database's current Alembic heads, plus a connectivity error if there was one."""
     from sqlalchemy.exc import OperationalError, ProgrammingError
-
-    migrate_extension = app.extensions.get("migrate")
-    if migrate_extension is None:
-        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
-
-    alembic_config = AlembicConfig()
-    alembic_config.set_main_option("script_location", migrate_extension.directory)
-    script = ScriptDirectory.from_config(alembic_config)
-    expected_heads = tuple(sorted(script.get_heads()))
-    if not expected_heads:
-        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
 
     try:
         with app.app_context(), db.engine.connect() as connection:
-            current_heads = tuple(
-                sorted(MigrationContext.configure(connection).get_current_heads())
+            return (
+                tuple(
+                    sorted(MigrationContext.configure(connection).get_current_heads())
+                ),
+                None,
             )
     except OperationalError as exc:
+        return (), str(exc)
+    except ProgrammingError:
+        # No alembic_version table yet, so this database has never been migrated.
+        return (), None
+
+
+def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
+    """Return current and expected Alembic head revisions for the connected database.
+
+    The expected head comes from the current tree's filenames rather than from an Alembic
+    ScriptDirectory, because building one executes every revision module.
+    A database that is still somewhere in the legacy tree simply is not at the expected head,
+    which is the right answer: it does still need `flexmeasures db upgrade`.
+    """
+    if app.extensions.get("migrate") is None:
+        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
+
+    head = get_current_tree_head()
+    if head is None:
+        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
+    expected_heads = (head,)
+
+    current_heads, inspection_error = _get_database_heads(app)
+    if inspection_error is not None:
         return DatabaseSchemaRevisionStatus(
             current_heads=(),
             expected_heads=expected_heads,
-            inspection_error=str(exc),
+            inspection_error=inspection_error,
         )
-    except ProgrammingError:
-        current_heads = ()
 
     return DatabaseSchemaRevisionStatus(
         current_heads=current_heads,
@@ -88,7 +165,15 @@ def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
 
 
 def database_schema_has_revision(app, required_revision: str) -> bool:
-    """Return whether the connected database includes a specific Alembic revision."""
+    """Return whether the connected database includes a specific Alembic revision.
+
+    Since the squash, "includes" means one of two things.
+    A database on the current tree has the squash baseline in its ancestry,
+    and the baseline folds in every legacy revision up to `LEGACY_HEAD`,
+    so any legacy revision is included by definition, at no cost.
+    Any other revision, and any database still in the legacy tree, needs its ancestry walked,
+    which is the one place where revision modules get executed.
+    """
     revision_status = get_database_schema_revision_status(app)
     if (
         revision_status.inspection_error is not None
@@ -100,10 +185,15 @@ def database_schema_has_revision(app, required_revision: str) -> bool:
     if migrate_extension is None:
         return False
 
-    alembic_config = AlembicConfig()
-    alembic_config.set_main_option("script_location", migrate_extension.directory)
-    script = ScriptDirectory.from_config(alembic_config)
+    current_tree_revisions = get_current_tree_revisions()
+    if any(head in current_tree_revisions for head in revision_status.current_heads):
+        if required_revision in current_tree_revisions:
+            return True
+        if _is_folded_into_baseline(required_revision):
+            return True
+        return False
 
+    script = _script_directory_for(migrate_extension, VERSIONS_LEGACY_DIR)
     for current_head in revision_status.current_heads:
         try:
             revisions = script.revision_map.iterate_revisions(
@@ -117,6 +207,94 @@ def database_schema_has_revision(app, required_revision: str) -> bool:
         except RevisionError:
             continue
     return False
+
+
+@functools.lru_cache(maxsize=1)
+def get_legacy_tree_revisions() -> frozenset[str]:
+    """Return every revision id in the legacy tree."""
+    return frozenset(
+        _read_revision_id(path)
+        for path in VERSIONS_LEGACY_DIR.glob("*.py")
+        if not path.name.startswith("__")
+    )
+
+
+def _is_folded_into_baseline(revision: str) -> bool:
+    """Return whether a revision is one of the legacy revisions the baseline replaces.
+
+    Every file in the legacy tree is an ancestor of `LEGACY_HEAD`, since that tree has a single
+    head, so membership of the directory is the whole test, and it needs no imports.
+    """
+    return revision in get_legacy_tree_revisions()
+
+
+def _script_directory_for(
+    migrate_extension, version_locations: Path
+) -> ScriptDirectory:
+    """Build a ScriptDirectory over one revision tree.
+
+    Note that this executes every revision module in that tree, so only call it when a migration is actually being run or planned.
+    The config is built here rather than through Flask-Migrate, so that no app context is needed.
+    """
+    config = AlembicConfig()
+    config.set_main_option("script_location", migrate_extension.directory)
+    config.set_main_option("path_separator", "os")
+    config.set_main_option("version_locations", str(version_locations))
+    return ScriptDirectory.from_config(config)
+
+
+def _flask_migrate_config(migrate, version_locations: Path) -> AlembicConfig:
+    """Build Flask-Migrate's Alembic config, pointed at one revision tree.
+
+    Unlike `_script_directory_for`, this goes through Flask-Migrate, so it reads `alembic.ini` and carries the `env.py` arguments that running a migration needs.
+    It therefore requires an app context.
+    """
+    config = migrate.get_config()
+    config.set_main_option("version_locations", str(version_locations))
+    return config
+
+
+def upgrade_database_schema(app) -> None:
+    """Upgrade the database to the head of the current revision tree, across the squash cut.
+
+    There are three cases, told apart by what `alembic_version` holds:
+
+    1. No row at all: a fresh database, which is built from the squash baseline onwards.
+       The legacy revision modules are never imported.
+    2. A revision from the current tree: an ordinary upgrade within that tree.
+    3. Anything else: a database still in the frozen legacy tree.
+       It is first walked to `LEGACY_HEAD` over `versions_legacy/`, which leaves it with exactly
+       the schema the baseline builds, so the baseline is then stamped rather than run.
+       The stamp purges the legacy revision from `alembic_version` as it goes, because the two
+       trees are disjoint roots and a non-purging stamp would leave both rows behind.
+       Afterwards the current tree is upgraded as usual, for anything added after the baseline.
+    """
+    migrate = app.extensions["migrate"].migrate
+    current_heads, _ = _get_database_heads(app)
+    needs_legacy_tree = bool(current_heads) and not (
+        set(current_heads) & get_current_tree_revisions()
+    )
+
+    if needs_legacy_tree:
+        app.logger.info(
+            "Database is still on the pre-squash revision tree "
+            f"({', '.join(current_heads)}); upgrading it to {LEGACY_HEAD} first."
+        )
+        alembic_command.upgrade(
+            _flask_migrate_config(migrate, VERSIONS_LEGACY_DIR), LEGACY_HEAD
+        )
+        app.logger.info(
+            f"Schema is now equivalent to the squash baseline; stamping it as {SQUASH_BASELINE}."
+        )
+        alembic_command.stamp(
+            _flask_migrate_config(migrate, VERSIONS_CURRENT_DIR),
+            SQUASH_BASELINE,
+            purge=True,
+        )
+
+    alembic_command.upgrade(
+        _flask_migrate_config(migrate, VERSIONS_CURRENT_DIR), "head"
+    )
 
 
 def format_database_schema_revision_status(

@@ -335,7 +335,7 @@ Run these commands from the repository root directory (read below comments first
 The first command (\ ``flexmeasures db init``\ ) is only needed here once, it initialises the alembic migration tool.
 The second command generates the SQL for your current db model and the third actually gives you the db structure.
 
-With every migration, you get a new migration step in ``migrations/versions``. Be sure to add that to ``git``\ ,
+With every migration, you get a new migration step in ``migrations/versions_current``. Be sure to add that to ``git``\ ,
 as future calls to ``flexmeasures db upgrade`` will need those steps, and they might happen on another computer.
 
 Hint: You can edit these migrations steps, if you want.
@@ -383,6 +383,21 @@ You can move back and forth through the history:
 
 
 Both of these accept a specific revision id parameter, as well.
+Downgrading stops at the baseline, see below.
+
+The two migration directories
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Migrations are kept in two directories:
+
+* ``migrations/versions_current``: the migrations in use. The first one is a baseline, which creates the whole database structure in one step. New migrations are added here.
+* ``migrations/versions_legacy``: the migrations from before the baseline. These are frozen, and are only used to bring an older database up to the baseline.
+
+``flexmeasures db upgrade`` uses the correct folder. A new database is created from the baseline, an older database is upgraded through ``versions_legacy`` first, and continues in ``versions_current``.
+
+.. note:: You cannot downgrade past the baseline. Restore a backup instead (see ``flexmeasures db-ops dump``).
+
+If several FlexMeasures instances share one database, run ``flexmeasures db upgrade`` once before rolling out, rather than on each instance's start-up.
 
 Check out database status
 ^^^^^^^^^^^^^^^^^^^^^^^

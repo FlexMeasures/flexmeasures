@@ -7,7 +7,7 @@ import os
 import sys
 
 import click
-from flask import Flask
+from flask import Flask, current_app
 from flask_migrate import Migrate
 from flask_migrate.cli import db as db_cli_group
 from flask_marshmallow import Marshmallow
@@ -56,8 +56,20 @@ def _schema_mismatch_deduplication_key(revision_status) -> str:
     return f"database-schema-mismatch:{current_heads}:{expected_heads}"
 
 
-def _add_vacuum_option_to_db_upgrade(app: Flask):
-    """Extend `flexmeasures db upgrade` to vacuum-analyze the database afterwards.
+def _can_orchestrate_upgrade(kwargs: dict) -> bool:
+    """Return whether a `db upgrade` invocation is the plain one the squash orchestration handles.
+
+    An explicit target revision or `--sql` means the caller wants exactly what they asked for,
+    over whichever tree Alembic is configured with, so we defer to Alembic's own behaviour.
+    """
+    return kwargs.get("revision", "head") == "head" and not kwargs.get("sql")
+
+
+def _customize_db_upgrade_command(app: Flask):
+    """Extend `flexmeasures db upgrade` to cross the squash cut and to vacuum-analyze afterwards.
+
+    The upgrade itself is orchestrated across two revision trees;
+    see `flexmeasures.data.utils.upgrade_database_schema`.
 
     After schema migrations, Postgres' planner statistics can be stale, leading to
     poor query plans. Running VACUUM ANALYZE right after upgrading avoids that.
@@ -78,7 +90,12 @@ def _add_vacuum_option_to_db_upgrade(app: Flask):
 
     @functools.wraps(original_callback)
     def upgrade_then_vacuum(*args, vacuum: bool = True, **kwargs):
-        result = original_callback(*args, **kwargs)
+        if _can_orchestrate_upgrade(kwargs):
+            from flexmeasures.data.utils import upgrade_database_schema
+
+            result = upgrade_database_schema(current_app._get_current_object())
+        else:
+            result = original_callback(*args, **kwargs)
         if vacuum and not kwargs.get("sql"):
             click.echo("Running VACUUM ANALYZE ...")
             with db.engine.connect().execution_options(
@@ -90,44 +107,53 @@ def _add_vacuum_option_to_db_upgrade(app: Flask):
     upgrade_command.callback = upgrade_then_vacuum
 
 
+def _check_database_schema_revision(app: Flask):
+    """Check the database schema against the Alembic head, logging any mismatch.
+
+    Sets `app.database_schema_is_migrated_to_head` as a side effect.
+    """
+    app.database_schema_is_migrated_to_head = True
+    if app.testing or app.config.get("FLEXMEASURES_ENV") == "documentation":
+        return
+
+    from flexmeasures.data.utils import (
+        format_database_schema_revision_status,
+        get_database_schema_revision_status,
+    )
+
+    revision_status = get_database_schema_revision_status(app)
+    app.database_schema_is_migrated_to_head = revision_status.is_migrated_to_head
+    if app.database_schema_is_migrated_to_head or _is_running_db_upgrade_command():
+        return
+
+    if revision_status.inspection_error is not None:
+        app.logger.error(
+            "Could not determine the database schema revision. "
+            "Check database connectivity and configuration before starting the app. "
+            f"Details: {revision_status.inspection_error}"
+        )
+    else:
+        # Every process logs this while starting up, and hosts run FlexMeasures CLI commands often,
+        # so we ask Sentry to report it only once a day per pair of revisions.
+        app.logger.error(
+            "Database schema is not at the Alembic head revision "
+            f"({format_database_schema_revision_status(revision_status)}). "
+            "Run `flexmeasures db upgrade` before starting the app.",
+            extra={
+                SENTRY_DEDUPLICATION_KEY_ATTRIBUTE: _schema_mismatch_deduplication_key(
+                    revision_status
+                )
+            },
+        )
+
+
 def register_at(app: Flask):
     # First configure the central db object and Alembic's migration tool
     configure_db_for(app)
     Migrate(app, db, directory=os.path.join(app.root_path, "data", "migrations"))
-    _add_vacuum_option_to_db_upgrade(app)
+    _customize_db_upgrade_command(app)
 
-    app.database_schema_is_migrated_to_head = True
-    if not app.testing and app.config.get("FLEXMEASURES_ENV") != "documentation":
-        from flexmeasures.data.utils import (
-            format_database_schema_revision_status,
-            get_database_schema_revision_status,
-        )
-
-        revision_status = get_database_schema_revision_status(app)
-        app.database_schema_is_migrated_to_head = revision_status.is_migrated_to_head
-        if (
-            not app.database_schema_is_migrated_to_head
-            and not _is_running_db_upgrade_command()
-        ):
-            if revision_status.inspection_error is not None:
-                app.logger.error(
-                    "Could not determine the database schema revision. "
-                    "Check database connectivity and configuration before starting the app. "
-                    f"Details: {revision_status.inspection_error}"
-                )
-            else:
-                # Every process logs this while starting up, and hosts run FlexMeasures CLI commands often,
-                # so we ask Sentry to report it only once a day per pair of revisions.
-                app.logger.error(
-                    "Database schema is not at the Alembic head revision "
-                    f"({format_database_schema_revision_status(revision_status)}). "
-                    "Run `flexmeasures db upgrade` before starting the app.",
-                    extra={
-                        SENTRY_DEDUPLICATION_KEY_ATTRIBUTE: _schema_mismatch_deduplication_key(
-                            revision_status
-                        )
-                    },
-                )
+    _check_database_schema_revision(app)
 
     global ma
     ma.init_app(app)
