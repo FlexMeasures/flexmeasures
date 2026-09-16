@@ -77,7 +77,7 @@
         <h4>
           Automations of {{ asset.name }}
           <span class="fa fa-info-circle" title="
-          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts and schedules.
+          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts, schedules and reports.
 
 An active automation follows its cron recurrence in the timezone shown below. The next run shown is an upcoming clock time, not a pending catch-up run. If the runner misses forecast runs, it coalesces them into one current forecast when it resumes.
           "></span>
@@ -117,6 +117,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <select class="form-select" id="automationType">
                     <option value="forecasting" selected>forecasting</option>
                     <option value="scheduling">scheduling</option>
+                    <option value="reporting">reporting</option>
                   </select>
                 </div>
                 <div class="mb-3">
@@ -125,15 +126,26 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">Use five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00; <code>*/15 * * * *</code> runs every 15 minutes. Times use the timezone below.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="automationTimezone" class="form-label">Schedule timezone</label>
+                  <label for="automationTimezone" class="form-label">Recurrence timezone</label>
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
-                  <div class="form-text">The local clock used by the schedule. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
+                  <div class="form-text">The local clock the recurrence is read in. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="automationGenerator" class="form-label">Data generator</label>
+                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <div class="form-text">
+                    Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter). Not used for scheduling.
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label for="automationConfig" class="form-label">Data generator config (JSON)</label>
+                  <textarea class="form-control" id="automationConfig" rows="2" placeholder="{}"></textarea>
                 </div>
                 <div class="mb-3">
                   <label for="automationParameters" class="form-label">Parameters (JSON)</label>
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
                   <div class="form-text">
-                    Forecast parameters (for type forecasting) or a schedule trigger message (for type scheduling).
+                    Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting).
                   </div>
                 </div>
                 <div class="form-check mb-3">
@@ -170,7 +182,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">Five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00 in the timezone below. Changing the schedule recalculates the next eligible run.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="editAutomationTimezone" class="form-label">Schedule timezone</label>
+                  <label for="editAutomationTimezone" class="form-label">Recurrence timezone</label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
                   <div class="form-text">The cron time follows this local clock, including daylight-saving changes. For example, choose <code>Europe/Amsterdam</code> to run at 06:00 Amsterdam time year-round.</div>
                 </div>
@@ -197,7 +209,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
             <button class="nav-link" id="scheduling-tab" data-bs-toggle="tab" data-bs-target="#scheduling-tab-pane" type="button" role="tab" aria-controls="scheduling-tab-pane" aria-selected="false">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
+            <button class="nav-link" id="reporting-tab" data-bs-toggle="tab" data-bs-target="#reporting-tab-pane" type="button" role="tab" aria-controls="reporting-tab-pane" aria-selected="false">Reports</button>
           </li>
         </ul>
         <div class="tab-content">
@@ -209,6 +221,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <div class="tab-pane fade" id="scheduling-tab-pane" role="tabpanel">
             <div class="table-responsive">
               <table id="automationsTable-scheduling" class="table table-striped w-100"></table>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="reporting-tab-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table id="automationsTable-reporting" class="table table-striped w-100"></table>
             </div>
           </div>
         </div>
@@ -424,7 +441,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         { data: "created-at", title: "Created At", render: renderSortable },
         { data: "active", title: "Active", render: renderSortable },
         { data: "recurrence", title: "Recurrence", render: renderSortable },
-        { data: "timezone", title: "Schedule timezone" },
+        { data: "timezone", title: "Recurrence timezone" },
         { data: "next-run", title: "Next run (local)", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
         { data: "details", title: "", className: "text-center align-middle", orderable: false },
@@ -460,7 +477,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       method: "GET",
       success: function (res) {
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of ["forecasting", "scheduling"]) {
+        for (const automationType of ["forecasting", "scheduling", "reporting"]) {
           makeAutomationsTable(
             automationType,
             res.automations.filter(automation => automation.type === automationType),
@@ -468,7 +485,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         }
       },
       error: function (xhr) {
-        for (const automationType of ["forecasting", "scheduling"]) {
+        console.error("Error fetching automations:", xhr);
+        for (const automationType of ["forecasting", "scheduling", "reporting"]) {
           makeAutomationsTable(automationType, []);
           $(`#automationsTable-${automationType}`).hide();
         }
@@ -554,6 +572,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           return;
         }
       }
+      let config = {};
+      const configText = $("#automationConfig").val().trim();
+      if (configText) {
+        try {
+          config = JSON.parse(configText);
+        } catch (e) {
+          $("#newAutomationErr").removeClass("d-none").text("The data generator config is not valid JSON.");
+          return;
+        }
+      }
       $.ajax({
         url: `/api/v3_0/assets/${assetId}/automations`,
         method: "POST",
@@ -564,6 +592,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#automationCron").val(),
           timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
+          "data-generator": $("#automationGenerator").val().trim() || null,
+          config: config,
           parameters: parameters,
         }),
         success: () => location.reload(),

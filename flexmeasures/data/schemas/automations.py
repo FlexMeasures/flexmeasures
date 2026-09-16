@@ -92,9 +92,12 @@ class AutomationCreationSchema(Schema):
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
-        load_default="TrainPredictPipeline",
+        load_default=None,
+        allow_none=True,
         metadata={
-            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. Only a forecast automation chooses one; a schedule automation's generator follows from the asset and the flex config.",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`."
+            " A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter),"
+            " and a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline",
         },
     )
@@ -102,7 +105,7 @@ class AutomationCreationSchema(Schema):
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Only used by a forecast automation.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by a forecast or report automation.",
             "example": {},
         },
     )
