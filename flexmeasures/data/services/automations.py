@@ -420,11 +420,25 @@ def validate_automation_window(parameters: dict, automation_type: str) -> None:
         raise ValidationError(
             "Give a 'start-offset' or an 'end-offset' along with a report automation's 'duration'."
         )
-    if automation_type == "reporting" and "duration" in given:
+    if "duration" in given:
         try:
-            isodate.parse_duration(parameters["duration"])
+            duration = isodate.parse_duration(parameters["duration"])
         except (ISO8601Error, TypeError) as e:
             raise ValidationError(f"Invalid duration: {e}")
+        reference = pd.Timestamp("2000-01-01", tz="UTC")
+        if _add_duration(reference, duration) <= reference:
+            raise ValidationError(
+                "The duration must be positive, or every run would cover an empty or inverted window."
+            )
+
+
+def _check_window_is_positive(start: pd.Timestamp, end: pd.Timestamp) -> None:
+    """Refuse a window that its offsets and duration resolve to ending before it starts, which no run can cover."""
+    if pd.Timestamp(end) <= pd.Timestamp(start):
+        raise ValidationError(
+            f"The offsets resolve to a window from {pd.Timestamp(start).isoformat()} to {pd.Timestamp(end).isoformat()},"
+            " which does not end after it starts."
+        )
 
 
 def _window_anchor(
@@ -489,6 +503,8 @@ def resolve_automation_window(
         start = pd.Timestamp(apply_offset_chain(anchor, start_offset))
     else:
         start = _add_duration(end, message["duration"], sign=-1)
+    if end is not None:
+        _check_window_is_positive(start, end)
     message["start"] = start.isoformat()
     if end is not None and "duration" not in message:
         if automation_type == "scheduling":
@@ -912,6 +928,10 @@ def prepare_report_parameters(
             end = _add_duration(start, duration)
         elif end is not None and start is None:
             start = _add_duration(end, duration, sign=-1)
+    # Where the offsets (and duration) fix both ends, the window has to be one a run can cover.
+    # A start carried over from the last successful report is not checked here: it is not the automation's to fix.
+    if start is not None and end is not None:
+        _check_window_is_positive(start, end)
 
     # Default to the window since the last covered window's end,
     # falling back to the last cron period, from the previous cron fire time until the run time.

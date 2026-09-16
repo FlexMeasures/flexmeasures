@@ -131,6 +131,13 @@ def test_report_automation_window_takes_a_duration_for_either_offset(app, timing
         ),
         ("reporting", {"end-offset": "DB", "duration": "one day"}, "Invalid duration"),
         ("forecasting", {"start-offset": "P1D"}, "Invalid start-offset"),
+        (
+            "scheduling",
+            {"start-offset": "1D,DB", "duration": "PT0H"},
+            "must be positive",
+        ),
+        ("reporting", {"end-offset": "DB", "duration": "-P1D"}, "must be positive"),
+        ("forecasting", {"start-offset": "DB", "duration": "-P1M"}, "must be positive"),
     ],
 )
 def test_a_window_the_runs_cannot_resolve_is_refused(automation_type, timing, error):
@@ -152,3 +159,24 @@ def test_a_window_the_runs_cannot_resolve_is_refused(automation_type, timing, er
 )
 def test_a_window_the_runs_can_resolve_is_accepted(automation_type, timing):
     validate_automation_window(timing, automation_type)
+
+
+@pytest.mark.parametrize("automation_type", ["forecasting", "scheduling"])
+def test_offsets_that_end_before_they_start_are_refused(app, automation_type):
+    with pytest.raises(ValidationError, match="does not end after it starts"):
+        resolve_automation_window(
+            {"start-offset": "1D,DB", "end-offset": "DB"},
+            automation_type,
+            TIMEZONE,
+            SCHEDULED_AT,
+        )
+
+
+def test_report_offsets_that_end_before_they_start_are_refused(app):
+    with pytest.raises(ValidationError, match="does not end after it starts"):
+        prepare_report_parameters(
+            {"start-offset": "DB", "end-offset": "-1D,DB"},
+            "0 12 * * *",
+            TIMEZONE,
+            scheduled_at=SCHEDULED_AT,
+        )
