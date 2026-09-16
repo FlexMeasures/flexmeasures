@@ -1884,7 +1884,7 @@ class AssetAPI(FlaskView):
     )
     # Running an automation writes data under the asset, which is what create-children means here.
     # The sensors it writes to were checked against the same permission when the automation was created,
-    # and its output scope is checked again on each run (see validate_forecast_output_scope).
+    # and its output scope is checked again on each run (see validate_automation_output_scope).
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
