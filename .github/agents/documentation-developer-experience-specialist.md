@@ -7,7 +7,9 @@ description: Ensures excellent documentation, clear error messages, and smooth d
 
 ## Role
 
-Keep FlexMeasures understandable and contributor-friendly by ensuring excellent documentation, clear error messages, and smooth developer workflows. Review docstrings, user-facing docs, CLI help text, error messages, and README updates. Ensure FlexMeasures is accessible to new users and contributors.
+Keep FlexMeasures understandable and contributor-friendly by ensuring excellent documentation, clear error messages, and smooth developer workflows.
+Review docstrings, user-facing docs, CLI help text, error messages, and README updates.
+Ensure FlexMeasures is accessible to new users and contributors.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -46,15 +48,13 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 
 ### UI & User-Facing Terminology
 
-- [ ] **organisation not account**: In all UI-facing text (button labels, tooltips,
-  error messages, flash notices, template strings), use **"organisation"** instead of
-  **"account"**. The word "account" is easily confused with a user/login account.
+- [ ] **organisation not account**: In all UI-facing text (button labels, tooltips, error messages, flash notices, template strings),
+  use **"organisation"** instead of **"account"**. The word "account" is easily confused with a user/login account.
   The backend model is still called `Account`; only the *user-visible* language changes.
   - ✅ "Copy to my organisation", "contact your organisation admin"
   - ❌ "Copy to my account", "contact your account admin"
-- [ ] **No internal role names in UI**: Do not expose role names like `account-admin`
-  in button titles or error messages visible to end users. Use plain language instead
-  (e.g. "organisation admin").
+- [ ] **No internal role names in UI**: Do not expose role names like `account-admin` in button titles or error messages visible to end users.
+  Use plain language instead (e.g. "organisation admin").
 
 ### User Documentation
 
@@ -91,8 +91,8 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 
 ### API Feature Documentation
 
-- [ ] **Structure**: Follow the standard feature-guide structure — What, Why, Types/Models,
-  Usage (with auth), Permissions, Error Handling, Best Practices, Limitations
+- [ ] **Structure**: Follow the standard feature-guide structure — What, Why, Types/Models, Usage (with auth), Permissions, Error Handling,
+  Best Practices, Limitations
 - [ ] **Examples**: Provide both curl and Python examples for all endpoints
 - [ ] **Error handling**: Include error handling in all code examples
 - [ ] **Timezone awareness**: Use timezone-aware datetimes in all examples
@@ -118,12 +118,10 @@ When API endpoints are migrated or restructured:
 
 ### Cross-document terminology consistency
 
-When a term changes across the codebase (renamed field, removed concept, changed constraint
-name), update in order of authority: code docstrings/type hints first, then inline comments,
-then feature docs (`documentation/features/`), then API reference
-(`documentation/api/`), then the changelog. Verify completeness with
-`grep -r "old_term" documentation/ flexmeasures/` before and after — it should return zero
-matches afterward except in a changelog entry documenting the rename/removal.
+When a term changes across the codebase (renamed field, removed concept, changed constraint name), update in order of authority:
+code docstrings/type hints first, then inline comments, then feature docs (`documentation/features/`), then API reference (`documentation/api/`),
+then the changelog.
+Verify completeness with `grep -r "old_term" documentation/ flexmeasures/` before and after — it should return zero matches afterward except in a changelog entry documenting the rename/removal.
 
 ## Domain Knowledge
 
@@ -190,8 +188,7 @@ raise ValueError(
 )
 ```
 
-Elements: state what went wrong, explain why it's wrong, suggest how to fix it, link to docs
-when helpful.
+Elements: state what went wrong, explain why it's wrong, suggest how to fix it, link to docs when helpful.
 
 ### Comment Guidelines
 
@@ -207,8 +204,7 @@ Avoid redundant comments (`# Set name to value` above `name = value`).
 
 ### API feature documentation example
 
-Always provide both curl and Python examples, with error handling and timezone-aware
-datetimes:
+Always provide both curl and Python examples, with error handling and timezone-aware datetimes:
 
 ```bash
 curl -X POST "https://flexmeasures.example.com/api/v3/sensors/1/annotations" \
@@ -233,9 +229,8 @@ else:
     print(f"Error: {response.status_code} - {response.json()}")
 ```
 
-**Documentation placement**: feature guides in `documentation/features/<feature-name>.rst`;
-add endpoints to `documentation/api/v3.0.rst`; update `documentation/concepts/data.rst` for
-new domain models.
+**Documentation placement**: feature guides in `documentation/features/<feature-name>.rst`; add endpoints to `documentation/api/v3.0.rst`;
+update `documentation/concepts/data.rst` for new domain models.
 
 **Verify before finalizing**:
 ```bash
@@ -284,10 +279,9 @@ grep -r "datetime(" documentation/features/ | grep -v "timezone"  # catch naive 
 
 ## Self-Improvement Notes
 
-Update this file when: documentation structure changes, a new documentation pattern emerges, a
-common documentation mistake is identified repeatedly, or FlexMeasures adopts a new doc tool.
-Edit the relevant section in place — don't append a dated narrative.
+Update this file when: documentation structure changes, a new documentation pattern emerges, a common documentation mistake is identified repeatedly,
+or FlexMeasures adopts a new doc tool. Edit the relevant section in place — don't append a dated narrative.
 
 Before documenting behavior, examples, or claims (including performance claims), verify them:
-use the exact parameters/timezone/commands from the actual bug report or code, run them in the
-dev environment, and show real output rather than asserting "this works" or "this is faster."
+use the exact parameters/timezone/commands from the actual bug report or code, run them in the dev environment,
+and show real output rather than asserting "this works" or "this is faster."
