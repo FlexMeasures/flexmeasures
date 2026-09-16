@@ -4,7 +4,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import os
@@ -517,10 +517,11 @@ def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
 # plus the aggregates over all devices, which are defined in the flex-context.
 #
 # NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
-# A scheduler that starts returning results for a sensor named by some other field would write to a sensor that was never checked against the creator's permissions,
-# as this reads that sensor as an input instead.
-# Extend this list whenever a flex-model or flex-context field starts naming somewhere results are recorded.
-# Holding a schedule job to the sensors predicted here would close the gap for good (see issue #2421).
+# Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
+# A field this list misses is not left unchecked so much as checked for the wrong thing:
+# the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
+# A schedule job created by an automation is therefore held to the sensors predicted here (see `_sensors_this_job_may_record_on`),
+# so that drift shows up as a refusal rather than a quiet downgrade.
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
     "production",
@@ -820,20 +821,26 @@ def resolve_schedule_automation_sensors(
 ) -> dict[str, list[Sensor]]:
     """Resolve the sensors declared by a prepared schedule trigger.
 
+    The trigger message is loaded for its timing and its asset only.
+    The flex config goes to the scheduler as it was written, because a data generator deserializes its own config:
+    `collect_flex_config` merges what the asset tree holds with what the message carries, reading sensors by id,
+    so handing it an already-deserialized config gives it `Sensor` objects where it expects ids.
+
     A `ValidationError` is left to the caller, which reports it against the parameters the user sent.
-    Anything else the scheduler raises while working out its config says only that these sensors cannot be determined,
-    so it is reported as such rather than reaching the caller as an unexpected failure.
+    A scheduler that cannot work out its config raises `NotImplementedError`, `ValueError` or an `SQLAlchemyError`,
+    which says only that these sensors cannot be determined, so it is reported as such rather than reaching the caller as an unexpected failure.
 
     :raises marshmallow.ValidationError: if the parameters do not form a valid schedule trigger.
     :raises AutomationSensorsUnknown: if the scheduler cannot work out the config the sensors follow from.
     """
+    from sqlalchemy.exc import SQLAlchemyError
+
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import find_scheduler_class
     from flexmeasures.data.services.utils import get_scheduler_instance
 
-    trigger_data = AssetTriggerSchema().load(
-        prepare_schedule_trigger_message(parameters, asset_id)
-    )
+    message = prepare_schedule_trigger_message(parameters, asset_id)
+    trigger_data = AssetTriggerSchema().load(deepcopy(message))
     try:
         start = trigger_data["start_of_schedule"]
         scheduler_params = {
@@ -841,8 +848,8 @@ def resolve_schedule_automation_sensors(
             "end": start + trigger_data["duration"],
             "belief_time": trigger_data.get("belief_time"),
             "resolution": trigger_data.get("resolution"),
-            "flex_model": trigger_data["flex_model"],
-            "flex_context": trigger_data["flex_context"],
+            "flex_model": message.get("flex-model"),
+            "flex_context": message.get("flex-context", {}),
         }
         scheduler_class = find_scheduler_class(trigger_data["asset"])
         scheduler = get_scheduler_instance(
@@ -851,7 +858,12 @@ def resolve_schedule_automation_sensors(
             scheduler_params=scheduler_params,
         )
         scheduler.collect_flex_config()
-    except (NotImplementedError, ValueError) as exc:
+        scheduler.deserialize_config()
+    except (NotImplementedError, ValueError, SQLAlchemyError) as exc:
+        if isinstance(exc, SQLAlchemyError):
+            # The session is unusable until the failed transaction is rolled back,
+            # and the caller goes on to render a response through it.
+            db.session.rollback()
         raise AutomationSensorsUnknown(
             f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
         ) from exc

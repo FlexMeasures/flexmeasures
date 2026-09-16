@@ -35,6 +35,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* A test now holds new API and CLI field names to kebab-case, listing the names that predate the convention so that the list can only shrink [see `PR #2547 <https://www.github.com/FlexMeasures/flexmeasures/pull/2547>`_]
 * Drop the nine obsolete tables that predate the ``GenericAsset``/``Sensor`` data model, asking you to confirm first if any of them still hold data, which cleans up after v0.18.0, where seven of them were dropped but ``asset_type`` and ``weather_sensor_type`` were missed, and where a database that was downgraded past that release and upgraded again kept all nine [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
 * Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
@@ -48,7 +49,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-
+* Organisation audit logs now show only changed fields with their previous and new values, and user role and active-status changes identify the affected user [see `PR #2522 <https://www.github.com/FlexMeasures/flexmeasures/pull/2522>`_]
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
 * A KPI on the asset page counted an event once per data source that reported it, so a total could come out higher than any source reported; it now reduces one value per event, from the latest source version and the most recent belief within it [see `PR #2472 <https://www.github.com/FlexMeasures/flexmeasures/pull/2472>`_]
 * ``flexmeasures add schedule --dry-run`` no longer saves a schedule when it is combined with ``--as-job``, where the flag used to be dropped without a word and the queued job stored its schedule anyway; that combination is now rejected, and a dry run says how many beliefs it would have saved and which events they cover [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
@@ -66,7 +67,9 @@ Automations arrived over several pull requests. This is what each of them contri
 * A scheduler's data source now also records the flex config the scheduler computed under, so a schedule can be traced back to the configuration that produced it, and a schedule automation points at such a data source, the way a forecast automation points at its forecaster's [see `PR #2444 <https://www.github.com/FlexMeasures/flexmeasures/pull/2444>`_]
 * A single automation can now be run on demand, from the CLI (``flexmeasures jobs run-automation``), the API (``POST /assets/<id>/automations/<automation_id>/trigger``) and the asset's *Automations* page (a *Run now* button), which is useful to try out a new automation, to re-run one after fixing what made it fail, or to refresh its results after late input data arrived [see `PR #2460 <https://www.github.com/FlexMeasures/flexmeasures/pull/2460>`_]
 * Automations can be created, edited and deleted in the UI and through new API endpoints (``[POST|PATCH|DELETE] /assets/(id)/automations``), by whoever may add data under the asset, with their recurrence expressed in a selectable IANA timezone, and only involving sensors they can access themselves (read access to the sensors an automation reads, and permission to record data on the sensors it writes to). The *Automations* page shows when each active automation is due to run next, as a clock time in the automation's own timezone, so a recurrence no longer has to be read back from its cron string; the same time is available as ``next_run`` on the automations API endpoints, and is null while an automation is inactive. It is the next scheduled clock time, so it excludes catch-up work still pending, and it follows the dispatcher's daylight-saving rules, taking the first fold of a repeated local time and the first valid minute after a skipped one. Each row's *Run now*, *Edit*, *Activate*/*Deactivate* and *Delete* controls are collected into a single *Actions* menu, leaving *Details* beside it, so a long listing carries two controls per row instead of five [see `PR #2294 <https://www.github.com/FlexMeasures/flexmeasures/pull/2294>`_]
+* An automation's output sensors are checked against its creator's permissions when the automation is created, and the schedules it computes are held to exactly those sensors: a scheduler that returns results for any other sensor is refused, rather than recording on a sensor that was only ever checked for read access [see `PR #2536 <https://www.github.com/FlexMeasures/flexmeasures/pull/2536>`_]
 * Automations now keep a durable record of every scheduled run, so a forecast run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and, for its forecast jobs, how they ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_]
+
 
 v1.0.1 | September 9, 2026
 ============================
@@ -898,7 +901,7 @@ v0.24.0 | January 7, 2025
 New features
 -------------
 * Allow scheduling against energy contracts, capacity contracts and peak contracts simultaneously, using various new ``flex-context`` fields [see `PR #1144 <https://github.com/FlexMeasures/flexmeasures/pull/1144>`_]
-* Allow using numeric values for ``flex-model`` fields accepting dimensionless quantities [see `PR #1144 <https://github.com/FlexMeasures/flexmeasures/pull/1299>`_]
+* Allow using numeric values for ``flex-model`` fields accepting dimensionless quantities [see `PR #1299 <https://github.com/FlexMeasures/flexmeasures/pull/1299>`_]
 * The data chart on the asset page splits up its color-coded sensor legend when showing more than 7 sensors, becoming a legend per subplot [see `PR #1176 <https://github.com/FlexMeasures/flexmeasures/pull/1176>`_ and `PR #1193 <https://github.com/FlexMeasures/flexmeasures/pull/1193>`_]
 * Speed up loading the users page, by making the pagination backend-based and adding support for that in the API [see `PR #1160 <https://github.com/FlexMeasures/flexmeasures/pull/1160>`_]
 * X-axis labels in CLI plots show datetime values in a readable and informative format [see `PR #1172 <https://github.com/FlexMeasures/flexmeasures/pull/1172>`_]

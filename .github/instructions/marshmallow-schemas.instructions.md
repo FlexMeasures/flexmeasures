@@ -66,4 +66,8 @@ class AnnotationSchema(Schema):
 
 - Always include `metadata` with `description` and at least one `example`.
 - Use single-word `data_key` values where possible (prefer `"source"` over `"source_id"`).
+- Spell a name that reaches the wire in kebab-case, never with an underscore: `data-generator`, not `data_generator`.
+  Python attributes cannot hold a dash, so give the field a `data_key`. The same goes for the `option` a field declares for the CLI.
+  `flexmeasures/data/schemas/tests/test_field_naming.py` enforces this and lists the names that predate the convention;
+  that list may shrink, not grow (see issue #2540).
 - `dump_only=True` fields are excluded from request body validation and appear only in responses.
