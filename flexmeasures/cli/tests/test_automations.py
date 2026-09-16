@@ -924,8 +924,10 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     )
     assert automation.parameters == {"duration": "PT12H"}
 
-    # a fixed start draws a warning
-    parameters_file.write_text('start: "2026-01-01T00:00:00+01:00"\n')
+    # a fixed start is refused, as every run would then schedule the same period
+    parameters_file.write_text(
+        'start: "2026-01-01T00:00:00+01:00"\nduration: "PT12H"\n'
+    )
     result = runner.invoke(
         add_automation,
         [
@@ -936,8 +938,17 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
             "--parameters", str(parameters_file),
         ],
     )  # fmt: skip
-    assert "Successfully created" in result.output, result.output
-    assert "each run will compute the same period" in result.output
+    assert result.exit_code != 0
+    assert (
+        "every run of this schedule automation would schedule the same period"
+        in result.output
+    )
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Fixed-start schedules")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 @pytest.mark.parametrize(
