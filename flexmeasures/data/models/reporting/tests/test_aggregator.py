@@ -298,7 +298,7 @@ def test_aggregator_over_asset(setup_site_data, db):
     site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, _ = setup_site_data
 
     agg_reporter = AggregatorReporter(
-        config=dict(method="sum", asset=site.id, sensor_name_pattern="PV")
+        config={"method": "sum", "asset": site.id, "sensor-name-pattern": "PV"}
     )
 
     assert sorted(sensor.id for sensor in agg_reporter.input_sensors) == sorted(
@@ -324,7 +324,7 @@ def test_aggregator_over_asset_leaves_out_output_sensor(setup_site_data, db):
     site, site_power_sensor, _, _, _ = setup_site_data
 
     agg_reporter = AggregatorReporter(
-        config=dict(method="sum", asset=site.id, sensor_units=["MW"])
+        config={"method": "sum", "asset": site.id, "sensor-units": ["MW"]}
     )
 
     result = agg_reporter.compute(
@@ -366,12 +366,12 @@ def test_aggregator_without_unit_conversion(setup_site_data, db):
     site, site_power_sensor, _, _, _ = setup_site_data
 
     agg_reporter = AggregatorReporter(
-        config=dict(
-            method="sum",
-            asset=site.id,
-            sensor_name_pattern="PV",
-            convert_units=False,
-        )
+        config={
+            "method": "sum",
+            "asset": site.id,
+            "sensor-name-pattern": "PV",
+            "convert-units": False,
+        }
     )
 
     result = agg_reporter.compute(
@@ -405,7 +405,11 @@ def test_aggregator_without_sensors(setup_site_data, db):
     site, site_power_sensor, _, _, _ = setup_site_data
 
     agg_reporter = AggregatorReporter(
-        config=dict(method="sum", asset=site.id, sensor_name_pattern="no such sensor")
+        config={
+            "method": "sum",
+            "asset": site.id,
+            "sensor-name-pattern": "no such sensor",
+        }
     )
 
     with pytest.raises(ValueError, match="no sensors to aggregate"):
@@ -420,7 +424,7 @@ def test_aggregator_without_sensors(setup_site_data, db):
 def test_aggregator_invalid_sensor_name_pattern(setup_site_data, db):
     """An unparsable regular expression is caught where it is configured, not where it is used."""
     with pytest.raises(ValidationError, match="not a valid regular expression"):
-        AggregatorReporter(config=dict(method="sum", sensor_name_pattern="PV("))
+        AggregatorReporter(config={"method": "sum", "sensor-name-pattern": "PV("})
 
 
 def test_aggregator_data_source_records_sensor_selection(setup_site_data, db):
@@ -428,7 +432,7 @@ def test_aggregator_data_source_records_sensor_selection(setup_site_data, db):
     site, site_power_sensor, _, _, _ = setup_site_data
 
     agg_reporter = AggregatorReporter(
-        config=dict(method="sum", asset=site.id, sensor_name_pattern="PV")
+        config={"method": "sum", "asset": site.id, "sensor-name-pattern": "PV"}
     )
 
     agg_reporter.compute(
@@ -440,4 +444,4 @@ def test_aggregator_data_source_records_sensor_selection(setup_site_data, db):
 
     config = agg_reporter.data_source.attributes["data_generator"]["config"]
     assert config["asset"] == site.id
-    assert config["sensor_name_pattern"] == "PV"
+    assert config["sensor-name-pattern"] == "PV"

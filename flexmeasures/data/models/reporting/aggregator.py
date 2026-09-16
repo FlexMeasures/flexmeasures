@@ -63,7 +63,7 @@ class AggregatorReporter(Reporter):
         """Find the sensors that the reporter's configuration selects.
 
         The pool of candidates holds the sensors of the asset named in the `asset` field and of its offspring, together with the sensors listed in the `sensors` field.
-        The `sensor_name_pattern` and `sensor_units` fields then narrow that pool down.
+        The `sensor-name-pattern` and `sensor-units` fields then narrow that pool down.
         Sensors are returned ordered by ID, so that an aggregation over a site does not depend on the order in which its sensors happen to be loaded.
         """
         asset: GenericAsset | None = self._config.get("asset")
@@ -128,7 +128,7 @@ class AggregatorReporter(Reporter):
         if sensor.unit == "" or output_sensor.unit == "":
             current_app.logger.warning(
                 f"Not converting the values of sensor {sensor.id} ({sensor.name}) from '{sensor.unit}' to '{output_sensor.unit}', because one of these units is empty."
-                f" Set a unit on both sensors, or set the reporter's `convert_units` config field to False to aggregate raw values on purpose."
+                f" Set a unit on both sensors, or set the reporter's `convert-units` config field to False to aggregate raw values on purpose."
             )
             return df
 
@@ -142,7 +142,7 @@ class AggregatorReporter(Reporter):
         except (pint.errors.PintError, ValueError) as e:
             raise ValueError(
                 f"Cannot aggregate sensor {sensor.id} ({sensor.name}), which records in '{sensor.unit}', onto sensor {output_sensor.id} ({output_sensor.name}), which records in '{output_sensor.unit}': {e}"
-                f" Either aggregate sensors that record a comparable quantity, or set the reporter's `convert_units` config field to False to aggregate raw values."
+                f" Either aggregate sensors that record a comparable quantity, or set the reporter's `convert-units` config field to False to aggregate raw values."
             )
 
         return df
@@ -179,7 +179,7 @@ class AggregatorReporter(Reporter):
         if len(input_descriptions) == 0:
             raise ValueError(
                 "The AggregatorReporter has no sensors to aggregate."
-                " Name them in the `input` parameters, or select them in the reporter's config with the `asset`, `sensors`, `sensor_name_pattern` and `sensor_units` fields."
+                " Name them in the `input` parameters, or select them in the reporter's config with the `asset`, `sensors`, `sensor-name-pattern` and `sensor-units` fields."
             )
 
         dataframes = []
