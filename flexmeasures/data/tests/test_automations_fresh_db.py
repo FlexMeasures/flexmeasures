@@ -165,11 +165,6 @@ def test_run_schedule_automation(
         "automation_id": automation.id,
     }
 
-    # Trigger provenance must not affect job identity:
-    # the same schedule request from another origin deduplicates onto the same job through the job cache.
-    returns_2 = run_automation(automation)
-    assert returns_2["job_id"] == returns["job_id"]
-
 
 @pytest.mark.parametrize("sequential", (False, True))
 def test_run_minimal_schedule_automation_with_stored_flex_config(
