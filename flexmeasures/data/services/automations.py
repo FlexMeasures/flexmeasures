@@ -15,7 +15,6 @@ from croniter import croniter
 from croniter.croniter import CroniterError
 import isodate
 import pandas as pd
-import pytz
 from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
@@ -38,7 +37,7 @@ from flexmeasures.data.services.data_generators import (
     check_sensor_access,
     resolve_data_generator_sensors,
 )
-from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
+from flexmeasures.utils.time_utils import apply_offset_chain, server_now
 
 
 @dataclass(frozen=True)
@@ -481,8 +480,8 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
             parameters = prepare_report_parameters(
                 parameters,
                 automation.cronstr,
+                automation.timezone,
                 automation_id=automation.id,
-                cron_timezone=automation.timezone,
             )
         return resolve_data_generator_sensors(
             data_generator,
@@ -647,9 +646,9 @@ def get_automation_last_run(automation_id: int) -> datetime | None:
 def prepare_report_parameters(
     parameters: dict,
     cronstr: str,
+    automation_timezone: str,
     now: datetime | None = None,
     automation_id: int | None = None,
-    cron_timezone: str | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict:
     """Complete stored report parameters into a message for the ReporterParametersSchema.
@@ -658,7 +657,7 @@ def prepare_report_parameters(
 
     - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets
       (e.g. "-1D,DB" for the start of the previous day), applied to the run time
-      (or to the given absolute start/end), in the timezone of the first output sensor.
+      (or to the given absolute start/end), in the automation's timezone.
     - Without offsets or absolutes, the window runs since the end of the automation's
       last (successfully) covered window, falling back to the last cron period (from
       the previous cron fire time until the run time) when none is known (e.g. on the
@@ -669,23 +668,9 @@ def prepare_report_parameters(
         scheduled_at = now if now is not None else server_now()
     scheduled_at = floor_to_minute(scheduled_at)
 
-    # Compute the run time in the timezone local to the first output sensor
-    # (matching `flexmeasures add report`), falling back to the platform timezone.
-    tz = get_timezone()
-    outputs = message.get("output") or []
-    if (
-        outputs
-        and isinstance(outputs[0], dict)
-        and outputs[0].get("sensor") is not None
-    ):
-        from flexmeasures.data.models.time_series import Sensor
-
-        try:
-            output_sensor = db.session.get(Sensor, int(outputs[0]["sensor"]))
-        except (TypeError, ValueError):
-            output_sensor = None
-        if output_sensor is not None:
-            tz = pytz.timezone(output_sensor.timezone)
+    # Offsets are applied on the automation's own clock, the one its cron string is read in,
+    # so that "DB" means midnight where the user who set up the automation expects it.
+    tz = ZoneInfo(automation_timezone)
     now = scheduled_at.astimezone(tz)
 
     start_offset = message.pop("start-offset", None)
@@ -714,18 +699,11 @@ def prepare_report_parameters(
         if last_run is not None:
             start = last_run
         else:
-            cron_tz = (
-                ZoneInfo(cron_timezone)
-                if cron_timezone is not None
-                else ZoneInfo(str(get_timezone()))
-            )
-            nominal_scheduled_at = _as_nominal_wall_time(
-                scheduled_at.astimezone(cron_tz)
-            )
+            nominal_scheduled_at = _as_nominal_wall_time(scheduled_at.astimezone(tz))
             previous_nominal = croniter(cronstr, nominal_scheduled_at).get_prev(
                 datetime
             )
-            start = _canonical_run_time(previous_nominal, cron_tz)
+            start = _canonical_run_time(previous_nominal, tz)
             # A skipped wall time can canonicalize to the first valid instant after
             # the gap, which may be the current run. Step back once more so
             # the first report still covers a non-empty cron period.
@@ -733,7 +711,7 @@ def prepare_report_parameters(
                 previous_nominal = croniter(cronstr, previous_nominal).get_prev(
                     datetime
                 )
-                start = _canonical_run_time(previous_nominal, cron_tz)
+                start = _canonical_run_time(previous_nominal, tz)
     if end is None:
         end = now
 
@@ -887,6 +865,7 @@ def _prepare_forecast_automation(
 def _prepare_report_automation(
     parameters: dict,
     cronstr: str,
+    automation_timezone: str,
     generator_class: str | None,
     config: dict | None,
     source,
@@ -919,7 +898,7 @@ def _prepare_report_automation(
     # Validate with the chosen reporter's own parameters schema,
     # which may extend the base ReporterParametersSchema.
     deserialized_parameters = reporter._parameters_schema.load(
-        prepare_report_parameters(parameters, cronstr)
+        prepare_report_parameters(parameters, cronstr, automation_timezone)
     )
     if (
         "start" in parameters or "end" in parameters
@@ -965,6 +944,7 @@ def create_automation(
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
     parameters = parameters or {}
+    timezone = timezone or get_default_automation_timezone(asset)
     warnings: list[str] = []
     generator_id = None
     data_generator = None
@@ -1019,7 +999,7 @@ def create_automation(
             )
     elif automation_type == "reporting":
         reporter, deserialized_parameters, report_warnings = _prepare_report_automation(
-            parameters, cronstr, generator_class, config, source
+            parameters, cronstr, timezone, generator_class, config, source
         )
         warnings.extend(report_warnings)
         data_generator = reporter
@@ -1064,7 +1044,7 @@ def create_automation(
         generator_id=generator_id,
         parameters=parameters,
     )
-    automation_fields["timezone"] = timezone or get_default_automation_timezone(asset)
+    automation_fields["timezone"] = timezone
     automation = Automation(**automation_fields)
     db.session.add(automation)
     db.session.flush()
@@ -1230,9 +1210,9 @@ def _run_report_automation(
     parameters = prepare_report_parameters(
         dict(automation.parameters),
         automation.cronstr,
+        automation.timezone,
         now=now,
         automation_id=automation.id,
-        cron_timezone=automation.timezone,
         scheduled_at=scheduled_at,
     )
     report_sensors = resolve_data_generator_sensors(

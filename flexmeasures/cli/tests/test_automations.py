@@ -1130,14 +1130,11 @@ def test_prepare_report_parameters(app):
     import pandas as pd
 
     from flexmeasures.data.services.automations import prepare_report_parameters
-    from flexmeasures.utils.time_utils import get_timezone
 
     now = pd.Timestamp("2026-07-11T14:00:00+02:00")
-    # without an output sensor, offsets resolve in the platform timezone
-    local_now = now.tz_convert(get_timezone())
 
     # default: the last cron period (hourly cron -> the previous hour)
-    message = prepare_report_parameters({}, "0 * * * *", now=now)
+    message = prepare_report_parameters({}, "0 * * * *", "Europe/Amsterdam", now=now)
     assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     assert pd.Timestamp(message["end"]) == now
 
@@ -1147,8 +1144,8 @@ def test_prepare_report_parameters(app):
     message = prepare_report_parameters(
         {},
         "0 1 * * *",
+        "Asia/Seoul",
         now=datetime(2026, 1, 2, 0, 30, tzinfo=timezone.utc),
-        cron_timezone="Asia/Seoul",
         scheduled_at=scheduled_at,
     )
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2025-12-31T16:00:00+00:00")
@@ -1160,7 +1157,7 @@ def test_prepare_report_parameters(app):
     message = prepare_report_parameters(
         {},
         "30 2 * * *",
-        cron_timezone="Europe/Amsterdam",
+        "Europe/Amsterdam",
         scheduled_at=spring_run,
     )
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-03-28T01:30:00+00:00")
@@ -1170,7 +1167,7 @@ def test_prepare_report_parameters(app):
     app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
     try:
         message = prepare_report_parameters(
-            {}, "0 * * * *", now=now, automation_id=1234
+            {}, "0 * * * *", "Europe/Amsterdam", now=now, automation_id=1234
         )
         assert pd.Timestamp(message["start"]) == pd.Timestamp(
             "2026-07-11T09:30:00+02:00"
@@ -1178,26 +1175,30 @@ def test_prepare_report_parameters(app):
         assert pd.Timestamp(message["end"]) == now
         # an unknown automation id still falls back to the last cron period
         message = prepare_report_parameters(
-            {}, "0 * * * *", now=now, automation_id=5678
+            {}, "0 * * * *", "Europe/Amsterdam", now=now, automation_id=5678
         )
         assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     finally:
         app.redis_connection.delete("automation-last-run:1234")
 
-    # offsets applied to the run time; "DB" floors to the day begin
+    # Offsets are applied to the run time on the automation's own clock, so "DB" is midnight in its timezone.
+    # 14:00 in Amsterdam is 21:00 in Seoul, where the previous day ran from midnight to midnight Seoul time,
+    # which in Amsterdam is 17:00 to 17:00, rather than Amsterdam's own midnight.
     message = prepare_report_parameters(
-        {"start-offset": "-1D,DB", "end-offset": "DB"}, "0 1 * * *", now=now
+        {"start-offset": "-1D,DB", "end-offset": "DB"},
+        "0 1 * * *",
+        "Asia/Seoul",
+        now=now,
     )
-    assert (
-        pd.Timestamp(message["start"]) == (local_now - pd.Timedelta(days=1)).normalize()
-    )
-    assert pd.Timestamp(message["end"]) == local_now.normalize()
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-07-10T00:00:00+09:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-07-11T00:00:00+09:00")
     assert "start-offset" not in message and "end-offset" not in message
 
     # absolute datetimes pass through untouched
     message = prepare_report_parameters(
         {"start": "2026-01-01T00:00:00+01:00", "end": "2026-01-02T00:00:00+01:00"},
         "0 1 * * *",
+        "Europe/Amsterdam",
         now=now,
     )
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-01-01T00:00:00+01:00")
