@@ -57,7 +57,7 @@ Refer to a sensor instead, which says where to look rather than what was true on
 
 Omit the ``start`` field to calculate it afresh from the server time on each run.
 It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
-A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
+A fixed ``start`` is refused when the automation is created, because every run would then schedule the same period.
 The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
 As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
 
