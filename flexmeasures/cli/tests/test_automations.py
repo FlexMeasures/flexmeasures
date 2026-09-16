@@ -1464,6 +1464,47 @@ def test_run_day_ahead_forecast_automation(
     assert parameters["prior"] == "2026-03-27T23:30:00+00:00"
 
 
+def test_a_report_automation_names_a_source_that_stores_no_reporter(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """Reusing a forecaster's data source for a report automation names that source, rather than a reporter called 'None'."""
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Forecasts",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data[0],
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    forecaster_source_id = (
+        fresh_db.session.scalars(select(Automation)).one().generator_id
+    )
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    cli_input = _report_automation_cli_input(
+        tmp_path, sensor1_id, sensor2_id, report_sensor_id
+    )
+    # reuse the forecaster's data source instead of naming a reporter and its config
+    for option in ("--reporter", "--config"):
+        i = cli_input.index(option)
+        del cli_input[i : i + 2]
+    cli_input += ["--source", str(forecaster_source_id)]
+    result = runner.invoke(add_automation, cli_input)
+    assert result.exit_code != 0
+    assert (
+        f"Data source {forecaster_source_id} does not store a reporter."
+        in result.output
+    )
+    assert "'None'" not in result.output
+
+
 def test_forecast_automation_may_fix_the_start_of_its_training_data(
     app, fresh_db, setup_dummy_data
 ):

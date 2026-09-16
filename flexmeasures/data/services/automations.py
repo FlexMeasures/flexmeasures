@@ -1094,15 +1094,19 @@ def _prepare_forecast_automation(
         warnings.append(
             f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
         )
+    model = generator_class or "TrainPredictPipeline"
     forecaster = get_data_generator(
         source=source,
-        model=generator_class or "TrainPredictPipeline",
+        model=model,
         config=config or {},
         save_config=True,
         data_generator_type=Forecaster,
     )
     if forecaster is None:
-        raise ValueError(f"Could not set up forecaster '{generator_class}'.")
+        # With a source, the class and its config come from the source, so the source is what failed.
+        if source is not None:
+            raise ValueError(f"Data source {source.id} does not store a forecaster.")
+        raise ValueError(f"Could not set up forecaster '{model}'.")
     return forecaster, deserialized_parameters, warnings
 
 
@@ -1132,6 +1136,9 @@ def _prepare_report_automation(
         data_generator_type=Reporter,
     )
     if reporter is None:
+        # With a source, the class and its config come from the source, so the source is what failed.
+        if source is not None:
+            raise ValueError(f"Data source {source.id} does not store a reporter.")
         raise ValueError(f"Could not set up reporter '{generator_class}'.")
     # Validate with the chosen reporter's own parameters schema,
     # which may extend the base ReporterParametersSchema.
