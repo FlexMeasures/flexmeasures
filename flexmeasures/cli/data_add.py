@@ -2277,7 +2277,6 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
     if as_job and not save_config:
-
         click.secho(
             "Saving the reporter config to its data source (required for --as-job).",
             **MsgStyle.WARN,

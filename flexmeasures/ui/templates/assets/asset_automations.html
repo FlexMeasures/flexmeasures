@@ -592,7 +592,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#automationCron").val(),
           timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
-          generator: $("#automationGenerator").val().trim() || null,
+          "data-generator": $("#automationGenerator").val().trim() || null,
           config: config,
           parameters: parameters,
         }),

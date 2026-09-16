@@ -810,26 +810,20 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
 
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
-    # Determine the job cache entries to scan. Forecasting and reporting jobs are cached under their target/output sensor(s),
-    # which may belong to a different asset than the automation's own asset.
+    # Determine the job cache entries to scan.
     parameters = automation.parameters or {}
     if automation.type == "scheduling":
-
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
-        # and under individual device sensors (per-device jobs), which may belong
-        # to child assets rather than the automation's own (site) asset.
-        sensor_ids = _relevant_sensor_ids(
-            automation,
-            [
-                entry.get("sensor")
-                for entry in parameters.get("flex-model", []) or []
-                if isinstance(entry, dict)
-            ],
-        )
+        # and under individual sensors (per-device jobs).
+        assets = [automation.asset, *automation.asset.offspring]
         cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
-            (sensor_id, "scheduling", "sensor") for sensor_id in sensor_ids
+            (sensor.id, "scheduling", "sensor")
+            for asset in assets
+            for sensor in asset.sensors
         ]
     elif automation.type == "reporting":
+        # Reporting jobs are cached under their output sensor(s),
+        # which may belong to a different asset than the automation's own asset.
         sensor_ids = _relevant_sensor_ids(
             automation,
             [
@@ -840,6 +834,8 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
         )
         cache_refs = [(sensor_id, "reporting", "sensor") for sensor_id in sensor_ids]
     else:
+        # Forecasting jobs are cached under the forecast target sensor(s),
+        # which may belong to a different asset than the automation's own asset.
         sensor_ids = _relevant_sensor_ids(
             automation,
             [parameters.get("sensor"), parameters.get("sensor-to-save")],
