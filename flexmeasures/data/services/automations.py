@@ -390,10 +390,14 @@ WINDOW_FIELDS = ("start-offset", "end-offset", "duration")
 def validate_automation_window(parameters: dict, automation_type: str) -> None:
     """Check that an automation's parameters describe its window in a way every run can resolve.
 
-    Two of "start-offset", "end-offset" and "duration" describe a window, and one of the offsets can be given alone.
-    A forecast or schedule automation needs a "start-offset" or a "duration" with its "end-offset",
-    as it would otherwise start at the run time but end relative to the claimed cron occurrence.
-    A report automation needs an offset with its "duration", as without one it has nothing to measure the duration from.
+    Two of "start-offset", "end-offset" and "duration" describe a window; all three at once are refused.
+    One field alone describes a window too, where the automation type has a default for the other end:
+    a forecast or schedule automation takes a "start-offset" or a "duration" alone, as it starts at the run time by default,
+    and a report automation takes a "start-offset" or an "end-offset" alone,
+    as it ends at the run time, or starts where the last successful report ended, by default.
+    So a forecast or schedule automation needs a "start-offset" or a "duration" with its "end-offset",
+    as it would otherwise start at the run time but end relative to the claimed cron occurrence,
+    and a report automation needs an offset with its "duration", as without one it has nothing to measure the duration from.
 
     :raises marshmallow.ValidationError: if the offsets or their combination are invalid.
     """

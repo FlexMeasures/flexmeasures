@@ -62,8 +62,9 @@ A duration counts real time, so on the day the clocks go forward, ``P1D`` from m
 two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
 An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
 
-An offset can also be given alone.
+A single field can also be given alone, where the automation has a default for the rest.
 A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
+A ``duration`` alone has a forecast or schedule start at the time of the run, and is not enough for a report.
 An ``end-offset`` alone is for reports only, which then start where the last successful report ended.
 
 Without offsets, a forecast starts at the time of the run, rounded down to its sensor's resolution,
