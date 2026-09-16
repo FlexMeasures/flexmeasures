@@ -94,13 +94,20 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b'title: "Next run"' in asset_page.data
         assert b"timeZone: timezone" in asset_page.data
         assert b'"next-run": nextRun(automation)' in asset_page.data
-        assert b"getHumanFriendlyDeltaOrTimeStr(automation[\"next-run\"]" in asset_page.data
-        assert b"Cursor (UTC)" in asset_page.data
+        assert (
+            b'getHumanFriendlyDeltaOrTimeStr(automation["next-run"]' in asset_page.data
+        )
+        # The cursor is rendered in the automation's own timezone, so the label no longer says UTC.
+        assert b"Cursor (UTC)" not in asset_page.data
+        assert b">Cursor</h6>" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
         # The listing reaches below the asset, and refreshes itself.
         assert b"include_child_assets=${includeChildAssets}" in asset_page.data
-        assert b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)" in asset_page.data
+        assert (
+            b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)"
+            in asset_page.data
+        )
         # The per-automation panel is called Info, and reports the data source's configuration.
         assert b">Info</button>" in asset_page.data
         assert b"<h6>Data source</h6>" in asset_page.data
