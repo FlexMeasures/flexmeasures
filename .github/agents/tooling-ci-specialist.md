@@ -7,7 +7,9 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 ## Role
 
-Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
+Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts,
+and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows.
+This agent owns the reliability of the development and deployment infrastructure.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -57,15 +59,15 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 
 #### generate-openapi-specs Hook: Known Regressions
 
-**Critical**: The `generate-openapi-specs` hook regenerates `flexmeasures/ui/static/openapi-specs.json`
-and is **skipped in CI** (local-only hook). When run in an agent dev environment (e.g. `pip install -e .`
-with setuptools_scm), it can introduce **unintended regressions** alongside any intentional schema changes.
+**Critical**: The `generate-openapi-specs` hook regenerates `flexmeasures/ui/static/openapi-specs.json` and is **skipped in CI** (local-only hook).
+When run in an agent dev environment (e.g. `pip install -e .` with setuptools_scm),
+it can introduce **unintended regressions** alongside any intentional schema changes.
 
 **Known regression types** (discovered in PR #1996):
 
 1. **Version regression**: `setuptools_scm` may produce a dev version string (e.g. `"0.1.dev4"`)
-   instead of the tagged release version (e.g. `"0.31.0"`). This happens when the agent's git
-   checkout does not have full tag history, so the version is inferred from commit distance.
+   instead of the tagged release version (e.g. `"0.31.0"`). This happens when the agent's git checkout does not have full tag history,
+   so the version is inferred from commit distance.
 
 2. **Timezone list changes**: The generated timezone enum may drop valid entries (e.g. `"Asia/Brunei"`),
    depending on which `pytz` or `zoneinfo` version is installed in the agent's environment.
@@ -116,7 +118,9 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### Pre-commit Hook Execution (CRITICAL)
 
-**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure. Whoever is making the change runs pre-commit before committing; this agent validates that the pre-commit config matches what CI actually enforces.
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details.
+Committing code that fails pre-commit hooks is a process failure. Whoever is making the change runs pre-commit before committing;
+this agent validates that the pre-commit config matches what CI actually enforces.
 
 #### Common Failures and Fixes
 
@@ -164,7 +168,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
   - Redis server
   - Other system tools
   
-- [ ] **Python environment**: 
+- [ ] **Python environment**:
   - Is Python version appropriate according to `.python-version`?
   - Are dependencies installed correctly? (`uv sync`)
   
@@ -337,16 +341,13 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 ## Self-Improvement Notes
 
-Update this file when: a new GitHub Actions feature is adopted, CI/CD tooling changes, a new
-linter/formatter is added, or Python version support changes. Edit the relevant section in
-place — don't append a dated narrative.
+Update this file when: a new GitHub Actions feature is adopted, CI/CD tooling changes, a new linter/formatter is added,
+or Python version support changes. Edit the relevant section in place — don't append a dated narrative.
 
 **`uv sync --locked` failing right after `uv lock --upgrade`**: usually means a new package (e.g.
-`numba`/`llvmlite`) introduced fork markers with impossible platform combos (e.g.
-`os_name == 'nt' AND sys_platform == 'darwin'`), breaking the coverage check. Fix by adding
-`[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then
-regenerating `uv.lock`. After any significant `uv lock --upgrade`, run `uv sync --locked` locally
-and confirm exit code 0 before committing.
+`numba`/`llvmlite`) introduced fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`),
+breaking the coverage check. Fix by adding `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms,
+then regenerating `uv.lock`. After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0 before committing.
 
-Before claiming a CI/tooling change works: run `pre-commit run --all-files` locally, and if it's
-a workflow change, verify it actually passes in CI on a branch — don't assume.
+Before claiming a CI/tooling change works: run `pre-commit run --all-files` locally, and if it's a workflow change,
+verify it actually passes in CI on a branch — don't assume.
