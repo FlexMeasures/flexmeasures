@@ -62,10 +62,34 @@
     background: var(--bs-btn-bg);
     border-color: var(--bs-btn-border-color);
   }
-  /* The modal centres its text, which suits the headings but leaves JSON hanging in mid-air.
-     Preformatted blocks need their left edge to be readable. */
-  [id^="AutomationInfoBody-"] pre {
+  /* Each automation's modal is part of its row, so it sits inside the centred Info cell and
+     inherits that centring. A panel of headings and values reads left-aligned. */
+  .automation-info-modal {
     text-align: left;
+  }
+  /* A heading is a label for the value under it, not a title of its own. */
+  .automation-info-modal h6 {
+    margin-bottom: 0;
+    color: var(--text-color-secondary, #6c757d);
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .automation-info-modal h6:not(:first-child) {
+    margin-top: 1rem;
+  }
+  .automation-info-modal p {
+    margin-bottom: 0;
+  }
+  /* A config can run long, so it scrolls rather than pushing the rest of the panel out of view. */
+  .automation-info-modal pre {
+    margin-bottom: 0;
+    padding: .5rem .75rem;
+    max-height: 16rem;
+    overflow: auto;
+    background: rgba(0, 0, 0, .04);
+    border-radius: .25rem;
+    font-size: .8rem;
   }
   .automation-info.btn:hover {
     color: var(--bs-btn-hover-color);
@@ -402,7 +426,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       "next-run": nextRun(automation),
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
       info: `<button type="button" class="btn btn-sm btn-success automation-info" data-bs-target="#AutomationInfoModal-${automation.id}" data-bs-toggle="modal">Info</button>
-        <div class="modal fade" id="AutomationInfoModal-${automation.id}" tabindex="-1" role="dialog">
+        <div class="modal fade automation-info-modal" id="AutomationInfoModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">Automation '${esc(automation.name)}' (ID: ${automation.id})</h5>
@@ -458,14 +482,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         $(`#AutomationInfoBody-${automationId}`).html(`
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
-          <h6>Cursor (UTC)</h6>
+          <h6 title="Read on the automation's own clock, ${esc(res.timezone)}.">Cursor</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
           <h6>Data source</h6>
           <p>${esc(generator)}</p>
-          <div title="The static settings this data source was created with. Changing one of them makes a new data source.">
-            <h6 class="h6 fw-normal fst-italic">Configuration</h6>
-            ${generatorConfig}
-          </div>
+          <h6 title="The static settings this data source was created with. Changing one of them makes a new data source.">Configuration</h6>
+          ${generatorConfig}
           <h6>Reads from</h6>
           <p>${sensorLinks(res["input-sensors"], res.source)}</p>
           <h6>Writes to</h6>
