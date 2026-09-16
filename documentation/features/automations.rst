@@ -8,7 +8,7 @@ An automation computes forecasts, schedules or reports.
 
 On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting``, ``scheduling`` or ``reporting`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
-Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results.
+Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results (see :ref:`automation_timing`).
 
 Creating an automation
 ----------------------
@@ -38,6 +38,41 @@ These changes are recorded in the asset's audit log.
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
 This relationship is checked both when the automation is created and immediately before each run.
 
+.. _automation_timing:
+
+Timing each run
+---------------
+
+An automation runs again and again, so its parameters cannot pin a moment in time:
+a fixed ``start`` or ``end`` would have every run compute the same period,
+and a fixed ``prior`` would have every run ignore the data recorded since then.
+All three are refused when the automation is created, whatever its type.
+A forecast automation can still fix ``train-start``, where its training data begins, which is part of the forecaster's configuration.
+
+Instead, say how the period a run covers relates to that run, with two of these fields:
+
+- ``start-offset``: where the period starts, as comma-separated Pandas offsets, plus ``DB`` (day begin) and ``HB`` (hour begin);
+- ``end-offset``: where the period ends, in the same notation;
+- ``duration``: how long the period lasts, as an ISO 8601 duration.
+
+The offsets apply to the time the run was due, on the automation's own clock, the one its cron string is read in.
+For instance, an automation due every day at noon, with ``start-offset: "1D,DB"`` and ``duration: "P1D"``, covers the whole of the next day.
+A run that only happens after midnight, because the runner was delayed, still covers the day after the one it was due on.
+A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
+two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
+An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
+
+An offset can also be given alone.
+A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
+An ``end-offset`` alone is for reports only, which then start where the last successful report ended.
+
+Without offsets, a forecast starts at the time of the run, rounded down to its sensor's resolution,
+a schedule starts at the time of the run, rounded down to its ``resolution`` or else to the minute,
+and a report covers the period since the last successful report ended (see :ref:`automation_reports`).
+The difference shows after the runner was down.
+It catches up with only the latest missed run (see :ref:`running_automations`), so offsets then cover the period around that run alone,
+while a report without offsets covers everything since the last successful report.
+
 Automating schedules
 --------------------
 
@@ -55,10 +90,8 @@ Because the schedule is recomputed on every run, the flex config may only descri
 A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.
 Refer to a sensor instead, which says where to look rather than what was true once.
 
-Omit the ``start`` field to calculate it afresh from the server time on each run.
+Without offsets (see :ref:`automation_timing`), the start is calculated afresh from the server time on each run.
 It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
-A fixed ``start`` is refused when the automation is created, because every run would then schedule the same period.
-So is a fixed ``prior``, because every run would then ignore the data recorded since that moment; by default, each run takes into account all data recorded up to the moment it runs.
 The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
 As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
 
@@ -68,6 +101,16 @@ For example, this automation queues a scheduling job every hour, each time sched
 
     echo 'duration: "PT12H"' > trigger-message.yml
     flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+
+And this one schedules the whole of the next day, every day at noon, as for a day-ahead market:
+
+.. code-block:: bash
+
+    printf 'start-offset: "1D,DB"\nduration: "P1D"\n' > day-ahead.yml
+    flexmeasures add automation --asset 3 --name "Day-ahead schedules" --cron "0 12 * * *" --timezone Europe/Amsterdam \
+        --type scheduling --parameters day-ahead.yml
+
+.. _automation_reports:
 
 Automating reports
 ------------------
@@ -80,19 +123,10 @@ The sensors a report is recorded on must belong to the automation's asset or one
 This is checked when the automation is created and immediately before each run.
 A report job only records on those sensors, so a reporter that returns results for any other sensor is refused.
 
-Because the report is computed afresh on every run, its parameters cannot fix the period it covers: an absolute ``start`` or ``end`` is refused when the automation is created.
-Nor can they fix its ``belief_time``, which would have every run ignore the data recorded since that moment.
-Say instead how the period relates to the run, in one of two ways:
-
-- Give ``start-offset`` and ``end-offset``, as comma-separated Pandas offsets plus ``DB`` (day begin) and ``HB`` (hour begin), applied to the run time on the automation's own clock, the one its cron string is read in.
-  For instance, ``start-offset: "-1D,DB"`` with ``end-offset: "DB"`` reports on the whole of the previous day.
-  Leave out ``end-offset`` to report up to the run time.
-- Leave the timing out to report on the period since the last successful report ended, falling back to the previous cron period on the first run.
-  That end is recorded by the reporting job itself, once it has succeeded, so a failed report leaves no gap: the next run starts where the last successful one ended.
-
-The two differ after the runner was down.
-It catches up with only the latest missed run (see below), so offsets then report on the period around that run alone,
-while leaving the timing out reports on everything since the last successful report.
+Its period follows :ref:`automation_timing`, with offsets or one offset and a ``duration``.
+For instance, ``start-offset: "-1D,DB"`` with ``end-offset: "DB"`` reports on the whole of the previous day.
+Without offsets, a report covers the period since the last successful report ended, falling back to the previous cron period on the first run.
+That end is recorded by the reporting job itself, once it has succeeded, so a failed report leaves no gap: the next run starts where the last successful one ended.
 
 For example, this automation reports on the previous day, with the offsets above in ``report-parameters.yml``.
 It runs every night at 1 AM, an hour after midnight, so that the day's last readings have had time to arrive:
@@ -102,6 +136,8 @@ It runs every night at 1 AM, an hour after midnight, so that the day's last read
     flexmeasures add automation --asset 3 --name "Daily self-consumption report" --type reporting \
         --cron "0 1 * * *" --timezone Europe/Amsterdam \
         --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
+
+.. _running_automations:
 
 Running automations
 -------------------
