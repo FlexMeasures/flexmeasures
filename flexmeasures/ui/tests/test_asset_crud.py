@@ -91,7 +91,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Schedule timezone"' in asset_page.data
+        assert b'title: "Recurrence timezone"' in asset_page.data
         assert b'title: "Next run (local)"' in asset_page.data
         assert b"timeZone: automation.timezone" in asset_page.data
         assert b'"next-run": nextRun(automation)' in asset_page.data

@@ -126,7 +126,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">Use five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00; <code>*/15 * * * *</code> runs every 15 minutes. Times use the timezone below.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="automationTimezone" class="form-label">Schedule timezone</label>
+                  <label for="automationTimezone" class="form-label">Recurrence timezone</label>
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
                   <div class="form-text">The local clock the recurrence is read in. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
                 </div>
@@ -182,7 +182,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">Five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00 in the timezone below. Changing the schedule recalculates the next eligible run.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="editAutomationTimezone" class="form-label">Schedule timezone</label>
+                  <label for="editAutomationTimezone" class="form-label">Recurrence timezone</label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
                   <div class="form-text">The cron time follows this local clock, including daylight-saving changes. For example, choose <code>Europe/Amsterdam</code> to run at 06:00 Amsterdam time year-round.</div>
                 </div>
@@ -441,7 +441,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         { data: "created-at", title: "Created At", render: renderSortable },
         { data: "active", title: "Active", render: renderSortable },
         { data: "recurrence", title: "Recurrence", render: renderSortable },
-        { data: "timezone", title: "Schedule timezone" },
+        { data: "timezone", title: "Recurrence timezone" },
         { data: "next-run", title: "Next run (local)", render: renderSortable },
         { data: "jobs", title: "Jobs", orderable: false },
         { data: "details", title: "", className: "text-center align-middle", orderable: false },
