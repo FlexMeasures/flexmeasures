@@ -43,6 +43,7 @@ from flexmeasures.api.common.schemas.assets import (
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.automations import AutomationPayloadValidationError
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.automations import Automation
@@ -1725,6 +1726,8 @@ class AssetAPI(FlaskView):
                 asset, origin="API", check_permissions=True, **automation_data
             )
         except ValidationError as e:
+            if isinstance(e, AutomationPayloadValidationError):
+                return unprocessable_entity(e.messages)
             return unprocessable_entity({"parameters": e.messages})
         except AutomationSensorsUnknown as e:
             return unprocessable_entity(str(e))

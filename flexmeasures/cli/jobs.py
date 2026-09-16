@@ -185,7 +185,7 @@ def run_one_automation(automation: Automation):
     )
     db.session.commit()
     click.secho(
-        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
 

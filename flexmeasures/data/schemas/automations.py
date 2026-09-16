@@ -5,11 +5,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from croniter.croniter import CroniterBadDateError
-from marshmallow import fields, validate, validates, Schema, ValidationError
+from marshmallow import fields, validate, validates, Schema
 from pytz import all_timezones_set
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -77,7 +78,10 @@ class AutomationCreationSchema(Schema):
     automation_type = fields.Str(
         data_key="type",
         load_default="forecasting",
-        validate=validate.OneOf(Automation.SUPPORTED_TYPES),
+        validate=validate_automation_type,
+        metadata={
+            "description": "Registered automation type: forecasting, scheduling, or a type provided by an installed plugin."
+        },
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
     cronstr = CronField(required=True, data_key="cron")
@@ -94,7 +98,7 @@ class AutomationCreationSchema(Schema):
         data_key="data-generator",
         load_default="TrainPredictPipeline",
         metadata={
-            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. Only a forecast automation chooses one; a schedule automation's generator follows from the asset and the flex config.",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation chooses one; a plugin type declares its generator; a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline",
         },
     )
@@ -102,7 +106,7 @@ class AutomationCreationSchema(Schema):
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Only used by a forecast automation.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecasting and plugin automation types.",
             "example": {},
         },
     )
@@ -189,7 +193,4 @@ class AutomationSchema(ma.SQLAlchemySchema):
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):
-        if type not in Automation.SUPPORTED_TYPES:
-            raise ValidationError(
-                f"Automation type '{type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
-            )
+        validate_automation_type(type)

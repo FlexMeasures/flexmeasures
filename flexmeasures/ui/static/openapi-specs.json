@@ -6729,10 +6729,7 @@
           "type": {
             "type": "string",
             "default": "forecasting",
-            "enum": [
-              "forecasting",
-              "scheduling"
-            ]
+            "description": "Registered automation type: forecasting, scheduling, or a type provided by an installed plugin."
           },
           "name": {
             "type": "string",
@@ -6762,12 +6759,12 @@
           "data-generator": {
             "type": "string",
             "default": "TrainPredictPipeline",
-            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. Only a forecast automation chooses one; a schedule automation's generator follows from the asset and the flex config.",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation chooses one; a plugin type declares its generator; a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline"
           },
           "config": {
             "type": "object",
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Only used by a forecast automation.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecasting and plugin automation types.",
             "example": {},
             "additionalProperties": {}
           }

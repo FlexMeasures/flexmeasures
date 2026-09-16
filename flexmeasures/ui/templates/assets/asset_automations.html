@@ -118,6 +118,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <option value="forecasting" selected>forecasting</option>
                     <option value="scheduling">scheduling</option>
                   </select>
+                  <div class="form-text">Create plugin-defined automation types with the CLI. They can be viewed and managed here.</div>
                 </div>
                 <div class="mb-3">
                   <label for="automationCron" class="form-label">Schedule (cron expression)</label>
@@ -190,27 +191,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         {% endif %}
 
         <ul class="nav nav-tabs" role="tablist">
+          {% for type_id, display_name in automation_types.items() %}
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="forecasting-tab" data-bs-toggle="tab" data-bs-target="#forecasting-tab-pane" type="button" role="tab" aria-controls="forecasting-tab-pane" aria-selected="true">Forecasts</button>
+            <button class="nav-link{% if loop.first %} active{% endif %}" id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
           </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="scheduling-tab" data-bs-toggle="tab" data-bs-target="#scheduling-tab-pane" type="button" role="tab" aria-controls="scheduling-tab-pane" aria-selected="false">Schedules</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
-          </li>
+          {% endfor %}
         </ul>
         <div class="tab-content">
-          <div class="tab-pane fade show active" id="forecasting-tab-pane" role="tabpanel">
+          {% for type_id in automation_types %}
+          <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="{{ type_id }}-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable-forecasting" class="table table-striped w-100"></table>
+              <table id="automationsTable-{{ type_id }}" class="table table-striped w-100"></table>
             </div>
           </div>
-          <div class="tab-pane fade" id="scheduling-tab-pane" role="tabpanel">
-            <div class="table-responsive">
-              <table id="automationsTable-scheduling" class="table table-striped w-100"></table>
-            </div>
-          </div>
+          {% endfor %}
         </div>
 
         <div class="alert alert-success d-none mt-2" id="automations_msg"></div>
@@ -225,6 +219,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanManage = {{ user_can_manage_automations | tojson }};
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
+  const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
 
   // Escape user-controlled strings before interpolating them into HTML
@@ -379,10 +374,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           ? `${res.source.description} (data source ${res.source.id})`
           : "None";
         $(`#AutomationDetailsBody-${automationId}`).html(`
+          <h6>Type</h6>
+          <p>${esc(automationTypes[res.type] || res.type)}</p>
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
           <h6>Cursor (UTC)</h6>
-          <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
+          <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the task itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
           <h6>Data generator</h6>
           <p>${esc(generator)}</p>
           <h6>Reads from</h6>
@@ -417,7 +414,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       order: [[1, "desc"]],  // most recently created first
       language: {
         emptyTable: `No ${automationType} automations have been defined on this asset yet.`
-          + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
+          + (userCanManage ? " Create one with the CLI command `flexmeasures add automation`." : ""),
       },
       columns: [
         { data: "name", title: "Name" },
@@ -460,7 +457,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       method: "GET",
       success: function (res) {
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of ["forecasting", "scheduling"]) {
+        for (const automationType of Object.keys(automationTypes)) {
           makeAutomationsTable(
             automationType,
             res.automations.filter(automation => automation.type === automationType),
@@ -468,7 +465,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         }
       },
       error: function (xhr) {
-        for (const automationType of ["forecasting", "scheduling"]) {
+        for (const automationType of Object.keys(automationTypes)) {
           makeAutomationsTable(automationType, []);
           $(`#automationsTable-${automationType}`).hide();
         }

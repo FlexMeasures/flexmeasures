@@ -962,3 +962,76 @@ def list_schedulers():
 
 
 app.cli.add_command(fm_show_data)
+
+
+@fm_show_data.command("automations")
+@with_appcontext
+@click.option(
+    "--asset", type=GenericAssetIdField(), help="Only show automations on this asset."
+)
+@click.option(
+    "--as-json",
+    is_flag=True,
+    help="Include stored configuration and parameters as JSON.",
+)
+def list_automations(asset, as_json: bool):
+    """Inspect built-in and plugin automations, including unavailable types."""
+    from flexmeasures.data.automations import get_automation_types
+    from flexmeasures.data.models.automations import Automation
+    from flexmeasures.data.schemas.automations import AutomationSchema
+
+    query = select(Automation).order_by(Automation.id)
+    if asset is not None:
+        query = query.filter_by(asset_id=asset.id)
+    automations = db.session.scalars(query).all()
+    handlers = get_automation_types()
+    if as_json:
+        records = []
+        for automation in automations:
+            record = AutomationSchema().dump(automation)
+            record["available"] = automation.type in handlers
+            record["parameters"] = automation.parameters
+            record["source"] = {
+                "id": automation.generator_id,
+                "model": automation.generator.model,
+                "version": automation.generator.version,
+                "config": automation.generator.attributes.get("data_generator", {}).get(
+                    "config", {}
+                ),
+            }
+            records.append(record)
+        click.echo(json.dumps(records, indent=2))
+        return
+    click.echo(
+        tabulate(
+            [
+                (
+                    automation.id,
+                    automation.name,
+                    automation.type,
+                    automation.asset_id,
+                    automation.active,
+                    automation.cronstr,
+                    automation.timezone,
+                    automation.generator_id,
+                    (
+                        "available"
+                        if automation.type in handlers
+                        else "plugin unavailable"
+                    ),
+                )
+                for automation in automations
+            ],
+            headers=[
+                "ID",
+                "Name",
+                "Type",
+                "Asset",
+                "Active",
+                "Cron",
+                "Timezone",
+                "Source",
+                "Handler",
+            ],
+        )
+    )

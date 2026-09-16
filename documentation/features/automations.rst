@@ -4,7 +4,9 @@ Automations
 ============
 
 An **automation** is a recurring task defined on an asset.
-For now, an automation computes forecasts or schedules; automating reports is planned.
+Built-in types compute forecasts or schedules.
+Plugins can register additional types, such as data ingestion, with their own data generators, validation schemas and worker queues.
+See :ref:`plugin_automation_types` for the plugin contract.
 
 On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting`` or ``scheduling`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
@@ -20,7 +22,8 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
     flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says which task to automate (``forecasting`` or ``scheduling``, matching the queue the jobs go to), and defaults to ``forecasting``.
+``--type`` says which registered task to automate and defaults to ``forecasting``.
+Built-in types are ``forecasting`` and ``scheduling``; plugin types use the identifiers registered by the plugin.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
@@ -67,6 +70,32 @@ For example, this automation queues a scheduling job every hour, each time sched
 
     echo 'duration: "PT12H"' > trigger-message.yml
     flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+
+Plugin-defined automations
+--------------------------
+
+Create a plugin-defined automation with its registered type identifier and JSON or YAML files:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Import site measurements" \
+        --type site-ingestion --cron "*/15 * * * *" --timezone Europe/Amsterdam \
+        --config ingestion-config.yml --parameters ingestion-parameters.yml
+
+The registered handler determines the data generator and worker queue.
+``--data-generator`` can explicitly name the registered generator; ``--source`` reuses an existing generator configuration and cannot be combined with ``--data-generator`` or ``--config``.
+Forecast-specific command-line options do not apply to plugin types.
+Plugin schemas validate configuration and parameters, and unknown fields are rejected.
+Run a worker for the queue declared by the handler, in addition to the automation dispatcher.
+
+The UI lists registered plugin types in their own tabs and shows their parameters, data source, input sensors, output sensors and recent jobs.
+Existing actions, including editing recurrence, activation, deletion and *Run now*, also apply to these automations.
+Creation forms for plugin types are a follow-up: use the CLI or API to create them for now.
+
+API-created automations remember the user who created them.
+The dispatcher and worker recheck that the user is active and can write to the output sensors.
+CLI-created automations run as trusted deployment operations.
+Every output sensor must still belong to the automation's asset or one of its descendants.
 
 Running automations
 -------------------
@@ -140,3 +169,9 @@ After upgrading an existing installation, runs scheduled before the upgrade are 
 Daylight-saving-time transitions follow wall-clock semantics.
 If the clock skips a scheduled local time in spring, that run happens once at the transition boundary.
 If a scheduled local time occurs twice in autumn, the first instance is the canonical run and the repeated instance is not queued again.
+
+Inspect stored automations with ``flexmeasures show automations --asset 3``.
+Use ``--as-json`` to include generator configuration and run parameters.
+Unavailable plugin types remain listed, so their recurrence and configuration can be inspected.
+After upgrading a generator, recreate its automation with the installed version; a run fails safely
+if its stored source version differs from the server or worker version.

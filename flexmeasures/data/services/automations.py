@@ -447,6 +447,17 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
+    from flexmeasures.data.automations import (
+        get_automation_handler,
+        resolve_plugin_generator,
+    )
+
+    try:
+        handler = get_automation_handler(automation.type)
+        if handler.generator_class is not None:
+            return resolve_plugin_generator(automation, handler)[1]
+    except (NotImplementedError, ValidationError, ValueError) as exc:
+        raise AutomationSensorsUnknown(str(exc)) from exc
     if automation.type == "scheduling":
         try:
             return resolve_schedule_automation_sensors(
@@ -600,8 +611,15 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
 
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
+    from flexmeasures.data.automations import get_automation_types
+
+    handler = get_automation_types().get(automation.type)
     # Determine the job cache entries to scan.
-    if automation.type == "scheduling":
+    if handler is None:
+        return {}
+    if handler.generator_class is not None:
+        cache_refs = [(automation.asset_id, handler.queue, "asset")]
+    elif automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual sensors (per-device jobs).
         assets = [automation.asset, *automation.asset.offspring]
@@ -637,6 +655,51 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
 
 
 def create_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    timezone: str | None = None,
+    automation_type: str = "forecasting",
+    active: bool = True,
+    parameters: dict | None = None,
+    generator_class: str | None = "TrainPredictPipeline",
+    config: dict | None = None,
+    source: DataSource | None = None,
+    origin: str = "API",
+    check_permissions: bool = False,
+) -> tuple[Automation, list[str]]:
+    """Create an automation through its registered handler, without committing."""
+    from flask_security import current_user
+    from flexmeasures.data.automations import (
+        get_automation_handler,
+        validate_automation_type,
+    )
+
+    validate_automation_type(automation_type)
+    automation, warnings = get_automation_handler(automation_type).create(
+        asset=asset,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        automation_type=automation_type,
+        active=active,
+        source=source,
+        generator_class=generator_class,
+        config=config,
+        parameters=parameters,
+        origin=origin,
+        check_permissions=check_permissions,
+    )
+    if check_permissions:
+        if current_user.is_anonymous:
+            from werkzeug.exceptions import Unauthorized
+
+            raise Unauthorized()
+        automation.execution_user_id = current_user.id
+    return automation, warnings
+
+
+def _create_builtin_automation(
     asset,
     name: str,
     cronstr: str,
@@ -877,13 +940,15 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    if automation.type == "forecasting":
-        return _run_forecast_automation(automation)
-    elif automation.type == "scheduling":
-        return _run_schedule_automation(automation)
-    raise NotImplementedError(
-        f"Automations of type '{automation.type}' cannot be run yet."
+    from flexmeasures.data.automations import (
+        get_automation_handler,
+        check_execution_access,
     )
+
+    handler = get_automation_handler(automation.type)
+    if automation.execution_user_id is not None:
+        check_execution_access(automation, resolve_automation_sensors(automation))
+    return handler.run(automation)
 
 
 def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
