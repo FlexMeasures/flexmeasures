@@ -143,7 +143,7 @@ def test_get_automation_details(
     assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
     assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
-    assert response.json["job_stats"] == {}  # this automation has not queued any jobs
+    assert response.json["job-stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
     sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
     assert response.json["input-sensors"] == [sensor]

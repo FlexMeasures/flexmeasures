@@ -368,7 +368,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       method: "GET",
       success: function (res) {
         // Show job stats in the table row
-        const jobStats = res.job_stats || {};
+        const jobStats = res["job-stats"] || {};
         const statsStr = Object.keys(jobStats).length
           ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
           : "none";
@@ -394,8 +394,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
-        if (res.redis_connection_err) {
-          $("#automations_err").removeClass("d-none").text(res.redis_connection_err);
+        if (res["redis-connection-err"]) {
+          $("#automations_err").removeClass("d-none").text(res["redis-connection-err"]);
         }
       },
       error: function (xhr) {
