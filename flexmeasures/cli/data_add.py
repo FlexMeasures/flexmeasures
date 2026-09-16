@@ -1458,7 +1458,7 @@ def _assemble_forecaster_config_and_parameters(
         config = _load_yaml_mapping(config_file, "--config")
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         field_value = kwargs.pop(field_name, None)
-        # skip unset options (click passes None, or an empty tuple for multiple-value options)
+        # Skip unset options: click passes None, or an empty tuple for a multiple-value option.
         if field_value is not None and field_value != ():
             if field_name in {
                 "future_regressors",
@@ -1842,15 +1842,13 @@ def add_automation(
         --cron "0 1 * * *" --type reporting --reporter PandasReporter
         --config reporter-config.yml --parameters report-parameters.yml
 
-
-    For forecasts and reports, the data generator configuration is stored on a
-    data source, and the parameters are validated and stored on the automation itself.
-    For schedules, the parameters form a schedule trigger message (as accepted by
-    the [POST] /assets/(id)/schedules/trigger API endpoint, without the asset id);
-    omit its "start" field to schedule from the run time on each run.
-    For reports, use "start-offset"/"end-offset" (comma-separated Pandas offsets,
-    applied to the run time) for a rolling report window, or omit timing fields
-    entirely to report on the last cron period.
+    For forecasts and reports, the data generator configuration is stored on a data source,
+    and the parameters are validated and stored on the automation itself.
+    For schedules, the parameters form a schedule trigger message, as accepted by the [POST] /assets/(id)/schedules/trigger API endpoint,
+    without the asset id; omit its "start" field to schedule from the run time on each run.
+    For reports, a fixed "start" or "end" is refused: use "start-offset" and "end-offset",
+    which take comma-separated Pandas offsets applied to the run time in the automation's timezone,
+    or leave the timing out to report on the period since the last successful report.
     Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster
@@ -1863,8 +1861,8 @@ def add_automation(
     A configuration option given on the command line overrides the same setting from --config,
     while a parameter from --parameters takes precedence over the matching command-line option.
     """
-    # Only a forecast automation has a default generator: a report automation has to name its
-    # reporter, and the service says so, while a schedule automation resolves its own.
+    # Only a forecast automation has a default generator:
+    # a report automation has to name its reporter, and the service says so, while a schedule automation resolves its own.
     if generator_class is None and automation_type == "forecasting":
         generator_class = "TrainPredictPipeline"
 
@@ -2277,7 +2275,6 @@ def add_report(  # noqa: C901
         )
         raise click.Abort()
     if as_job and not save_config:
-
         click.secho(
             "Saving the reporter config to its data source (required for --as-job).",
             **MsgStyle.WARN,
