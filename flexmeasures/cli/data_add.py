@@ -1842,15 +1842,14 @@ def add_automation(
         --cron "0 1 * * *" --type reporting --reporter PandasReporter
         --config reporter-config.yml --parameters report-parameters.yml
 
-
     For forecasts and reports, the data generator configuration is stored on a
     data source, and the parameters are validated and stored on the automation itself.
     For schedules, the parameters form a schedule trigger message (as accepted by
     the [POST] /assets/(id)/schedules/trigger API endpoint, without the asset id);
     omit its "start" field to schedule from the run time on each run.
-    For reports, use "start-offset"/"end-offset" (comma-separated Pandas offsets,
-    applied to the run time) for a rolling report window, or omit timing fields
-    entirely to report on the last cron period.
+    For reports, a fixed "start" or "end" is refused: use "start-offset" and "end-offset"
+    (comma-separated Pandas offsets, applied to the run time in the automation's timezone),
+    or leave the timing out to report on the period since the last successful report.
     Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster

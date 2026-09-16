@@ -135,22 +135,5 @@ The report sensor will now store all costs which we know will be made tomorrow b
 Automating reports
 --------------------
 
-Besides running a report once, a report can be computed on a recurring basis by an *automation* defined on the asset.
-See :ref:`automations` for the full concept, including how to manage and run automations.
-
-The reporter and its configuration are stored on a data source, which stays the same across runs, so all of the automation's report results attribute to one source.
-The report parameters are stored on the automation itself, and their timing is resolved afresh on each run:
-
-- Use ``start-offset`` and/or ``end-offset`` fields (comma-separated Pandas offsets, like the CLI options above) for a rolling window relative to the claimed cron occurrence, in the timezone of the first output sensor.
-  For instance, ``"start-offset": "-1D,DB"`` with ``"end-offset": "DB"`` reports on the whole previous day.
-- Omit timing fields entirely to report from the end of the latest successfully completed report window through the claimed cron occurrence.
-  When no completed window is known, such as on the first run, the start falls back to the previous cron occurrence in the automation's timezone.
-  The completion marker only moves forward, so concurrent reporting workers that finish out of order cannot reopen an already covered period.
-- Absolute ``start``/``end`` fields are also accepted, but draw a warning, as each run would then compute the same period.
-
-For example, this automation computes a report over each past day, every morning at 1 AM:
-
-.. code-block:: bash
-
-    flexmeasures add automation --asset 3 --name "Daily aggregation report" --cron "0 1 * * *" --type reporting \
-      --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
+Instead of computing reports one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues reporting jobs on a cron schedule.
+See :ref:`automations`.
