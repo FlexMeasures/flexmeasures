@@ -391,8 +391,8 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
 
     An automation's output sensors are checked against its creator's permissions when it is created,
     and those are predicted from the fields that name them.
-    A sensor the prediction misses is read as an input instead, so it is checked for read access
-    where recording data calls for create-children access.
+    A sensor the prediction misses is read as an input instead,
+    so it is checked for read access where recording data calls for create-children access.
     """
     import pandas as pd
 

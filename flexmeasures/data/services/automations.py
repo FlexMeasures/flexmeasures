@@ -57,10 +57,10 @@ class DueAutomation:
 #
 # NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
 # Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
-# A field this list misses is not left unchecked so much as checked for the wrong thing: the sensor is read
-# as an input, so its creator needs only read access where recording data calls for create-children access.
-# A schedule job created by an automation is therefore held to the sensors predicted here
-# (see `_sensors_this_job_may_record_on`), so that drift shows up as a refusal rather than a quiet downgrade.
+# A field this list misses is not left unchecked so much as checked for the wrong thing:
+# the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
+# A schedule job created by an automation is therefore held to the sensors predicted here (see `_sensors_this_job_may_record_on`),
+# so that drift shows up as a refusal rather than a quiet downgrade.
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
     "production",

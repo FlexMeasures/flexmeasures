@@ -920,8 +920,8 @@ def _sensors_this_job_may_record_on(rq_job) -> set[int] | None:
     An automation's output sensors are checked against its creator's permissions when the automation is created,
     which is the only moment a user is present.
     Those sensors are predicted from the fields that name them (see `OUTPUT_SENSOR_FIELDS`),
-    so a scheduler which returned results for a sensor named by some other field would record data
-    on a sensor that was only ever checked for read access, as the prediction reads it as an input.
+    so a scheduler which returned results for a sensor named by some other field would record data on a sensor that was only ever checked for read access,
+    as the prediction reads it as an input.
     Holding the scheduler to the prediction turns that silent downgrade into a refusal.
 
     Returns None where there is nothing to hold the job to: a job that is not an automation's,
