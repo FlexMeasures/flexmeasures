@@ -60,7 +60,7 @@ class DueAutomation:
 # Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
 # A field this list misses is not left unchecked so much as checked for the wrong thing:
 # the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
-# A schedule job created by an automation is therefore held to the sensors predicted here (see `_sensors_this_job_may_record_on`),
+# A schedule job created by an automation is therefore held to the sensors predicted here (see `sensors_automation_job_may_record_on`),
 # so that drift shows up as a refusal rather than a quiet downgrade.
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
@@ -506,6 +506,42 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     except AutomationSensorsUnknown as e:
         current_app.logger.warning(str(e))
         return {"input_sensors": [], "output_sensors": []}
+
+
+def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
+    """Return the sensor ids an automation-triggered job was cleared to record on, or None if it is not one.
+
+    An automation's output sensors are checked against its creator's permissions when the automation is created,
+    which is the only moment a user is present.
+    A data generator decides at run time which sensors it returns results for, though,
+    so a job holds it to the sensors that were checked, turning a write on anything else into a refusal.
+    For a schedule this matters because its output sensors are predicted from the fields that name them (see `OUTPUT_SENSOR_FIELDS`),
+    so a sensor named by some other field was only ever checked for read access, as the prediction reads it as an input.
+    For a report, the output sensors are named in its parameters, but the reporter is free to return results for others.
+
+    Returns None where there is nothing to hold the job to: a job that is not an automation's,
+    or an automation deleted since the job was queued.
+    An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
+    a guard that cannot work out what is allowed should not conclude that everything is.
+    """
+    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
+    if trigger.get("origin") != "automation":
+        return None
+    automation_id = trigger.get("automation_id")
+    if automation_id is None:
+        return None
+
+    automation = db.session.get(Automation, automation_id)
+    if automation is None:
+        return None
+    try:
+        sensors = resolve_automation_sensors(automation)["output_sensors"]
+    except AutomationSensorsUnknown as exc:
+        current_app.logger.error(
+            f"Cannot check which sensors automation {automation_id} may record on, so it records nothing: {exc}"
+        )
+        return set()
+    return {sensor.id for sensor in sensors}
 
 
 def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:

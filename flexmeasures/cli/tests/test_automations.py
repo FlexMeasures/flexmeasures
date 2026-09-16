@@ -1405,6 +1405,71 @@ def test_run_report_automation(
     )
 
 
+def test_report_automation_refuses_a_sensor_nobody_checked(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A reporter returning results for a sensor its automation did not declare is refused, before anything is recorded.
+
+    The automation's output sensors were checked against its creator's permissions when it was created,
+    but the reporter decides at run time which sensors it returns results for.
+    Here it returns results for one of its input sensors, which was only ever checked for read access.
+    """
+    import pandas as pd
+
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import (
+        ReportWritesUncheckedSensor,
+        run_report_job,
+    )
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+    job = app.queues["reporting"].jobs[0]
+
+    input_sensor = fresh_db.session.get(Sensor, sensor1_id)
+    mocker.patch.object(
+        PandasReporter,
+        "compute",
+        return_value=[
+            {"name": "df_agg", "sensor": input_sensor, "data": pd.DataFrame()}
+        ],
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+        run_report_job(**job.kwargs)
+
+    # a refused report covers nothing, so the next run still starts where the last successful one ended
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
+
 def test_run_automations(
     app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
 ):
