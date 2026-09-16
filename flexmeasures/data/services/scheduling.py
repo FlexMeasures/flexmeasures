@@ -925,9 +925,9 @@ def _sensors_this_job_may_record_on(rq_job) -> set[int] | None:
     Holding the scheduler to the prediction turns that silent downgrade into a refusal.
 
     Returns None where there is nothing to hold the job to: a job that is not an automation's,
-    an automation deleted since the job was queued, or one whose sensors cannot be determined.
-    The last case is logged rather than refused, because before this guard nothing was checked at run time at all,
-    so proceeding is no worse than the status quo, while refusing would stop an automation from recording at all.
+    or an automation deleted since the job was queued.
+    An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
+    a guard that cannot work out what is allowed should not conclude that everything is.
     """
     trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
     if trigger.get("origin") != "automation":
@@ -949,9 +949,9 @@ def _sensors_this_job_may_record_on(rq_job) -> set[int] | None:
         sensors = resolve_automation_sensors(automation)["output_sensors"]
     except AutomationSensorsUnknown as exc:
         current_app.logger.error(
-            f"Cannot check which sensors automation {automation_id} may record on, so its schedule is recorded unchecked: {exc}"
+            f"Cannot check which sensors automation {automation_id} may record on, so it records nothing: {exc}"
         )
-        return None
+        return set()
     return {sensor.id for sensor in sensors}
 
 

@@ -424,11 +424,6 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
     mocker.patch(
         "flexmeasures.data.services.scheduling.get_current_job", return_value=job
     )
-    # Stubbed so that this test is about the refusal; deriving the set is covered below.
-    mocker.patch(
-        "flexmeasures.data.services.scheduling._sensors_this_job_may_record_on",
-        return_value={scheduled_sensor.id},
-    )
     mocker.patch.object(
         StorageScheduler,
         "compute",
@@ -475,3 +470,36 @@ def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mock
     gone = mocker.Mock()
     gone.meta = {"trigger": {"origin": "automation", "automation_id": 999999}}
     assert _sensors_this_job_may_record_on(gone) is None
+
+
+def test_an_automation_whose_sensors_are_unknown_records_nothing(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A guard that cannot work out what is permitted permits nothing, rather than everything.
+
+    The alternative, proceeding unchecked, is what the run-time check exists to stop.
+    """
+    from flexmeasures.data.services.automations import AutomationSensorsUnknown
+    from flexmeasures.data.services.scheduling import _sensors_this_job_may_record_on
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    automation = build_schedule_automation(
+        battery,
+        name="Unknowable sensors",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch(
+        "flexmeasures.data.services.automations.resolve_automation_sensors",
+        side_effect=AutomationSensorsUnknown("cannot tell"),
+    )
+    job = mocker.Mock()
+    job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
+
+    assert _sensors_this_job_may_record_on(job) == set()

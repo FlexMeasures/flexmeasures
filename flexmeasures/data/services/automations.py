@@ -4,7 +4,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -385,20 +385,26 @@ def resolve_schedule_automation_sensors(
 ) -> dict[str, list[Sensor]]:
     """Resolve the sensors declared by a prepared schedule trigger.
 
+    The trigger message is loaded for its timing and its asset only.
+    The flex config goes to the scheduler as it was written, because a data generator deserializes its own config:
+    `collect_flex_config` merges what the asset tree holds with what the message carries, reading sensors by id,
+    so handing it an already-deserialized config gives it `Sensor` objects where it expects ids.
+
     A `ValidationError` is left to the caller, which reports it against the parameters the user sent.
-    Anything else the scheduler raises while working out its config says only that these sensors cannot be determined,
+    Anything else raised while working out the config says only that these sensors cannot be determined,
     so it is reported as such rather than reaching the caller as an unexpected failure.
 
     :raises marshmallow.ValidationError: if the parameters do not form a valid schedule trigger.
     :raises AutomationSensorsUnknown: if the scheduler cannot work out the config the sensors follow from.
     """
+    from sqlalchemy.exc import SQLAlchemyError
+
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import find_scheduler_class
     from flexmeasures.data.services.utils import get_scheduler_instance
 
-    trigger_data = AssetTriggerSchema().load(
-        prepare_schedule_trigger_message(parameters, asset_id)
-    )
+    message = prepare_schedule_trigger_message(parameters, asset_id)
+    trigger_data = AssetTriggerSchema().load(deepcopy(message))
     try:
         start = trigger_data["start_of_schedule"]
         scheduler_params = {
@@ -406,8 +412,8 @@ def resolve_schedule_automation_sensors(
             "end": start + trigger_data["duration"],
             "belief_time": trigger_data.get("belief_time"),
             "resolution": trigger_data.get("resolution"),
-            "flex_model": trigger_data["flex_model"],
-            "flex_context": trigger_data["flex_context"],
+            "flex_model": message.get("flex-model"),
+            "flex_context": message.get("flex-context", {}),
         }
         scheduler_class = find_scheduler_class(trigger_data["asset"])
         scheduler = get_scheduler_instance(
@@ -416,7 +422,8 @@ def resolve_schedule_automation_sensors(
             scheduler_params=scheduler_params,
         )
         scheduler.collect_flex_config()
-    except (NotImplementedError, ValueError) as exc:
+        scheduler.deserialize_config()
+    except (NotImplementedError, ValueError, SQLAlchemyError) as exc:
         raise AutomationSensorsUnknown(
             f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
         ) from exc
