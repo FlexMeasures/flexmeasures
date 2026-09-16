@@ -24,15 +24,12 @@ from flexmeasures.data.schemas.sensors import SensorIdField, SensorIdOrReference
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.services.automations import (
     get_forecast_output_sensor,
-    validate_forecast_output_scope,
+    validate_automation_output_scope,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
 
-# The automation types whose output sensor has to sit in the automation's own asset subtree.
-# Both spellings are listed because PR #2294 renames 'forecasts' to 'forecasting', after the queue and job names.
-# Keying on the old spelling alone would silently stop validating output scope the moment that lands,
-# so drop the old spelling only once this branch sits on top of it.
-FORECAST_AUTOMATION_TYPES = frozenset({"forecasts", "forecasting"})
+# The automation types whose output sensors have to sit in the automation's own asset subtree, as `create_automation` requires.
+OUTPUT_SCOPED_AUTOMATION_TYPES = frozenset({"forecasting", "reporting"})
 
 
 @dataclass(frozen=True)
@@ -152,12 +149,13 @@ def _copy_automation(
     parameters = _copy_parameters(automation, data_generator, remapper)
 
     copied_asset_id = asset_id_map[automation.asset_id]
-    if automation.type in FORECAST_AUTOMATION_TYPES:
-        # Reject a copy whose forecast would land outside its own asset, rather than let it fail on every run.
+    if automation.type in OUTPUT_SCOPED_AUTOMATION_TYPES:
+        # Reject a copy whose results would land outside its own asset, rather than let it fail on every run.
         try:
-            validate_forecast_output_scope(
-                copied_asset_id, get_forecast_output_sensor(parameters)
-            )
+            for output_sensor in _output_sensors(automation.type, parameters):
+                validate_automation_output_scope(
+                    copied_asset_id, output_sensor, automation.type
+                )
         except ValueError as e:
             raise AutomationNotCopyable(str(e)) from e
 
@@ -288,6 +286,24 @@ def _account_can_read(
         return True
     owner = db.session.get(Account, owner_account_id)
     return owner is not None and owner.consultancy_account_id == destination_account_id
+
+
+def _output_sensors(automation_type: str, parameters: dict) -> list[Sensor]:
+    """The sensors a copied forecast or report automation records on, read from its remapped parameters.
+
+    :raises ValueError: if one of them does not exist.
+    """
+    if automation_type == "forecasting":
+        return [get_forecast_output_sensor(parameters)]
+    sensors = []
+    for output in parameters.get("output", []) or []:
+        if not isinstance(output, dict) or output.get("sensor") is None:
+            continue
+        sensor = db.session.get(Sensor, int(output["sensor"]))
+        if sensor is None:
+            raise ValueError(f"Report output sensor {output['sensor']} does not exist.")
+        sensors.append(sensor)
+    return sensors
 
 
 class _ReferenceRemapper:
