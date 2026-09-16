@@ -34,6 +34,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* A test now holds new API and CLI field names to kebab-case, listing the names that predate the convention so that the list can only shrink [see `PR #2547 <https://www.github.com/FlexMeasures/flexmeasures/pull/2547>`_]
 * Drop the nine obsolete tables that predate the ``GenericAsset``/``Sensor`` data model, asking you to confirm first if any of them still hold data, which cleans up after v0.18.0, where seven of them were dropped but ``asset_type`` and ``weather_sensor_type`` were missed, and where a database that was downgraded past that release and upgraded again kept all nine [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
 * Speed up sensor data queries and free up disk space by reordering the ``timed_belief`` primary key to lead with ``sensor_id`` and dropping the indexes it makes redundant, in a migration that runs online and so needs no maintenance window (though it can take a while on a large database) [see `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_]
 * Look up which data sources recorded for which sensors from a small summary table instead of scanning the beliefs table [see `PR #2382 <https://www.github.com/FlexMeasures/flexmeasures/pull/2382>`_]
