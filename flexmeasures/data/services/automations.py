@@ -424,6 +424,10 @@ def resolve_schedule_automation_sensors(
         scheduler.collect_flex_config()
         scheduler.deserialize_config()
     except (NotImplementedError, ValueError, SQLAlchemyError) as exc:
+        if isinstance(exc, SQLAlchemyError):
+            # The session is unusable until the failed transaction is rolled back,
+            # and the caller goes on to render a response through it.
+            db.session.rollback()
         raise AutomationSensorsUnknown(
             f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
         ) from exc

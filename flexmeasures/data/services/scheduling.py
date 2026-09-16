@@ -1086,6 +1086,25 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     permitted_output_sensor_ids = _sensors_this_job_may_record_on(rq_job)
+    if permitted_output_sensor_ids is not None:
+        # Judge the whole set before writing any of it.
+        # The job's transaction would roll an interrupted write back, since `save_to_db` only flushes,
+        # but a refusal should not depend on the caller's transaction discipline,
+        # and `make_schedule` is also called directly.
+        refused = sorted(
+            {
+                result["sensor"].id
+                for result in consumption_schedule
+                if "sensor" in result
+                and result["sensor"].id not in permitted_output_sensor_ids
+            }
+        )
+        if refused:
+            raise ScheduleWritesUncheckedSensor(
+                f"This schedule would record data on sensor(s) {', '.join(str(i) for i in refused)},"
+                f" which are not among the sensors automation {rq_job.meta['trigger']['automation_id']}"
+                " was checked against when it was created."
+            )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     num_beliefs_created = 0
     for result in consumption_schedule:
@@ -1101,16 +1120,6 @@ def make_schedule(  # noqa: C901
             continue
         if "sensor" not in result:
             continue
-
-        if (
-            permitted_output_sensor_ids is not None
-            and result["sensor"].id not in permitted_output_sensor_ids
-        ):
-            raise ScheduleWritesUncheckedSensor(
-                f"This schedule would record data on sensor {result['sensor'].id},"
-                f" which is not one of the sensors automation {rq_job.meta['trigger']['automation_id']}"
-                " was checked against when it was created."
-            )
 
         # Ensure consumption_is_positive is set before resolving the sign.
         # At job-creation time this is already done eagerly; calling it here again
