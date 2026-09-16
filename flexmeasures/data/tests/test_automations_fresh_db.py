@@ -89,6 +89,21 @@ def test_automation_requires_generator(fresh_db, automation_with_generator):
         fresh_db.session.commit()
 
 
+def test_report_automation_requires_generator(fresh_db, automation_with_generator):
+    forecast_automation, _ = automation_with_generator
+    report_automation = Automation(
+        asset=forecast_automation.asset,
+        type="reporting",
+        name="generator-free report",
+        cronstr="0 1 * * *",
+        parameters={},
+    )
+    fresh_db.session.add(report_automation)
+
+    with pytest.raises(IntegrityError):
+        fresh_db.session.commit()
+
+
 def test_schedule_automation_generator_describes_its_scheduler_and_config(
     fresh_db, automation_with_generator
 ):
@@ -515,18 +530,20 @@ def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mock
     A schedule triggered through the API or the CLI has its sensors checked against the requester
     at trigger time, so there is nothing for this guard to add there.
     """
-    from flexmeasures.data.services.scheduling import _sensors_this_job_may_record_on
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
 
-    assert _sensors_this_job_may_record_on(None) is None
+    assert sensors_automation_job_may_record_on(None) is None
 
     api_job = mocker.Mock()
     api_job.meta = {"trigger": {"origin": "API"}}
-    assert _sensors_this_job_may_record_on(api_job) is None
+    assert sensors_automation_job_may_record_on(api_job) is None
 
     # An automation deleted since its job was queued leaves nothing to hold the job to.
     gone = mocker.Mock()
     gone.meta = {"trigger": {"origin": "automation", "automation_id": 999999}}
-    assert _sensors_this_job_may_record_on(gone) is None
+    assert sensors_automation_job_may_record_on(gone) is None
 
 
 def test_an_automation_whose_sensors_are_unknown_records_nothing(
@@ -537,7 +554,9 @@ def test_an_automation_whose_sensors_are_unknown_records_nothing(
     The alternative, proceeding unchecked, is what the run-time check exists to stop.
     """
     from flexmeasures.data.services.automations import AutomationSensorsUnknown
-    from flexmeasures.data.services.scheduling import _sensors_this_job_may_record_on
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
 
     battery = add_battery_assets_fresh_db["Test battery"]
     message = message_for_trigger_schedule()
@@ -559,4 +578,4 @@ def test_an_automation_whose_sensors_are_unknown_records_nothing(
     job = mocker.Mock()
     job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
 
-    assert _sensors_this_job_may_record_on(job) == set()
+    assert sensors_automation_job_may_record_on(job) == set()
