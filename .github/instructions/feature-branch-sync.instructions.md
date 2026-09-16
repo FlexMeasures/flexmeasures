@@ -73,7 +73,7 @@ git switch B && git merge A
 git merge -X ours <squash-commit>
 
 # 5. Merge the rest of main normally, resolving whatever conflicts it brings on their merits.
-git merge origin/main
+git fetch origin && git merge origin/main
 
 # 6. Delete A again. Its commits stay reachable from B.
 git branch -D A
@@ -86,13 +86,14 @@ Whatever main gained *after* the squash is genuinely new work,
 which is why it arrives separately in step 5 and is resolved like any other merge.
 Running `-X ours` against `origin/main` in one go would silently take B's side over that new work too.
 
-**`-X ours` settles conflicts and nothing else.** Where B and main each added their own version
-of the same thing without overlapping textually, git keeps both, and the later one wins at run time.
+**`-X ours` settles conflicts and nothing else.**
+Where B and main each added their own version of the same thing without overlapping textually,
+git keeps both, and the later one wins at run time.
 Two definitions of one class attribute is the shape to look for.
 After the merge, grep the result for anything defined twice.
 
-**Check that it worked by measuring, not by reading the diff.** Before starting, record what B
-adds on top of the A state it had:
+**Check that it worked by measuring, not by reading the diff.**
+Before starting, record what B adds on top of the A state it had:
 
 ```bash
 git diff $(git merge-base B A) B --stat
