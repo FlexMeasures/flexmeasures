@@ -19,9 +19,10 @@ Most-missed rules, called out so they are not forgotten:
 - **Prove a new test can fail** — break what it covers, confirm it goes red, restore. A test that passes
   with the feature disabled asserts nothing. See
   [`testing.instructions.md`](.github/instructions/testing.instructions.md).
-- **Never rebase or force-push a branch under review**, and when a stacked branch's base was
-  squash-merged, restore that base and merge rather than re-resolving its whole diff. See
-  [`feature-branch-sync.instructions.md`](.github/instructions/feature-branch-sync.instructions.md).
+- **Never rebase or force-push a branch under review.**
+  When a stacked branch's base was squash-merged, restore that base and merge,
+  rather than re-resolving its whole diff.
+  See [`feature-branch-sync.instructions.md`](.github/instructions/feature-branch-sync.instructions.md).
 - **One logical change per commit** ([`atomic-commits.instructions.md`](.github/instructions/atomic-commits.instructions.md)),
   **timezone-aware datetimes always** ([`timezone-awareness.instructions.md`](.github/instructions/timezone-awareness.instructions.md)),
   **catch specific exceptions** ([`error-handling.instructions.md`](.github/instructions/error-handling.instructions.md)),
