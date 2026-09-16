@@ -176,6 +176,21 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     Forecast parameters (for type forecasting) or a schedule trigger message (for type scheduling).
                   </div>
                 </div>
+                <!-- A schedule automation's generator follows from the asset and its flex config, so only a forecast automation chooses one. -->
+                <div class="mb-3 forecasting-only">
+                  <label for="automationGenerator" class="form-label">Data generator</label>
+                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <div class="form-text">The forecaster class to run. Leave empty for <code>TrainPredictPipeline</code>.</div>
+                </div>
+                <div class="mb-3 forecasting-only">
+                  <label for="automationConfig" class="form-label">Configuration (JSON)</label>
+                  <textarea class="form-control" id="automationConfig" rows="4" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
+                  <div class="form-text">
+                    How the forecaster is set up: its model, training period and regressors. Leave empty for the forecaster's defaults.
+                    These settings are what distinguish one data source from another, so changing them records under a different data source.
+                    They cannot be changed afterwards.
+                  </div>
+                </div>
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="automationActive" checked>
                   <label class="form-check-label" for="automationActive">Active</label>
@@ -746,19 +761,40 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
+    /* Only a forecast automation chooses a generator and configures it;
+       a schedule automation's generator follows from the asset and its flex config. */
+    function showForecastingOnlyFields() {
+      $(".forecasting-only").toggle($("#automationType").val() === "forecasting");
+    }
+    $("#automationType").on("change", showForecastingOnlyFields);
+    showForecastingOnlyFields();
+
+    // Read a JSON textarea, reporting where it is malformed rather than failing silently.
+    function readJsonField(selector, label) {
+      const text = $(selector).val().trim();
+      if (!text) {
+        return {};
+      }
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        throw new Error(`${label} is not valid JSON: ${e.message}`);
+      }
+    }
+
     // Create an automation
     $("#newAutomationForm").submit(function (event) {
       event.preventDefault();
-      let parameters = {};
-      const parametersText = $("#automationParameters").val().trim();
-      if (parametersText) {
-        try {
-          parameters = JSON.parse(parametersText);
-        } catch (e) {
-          $("#newAutomationErr").removeClass("d-none").text("Parameters are not valid JSON.");
-          return;
-        }
+      const isForecasting = $("#automationType").val() === "forecasting";
+      let parameters, config;
+      try {
+        parameters = readJsonField("#automationParameters", "Parameters");
+        config = isForecasting ? readJsonField("#automationConfig", "Configuration") : {};
+      } catch (error) {
+        $("#newAutomationErr").removeClass("d-none").text(error.message);
+        return;
       }
+      const generator = isForecasting ? $("#automationGenerator").val().trim() : "";
       $.ajax({
         url: `/api/v3_0/assets/${assetId}/automations`,
         method: "POST",
@@ -770,6 +806,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
           parameters: parameters,
+          // Left out entirely when empty, so the API's own defaults apply.
+          ...(Object.keys(config).length ? { config: config } : {}),
+          ...(generator ? { "data-generator": generator } : {}),
         }),
         success: () => location.reload(),
         error: function (xhr) {
