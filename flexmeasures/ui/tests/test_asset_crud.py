@@ -120,7 +120,7 @@ def test_automations_page_manager_can_set_timezones(client, setup_assets, as_adm
         b"Use five fields: minute, hour, day of month, month, day of week."
         in response.data
     )
-    assert b"The local clock used by the schedule." in response.data
+    assert b"The local clock the recurrence is read in." in response.data
     assert b'timezone: $("#automationTimezone").val()' in response.data
     assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
