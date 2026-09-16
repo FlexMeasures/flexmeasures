@@ -654,43 +654,27 @@ def test_add_automation_constrains_explicit_output_sensor(
 
 
 @pytest.mark.parametrize(
-    ("yaml_start", "expected_start"),
+    ("yaml_date", "expected_date"),
     (
         ("2026-07-31", "2026-07-31"),
         ("2026-07-31T06:00:00+01:00", "2026-07-31T06:00:00+01:00"),
     ),
 )
-def test_add_automation_normalizes_yaml_dates(
-    app,
-    fresh_db,
-    setup_dummy_data,
-    tmp_path,
-    yaml_start,
-    expected_start,
+def test_automation_option_files_normalize_yaml_dates(
+    tmp_path, yaml_date, expected_date
 ):
-    from flexmeasures.cli.data_add import add_automation
+    """An unquoted date in a YAML option file is kept as the string it was written as, so it can be stored as JSON.
+
+    This is tested on the file loader itself, as an automation's parameters may not fix a moment in time anymore.
+    """
+    from flexmeasures.cli.data_add import _load_yaml_mapping
 
     parameters_file = tmp_path / "parameters.yaml"
-    parameters_file.write_text(f"start: {yaml_start}\n")
-    result = app.test_cli_runner().invoke(
-        add_automation,
-        [
-            "--asset",
-            "1",
-            "--name",
-            "YAML dates",
-            "--cron",
-            "0 6 * * *",
-            "--parameters",
-            str(parameters_file),
-            "--sensor",
-            str(setup_dummy_data[0]),
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    automation = fresh_db.session.scalars(select(Automation)).one()
-    assert automation.parameters["start"] == expected_start
+    parameters_file.write_text(f"some-date: {yaml_date}\n")
+    with open(parameters_file) as stream:
+        assert _load_yaml_mapping(stream, "--parameters") == {
+            "some-date": expected_date
+        }
 
 
 @pytest.mark.parametrize("option_name", ("--config", "--parameters"))
@@ -940,7 +924,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     )  # fmt: skip
     assert result.exit_code != 0
     assert (
-        "every run of this schedule automation would schedule the same period"
+        "'start' fixes a moment in time, so every run of this schedule automation would compute the same period"
         in result.output
     )
     assert (
@@ -965,7 +949,10 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
         ],
     )  # fmt: skip
     assert result.exit_code != 0
-    assert "would ignore the data recorded since then" in result.output
+    assert (
+        "'prior' fixes a moment in time, so every run of this schedule automation would ignore the data recorded since then"
+        in result.output
+    )
     assert (
         fresh_db.session.execute(
             select(Automation).filter_by(name="Fixed-prior schedules")
@@ -1351,29 +1338,31 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
     [
         (
             {"start": "2023-04-10T00:00:00+00:00"},
-            "every run would then report on the same period",
+            "every run of this report automation would compute the same period",
         ),
         (
             {"end": "2023-04-10T10:00:00+00:00"},
-            "every run would then report on the same period",
+            "every run of this report automation would compute the same period",
         ),
         (
             {"start-offset": "-1D,DB", "end": "2023-04-10T10:00:00+00:00"},
-            "every run would then report on the same period",
+            "every run of this report automation would compute the same period",
         ),
         (
+            {"start-offset": "-1D,DB", "prior": "2023-04-10T10:00:00+00:00"},
+            "every run of this report automation would ignore the data recorded since then",
+        ),
+        # "belief_time" is what report parameters called "prior" up to v1.0
+        (
             {"start-offset": "-1D,DB", "belief_time": "2023-04-10T10:00:00+00:00"},
-            "every run would then ignore the data recorded since then",
+            "every run of this report automation would ignore the data recorded since then",
         ),
     ],
 )
 def test_report_automation_refuses_a_fixed_period(
     app, fresh_db, setup_dummy_data, tmp_path, fixed_timing, consequence
 ):
-    """A report automation may not fix its window or its belief time.
-
-    Every run would then report on the same period, or ignore the data recorded since the fixed moment.
-    """
+    """A report automation may not fix its window or its belief time, as every run would share that moment."""
     from flexmeasures.cli.data_add import add_automation
 
     sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
@@ -1390,6 +1379,67 @@ def test_report_automation_refuses_a_fixed_period(
     assert result.exit_code != 0
     assert consequence in result.output
     assert fresh_db.session.scalars(select(Automation)).first() is None
+
+
+@pytest.mark.parametrize(
+    "fixed_moment, consequence",
+    [
+        ({"start": "2026-01-01T00:00:00+01:00"}, "would compute the same period"),
+        ({"end": "2026-01-02T00:00:00+01:00"}, "would compute the same period"),
+        (
+            {"prior": "2026-01-01T00:00:00+01:00"},
+            "would ignore the data recorded since then",
+        ),
+    ],
+)
+def test_forecast_automation_refuses_a_fixed_moment(
+    app, fresh_db, setup_dummy_data, fixed_moment, consequence
+):
+    """A forecast automation may not fix its start, end or prior, as every run would share that moment."""
+    from flexmeasures.cli.data_add import add_automation
+
+    field = next(iter(fixed_moment))
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Fixed forecasts",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data[0],
+                **fixed_moment,
+            }
+        ),
+    )
+    assert result.exit_code != 0
+    assert (
+        f"'{field}' fixes a moment in time, so every run of this forecast automation {consequence}"
+        in result.output
+    )
+    assert fresh_db.session.scalars(select(Automation)).first() is None
+
+
+def test_forecast_automation_may_fix_the_start_of_its_training_data(
+    app, fresh_db, setup_dummy_data
+):
+    """A fixed training start is not refused: it belongs to the forecaster's config, and suits a recurring forecast."""
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Forecasts trained since April",
+                "cron": "0 6 * * *",
+                "sensor": setup_dummy_data[0],
+                "train-start": "2023-04-01T00:00:00+02:00",
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.generator.attributes["data_generator"]["config"]["train-start"]
 
 
 def test_run_report_automation(

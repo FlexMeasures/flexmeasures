@@ -55,7 +55,7 @@ from flexmeasures.data.scripts.data_gen import (
 from flexmeasures.data.services.automations import (
     AutomationSensorsUnknown,
     create_automation,
-    RecurringScheduleFixesAMoment,
+    RecurringAutomationFixesAMoment,
 )
 from flexmeasures.data.services.data_sources import (
     get_or_create_source,
@@ -1919,7 +1919,7 @@ def add_automation(
             **MsgStyle.ERROR,
         )
         raise click.Abort()
-    except RecurringScheduleFixesAMoment as e:
+    except RecurringAutomationFixesAMoment as e:
         # A usage error: the automation cannot be defined this way, whatever the data says.
         raise click.UsageError(str(e))
     except AutomationSensorsUnknown as e:
