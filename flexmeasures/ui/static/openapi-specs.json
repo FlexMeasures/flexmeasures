@@ -3488,11 +3488,11 @@
                           "name": "power"
                         }
                       ],
-                      "job_stats": {
+                      "job-stats": {
                         "finished": 3,
                         "failed": 1
                       },
-                      "redis_connection_err": null
+                      "redis-connection-err": null
                     }
                   }
                 }
@@ -4158,7 +4158,7 @@
                           "metadata_hash": "abc123"
                         }
                       ],
-                      "redis_connection_err": null
+                      "redis-connection-err": null
                     }
                   }
                 }
