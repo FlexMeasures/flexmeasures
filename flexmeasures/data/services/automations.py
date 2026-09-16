@@ -589,12 +589,11 @@ def _last_run_redis_key(automation_id: int) -> str:
 
 
 def record_automation_run(automation_id: int, now: datetime | None = None) -> bool:
-    """Remember (in Redis) until when this automation's work is covered.
+    """Remember (in Redis) until when a report automation's reports reach, so its next default window starts there.
 
-    For forecasts and schedules automations, this is the (enqueue) run time.
-    For reports automations, the reporting job records the end of the report window
-    instead, upon success (see run_report_job), so a failed report job does not
-    create a permanent gap in the reported periods.
+    The reporting job records the end of its report window once it has succeeded (see run_report_job),
+    so a failed report job does not leave a permanent gap in the reported periods.
+    Only report automations use this: forecasts and schedules do not continue from where the previous run ended.
     """
     from redis.exceptions import WatchError
 
@@ -1152,22 +1151,17 @@ def run_automation(
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    now = server_now()
     if automation.type == "forecasting":
-        returns = _run_forecast_automation(automation)
+        return _run_forecast_automation(automation)
     elif automation.type == "scheduling":
-        returns = _run_schedule_automation(automation)
+        return _run_schedule_automation(automation)
     elif automation.type == "reporting":
-        # NB the reporting job itself records the end of the report window upon
-        # success (see run_report_job), so failed jobs do not create gaps in the
-        # reported periods.
-        return _run_report_automation(automation, now=now, scheduled_at=scheduled_at)
-    else:
-        raise NotImplementedError(
-            f"Automations of type '{automation.type}' cannot be run yet."
-        )
-    record_automation_run(automation.id, now=now)
-    return returns
+        # The reporting job records how far the reports reach once it succeeds (see run_report_job),
+        # so a failed job leaves no gap for the next run to skip over.
+        return _run_report_automation(automation, scheduled_at=scheduled_at)
+    raise NotImplementedError(
+        f"Automations of type '{automation.type}' cannot be run yet."
+    )
 
 
 def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
@@ -1193,9 +1187,7 @@ def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
 
 
 def _run_report_automation(
-    automation: Automation,
-    now: datetime | None = None,
-    scheduled_at: datetime | None = None,
+    automation: Automation, scheduled_at: datetime | None = None
 ) -> dict[str, Any] | None:
     if automation.generator is None:
         raise ValueError(
@@ -1210,7 +1202,6 @@ def _run_report_automation(
         dict(automation.parameters),
         automation.cronstr,
         automation.timezone,
-        now=now,
         automation_id=automation.id,
         scheduled_at=scheduled_at,
     )

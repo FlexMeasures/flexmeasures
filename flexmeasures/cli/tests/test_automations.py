@@ -1450,9 +1450,6 @@ def test_run_automations(
         and job.meta["trigger"]["automation_id"] in automation_ids
         for job in jobs
     )
-    # the run got recorded (used e.g. to anchor default report windows)
-    for automation in automations:
-        assert app.redis_connection.get(f"automation-last-run:{automation.id}")
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)
