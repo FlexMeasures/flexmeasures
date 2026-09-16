@@ -222,7 +222,10 @@ def test_edit_user(
         assert db.session.execute(
             select(AuditLog).filter_by(
                 affected_user_id=user.id,
-                event="Active status set to 'False'.",
+                event=(
+                    f"Updated user {user.username!r} (ID: {user.id}): "
+                    "Active status changed from 'True' to 'False'."
+                ),
                 active_user_id=requesting_user.id,
                 affected_account_id=user.account_id,
             )

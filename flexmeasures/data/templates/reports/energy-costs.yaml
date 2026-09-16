@@ -23,8 +23,8 @@ parameters:
     # The sensor to store the report; its unit must be a currency (e.g. EUR).
     # The results are resampled to this sensor's event resolution (e.g. daily costs).
     - sensor: FILL_IN
-  # Rolling reporting window, recommended for recurring use (e.g. in an automation):
-  # each run reports on the previous day. Replace with fixed "start" and "end"
-  # datetimes for a one-off report.
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
   start-offset: -1D,DB
   end-offset: DB

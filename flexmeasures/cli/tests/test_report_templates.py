@@ -1,7 +1,7 @@
 """Tests for the prepared report templates and their CLI integration."""
 
 from copy import deepcopy
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -75,7 +75,7 @@ def test_energy_costs_template_validates(app, fresh_db, setup_dummy_asset):
         template["parameters"], [power_sensor.id], [cost_sensor.id]
     )
     assert find_placeholders(parameters) == []
-    prepared_parameters = prepare_report_parameters(parameters, "0 1 * * *")
+    prepared_parameters = prepare_report_parameters(parameters, "0 1 * * *", "UTC")
     reporter_class._parameters_schema.load(prepared_parameters)
 
 
@@ -95,7 +95,7 @@ def test_self_consumption_template_validates(app, fresh_db, setup_dummy_data):
         template["parameters"], [sensor1_id, sensor2_id], [report_sensor_id]
     )
     assert find_placeholders(parameters) == []
-    prepared_parameters = prepare_report_parameters(parameters, "0 1 * * *")
+    prepared_parameters = prepare_report_parameters(parameters, "0 1 * * *", "UTC")
     reporter_class._parameters_schema.load(prepared_parameters)
 
 
@@ -127,7 +127,7 @@ def test_show_report_templates(app):
 
 
 def test_add_and_run_report_automation_with_template(
-    app, fresh_db, setup_dummy_data, clean_redis, tmp_path
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
 ):
     """A report automation created from the self-consumption template computes a working report."""
     from flexmeasures.cli.data_add import add_automation
@@ -145,17 +145,18 @@ def test_add_and_run_report_automation_with_template(
     fresh_db.session.commit()
     daily_sensor_id = daily_sensor.id
 
-    # Fill in the template's sensor placeholders, and use an absolute reporting window
-    # (the dummy data lives in April 2023), replacing the template's rolling window
-    parameters = dict(
-        input=[
+    # Fill in the template's sensor placeholders, and widen its rolling window from one day to two,
+    # which covers the dummy data once the clock is frozen at the start of the day after it.
+    parameters = {
+        "input": [
             dict(name="production", sensor=sensor1_id),
             dict(name="consumption", sensor=sensor2_id),
         ],
-        output=[dict(name="self-consumption", sensor=daily_sensor_id)],
-        start="2023-04-10T00:00:00+00:00",
-        end="2023-04-12T00:00:00+00:00",
-    )
+        "output": [dict(name="self-consumption", sensor=daily_sensor_id)],
+        "start-offset": "-2D,DB",
+        "end-offset": "DB",
+    }
+    freeze_server_now(datetime(2023, 4, 12, 0, 0, 30, tzinfo=timezone.utc))
     parameters_file = tmp_path / "parameters.yml"
     parameters_file.write_text(yaml.dump(parameters))
 
@@ -169,6 +170,7 @@ def test_add_and_run_report_automation_with_template(
             "--type", "reporting",
             "--template", "self-consumption",
             "--parameters", str(parameters_file),
+            "--timezone", "UTC",
         ],
     )  # fmt: skip
     assert "Successfully created" in result.output, result.output
@@ -185,9 +187,8 @@ def test_add_and_run_report_automation_with_template(
         template["config"]["transformations"]
     )
     # user-provided timing fields replaced the template's rolling window
-    assert "start-offset" not in automation.parameters
-    assert "end-offset" not in automation.parameters
-    assert automation.parameters["start"] == "2023-04-10T00:00:00+00:00"
+    assert automation.parameters["start-offset"] == "-2D,DB"
+    assert automation.parameters["end-offset"] == "DB"
 
     # run the automation and process the queued reporting job
     result = runner.invoke(run_automations)

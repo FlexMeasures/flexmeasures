@@ -924,8 +924,10 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     )
     assert automation.parameters == {"duration": "PT12H"}
 
-    # a fixed start draws a warning
-    parameters_file.write_text('start: "2026-01-01T00:00:00+01:00"\n')
+    # a fixed start is refused, as every run would then schedule the same period
+    parameters_file.write_text(
+        'start: "2026-01-01T00:00:00+01:00"\nduration: "PT12H"\n'
+    )
     result = runner.invoke(
         add_automation,
         [
@@ -936,8 +938,17 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
             "--parameters", str(parameters_file),
         ],
     )  # fmt: skip
-    assert "Successfully created" in result.output, result.output
-    assert "each run will compute the same period" in result.output
+    assert result.exit_code != 0
+    assert (
+        "every run of this schedule automation would schedule the same period"
+        in result.output
+    )
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Fixed-start schedules")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 @pytest.mark.parametrize(
@@ -1130,25 +1141,22 @@ def test_prepare_report_parameters(app):
     import pandas as pd
 
     from flexmeasures.data.services.automations import prepare_report_parameters
-    from flexmeasures.utils.time_utils import get_timezone
 
     now = pd.Timestamp("2026-07-11T14:00:00+02:00")
-    # without an output sensor, offsets resolve in the platform timezone
-    local_now = now.tz_convert(get_timezone())
 
     # default: the last cron period (hourly cron -> the previous hour)
-    message = prepare_report_parameters({}, "0 * * * *", now=now)
+    message = prepare_report_parameters({}, "0 * * * *", "Europe/Amsterdam", now=now)
     assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     assert pd.Timestamp(message["end"]) == now
 
-    # The fallback cron period is interpreted in the automation timezone and
-    # ends at the claimed run rather than at a delayed runner's wall time.
+    # The fallback cron period is interpreted in the automation timezone,
+    # and ends at the claimed run rather than at a delayed runner's wall time.
     scheduled_at = datetime(2026, 1, 1, 16, 0, tzinfo=timezone.utc)
     message = prepare_report_parameters(
         {},
         "0 1 * * *",
+        "Asia/Seoul",
         now=datetime(2026, 1, 2, 0, 30, tzinfo=timezone.utc),
-        cron_timezone="Asia/Seoul",
         scheduled_at=scheduled_at,
     )
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2025-12-31T16:00:00+00:00")
@@ -1160,7 +1168,7 @@ def test_prepare_report_parameters(app):
     message = prepare_report_parameters(
         {},
         "30 2 * * *",
-        cron_timezone="Europe/Amsterdam",
+        "Europe/Amsterdam",
         scheduled_at=spring_run,
     )
     assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-03-28T01:30:00+00:00")
@@ -1170,7 +1178,7 @@ def test_prepare_report_parameters(app):
     app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
     try:
         message = prepare_report_parameters(
-            {}, "0 * * * *", now=now, automation_id=1234
+            {}, "0 * * * *", "Europe/Amsterdam", now=now, automation_id=1234
         )
         assert pd.Timestamp(message["start"]) == pd.Timestamp(
             "2026-07-11T09:30:00+02:00"
@@ -1178,30 +1186,24 @@ def test_prepare_report_parameters(app):
         assert pd.Timestamp(message["end"]) == now
         # an unknown automation id still falls back to the last cron period
         message = prepare_report_parameters(
-            {}, "0 * * * *", now=now, automation_id=5678
+            {}, "0 * * * *", "Europe/Amsterdam", now=now, automation_id=5678
         )
         assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     finally:
         app.redis_connection.delete("automation-last-run:1234")
 
-    # offsets applied to the run time; "DB" floors to the day begin
+    # Offsets are applied to the run time on the automation's own clock, so "DB" is midnight in its timezone.
+    # 14:00 in Amsterdam is 21:00 in Seoul, where the previous day ran from midnight to midnight Seoul time,
+    # which in Amsterdam is 17:00 to 17:00, rather than Amsterdam's own midnight.
     message = prepare_report_parameters(
-        {"start-offset": "-1D,DB", "end-offset": "DB"}, "0 1 * * *", now=now
-    )
-    assert (
-        pd.Timestamp(message["start"]) == (local_now - pd.Timedelta(days=1)).normalize()
-    )
-    assert pd.Timestamp(message["end"]) == local_now.normalize()
-    assert "start-offset" not in message and "end-offset" not in message
-
-    # absolute datetimes pass through untouched
-    message = prepare_report_parameters(
-        {"start": "2026-01-01T00:00:00+01:00", "end": "2026-01-02T00:00:00+01:00"},
+        {"start-offset": "-1D,DB", "end-offset": "DB"},
         "0 1 * * *",
+        "Asia/Seoul",
         now=now,
     )
-    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-01-01T00:00:00+01:00")
-    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-01-02T00:00:00+01:00")
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-07-10T00:00:00+09:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-07-11T00:00:00+09:00")
+    assert "start-offset" not in message and "end-offset" not in message
 
 
 def test_report_coverage_cannot_move_backwards(app, clean_redis):
@@ -1321,7 +1323,39 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
     assert "Invalid start-offset" in result.output
 
 
-def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+@pytest.mark.parametrize(
+    "fixed_timing",
+    [
+        {"start": "2023-04-10T00:00:00+00:00"},
+        {"end": "2023-04-10T10:00:00+00:00"},
+        {"start-offset": "-1D,DB", "end": "2023-04-10T10:00:00+00:00"},
+    ],
+)
+def test_report_automation_refuses_a_fixed_period(
+    app, fresh_db, setup_dummy_data, tmp_path, fixed_timing
+):
+    """A report automation may not fix its window, or every run would report on the same period."""
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra=fixed_timing,
+        ),
+    )
+    assert result.exit_code != 0
+    assert "every run would then report on the same period" in result.output
+    assert fresh_db.session.scalars(select(Automation)).first() is None
+
+
+def test_run_report_automation(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
+):
     """A due reports automation queues a reporting job; a worker computes and saves the report."""
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.jobs import run_automations
@@ -1336,14 +1370,14 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
         sensor1_id,
         sensor2_id,
         report_sensor_id,
-        # the dummy data lives in April 2023, so use an absolute reporting window
-        parameters_extra={
-            "start": "2023-04-10T00:00:00+00:00",
-            "end": "2023-04-10T10:00:00+00:00",
-        },
+        # report on today so far, which, with the clock frozen below, is the dummy data's day
+        parameters_extra={"start-offset": "DB"},
         asset_id=report_sensor.generic_asset_id,
     )
     cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    # the dummy data lives in April 2023
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
     result = runner.invoke(add_automation, cli_input)
     assert "Successfully created" in result.output, result.output
     automation = fresh_db.session.execute(select(Automation)).scalar_one()
@@ -1380,6 +1414,71 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
     assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
         "2023-04-10T10:00:00+00:00"
     )
+
+
+def test_report_automation_refuses_a_sensor_nobody_checked(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A reporter returning results for a sensor its automation did not declare is refused, before anything is recorded.
+
+    The automation's output sensors were checked against its creator's permissions when it was created,
+    but the reporter decides at run time which sensors it returns results for.
+    Here it returns results for one of its input sensors, which was only ever checked for read access.
+    """
+    import pandas as pd
+
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import (
+        ReportWritesUncheckedSensor,
+        run_report_job,
+    )
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+    job = app.queues["reporting"].jobs[0]
+
+    input_sensor = fresh_db.session.get(Sensor, sensor1_id)
+    mocker.patch.object(
+        PandasReporter,
+        "compute",
+        return_value=[
+            {"name": "df_agg", "sensor": input_sensor, "data": pd.DataFrame()}
+        ],
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+        run_report_job(**job.kwargs)
+
+    # a refused report covers nothing, so the next run still starts where the last successful one ended
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
 
 
 def test_run_automations(
@@ -1427,9 +1526,6 @@ def test_run_automations(
         and job.meta["trigger"]["automation_id"] in automation_ids
         for job in jobs
     )
-    # the run got recorded (used e.g. to anchor default report windows)
-    for automation in automations:
-        assert app.redis_connection.get(f"automation-last-run:{automation.id}")
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)

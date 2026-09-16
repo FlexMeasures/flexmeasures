@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from flask import current_app
+from rq import get_current_job
 from rq.job import Job
 
 from flexmeasures.data import db
@@ -45,11 +46,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
 
     job = Job.create(
         run_report_job,
-        kwargs={
-            "data_source_id": data_source_id,
-            "parameters": parameters,
-            "automation_id": (reporter._job_trigger or {}).get("automation_id"),
-        },
+        kwargs={"data_source_id": data_source_id, "parameters": parameters},
         connection=current_app.queues[queue].connection,
         ttl=int(
             current_app.config.get(
@@ -87,9 +84,11 @@ def _count_persistable_values(data) -> int:
     return len(data.dropna(subset=["event_value"]))
 
 
-def run_report_job(
-    data_source_id: int, parameters: dict, automation_id: int | None = None
-) -> list[dict]:
+class ReportWritesUncheckedSensor(PermissionError):
+    """Raised when a reporter returns results for a sensor that nobody's permissions were checked against."""
+
+
+def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     """Compute and store a report in a reporting worker.
 
     If the report was triggered by an automation, the end of the report window is recorded upon success,
@@ -107,6 +106,30 @@ def run_report_job(
         raise ValueError(f"Data source {data_source_id} does not store a Reporter.")
     reporter._parameters = None
     results = reporter.compute(parameters=parameters)
+
+    # An automation's job may only record on the sensors its creator was checked against.
+    # Judge the whole set before writing any of it.
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
+
+    rq_job = get_current_job()
+    permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
+    if permitted_output_sensor_ids is not None:
+        refused = sorted(
+            {
+                result["sensor"].id
+                for result in results
+                if result["sensor"].id not in permitted_output_sensor_ids
+            }
+        )
+        if refused:
+            raise ReportWritesUncheckedSensor(
+                f"This report would record data on sensor(s) {', '.join(str(i) for i in refused)},"
+                f" which are not among the sensors automation {rq_job.meta['trigger']['automation_id']}"
+                " was checked against when it was created."
+            )
+
     saved = []
     for result in results:
         n_rows = _count_persistable_values(result["data"])
@@ -128,6 +151,12 @@ def run_report_job(
             summary,
         )
 
+    # The job's trigger says whether an automation created it, as it does for the guard above.
+    automation_id = (
+        rq_job.meta["trigger"]["automation_id"]
+        if permitted_output_sensor_ids is not None
+        else None
+    )
     if automation_id is not None and parameters.get("end"):
         from flexmeasures.data.services.automations import record_automation_run
 

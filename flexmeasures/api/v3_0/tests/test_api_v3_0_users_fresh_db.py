@@ -5,7 +5,7 @@ from sqlalchemy import select
 from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, User
 
 
 @pytest.mark.parametrize(
@@ -75,6 +75,7 @@ def test_user_reset_password(
     indirect=["requesting_user"],
 )
 def test_user_role_successful_modification_permission(
+    fresh_db,
     client,
     setup_roles_users_fresh_db,
     requesting_user,
@@ -82,6 +83,9 @@ def test_user_role_successful_modification_permission(
     user_to_update,
     expected_role,
 ):
+    user = fresh_db.session.get(User, user_to_update)
+    username, account_id = user.username, user.account_id
+    previous_ids = set(fresh_db.session.scalars(select(AuditLog.id)).all())
     patch_user_response = client.patch(
         url_for("UserAPI:patch", id=user_to_update),
         json={"flexmeasures_roles": expected_role},
@@ -89,6 +93,57 @@ def test_user_role_successful_modification_permission(
 
     print("Server responded with:\n%s" % patch_user_response.data)
     assert patch_user_response.status_code == expected_status_code
+    logs = fresh_db.session.scalars(
+        select(AuditLog).filter_by(affected_user_id=user_to_update)
+    ).all()
+    logs = [log for log in logs if log.id not in previous_ids]
+    assert len(logs) == 1
+    event = logs[0].event
+    assert username in event
+    assert str(user_to_update) in event
+    assert ("Added role(s)" if expected_role else "Removed role(s)") in event
+    assert logs[0].active_user_id == requesting_user.id
+    assert logs[0].affected_account_id == account_id
+
+    account_audit_response = client.get(url_for("AccountAPI:auditlog", id=account_id))
+    assert account_audit_response.status_code == 200
+    assert event in [log["event"] for log in account_audit_response.json]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+@pytest.mark.parametrize(
+    "initial_active, active", [(True, True), (True, False), (False, True)]
+)
+def test_user_active_status_audit(
+    fresh_db,
+    client,
+    setup_roles_users_fresh_db,
+    requesting_user,
+    initial_active,
+    active,
+):
+    """Status changes identify the user and values; unchanged status adds no entry."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    user.active = initial_active
+    fresh_db.session.commit()
+    previous_ids = set(fresh_db.session.scalars(select(AuditLog.id)).all())
+
+    response = client.patch(
+        url_for("UserAPI:patch", id=user.id), json={"active": active}
+    )
+
+    assert response.status_code == 200, response.json
+    logs = fresh_db.session.scalars(
+        select(AuditLog).filter_by(affected_user_id=user.id)
+    ).all()
+    logs = [log for log in logs if log.id not in previous_ids]
+    if active == initial_active:
+        assert not logs
+    else:
+        assert len(logs) == 1
+        assert user.username in logs[0].event
+        assert str(user.id) in logs[0].event
+        assert f"from '{initial_active}' to '{active}'" in logs[0].event
 
 
 @pytest.mark.parametrize(
