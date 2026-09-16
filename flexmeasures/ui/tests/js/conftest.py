@@ -205,6 +205,20 @@ def js_runner():
 
 
 @pytest.fixture(scope="session")
+def js_budgets() -> dict[str, float]:
+    """The budgets the harness runs to.
+
+    Handed out for the same reason as `js_pages`, though only for consistency here:
+    these are literals, so a second module identity would hold equal values rather than different ones.
+    """
+    return {
+        "page_ms": PAGE_BUDGET_MS,
+        "wait_s": WAIT_BUDGET_S,
+        "client_s": CLIENT_TIMEOUT_S,
+    }
+
+
+@pytest.fixture(scope="session")
 def js_pages() -> dict[str, str]:
     """The pages the harness currently has registered.
 

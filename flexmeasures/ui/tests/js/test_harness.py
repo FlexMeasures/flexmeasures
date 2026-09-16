@@ -13,24 +13,18 @@ pytest.importorskip(
 
 from selenium.webdriver.remote.client_config import ClientConfig  # noqa: E402
 
-from flexmeasures.ui.tests.js.conftest import (  # noqa: E402
-    CLIENT_TIMEOUT_S,
-    PAGE_BUDGET_MS,
-    WAIT_BUDGET_S,
-)
 
-
-def test_the_client_outlasts_the_page_and_the_wait_for_it():
+def test_the_client_outlasts_the_page_and_the_wait_for_it(js_budgets):
     """Whichever budget a slow machine exhausts, the page has already reported why.
 
     The page's own watchdog has to fire before the wait for it gives up, and both before the HTTP client does,
     or a busy machine produces a connection error naming nothing,
     instead of a failed check naming what did not finish.
     """
-    assert PAGE_BUDGET_MS / 1000 < WAIT_BUDGET_S < CLIENT_TIMEOUT_S
+    assert js_budgets["page_ms"] / 1000 < js_budgets["wait_s"] < js_budgets["client_s"]
 
 
-def test_the_client_timeout_does_not_depend_on_the_global_socket_default():
+def test_the_client_timeout_does_not_depend_on_the_global_socket_default(js_budgets):
     """Selenium reads its client timeout from the global socket default when it is built.
 
     Any library that sets that global would otherwise decide how long our browser commands may take,
@@ -42,10 +36,10 @@ def test_the_client_timeout_does_not_depend_on_the_global_socket_default():
         inherited = ClientConfig(remote_server_addr="http://localhost:0").timeout
         assert inherited == 0.5, "selenium no longer reads the global socket default"
 
-        socket.setdefaulttimeout(CLIENT_TIMEOUT_S)
+        socket.setdefaulttimeout(js_budgets["client_s"])
         assert (
             ClientConfig(remote_server_addr="http://localhost:0").timeout
-            == CLIENT_TIMEOUT_S
+            == js_budgets["client_s"]
         )
     finally:
         socket.setdefaulttimeout(previous)
