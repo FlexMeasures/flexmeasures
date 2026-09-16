@@ -47,6 +47,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* ``GET /api/v3_0/assets/(id)/jobs`` now reports its Redis connection error as ``redis-connection-err`` rather than ``redis_connection_err``, so the field is spelled the same way there as on the automation endpoints that also report it [see `PR #2545 <https://www.github.com/FlexMeasures/flexmeasures/pull/2545>`_]
 
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
 * A KPI on the asset page counted an event once per data source that reported it, so a total could come out higher than any source reported; it now reduces one value per event, from the latest source version and the most recent belief within it [see `PR #2472 <https://www.github.com/FlexMeasures/flexmeasures/pull/2472>`_]

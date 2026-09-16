@@ -2063,7 +2063,7 @@ class AssetAPI(FlaskView):
 
         return {
             "jobs": all_jobs_data,
-            "redis_connection_err": redis_connection_err,
+            "redis-connection-err": redis_connection_err,
         }, 200
 
     @route("/default_asset_view", methods=["POST"])
