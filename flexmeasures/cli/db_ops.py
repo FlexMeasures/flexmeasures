@@ -30,9 +30,11 @@ def reset():
             raise click.Abort()
     from flexmeasures.data.scripts.data_gen import reset_db
 
-    current_version = migrate.current()
     reset_db(app.db)
-    migrate.stamp(current_version)
+    # The tables are rebuilt from the data model, which matches the head of the current revision tree,
+    # so that is what the database is stamped as, whatever it held before.
+    # `purge` clears any leftover row, including one naming a pre-squash revision that the current tree does not know.
+    migrate.stamp(revision="head", purge=True)
 
 
 @fm_db_ops.command()
