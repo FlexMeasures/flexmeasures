@@ -46,11 +46,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
 
     job = Job.create(
         run_report_job,
-        kwargs={
-            "data_source_id": data_source_id,
-            "parameters": parameters,
-            "automation_id": (reporter._job_trigger or {}).get("automation_id"),
-        },
+        kwargs={"data_source_id": data_source_id, "parameters": parameters},
         connection=current_app.queues[queue].connection,
         ttl=int(
             current_app.config.get(
@@ -92,9 +88,7 @@ class ReportWritesUncheckedSensor(PermissionError):
     """Raised when a reporter returns results for a sensor that nobody's permissions were checked against."""
 
 
-def run_report_job(
-    data_source_id: int, parameters: dict, automation_id: int | None = None
-) -> list[dict]:
+def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     """Compute and store a report in a reporting worker.
 
     If the report was triggered by an automation, the end of the report window is recorded upon success,
@@ -157,6 +151,12 @@ def run_report_job(
             summary,
         )
 
+    # The job's trigger says whether an automation created it, as it does for the guard above.
+    automation_id = (
+        rq_job.meta["trigger"]["automation_id"]
+        if permitted_output_sensor_ids is not None
+        else None
+    )
     if automation_id is not None and parameters.get("end"):
         from flexmeasures.data.services.automations import record_automation_run
 
