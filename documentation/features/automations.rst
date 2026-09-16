@@ -57,8 +57,7 @@ Refer to a sensor instead, which says where to look rather than what was true on
 
 Omit the ``start`` field to calculate it afresh from the server time on each run.
 It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
-A fixed ``start`` is refused when the automation is created, because every run would then schedule the same period.
-So is a fixed ``prior``, because every run would then ignore the data recorded since that moment; by default, each run takes into account all data recorded up to the moment it runs.
+A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
 The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
 As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
 
@@ -81,7 +80,6 @@ This is checked when the automation is created and immediately before each run.
 A report job only records on those sensors, so a reporter that returns results for any other sensor is refused.
 
 Because the report is computed afresh on every run, its parameters cannot fix the period it covers: an absolute ``start`` or ``end`` is refused when the automation is created.
-Nor can they fix its ``belief_time``, which would have every run ignore the data recorded since that moment.
 Say instead how the period relates to the run, in one of two ways:
 
 - Give ``start-offset`` and ``end-offset``, as comma-separated Pandas offsets plus ``DB`` (day begin) and ``HB`` (hour begin), applied to the run time on the automation's own clock, the one its cron string is read in.
