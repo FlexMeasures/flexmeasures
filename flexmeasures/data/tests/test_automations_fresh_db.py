@@ -402,3 +402,124 @@ def test_a_scheduler_that_cannot_work_out_its_config_says_the_sensors_are_unknow
     # Parameters that do not form a schedule trigger at all stay a ValidationError.
     with pytest.raises(ValidationError):
         resolve_schedule_automation_sensors({"duration": "not a duration"}, battery.id)
+
+
+def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A scheduler returning results for an undeclared sensor is refused, rather than recording on it.
+
+    An automation's output sensors are checked against its creator's permissions when it is created,
+    and those are predicted from the fields that name them.
+    A sensor the prediction misses is read as an input instead,
+    so it is checked for read access where recording data calls for create-children access.
+    """
+    import pandas as pd
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.scheduling import (
+        ScheduleWritesUncheckedSensor,
+        make_schedule,
+    )
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    # A sensor of another asset, which the automation never declared and nobody was checked against.
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    job = mocker.Mock()
+    job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
+    mocker.patch(
+        "flexmeasures.data.services.scheduling.get_current_job", return_value=job
+    )
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+
+    with pytest.raises(ScheduleWritesUncheckedSensor, match=str(other_sensor.id)):
+        make_schedule(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        )
+
+
+def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):
+    """Only an automation's jobs are held to a declared set; everything else keeps its existing freedom.
+
+    A schedule triggered through the API or the CLI has its sensors checked against the requester
+    at trigger time, so there is nothing for this guard to add there.
+    """
+    from flexmeasures.data.services.scheduling import _sensors_this_job_may_record_on
+
+    assert _sensors_this_job_may_record_on(None) is None
+
+    api_job = mocker.Mock()
+    api_job.meta = {"trigger": {"origin": "API"}}
+    assert _sensors_this_job_may_record_on(api_job) is None
+
+    # An automation deleted since its job was queued leaves nothing to hold the job to.
+    gone = mocker.Mock()
+    gone.meta = {"trigger": {"origin": "automation", "automation_id": 999999}}
+    assert _sensors_this_job_may_record_on(gone) is None
+
+
+def test_an_automation_whose_sensors_are_unknown_records_nothing(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A guard that cannot work out what is permitted permits nothing, rather than everything.
+
+    The alternative, proceeding unchecked, is what the run-time check exists to stop.
+    """
+    from flexmeasures.data.services.automations import AutomationSensorsUnknown
+    from flexmeasures.data.services.scheduling import _sensors_this_job_may_record_on
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    automation = build_schedule_automation(
+        battery,
+        name="Unknowable sensors",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch(
+        "flexmeasures.data.services.automations.resolve_automation_sensors",
+        side_effect=AutomationSensorsUnknown("cannot tell"),
+    )
+    job = mocker.Mock()
+    job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
+
+    assert _sensors_this_job_may_record_on(job) == set()
