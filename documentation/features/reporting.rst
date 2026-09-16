@@ -129,3 +129,11 @@ Here, the ``ProfitOrLossReporter`` used as source (with Id 6) is the one we conf
 With the offsets, we control the timing ― we indicate that we want the new report to encompass the day of tomorrow (see Pandas offset strings).
 
 The report sensor will now store all costs which we know will be made tomorrow by the  schedule.
+
+.. _automating_reports:
+
+Automating reports
+--------------------
+
+Instead of computing reports one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues reporting jobs on a cron schedule.
+See :ref:`automations`.

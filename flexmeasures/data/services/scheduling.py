@@ -914,47 +914,6 @@ class ScheduleWritesUncheckedSensor(PermissionError):
     """Raised when a scheduler returns results for a sensor that nobody's permissions were checked against."""
 
 
-def _sensors_this_job_may_record_on(rq_job) -> set[int] | None:
-    """Return the sensor ids an automation-triggered job was cleared to record on, or None if it is not one.
-
-    An automation's output sensors are checked against its creator's permissions when the automation is created,
-    which is the only moment a user is present.
-    Those sensors are predicted from the fields that name them (see `OUTPUT_SENSOR_FIELDS`),
-    so a scheduler which returned results for a sensor named by some other field would record data on a sensor that was only ever checked for read access,
-    as the prediction reads it as an input.
-    Holding the scheduler to the prediction turns that silent downgrade into a refusal.
-
-    Returns None where there is nothing to hold the job to: a job that is not an automation's,
-    or an automation deleted since the job was queued.
-    An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
-    a guard that cannot work out what is allowed should not conclude that everything is.
-    """
-    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
-    if trigger.get("origin") != "automation":
-        return None
-    automation_id = trigger.get("automation_id")
-    if automation_id is None:
-        return None
-
-    from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.services.automations import (
-        AutomationSensorsUnknown,
-        resolve_automation_sensors,
-    )
-
-    automation = db.session.get(Automation, automation_id)
-    if automation is None:
-        return None
-    try:
-        sensors = resolve_automation_sensors(automation)["output_sensors"]
-    except AutomationSensorsUnknown as exc:
-        current_app.logger.error(
-            f"Cannot check which sensors automation {automation_id} may record on, so it records nothing: {exc}"
-        )
-        return set()
-    return {sensor.id for sensor in sensors}
-
-
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
@@ -1085,7 +1044,11 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
-    permitted_output_sensor_ids = _sensors_this_job_may_record_on(rq_job)
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
+
+    permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
     if permitted_output_sensor_ids is not None:
         # Judge the whole set before writing any of it.
         # The job's transaction would roll an interrupted write back, since `save_to_db` only flushes,
