@@ -24,10 +24,11 @@ def test_the_client_outlasts_the_page_and_the_wait_for_it(js_budgets):
     assert js_budgets["page_ms"] / 1000 < js_budgets["wait_s"] < js_budgets["client_s"]
 
 
-def test_the_client_timeout_does_not_depend_on_the_global_socket_default(js_budgets):
+def test_the_global_socket_default_is_what_decides_the_client_timeout(js_budgets):
     """Selenium reads its client timeout from the global socket default when it is built.
 
-    Any library that sets that global would otherwise decide how long our browser commands may take,
+    That is why the harness pins the global rather than leaving it:
+    any library that sets it would otherwise decide how long our browser commands may take,
     which is how a busy machine came to fail with a read timeout.
     """
     previous = socket.getdefaulttimeout()

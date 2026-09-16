@@ -182,8 +182,8 @@ def js_runner():
             try:
                 WebDriverWait(driver, wait_s).until(lambda d: d.title == "done")
             except TimeoutException:
-                # Ask the page for what it has collected, rather than reading the element it
-                # writes on finishing: a page that timed out is precisely one that never did.
+                # Ask the page for what it has collected, rather than reading the element it writes on finishing:
+                # a page that timed out is precisely one that never did.
                 checks = driver.execute_script("return window.__results || [];")
                 return list(checks) + [
                     {
