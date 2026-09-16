@@ -1284,29 +1284,29 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
     latest_attempt = run.attempts[-1] if run.attempts else None
     return {
         "id": run.id,
-        "scheduled_at": run.scheduled_at.isoformat(),
-        "schedule_revision": run.schedule_revision,
-        "dispatch_state": run.dispatch_state,
-        "execution_state": run.execution_state,
-        "attempt_count": run.attempt_count,
-        "intended_job_count": run.intended_job_count,
-        "queued_job_count": run.queued_job_count,
-        "first_enqueued_at": (
+        "scheduled-at": run.scheduled_at.isoformat(),
+        "schedule-revision": run.schedule_revision,
+        "dispatch-state": run.dispatch_state,
+        "execution-state": run.execution_state,
+        "attempt-count": run.attempt_count,
+        "intended-job-count": run.intended_job_count,
+        "queued-job-count": run.queued_job_count,
+        "first-enqueued-at": (
             run.first_enqueued_at.isoformat() if run.first_enqueued_at else None
         ),
-        "dispatch_completed_at": (
+        "dispatch-completed-at": (
             run.dispatch_completed_at.isoformat() if run.dispatch_completed_at else None
         ),
-        "execution_completed_at": (
+        "execution-completed-at": (
             run.execution_completed_at.isoformat()
             if run.execution_completed_at
             else None
         ),
-        "claim_owner": run.claim_owner,
-        "claim_expires_at": (
+        "claim-owner": run.claim_owner,
+        "claim-expires-at": (
             run.claim_expires_at.isoformat() if run.claim_expires_at else None
         ),
-        "last_error": (
+        "last-error": (
             {
                 "type": run.last_error_type,
                 "message": run.last_error_message,
@@ -1314,18 +1314,18 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
             if run.last_error_type or run.last_error_message
             else None
         ),
-        "latest_attempt": (
+        "latest-attempt": (
             {
-                "attempt_no": latest_attempt.attempt_no,
+                "attempt-no": latest_attempt.attempt_no,
                 "owner": latest_attempt.owner,
-                "started_at": latest_attempt.started_at.isoformat(),
-                "finished_at": (
+                "started-at": latest_attempt.started_at.isoformat(),
+                "finished-at": (
                     latest_attempt.finished_at.isoformat()
                     if latest_attempt.finished_at
                     else None
                 ),
                 "outcome": latest_attempt.outcome,
-                "queued_job_count": latest_attempt.queued_job_count,
+                "queued-job-count": latest_attempt.queued_job_count,
                 "error": (
                     {
                         "type": latest_attempt.error_type,
@@ -1340,22 +1340,22 @@ def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
         ),
         "jobs": [
             {
-                "logical_job_key": intent.logical_job_key,
-                "rq_job_id": intent.rq_job_id,
+                "logical-job-key": intent.logical_job_key,
+                "rq-job-id": intent.rq_job_id,
                 "queue": intent.queue,
                 "kind": intent.kind,
                 "status": intent.status,
-                "depends_on": list(intent.depends_on or []),
-                "enqueued_at": (
+                "depends-on": list(intent.depends_on or []),
+                "enqueued-at": (
                     intent.enqueued_at.isoformat() if intent.enqueued_at else None
                 ),
-                "started_at": (
+                "started-at": (
                     intent.started_at.isoformat() if intent.started_at else None
                 ),
-                "finished_at": (
+                "finished-at": (
                     intent.finished_at.isoformat() if intent.finished_at else None
                 ),
-                "last_error": (
+                "last-error": (
                     {
                         "type": intent.last_error_type,
                         "message": intent.last_error_message,
@@ -1410,8 +1410,8 @@ def get_automation_run_stats(automation: Automation) -> dict[str, Any]:
         "total": sum(dispatch_counts.values()),
         "dispatch": dispatch_counts,
         "execution": execution_counts,
-        "latest_run": serialized_runs[0] if serialized_runs else None,
-        "recent_runs": serialized_runs,
+        "latest-run": serialized_runs[0] if serialized_runs else None,
+        "recent-runs": serialized_runs,
     }
 
 

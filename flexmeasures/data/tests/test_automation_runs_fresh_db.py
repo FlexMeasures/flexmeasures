@@ -785,10 +785,10 @@ def test_run_stats_do_not_load_the_whole_run_history(fresh_db, due_forecast_auto
         "succeeded": history_size // 2,
         "pending": history_size // 2,
     }
-    assert len(stats["recent_runs"]) == AUTOMATION_RUN_STATS_RECENT_LIMIT
-    assert stats["latest_run"] == stats["recent_runs"][0]
+    assert len(stats["recent-runs"]) == AUTOMATION_RUN_STATS_RECENT_LIMIT
+    assert stats["latest-run"] == stats["recent-runs"][0]
     # The most recent runs are the ones described, newest first.
-    scheduled_times = [run["scheduled_at"] for run in stats["recent_runs"]]
+    scheduled_times = [run["scheduled-at"] for run in stats["recent-runs"]]
     assert scheduled_times == sorted(scheduled_times, reverse=True)
 
     # Counting happens in the database, and the runs that are read are limited,

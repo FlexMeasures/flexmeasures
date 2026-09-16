@@ -379,17 +379,17 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           ? `${res.source.description} (data source ${res.source.id})`
           : "None";
         const runStats = res["run-stats"] || {};
-        const latestRun = runStats.latest_run;
+        const latestRun = runStats["latest-run"];
         const latestRunSummary = latestRun
           ? {
               id: latestRun.id,
-              scheduled_at: latestRun.scheduled_at,
-              dispatch_state: latestRun.dispatch_state,
-              execution_state: latestRun.execution_state,
-              attempt_count: latestRun.attempt_count,
-              intended_job_count: latestRun.intended_job_count,
-              queued_job_count: latestRun.queued_job_count,
-              last_error: latestRun.last_error,
+              "scheduled-at": latestRun["scheduled-at"],
+              "dispatch-state": latestRun["dispatch-state"],
+              "execution-state": latestRun["execution-state"],
+              "attempt-count": latestRun["attempt-count"],
+              "intended-job-count": latestRun["intended-job-count"],
+              "queued-job-count": latestRun["queued-job-count"],
+              "last-error": latestRun["last-error"],
             }
           : null;
         $(`#AutomationDetailsBody-${automationId}`).html(`
@@ -408,7 +408,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Durable runs</h6>
-          <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, latest_run: latestRunSummary }, null, 4))}</pre>
+          <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);

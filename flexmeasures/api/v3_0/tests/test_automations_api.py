@@ -278,14 +278,14 @@ def test_get_automation_details(
     assert run_stats["total"] == 1
     assert run_stats["dispatch"] == {"partially_queued": 1}
     assert run_stats["execution"] == {"pending": 1}
-    assert run_stats["latest_run"]["dispatch_state"] == "partially_queued"
-    assert run_stats["latest_run"]["attempt_count"] == 2
-    assert run_stats["latest_run"]["queued_job_count"] == 1
-    assert run_stats["latest_run"]["last_error"] == {
+    assert run_stats["latest-run"]["dispatch-state"] == "partially_queued"
+    assert run_stats["latest-run"]["attempt-count"] == 2
+    assert run_stats["latest-run"]["queued-job-count"] == 1
+    assert run_stats["latest-run"]["last-error"] == {
         "type": "ConnectionError",
         "message": "lost Redis connection",
     }
-    assert [job["logical_job_key"] for job in run_stats["latest_run"]["jobs"]] == [
+    assert [job["logical-job-key"] for job in run_stats["latest-run"]["jobs"]] == [
         "cycle-001",
         "wrap-up",
     ]
@@ -322,31 +322,31 @@ def test_get_automation_details_distinguishes_run_outcomes(
     assert run_stats["execution"] == {"pending": 1, "succeeded": 1}
 
     # The most recent occurrence failed before it queued anything, so it can be retried in full.
-    latest_run = run_stats["latest_run"]
-    assert latest_run["scheduled_at"] == "2026-07-11T05:00:00+00:00"
-    assert latest_run["dispatch_state"] == "failed"
-    assert latest_run["intended_job_count"] == 0
-    assert latest_run["queued_job_count"] == 0
-    assert latest_run["first_enqueued_at"] is None
-    assert latest_run["last_error"] == {
+    latest_run = run_stats["latest-run"]
+    assert latest_run["scheduled-at"] == "2026-07-11T05:00:00+00:00"
+    assert latest_run["dispatch-state"] == "failed"
+    assert latest_run["intended-job-count"] == 0
+    assert latest_run["queued-job-count"] == 0
+    assert latest_run["first-enqueued-at"] is None
+    assert latest_run["last-error"] == {
         "type": "ValidationError",
         "message": "forecast output sensor no longer exists",
     }
-    assert latest_run["latest_attempt"]["attempt_no"] == 1
-    assert latest_run["latest_attempt"]["outcome"] == "failed"
+    assert latest_run["latest-attempt"]["attempt-no"] == 1
+    assert latest_run["latest-attempt"]["outcome"] == "failed"
 
     # The earlier occurrence needed a retry, finished queueing, and its jobs then succeeded.
-    retried_run = run_stats["recent_runs"][1]
-    assert retried_run["scheduled_at"] == "2026-07-11T04:00:00+00:00"
-    assert retried_run["dispatch_state"] == "queued"
-    assert retried_run["execution_state"] == "succeeded"
-    assert retried_run["attempt_count"] == 2
-    assert retried_run["dispatch_completed_at"] == "2026-07-11T04:02:00+00:00"
-    assert retried_run["execution_completed_at"] == "2026-07-11T04:09:00+00:00"
-    assert retried_run["latest_attempt"]["attempt_no"] == 2
-    assert retried_run["latest_attempt"]["owner"] == "runner-b:2"
-    assert retried_run["latest_attempt"]["outcome"] == "queued"
-    assert retried_run["latest_attempt"]["error"] is None
+    retried_run = run_stats["recent-runs"][1]
+    assert retried_run["scheduled-at"] == "2026-07-11T04:00:00+00:00"
+    assert retried_run["dispatch-state"] == "queued"
+    assert retried_run["execution-state"] == "succeeded"
+    assert retried_run["attempt-count"] == 2
+    assert retried_run["dispatch-completed-at"] == "2026-07-11T04:02:00+00:00"
+    assert retried_run["execution-completed-at"] == "2026-07-11T04:09:00+00:00"
+    assert retried_run["latest-attempt"]["attempt-no"] == 2
+    assert retried_run["latest-attempt"]["owner"] == "runner-b:2"
+    assert retried_run["latest-attempt"]["outcome"] == "queued"
+    assert retried_run["latest-attempt"]["error"] is None
     assert [job["status"] for job in retried_run["jobs"]] == ["succeeded"]
 
 
