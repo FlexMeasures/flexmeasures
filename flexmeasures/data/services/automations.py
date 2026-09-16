@@ -391,8 +391,8 @@ def resolve_schedule_automation_sensors(
     so handing it an already-deserialized config gives it `Sensor` objects where it expects ids.
 
     A `ValidationError` is left to the caller, which reports it against the parameters the user sent.
-    Anything else raised while working out the config says only that these sensors cannot be determined,
-    so it is reported as such rather than reaching the caller as an unexpected failure.
+    A scheduler that cannot work out its config raises `NotImplementedError`, `ValueError` or an `SQLAlchemyError`,
+    which says only that these sensors cannot be determined, so it is reported as such rather than reaching the caller as an unexpected failure.
 
     :raises marshmallow.ValidationError: if the parameters do not form a valid schedule trigger.
     :raises AutomationSensorsUnknown: if the scheduler cannot work out the config the sensors follow from.
