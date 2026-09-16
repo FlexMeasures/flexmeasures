@@ -71,8 +71,8 @@ window.__finish();
 
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
-    # Each run registers its page under its own token and asks for that URL, so a request
-    # cannot be served the page of a neighbouring run, and nothing can be answered from cache.
+    # Each run registers its page under its own token and asks for that URL,
+    # so a request cannot be served the page of a neighbouring run, and nothing can be answered from cache.
     pages: dict[str, str] = {}
 
     def _send(self, body: bytes, content_type: str):
@@ -130,7 +130,8 @@ def js_runner():
         # A small /dev/shm is the usual reason headless Chrome stalls on a busy machine.
         "--disable-dev-shm-usage",
         # Headless Chrome throttles timers and rendering in windows it thinks are hidden,
-        # which is every window here, and which is what makes the page's own watchdog unreliable.
+        # which is every window here,
+        # and which is what makes the page's own watchdog unreliable.
         "--disable-background-timer-throttling",
         "--disable-backgrounding-occluded-windows",
         "--disable-renderer-backgrounding",
@@ -138,9 +139,9 @@ def js_runner():
         "--no-first-run",
     ):
         options.add_argument(flag)
-    # Selenium reads its HTTP client timeout from the global socket default at construction
-    # (see `ClientConfig`), so without this it inherits whatever any other library happened to
-    # leave there, and a busy machine fails with a connection error instead of a report.
+    # Selenium reads its HTTP client timeout from the global socket default at construction (see `ClientConfig`),
+    # so without this it inherits whatever any other library happened to leave there,
+    # and a busy machine fails with a connection error instead of a report.
     # The budgets are layered on purpose: the page gives up first and reports (PAGE_BUDGET_MS),
     # then the wait for it, and only then the client.
     previous_default_timeout = socket.getdefaulttimeout()
@@ -167,28 +168,32 @@ def js_runner():
         """
         token = str(next(run_counter))
         _Handler.pages[token] = body
-        # "" restores the host timezone, so one test cannot leak its override into the next.
-        driver.execute_cdp_cmd(
-            "Emulation.setTimezoneOverride", {"timezoneId": timezone or ""}
-        )
-        driver.get(url + token)
+        # Registering the page and giving it back are one unit:
+        # anything between them can raise, and a page left registered would stay there for the session.
         try:
-            WebDriverWait(driver, WAIT_BUDGET_S).until(lambda d: d.title == "done")
-        except TimeoutException:
-            # Report whatever the page managed to collect, so the failure says which check
-            # was outstanding rather than only that the wait ran out.
-            collected = driver.find_element("id", "results").text
-            checks = json.loads(collected) if collected else []
-            return checks + [
-                {
-                    "label": f"the page finished within {WAIT_BUDGET_S}s",
-                    "passed": False,
-                    "detail": f"{len(checks)} check(s) had been reported when the wait ran out",
-                }
-            ]
+            # "" restores the host timezone,
+            # so one test cannot leak its override into the next.
+            driver.execute_cdp_cmd(
+                "Emulation.setTimezoneOverride", {"timezoneId": timezone or ""}
+            )
+            driver.get(url + token)
+            try:
+                WebDriverWait(driver, WAIT_BUDGET_S).until(lambda d: d.title == "done")
+            except TimeoutException:
+                # Report whatever the page managed to collect,
+                # so the failure says which check was outstanding rather than only that the wait ran out.
+                collected = driver.find_element("id", "results").text
+                checks = json.loads(collected) if collected else []
+                return checks + [
+                    {
+                        "label": f"the page finished within {WAIT_BUDGET_S}s",
+                        "passed": False,
+                        "detail": f"{len(checks)} check(s) had been reported when the wait ran out",
+                    }
+                ]
+            return json.loads(driver.find_element("id", "results").text)
         finally:
             _Handler.pages.pop(token, None)
-        return json.loads(driver.find_element("id", "results").text)
 
     try:
         yield run
@@ -196,6 +201,16 @@ def js_runner():
         driver.quit()
         server.shutdown()
         server.server_close()
+
+
+@pytest.fixture(scope="session")
+def js_pages() -> dict[str, str]:
+    """The pages the harness currently has registered.
+
+    Handed out rather than imported, because pytest gives a conftest its own module identity:
+    importing this module again yields a second `_Handler`, with a registry nothing writes to.
+    """
+    return _Handler.pages
 
 
 @pytest.fixture
