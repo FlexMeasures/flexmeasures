@@ -908,7 +908,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     )
     assert automation.parameters == {"duration": "PT12H"}
 
-    # a fixed start is refused, as every run would then schedule the same period
+    # a fixed start is refused, as every run would then schedule the same period.
     parameters_file.write_text(
         'start: "2026-01-01T00:00:00+01:00"\nduration: "PT12H"\n'
     )
@@ -934,7 +934,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
         is None
     )
 
-    # so is a fixed belief time, as every run would then ignore the data recorded since then
+    # so is a fixed belief time, as every run would then ignore the data recorded since then.
     parameters_file.write_text(
         'prior: "2026-01-01T00:00:00+01:00"\nduration: "PT12H"\n'
     )
@@ -1352,7 +1352,7 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
             {"start-offset": "-1D,DB", "prior": "2023-04-10T10:00:00+00:00"},
             "every run of this report automation would ignore the data recorded since then",
         ),
-        # "belief_time" is what report parameters called "prior" up to v1.0
+        # "belief_time" is what report parameters called "prior" up to v1.0.
         (
             {"start-offset": "-1D,DB", "belief_time": "2023-04-10T10:00:00+00:00"},
             "every run of this report automation would ignore the data recorded since then",
@@ -1448,7 +1448,7 @@ def test_run_day_ahead_forecast_automation(
     )
     assert "Successfully created" in result.output, result.output
     automation = fresh_db.session.scalars(select(Automation)).one()
-    # the automation stores its offsets, and resolves them on each run
+    # the automation stores its offsets, and resolves them on each run.
     assert automation.parameters["start-offset"] == "1D,DB"
 
     compute = mocker.patch.object(

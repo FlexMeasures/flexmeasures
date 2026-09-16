@@ -198,7 +198,7 @@ def test_run_day_ahead_schedule_automation(
     fresh_db.session.add(automation)
     fresh_db.session.flush()
 
-    # due at noon in Amsterdam
+    # due at noon in Amsterdam.
     returns = run_automation(
         automation, scheduled_at=datetime(2026, 3, 27, 11, 0, tzinfo=timezone.utc)
     )

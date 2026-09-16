@@ -20,19 +20,19 @@ TIMEZONE = "Europe/Amsterdam"
 @pytest.mark.parametrize(
     "timing, expected_start, expected_duration",
     [
-        # tomorrow, as a start and a duration
+        # tomorrow, as a start and a duration.
         (
             {"start-offset": "1D,DB", "duration": "P1D"},
             "2026-03-28T00:00:00+01:00",
             "P1D",
         ),
-        # the day after tomorrow, as two offsets: the day the clocks go forward, which lasts 23 hours
+        # the day after tomorrow, as two offsets: the day the clocks go forward, which lasts 23 hours.
         (
             {"start-offset": "2D,DB", "end-offset": "3D,DB"},
             "2026-03-29T00:00:00+01:00",
             "PT23H",
         ),
-        # tomorrow, as an end and a duration
+        # tomorrow, as an end and a duration.
         (
             {"end-offset": "2D,DB", "duration": "P1D"},
             "2026-03-28T00:00:00+01:00",
