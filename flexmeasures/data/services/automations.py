@@ -656,9 +656,9 @@ def prepare_report_parameters(
     The (required) start and end of the report are resolved on each run:
 
     - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets
-      (e.g. "-1D,DB" for the start of the previous day), applied to the run time
-      (or to the given absolute start/end), in the automation's timezone.
-    - Without offsets or absolutes, the window runs since the end of the automation's
+      (e.g. "-1D,DB" for the start of the previous day), applied to the run time,
+      in the automation's timezone.
+    - Without offsets, the window runs since the end of the automation's
       last (successfully) covered window, falling back to the last cron period (from
       the previous cron fire time until the run time) when none is known (e.g. on the
       first run).
@@ -673,20 +673,19 @@ def prepare_report_parameters(
     tz = ZoneInfo(automation_timezone)
     now = scheduled_at.astimezone(tz)
 
+    # A report automation cannot fix its window (see `_prepare_report_automation`), so offsets apply to the run time.
     start_offset = message.pop("start-offset", None)
     end_offset = message.pop("end-offset", None)
-    start = pd.Timestamp(message["start"]) if "start" in message else None
-    end = pd.Timestamp(message["end"]) if "end" in message else None
-
-    # Apply offsets to the given absolute datetime, or to the run time
-    if start_offset is not None:
-        start = apply_offset_chain(
-            start if start is not None else pd.Timestamp(now), start_offset
-        )
-    if end_offset is not None:
-        end = apply_offset_chain(
-            end if end is not None else pd.Timestamp(now), end_offset
-        )
+    start = (
+        apply_offset_chain(pd.Timestamp(now), start_offset)
+        if start_offset is not None
+        else None
+    )
+    end = (
+        apply_offset_chain(pd.Timestamp(now), end_offset)
+        if end_offset is not None
+        else None
+    )
 
     # Default to the window since the last covered window's end, falling back to
     # the last cron period (from the previous cron fire time until the run time)
@@ -875,10 +874,18 @@ def _prepare_report_automation(
 
     from flexmeasures.data.services.data_sources import get_data_generator
 
-    warnings = []
+    warnings: list[str] = []
     if generator_class is None and source is None:
         raise ValidationError(
             "A reporter is required for report automations (e.g. PandasReporter)."
+        )
+    # An automation runs again and again, so a fixed period would have it report on the same period every time.
+    fixed_fields = [field for field in ("start", "end") if field in parameters]
+    if fixed_fields:
+        raise ValidationError(
+            f"A report automation cannot fix {' or '.join(repr(field) for field in fixed_fields)}, as every run would then report on the same period."
+            " Use 'start-offset' and 'end-offset' (Pandas offsets, applied to the run time in the automation's timezone),"
+            " or leave the timing out to report on the period since the last successful report."
         )
     for offset_field in ("start-offset", "end-offset"):
         if offset_field in parameters:
@@ -900,14 +907,6 @@ def _prepare_report_automation(
     deserialized_parameters = reporter._parameters_schema.load(
         prepare_report_parameters(parameters, cronstr, automation_timezone)
     )
-    if (
-        "start" in parameters or "end" in parameters
-    ) and "start-offset" not in parameters:
-        warnings.append(
-            "The report period is (partly) fixed, so each run may compute the same period."
-            " Use 'start-offset'/'end-offset' (Pandas offsets applied to the run time),"
-            " or omit timing fields to report on the period since the last run instead."
-        )
     return reporter, deserialized_parameters, warnings
 
 

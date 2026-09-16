@@ -1194,16 +1194,6 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-07-11T00:00:00+09:00")
     assert "start-offset" not in message and "end-offset" not in message
 
-    # absolute datetimes pass through untouched
-    message = prepare_report_parameters(
-        {"start": "2026-01-01T00:00:00+01:00", "end": "2026-01-02T00:00:00+01:00"},
-        "0 1 * * *",
-        "Europe/Amsterdam",
-        now=now,
-    )
-    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-01-01T00:00:00+01:00")
-    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-01-02T00:00:00+01:00")
-
 
 def test_report_coverage_cannot_move_backwards(app, clean_redis):
     """An older report finishing later may not reopen already covered periods."""
@@ -1322,7 +1312,39 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
     assert "Invalid start-offset" in result.output
 
 
-def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+@pytest.mark.parametrize(
+    "fixed_timing",
+    [
+        {"start": "2023-04-10T00:00:00+00:00"},
+        {"end": "2023-04-10T10:00:00+00:00"},
+        {"start-offset": "-1D,DB", "end": "2023-04-10T10:00:00+00:00"},
+    ],
+)
+def test_report_automation_refuses_a_fixed_period(
+    app, fresh_db, setup_dummy_data, tmp_path, fixed_timing
+):
+    """A report automation may not fix its window, or every run would report on the same period."""
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra=fixed_timing,
+        ),
+    )
+    assert result.exit_code != 0
+    assert "every run would then report on the same period" in result.output
+    assert fresh_db.session.scalars(select(Automation)).first() is None
+
+
+def test_run_report_automation(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
+):
     """A due reports automation queues a reporting job; a worker computes and saves the report."""
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.jobs import run_automations
@@ -1337,14 +1359,14 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
         sensor1_id,
         sensor2_id,
         report_sensor_id,
-        # the dummy data lives in April 2023, so use an absolute reporting window
-        parameters_extra={
-            "start": "2023-04-10T00:00:00+00:00",
-            "end": "2023-04-10T10:00:00+00:00",
-        },
+        # report on today so far, which, with the clock frozen below, is the dummy data's day
+        parameters_extra={"start-offset": "DB"},
         asset_id=report_sensor.generic_asset_id,
     )
     cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    # the dummy data lives in April 2023
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
     result = runner.invoke(add_automation, cli_input)
     assert "Successfully created" in result.output, result.output
     automation = fresh_db.session.execute(select(Automation)).scalar_one()
