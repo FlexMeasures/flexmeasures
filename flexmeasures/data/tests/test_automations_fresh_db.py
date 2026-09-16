@@ -166,6 +166,47 @@ def test_run_schedule_automation(
     }
 
 
+def test_run_day_ahead_schedule_automation(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A schedule automation's offsets place the queued job's window relative to the run it was due for, on its own clock."""
+    from datetime import datetime, timezone
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    message.pop("start")
+    message.pop("duration")
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+
+    automation = build_schedule_automation(
+        battery,
+        name="Day-ahead schedules",
+        cronstr="0 12 * * *",
+        timezone="Europe/Amsterdam",
+        parameters={
+            **message,
+            "flex-model": [flex_model],
+            "start-offset": "1D,DB",
+            "duration": "P1D",
+        },
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    # due at noon in Amsterdam
+    returns = run_automation(
+        automation, scheduled_at=datetime(2026, 3, 27, 11, 0, tzinfo=timezone.utc)
+    )
+    job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
+    assert job.meta["scheduler_kwargs"]["start"] == "2026-03-28T00:00:00+01:00"
+    assert job.meta["scheduler_kwargs"]["end"] == "2026-03-29T00:00:00+01:00"
+
+
 @pytest.mark.parametrize("sequential", (False, True))
 def test_run_minimal_schedule_automation_with_stored_flex_config(
     fresh_db,

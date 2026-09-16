@@ -1419,6 +1419,51 @@ def test_forecast_automation_refuses_a_fixed_moment(
     assert fresh_db.session.scalars(select(Automation)).first() is None
 
 
+def test_run_day_ahead_forecast_automation(
+    app, fresh_db, setup_dummy_data, tmp_path, freeze_server_now, mocker
+):
+    """A forecast automation's offsets set the window the forecaster computes, believed at the time it runs.
+
+    The run is delayed past midnight, so offsets applied to the time it runs, rather than to the time it was due, would forecast a day too late.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+    from flexmeasures.data.services.automations import run_automation
+
+    freeze_server_now(datetime(2026, 3, 27, 23, 30, tzinfo=timezone.utc))
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('start-offset: "1D,DB"\nduration: "P1D"\n')
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Day-ahead forecasts",
+                "cron": "0 12 * * *",
+                "timezone": "Europe/Amsterdam",
+                "sensor": setup_dummy_data[0],
+                "parameters": str(parameters_file),
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    # the automation stores its offsets, and resolves them on each run
+    assert automation.parameters["start-offset"] == "1D,DB"
+
+    compute = mocker.patch.object(
+        TrainPredictPipeline, "compute", return_value={"job_id": "x", "n_jobs": 1}
+    )
+    run_automation(
+        automation, scheduled_at=datetime(2026, 3, 27, 11, 0, tzinfo=timezone.utc)
+    )
+    parameters = compute.call_args.kwargs["parameters"]
+    assert parameters["start"] == "2026-03-28T00:00:00+01:00"
+    assert parameters["duration"] == "P1D"
+    assert "start-offset" not in parameters
+    assert parameters["prior"] == "2026-03-27T23:30:00+00:00"
+
+
 def test_forecast_automation_may_fix_the_start_of_its_training_data(
     app, fresh_db, setup_dummy_data
 ):
