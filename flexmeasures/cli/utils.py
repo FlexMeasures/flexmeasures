@@ -40,6 +40,58 @@ class MsgStyle(object):
     ERROR: dict[str, Any] = {"fg": "red"}
 
 
+class LogsClickExceptions:
+    """Mixin that logs a Click error before Click reports it on stderr.
+
+    Click writes usage errors to stderr only, so a cron job that captures just the log file records nothing about why a command failed.
+    A single line goes to the app logger instead, which reaches the handlers the host has configured.
+    The exception is re-raised untouched, so Click's own output and its exit code are unchanged.
+
+    One line, rather than the usage block Click prints, keeps a command that fails on every run from filling the log.
+    """
+
+    def _log_click_exception(self, ctx: click.Context, exc: click.ClickException):
+        # A command's error passes through its group on the way out, so each exception is logged by the first handler to see it, and skipped by the rest.
+        if getattr(exc, "_flexmeasures_logged", False):
+            return
+        exc._flexmeasures_logged = True  # type: ignore[attr-defined]
+
+        from flask import current_app, has_app_context
+
+        logger = (
+            current_app.logger if has_app_context() else logging.getLogger(__name__)
+        )
+        # An error raised while resolving a subcommand names that subcommand's context, which is the path worth reporting.
+        error_ctx = getattr(exc, "ctx", None) or ctx
+        logger.error(
+            "Click error in `%s`: %s",
+            error_ctx.command_path,
+            exc.format_message(),
+        )
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, args)  # type: ignore[misc]
+        except click.ClickException as exc:
+            self._log_click_exception(ctx, exc)
+            raise
+
+    def invoke(self, ctx: click.Context):
+        try:
+            return super().invoke(ctx)  # type: ignore[misc]
+        except click.ClickException as exc:
+            self._log_click_exception(ctx, exc)
+            raise
+
+
+class LoggedClickExceptionGroup(LogsClickExceptions, click.Group):
+    """A group whose own errors, and those of every command in it, are logged before Click reports them.
+
+    A command's error passes through its group on the way out, so putting this on the group covers every command in it,
+    including the ones that pass a ``cls`` of their own, and any group nested inside it.
+    """
+
+
 class DeprecatedOption(click.Option):
     """A custom option that can be used to mark an option as deprecated.
 
@@ -120,36 +172,6 @@ class DeprecatedOptionsCommand(click.Command):
             option.process = make_process(option)
 
         return parser
-
-
-class LoggedClickExceptionCommand(click.Command):
-    """A command that logs Click usage errors before Click reports them."""
-
-    def _log_click_exception(self, ctx: click.Context, exc: click.ClickException):
-        from flask import current_app, has_app_context
-
-        logger = (
-            current_app.logger if has_app_context() else logging.getLogger(__name__)
-        )
-        logger.error(
-            "Click error in `%s`: %s",
-            ctx.command_path,
-            exc.format_message(),
-        )
-
-    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
-        try:
-            return super().parse_args(ctx, args)
-        except click.ClickException as exc:
-            self._log_click_exception(ctx, exc)
-            raise
-
-    def invoke(self, ctx: click.Context):
-        try:
-            return super().invoke(ctx)
-        except click.ClickException as exc:
-            self._log_click_exception(ctx, exc)
-            raise
 
 
 class DeprecatedDefaultGroup(DefaultGroup):
