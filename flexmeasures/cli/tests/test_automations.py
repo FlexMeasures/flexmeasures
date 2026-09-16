@@ -924,10 +924,8 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
     )
     assert automation.parameters == {"duration": "PT12H"}
 
-    # a fixed start is refused, as every run would then schedule the same period
-    parameters_file.write_text(
-        'start: "2026-01-01T00:00:00+01:00"\nduration: "PT12H"\n'
-    )
+    # a fixed start draws a warning
+    parameters_file.write_text('start: "2026-01-01T00:00:00+01:00"\n')
     result = runner.invoke(
         add_automation,
         [
@@ -938,40 +936,8 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
             "--parameters", str(parameters_file),
         ],
     )  # fmt: skip
-    assert result.exit_code != 0
-    assert (
-        "every run of this schedule automation would schedule the same period"
-        in result.output
-    )
-    assert (
-        fresh_db.session.execute(
-            select(Automation).filter_by(name="Fixed-start schedules")
-        ).scalar_one_or_none()
-        is None
-    )
-
-    # so is a fixed belief time, as every run would then ignore the data recorded since then
-    parameters_file.write_text(
-        'prior: "2026-01-01T00:00:00+01:00"\nduration: "PT12H"\n'
-    )
-    result = runner.invoke(
-        add_automation,
-        [
-            "--asset", "1",
-            "--name", "Fixed-prior schedules",
-            "--cron", "0 * * * *",
-            "--type", "scheduling",
-            "--parameters", str(parameters_file),
-        ],
-    )  # fmt: skip
-    assert result.exit_code != 0
-    assert "would ignore the data recorded since then" in result.output
-    assert (
-        fresh_db.session.execute(
-            select(Automation).filter_by(name="Fixed-prior schedules")
-        ).scalar_one_or_none()
-        is None
-    )
+    assert "Successfully created" in result.output, result.output
+    assert "each run will compute the same period" in result.output
 
 
 @pytest.mark.parametrize(
@@ -1347,33 +1313,17 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "fixed_timing, consequence",
+    "fixed_timing",
     [
-        (
-            {"start": "2023-04-10T00:00:00+00:00"},
-            "every run would then report on the same period",
-        ),
-        (
-            {"end": "2023-04-10T10:00:00+00:00"},
-            "every run would then report on the same period",
-        ),
-        (
-            {"start-offset": "-1D,DB", "end": "2023-04-10T10:00:00+00:00"},
-            "every run would then report on the same period",
-        ),
-        (
-            {"start-offset": "-1D,DB", "belief_time": "2023-04-10T10:00:00+00:00"},
-            "every run would then ignore the data recorded since then",
-        ),
+        {"start": "2023-04-10T00:00:00+00:00"},
+        {"end": "2023-04-10T10:00:00+00:00"},
+        {"start-offset": "-1D,DB", "end": "2023-04-10T10:00:00+00:00"},
     ],
 )
 def test_report_automation_refuses_a_fixed_period(
-    app, fresh_db, setup_dummy_data, tmp_path, fixed_timing, consequence
+    app, fresh_db, setup_dummy_data, tmp_path, fixed_timing
 ):
-    """A report automation may not fix its window or its belief time.
-
-    Every run would then report on the same period, or ignore the data recorded since the fixed moment.
-    """
+    """A report automation may not fix its window, or every run would report on the same period."""
     from flexmeasures.cli.data_add import add_automation
 
     sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
@@ -1388,7 +1338,7 @@ def test_report_automation_refuses_a_fixed_period(
         ),
     )
     assert result.exit_code != 0
-    assert consequence in result.output
+    assert "every run would then report on the same period" in result.output
     assert fresh_db.session.scalars(select(Automation)).first() is None
 
 

@@ -365,7 +365,7 @@ def claim_due_automation(due_automation: DueAutomation) -> bool:
 
 
 class RecurringScheduleFixesAMoment(ValueError):
-    """Raised when a schedule automation's trigger message or flex config pins a moment in time.
+    """Raised when a schedule automation's flex config pins a moment in time.
 
     Such a value would be stale on the automation's next run, so it cannot configure a recurring schedule.
     It would also resolve to a different flex config every run, and so to a different data source each time,
@@ -917,12 +917,6 @@ def _prepare_report_automation(
             " Use 'start-offset' and 'end-offset' (Pandas offsets, applied to the run time in the automation's timezone),"
             " or leave the timing out to report on the period since the last successful report."
         )
-    # Likewise, a fixed belief time would have every run ignore the data recorded since then.
-    if "belief_time" in parameters:
-        raise ValidationError(
-            "A report automation cannot fix 'belief_time', as every run would then ignore the data recorded since then."
-            " Leave it out to take into account the data recorded up to each run."
-        )
     for offset_field in ("start-offset", "end-offset"):
         if offset_field in parameters:
             try:
@@ -1008,19 +1002,6 @@ def create_automation(
             find_momentary_flex_config_fields,
         )
 
-        # An automation runs again and again, so a fixed start would have it schedule the same period every time.
-        if "start" in parameters:
-            raise RecurringScheduleFixesAMoment(
-                "'start' fixes a moment in time, so every run of this schedule automation would schedule the same period."
-                " Leave 'start' out to schedule from the run time on each run."
-            )
-        # Likewise, a fixed belief time would have every run ignore the data recorded since then.
-        if "prior" in parameters:
-            raise RecurringScheduleFixesAMoment(
-                "'prior' fixes a moment in time, so every run of this schedule automation would ignore the data recorded since then."
-                " Leave 'prior' out to take into account the data recorded up to each run."
-            )
-
         # The flex config has to describe the site and its devices, rather than one moment:
         # the automation computes a fresh schedule on every run,
         # so a value tied to a fixed moment would be stale on the next one.
@@ -1040,6 +1021,11 @@ def create_automation(
         schedule_sensors = resolve_schedule_automation_sensors(parameters, asset.id)
         input_sensors = schedule_sensors["input_sensors"]
         output_sensors = schedule_sensors["output_sensors"]
+        if "start" in parameters:
+            warnings.append(
+                "The schedule 'start' is fixed, so each run will compute the same period."
+                " Omit 'start' to schedule from the run time instead."
+            )
     elif automation_type == "reporting":
         reporter, deserialized_parameters, report_warnings = _prepare_report_automation(
             parameters, cronstr, timezone, generator_class, config, source
