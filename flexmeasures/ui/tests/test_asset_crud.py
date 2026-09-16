@@ -80,8 +80,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
         assert "Schedules".encode() in asset_page.data
+        assert "Reports".encode() in asset_page.data
         assert b'id="automationsTable-forecasting"' in asset_page.data
         assert b'id="automationsTable-scheduling"' in asset_page.data
+        assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
         assert b"No ${automationType} automations" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
@@ -89,7 +91,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Schedule timezone"' in asset_page.data
+        assert b'title: "Recurrence timezone"' in asset_page.data
         assert b'title: "Next run (local)"' in asset_page.data
         assert b"timeZone: automation.timezone" in asset_page.data
         assert b'"next-run": nextRun(automation)' in asset_page.data
@@ -118,7 +120,7 @@ def test_automations_page_manager_can_set_timezones(client, setup_assets, as_adm
         b"Use five fields: minute, hour, day of month, month, day of week."
         in response.data
     )
-    assert b"The local clock used by the schedule." in response.data
+    assert b"The local clock the recurrence is read in." in response.data
     assert b'timezone: $("#automationTimezone").val()' in response.data
     assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
