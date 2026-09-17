@@ -108,7 +108,7 @@ def test_get_automations(
     assert day_ahead["created-at"] is not None
     intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
     assert intraday["next-run"] is None
-    assert day_ahead["job_stats"] == {}  # this automation has not queued any jobs
+    assert day_ahead["job-stats"] == {}  # this automation has not queued any jobs
     # generator and parameters are not listed
     assert "generator_id" not in day_ahead
     assert "source" not in day_ahead
@@ -142,9 +142,9 @@ def test_get_automations_when_redis_times_out(
     assert response.status_code == 200
     assert len(response.json["automations"]) == 2
     assert all(
-        automation["job_stats"] == {} for automation in response.json["automations"]
+        automation["job-stats"] == {} for automation in response.json["automations"]
     )
-    assert response.json["redis_connection_err"] == (
+    assert response.json["redis-connection-err"] == (
         "Redis is unavailable; job statistics could not be loaded."
     )
     assert "private-host.example" not in response.text
@@ -180,7 +180,7 @@ def test_get_automation_details(
     assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
     assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
-    assert response.json["job_stats"] == {}  # this automation has not queued any jobs
+    assert response.json["job-stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
     sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
     assert response.json["input-sensors"] == [sensor]

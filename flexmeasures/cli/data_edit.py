@@ -30,6 +30,7 @@ from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
@@ -56,7 +57,7 @@ def _resolve_secret_path(
     return secret
 
 
-@click.group("edit")
+@click.group("edit", cls=LoggedClickExceptionGroup)
 def fm_edit_data():
     """FlexMeasures: Edit data."""
 
