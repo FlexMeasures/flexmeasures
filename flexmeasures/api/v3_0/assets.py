@@ -1747,7 +1747,9 @@ class AssetAPI(FlaskView):
                 asset, origin="API", check_permissions=True, **automation_data
             )
         except ValidationError as e:
-            return unprocessable_entity({"parameters": e.messages})
+            # The service names the part of the request each error came from,
+            # so that an error in the config is not reported against the parameters.
+            return unprocessable_entity(e.messages)
         except AutomationSensorsUnknown as e:
             return unprocessable_entity(str(e))
         except ValueError as e:

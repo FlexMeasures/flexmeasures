@@ -914,7 +914,11 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
         ],
     )  # fmt: skip
     assert result.exit_code != 0
-    assert "Invalid schedule parameters" in result.output
+    # The error names the part of the request at fault, which for a schedule automation is always the parameters.
+    assert "Invalid schedule automation" in result.output
+    assert (
+        "{'parameters': {'not-a-trigger-field': ['Unknown field.']}}" in result.output
+    )
 
     # minimal valid parameters (flex config can live on the asset)
     parameters_file.write_text('duration: "PT12H"\n')
@@ -1029,7 +1033,8 @@ def test_add_schedule_automation_rejects_unsupported_durations(
     )
 
     assert result.exit_code != 0
-    assert "Invalid schedule parameters" in result.output
+    assert "Invalid schedule automation" in result.output
+    assert "'parameters'" in result.output
 
 
 def test_add_schedule_automation_rejects_forecast_config(
@@ -1103,7 +1108,45 @@ def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dumm
     )
 
     assert result.exit_code != 0
-    assert "Invalid forecast parameters" in result.output
+    assert "Invalid forecast automation" in result.output
+    assert (
+        "{'parameters': {'sensor': ['Missing data for required field.']}}"
+        in result.output
+    )
+
+
+def test_add_forecast_automation_reports_a_config_error_against_the_config(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A fault in the forecaster's config is reported against the config, rather than against the parameters.
+
+    Both are validated by schemas of the data generator's choosing, so naming the wrong one
+    sends the user looking for a mistake in a part of the command that is fine.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    config_file = tmp_path / "config.yml"
+    config_file.write_text("not-a-config-field: 1\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Bad forecaster config",
+            "--cron", "0 6 * * *",
+            "--sensor", str(setup_dummy_data[0]),
+            "--config", str(config_file),
+        ],
+    )  # fmt: skip
+
+    assert result.exit_code != 0
+    assert "Invalid forecast automation" in result.output
+    assert "{'config': {'not-a-config-field': ['Unknown field.']}}" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Bad forecaster config")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 @pytest.mark.parametrize("is_dst", (True, False))

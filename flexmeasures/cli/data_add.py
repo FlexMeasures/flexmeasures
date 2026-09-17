@@ -1966,8 +1966,9 @@ def add_automation(
             origin="CLI",
         )
     except ValidationError as e:
+        # The messages name the part of the request at fault, which is not always the parameters.
         click.secho(
-            f"Invalid {Automation.RESULT_NOUNS[automation_type]} parameters: {e.messages}",
+            f"Invalid {Automation.RESULT_NOUNS[automation_type]} automation: {e.messages}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
