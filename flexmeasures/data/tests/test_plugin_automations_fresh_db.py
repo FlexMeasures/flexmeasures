@@ -210,7 +210,7 @@ def test_cross_organisation_input_rejected(
                     "Forbidden input",
                     "0 * * * *",
                     automation_type="mock-ingestion",
-                    config={"sensor": sensors[0].id, "input_sensor": sensors[2].id},
+                    config={"sensor": sensors[0].id, "input-sensor": sensors[2].id},
                     check_permissions=True,
                 )
         finally:

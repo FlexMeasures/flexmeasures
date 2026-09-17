@@ -105,7 +105,7 @@ def test_plugin_api_rejects_foreign_input(
                 "cron": "0 * * * *",
                 "config": {
                     "sensor": sensors[0].id,
-                    "input_sensor": sensors[2].id,
+                    "input-sensor": sensors[2].id,
                 },
             },
         )

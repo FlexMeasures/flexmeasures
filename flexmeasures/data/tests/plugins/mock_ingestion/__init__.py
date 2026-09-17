@@ -14,7 +14,7 @@ blueprint = Blueprint("mock_automation_ingestion", __name__)
 
 class IngestionConfigSchema(Schema):
     sensor = SensorIdField(required=True)
-    input_sensor = SensorIdField(required=False)
+    input_sensor = SensorIdField(required=False, data_key="input-sensor")
 
 
 class IngestionParametersSchema(Schema):
