@@ -69,6 +69,36 @@ def automation_scope_assets(fresh_db, setup_dummy_data):
     }
 
 
+def test_add_automation_with_a_source_filtered_target_sensor(
+    app, fresh_db, setup_dummy_data
+):
+    """An automation may name the sources its forecaster trains on, and still records on the sensor itself."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.data.services.automations import get_forecast_output_sensor
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Filtered forecasts",
+                "sensor": json.dumps({"sensor": sensor_id, "sources": [1]}),
+            }
+        ),
+    )
+
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Filtered forecasts")
+    ).scalar_one_or_none()
+    assert automation is not None
+    assert automation.parameters == {"sensor": {"sensor": sensor_id, "sources": [1]}}
+    assert get_forecast_output_sensor(automation.parameters).id == sensor_id
+
+
 def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data):
     """Roundtrip: create an automation, edit it, then delete it, checking the audit log along the way."""
     from flexmeasures.cli.data_add import add_automation

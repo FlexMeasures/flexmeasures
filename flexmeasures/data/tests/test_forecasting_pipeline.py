@@ -31,6 +31,7 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
@@ -182,6 +183,42 @@ def test_train_predict_job_config_payload_round_trips_sensor_references(
     assert queued_regressor.source_account == [account]
 
 
+def test_train_predict_job_parameters_payload_round_trips_a_filtered_target(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """A target carrying source filters survives the trip through a queued job."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    parameters = ForecasterParametersSchema().load(
+        {
+            "sensor": {"sensor": target_sensor.id, "sources": [source.id]},
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        }
+    )
+
+    payload = _make_job_parameters_payload(parameters)
+
+    assert payload["sensor_id"]["sensor"] == target_sensor.id
+    assert payload["sensor_id"]["sources"] == [source.id]
+    # Forecasts are recorded on the sensor itself, not on a source-filtered view of it.
+    assert payload["sensor_to_save_id"] == target_sensor.id
+    assert not _contains_orm_instance(payload)
+
+    restored_parameters = _load_job_parameters_payload(payload)
+    restored_target = restored_parameters["sensor"]
+
+    assert isinstance(restored_target, SensorReference)
+    assert restored_target.sensor == target_sensor
+    assert restored_target.sources == [source]
+    assert restored_parameters["sensor_to_save"] == target_sensor
+
+
 def test_load_data_all_beliefs_applies_regressor_source_filters(
     setup_fresh_test_forecast_data,
     fresh_db,
@@ -231,6 +268,95 @@ def test_load_data_all_beliefs_applies_regressor_source_filters(
     )
     assert excluded_value not in loaded_data[pipeline.future_regressors[0]].values
     assert loaded_data[pipeline.future_regressors[0]].notna().any()
+
+
+def _load_target_values(target_sensor, regressor_sensor) -> pd.Series:
+    """The target column that belief loading produces for this target sensor or reference."""
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[regressor_sensor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+    return pipeline.load_data_all_beliefs()[pipeline.target]
+
+
+def test_load_data_all_beliefs_applies_target_source_filters(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """A source-filtered target is trained on the beliefs of the sources it names, and no others."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    selected_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    excluded_source = DataSource(name="excluded-target-source", type="demo script")
+    excluded_value = -999.0
+    fresh_db.session.add_all(
+        [
+            excluded_source,
+            TimedBelief(
+                sensor=target_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=excluded_value,
+                belief_horizon=timedelta(hours=0),
+                source=excluded_source,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+
+    # Without filters, every source counts but forecasters, so the second script source wins the collision.
+    assert excluded_value in _load_target_values(target_sensor, regressor_sensor).values
+
+    target_values = _load_target_values(
+        SensorReference(sensor=target_sensor, sources=[selected_source]),
+        regressor_sensor,
+    )
+
+    assert excluded_value not in target_values.values
+    assert target_values.notna().any()
+
+
+def test_load_data_all_beliefs_target_reference_replaces_the_forecaster_exclusion(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Naming sources on the target says what the truth is, in place of the default of leaving forecasters out."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    forecaster_source = DataSource(name="target-forecaster", type="forecaster")
+    forecast_value = -777.0
+    fresh_db.session.add_all(
+        [
+            forecaster_source,
+            TimedBelief(
+                sensor=target_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=forecast_value,
+                belief_horizon=timedelta(hours=0),
+                source=forecaster_source,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+
+    assert (
+        forecast_value
+        not in _load_target_values(target_sensor, regressor_sensor).values
+    )
+    assert (
+        forecast_value
+        in _load_target_values(
+            SensorReference(sensor=target_sensor, sources=[forecaster_source]),
+            regressor_sensor,
+        ).values
+    )
 
 
 def _add_colliding_beliefs(db, sensor, sources_and_values):
@@ -1488,6 +1614,71 @@ def test_train_period_takes_the_shorter_of_two_limits(
     assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
     ), "the shorter of the two limits should decide"
+
+
+def test_train_predict_pipeline_trains_on_the_sources_the_target_names(
+    app,
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """The source filters on a target decide what the model learns, while the forecast is recorded on the sensor itself.
+
+    The target sensor holds two stories about the same events: the readings the fixture recorded,
+    and a second source reporting a flat, far higher value.
+    Which of the two a forecast reflects should follow the sources the target names.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    trusted_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    noisy_source = DataSource(name="noisy-target-source", type="demo script")
+    noisy_value = 100000.0
+    fresh_db.session.add(noisy_source)
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                sensor=target_sensor,
+                event_start=as_server_time(event_start),
+                event_value=noisy_value,
+                belief_horizon=timedelta(hours=0),
+                source=noisy_source,
+            )
+            for event_start in pd.date_range(
+                datetime(2025, 1, 1), datetime(2025, 1, 7, 23), freq="60min"
+            )
+        ]
+    )
+    fresh_db.session.commit()
+
+    base_params = {
+        "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "output-path": None,
+        "start": "2025-01-08T00:00+00:00",
+        "end": "2025-01-08T02:00+00:00",
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "dry-run": True,
+    }
+
+    def forecast_naming(source) -> list[dict]:
+        pipeline = TrainPredictPipeline(
+            config={"train-start": "2025-01-01T00:00+00:00"}
+        )
+        return pipeline.compute(
+            parameters={
+                **base_params,
+                "sensor": {"sensor": target_sensor.id, "sources": [source.id]},
+            }
+        )
+
+    trusted_returns = forecast_naming(trusted_source)
+    noisy_returns = forecast_naming(noisy_source)
+
+    assert float(trusted_returns[0]["data"]["event_value"].mean()) < noisy_value / 2
+    assert float(noisy_returns[0]["data"]["event_value"].mean()) > noisy_value / 2
+    # Forecasts are recorded on the sensor itself, not on a source-filtered view of it.
+    assert trusted_returns[0]["sensor"] == target_sensor
+    assert trusted_returns[0]["data"].sensor == target_sensor
 
 
 def test_prior_restricts_training_beliefs(

@@ -29,6 +29,7 @@ from flexmeasures.data.models.automations import (
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
     asset_is_in_subtree,
@@ -999,11 +1000,9 @@ def _relevant_sensor_ids(automation: Automation, parameter_values: list) -> set[
     """The asset's sensor ids, plus any (castable) sensor ids among the given parameter values."""
     sensor_ids = {sensor.id for sensor in automation.asset.sensors}
     for value in parameter_values:
-        if value is not None:
-            try:
-                sensor_ids.add(int(value))
-            except (TypeError, ValueError):
-                pass
+        sensor_id = _stored_sensor_id(value)
+        if sensor_id is not None:
+            sensor_ids.add(sensor_id)
     return sensor_ids
 
 
@@ -1117,6 +1116,22 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def _stored_sensor_id(sensor_reference: Any) -> int | None:
+    """Return the sensor ID from a stored automation parameter naming a sensor.
+
+    A parameter may name a sensor by ID, or as a source-filtered sensor reference,
+    whose source filters say which beliefs to read and not which sensor is meant.
+    """
+    if isinstance(sensor_reference, Sensor):
+        return sensor_reference.id
+    if isinstance(sensor_reference, dict):
+        sensor_reference = sensor_reference.get("sensor")
+    try:
+        return int(sensor_reference)
+    except (TypeError, ValueError):
+        return None
+
+
 def _prepare_forecast_automation(
     asset, parameters: dict, generator_class: str | None, config: dict | None, source
 ) -> tuple[Forecaster, dict, list[str]]:
@@ -1130,6 +1145,9 @@ def _prepare_forecast_automation(
     warnings = []
     deserialized_parameters = ForecasterParametersSchema().load(parameters)
     sensor = deserialized_parameters.get("sensor")
+    # A target may be given as a source-filtered reference, whose filters say which beliefs to train on, and not which sensor is meant.
+    if isinstance(sensor, SensorReference):
+        sensor = sensor.sensor
     if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
         warnings.append(
             f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
@@ -1404,10 +1422,9 @@ def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
 
     if isinstance(sensor_reference, Sensor):
         return sensor_reference
-    try:
-        sensor_id = int(sensor_reference)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Forecast automation has no valid output sensor.") from exc
+    sensor_id = _stored_sensor_id(sensor_reference)
+    if sensor_id is None:
+        raise ValueError("Forecast automation has no valid output sensor.")
 
     sensor = db.session.get(Sensor, sensor_id)
     if sensor is None:

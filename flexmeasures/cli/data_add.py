@@ -139,6 +139,23 @@ def _parse_regressor_cli_values(values: tuple | list) -> list:
     return parsed_values
 
 
+def _parse_target_sensor_cli_value(value):
+    """Parse the target sensor option: a bare sensor ID, or a JSON sensor reference with source filters.
+
+    Only a value shaped like a reference is parsed here, so that a bare ID reaches the schema just as it was typed.
+    """
+    if not isinstance(value, str) or not value.lstrip().startswith("{"):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as e:
+        raise click.UsageError(
+            f"--sensor looks like a JSON sensor reference, but it could not be parsed: {e}."
+            " Pass a sensor ID, or a JSON object naming the sensor and the sources to train on,"
+            ' such as \'{"sensor": 2092, "sources": [12]}\'.'
+        ) from e
+
+
 @click.group("add", cls=LoggedClickExceptionGroup)
 def fm_add_data():
     """FlexMeasures: Add data."""
@@ -1512,6 +1529,10 @@ def _assemble_forecaster_config_and_parameters(
         if kebab_key not in parameters:
             parameters[kebab_key] = v
 
+    # The target sensor is given either as a bare ID, or as a JSON sensor reference with source filters.
+    if "sensor" in parameters:
+        parameters["sensor"] = _parse_target_sensor_cli_value(parameters["sensor"])
+
     # Drop unset values
     parameters = {k: v for k, v in parameters.items() if v is not None and v != ()}
 
@@ -1705,7 +1726,10 @@ def add_forecast(  # noqa: C901
                 f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
                 f"{event_range}"
                 f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
-                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+                # The data source is named without its ID on purpose.
+                # A dry run never commits, so a source that this run had to create is rolled back on the way out,
+                # and the ID it was given belongs to nothing by the time the command returns.
+                f" to be recorded under data source `{forecaster.data_source}`.",
                 **MsgStyle.SUCCESS,
             )
             for item in pipeline_returns:
@@ -1714,7 +1738,9 @@ def add_forecast(  # noqa: C901
 
         click.secho(
             f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+            # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+            f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
             **MsgStyle.SUCCESS,
         )
 
