@@ -86,6 +86,7 @@ For instance, an automation due every day at noon, with ``start-offset: "1D,DB"`
 A run that only happens after midnight, because the runner was delayed, still covers the day after the one it was due on.
 A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
 two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
+A duration in months or years follows the calendar, so ``P1M`` from midnight ends at midnight, a month later.
 An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
 
 A single field can also be given alone, where the automation has a default for the rest.

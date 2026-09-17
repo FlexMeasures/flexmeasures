@@ -497,8 +497,8 @@ def resolve_automation_window(
     if start_offset is None and end_offset is None:
         return message
     anchor = _window_anchor(automation_timezone, scheduled_at)
-    # As Timestamps rather than datetimes, which count wall-clock time when subtracted within one timezone,
-    # so the day the clocks go forward lasts 23 hours.
+    # As Timestamps, which count real time when subtracted, rather than as datetimes,
+    # which count wall-clock time when they share a timezone, so that the day the clocks go forward lasts 23 hours.
     end = (
         pd.Timestamp(apply_offset_chain(anchor, end_offset))
         if end_offset is not None
