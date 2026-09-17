@@ -1,3 +1,4 @@
+import logging
 import sys
 import pytest
 import click
@@ -6,7 +7,11 @@ from datetime import datetime
 from pytz import utc
 
 from flexmeasures.cli import is_running as cli_is_running
-from flexmeasures.cli.utils import DeprecatedOption, DeprecatedOptionsCommand
+from flexmeasures.cli.utils import (
+    DeprecatedOption,
+    DeprecatedOptionsCommand,
+    LoggedClickExceptionGroup,
+)
 from click.testing import CliRunner
 
 
@@ -167,3 +172,94 @@ def test_custom_cli_runner_raises_exceptions(app):
 
     runner = app.test_cli_runner()
     runner.invoke(failing_command)
+
+
+@pytest.mark.parametrize(
+    "args, expected_path, expected_message",
+    [
+        # a plain command, on the group where this was first reported
+        (
+            ["add", "report", "--start", ""],
+            "flexmeasures add report",
+            "Invalid value for '--start': Not a valid datetime.",
+        ),
+        # a DeprecatedOptionsCommand, which passes its own `cls` and so has to inherit the logging
+        (
+            ["show", "beliefs", "--sensor", "not-an-int"],
+            "flexmeasures show beliefs",
+            "Invalid value for '--sensor' / '--sensor-id': Not a valid integer.",
+        ),
+        # a command in a third group, to show this is not specific to one of them
+        (
+            ["edit", "attribute", "--asset", "not-an-int"],
+            "flexmeasures edit attribute",
+            "Invalid value for '--asset' / '--asset-id': Not a valid integer.",
+        ),
+        # the group's own error, rather than one of its commands'
+        (
+            ["jobs", "run-automation-typo"],
+            "flexmeasures jobs",
+            "No such command 'run-automation-typo'.",
+        ),
+    ],
+)
+def test_cli_logs_click_error_once(app, caplog, args, expected_path, expected_message):
+    """A Click error is logged as one line, whichever group it comes from, and Click still reports it itself."""
+    runner = app.test_cli_runner()
+
+    with caplog.at_level(logging.ERROR):
+        result = runner.invoke(args=args)
+
+    assert result.exit_code == 2
+    assert f"Click error in `{expected_path}`: {expected_message}" in caplog.text
+
+    # one line per failure, so that a command failing on every cron run does not fill the log
+    assert caplog.text.count("Click error in") == 1
+
+    # the usage block belongs on stderr, where Click puts it, and not in the log
+    assert f"Usage: {expected_path} [OPTIONS]" not in caplog.text
+    assert "Error: " + expected_message in result.output
+
+
+def test_cli_does_not_log_when_a_command_succeeds(app, caplog):
+    """Nothing is logged for a command that parses its options fine."""
+    runner = app.test_cli_runner()
+
+    with caplog.at_level(logging.ERROR):
+        result = runner.invoke(args=["add", "report", "--help"])
+
+    assert result.exit_code == 0
+    assert "Click error in" not in caplog.text
+
+
+def test_cli_logs_a_command_body_error_against_that_command(app, caplog):
+    """An error raised in a command's body, which carries no context of its own, still names the command rather than its group."""
+    runner = app.test_cli_runner()
+
+    with caplog.at_level(logging.ERROR):
+        result = runner.invoke(args=["show", "data-sources", "--show-sensors"])
+
+    assert result.exit_code == 2
+    assert (
+        "Click error in `flexmeasures show data-sources`: --show-sensors requires --id."
+        in caplog.text
+    )
+    assert caplog.text.count("Click error in") == 1
+
+
+def test_deprecated_options_command_logs_click_errors(caplog):
+    """A command passing its own `cls` logs too, which is why DeprecatedOptionsCommand inherits the behaviour."""
+
+    @click.group("group", cls=LoggedClickExceptionGroup)
+    def group():
+        pass
+
+    @group.command("cmd", cls=DeprecatedOptionsCommand)
+    def cmd():
+        raise click.UsageError("something the body objected to")
+
+    with caplog.at_level(logging.ERROR):
+        result = CliRunner().invoke(group, ["cmd"])
+
+    assert result.exit_code == 2
+    assert "Click error in `group cmd`: something the body objected to" in caplog.text
