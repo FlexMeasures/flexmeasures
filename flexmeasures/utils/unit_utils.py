@@ -11,7 +11,10 @@ Percentages can be converted to units of some physical capacity if a capacity is
 
 from __future__ import annotations
 
+import numbers
+import tokenize
 from datetime import timedelta
+from typing import Any
 
 from moneyed import list_all_currencies, Currency
 import numpy as np
@@ -30,6 +33,37 @@ ur = pint.UnitRegistry(
         lambda s: s.replace("‰", " permille "),
     ],
 )
+
+
+#: What pint's string parser raises for input it cannot turn into a quantity.
+#: Besides pint's own errors, its expression parser surfaces the tokenizer's errors,
+#: and Python's own errors for things like an empty string or a division by zero.
+QUANTITY_PARSE_ERRORS = (
+    pint.PintError,
+    tokenize.TokenError,
+    ValueError,
+    TypeError,
+    ArithmeticError,
+)
+
+
+def is_parseable_quantity(value: Any) -> bool:
+    """Whether a value is a number, or a string pint can read as a quantity.
+
+    Used to reject a badly written bound while a schema is still being loaded,
+    rather than letting it fail much later, when the data it bounds is read.
+    """
+    if isinstance(value, numbers.Real):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        ur.Quantity(value)
+    except QUANTITY_PARSE_ERRORS:
+        return False
+    return True
+
+
 ur.load_definitions(custom_template)
 ur.formatter.default_format = "~P"  # short pretty
 ur.define("percent = 1 / 100 = %")
