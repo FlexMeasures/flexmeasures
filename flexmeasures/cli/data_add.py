@@ -43,6 +43,7 @@ from flexmeasures.cli.utils import (
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    LoggedClickExceptionGroup,
     add_cli_options_from_schema,
     split_commas,
 )
@@ -138,7 +139,7 @@ def _parse_regressor_cli_values(values: tuple | list) -> list:
     return parsed_values
 
 
-@click.group("add")
+@click.group("add", cls=LoggedClickExceptionGroup)
 def fm_add_data():
     """FlexMeasures: Add data."""
 
