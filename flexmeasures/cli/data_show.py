@@ -17,9 +17,11 @@ import vl_convert as vlc
 from string import Template
 import json
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User, Role
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -27,10 +29,16 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetIdField,
     SensorsToShowSchema,
 )
+from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
+    describe_cronstr,
+    resolve_automation_sensors,
+)
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     determine_minimum_resampling_resolution,
@@ -403,6 +411,193 @@ def _format_sensor_plot(plot: dict) -> str:
             else asset_text
         )
     return str(plot)
+
+
+@fm_show_data.command("automations")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=False,
+    type=AutomationIdField(),
+    help="ID of a single automation, to show that automation in more detail.",
+)
+@click.option(
+    "--asset", type=GenericAssetIdField(), help="Only show automations on this asset."
+)
+@click.option(
+    "--as-json",
+    is_flag=True,
+    help="Include stored configuration and parameters as JSON.",
+)
+def list_automations(
+    automation: Automation | None = None,
+    asset: GenericAsset | None = None,
+    as_json: bool = False,
+):
+    """
+    Show automations, or one automation in detail.
+
+    Without --id, all automations are listed, including inactive ones.
+    Their IDs are the ones to pass to `flexmeasures edit automation`, `flexmeasures delete automation` and `flexmeasures jobs run-automation`.
+    """
+    from flexmeasures.data.automations import get_automation_types
+    from flexmeasures.data.schemas.automations import AutomationSchema
+
+    if automation is not None and asset is not None:
+        raise click.UsageError("--id and --asset cannot be combined.")
+    handlers = get_automation_types()
+    if automation is not None and not as_json:
+        _show_automation(automation)
+        return
+
+    query = (
+        select(Automation)
+        .options(selectinload(Automation.asset))
+        .order_by(Automation.asset_id, Automation.id)
+    )
+    if automation is not None:
+        query = query.filter_by(id=automation.id)
+    elif asset is not None:
+        query = query.filter_by(asset_id=asset.id)
+    automations = db.session.scalars(query).all()
+    if as_json:
+        records = []
+        for item in automations:
+            record = AutomationSchema().dump(item)
+            record["available"] = item.type in handlers
+            record["parameters"] = item.parameters
+            generator = item.generator
+            record["source"] = (
+                {
+                    "id": item.generator_id,
+                    "model": generator.model,
+                    "version": generator.version,
+                    "config": generator.attributes.get("data_generator", {}).get(
+                        "config", {}
+                    ),
+                }
+                if generator is not None
+                else None
+            )
+            records.append(record)
+        click.echo(
+            json.dumps(records[0] if automation is not None else records, indent=2)
+        )
+        return
+    if not automations:
+        click.secho(
+            "No automations created yet. Create one with `flexmeasures add automation`.",
+            **MsgStyle.WARN,
+        )
+        return
+
+    click.echo("All automations:\n")
+    click.echo(
+        tabulate(
+            [
+                (
+                    automation.id,
+                    f"{automation.asset.name} (ID: {automation.asset_id})",
+                    automation.name,
+                    (
+                        automation.type
+                        if automation.type in handlers
+                        else f"{automation.type} (plugin unavailable)"
+                    ),
+                    "yes" if automation.active else "no",
+                    automation.cronstr,
+                    automation.timezone,
+                )
+                for automation in automations
+            ],
+            headers=[
+                "ID",
+                "Asset",
+                "Name",
+                "Type",
+                "Active",
+                "Cron",
+                "Timezone",
+            ],
+        )
+    )
+
+
+def _show_automation(automation: Automation):
+    """Show one automation in detail, including the sensors it reads from and writes to."""
+    title = f"Automation {automation.id}: {automation.name}"
+    click.echo("=" * len(title))
+    click.echo(title)
+    click.echo("=" * len(title) + "\n")
+
+    generator = automation.generator
+    click.echo(
+        tabulate(
+            [
+                ("Asset", f"{automation.asset.name} (ID: {automation.asset_id})"),
+                ("Type", automation.type),
+                ("Active", "yes" if automation.active else "no"),
+                (
+                    "Recurrence",
+                    f"{automation.cronstr} ({describe_cronstr(automation.cronstr)})",
+                ),
+                ("Timezone", automation.timezone),
+                ("Created at", automation.created_at.isoformat()),
+                ("Cursor", automation.cursor.isoformat()),
+                (
+                    "Generator",
+                    (
+                        f"{generator.name} (ID: {generator.id}, model: {generator.model})"
+                        if generator is not None
+                        else "none"
+                    ),
+                ),
+                ("Parameters", json.dumps(automation.parameters, indent=4)),
+            ],
+            headers=["Field", "Value"],
+        )
+    )
+    click.echo(
+        "\nThe cursor is the most recent scheduled run this automation committed to; runs at or before it are never queued again."
+    )
+    click.echo(
+        "It advances just before queueing, so it does not tell you that the run itself succeeded."
+    )
+
+    try:
+        sensors = resolve_automation_sensors(automation)
+    except AutomationSensorsUnknown as e:
+        # One automation whose sensors no longer resolve should still show its other details,
+        # which are often exactly what is needed to work out why they do not.
+        # A schedule automation's message names its asset rather than itself, so name the automation here,
+        # as an asset may carry several of them.
+        click.secho(
+            f"\nAutomation {automation.id} ('{automation.name}'): {e}", **MsgStyle.WARN
+        )
+        return
+    for role, header in (
+        ("input_sensors", "Reads from"),
+        ("output_sensors", "Writes to"),
+    ):
+        click.echo(f"\n{header}:\n")
+        if not sensors[role]:
+            click.echo("  (no sensors)")
+            continue
+        click.echo(
+            tabulate(
+                [
+                    (
+                        sensor.id,
+                        sensor.name,
+                        sensor.unit,
+                        f"{sensor.generic_asset.name} (ID: {sensor.generic_asset.id})",
+                    )
+                    for sensor in sorted(sensors[role], key=lambda sensor: sensor.id)
+                ],
+                headers=["ID", "Name", "Unit", "Asset"],
+            )
+        )
 
 
 @fm_show_data.command("data-sources")
@@ -962,76 +1157,3 @@ def list_schedulers():
 
 
 app.cli.add_command(fm_show_data)
-
-
-@fm_show_data.command("automations")
-@with_appcontext
-@click.option(
-    "--asset", type=GenericAssetIdField(), help="Only show automations on this asset."
-)
-@click.option(
-    "--as-json",
-    is_flag=True,
-    help="Include stored configuration and parameters as JSON.",
-)
-def list_automations(asset, as_json: bool):
-    """Inspect built-in and plugin automations, including unavailable types."""
-    from flexmeasures.data.automations import get_automation_types
-    from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.schemas.automations import AutomationSchema
-
-    query = select(Automation).order_by(Automation.id)
-    if asset is not None:
-        query = query.filter_by(asset_id=asset.id)
-    automations = db.session.scalars(query).all()
-    handlers = get_automation_types()
-    if as_json:
-        records = []
-        for automation in automations:
-            record = AutomationSchema().dump(automation)
-            record["available"] = automation.type in handlers
-            record["parameters"] = automation.parameters
-            record["source"] = {
-                "id": automation.generator_id,
-                "model": automation.generator.model,
-                "version": automation.generator.version,
-                "config": automation.generator.attributes.get("data_generator", {}).get(
-                    "config", {}
-                ),
-            }
-            records.append(record)
-        click.echo(json.dumps(records, indent=2))
-        return
-    click.echo(
-        tabulate(
-            [
-                (
-                    automation.id,
-                    automation.name,
-                    automation.type,
-                    automation.asset_id,
-                    automation.active,
-                    automation.cronstr,
-                    automation.timezone,
-                    automation.generator_id,
-                    (
-                        "available"
-                        if automation.type in handlers
-                        else "plugin unavailable"
-                    ),
-                )
-                for automation in automations
-            ],
-            headers=[
-                "ID",
-                "Name",
-                "Type",
-                "Asset",
-                "Active",
-                "Cron",
-                "Timezone",
-                "Source",
-                "Handler",
-            ],
-        )
-    )

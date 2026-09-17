@@ -1469,7 +1469,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1597,10 +1597,10 @@ class AssetAPI(FlaskView):
                         output-sensors:
                           - id: 2092
                             name: power
-                        job_stats:
+                        job-stats:
                           finished: 3
                           failed: 1
-                        redis_connection_err: null
+                        redis-connection-err: null
             401:
               description: UNAUTHORIZED
             403:
@@ -1649,11 +1649,11 @@ class AssetAPI(FlaskView):
             ]
         redis_connection_err = None
         try:
-            automation_data["job_stats"] = get_automation_job_stats(automation)
+            automation_data["job-stats"] = get_automation_job_stats(automation)
         except NoRedisConfigured as e:
-            automation_data["job_stats"] = {}
+            automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
-        automation_data["redis_connection_err"] = redis_connection_err
+        automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 
     @route("/<id>/automations", methods=["POST"])
@@ -1675,10 +1675,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts or schedules) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
-            or a schedule trigger message (without the asset id) for type `scheduling`.
+            a schedule trigger message (without the asset id) for type `scheduling`,
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             The automation can only involve sensors that you have access to yourself:
@@ -2041,7 +2042,7 @@ class AssetAPI(FlaskView):
                             enqueued_at: "2023-10-01T00:00:00"
                             created_via: API
                             metadata_hash: abc123
-                        redis_connection_err: null
+                        redis-connection-err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -2066,7 +2067,7 @@ class AssetAPI(FlaskView):
 
         return {
             "jobs": all_jobs_data,
-            "redis_connection_err": redis_connection_err,
+            "redis-connection-err": redis_connection_err,
         }, 200
 
     @route("/default_asset_view", methods=["POST"])

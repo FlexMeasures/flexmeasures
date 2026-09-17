@@ -47,6 +47,7 @@ from flexmeasures.cli.utils import (
     split_commas,
 )
 from flexmeasures.data import db
+from flexmeasures.data.automations import get_automation_handler, get_automation_types
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
     populate_initial_structure,
@@ -76,7 +77,6 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.automations import get_automation_handler, get_automation_types
 from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -1458,7 +1458,8 @@ def _assemble_forecaster_config_and_parameters(
         config = _load_yaml_mapping(config_file, "--config")
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         field_value = kwargs.pop(field_name, None)
-        if field_value is not None:
+        # Skip unset options: click passes None, or an empty tuple for a multiple-value option.
+        if field_value is not None and field_value != ():
             if field_name in {
                 "future_regressors",
                 "past_regressors",
@@ -1510,8 +1511,8 @@ def _assemble_forecaster_config_and_parameters(
         if kebab_key not in parameters:
             parameters[kebab_key] = v
 
-    # Drop None values
-    parameters = {k: v for k, v in parameters.items() if v is not None}
+    # Drop unset values
+    parameters = {k: v for k, v in parameters.items() if v is not None and v != ()}
 
     return config, parameters
 
@@ -1805,7 +1806,8 @@ def add_forecast(  # noqa: C901
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
-    " forecast parameters for --type forecasting, a schedule trigger message for --type scheduling, or plugin-defined parameters.",
+    " forecast parameters for --type forecasting, a schedule trigger message for --type scheduling,"
+    " report parameters for --type reporting, or plugin-defined parameters.",
 )
 @add_cli_options_from_schema(
     ForecasterParametersSchema(), hidden=True, force_optional=True
@@ -1813,7 +1815,7 @@ def add_forecast(  # noqa: C901
 @add_cli_options_from_schema(
     TrainPredictPipelineConfigSchema(), hidden=True, force_optional=True
 )
-def add_automation(
+def add_automation(  # noqa: C901
     asset: GenericAsset,
     name: str,
     cronstr: str,
@@ -1836,12 +1838,17 @@ def add_automation(
         --parameters forecast-parameters.yml
       flexmeasures add automation --asset 3 --name "Hourly schedules"
         --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+      flexmeasures add automation --asset 3 --name "Daily self-consumption report"
+        --cron "0 1 * * *" --type reporting --reporter PandasReporter
+        --config reporter-config.yml --parameters report-parameters.yml
 
-    For forecasts, the forecaster configuration is stored on a data source, and
-    the forecast parameters are validated and stored on the automation itself.
-    For schedules, the parameters form a schedule trigger message (as accepted by
-    the [POST] /assets/(id)/schedules/trigger API endpoint, without the asset id);
-    omit its "start" field to schedule from the run time on each run.
+    For forecasts and reports, the data generator configuration is stored on a data source,
+    and the parameters are validated and stored on the automation itself.
+    For schedules, the parameters form a schedule trigger message, as accepted by the [POST] /assets/(id)/schedules/trigger API endpoint,
+    without the asset id; omit its "start" field to schedule from the run time on each run.
+    For reports, a fixed "start" or "end" is refused: use "start-offset" and "end-offset",
+    which take comma-separated Pandas offsets applied to the run time in the automation's timezone,
+    or leave the timing out to report on the period since the last successful report.
     Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster
@@ -1860,7 +1867,12 @@ def add_automation(
         available = ", ".join(get_automation_types())
         raise click.UsageError(f"{e} Available types: {available}.")
 
-    if automation_type in {"forecasting", "scheduling"}:
+    # Only a forecast automation has a default generator:
+    # a report automation has to name its reporter, and the service says so, while a schedule automation resolves its own.
+    if generator_class is None and automation_type == "forecasting":
+        generator_class = "TrainPredictPipeline"
+
+    if automation_type in {"forecasting", "scheduling", "reporting"}:
         config, parameters = _assemble_forecaster_config_and_parameters(
             kwargs, source, config_file, parameters_file
         )
@@ -1872,7 +1884,7 @@ def add_automation(
     # An automation exists to record what it computes, so a dry run would render it pointless.
     # Popping the parameter also keeps it out of the parameters stored on the automation,
     # where a schedule trigger message would reject it as an unknown field.
-    if automation_type in {"forecasting", "scheduling"} and parameters.pop(
+    if automation_type in {"forecasting", "scheduling", "reporting"} and parameters.pop(
         "dry-run", False
     ):
         click.secho(

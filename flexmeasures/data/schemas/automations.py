@@ -9,8 +9,8 @@ from marshmallow import fields, validate, validates, Schema
 from pytz import all_timezones_set
 
 from flexmeasures.data import ma, db
-from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.automations import validate_automation_type
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -80,7 +80,7 @@ class AutomationCreationSchema(Schema):
         load_default="forecasting",
         validate=validate_automation_type,
         metadata={
-            "description": "Registered automation type: forecasting, scheduling, or a type provided by an installed plugin."
+            "description": "Registered automation type: forecasting, scheduling, reporting, or a type provided by an installed plugin."
         },
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
@@ -96,9 +96,12 @@ class AutomationCreationSchema(Schema):
     parameters = fields.Dict(keys=fields.Str(), load_default=dict)
     generator_class = fields.Str(
         data_key="data-generator",
-        load_default="TrainPredictPipeline",
+        load_default=None,
+        allow_none=True,
         metadata={
-            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation chooses one; a plugin type declares its generator; a schedule automation's generator follows from the asset and the flex config.",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`."
+            " A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter),"
+            " a plugin type declares its generator, and a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline",
         },
     )
@@ -106,7 +109,7 @@ class AutomationCreationSchema(Schema):
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecasting and plugin automation types.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
             "example": {},
         },
     )

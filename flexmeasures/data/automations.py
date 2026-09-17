@@ -56,9 +56,10 @@ class AutomationHandler:
         from flexmeasures.data.services.automations import _create_builtin_automation
 
         if self.generator_class is None:
-            kwargs["generator_class"] = (
-                kwargs.get("generator_class") or "TrainPredictPipeline"
-            )
+            if self.type_id == "forecasting":
+                kwargs["generator_class"] = (
+                    kwargs.get("generator_class") or "TrainPredictPipeline"
+                )
             return _create_builtin_automation(**kwargs)
         selected_class = kwargs.get("generator_class")
         if selected_class not in (
@@ -137,14 +138,17 @@ class AutomationHandler:
         )
         return automation, []
 
-    def run(self, automation):
+    def run(self, automation, scheduled_at=None):
         """Queue work using only registered code and committed identifiers."""
         if self.generator_class is None:
             from flexmeasures.data.services.automations import (
                 _run_forecast_automation,
+                _run_report_automation,
                 _run_schedule_automation,
             )
 
+            if self.type_id == "reporting":
+                return _run_report_automation(automation, scheduled_at=scheduled_at)
             runner = {
                 "forecasting": _run_forecast_automation,
                 "scheduling": _run_schedule_automation,
@@ -200,6 +204,9 @@ def initialize_automation_handlers(app):
         ),
         "scheduling": AutomationHandler(
             "scheduling", "Schedules", queue="scheduling", result_noun="schedule"
+        ),
+        "reporting": AutomationHandler(
+            "reporting", "Reports", queue="reporting", result_noun="report"
         ),
     }
 
