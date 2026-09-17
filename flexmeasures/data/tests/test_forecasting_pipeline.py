@@ -864,7 +864,7 @@ def test_input_bounds_reject_a_unit_the_regressor_cannot_take():
     sensor = _input_sensor_stub(unit="kW")
     reference = SensorReference(sensor=sensor, lower="5 EUR")
 
-    with pytest.raises(ValueError, match="Input bounds for meter"):
+    with pytest.raises(ValueError, match="bounds on sensor meter"):
         _fill_one_input(reference, [1.0, 2.0])
 
 

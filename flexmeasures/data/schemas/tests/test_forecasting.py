@@ -957,7 +957,8 @@ def test_forecaster_config_schema_loads_regressor_cleaning_bounds(
     setup_dummy_sensors,
 ):
     """A regressor may say how its own readings should be cleaned before training."""
-    sensor, *_ = setup_dummy_sensors
+    # The MW sensor, so that bounds given in kW can be read in its unit.
+    *_, sensor = setup_dummy_sensors
 
     data = TrainPredictPipelineConfigSchema().load(
         {
@@ -999,7 +1000,8 @@ def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
     db,
 ):
     """The target may be cleaned before it becomes training labels."""
-    sensor, *_ = setup_dummy_sensors
+    # The MW sensor, so that bounds given in kW can be read in its unit.
+    *_, sensor = setup_dummy_sensors
     db.session.flush()
 
     data = ForecasterParametersSchema().load(
@@ -1030,7 +1032,8 @@ def test_cleaning_bounds_live_on_the_shared_sensor_reference(setup_dummy_sensors
     Only forecaster inputs act on them for now; flex-model and flex-context references
     accept them and ignore them, which their field descriptions say.
     """
-    sensor, *_ = setup_dummy_sensors
+    # The MW sensor, so that bounds given in kW can be read in its unit.
+    *_, sensor = setup_dummy_sensors
 
     loaded = SensorReferenceSchema().load({"sensor": sensor.id, "lower": "0 kW"})
     assert loaded["lower"] == "0 kW"
@@ -1039,6 +1042,46 @@ def test_cleaning_bounds_live_on_the_shared_sensor_reference(setup_dummy_sensors
     with pytest.raises(ValidationError) as exc:
         SensorReferenceSchema().load({"sensor": sensor.id, "lower": "not a quantity"})
     assert "lower" in exc.value.messages
+
+
+@pytest.mark.parametrize(
+    "bounds, rejected_field",
+    [
+        ({"lower": "5 EUR"}, "lower"),
+        ({"upper": "5 EUR"}, "upper"),
+        ({"snap": {"0 EUR": ["0 EUR", "1 EUR"]}}, "snap"),
+        ({"snap": {"2 kW": ["0 kW", "1 kW"]}}, "snap"),
+        ({"lower": "20 kW", "upper": "10 kW"}, "lower"),
+    ],
+)
+def test_sensor_reference_refuses_bounds_it_cannot_apply_when_loaded(
+    setup_dummy_sensors, bounds, rejected_field
+):
+    """Bounds that only fail once applied are refused when the reference is loaded, not when a job reads the data.
+
+    The referenced sensor is known at load time,
+    so an incompatible unit, a snap target outside its interval and a lower bound above the upper bound are all caught up front.
+    """
+    *_, power_sensor = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        SensorReferenceSchema().load({"sensor": power_sensor.id, **bounds})
+
+    assert rejected_field in exc.value.messages
+
+
+def test_forecaster_config_schema_refuses_a_regressor_bound_in_an_incompatible_unit(
+    setup_dummy_sensors,
+):
+    """A regressor bound the regressor cannot take fails the config, rather than the queued forecasting job."""
+    *_, power_sensor = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"past-regressors": [{"sensor": power_sensor.id, "lower": "5 EUR"}]}
+        )
+
+    assert "past-regressors" in exc.value.messages
 
 
 def test_a_reference_without_bounds_serialises_as_it_did_before(setup_dummy_sensors):

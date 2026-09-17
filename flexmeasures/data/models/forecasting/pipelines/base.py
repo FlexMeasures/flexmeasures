@@ -12,7 +12,6 @@ from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.utils.bound_utils import apply_bounds_to_values, parse_bounds
 from flexmeasures.data.schemas.sensors import SensorReference
 
 
@@ -36,15 +35,13 @@ def _entity_id(entity_or_id):
 def _bound_input_series(
     series: TimeSeries,
     sensor_or_reference: Sensor | SensorReference,
-    sensor_name: str,
 ) -> TimeSeries:
-    """Clean a filled input series against the cleaning bounds carried by its reference.
+    """Clean a filled input series against the bounds carried by its reference.
 
     Bounding runs after gap filling, so a value interpolated across a gap is bounded too.
     A plain sensor, or a reference that asks for no cleaning, leaves the series untouched.
 
     :param sensor_or_reference: The regressor or target the series was read from.
-    :param sensor_name:         The series' column name, used to name the sensor in any error.
     :returns:                   The series, with its values snapped and clipped.
     """
     if (
@@ -52,19 +49,7 @@ def _bound_input_series(
         or not sensor_or_reference.has_bounds
     ):
         return series
-
-    lower_value, upper_value, snap_intervals = parse_bounds(
-        sensor_or_reference.lower,
-        sensor_or_reference.upper,
-        sensor_or_reference.snap,
-        sensor_or_reference.unit,
-        label=f"Input bounds for {sensor_name}",
-    )
-    return series.map(
-        lambda values: apply_bounds_to_values(
-            values, lower_value, upper_value, snap_intervals
-        )
-    )
+    return series.map(sensor_or_reference.apply_bounds)
 
 
 def _sensor_and_source_filters(
@@ -1292,7 +1277,7 @@ class BasePipeline:
                     "These were filled using `pd.DataFrame.interpolate()`."
                 )
 
-            data_darts = _bound_input_series(data_darts, sensor, sensor_name)
+            data_darts = _bound_input_series(data_darts, sensor)
 
             dfs.append(data_darts)
 

@@ -123,16 +123,10 @@ def parse_bounds(
     return lower_value, upper_value, snap_intervals
 
 
-def bound_validation_errors(
+def _unparseable_bound_errors(
     lower: Any, upper: Any, snap: dict | None
 ) -> dict[str, list[str]]:
-    """Collect which configured bounds cannot be read as quantities, per bound, for a schema to report.
-
-    :param lower:   Optional lower bound, as a number or a quantity string.
-    :param upper:   Optional upper bound, as a number or a quantity string.
-    :param snap:    Optional mapping from snap targets to two-bound intervals.
-    :returns:       Error messages per bound name (``lower``, ``upper`` or ``snap``), empty if every bound can be read.
-    """
+    """Collect, per bound, which bounds cannot be read as quantities at all."""
     errors: dict[str, list[str]] = {}
     for field_name, value in (("lower", lower), ("upper", upper)):
         if value is not None and not is_parseable_quantity(value):
@@ -148,6 +142,57 @@ def bound_validation_errors(
     if snap_errors:
         errors["snap"] = snap_errors
     return errors
+
+
+def _inapplicable_bound_errors(
+    lower: Any, upper: Any, snap: dict | None, sensor_unit: str, label: str
+) -> dict[str, list[str]]:
+    """Collect, per bound, which readable bounds still cannot be applied in the sensor's unit."""
+    errors: dict[str, list[str]] = {}
+    for field_name, value in (("lower", lower), ("upper", upper)):
+        if value is None:
+            continue
+        try:
+            _quantity_to_sensor_value(value, sensor_unit, label)
+        except ValueError as exc:
+            errors[field_name] = [str(exc)]
+    try:
+        _parse_snap_intervals(snap or {}, sensor_unit, label)
+    except ValueError as exc:
+        errors["snap"] = [str(exc)]
+
+    if not errors:
+        try:
+            parse_bounds(lower, upper, snap, sensor_unit, label)
+        except ValueError as exc:
+            errors["lower"] = [str(exc)]
+    return errors
+
+
+def bound_validation_errors(
+    lower: Any,
+    upper: Any,
+    snap: dict | None,
+    sensor_unit: str | None = None,
+    label: str = "Forecast post-processing",
+) -> dict[str, list[str]]:
+    """Collect what is wrong with configured bounds, per bound, for a schema to report.
+
+    Without a sensor unit, only whether each bound can be read as a quantity is checked.
+    With one, the bounds are also parsed in full, so a bound in an incompatible unit,
+    a snap target outside its interval and a lower bound above the upper bound are caught too.
+
+    :param lower:       Optional lower bound, as a number or a quantity string.
+    :param upper:       Optional upper bound, as a number or a quantity string.
+    :param snap:        Optional mapping from snap targets to two-bound intervals.
+    :param sensor_unit: Unit of the sensor the bounds apply to, if already known.
+    :param label:       Suffix for error messages, naming what is being bounded.
+    :returns:           Error messages per bound name (``lower``, ``upper`` or ``snap``), empty if the bounds are valid.
+    """
+    errors = _unparseable_bound_errors(lower, upper, snap)
+    if errors or sensor_unit is None:
+        return errors
+    return _inapplicable_bound_errors(lower, upper, snap, sensor_unit, label)
 
 
 def apply_bounds_to_values(

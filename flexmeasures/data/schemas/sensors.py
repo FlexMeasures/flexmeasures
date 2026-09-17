@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import cached_property
 from datetime import timedelta
 from difflib import get_close_matches
 import numbers
@@ -33,6 +34,7 @@ from marshmallow.validate import Validator
 import re
 import isodate
 from marshmallow_oneofschema import OneOfSchema
+import numpy as np
 import pandas as pd
 
 from flexmeasures.data import ma, db
@@ -47,7 +49,11 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.time_utils import get_timezone
-from flexmeasures.utils.bound_utils import bound_validation_errors
+from flexmeasures.utils.bound_utils import (
+    apply_bounds_to_values,
+    bound_validation_errors,
+    parse_bounds,
+)
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
@@ -1056,6 +1062,30 @@ class SensorReference:
         """Whether this reference asks for its readings to be cleaned at all."""
         return self.lower is not None or self.upper is not None or bool(self.snap)
 
+    @cached_property
+    def _parsed_bounds(
+        self,
+    ) -> tuple[float | None, float | None, list[tuple[float, float, float]]]:
+        """The bounds as magnitudes in the sensor's unit, parsed once per reference rather than once per read."""
+        return parse_bounds(
+            self.lower,
+            self.upper,
+            self.snap,
+            self.unit,
+            label=f"bounds on sensor {self.name} (ID: {self.id})",
+        )
+
+    def apply_bounds(self, values: np.ndarray) -> np.ndarray:
+        """Snap and clip readings taken from the sensor, in the sensor's own unit.
+
+        :param values:      Readings in the unit of the referenced sensor.
+        :returns:           The readings, cleaned by this reference's bounds, or unchanged if it has none.
+        :raises ValueError: If a bound cannot be read in the sensor's unit (normally caught when the reference is loaded).
+        """
+        if not self.has_bounds:
+            return values
+        return apply_bounds_to_values(values, *self._parsed_bounds)
+
     @property
     def unit(self) -> str:
         """Unit of the underlying sensor."""
@@ -1175,12 +1205,23 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 
     @validates_schema
     def validate_bounds(self, data: dict, **kwargs):
-        """Fail fast on a bound that cannot be read as a quantity.
+        """Fail fast on a bound that cannot be applied to the referenced sensor.
 
-        Whether a bound is compatible with the sensor's unit, and whether a snap target lies within its interval, can only be checked once the sensor's data is read, so those run later.
+        The sensor is already loaded at this point, so besides whether each bound can be read as a quantity,
+        this also checks that it is compatible with the sensor's unit, that each snap target lies within its interval,
+        and that the lower bound does not exceed the upper bound.
         """
+        sensor = data.get("sensor")
         errors = bound_validation_errors(
-            data.get("lower"), data.get("upper"), data.get("snap")
+            data.get("lower"),
+            data.get("upper"),
+            data.get("snap"),
+            sensor_unit=sensor.unit if sensor is not None else None,
+            label=(
+                f"bounds on sensor {sensor.name} (ID: {sensor.id})"
+                if sensor is not None
+                else "sensor reference bounds"
+            ),
         )
         if errors:
             raise ValidationError(errors)
