@@ -10,7 +10,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.sensors import SensorReference
+from flexmeasures.data.schemas.forecasting.references import (
+    ForecastInputReference,
+    ForecastInputReferenceSchema,
+)
+from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
 
@@ -951,6 +955,95 @@ def test_forecaster_config_schema_falls_back_to_the_default_training_period():
     """Asking for no period of its own leaves the default to say how much history to use."""
     config = TrainPredictPipelineConfigSchema().load({"train-period": None})
     assert config["train_period_in_hours"] == 30 * 24
+
+
+def test_forecaster_config_schema_loads_regressor_cleaning_bounds(
+    setup_dummy_sensors,
+):
+    """A regressor may say how its own readings should be cleaned before training."""
+    sensor, *_ = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "past-regressors": [
+                {
+                    "sensor": sensor.id,
+                    "lower": "0 kW",
+                    "upper": "20 kW",
+                    "snap": {"0 kW": ["0 kW", "0.5 kW"]},
+                }
+            ]
+        }
+    )
+
+    regressor = data["past_regressors"][0]
+    assert isinstance(regressor, ForecastInputReference)
+    assert regressor.sensor == sensor
+    assert (regressor.lower, regressor.upper) == ("0 kW", "20 kW")
+    assert regressor.snap == {"0 kW": ["0 kW", "0.5 kW"]}
+    assert regressor.has_bounds
+
+
+def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
+    setup_dummy_sensors,
+):
+    """Without bounds or filters, a reference still collapses to the sensor itself."""
+    sensor, *_ = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load(
+        {"past-regressors": [{"sensor": sensor.id}]}
+    )
+
+    assert data["past_regressors"] == [sensor]
+    assert isinstance(data["past_regressors"][0], Sensor)
+
+
+def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
+    setup_dummy_sensors,
+    db,
+):
+    """The target may be cleaned before it becomes training labels."""
+    sensor, *_ = setup_dummy_sensors
+    db.session.flush()
+
+    data = ForecasterParametersSchema().load(
+        {"sensor": {"sensor": sensor.id, "lower": "0 kW"}}
+    )
+
+    target = data["sensor"]
+    assert isinstance(target, ForecastInputReference)
+    assert target.lower == "0 kW"
+
+
+def test_forecaster_config_schema_rejects_an_unparseable_regressor_bound(
+    setup_dummy_sensors,
+):
+    sensor, *_ = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"past-regressors": [{"sensor": sensor.id, "lower": "not a quantity"}]}
+        )
+
+    assert "past-regressors" in exc.value.messages
+
+
+def test_cleaning_bounds_stay_off_the_shared_sensor_reference(setup_dummy_sensors):
+    """The bounds mean nothing to flex-model and flex-context, so their schema must refuse them."""
+    sensor, *_ = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        SensorReferenceSchema().load({"sensor": sensor.id, "lower": "0 kW"})
+
+    assert "lower" in exc.value.messages
+
+    # The forecaster's own reference schema takes exactly the same payload.
+    assert (
+        ForecastInputReferenceSchema().load({"sensor": sensor.id, "lower": "0 kW"})[
+            "lower"
+        ]
+        == "0 kW"
+    )
 
 
 def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():
