@@ -105,7 +105,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
         # The listing reaches below the asset, and refreshes itself.
-        assert b"include_child_assets=${includeChildAssets}" in asset_page.data
+        assert b"include-child-assets=${includeChildAssets}" in asset_page.data
         assert (
             b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)"
             in asset_page.data

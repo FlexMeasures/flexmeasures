@@ -599,7 +599,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     }
     loadInFlight = true;
     $.ajax({
-      url: `/api/v3_0/assets/${assetId}/automations?include_child_assets=${includeChildAssets}`,
+      url: `/api/v3_0/assets/${assetId}/automations?include-child-assets=${includeChildAssets}`,
       method: "GET",
       success: function (res) {
         automationsById.clear();
@@ -660,10 +660,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   }
 
   function rememberIncludeChildAssets(include) {
-    fetch(`${window.location.origin}/api/v3_0/assets/automations_page_child_assets`, {
+    fetch(`${window.location.origin}/api/dev/session/automations-page-child-assets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ include_child_assets: include }),
+      body: JSON.stringify({ "include-child-assets": include }),
     }).catch((error) => {
       console.error("Error remembering whether to include the automations of sub-assets:", error);
     });

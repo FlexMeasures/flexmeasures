@@ -1097,7 +1097,7 @@ def test_get_automations_can_be_narrowed_to_the_asset_itself(
     with app.test_client() as client:
         response = client.get(
             url_for("AssetAPI:get_automations", id=battery.id),
-            query_string={"include_child_assets": "false"},
+            query_string={"include-child-assets": "false"},
         )
     assert response.status_code == 200
     automations = response.json["automations"]
