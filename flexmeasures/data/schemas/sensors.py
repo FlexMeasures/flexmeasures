@@ -1137,7 +1137,7 @@ class OutputSensorReferenceSchema(SharedSensorReferenceSchema):
 
 
 class SensorReferenceSchema(SharedSensorReferenceSchema):
-    """Sensor reference with optional source filters and fallback value."""
+    """Sensor reference with optional source filters, fallback value and cleaning bounds."""
 
     class Meta:
         description = "Sensor reference from which to look up a variable quantity."
@@ -1238,8 +1238,8 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
     def remove_unset_default_and_bounds(self, data: dict, **kwargs) -> dict:
         """Leave out `default` and the bounds entirely when the reference does not define them.
 
-        Without this, references that set no fallback and no bounds would serialize
-        `default: None` and empty bound keys, which are not valid input on the way back in.
+        Without this, references that set no fallback and no bounds would serialize `default: None` and empty bound keys,
+        which are not valid input on the way back in.
         A zero bound is meaningful, so only None and an empty snap mapping are dropped.
         """
         for field_name in ("default", "lower", "upper"):
@@ -1292,7 +1292,7 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
 
 
 class SensorIdOrReferenceField(fields.Raw):
-    """Field accepting either a sensor ID or a source-filtered sensor reference."""
+    """Field accepting either a sensor ID or a sensor reference, which may filter by source and carry cleaning bounds."""
 
     def __init__(self, *args, **kwargs):
         metadata = dict(kwargs.pop("metadata", {}))
