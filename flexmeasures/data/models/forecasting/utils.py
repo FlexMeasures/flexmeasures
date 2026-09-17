@@ -26,6 +26,19 @@ def _is_unitless(unit: str | None) -> bool:
     return unit in (None, "", "dimensionless")
 
 
+def _is_parseable_quantity(value: Any) -> bool:
+    """Whether a configured bound is a number or a pint-parseable quantity string."""
+    if isinstance(value, numbers.Real):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        ur.Quantity(value)
+    except Exception:
+        return False
+    return True
+
+
 def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
     """Parse a configured quantity and return its magnitude in the sensor unit."""
     if isinstance(value, numbers.Real):
@@ -56,7 +69,7 @@ def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
 
 
 def _parse_snap_intervals(
-    snap: dict, sensor_unit: str
+    snap: dict, sensor_unit: str, label: str = "Forecast post-processing"
 ) -> list[tuple[float, float, float]]:
     """Validate and parse a snap mapping into ``(target, first, second)`` triples.
 
@@ -71,23 +84,84 @@ def _parse_snap_intervals(
     parsed = []
     for target, interval in snap.items():
         if not isinstance(interval, (list, tuple)) or len(interval) != 2:
-            raise ValueError(
-                "Forecast post-processing snap intervals must contain exactly two bounds."
-            )
+            raise ValueError(f"{label} snap intervals must contain exactly two bounds.")
 
         target_value = _quantity_to_sensor_value(target, sensor_unit)
         first = _quantity_to_sensor_value(interval[0], sensor_unit)
         second = _quantity_to_sensor_value(interval[1], sensor_unit)
         if math.isclose(first, second):
-            raise ValueError(
-                "Forecast post-processing snap interval bounds must differ."
-            )
+            raise ValueError(f"{label} snap interval bounds must differ.")
         if not min(first, second) <= target_value <= max(first, second):
             raise ValueError(
-                "Forecast post-processing snap target must lie within its interval bounds."
+                f"{label} snap target must lie within its interval bounds."
             )
         parsed.append((target_value, first, second))
     return parsed
+
+
+def parse_bounds(
+    lower: Any,
+    upper: Any,
+    snap: dict | None,
+    sensor_unit: str,
+    label: str = "Forecast post-processing",
+) -> tuple[float | None, float | None, list[tuple[float, float, float]]]:
+    """Parse configured bounds into plain magnitudes in the sensor unit.
+
+    :param lower:       Optional lower bound, as a number or a quantity string.
+    :param upper:       Optional upper bound, as a number or a quantity string.
+    :param snap:        Optional mapping from snap targets to two-bound intervals.
+    :param sensor_unit: Unit the bounds are converted into.
+    :param label:       Prefix for error messages, naming what is being bounded.
+    :returns:           ``(lower_value, upper_value, snap_intervals)``, ready for :func:`apply_bounds_to_values`.
+    """
+    lower_value = (
+        _quantity_to_sensor_value(lower, sensor_unit) if lower is not None else None
+    )
+    upper_value = (
+        _quantity_to_sensor_value(upper, sensor_unit) if upper is not None else None
+    )
+    if (
+        lower_value is not None
+        and upper_value is not None
+        and lower_value > upper_value
+    ):
+        raise ValueError(f"{label} lower bound cannot be greater than upper bound.")
+    snap_intervals = _parse_snap_intervals(snap or {}, sensor_unit, label)
+    return lower_value, upper_value, snap_intervals
+
+
+def apply_bounds_to_values(
+    values: np.ndarray,
+    lower_value: float | None,
+    upper_value: float | None,
+    snap_intervals: list[tuple[float, float, float]],
+) -> np.ndarray:
+    """Snap and then clip an array of values, returning a new array.
+
+    Snapping runs first, against the unmodified values, so intervals cannot cascade into each other.
+    Clipping runs afterwards and always takes precedence, so a snap target outside the bounds is still clipped back into range.
+    Values that are not a number are left alone by both steps.
+
+    :param values:         The values to bound.
+    :param lower_value:    Lower clip bound in the same unit, or None to leave the lower side unbounded.
+    :param upper_value:    Upper clip bound in the same unit, or None to leave the upper side unbounded.
+    :param snap_intervals: ``(target, first, second)`` triples, as parsed by :func:`parse_bounds`.
+    :returns:              A new array of bounded values.
+    """
+    original = np.asarray(values, dtype=float)
+    bounded = original.copy()
+    for target_value, first, second in snap_intervals:
+        if first <= second:
+            # First bound inclusive, second exclusive: [first, second).
+            mask = (original >= first) & (original < second)
+        else:
+            # Reversed order flips the closed side: (second, first].
+            mask = (original > second) & (original <= first)
+        bounded[mask] = target_value
+    if lower_value is not None or upper_value is not None:
+        bounded = np.clip(bounded, lower_value, upper_value)
+    return bounded
 
 
 def apply_forecast_post_processing(
@@ -117,39 +191,17 @@ def apply_forecast_post_processing(
 
     processed = data.copy()
     forecast_columns = [f"{h}h" for h in range(1, horizon + 1)]
-    lower_value = (
-        _quantity_to_sensor_value(lower, sensor_unit) if lower is not None else None
+    lower_value, upper_value, snap_intervals = parse_bounds(
+        lower, upper, snap, sensor_unit
     )
-    upper_value = (
-        _quantity_to_sensor_value(upper, sensor_unit) if upper is not None else None
-    )
-
-    if (
-        lower_value is not None
-        and upper_value is not None
-        and lower_value > upper_value
-    ):
-        raise ValueError(
-            "Forecast post-processing lower bound cannot be greater than upper bound."
-        )
-
-    snap_intervals = _parse_snap_intervals(snap, sensor_unit)
 
     for column in forecast_columns:
-        # Snap against the pre-snap predictions so intervals cannot chain into each other.
-        original_values = processed[column]
-        for target_value, first, second in snap_intervals:
-            if first <= second:
-                # First bound inclusive, second exclusive: [first, second).
-                mask = (original_values >= first) & (original_values < second)
-            else:
-                # Reversed order flips the closed side: (second, first].
-                mask = (original_values > second) & (original_values <= first)
-            processed.loc[mask, column] = target_value
-
-    processed[forecast_columns] = processed[forecast_columns].clip(
-        lower=lower_value, upper=upper_value, axis=None
-    )
+        processed[column] = apply_bounds_to_values(
+            processed[column].to_numpy(dtype=float),
+            lower_value,
+            upper_value,
+            snap_intervals,
+        )
     return processed
 
 
