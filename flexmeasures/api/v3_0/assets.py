@@ -1596,10 +1596,10 @@ class AssetAPI(FlaskView):
                         output-sensors:
                           - id: 2092
                             name: power
-                        job_stats:
+                        job-stats:
                           finished: 3
                           failed: 1
-                        redis_connection_err: null
+                        redis-connection-err: null
             401:
               description: UNAUTHORIZED
             403:
@@ -1648,11 +1648,11 @@ class AssetAPI(FlaskView):
             ]
         redis_connection_err = None
         try:
-            automation_data["job_stats"] = get_automation_job_stats(automation)
+            automation_data["job-stats"] = get_automation_job_stats(automation)
         except NoRedisConfigured as e:
-            automation_data["job_stats"] = {}
+            automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
-        automation_data["redis_connection_err"] = redis_connection_err
+        automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 
     @route("/<id>/automations", methods=["POST"])
@@ -1674,11 +1674,21 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts or schedules) on the asset.
+            Create a recurring task (computing forecasts, schedules or reports) on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
-            or a schedule trigger message (without the asset id) for type `scheduling`.
+            a schedule trigger message (without the asset id) for type `scheduling`,
+            or report parameters for type `reporting`.
             Requires permission to add data under the asset.
+
+            An automation runs again and again, so its parameters cannot fix a moment in time:
+            a `start`, `end` or `prior` among them is refused.
+            Say instead how the period each run covers relates to that run,
+            with two of `start-offset`, `end-offset` and `duration`.
+            The offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),
+            applied to the time the run was due, on the automation's own clock.
+            Leave the timing out to start at the time of each run,
+            or, for a report, to cover the period since the last successful report.
 
             The automation can only involve sensors that you have access to yourself:
             read access to the sensors it reads data from,
@@ -1708,6 +1718,18 @@ class AssetAPI(FlaskView):
                       type: forecasting
                       parameters:
                         sensor: 2092
+                  day_ahead_schedules:
+                    summary: Schedules for the whole of the next day
+                    description: >-
+                      Runs every day at noon, and covers the day after the one each run was due on, read on the automation's own clock.
+                    value:
+                      name: Day-ahead schedules
+                      cron: "0 12 * * *"
+                      timezone: Europe/Amsterdam
+                      type: scheduling
+                      parameters:
+                        start-offset: "1D,DB"
+                        duration: P1D
           responses:
             201:
               description: CREATED
@@ -1884,7 +1906,7 @@ class AssetAPI(FlaskView):
     )
     # Running an automation writes data under the asset, which is what create-children means here.
     # The sensors it writes to were checked against the same permission when the automation was created,
-    # and its output scope is checked again on each run (see validate_forecast_output_scope).
+    # and its output scope is checked again on each run (see validate_automation_output_scope).
     @permission_required_for_context("create-children", ctx_arg_name="asset")
     @as_json
     def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
@@ -1964,13 +1986,16 @@ class AssetAPI(FlaskView):
         job_id = (returns or {}).get("job_id")
         if job_id is None:
             db.session.rollback()
-            current_app.logger.error(
-                "Automation %s ran on demand, but reported no job: %r",
-                automation.id,
-                returns,
-            )
+            # An automation that says why it queued nothing did so on purpose.
+            if not (returns or {}).get("message"):
+                current_app.logger.error(
+                    "Automation %s ran on demand, but reported no job: %r",
+                    automation.id,
+                    returns,
+                )
             return unprocessable_entity(
-                f"Automation {automation.id} did not queue any job."
+                (returns or {}).get("message")
+                or f"Automation {automation.id} did not queue any job."
             )
         AssetAuditLog.add_record(
             asset,
@@ -2038,7 +2063,7 @@ class AssetAPI(FlaskView):
                             enqueued_at: "2023-10-01T00:00:00"
                             created_via: API
                             metadata_hash: abc123
-                        redis_connection_err: null
+                        redis-connection-err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -2063,7 +2088,7 @@ class AssetAPI(FlaskView):
 
         return {
             "jobs": all_jobs_data,
-            "redis_connection_err": redis_connection_err,
+            "redis-connection-err": redis_connection_err,
         }, 200
 
     @route("/default_asset_view", methods=["POST"])
