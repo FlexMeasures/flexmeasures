@@ -146,6 +146,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
                   <div class="form-text">
                     Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting).
+                    A fixed "start", "end" or "prior" is refused, as every run would share that moment.
+                    Say how the period each run covers relates to that run with two of "start-offset", "end-offset" and "duration",
+                    such as <code>{"start-offset": "1D,DB", "duration": "P1D"}</code> for the whole of the next day,
+                    or leave the timing out, so that a forecast or schedule starts at the run time, and a report continues from the last successful one.
                   </div>
                 </div>
                 <div class="form-check mb-3">
