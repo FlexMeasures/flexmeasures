@@ -30,7 +30,7 @@ def _quantity_to_sensor_value(
     value: Any, sensor_unit: str, label: str = "Forecast post-processing"
 ) -> float:
     """Parse a configured quantity and return its magnitude in the sensor unit."""
-    if isinstance(value, numbers.Real):
+    if isinstance(value, numbers.Real) and not isinstance(value, bool):
         return float(value)
 
     if not isinstance(value, str):
@@ -213,7 +213,7 @@ def apply_bounds_to_values(
 
     Snapping runs first, against the unmodified values, so intervals cannot cascade into each other.
     Clipping runs afterwards and always takes precedence, so a snap target outside the bounds is still clipped back into range.
-    Values that are not a number are left alone by both steps.
+    NaN values are left alone by both steps.
 
     :param values:         The values to bound.
     :param lower_value:    Lower clip bound in the same unit, or None to leave the lower side unbounded.
