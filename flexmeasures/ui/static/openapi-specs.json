@@ -5770,6 +5770,33 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": "object",
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -5924,6 +5951,33 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": "object",
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [

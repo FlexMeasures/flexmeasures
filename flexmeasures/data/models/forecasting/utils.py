@@ -26,19 +26,6 @@ def _is_unitless(unit: str | None) -> bool:
     return unit in (None, "", "dimensionless")
 
 
-def _is_parseable_quantity(value: Any) -> bool:
-    """Whether a configured bound is a number or a pint-parseable quantity string."""
-    if isinstance(value, numbers.Real):
-        return True
-    if not isinstance(value, str):
-        return False
-    try:
-        ur.Quantity(value)
-    except Exception:
-        return False
-    return True
-
-
 def _quantity_to_sensor_value(
     value: Any, sensor_unit: str, label: str = "Forecast post-processing"
 ) -> float:

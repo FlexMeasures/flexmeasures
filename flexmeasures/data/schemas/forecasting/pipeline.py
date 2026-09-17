@@ -18,18 +18,18 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.sensors import SensorReference
+from flexmeasures.data.schemas.sensors import (
+    SensorIdOrReferenceField,
+    SensorReference,
+)
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
     DurationField,
     PlanningDurationField,
 )
-from flexmeasures.data.models.forecasting.utils import (
-    _is_parseable_quantity,
-    floor_to_resolution,
-)
-from flexmeasures.data.schemas.forecasting.references import ForecastInputField
+from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.utils.unit_utils import is_parseable_quantity
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
@@ -104,7 +104,7 @@ class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        ForecastInputField(),
+        SensorIdOrReferenceField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
@@ -124,7 +124,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     past_regressors = fields.List(
-        ForecastInputField(),
+        SensorIdOrReferenceField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
@@ -141,7 +141,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     regressors = fields.List(
-        ForecastInputField(),
+        SensorIdOrReferenceField(),
         data_key="regressors",
         load_default=[],
         metadata={
@@ -365,7 +365,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         errors: dict[str, list[str]] = {}
         for field_name in ("lower", "upper"):
             value = data.get(field_name)
-            if value is not None and not _is_parseable_quantity(value):
+            if value is not None and not is_parseable_quantity(value):
                 errors[field_name] = [
                     "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
                 ]
@@ -373,7 +373,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         snap_errors = [
             f"Snap entry '{target}' must use numbers or parseable quantity strings."
             for target, interval in (data.get("snap") or {}).items()
-            if not all(_is_parseable_quantity(v) for v in (target, *interval))
+            if not all(is_parseable_quantity(v) for v in (target, *interval))
         ]
         if snap_errors:
             errors["snap"] = snap_errors
@@ -414,7 +414,7 @@ class ForecasterParametersSchema(Schema):
     NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
     """
 
-    sensor = ForecastInputField(
+    sensor = SensorIdOrReferenceField(
         data_key="sensor",
         required=True,
         metadata={

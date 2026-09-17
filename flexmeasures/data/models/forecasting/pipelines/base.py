@@ -16,7 +16,6 @@ from flexmeasures.data.models.forecasting.utils import (
     apply_bounds_to_values,
     parse_bounds,
 )
-from flexmeasures.data.schemas.forecasting.references import ForecastInputReference
 from flexmeasures.data.schemas.sensors import SensorReference
 
 
@@ -52,7 +51,7 @@ def _bound_input_series(
     :returns:                   The series, with its values snapped and clipped.
     """
     if (
-        not isinstance(sensor_or_reference, ForecastInputReference)
+        not isinstance(sensor_or_reference, SensorReference)
         or not sensor_or_reference.has_bounds
     ):
         return series
