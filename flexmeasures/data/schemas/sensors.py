@@ -375,6 +375,12 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
 #: The keys that clean a referenced sensor's readings before they are used.
 SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
 
+#: Scheduling does not apply bounds yet, so a flex-model or flex-context reference refuses them rather than silently ignoring them.
+SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE = (
+    "Sensor references in a flex-model or flex-context do not accept `lower`, `upper` or `snap` yet,"
+    " because scheduling does not apply them; only forecaster inputs do."
+)
+
 
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     _UNSUPPORTED_VALUE_TYPE_MESSAGE = (
@@ -561,6 +567,8 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if not SENSOR_REFERENCE_BOUND_KEYS.isdisjoint(value.keys()):
+            raise FMValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -1179,7 +1187,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         allow_none=True,
         load_default=None,
         metadata=dict(
-            description="Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            description="Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
             example="0 kW",
         ),
     )
@@ -1188,7 +1196,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         allow_none=True,
         load_default=None,
         metadata=dict(
-            description="Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            description="Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
             example="20 kW",
         ),
     )
@@ -1198,7 +1206,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         required=False,
         load_default={},
         metadata=dict(
-            description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; not (yet) applied to flex-model and flex-context references, where it is accepted but ignored.",
+            description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
             example={"0 kW": ["0 kW", "0.5 kW"]},
         ),
     )
@@ -1253,6 +1261,12 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
 
     class Meta:
         description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @validates_schema
+    def refuse_bounds(self, data: dict, **kwargs):
+        """Refuse the bounds this schema inherits, since scheduling does not apply them yet."""
+        if any(data.get(key) not in (None, {}) for key in ("lower", "upper", "snap")):
+            raise ValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
 
     @post_load
     def to_sensor_or_reference(

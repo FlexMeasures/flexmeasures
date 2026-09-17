@@ -7,6 +7,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorReference,
     SensorReferenceSchema,
     VariableQuantityField,
+    InflexibleDeviceSchema,
     floor_bdf_event_starts,
 )
 from flexmeasures.utils.unit_utils import ur
@@ -254,6 +255,38 @@ def test_sensor_reference_field_rejects_null_default(setup_dummy_sensors):
         "Sensor reference `default` must be a quantity string or a numeric value with a known default source unit."
         in str(exc_info.value)
     )
+
+
+@pytest.mark.parametrize(
+    "bounds",
+    [{"lower": "0 MW"}, {"upper": "1 MW"}, {"snap": {"0 MW": ["0 MW", "0.1 MW"]}}],
+)
+def test_scheduling_references_refuse_bounds_they_would_ignore(
+    setup_dummy_sensors, bounds
+):
+    """Scheduling does not apply bounds yet, so its references refuse them instead of silently dropping them."""
+    *_, power_sensor = setup_dummy_sensors
+    reference = {"sensor": power_sensor.id, **bounds}
+
+    with pytest.raises(
+        ValidationError, match="do not accept `lower`, `upper` or `snap` yet"
+    ):
+        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
+            reference
+        )
+
+    with pytest.raises(
+        ValidationError, match="do not accept `lower`, `upper` or `snap` yet"
+    ):
+        InflexibleDeviceSchema().load(reference)
+
+    # Without bounds, the same reference still loads.
+    plain = {"sensor": power_sensor.id}
+    assert (
+        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(plain)
+        == power_sensor
+    )
+    assert InflexibleDeviceSchema().load(plain) == power_sensor
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):

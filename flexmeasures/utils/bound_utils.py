@@ -134,11 +134,19 @@ def _unparseable_bound_errors(
                 "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
             ]
 
-    snap_errors = [
-        f"Snap entry '{target}' must use numbers or parseable quantity strings."
-        for target, interval in (snap or {}).items()
-        if not all(is_parseable_quantity(v) for v in (target, *interval))
-    ]
+    if snap is not None and not isinstance(snap, dict):
+        errors["snap"] = ["Must be a mapping from snap targets to intervals."]
+        return errors
+    snap_errors = []
+    for target, interval in (snap or {}).items():
+        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
+            snap_errors.append(
+                f"Snap entry '{target}' must map to an interval of exactly two bounds."
+            )
+        elif not all(is_parseable_quantity(v) for v in (target, *interval)):
+            snap_errors.append(
+                f"Snap entry '{target}' must use numbers or parseable quantity strings."
+            )
     if snap_errors:
         errors["snap"] = snap_errors
     return errors

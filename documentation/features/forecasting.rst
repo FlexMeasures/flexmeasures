@@ -122,7 +122,7 @@ Snapping and clipping behave exactly as they do on the output, including the ``[
 Three things are worth knowing before relying on this:
 
 - Input bounds and output bounds are configured separately and may disagree. Cleaning the target's training data does not bound the forecast that comes out of it, and vice versa.
-- The bounds are part of the general sensor reference, so a flex-model or flex-context reference accepts them too. Only forecaster inputs act on them for now: elsewhere they are accepted and ignored, until scheduling learns to read them.
+- The bounds are part of the general sensor reference, but only forecaster inputs act on them for now. Until scheduling applies them too, a flex-model or flex-context reference refuses them, rather than accepting bounds it would ignore.
 - Bounding runs **after** missing values are filled, so a value interpolated across a gap is bounded too. It also means an out-of-range reading is still used to interpolate its neighbours before it is itself corrected: given readings of ``10``, ``-9999``, a gap, and ``14`` with ``lower: 0``, the gap interpolates from ``-9999`` and is then clipped to ``0``, rather than filling to roughly ``12``. Where readings are wrong rather than merely out of range, correcting them at the source is still the better fix.
 
 Forecasting via the UI
