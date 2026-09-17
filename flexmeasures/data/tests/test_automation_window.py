@@ -202,3 +202,12 @@ def test_a_report_does_not_reach_back_past_what_it_already_covered(app, caplog):
         )
     assert pd.Timestamp(message["start"]) == pd.Timestamp(message["end"])
     assert "Reporting on nothing for this run." in caplog.text
+
+
+def test_a_calendar_duration_keeps_its_sub_second_part():
+    """A duration with months or years is added field by field, so each field has to be carried over."""
+    from flexmeasures.data.services.automations import _add_duration
+
+    assert _add_duration(
+        pd.Timestamp("2026-01-01T00:00:00+00:00"), "P1MT0.5S"
+    ) == pd.Timestamp("2026-02-01T00:00:00.5+00:00")

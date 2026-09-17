@@ -471,6 +471,7 @@ def _add_duration(moment: pd.Timestamp, duration, sign: int = 1) -> pd.Timestamp
             months=int(duration.months),
             days=duration.tdelta.days,
             seconds=duration.tdelta.seconds,
+            microseconds=duration.tdelta.microseconds,
         )
         return moment + offset if sign > 0 else moment - offset
     return moment + duration if sign > 0 else moment - duration
