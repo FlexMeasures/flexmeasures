@@ -4,6 +4,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -1117,6 +1118,45 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def refuse_fields_a_schedule_automation_cannot_use(
+    config: dict | None, generator_class: str | None
+) -> None:
+    """Refuse a schedule automation's config or data generator, which it has no use for.
+
+    A schedule automation's scheduler, and the flex config it runs under, follow from the asset and its flex context.
+    Accepting either field here would record a choice that nothing goes on to read,
+    leaving the caller to believe it applied.
+
+    :raises marshmallow.ValidationError: keyed by the field(s) given, if either was.
+    """
+    unsupported = {}
+    if config:
+        unsupported["config"] = [
+            "A schedule automation configures no data generator of its own:"
+            " its scheduler and flex config follow from the asset and its flex context."
+        ]
+    if generator_class:
+        unsupported["data-generator"] = [
+            "A schedule automation does not choose a data generator:"
+            " its scheduler follows from the asset."
+        ]
+    if unsupported:
+        raise ValidationError(unsupported)
+
+
+@contextmanager
+def errors_reported_for(section: str):
+    """Name the part of the request a validation error came from, so the caller can say which one to fix.
+
+    Both `config` and `parameters` are validated against schemas of the data generator's choosing,
+    and either can raise. Without this, one is indistinguishable from the other by the time it surfaces.
+    """
+    try:
+        yield
+    except ValidationError as error:
+        raise ValidationError({section: error.messages}) from error
+
+
 def _prepare_forecast_automation(
     asset, parameters: dict, generator_class: str | None, config: dict | None, source
 ) -> tuple[Forecaster, dict, list[str]]:
@@ -1128,20 +1168,22 @@ def _prepare_forecast_automation(
     from flexmeasures.data.services.data_sources import get_data_generator
 
     warnings = []
-    deserialized_parameters = ForecasterParametersSchema().load(parameters)
+    with errors_reported_for("parameters"):
+        deserialized_parameters = ForecasterParametersSchema().load(parameters)
     sensor = deserialized_parameters.get("sensor")
     if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
         warnings.append(
             f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
         )
     model = generator_class or "TrainPredictPipeline"
-    forecaster = get_data_generator(
-        source=source,
-        model=model,
-        config=config or {},
-        save_config=True,
-        data_generator_type=Forecaster,
-    )
+    with errors_reported_for("config"):
+        forecaster = get_data_generator(
+            source=source,
+            model=model,
+            config=config or {},
+            save_config=True,
+            data_generator_type=Forecaster,
+        )
     if forecaster is None:
         # With a source, the class and its config come from the source, so the source is what failed.
         if source is not None:
@@ -1159,22 +1201,25 @@ def _prepare_report_automation(
     source,
 ) -> tuple[Reporter, dict, list[str]]:
     """Validate report automation parameters without creating a data source."""
-    from marshmallow import ValidationError
-
     from flexmeasures.data.services.data_sources import get_data_generator
 
     warnings: list[str] = []
     if generator_class is None and source is None:
         raise ValidationError(
-            "A reporter is required for report automations (e.g. PandasReporter)."
+            {
+                "data-generator": [
+                    "A reporter is required for report automations (e.g. PandasReporter)."
+                ]
+            }
         )
-    reporter = get_data_generator(
-        source=source,
-        model=generator_class,
-        config=config or {},
-        save_config=True,
-        data_generator_type=Reporter,
-    )
+    with errors_reported_for("config"):
+        reporter = get_data_generator(
+            source=source,
+            model=generator_class,
+            config=config or {},
+            save_config=True,
+            data_generator_type=Reporter,
+        )
     if reporter is None:
         # With a source, the class and its config come from the source, so the source is what failed.
         if source is not None:
@@ -1182,9 +1227,10 @@ def _prepare_report_automation(
         raise ValueError(f"Could not set up reporter '{generator_class}'.")
     # Validate with the chosen reporter's own parameters schema,
     # which may extend the base ReporterParametersSchema.
-    deserialized_parameters = reporter._parameters_schema.load(
-        prepare_report_parameters(parameters, cronstr, automation_timezone)
-    )
+    with errors_reported_for("parameters"):
+        deserialized_parameters = reporter._parameters_schema.load(
+            prepare_report_parameters(parameters, cronstr, automation_timezone)
+        )
     return reporter, deserialized_parameters, warnings
 
 
@@ -1216,8 +1262,6 @@ def create_automation(
     :raises werkzeug.exceptions.Forbidden: if a sensor is not accessible to the user.
     :returns: the automation and a list of warnings.
     """
-    from marshmallow import ValidationError
-
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
     parameters = parameters or {}
@@ -1230,12 +1274,17 @@ def create_automation(
     if automation_type in Automation.SUPPORTED_TYPES:
         # An automation runs again and again, so a moment fixed in its parameters would be shared by every run.
         refuse_fixed_moments(parameters, automation_type)
-        validate_automation_window(parameters, automation_type)
+        with errors_reported_for("parameters"):
+            validate_automation_window(parameters, automation_type)
     if automation_type == "forecasting":
+        with errors_reported_for("parameters"):
+            forecast_window = resolve_automation_window(
+                parameters, automation_type, timezone
+            )
         forecaster, deserialized_parameters, forecast_warnings = (
             _prepare_forecast_automation(
                 asset,
-                resolve_automation_window(parameters, automation_type, timezone),
+                forecast_window,
                 generator_class,
                 config,
                 source,
@@ -1258,12 +1307,16 @@ def create_automation(
             find_momentary_flex_config_fields,
         )
 
+        refuse_fields_a_schedule_automation_cannot_use(config, generator_class)
+
         # The flex config has to describe the site and its devices, rather than one moment:
         # the automation computes a fresh schedule on every run,
         # so a value tied to a fixed moment would be stale on the next one.
-        momentary_fields = find_momentary_flex_config_fields(
-            prepare_schedule_trigger_message(dict(parameters), asset.id, timezone)
-        )
+        with errors_reported_for("parameters"):
+            trigger_message = prepare_schedule_trigger_message(
+                dict(parameters), asset.id, timezone
+            )
+        momentary_fields = find_momentary_flex_config_fields(trigger_message)
         if momentary_fields:
             raise RecurringAutomationFixesAMoment(
                 f"{flexmeasures_inflection.join_words_into_a_list(momentary_fields)} fixes a moment in time,"
@@ -1274,9 +1327,10 @@ def create_automation(
         # A schedule is recorded on the sensors that the scheduler returns its results for,
         # and reads whatever other sensors the flex-model and flex-context refer to,
         # such as price sensors and the sensors of inflexible devices.
-        schedule_sensors = resolve_schedule_automation_sensors(
-            parameters, asset.id, timezone
-        )
+        with errors_reported_for("parameters"):
+            schedule_sensors = resolve_schedule_automation_sensors(
+                parameters, asset.id, timezone
+            )
         input_sensors = schedule_sensors["input_sensors"]
         output_sensors = schedule_sensors["output_sensors"]
     elif automation_type == "reporting":
@@ -1292,7 +1346,11 @@ def create_automation(
         output_sensors = report_sensors["output_sensors"]
     else:
         raise ValidationError(
-            f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
+            {
+                "type": [
+                    f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
+                ]
+            }
         )
 
     if check_permissions:
