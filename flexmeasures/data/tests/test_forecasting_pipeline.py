@@ -664,6 +664,43 @@ def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     )
 
 
+def _input_sensor_stub(unit: str = "kW", resolution: timedelta = timedelta(hours=1)):
+    """A stand-in for a sensor, carrying just what the filling step reads off one."""
+    return type(
+        "SensorStub",
+        (),
+        {"name": "meter", "id": 7, "unit": unit, "event_resolution": resolution},
+    )()
+
+
+def test_filling_gives_each_regressor_exactly_one_component():
+    """Two regressors must reach the model as two components, not as four."""
+    index = pd.date_range("2025-01-01", periods=3, freq="h")
+    df = pd.DataFrame(
+        {
+            "event_start": index,
+            "meter-a": [1.0, 2.0, 3.0],
+            "meter-b": [10.0, 20.0, 30.0],
+        }
+    )
+
+    pipeline = BasePipeline.__new__(BasePipeline)
+    pipeline.missing_threshold = 1.0
+    pipeline.target_sensor = _input_sensor_stub()
+
+    filled = BasePipeline.detect_and_fill_missing_values(
+        pipeline,
+        df=df,
+        sensors=[_input_sensor_stub(), _input_sensor_stub()],
+        sensor_names=["meter-a", "meter-b"],
+        start=index[0].tz_localize("UTC"),
+        end=index[-1].tz_localize("UTC"),
+    )
+
+    assert list(filled.components) == ["meter-a", "meter-b"]
+    np.testing.assert_allclose(filled.values(), [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
+
+
 def test_forecast_post_processing_clips_and_snaps_values():
     df = pd.DataFrame(
         {
