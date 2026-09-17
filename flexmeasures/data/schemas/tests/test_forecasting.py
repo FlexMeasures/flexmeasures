@@ -1029,7 +1029,7 @@ def test_forecaster_config_schema_rejects_an_unparseable_regressor_bound(
 def test_cleaning_bounds_live_on_the_shared_sensor_reference(setup_dummy_sensors):
     """The bounds sit on the shared reference, so every sensor reference can carry them.
 
-    Only forecaster inputs act on them for now, so flex-model and flex-context references refuse them (see test_sensor.py).
+    Forecasters apply them to their inputs, and schedulers to the flex-model and flex-context references they read.
     """
     # The MW sensor, so that bounds given in kW can be read in its unit.
     *_, sensor = setup_dummy_sensors

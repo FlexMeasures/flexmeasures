@@ -220,6 +220,9 @@ def get_power_values(
         one_deterministic_belief_per_event=True,
         **source_filters,
     )
+    if isinstance(sensor, SensorReference) and sensor.has_bounds:
+        # Clean the readings in the sensor's own unit, before gaps are filled and units are converted.
+        bdf["event_value"] = sensor.apply_bounds(bdf["event_value"].to_numpy())
     df = simplify_index(bdf)
     df = df.reindex(initialize_index(query_window[0], query_window[1], resolution))
     nan_values = df.isnull().values
@@ -316,6 +319,11 @@ def get_series_from_quantity_or_sensor(
                 else None
             ),
         )
+        if variable_quantity.has_bounds:
+            # Clean the readings in the sensor's own unit, before they are resampled, converted or defaulted.
+            bdf["event_value"] = variable_quantity.apply_bounds(
+                bdf["event_value"].to_numpy()
+            )
         if as_instantaneous_events:
             bdf = bdf.resample_events(
                 timedelta(0),
