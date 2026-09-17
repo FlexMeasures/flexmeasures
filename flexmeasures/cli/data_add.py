@@ -43,6 +43,7 @@ from flexmeasures.cli.utils import (
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    LoggedClickExceptionGroup,
     add_cli_options_from_schema,
     split_commas,
 )
@@ -155,7 +156,7 @@ def _parse_target_sensor_cli_value(value):
         ) from e
 
 
-@click.group("add")
+@click.group("add", cls=LoggedClickExceptionGroup)
 def fm_add_data():
     """FlexMeasures: Add data."""
 
