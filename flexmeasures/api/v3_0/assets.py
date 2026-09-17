@@ -2901,6 +2901,11 @@ class AssetAPI(FlaskView):
             The asset copy will also have copies of child assets, including sensors and flex-configuration.
             No beliefs will be copied.
 
+            Automations on the copied assets are copied too, but start out inactive and with no run history,
+            so they can be inspected and tested before they are switched on.
+            An automation that cannot be copied safely is skipped, and listed under `skipped-automations` with the reason;
+            the asset, its sensors and the other automations are still copied.
+
             The new asset can optionally be placed under a `target` account and/or `parent` asset.
 
             Resolution rules:
@@ -2927,8 +2932,13 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   example:
-                    message: Successfully copied asset 10 to account 2.
+                    message: Successfully copied asset 10 to account 2. 1 automation(s) could not be copied.
                     asset: 99
+                    skipped-automations:
+                      - id: 7
+                        name: Day-ahead PV forecasts
+                        asset: 10
+                        reason: It references sensor 42, which lies outside the copied assets and which the destination organisation cannot read.
             400:
               description: INVALID_REQUEST
             401:
@@ -2971,9 +2981,10 @@ class AssetAPI(FlaskView):
                 )
 
         try:
-            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+            asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
         except ValueError as err:
             return unprocessable_entity(str(err))
+        new_asset = asset_copy.asset
 
         account_given = "account" in request.args
         parent_given = "parent" in request.args
@@ -2997,7 +3008,13 @@ class AssetAPI(FlaskView):
                 f"under parent {new_asset.parent_asset_id}."
             )
 
+        if asset_copy.skipped_automations:
+            message += f" {len(asset_copy.skipped_automations)} automation(s) could not be copied."
+
         return {
             "message": message,
             "asset": new_asset.id,
+            "skipped-automations": [
+                skipped.to_dict() for skipped in asset_copy.skipped_automations
+            ],
         }, 201

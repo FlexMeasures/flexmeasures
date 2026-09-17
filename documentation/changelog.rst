@@ -22,6 +22,7 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
