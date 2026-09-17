@@ -13,6 +13,7 @@ from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
 from marshmallow import fields, post_load, ValidationError, Schema, validate
+from redis.exceptions import RedisError
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_, Select
@@ -58,6 +59,7 @@ from flexmeasures.data.services.automations import (
     create_automation,
     delete_automation as remove_automation,
     describe_cronstr,
+    get_asset_automations_job_stats,
     get_automation_job_stats,
     resolve_automation_sensors,
     run_automation,
@@ -1468,7 +1470,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling or reporting tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1504,6 +1506,9 @@ class AssetAPI(FlaskView):
                             next-run: "2026-07-12T06:00:00+02:00"
                             recurrence-description: "At 06:00"
                             active: true
+                            job-stats:
+                              finished: 3
+                        redis-connection-err: null
             401:
               description: UNAUTHORIZED
             403:
@@ -1513,14 +1518,33 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        redis_connection_err = None
+        try:
+            job_stats = get_asset_automations_job_stats(asset)
+        except NoRedisConfigured as e:
+            job_stats = {}
+            redis_connection_err = e.args[0]
+        except RedisError:
+            current_app.logger.warning(
+                "Could not load automation job statistics because Redis is unavailable.",
+                exc_info=True,
+            )
+            job_stats = {}
+            redis_connection_err = (
+                "Redis is unavailable; job statistics could not be loaded."
+            )
         automations_data = []
         for automation in asset.automations:
             automation_data = automation_schema.dump(automation)
             automation_data["recurrence-description"] = describe_cronstr(
                 automation.cronstr
             )
+            automation_data["job-stats"] = job_stats.get(automation.id, {})
             automations_data.append(automation_data)
-        return {"automations": automations_data}, 200
+        return {
+            "automations": automations_data,
+            "redis-connection-err": redis_connection_err,
+        }, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
     @use_kwargs(
@@ -1652,6 +1676,15 @@ class AssetAPI(FlaskView):
         except NoRedisConfigured as e:
             automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
+        except RedisError:
+            current_app.logger.warning(
+                "Could not load automation job statistics because Redis is unavailable.",
+                exc_info=True,
+            )
+            automation_data["job-stats"] = {}
+            redis_connection_err = (
+                "Redis is unavailable; job statistics could not be loaded."
+            )
         automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 

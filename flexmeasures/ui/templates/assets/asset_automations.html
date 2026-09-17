@@ -279,6 +279,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automations_err").removeClass("d-none").text(message);
   }
 
+  function jobStatsText(jobStats) {
+    return Object.keys(jobStats || {}).length
+      ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
+      : "none";
+  }
+
   function showAutomationsMessage(message) {
     $("#automations_msg").removeClass("d-none").text(message);
   }
@@ -383,12 +389,15 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     ).join(", ");
   }
 
+  const loadedDetails = new Set();
+
   function loadAutomationDetails(automationId) {
+    if (loadedDetails.has(automationId)) return;
+    loadedDetails.add(automationId);
     $.ajax({
       url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
       method: "GET",
       success: function (res) {
-        // Show job stats in the table row
         const jobStats = res["job-stats"] || {};
         const statsStr = Object.keys(jobStats).length
           ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
@@ -415,12 +424,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
-        if (res["redis-connection-err"]) {
-          $("#automations_err").removeClass("d-none").text(res["redis-connection-err"]);
-        }
       },
       error: function (xhr) {
-        $(`#automation-jobs-${automationId}`).text("unknown");
+        loadedDetails.delete(automationId);
         $(`#AutomationDetailsBody-${automationId}`).text("Could not load details.");
         showAutomationsError(
           `Could not load automation details: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
@@ -453,8 +459,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ],
       data: automations.map(AutomationRow),
     });
-    // Load more details per automation asynchronously
-    automations.forEach(automation => loadAutomationDetails(automation.id));
   }
 
   function apiError(xhr, fallbackMessage) {
@@ -481,6 +485,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       method: "GET",
       success: function (res) {
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
+        if (res["redis-connection-err"]) {
+          showAutomationsError(res["redis-connection-err"]);
+        }
         for (const automationType of ["forecasting", "scheduling", "reporting"]) {
           makeAutomationsTable(
             automationType,
@@ -498,6 +505,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           `Could not load automations: ${automationAjaxErrorMessage(xhr)}. Refresh the page to try again.`
         );
       },
+    });
+
+    $(document).on("click", ".automation-details", function () {
+      loadAutomationDetails($(this).data("id"));
     });
 
     // Edit an automation's recurrence settings

@@ -33,6 +33,7 @@ from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
     asset_is_in_subtree,
+    descendants_cte,
 )
 from flexmeasures.data.services.data_generators import (
     check_sensor_access,
@@ -1066,22 +1067,34 @@ def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     return involved
 
 
-def get_automation_job_stats(automation: Automation) -> dict[str, int]:
-    """Count the jobs created by this automation, per job status.
+def _asset_subtree_sensor_ids(asset_id: int) -> set[int]:
+    """Return all sensor IDs on an asset and its descendants."""
+    tree = descendants_cte(root_asset_id=asset_id, max_depth=None)
+    return set(
+        db.session.scalars(
+            select(Sensor.id).where(Sensor.generic_asset_id.in_(select(tree.c.id)))
+        ).all()
+    )
 
-    Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
+
+def _job_cache_refs(
+    automation: Automation, schedule_sensor_ids: set[int] | None = None
+) -> set[tuple[int, str, str]]:
+    """The job-cache entries in which an automation's jobs may live.
+
+    Forecasting and reporting jobs are cached under their target/output sensor(s),
+    which may belong to a different asset than the automation's own asset.
     """
-    # Determine the job cache entries to scan.
     parameters = automation.parameters or {}
     if automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
-        # and under individual sensors (per-device jobs).
-        assets = [automation.asset, *automation.asset.offspring]
-        cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
-            (sensor.id, "scheduling", "sensor")
-            for asset in assets
-            for sensor in asset.sensors
-        ]
+        # and under individual device sensors (per-device jobs), which may belong
+        # to child assets rather than the automation's own (site) asset.
+        if schedule_sensor_ids is None:
+            schedule_sensor_ids = _asset_subtree_sensor_ids(automation.asset_id)
+        return {(automation.asset_id, "scheduling", "asset")} | {
+            (sensor_id, "scheduling", "sensor") for sensor_id in schedule_sensor_ids
+        }
     elif automation.type == "reporting":
         # Reporting jobs are cached under their output sensor(s),
         # which may belong to a different asset than the automation's own asset.
@@ -1093,7 +1106,7 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
                 if isinstance(output, dict)
             ],
         )
-        cache_refs = [(sensor_id, "reporting", "sensor") for sensor_id in sensor_ids]
+        return {(sensor_id, "reporting", "sensor") for sensor_id in sensor_ids}
     else:
         # Forecasting jobs are cached under the forecast target sensor(s),
         # which may belong to a different asset than the automation's own asset.
@@ -1101,19 +1114,52 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
             automation,
             [parameters.get("sensor"), parameters.get("sensor-to-save")],
         )
-        cache_refs = [(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids]
+        return {(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids}
 
-    counts: dict[str, int] = {}
+
+def _count_automation_jobs(
+    cache_refs: set[tuple[int, str, str]], automation_ids: set[int]
+) -> dict[int, dict[str, int]]:
+    """Count jobs per automation and status in one pass over the cache entries."""
+    counts: dict[int, dict[str, int]] = {
+        automation_id: {} for automation_id in automation_ids
+    }
     seen_job_ids: set[str] = set()
     for entity_id, queue, asset_or_sensor_type in cache_refs:
         for job in current_app.job_cache.get(entity_id, queue, asset_or_sensor_type):
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
-            if job.meta.get("trigger", {}).get("automation_id") == automation.id:
+            automation_id = job.meta.get("trigger", {}).get("automation_id")
+            if automation_id in counts:
                 status = str(job.get_status().value)
-                counts[status] = counts.get(status, 0) + 1
+                counts[automation_id][status] = counts[automation_id].get(status, 0) + 1
     return counts
+
+
+def get_automation_job_stats(automation: Automation) -> dict[str, int]:
+    """Count the recent jobs created by this automation, per job status."""
+    return _count_automation_jobs(_job_cache_refs(automation), {automation.id})[
+        automation.id
+    ]
+
+
+def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
+    """Count recent jobs for all of an asset's automations in one cache pass."""
+    automations = asset.automations
+    if not automations:
+        return {}
+    schedule_sensor_ids = (
+        _asset_subtree_sensor_ids(asset.id)
+        if any(automation.type == "scheduling" for automation in automations)
+        else None
+    )
+    cache_refs: set[tuple[int, str, str]] = set()
+    for automation in automations:
+        cache_refs |= _job_cache_refs(automation, schedule_sensor_ids)
+    return _count_automation_jobs(
+        cache_refs, {automation.id for automation in automations}
+    )
 
 
 def _stored_sensor_id(sensor_reference: Any) -> int | None:
