@@ -22,7 +22,11 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
-from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
+from flexmeasures.data.schemas.forecasting.references import (
+    ForecastInputReference,
+    ForecastInputReferenceSchema,
+)
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.utils.flexmeasures_inflection import p
 
 
@@ -72,7 +76,7 @@ def _make_sensor_payload(
 ) -> int | dict[str, Any]:
     """Serialize a sensor and its optional source filters to database IDs."""
     if isinstance(sensor_or_reference, SensorReference):
-        return SensorReferenceSchema().dump(sensor_or_reference)
+        return ForecastInputReferenceSchema().dump(sensor_or_reference)
     return sensor_or_reference.id
 
 
@@ -81,7 +85,7 @@ def _load_sensor_payload(
 ) -> Sensor | SensorReference:
     """Restore a worker-local sensor from a primitive queued-job payload."""
     if isinstance(payload, dict):
-        return SensorReference(**SensorReferenceSchema().load(payload))
+        return ForecastInputReference(**ForecastInputReferenceSchema().load(payload))
     sensor = _get_attached_sensor(payload)
     assert sensor is not None
     return sensor

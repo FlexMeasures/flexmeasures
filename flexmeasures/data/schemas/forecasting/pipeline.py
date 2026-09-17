@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numbers
 import os
 
 from datetime import timedelta
@@ -19,21 +18,21 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.sensors import (
-    SensorIdOrReferenceField,
-    SensorReference,
-)
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
     DurationField,
     PlanningDurationField,
 )
-from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.data.models.forecasting.utils import (
+    _is_parseable_quantity,
+    floor_to_resolution,
+)
+from flexmeasures.data.schemas.forecasting.references import ForecastInputField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import ur
 
 DEFAULT_TRAIN_PERIOD = timedelta(days=30)
 
@@ -49,19 +48,6 @@ def _fixed_length_or_none(value) -> timedelta | None:
     except ValidationError:
         return None
     return parsed if isinstance(parsed, timedelta) else None
-
-
-def _is_parseable_quantity(value) -> bool:
-    """Whether a post-processing value is a number or a pint-parseable quantity string."""
-    if isinstance(value, numbers.Real):
-        return True
-    if not isinstance(value, str):
-        return False
-    try:
-        ur.Quantity(value)
-    except Exception:
-        return False
-    return True
 
 
 class AnnotationRegressorSchema(Schema):
@@ -118,7 +104,7 @@ class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
@@ -138,7 +124,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     past_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
@@ -155,7 +141,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="regressors",
         load_default=[],
         metadata={
@@ -428,7 +414,7 @@ class ForecasterParametersSchema(Schema):
     NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
     """
 
-    sensor = SensorIdOrReferenceField(
+    sensor = ForecastInputField(
         data_key="sensor",
         required=True,
         metadata={
