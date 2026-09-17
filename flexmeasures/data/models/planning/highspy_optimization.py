@@ -268,6 +268,7 @@ def device_scheduler_highspy(  # noqa C901
     device_to_group = problem.device_to_group
     group_to_devices = problem.group_to_devices
     commitments = problem.commitments
+    commitment_headers = problem.commitment_scalars
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
@@ -382,21 +383,19 @@ def device_scheduler_highspy(  # noqa C901
         lower[col_band:ncol] = 0
         upper[col_band:ncol] = 1
 
-    # Per-subcommitment data: prices (objective), quantities and bounds
-    def _price_of(df: pd.DataFrame, column: str) -> float:
+    # Per-subcommitment data: prices (objective), quantities and bounds.
+    # Prices are constant down a commitment, so they come from the headers read once
+    # by prepare_scheduling_problem rather than from indexing every frame again.
+    def _price_of(header: dict, column: str) -> float:
         """Mirrors price_down_select / price_up_select."""
-        if column not in df.columns:
-            return 0
-        price = df[column].iloc[0]
-        if pd.isna(price):
-            return 0
-        return float(price)
+        price = header[column]
+        return 0 if price is None else float(price)
 
     down_price = np.zeros(C)
     up_price = np.zeros(C)
-    for c, df in enumerate(commitments):
-        down_price[c] = _price_of(df, "downwards deviation price")
-        up_price[c] = _price_of(df, "upwards deviation price")
+    for c, header in enumerate(commitment_headers):
+        down_price[c] = _price_of(header, "downwards deviation price")
+        up_price[c] = _price_of(header, "upwards deviation price")
     cost[col_cdown : col_cdown + C] = down_price
     cost[col_cup : col_cup + C] = up_price
 
@@ -525,20 +524,14 @@ def device_scheduler_highspy(  # noqa C901
     #   lb <= quantity + down_dev + up_dev - sum_over_group <= ub
     # where lb is 0 iff the commitment prices upwards deviations,
     # and ub is 0 iff it prices downwards deviations (one-sided otherwise).
-    def _active_rows(df: pd.DataFrame):
+    def _active_rows(c: int):
         """The commitment's active time steps and its row bounds.
 
-        A NaN quantity deactivates the commitment at that time step.
-        The Pyomo implementation maps such a quantity to -inf in its Param
-        and lets the resulting row (whose lower bound works out to +inf) be rejected by HiGHS;
-        dropping it here has the same effect.
+        Gathered while the commitments were split (see ``commitment_scalars``): a NaN
+        quantity deactivates the commitment at that time step, the way the Pyomo
+        implementation's -inf Param does.
         """
-        quantity = _column(df, "quantity")
-        jj = df["j"].to_numpy(dtype=np.int64)
-        active = ~(np.isnan(quantity) | (quantity == -infinity))
-        lb = 0.0 if "upwards deviation price" in df.columns else -infinity
-        ub = 0.0 if "downwards deviation price" in df.columns else infinity
-        return quantity[active], jj[active], lb, ub
+        return commitment_headers[c]["active rows"]
 
     def _add_commitment_rows(c, quantity, jj, lb, ub, devices, is_stock) -> None:
         """Bind commitment ``c`` to the summed flow or stock of ``devices``."""
@@ -573,14 +566,14 @@ def device_scheduler_highspy(  # noqa C901
             np.column_stack(val_cols),
         )
 
-    for c, df in enumerate(commitments):
+    for c in range(len(commitments)):
         groups = device_group_lookup.get(c, {})
         if not groups:
             continue
-        quantity, jj, lb, ub = _active_rows(df)
+        quantity, jj, lb, ub = _active_rows(c)
         if len(jj) == 0:
             continue
-        is_stock = df["class"].apply(lambda cl: cl == StockCommitment).all()
+        is_stock = commitment_headers[c]["class"] == StockCommitment
         for g, devices_in_group in groups.items():
             if not devices_in_group:
                 continue
@@ -590,23 +583,20 @@ def device_scheduler_highspy(  # noqa C901
     # or of its commodity's devices when it names a commodity.
     # A commitment that names devices is skipped here, being already bound per device group above;
     # binding it twice would over-constrain it.
-    for c, df in enumerate(commitments):
+    for c in range(len(commitments)):
         if device_group_lookup.get(c):
             continue
-        if df["class"].iloc[0] != FlowCommitment:
+        if commitment_headers[c]["class"] != FlowCommitment:
             continue
-        if "commodity" not in df.columns:
-            # Legacy behavior: no commodity, so sum over all devices.
+        commodity = commitment_headers[c]["commodity"]
+        if commodity is None:
+            # No commodity named (or none at all, the legacy case): sum over all devices.
             devices: object = range(D)
         else:
-            commodity = df["commodity"].iloc[0]
-            if pd.isna(commodity):
-                devices = range(D)
-            else:
-                devices = problem.commodity_devices.get(commodity, set())
-                if not devices:
-                    continue
-        quantity, jj, lb, ub = _active_rows(df)
+            devices = problem.commodity_devices.get(commodity, set())
+            if not devices:
+                continue
+        quantity, jj, lb, ub = _active_rows(c)
         if len(jj) == 0:
             continue
         _add_commitment_rows(c, quantity, jj, lb, ub, devices, is_stock=False)
@@ -750,7 +740,9 @@ def device_scheduler_highspy(  # noqa C901
     model.commitment_costs = aggregate_subcommitment_costs(
         subcommitment_costs, commitment_mapping
     )
-    model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
+    model.commodity_costs = aggregate_commodity_costs(
+        commitment_headers, subcommitment_costs
+    )
     model.costs = planned_costs
     model.d = range(D)
     model.j = range(T)
