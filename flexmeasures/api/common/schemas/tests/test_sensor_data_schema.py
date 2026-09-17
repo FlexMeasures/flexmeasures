@@ -598,7 +598,7 @@ def test_build_asset_jobs_data_includes_child_assets(
         resolution=timedelta(minutes=15),
     )
 
-    jobs_data = build_asset_jobs_data(building_asset, include_child_assets=True)
+    jobs_data = build_asset_jobs_data(building_asset)
     assert scheduling_job.id in {
         json.loads(job_data["metadata"])["job_id"] for job_data in jobs_data
     }, "the building lists the job triggered on the battery below it"

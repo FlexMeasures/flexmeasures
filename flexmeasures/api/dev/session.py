@@ -39,9 +39,9 @@ class StatusPageTabSchema(Schema):
 
 
 class IncludeChildAssetsSchema(Schema):
-    # Listing the assets below as well asks more of the server, so a page only does so when asked to.
+    # A page lists what happens below the asset, too, unless the user switches that off (see #2447).
     include_child_assets = fields.Bool(
-        data_key="include-child-assets", load_default=False
+        data_key="include-child-assets", load_default=True
     )
 
 
@@ -93,7 +93,7 @@ class SessionAPI(FlaskView):
     @route("/status-page-child-jobs", methods=["POST"])
     @use_kwargs(IncludeChildAssetsSchema, location="json")
     @as_json
-    def update_status_page_child_jobs(self, include_child_assets: bool = False):
+    def update_status_page_child_jobs(self, include_child_assets: bool = True):
         """Remember whether the current user wants the asset status page to list the jobs of the assets below it, too."""
         session["status_page_include_child_assets"] = include_child_assets
         return {"message": "Preferred status page job scope updated successfully."}, 200
@@ -101,7 +101,7 @@ class SessionAPI(FlaskView):
     @route("/automations-page-child-assets", methods=["POST"])
     @use_kwargs(IncludeChildAssetsSchema, location="json")
     @as_json
-    def update_automations_page_child_assets(self, include_child_assets: bool = False):
+    def update_automations_page_child_assets(self, include_child_assets: bool = True):
         """Remember whether the current user wants the asset automations page to list the automations of the assets below it, too."""
         session["automations_page_include_child_assets"] = include_child_assets
         return {

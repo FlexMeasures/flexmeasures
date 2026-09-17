@@ -3596,7 +3596,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n\nBy default, only the automations defined on the asset itself are listed.\nPass `include-child-assets=true` to include the automations of the assets below it as well, at any depth, so that a site asset reports everything that runs below it.\nOnly the assets below it which you may read are included.\nEach entry names the asset it is defined on, in `asset` and `asset-name`.\n",
+        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n\nBy default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.\nPass `include-child-assets=false` to list only the automations defined on the asset itself.\nOnly the assets below it which you may read are included.\nEach entry names the asset it is defined on, in `asset` and `asset-name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3616,7 +3616,7 @@
             "in": "query",
             "name": "include-child-assets",
             "required": false,
-            "description": "Whether to also list the automations of the assets below it, at any depth (default false).",
+            "description": "Whether to also list the automations of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
             }
@@ -4122,7 +4122,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, only the jobs of the asset itself and of its own sensors are listed.\nPass `include-child-assets=true` to include the jobs of the assets below it as well, at any depth, so that a site asset reports everything that happened below it.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
+        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4142,7 +4142,7 @@
             "in": "query",
             "name": "include-child-assets",
             "required": false,
-            "description": "Whether to also list the jobs of the assets below it, at any depth (default false).",
+            "description": "Whether to also list the jobs of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
             }

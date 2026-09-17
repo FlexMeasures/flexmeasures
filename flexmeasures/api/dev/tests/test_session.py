@@ -53,8 +53,8 @@ def test_update_status_page_tab_rejects_unknown_tab(
     [
         ({"include-child-assets": True}, True),
         ({"include-child-assets": False}, False),
-        # Listing the assets below as well asks more of the server, so a page only does so when asked to.
-        ({}, False),
+        # A page lists what happens below the asset, too, unless the user switches that off.
+        ({}, True),
     ],
 )
 def test_update_page_scope(

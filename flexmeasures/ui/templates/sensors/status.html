@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
 {% set status_page_tab = session.get("status_page_tab") if session.get("status_page_tab") in ["jobs", "sensors"] else "jobs" %}
-{% set include_child_assets = session.get("status_page_include_child_assets", False) %}
+{% set include_child_assets = session.get("status_page_include_child_assets", True) %}
 
 {% block title %} {{ asset.name }} - Status {% endblock %}
 

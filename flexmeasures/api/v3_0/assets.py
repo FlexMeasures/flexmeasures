@@ -325,8 +325,7 @@ class AssetJobsQuerySchema(Schema):
     include_child_assets = fields.Bool(
         data_key="include-child-assets",
         required=False,
-        # Listing the assets below as well asks more of the server, so a listing only does so when asked to.
-        load_default=False,
+        load_default=True,
         metadata={
             "description": "Whether to also list the jobs of the assets below this one, at any depth, as far as you may read them.",
         },
@@ -337,8 +336,7 @@ class AssetAutomationsQuerySchema(Schema):
     include_child_assets = fields.Bool(
         data_key="include-child-assets",
         required=False,
-        # Listing the assets below as well asks more of the server, so a listing only does so when asked to.
-        load_default=False,
+        load_default=True,
         metadata={
             "description": "Whether to also list the automations of the assets below this one, at any depth, as far as you may read them.",
         },
@@ -1439,7 +1437,7 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def get_automations(
-        self, id: int, asset: GenericAsset, include_child_assets: bool = False
+        self, id: int, asset: GenericAsset, include_child_assets: bool = True
     ):
         """
         .. :quickref: Assets; Get all automations defined on an asset.
@@ -1455,8 +1453,8 @@ class AssetAPI(FlaskView):
             and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
             The next run excludes pending catch-up work.
 
-            By default, only the automations defined on the asset itself are listed.
-            Pass `include-child-assets=true` to include the automations of the assets below it as well, at any depth, so that a site asset reports everything that runs below it.
+            By default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.
+            Pass `include-child-assets=false` to list only the automations defined on the asset itself.
             Only the assets below it which you may read are included.
             Each entry names the asset it is defined on, in `asset` and `asset-name`.
           security:
@@ -1471,7 +1469,7 @@ class AssetAPI(FlaskView):
             - in: query
               name: include-child-assets
               required: false
-              description: Whether to also list the automations of the assets below it, at any depth (default false).
+              description: Whether to also list the automations of the assets below it, at any depth (default true).
               schema:
                 type: boolean
           responses:
@@ -1997,9 +1995,7 @@ class AssetAPI(FlaskView):
     @use_kwargs(AssetJobsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_jobs(
-        self, id: int, asset: GenericAsset, include_child_assets: bool = False
-    ):
+    def get_jobs(self, id: int, asset: GenericAsset, include_child_assets: bool = True):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
         ---
@@ -2009,8 +2005,8 @@ class AssetAPI(FlaskView):
             The response will be a list of jobs.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
 
-            By default, only the jobs of the asset itself and of its own sensors are listed.
-            Pass `include-child-assets=true` to include the jobs of the assets below it as well, at any depth, so that a site asset reports everything that happened below it.
+            By default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.
+            Pass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.
             Only the assets below it which you may read are included.
             Each job names the asset it happened on, in `asset_id` and `asset_name`.
           security:
@@ -2025,7 +2021,7 @@ class AssetAPI(FlaskView):
             - in: query
               name: include-child-assets
               required: false
-              description: Whether to also list the jobs of the assets below it, at any depth (default false).
+              description: Whether to also list the jobs of the assets below it, at any depth (default true).
               schema:
                 type: boolean
           responses:

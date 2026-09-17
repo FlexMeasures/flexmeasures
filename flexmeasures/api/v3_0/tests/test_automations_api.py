@@ -978,10 +978,7 @@ def test_get_automations_includes_those_of_child_assets(
     battery = add_battery_assets_fresh_db["Test battery"]
     child, child_automation = add_automation_on_a_child_asset
     with app.test_client() as client:
-        response = client.get(
-            url_for("AssetAPI:get_automations", id=battery.id),
-            query_string={"include-child-assets": "true"},
-        )
+        response = client.get(url_for("AssetAPI:get_automations", id=battery.id))
     assert response.status_code == 200
     automations = response.json["automations"]
     inverter = next(a for a in automations if a["id"] == child_automation.id)
@@ -1047,10 +1044,7 @@ def test_get_automations_leaves_out_child_assets_the_user_may_not_read(
     _, own_child_automation = add_automation_on_a_child_asset
     _, foreign_automation = add_automation_on_a_foreign_child_asset
     with app.test_client() as client:
-        response = client.get(
-            url_for("AssetAPI:get_automations", id=battery.id),
-            query_string={"include-child-assets": "true"},
-        )
+        response = client.get(url_for("AssetAPI:get_automations", id=battery.id))
     assert response.status_code == 200
     listed_ids = [a["id"] for a in response.json["automations"]]
     assert own_child_automation.id in listed_ids
@@ -1080,10 +1074,7 @@ def test_get_jobs_leaves_out_child_assets_the_user_may_not_read(
         )
         job_ids[child.id] = job.id
     with app.test_client() as client:
-        response = client.get(
-            url_for("AssetAPI:get_jobs", id=battery.id),
-            query_string={"include-child-assets": "true"},
-        )
+        response = client.get(url_for("AssetAPI:get_jobs", id=battery.id))
     assert response.status_code == 200
     listed_ids = [job["job_id"] for job in response.json["jobs"]]
     assert job_ids[own_child.id] in listed_ids
@@ -1094,7 +1085,7 @@ def test_get_jobs_leaves_out_child_assets_the_user_may_not_read(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_get_automations_lists_the_asset_itself_unless_asked_for_more(
+def test_get_automations_can_be_narrowed_to_the_asset_itself(
     app,
     add_battery_assets_fresh_db,
     add_automations,
@@ -1103,17 +1094,15 @@ def test_get_automations_lists_the_asset_itself_unless_asked_for_more(
 ):
     battery = add_battery_assets_fresh_db["Test battery"]
     _, child_automation = add_automation_on_a_child_asset
-    # Listing the assets below as well asks more of the server, so a listing only does so when asked to.
-    for query_string in ({}, {"include-child-assets": "false"}):
-        with app.test_client() as client:
-            response = client.get(
-                url_for("AssetAPI:get_automations", id=battery.id),
-                query_string=query_string,
-            )
-        assert response.status_code == 200
-        automations = response.json["automations"]
-        assert child_automation.id not in [a["id"] for a in automations]
-        assert {a["asset-name"] for a in automations} == {"Test battery"}
+    with app.test_client() as client:
+        response = client.get(
+            url_for("AssetAPI:get_automations", id=battery.id),
+            query_string={"include-child-assets": "false"},
+        )
+    assert response.status_code == 200
+    automations = response.json["automations"]
+    assert child_automation.id not in [a["id"] for a in automations]
+    assert {a["asset-name"] for a in automations} == {"Test battery"}
 
 
 @pytest.mark.parametrize(
