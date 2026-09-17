@@ -17,6 +17,11 @@
              class="btn btn-sm btn-info delete-button"
              title="Reset the password and send instructions how to choose a new one.">Reset password</a>
         </div>
+        <div>
+          <button class="btn btn-sm btn-warning nav-button"
+                  onclick="resetAuthToken('{{ logged_in_user.id }}')"
+                  title="Invalidate all outstanding API tokens for your account. Your browser session will remain active.">Reset access token</button>
+        </div>
       </div>
     </div>
     <div class="col-md-8">
@@ -96,5 +101,20 @@
     
   </div>
 </div>
+
+<script>
+async function resetAuthToken(userId) {
+  const response = await fetch('/api/v3_0/users/' + userId + '/reset-auth-token', {
+    method: 'PATCH',
+  });
+  if (response.ok) {
+    showToast('Access token has been reset. Your browser session remains active.', 'success');
+    setTimeout(() => window.location.reload(), 1500);
+  } else {
+    const data = await response.json();
+    showToast('Error: ' + (data.message || 'An unknown error occurred.'), 'error');
+  }
+}
+</script>
 
 {% endblock %}
