@@ -665,6 +665,55 @@ def test_forecaster_config_schema_loads_plain_regressor_sensor_ids(
         assert isinstance(data[field_name][0], Sensor)
 
 
+def test_forecaster_parameters_schema_loads_filtered_target_reference(
+    setup_dummy_sensors,
+    setup_sources,
+    setup_accounts,
+    db,
+):
+    """The target sensor may name the sources whose beliefs to train on."""
+    sensor, *_ = setup_dummy_sensors
+    source = setup_sources["Seita"]
+    account = setup_accounts["Prosumer"]
+    db.session.flush()
+
+    data = ForecasterParametersSchema().load(
+        {
+            "sensor": {
+                "sensor": sensor.id,
+                "sources": [source.id],
+                "source-types": ["demo script"],
+                "exclude-source-types": ["forecaster"],
+                "source-account": [account.id],
+            }
+        }
+    )
+
+    target = data["sensor"]
+    assert isinstance(target, SensorReference)
+    assert target.sensor == sensor
+    assert target.sources == [source]
+    assert target.source_types == ["demo script"]
+    assert target.exclude_source_types == ["forecaster"]
+    assert target.source_account == [account]
+
+    # Forecasts are recorded on a sensor, so the output sensor is the plain sensor the reference wraps.
+    assert data["sensor_to_save"] == sensor
+    assert isinstance(data["sensor_to_save"], Sensor)
+
+
+def test_forecaster_parameters_schema_still_loads_a_bare_target_sensor_id(
+    setup_dummy_sensors,
+):
+    """A target given by ID keeps deserializing to a plain sensor."""
+    sensor, *_ = setup_dummy_sensors
+
+    data = ForecasterParametersSchema().load({"sensor": sensor.id})
+
+    assert data["sensor"] == sensor
+    assert isinstance(data["sensor"], Sensor)
+
+
 @pytest.mark.parametrize(
     "regressor_field", ["future-regressors", "past-regressors", "regressors"]
 )

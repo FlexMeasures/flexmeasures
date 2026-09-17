@@ -1030,11 +1030,9 @@ class QuantitySchema(Schema):
 class SensorReference:
     """A sensor reference that wraps a Sensor with optional query settings.
 
-    Exposes the same ``unit``, ``id``, and ``event_resolution`` properties as a plain
-    :class:`~flexmeasures.data.models.time_series.Sensor`, so code that reads those
-    properties works without modification. The source filters and optional default
-    value are passed through to
-    :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
+    Exposes the same properties as a plain :class:`~flexmeasures.data.models.time_series.Sensor` does:
+    ``unit``, ``id``, ``name``, ``event_resolution`` and ``timezone``, so code that reads those properties works without modification.
+    The source filters and optional default value are passed through to :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
     """
 
     sensor: Sensor
@@ -1055,9 +1053,19 @@ class SensorReference:
         return self.sensor.id
 
     @property
+    def name(self) -> str:
+        """Name of the underlying sensor."""
+        return self.sensor.name
+
+    @property
     def event_resolution(self) -> timedelta:
         """Event resolution of the underlying sensor."""
         return self.sensor.event_resolution
+
+    @property
+    def timezone(self) -> str:
+        """Timezone of the underlying sensor."""
+        return self.sensor.timezone
 
 
 class SharedSensorReferenceSchema(Schema):
