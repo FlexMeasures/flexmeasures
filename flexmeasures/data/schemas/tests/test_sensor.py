@@ -281,10 +281,13 @@ def test_scheduling_references_carry_their_bounds(setup_dummy_sensors):
         bounds["snap"],
     )
 
-    # Without bounds or filters, both still load a plain sensor.
-    plain = {"sensor": power_sensor.id}
-    assert field.deserialize(plain) == power_sensor
-    assert InflexibleDeviceSchema().load(plain) == power_sensor
+    # Without bounds or filters, both still load a plain sensor, also when the reference spells out unset bounds.
+    for plain in (
+        {"sensor": power_sensor.id},
+        {"sensor": power_sensor.id, "lower": None, "upper": None, "snap": {}},
+    ):
+        assert field.deserialize(plain) == power_sensor
+        assert InflexibleDeviceSchema().load(plain) == power_sensor
 
 
 @pytest.mark.parametrize(

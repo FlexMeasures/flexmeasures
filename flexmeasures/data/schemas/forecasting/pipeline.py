@@ -223,7 +223,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         allow_none=True,
         metadata={
             # Meant to be deprecated in favour of the explicit `lower` bound, which says the same thing without hiding it inside the model.
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled). Prefer setting ``lower`` to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting ``lower`` to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": True,
             "cli": {
                 "option": "--ensure-positive",

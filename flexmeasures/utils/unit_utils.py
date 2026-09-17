@@ -461,7 +461,7 @@ def split_into_magnitude_and_unit(value: str) -> tuple[str | None, str | None]:
         # We return the units formatted with "~P" (short pretty format)
         # to match the registry settings.
         return magnitude, f"{qty.units:~P}"
-    except Exception:
+    except QUANTITY_PARSE_ERRORS:
         return None, None
 
 

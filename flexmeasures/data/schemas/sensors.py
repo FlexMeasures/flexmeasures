@@ -376,6 +376,13 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
 SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
 
 
+def _sets_bounds(reference: dict[str, Any]) -> bool:
+    """Whether a sensor-reference dict actually sets a bound, so that an explicit null or an empty snap mapping does not count."""
+    return any(
+        reference.get(key) not in (None, {}) for key in SENSOR_REFERENCE_BOUND_KEYS
+    )
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     _UNSUPPORTED_VALUE_TYPE_MESSAGE = (
         "Unsupported value type. `{value_type}` was provided but only dict, list, "
@@ -586,7 +593,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         # If no source filter, default or bound keys are present, keep returning a plain Sensor.
         if (
             self._SOURCE_FILTER_KEYS.isdisjoint(value.keys())
-            and SENSOR_REFERENCE_BOUND_KEYS.isdisjoint(value.keys())
+            and not _sets_bounds(value)
             and default is None
         ):
             return sensor  # backward compat: no filters → plain Sensor
