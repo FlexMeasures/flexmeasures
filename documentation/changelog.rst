@@ -21,6 +21,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* StorageScheduler now exports a ``commodity_costs`` breakdown alongside ``commitment_costs`` for multi-commodity or non-default commodity schedules and persists it in ``rq_job.meta["scheduler_info"]["commodity_costs"]`` [see `issue #2416 <https://github.com/FlexMeasures/flexmeasures/issues/2416>`_]
 
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
