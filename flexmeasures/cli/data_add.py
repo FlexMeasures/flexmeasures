@@ -1809,6 +1809,20 @@ def add_forecast(  # noqa: C901
     " forecast parameters for --type forecasting, a schedule trigger message for --type scheduling,"
     " or report parameters for --type reporting.",
 )
+@click.option(
+    "--start-offset",
+    "start_offset",
+    required=False,
+    help="Where the period each run covers starts, relative to the time the run was due, on the automation's own clock:"
+    " an offset chain of comma-separated Pandas offsets, plus DB (day begin) and HB (hour begin), such as 1D,DB for the next day."
+    " Describe the period with two of --start-offset, --end-offset and --duration.",
+)
+@click.option(
+    "--end-offset",
+    "end_offset",
+    required=False,
+    help="Where the period each run covers ends, as an offset chain like --start-offset takes.",
+)
 @add_cli_options_from_schema(
     ForecasterParametersSchema(), hidden=True, force_optional=True
 )
@@ -1845,10 +1859,10 @@ def add_automation(
     For forecasts and reports, the data generator configuration is stored on a data source,
     and the parameters are validated and stored on the automation itself.
     For schedules, the parameters form a schedule trigger message, as accepted by the [POST] /assets/(id)/schedules/trigger API endpoint,
-    without the asset id; omit its "start" field to schedule from the run time on each run.
-    For reports, a fixed "start" or "end" is refused: use "start-offset" and "end-offset",
-    which take comma-separated Pandas offsets applied to the run time in the automation's timezone,
-    or leave the timing out to report on the period since the last successful report.
+    without the asset id.
+    A fixed "start", "end" or "prior" is refused for any automation, as every run would share it:
+    describe the period each run covers with two of --start-offset, --end-offset and --duration instead,
+    or leave the timing out to start at the run time, or, for a report, to cover the period since the last successful report.
     Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster

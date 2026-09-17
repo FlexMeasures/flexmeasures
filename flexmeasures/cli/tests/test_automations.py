@@ -1506,6 +1506,62 @@ def test_a_report_automation_names_a_source_that_stores_no_reporter(
     assert "'None'" not in result.output
 
 
+@pytest.mark.parametrize(
+    "timing_options, expected_parameters",
+    [
+        (
+            ["--start-offset", "1D,DB", "--duration", "P1D"],
+            {"start-offset": "1D,DB", "duration": "P1D"},
+        ),
+        (
+            ["--start-offset", "1D,DB", "--end-offset", "2D,DB"],
+            {"start-offset": "1D,DB", "end-offset": "2D,DB"},
+        ),
+    ],
+)
+def test_add_automation_takes_its_window_as_options(
+    app, fresh_db, setup_dummy_data, timing_options, expected_parameters
+):
+    """A schedule automation's window can be given on the command line, without a parameters file."""
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Day-ahead schedules",
+            "--cron", "0 12 * * *",
+            "--timezone", "Europe/Amsterdam",
+            "--type", "scheduling",
+            *timing_options,
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.parameters == expected_parameters
+
+
+def test_add_automation_refuses_a_window_option_it_cannot_resolve(
+    app, fresh_db, setup_dummy_data
+):
+    """The window options are validated like the same fields in a parameters file."""
+    from flexmeasures.cli.data_add import add_automation
+
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Day-ahead schedules",
+            "--cron", "0 12 * * *",
+            "--type", "scheduling",
+            "--start-offset", "P1D",
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "Invalid start-offset" in result.output
+    assert fresh_db.session.scalars(select(Automation)).first() is None
+
+
 def test_forecast_automation_may_fix_the_start_of_its_training_data(
     app, fresh_db, setup_dummy_data
 ):

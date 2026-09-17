@@ -51,9 +51,35 @@ A forecast automation can still fix ``train-start``, where its training data beg
 
 Instead, say how the period a run covers relates to that run, with two of these fields:
 
-- ``start-offset``: where the period starts, as comma-separated Pandas offsets, plus ``DB`` (day begin) and ``HB`` (hour begin);
-- ``end-offset``: where the period ends, in the same notation;
+- ``start-offset``: where the period starts, as an offset chain (see below);
+- ``end-offset``: where the period ends, as an offset chain;
 - ``duration``: how long the period lasts, as an ISO 8601 duration.
+
+On the command line, ``--start-offset``, ``--end-offset`` and ``--duration`` set the same fields, so no parameters file is needed for them.
+
+An offset chain is a comma-separated list of steps, applied from left to right.
+Each step is a `Pandas offset alias <https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases>`_,
+optionally preceded by a count and a sign, or one of two steps FlexMeasures adds.
+These are the ones most useful for automations, applied to a run due on Friday 27 March 2026 at noon:
+
+==========  =====================================================================  =================================
+Step        Moves to                                                               Example result
+==========  =====================================================================  =================================
+``DB``      the beginning of the day (FlexMeasures)                                27 March, 00:00
+``HB``      the beginning of the hour (FlexMeasures)                               27 March, 12:00
+``min``     minutes later, or earlier with a minus sign                            ``-30min``: 27 March, 11:30
+``h``       hours later or earlier                                                 ``-2h``: 27 March, 10:00
+``D``       days later or earlier, of 24 hours each                                ``1D``: 28 March, 12:00
+``B``       business days later or earlier                                         ``1B``: 30 March, 12:00
+``W``       the next Sunday, so use ``7D`` for a week                              ``1W``: 29 March, 12:00
+``MS``      the start of the next month, or of this one with ``-1MS``              ``-1MS``: 1 March, 12:00
+``ME``      the end of this month                                                  ``ME``: 31 March, 12:00
+``QS``      the start of the next quarter                                          ``QS``: 1 April, 12:00
+``YS``      the start of the next year                                             ``YS``: 1 January 2027, 12:00
+==========  =====================================================================  =================================
+
+Steps that move to a boundary, such as ``MS``, keep the time of day, so follow them with ``DB`` to start at midnight: ``-1MS,DB`` is the start of the current month.
+Older aliases such as ``H``, ``M`` and ``T`` still work, but Pandas warns that they will be removed; use ``h``, ``ME`` and ``min`` instead.
 
 The offsets apply to the time the run was due, on the automation's own clock, the one its cron string is read in.
 For instance, an automation due every day at noon, with ``start-offset: "1D,DB"`` and ``duration: "P1D"``, covers the whole of the next day.
@@ -107,9 +133,8 @@ And this one schedules the whole of the next day, every day at noon, as for a da
 
 .. code-block:: bash
 
-    printf 'start-offset: "1D,DB"\nduration: "P1D"\n' > day-ahead.yml
     flexmeasures add automation --asset 3 --name "Day-ahead schedules" --cron "0 12 * * *" --timezone Europe/Amsterdam \
-        --type scheduling --parameters day-ahead.yml
+        --type scheduling --start-offset 1D,DB --duration P1D
 
 .. _automation_reports:
 
