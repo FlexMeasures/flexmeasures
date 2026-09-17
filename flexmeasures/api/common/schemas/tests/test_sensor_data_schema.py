@@ -574,10 +574,16 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     assert app.queues["reporting"].count == 0
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_build_asset_jobs_data_includes_child_assets(
-    db, app, add_battery_assets, clean_redis
+    db, app, add_battery_assets, clean_redis, requesting_user
 ):
-    """A parent asset reports the jobs of its children too, unless asked not to."""
+    """A parent asset reports the jobs of its children too, unless asked not to.
+
+    The jobs of the assets below are listed as far as the current user may read those assets, so this runs as the user owning them.
+    """
     battery_asset = add_battery_assets["Test battery"]
     building_asset = battery_asset.parent_asset
     battery = battery_asset.sensors[0]

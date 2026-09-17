@@ -221,7 +221,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       ],
       ajax: function (data, callback) {
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs?include_child_assets=${includeChildAssets}`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}`,
           method: "GET",
           success: function (res) {
             if (res["redis-connection-err"]) {
@@ -256,20 +256,20 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   }
 
   function rememberStatusPageTab(tabName) {
-    fetch(`${window.location.origin}/api/v3_0/assets/status_page_tab`, {
+    fetch(`${window.location.origin}/api/dev/session/status-page-tab`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status_page_tab: tabName }),
+      body: JSON.stringify({ "status-page-tab": tabName }),
     }).catch((error) => {
       console.error("Error remembering the preferred status page tab:", error);
     });
   }
 
   function rememberIncludeChildAssets(include) {
-    fetch(`${window.location.origin}/api/v3_0/assets/status_page_child_jobs`, {
+    fetch(`${window.location.origin}/api/dev/session/status-page-child-jobs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ include_child_assets: include }),
+      body: JSON.stringify({ "include-child-assets": include }),
     }).catch((error) => {
       console.error("Error remembering whether to include the jobs of sub-assets:", error);
     });

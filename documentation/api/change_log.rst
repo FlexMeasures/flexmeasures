@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-38 | September 16, 2026
+""""""""""""""""""""""""""""
+- ``GET /api/v3_0/assets/<id>/automations`` now lists the automations of the assets below the asset as well, at any depth, so that a site asset reports everything that runs below it, and each entry names the asset it is defined on in ``asset`` and ``asset-name``. ``GET /api/v3_0/assets/<id>/jobs`` lists the jobs of the assets below the asset in the same way. Pass ``include-child-assets=false`` to either one to list only what belongs to the asset itself. Only the assets below it which the caller may read are included, as a child asset can belong to another organisation than its parent.
+- ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` now reports the data generator's stored configuration as ``config`` on the automation's ``source``, such as the model a forecaster trains and the period it trains over. The configuration is what separates one data source from another of the same model.
+
 v3.0-37 | September 15, 2026
 """"""""""""""""""""""""""""
 - Added ``POST /api/v3_0/assets/<id>/automations``, ``PATCH /api/v3_0/assets/<id>/automations/<automation_id>`` and ``DELETE /api/v3_0/assets/<id>/automations/<automation_id>`` for managing an asset's automations. They require the same permission as writing data under the asset, and an automation may only involve sensors that its creator can access: read access to the sensors it reads data from, and permission to record data on the sensors it writes to (a ``403`` otherwise). Both the creation and the update accept a ``timezone``, in which the automation's cron expression is interpreted; it defaults to the asset's own timezone, taken from the asset's timezone attribute or one of its sensors, and to the server's ``FLEXMEASURES_TIMEZONE`` if the asset has neither. The automation endpoints also report a ``next_run``: the next scheduled run, null while the automation is inactive, and excluding any catch-up run still pending. Both ``next_run`` and ``cursor`` are now reported as clock times in the automation's own timezone, where ``cursor`` was previously reported in UTC, since a recurrence is read in that timezone. The automation endpoints' last two snake_case fields, ``job_stats`` and ``redis_connection_err``, are now ``job-stats`` and ``redis-connection-err``, like the rest. ``GET /api/v3_0/assets/<id>/jobs`` renames its ``redis_connection_err`` to ``redis-connection-err`` as well, so that one field is not spelled two ways; that field shipped in v1.0.0, and is read by FlexMeasures' own UI rather than by the FlexMeasures client.
@@ -720,3 +725,12 @@ v1.0-0 | 2018-07-10
 - Added a description of the *getService* endpoint in the Introduction section
 - Added a description of the *postMeterData* endpoint in the MDC section
 - Added a description of the *getMeterData* endpoint in the Prosumer section
+
+
+Endpoints supporting the FlexMeasures UI
+""""""""""""""""""""""""""""""""""""""""
+
+.. note:: The endpoints below are not part of the official API. They support the FlexMeasures UI, live under ``/api/dev``, and can change or disappear with any FlexMeasures version, which may break any other client using them.
+
+- September 17, 2026: Added ``POST /api/dev/session/default-asset-view``, ``POST /api/dev/session/keep-legends-below-graphs``, ``POST /api/dev/session/status-page-tab``, ``POST /api/dev/session/status-page-child-jobs`` and ``POST /api/dev/session/automations-page-child-assets``, which store the current user's choices in the FlexMeasures UI in their session.
+  The first two replace ``POST /api/v3_0/assets/default_asset_view`` and ``POST /api/v3_0/assets/keep_legends_below_graphs``, which are no longer part of the official API.

@@ -92,12 +92,43 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
         assert b'title: "Recurrence timezone"' in asset_page.data
-        assert b'title: "Next run (local)"' in asset_page.data
-        assert b"timeZone: automation.timezone" in asset_page.data
+        # The cell says how far off the run is; the clock time moved to its tooltip.
+        assert b'title: "Next run"' in asset_page.data
+        assert b"timeZone: timezone" in asset_page.data
         assert b'"next-run": nextRun(automation)' in asset_page.data
-        assert b"Cursor (UTC)" in asset_page.data
+        assert (
+            b'getHumanFriendlyDeltaOrTimeStr(automation["next-run"]' in asset_page.data
+        )
+        # The cursor is rendered in the automation's own timezone, so the label no longer says UTC.
+        assert b"Cursor (UTC)" not in asset_page.data
+        assert b">Cursor</h6>" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
+        # The listing reaches below the asset, and refreshes itself.
+        assert b"include-child-assets=${includeChildAssets}" in asset_page.data
+        assert (
+            b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)"
+            in asset_page.data
+        )
+        # A forecast or report automation can be given its generator's configuration on creation.
+        assert b'id="automationConfig"' in asset_page.data
+        assert b'id="automationGenerator"' in asset_page.data
+        assert (
+            b'readJsonField("#automationConfig", "Data generator config")'
+            in asset_page.data
+        )
+        # It is the sending that matters, so pin the payload lines, not just the parsing.
+        assert b'"data-generator": generator || null' in asset_page.data
+        assert b"config: config," in asset_page.data
+        # A schedule automation's generator follows from the asset, so it is not offered one.
+        assert (
+            b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data
+        )
+        assert b'$("#automationType").val() !== "scheduling"' in asset_page.data
+        # The per-automation panel is called Info, and reports the data source's configuration.
+        assert b">Info</button>" in asset_page.data
+        assert b"<h6>Data source</h6>" in asset_page.data
+        assert b"res.source.config" in asset_page.data
     if view in ("get", "context"):
         assert "Show sensors".encode() in asset_page.data
         assert "Edit flex-context".encode() in asset_page.data

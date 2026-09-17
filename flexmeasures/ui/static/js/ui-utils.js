@@ -255,15 +255,15 @@ export function setDefaultAssetView(checkbox, view_name) {
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/v3_0/assets/default_asset_view", {
+  fetch(apiBasePath + "/api/dev/session/default-asset-view", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": "{{ csrf_token }}",
     },
     body: JSON.stringify({
-      default_asset_view: view_name,
-      use_as_default: isChecked,
+      "default-asset-view": view_name,
+      "use-as-default": isChecked,
     }),
   })
     .then((response) => response.json())
@@ -277,14 +277,14 @@ export function setDefaultLegendPosition(checkbox) {
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/v3_0/assets/keep_legends_below_graphs", {
+  fetch(apiBasePath + "/api/dev/session/keep-legends-below-graphs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": "{{ csrf_token }}",
     },
     body: JSON.stringify({
-      keep_legends_below_graphs: isChecked,
+      "keep-legends-below-graphs": isChecked,
     }),
   })
     .then((response) => {

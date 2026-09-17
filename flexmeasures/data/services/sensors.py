@@ -849,8 +849,8 @@ def build_asset_jobs_data(
     """Get all jobs data for an asset
 
     :param asset:                Asset to get the jobs for.
-    :param include_child_assets: Whether to also include the jobs of the asset's descendants, so that a site asset shows what happened anywhere below it.
-                                 Whoever may read an asset may read its descendants, too, as a child asset belongs to the same account as its parent.
+    :param include_child_assets: Whether to also include the jobs of the assets below this one, at any depth, so that a site asset shows what happened anywhere below it.
+                                 Only the assets the current user may read are included, as a child asset can belong to another account than its parent.
     :returns:                    A list of dictionaries, each containing the following keys:
                                  - job_id: id of a job
                                  - queue: job queue (scheduling or forecasting)
@@ -864,7 +864,9 @@ def build_asset_jobs_data(
                                  - metadata_hash: hash of job metadata (internal field)
     """
 
-    assets = [asset] + (asset.offspring if include_child_assets else [])
+    from flexmeasures.data.services.generic_assets import get_readable_offspring
+
+    assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
 
     jobs = list()
     for asset_to_report_on in assets:
