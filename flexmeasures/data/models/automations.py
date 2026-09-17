@@ -1,4 +1,4 @@
-"""Automations: recurring forecasting or scheduling tasks defined per asset."""
+"""Automations: recurring tasks defined per asset."""
 
 from __future__ import annotations
 
@@ -97,6 +97,9 @@ class Automation(db.Model, AuthModelMixin):
     generator_id = db.Column(
         db.Integer, db.ForeignKey("data_source.id"), nullable=False
     )
+    # No FK: deleting the creator must preserve the identity and fail closed at run time.
+    # Null means trusted CLI creation, including automations predating this field.
+    execution_user_id = db.Column(db.Integer, nullable=True)
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     asset = db.relationship(

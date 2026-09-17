@@ -43,6 +43,7 @@ from flexmeasures.api.common.schemas.assets import (
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.automations import AutomationPayloadValidationError
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.automations import Automation
@@ -1468,7 +1469,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1674,10 +1675,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts or schedules) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
-            or a schedule trigger message (without the asset id) for type `scheduling`.
+            a schedule trigger message (without the asset id) for type `scheduling`,
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             The automation can only involve sensors that you have access to yourself:
@@ -1725,6 +1727,8 @@ class AssetAPI(FlaskView):
                 asset, origin="API", check_permissions=True, **automation_data
             )
         except ValidationError as e:
+            if isinstance(e, AutomationPayloadValidationError):
+                return unprocessable_entity(e.messages)
             return unprocessable_entity({"parameters": e.messages})
         except AutomationSensorsUnknown as e:
             return unprocessable_entity(str(e))

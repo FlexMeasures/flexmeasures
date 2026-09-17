@@ -10,6 +10,7 @@ from marshmallow import ValidationError
 from pytz import all_timezones
 
 from flexmeasures.data import db
+from flexmeasures.data.automations import get_automation_types
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -258,6 +259,15 @@ class AssetCrudUI(FlaskView):
             "assets/asset_automations.html",
             asset=asset,
             available_timezones=all_timezones,
+            automation_types={
+                type_id: handler.display_name
+                for type_id, handler in get_automation_types().items()
+            }
+            | {
+                automation.type: f"{automation.type} (plugin unavailable)"
+                for automation in asset.automations
+                if automation.type not in get_automation_types()
+            },
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),

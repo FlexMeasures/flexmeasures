@@ -22,6 +22,7 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
+* Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization [see `PR #2553 <https://github.com/FlexMeasures/flexmeasures/pull/2553>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * Try out a forecast without recording it, using ``flexmeasures add forecasts --dry-run``, which computes the forecast in full and reports the sensor, data source, number of beliefs and event range it would have saved [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]

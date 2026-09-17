@@ -5,6 +5,8 @@ Automations
 
 An **automation** is a recurring task defined on an asset.
 An automation computes forecasts, schedules or reports.
+Plugins can register additional types, such as data ingestion, with their own data generators, validation schemas and worker queues.
+See :ref:`plugin_automation_types` for the plugin contract.
 
 On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting``, ``scheduling`` or ``reporting`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
@@ -20,7 +22,8 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
     flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says which task to automate (``forecasting``, ``scheduling`` or ``reporting``, matching the queue the jobs go to), and defaults to ``forecasting``.
+``--type`` says which registered task to automate and defaults to ``forecasting``.
+Built-in types are ``forecasting``, ``scheduling`` and ``reporting``; plugin types use the identifiers registered by the plugin.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
@@ -67,6 +70,32 @@ For example, this automation queues a scheduling job every hour, each time sched
 
     echo 'duration: "PT12H"' > trigger-message.yml
     flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+
+Plugin-defined automations
+--------------------------
+
+Create a plugin-defined automation with its registered type identifier and JSON or YAML files:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Import site measurements" \
+        --type site-ingestion --cron "*/15 * * * *" --timezone Europe/Amsterdam \
+        --config ingestion-config.yml --parameters ingestion-parameters.yml
+
+The registered handler determines the data generator and worker queue.
+``--data-generator`` can explicitly name the registered generator; ``--source`` reuses an existing generator configuration and cannot be combined with ``--data-generator`` or ``--config``.
+Forecast-specific command-line options do not apply to plugin types.
+Plugin schemas validate configuration and parameters, and unknown fields are rejected.
+Run a worker for the queue declared by the handler, in addition to the automation dispatcher.
+
+The UI lists registered plugin types in their own tabs and shows their parameters, data source, input sensors, output sensors and recent jobs.
+Existing actions, including editing recurrence, activation, deletion and *Run now*, also apply to these automations.
+Creation forms for plugin types are a follow-up: use the CLI or API to create them for now.
+
+API-created automations remember the user who created them.
+The dispatcher and worker recheck that the user is active and can write to the output sensors.
+CLI-created automations run as trusted deployment operations.
+Every output sensor must still belong to the automation's asset or one of its descendants.
 
 Automating reports
 ------------------

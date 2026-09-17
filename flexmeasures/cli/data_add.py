@@ -48,6 +48,7 @@ from flexmeasures.cli.utils import (
     split_commas,
 )
 from flexmeasures.data import db
+from flexmeasures.data.automations import get_automation_handler, get_automation_types
 from flexmeasures.data.scripts.data_gen import (
     add_transmission_zone_asset,
     populate_initial_structure,
@@ -77,7 +78,6 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -1763,8 +1763,8 @@ def add_forecast(  # noqa: C901
     "automation_type",
     default="forecasting",
     show_default=True,
-    type=click.Choice(Automation.SUPPORTED_TYPES),
-    help="Type of task to automate.",
+    type=click.STRING,
+    help="Registered type of task to automate, including types provided by plugins.",
 )
 @click.option(
     "--inactive",
@@ -1790,15 +1790,15 @@ def add_forecast(  # noqa: C901
     "source",
     required=False,
     type=DataSourceIdField(),
-    help="DataSource ID of the data generator (`Forecaster` or `Reporter`). The generator class and its configuration are read from"
-    " the data source's attributes, so --forecaster/--reporter and --config are not needed (or allowed) with it.",
+    help="DataSource ID of the data generator. Its class and configuration are read from"
+    " the source, so --data-generator and --config cannot be combined with it.",
 )
 @click.option(
     "--config",
     "config_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the configuration of the forecaster or reporter."
+    help="Path to the JSON or YAML file with the configuration of the data generator."
     " Cannot be combined with --source, which already determines the configuration.",
 )
 @click.option(
@@ -1808,7 +1808,7 @@ def add_forecast(  # noqa: C901
     type=click.File("r"),
     help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
     " forecast parameters for --type forecasting, a schedule trigger message for --type scheduling,"
-    " or report parameters for --type reporting.",
+    " report parameters for --type reporting, or plugin-defined parameters.",
 )
 @add_cli_options_from_schema(
     ForecasterParametersSchema(), hidden=True, force_optional=True
@@ -1816,7 +1816,7 @@ def add_forecast(  # noqa: C901
 @add_cli_options_from_schema(
     TrainPredictPipelineConfigSchema(), hidden=True, force_optional=True
 )
-def add_automation(
+def add_automation(  # noqa: C901
     asset: GenericAsset,
     name: str,
     cronstr: str,
@@ -1830,7 +1830,7 @@ def add_automation(
     **kwargs,
 ):
     """
-    Add an automation: a recurring task (computing forecasts, schedules or reports) on an asset.
+    Add an automation: a recurring task on an asset.
 
     \b
     Examples
@@ -1862,19 +1862,32 @@ def add_automation(
     A configuration option given on the command line overrides the same setting from --config,
     while a parameter from --parameters takes precedence over the matching command-line option.
     """
+    try:
+        handler = get_automation_handler(automation_type)
+    except (ValueError, NotImplementedError) as e:
+        available = ", ".join(get_automation_types())
+        raise click.UsageError(f"{e} Available types: {available}.")
+
     # Only a forecast automation has a default generator:
     # a report automation has to name its reporter, and the service says so, while a schedule automation resolves its own.
     if generator_class is None and automation_type == "forecasting":
         generator_class = "TrainPredictPipeline"
 
-    config, parameters = _assemble_forecaster_config_and_parameters(
-        kwargs, source, config_file, parameters_file
-    )
+    if automation_type in {"forecasting", "scheduling", "reporting"}:
+        config, parameters = _assemble_forecaster_config_and_parameters(
+            kwargs, source, config_file, parameters_file
+        )
+    else:
+        config, parameters = _assemble_plugin_automation_payload(
+            source, generator_class, config_file, parameters_file
+        )
 
     # An automation exists to record what it computes, so a dry run would render it pointless.
     # Popping the parameter also keeps it out of the parameters stored on the automation,
     # where a schedule trigger message would reject it as an unknown field.
-    if parameters.pop("dry-run", False):
+    if automation_type in {"forecasting", "scheduling", "reporting"} and parameters.pop(
+        "dry-run", False
+    ):
         click.secho(
             "The dry-run option is not supported for automations, which exist to record what they compute.",
             **MsgStyle.ERROR,
@@ -1916,7 +1929,7 @@ def add_automation(
         )
     except ValidationError as e:
         click.secho(
-            f"Invalid {Automation.RESULT_NOUNS[automation_type]} parameters: {e.messages}",
+            f"Invalid {handler.result_noun} parameters: {e.messages}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
@@ -1934,7 +1947,7 @@ def add_automation(
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
-        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
+        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{automation.timezone}'.",
         **MsgStyle.SUCCESS,
     )
 
@@ -2907,3 +2920,28 @@ def parse_source(source):
     else:
         _source = get_or_create_source(source, source_type="CLI script")
     return _source
+
+
+def _assemble_plugin_automation_payload(
+    source, generator_class, config_file, parameters_file
+):
+    """Load plugin payloads without the hidden forecasting option defaults."""
+    # Custom handlers validate their own schemas, so forecast defaults must not enter their payloads.
+    config = _load_yaml_mapping(config_file, "--config") if config_file else {}
+    parameters = (
+        _load_yaml_mapping(parameters_file, "--parameters") if parameters_file else {}
+    )
+    supplied_forecast_options = _find_options_given_on_command_line(
+        {}, TrainPredictPipelineConfigSchema()
+    ) + _find_options_given_on_command_line({}, ForecasterParametersSchema())
+    if supplied_forecast_options:
+        raise click.UsageError(
+            "Forecast-specific options cannot be used with plugin automation types. "
+            "Pass the plugin configuration and parameters with --config and --parameters."
+        )
+    if source is not None and (generator_class is not None or config_file is not None):
+        raise click.UsageError(
+            "--source cannot be combined with --data-generator or --config. "
+            "The source already determines the generator and its configuration."
+        )
+    return config, parameters

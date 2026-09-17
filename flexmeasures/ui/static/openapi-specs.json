@@ -3592,7 +3592,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n",
+        "description": "The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3658,7 +3658,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\nor a schedule trigger message (without the asset id) for type `scheduling`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
+        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -6729,11 +6729,7 @@
           "type": {
             "type": "string",
             "default": "forecasting",
-            "enum": [
-              "forecasting",
-              "scheduling",
-              "reporting"
-            ]
+            "description": "Registered automation type: forecasting, scheduling, reporting, or a type provided by an installed plugin."
           },
           "name": {
             "type": "string",
@@ -6766,12 +6762,12 @@
               "null"
             ],
             "default": null,
-            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter), and a schedule automation's generator follows from the asset and the flex config.",
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter), a plugin type declares its generator, and a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline"
           },
           "config": {
             "type": "object",
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by a forecast or report automation.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
             "example": {},
             "additionalProperties": {}
           }
