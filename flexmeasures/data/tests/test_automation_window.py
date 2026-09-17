@@ -191,17 +191,58 @@ def test_an_end_offset_stored_without_a_duration_is_named(app, automation_type):
         )
 
 
+@pytest.mark.parametrize(
+    "scheduled_at, expected_start, expected_end",
+    [
+        # Yesterday's report is due at noon, and ends at midnight, so the previous cron fire time (yesterday noon) lies after its end.
+        (
+            SCHEDULED_AT,
+            "2026-03-25T00:00:00+01:00",
+            "2026-03-26T00:00:00+01:00",
+        ),
+        # Yesterday is the day the clocks went forward, which still starts at midnight, 23 hours before it ends.
+        (
+            datetime(2026, 3, 31, 10, 0, tzinfo=timezone.utc),
+            "2026-03-29T00:00:00+01:00",
+            "2026-03-30T00:00:00+02:00",
+        ),
+    ],
+)
+def test_a_first_report_with_an_end_offset_covers_the_cron_period_before_its_end(
+    app, scheduled_at, expected_start, expected_end
+):
+    """Without a successful report to continue from, an "end-offset" alone covers one cron period, ending where the offset says."""
+    message = prepare_report_parameters(
+        {"end-offset": "-1D,DB"}, "0 12 * * *", TIMEZONE, scheduled_at=scheduled_at
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp(expected_start)
+    assert pd.Timestamp(message["end"]) == pd.Timestamp(expected_end)
+
+
 def test_a_report_does_not_reach_back_past_what_it_already_covered(app, caplog):
     """An "end-offset" alone starts where the last successful report ended, which a backward offset can leave behind.
 
-    The run then reports on nothing, rather than on a window that ends before it starts.
+    The window is then left empty, rather than ending before it starts.
     """
-    with caplog.at_level("WARNING"):
-        message = prepare_report_parameters(
-            {"end-offset": "-1D,DB"}, "0 12 * * *", TIMEZONE, scheduled_at=SCHEDULED_AT
-        )
+    automation_id = 4321
+    key = f"automation-last-run:{automation_id}"
+    app.redis_connection.set(key, "2026-03-27T00:00:00+01:00")
+    try:
+        with caplog.at_level("WARNING"):
+            message = prepare_report_parameters(
+                {"end-offset": "-1D,DB"},
+                "0 12 * * *",
+                TIMEZONE,
+                automation_id=automation_id,
+                scheduled_at=SCHEDULED_AT,
+            )
+    finally:
+        app.redis_connection.delete(key)
     assert pd.Timestamp(message["start"]) == pd.Timestamp(message["end"])
-    assert "Reporting on nothing for this run." in caplog.text
+    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-03-26T00:00:00+01:00")
+    assert (
+        "Nothing is reported until its window reaches past that moment." in caplog.text
+    )
 
 
 def test_a_calendar_duration_keeps_its_sub_second_part():

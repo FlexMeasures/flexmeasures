@@ -966,19 +966,27 @@ def prepare_report_parameters(
                     datetime
                 )
                 start = _canonical_run_time(previous_nominal, tz)
+            if end is not None:
+                # An "end-offset" moves the end of the window away from the run time, so the cron period moves along with it.
+                # Otherwise, a first report ending before the previous cron fire time would have no period to cover.
+                # The period is taken on the wall clock, so that a daily report still starts at midnight across a clock change.
+                cron_period = nominal_scheduled_at - previous_nominal
+                end_nominal = _as_nominal_wall_time(
+                    pd.Timestamp(end).to_pydatetime().astimezone(tz)
+                )
+                start = _canonical_run_time(end_nominal - cron_period, tz)
     if end is None:
         end = now
 
-    # A start the automation did not fix can still sit after the end, where an "end-offset" alone reaches back
-    # past the moment the last successful report already covered.
-    # Report on nothing rather than on an inverted window, which no reporter reads as the empty window it means,
-    # and say so, because the automation cannot resolve this on its own.
+    # A start carried over from the last successful report can sit at or after the end,
+    # where an "end-offset" alone reaches back no further than what was already covered,
+    # for instance when an hourly automation reports up to midnight, or after its "end-offset" was moved back.
+    # Such a window is left empty (see `_run_report_automation`, which then queues no job).
     if pd.Timestamp(start) > pd.Timestamp(end):
         current_app.logger.warning(
             f"Report automation {automation_id} reaches back to {pd.Timestamp(end).isoformat()},"
             f" which the last successful report already covered, up to {pd.Timestamp(start).isoformat()}."
-            " Reporting on nothing for this run."
-            " Widen the 'end-offset', or leave the timing out to continue from the last successful report."
+            " Nothing is reported until its window reaches past that moment."
         )
         start = end
 
@@ -1491,6 +1499,17 @@ def _run_report_automation(
         automation_id=automation.id,
         scheduled_at=scheduled_at,
     )
+    if pd.Timestamp(parameters["start"]) >= pd.Timestamp(parameters["end"]):
+        # Not every reporter can compute a report on an empty window, and a failing job would not record coverage either,
+        # so an empty window queues no job at all.
+        current_app.logger.info(
+            f"Report automation {automation.id} has nothing new to report on, up to {parameters['end']}, so it queues no job."
+        )
+        return {
+            "job_id": None,
+            "n_jobs": 0,
+            "message": f"Automation {automation.id} has nothing new to report on, as its reports already cover its window, which ends at {parameters['end']}.",
+        }
     report_sensors = resolve_data_generator_sensors(
         reporter, reporter._parameters_schema.load(parameters)
     )

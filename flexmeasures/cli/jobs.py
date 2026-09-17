@@ -176,7 +176,8 @@ def run_one_automation(automation: Automation):
     if not returns or returns.get("job_id") is None:
         db.session.rollback()
         click.secho(
-            f"Automation {automation.id} ('{automation.name}') did not queue any job.",
+            (returns or {}).get("message")
+            or f"Automation {automation.id} ('{automation.name}') did not queue any job.",
             **MsgStyle.ERROR,
         )
         raise click.Abort()

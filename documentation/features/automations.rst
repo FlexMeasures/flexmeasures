@@ -93,6 +93,8 @@ A single field can also be given alone, where the automation has a default for t
 A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
 A ``duration`` alone has a forecast or schedule start at the time of the run, and is not enough for a report.
 An ``end-offset`` alone is for reports only, which then start where the last successful report ended.
+Before the first successful report, such a report covers the cron period before that end.
+When the last successful report already reaches that end, as it does for an hourly report up to midnight after its first run of the day, the run has nothing new to report on, and queues no job.
 
 Without offsets, a forecast starts at the time of the run, rounded down to its sensor's resolution,
 a schedule starts at the time of the run, rounded down to its ``resolution`` or else to the minute,

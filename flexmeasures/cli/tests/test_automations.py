@@ -1651,6 +1651,50 @@ def test_run_report_automation(
     )
 
 
+def test_report_automation_with_nothing_new_to_report_queues_no_job(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
+):
+    """A report whose window its last successful report already covers queues no job, as not every reporter can report on an empty window.
+
+    An hourly automation reporting up to midnight has nothing new to report on after its first run of the day.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations, run_one_automation
+    from flexmeasures.data.models.time_series import Sensor
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"end-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "0 * * * *"
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    app.redis_connection.set(
+        f"automation-last-run:{automation.id}", "2023-04-10T00:00:00+00:00"
+    )
+
+    result = runner.invoke(run_automations)
+    assert result.exit_code == 0, result.output
+    assert "queued 0 reporting job(s)" in result.output, result.output
+    assert len(app.queues["reporting"].jobs) == 0
+
+    # Run on demand, it says why it queued nothing.
+    result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
+    assert result.exit_code != 0
+    assert "nothing new to report on" in result.output, result.output
+    assert len(app.queues["reporting"].jobs) == 0
+
+
 def test_report_automation_refuses_a_sensor_nobody_checked(
     app,
     fresh_db,

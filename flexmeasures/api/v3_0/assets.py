@@ -1987,13 +1987,16 @@ class AssetAPI(FlaskView):
         job_id = (returns or {}).get("job_id")
         if job_id is None:
             db.session.rollback()
-            current_app.logger.error(
-                "Automation %s ran on demand, but reported no job: %r",
-                automation.id,
-                returns,
-            )
+            # An automation that says why it queued nothing did so on purpose.
+            if not (returns or {}).get("message"):
+                current_app.logger.error(
+                    "Automation %s ran on demand, but reported no job: %r",
+                    automation.id,
+                    returns,
+                )
             return unprocessable_entity(
-                f"Automation {automation.id} did not queue any job."
+                (returns or {}).get("message")
+                or f"Automation {automation.id} did not queue any job."
             )
         AssetAuditLog.add_record(
             asset,
