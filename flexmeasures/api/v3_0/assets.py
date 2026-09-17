@@ -2903,7 +2903,7 @@ class AssetAPI(FlaskView):
 
             Automations on the copied assets are copied too, but start out inactive and with no run history,
             so they can be inspected and tested before they are switched on.
-            An automation that cannot be copied safely is skipped, and listed under `skipped_automations` with the reason;
+            An automation that cannot be copied safely is skipped, and listed under `skipped-automations` with the reason;
             the asset, its sensors and the other automations are still copied.
 
             The new asset can optionally be placed under a `target` account and/or `parent` asset.
@@ -2934,7 +2934,7 @@ class AssetAPI(FlaskView):
                   example:
                     message: Successfully copied asset 10 to account 2. 1 automation(s) could not be copied.
                     asset: 99
-                    skipped_automations:
+                    skipped-automations:
                       - id: 7
                         name: Day-ahead PV forecasts
                         asset: 10
@@ -3014,7 +3014,7 @@ class AssetAPI(FlaskView):
         return {
             "message": message,
             "asset": new_asset.id,
-            "skipped_automations": [
+            "skipped-automations": [
                 skipped.to_dict() for skipped in asset_copy.skipped_automations
             ],
         }, 201

@@ -409,7 +409,7 @@ def test_copy_asset_api_reports_skipped_automations(
     )
 
     assert response.status_code == 201
-    assert response.json["skipped_automations"] == [
+    assert response.json["skipped-automations"] == [
         {
             "id": unsafe_automation.id,
             "name": unsafe_automation.name,

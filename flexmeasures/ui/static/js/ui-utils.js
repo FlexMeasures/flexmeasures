@@ -442,7 +442,7 @@ function escapeHtml(value) {
  * @returns {boolean} - Whether anything was reported, so the caller can leave the toast up long enough to read.
  */
 export function reportSkippedAutomations(data) {
-  const skipped = (data && data.skipped_automations) || [];
+  const skipped = (data && data["skipped-automations"]) || [];
   if (skipped.length === 0) return false;
   const details = skipped
     .map(

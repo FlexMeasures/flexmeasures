@@ -8,7 +8,7 @@ def test_report_skipped_automations_says_which_ones_and_why(assert_js):
         window.showToast = (message, type) => toasts.push({message, type});
         const reported = reportSkippedAutomations({
             asset: 99,
-            skipped_automations: [
+            "skipped-automations": [
                 {id: 7, name: "Day-ahead PV forecasts", asset: 10, reason: "It references sensor 42."},
             ],
         });
@@ -28,7 +28,7 @@ def test_report_skipped_automations_escapes_the_automation_name(assert_js):
         window.showToast = (message, type) => toasts.push({message, type});
         reportSkippedAutomations({
             asset: 99,
-            skipped_automations: [
+            "skipped-automations": [
                 {id: 7, name: "<img src=x onerror=alert(1)>", asset: 10, reason: "<b>bold</b>"},
             ],
         });
@@ -48,7 +48,7 @@ def test_report_skipped_automations_stays_quiet_when_all_were_copied(assert_js):
         import { reportSkippedAutomations } from "/js/ui-utils.js";
         const toasts = [];
         window.showToast = (message, type) => toasts.push({message, type});
-        check("an empty list reports nothing", reportSkippedAutomations({asset: 99, skipped_automations: []}) === false);
+        check("an empty list reports nothing", reportSkippedAutomations({asset: 99, "skipped-automations": []}) === false);
         check("a response without the field reports nothing", reportSkippedAutomations({asset: 99}) === false);
         check("no response at all reports nothing", reportSkippedAutomations(undefined) === false);
         eq("no toast was shown", toasts, []);

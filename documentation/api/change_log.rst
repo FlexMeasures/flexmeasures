@@ -7,7 +7,7 @@ API change log
 
 v3.0-38 | September 15, 2026
 """"""""""""""""""""""""""""
-- ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where the destination organisation may read it. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped_automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
+- ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where the destination organisation may read it. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped-automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
 
 v3.0-37 | September 15, 2026
 """"""""""""""""""""""""""""
