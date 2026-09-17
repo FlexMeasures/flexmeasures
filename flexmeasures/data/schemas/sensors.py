@@ -1211,6 +1211,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         keys=fields.Raw(),
         values=fields.List(fields.Raw(), validate=validate.Length(equal=2)),
         required=False,
+        allow_none=True,
         load_default={},
         metadata=dict(
             description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",

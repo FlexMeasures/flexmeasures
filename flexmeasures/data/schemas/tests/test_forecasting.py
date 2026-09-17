@@ -990,6 +990,7 @@ def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
     for reference in (
         {"sensor": sensor.id},
         {"sensor": sensor.id, "lower": None, "upper": None, "snap": {}},
+        {"sensor": sensor.id, "snap": None},
     ):
         data = TrainPredictPipelineConfigSchema().load({"past-regressors": [reference]})
 

@@ -284,6 +284,7 @@ def test_scheduling_references_refuse_bounds_they_would_ignore(
     for plain in (
         {"sensor": power_sensor.id},
         {"sensor": power_sensor.id, "lower": None, "upper": None, "snap": {}},
+        {"sensor": power_sensor.id, "snap": None},
     ):
         assert (
             VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
