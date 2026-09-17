@@ -1738,7 +1738,9 @@ def add_forecast(  # noqa: C901
 
         click.secho(
             f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+            # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+            f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
             **MsgStyle.SUCCESS,
         )
 

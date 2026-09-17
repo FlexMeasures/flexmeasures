@@ -1,3 +1,5 @@
+import re
+
 import pytest
 import json
 import yaml
@@ -78,6 +80,14 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     assert result.exit_code == 0, result.output
     assert "Successfully created" in result.output
     assert _count_beliefs(fresh_db, sensor_id) > beliefs_before_dry_run
+
+    # A run that commits does name its data source by ID, and that ID is one you can look up.
+    reported_source_id = int(
+        re.search(r"under data source `.*` \(ID (\d+)\)", result.output).group(1)
+    )
+    assert (
+        fresh_db.session.get(DataSource, reported_source_id).type == "forecaster"
+    ), f"the source ID reported on a committed run should exist: {result.output}"
 
 
 def test_add_forecast_dry_run_reports_an_empty_forecast(
