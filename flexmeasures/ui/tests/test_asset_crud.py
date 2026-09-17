@@ -80,8 +80,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
         assert "Schedules".encode() in asset_page.data
+        assert "Reports".encode() in asset_page.data
         assert b'id="automationsTable-forecasting"' in asset_page.data
         assert b'id="automationsTable-scheduling"' in asset_page.data
+        assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
         assert b"No ${automationType} automations" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
@@ -89,7 +91,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Schedule timezone"' in asset_page.data
+        assert b'title: "Recurrence timezone"' in asset_page.data
         # The cell says how far off the run is; the clock time moved to its tooltip.
         assert b'title: "Next run"' in asset_page.data
         assert b"timeZone: timezone" in asset_page.data
@@ -108,15 +110,21 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
             b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)"
             in asset_page.data
         )
-        # A forecast automation can be given its forecaster's configuration on creation.
+        # A forecast or report automation can be given its generator's configuration on creation.
         assert b'id="automationConfig"' in asset_page.data
         assert b'id="automationGenerator"' in asset_page.data
-        assert b'readJsonField("#automationConfig", "Configuration")' in asset_page.data
+        assert (
+            b'readJsonField("#automationConfig", "Data generator config")'
+            in asset_page.data
+        )
         # It is the sending that matters, so pin the payload lines, not just the parsing.
-        assert b"{ config: config }" in asset_page.data
-        assert b'{ "data-generator": generator }' in asset_page.data
-        # ... but only for a forecast automation, whose generator is the one that is chosen.
-        assert b'$(".forecasting-only").toggle' in asset_page.data
+        assert b'"data-generator": generator || null' in asset_page.data
+        assert b"config: config," in asset_page.data
+        # A schedule automation's generator follows from the asset, so it is not offered one.
+        assert (
+            b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data
+        )
+        assert b'$("#automationType").val() !== "scheduling"' in asset_page.data
         # The per-automation panel is called Info, and reports the data source's configuration.
         assert b">Info</button>" in asset_page.data
         assert b"<h6>Data source</h6>" in asset_page.data
@@ -143,7 +151,7 @@ def test_automations_page_manager_can_set_timezones(client, setup_assets, as_adm
         b"Use five fields: minute, hour, day of month, month, day of week."
         in response.data
     )
-    assert b"The local clock used by the schedule." in response.data
+    assert b"The local clock the recurrence is read in." in response.data
     assert b'timezone: $("#automationTimezone").val()' in response.data
     assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 

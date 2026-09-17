@@ -107,7 +107,7 @@
         <h4>
           Automations of {{ asset.name }}
           <span class="fa fa-info-circle" title="
-          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts and schedules.
+          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts, schedules and reports.
 
 An active automation follows its cron recurrence in the timezone shown below. The next run shown is an upcoming clock time, not a pending catch-up run. If the runner misses forecast runs, it coalesces them into one current forecast when it resumes.
           "></span>
@@ -157,6 +157,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <select class="form-select" id="automationType">
                     <option value="forecasting" selected>forecasting</option>
                     <option value="scheduling">scheduling</option>
+                    <option value="reporting">reporting</option>
                   </select>
                 </div>
                 <div class="mb-3">
@@ -165,30 +166,32 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">Use five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00; <code>*/15 * * * *</code> runs every 15 minutes. Times use the timezone below.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="automationTimezone" class="form-label">Schedule timezone</label>
+                  <label for="automationTimezone" class="form-label">Recurrence timezone</label>
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
-                  <div class="form-text">The local clock used by the schedule. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
+                  <div class="form-text">The local clock the recurrence is read in. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
+                </div>
+                <!-- A schedule automation's generator follows from the asset and its flex config, so it is not chosen here. -->
+                <div class="mb-3 chooses-generator">
+                  <label for="automationGenerator" class="form-label">Data generator</label>
+                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <div class="form-text">
+                    Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter).
+                  </div>
+                </div>
+                <div class="mb-3 chooses-generator">
+                  <label for="automationConfig" class="form-label">Data generator config (JSON)</label>
+                  <textarea class="form-control" id="automationConfig" rows="3" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
+                  <div class="form-text">
+                    How the generator is set up: for a forecaster, its model, training period and regressors. Leave empty for its defaults.
+                    These settings are what distinguish one data source from another, so the results record under a data source of their own.
+                    They cannot be changed afterwards.
+                  </div>
                 </div>
                 <div class="mb-3">
                   <label for="automationParameters" class="form-label">Parameters (JSON)</label>
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
                   <div class="form-text">
-                    Forecast parameters (for type forecasting) or a schedule trigger message (for type scheduling).
-                  </div>
-                </div>
-                <!-- A schedule automation's generator follows from the asset and its flex config, so only a forecast automation chooses one. -->
-                <div class="mb-3 forecasting-only">
-                  <label for="automationGenerator" class="form-label">Data generator</label>
-                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
-                  <div class="form-text">The forecaster class to run. Leave empty for <code>TrainPredictPipeline</code>.</div>
-                </div>
-                <div class="mb-3 forecasting-only">
-                  <label for="automationConfig" class="form-label">Configuration (JSON)</label>
-                  <textarea class="form-control" id="automationConfig" rows="4" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
-                  <div class="form-text">
-                    How the forecaster is set up: its model, training period and regressors. Leave empty for the forecaster's defaults.
-                    These settings are what distinguish one data source from another, so changing them records under a different data source.
-                    They cannot be changed afterwards.
+                    Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting).
                   </div>
                 </div>
                 <div class="form-check mb-3">
@@ -225,7 +228,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">Five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00 in the timezone below. Changing the schedule recalculates the next eligible run.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="editAutomationTimezone" class="form-label">Schedule timezone</label>
+                  <label for="editAutomationTimezone" class="form-label">Recurrence timezone</label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
                   <div class="form-text">The cron time follows this local clock, including daylight-saving changes. For example, choose <code>Europe/Amsterdam</code> to run at 06:00 Amsterdam time year-round.</div>
                 </div>
@@ -255,7 +258,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
             <button class="nav-link" id="scheduling-tab" data-bs-toggle="tab" data-bs-target="#scheduling-tab-pane" type="button" role="tab" aria-controls="scheduling-tab-pane" aria-selected="false">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
+            <button class="nav-link" id="reporting-tab" data-bs-toggle="tab" data-bs-target="#reporting-tab-pane" type="button" role="tab" aria-controls="reporting-tab-pane" aria-selected="false">Reports</button>
           </li>
         </ul>
         <div class="tab-content">
@@ -267,6 +270,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <div class="tab-pane fade" id="scheduling-tab-pane" role="tabpanel">
             <div class="table-responsive">
               <table id="automationsTable-scheduling" class="table table-striped w-100"></table>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="reporting-tab-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table id="automationsTable-reporting" class="table table-striped w-100"></table>
             </div>
           </div>
         </div>
@@ -479,7 +487,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       method: "GET",
       success: function (res) {
         // Show job stats in the table row
-        const jobStats = res.job_stats || {};
+        const jobStats = res["job-stats"] || {};
         const statsStr = Object.keys(jobStats).length
           ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
           : "none";
@@ -512,8 +520,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
-        if (res.redis_connection_err) {
-          $("#automations_err").removeClass("d-none").text(res.redis_connection_err);
+        if (res["redis-connection-err"]) {
+          $("#automations_err").removeClass("d-none").text(res["redis-connection-err"]);
         }
       },
       error: function (xhr) {
@@ -534,7 +542,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       { data: "created-at", title: "Created At", render: renderSortable },
       { data: "active", title: "Active", render: renderSortable },
       { data: "recurrence", title: "Recurrence", render: renderSortable },
-      { data: "timezone", title: "Schedule timezone" },
+      { data: "timezone", title: "Recurrence timezone" },
       { data: "next-run", title: "Next run", render: renderSortable },
       { data: "jobs", title: "Jobs", orderable: false },
       { data: "info", title: "", className: "text-center align-middle", orderable: false },
@@ -581,6 +589,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     automations.forEach(automation => loadAutomationInfo(automation.id));
   }
 
+  // The types the page keeps a tab and a table for.
+  const AUTOMATION_TYPES = ["forecasting", "scheduling", "reporting"];
+
   function loadAutomations({ rebuild = false } = {}) {
     // One refresh at a time: a slow response must not pile up behind the next tick.
     if (loadInFlight) {
@@ -593,7 +604,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       success: function (res) {
         automationsById.clear();
         res.automations.forEach(automation => automationsById.set(automation.id, automation));
-        for (const automationType of ["forecasting", "scheduling"]) {
+        for (const automationType of AUTOMATION_TYPES) {
           $(`#automationsTable-${automationType}`).show();
           const ofThisType = res.automations.filter(automation => automation.type === automationType);
           if (rebuild) {
@@ -605,7 +616,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         markAutomationsRefreshed();
       },
       error: function (xhr) {
-        for (const automationType of ["forecasting", "scheduling"]) {
+        console.error("Error fetching automations:", xhr);
+        for (const automationType of AUTOMATION_TYPES) {
           makeAutomationsTable(automationType, []);
           $(`#automationsTable-${automationType}`).hide();
         }
@@ -761,13 +773,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
-    /* Only a forecast automation chooses a generator and configures it;
-       a schedule automation's generator follows from the asset and its flex config. */
-    function showForecastingOnlyFields() {
-      $(".forecasting-only").toggle($("#automationType").val() === "forecasting");
+    /* A forecast and a report each run a data generator the creator chooses and configures;
+       a schedule automation's generator follows from the asset and its flex config instead. */
+    function typeChoosesGenerator() {
+      return $("#automationType").val() !== "scheduling";
     }
-    $("#automationType").on("change", showForecastingOnlyFields);
-    showForecastingOnlyFields();
+    function showGeneratorFields() {
+      $(".chooses-generator").toggle(typeChoosesGenerator());
+    }
+    $("#automationType").on("change", showGeneratorFields);
+    showGeneratorFields();
 
     // Read a JSON textarea, reporting where it is malformed rather than failing silently.
     function readJsonField(selector, label) {
@@ -785,16 +800,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     // Create an automation
     $("#newAutomationForm").submit(function (event) {
       event.preventDefault();
-      const isForecasting = $("#automationType").val() === "forecasting";
+      const choosesGenerator = typeChoosesGenerator();
       let parameters, config;
       try {
         parameters = readJsonField("#automationParameters", "Parameters");
-        config = isForecasting ? readJsonField("#automationConfig", "Configuration") : {};
+        config = choosesGenerator ? readJsonField("#automationConfig", "Data generator config") : {};
       } catch (error) {
         $("#newAutomationErr").removeClass("d-none").text(error.message);
         return;
       }
-      const generator = isForecasting ? $("#automationGenerator").val().trim() : "";
+      const generator = choosesGenerator ? $("#automationGenerator").val().trim() : "";
       $.ajax({
         url: `/api/v3_0/assets/${assetId}/automations`,
         method: "POST",
@@ -805,10 +820,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#automationCron").val(),
           timezone: $("#automationTimezone").val(),
           active: $("#automationActive").is(":checked"),
+          // Read from the gated values, so a schedule automation sends no generator
+          // left behind in the hidden fields by an earlier choice of type.
+          "data-generator": generator || null,
+          config: config,
           parameters: parameters,
-          // Left out entirely when empty, so the API's own defaults apply.
-          ...(Object.keys(config).length ? { config: config } : {}),
-          ...(generator ? { "data-generator": generator } : {}),
         }),
         success: () => location.reload(),
         error: function (xhr) {

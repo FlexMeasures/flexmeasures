@@ -4,9 +4,9 @@ Automations
 ============
 
 An **automation** is a recurring task defined on an asset.
-For now, an automation computes forecasts or schedules; automating reports is planned.
+An automation computes forecasts, schedules or reports.
 
-On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting`` or ``scheduling`` queue, whichever the automation needs, see :ref:`redis-queue`).
+On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting``, ``scheduling`` or ``reporting`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
 Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results.
 
@@ -20,7 +20,7 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
     flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says which task to automate (``forecasting`` or ``scheduling``, matching the queue the jobs go to), and defaults to ``forecasting``.
+``--type`` says which task to automate (``forecasting``, ``scheduling`` or ``reporting``, matching the queue the jobs go to), and defaults to ``forecasting``.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
@@ -68,6 +68,39 @@ For example, this automation queues a scheduling job every hour, each time sched
     echo 'duration: "PT12H"' > trigger-message.yml
     flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
 
+Automating reports
+------------------
+
+A report automation's parameters are report parameters, as ``flexmeasures add report`` accepts them (see :ref:`reporting`), passed in a file through ``--parameters``.
+Name the reporter with ``--reporter``, and configure it with ``--config``.
+As for a forecast automation, the reporter and its configuration are stored on a data source, so ``--source`` can reuse the data source of an existing reporter instead.
+
+The sensors a report is recorded on must belong to the automation's asset or one of its descendants.
+This is checked when the automation is created and immediately before each run.
+A report job only records on those sensors, so a reporter that returns results for any other sensor is refused.
+
+Because the report is computed afresh on every run, its parameters cannot fix the period it covers: an absolute ``start`` or ``end`` is refused when the automation is created.
+Say instead how the period relates to the run, in one of two ways:
+
+- Give ``start-offset`` and ``end-offset``, as comma-separated Pandas offsets plus ``DB`` (day begin) and ``HB`` (hour begin), applied to the run time on the automation's own clock, the one its cron string is read in.
+  For instance, ``start-offset: "-1D,DB"`` with ``end-offset: "DB"`` reports on the whole of the previous day.
+  Leave out ``end-offset`` to report up to the run time.
+- Leave the timing out to report on the period since the last successful report ended, falling back to the previous cron period on the first run.
+  That end is recorded by the reporting job itself, once it has succeeded, so a failed report leaves no gap: the next run starts where the last successful one ended.
+
+The two differ after the runner was down.
+It catches up with only the latest missed run (see below), so offsets then report on the period around that run alone,
+while leaving the timing out reports on everything since the last successful report.
+
+For example, this automation reports on the previous day, with the offsets above in ``report-parameters.yml``.
+It runs every night at 1 AM, an hour after midnight, so that the day's last readings have had time to arrive:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Daily self-consumption report" --type reporting \
+        --cron "0 1 * * *" --timezone Europe/Amsterdam \
+        --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
+
 Running automations
 -------------------
 
@@ -83,7 +116,7 @@ Use one dispatcher for a deployment; the Docker Compose service already runs the
 
 Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
-Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast or schedule.
+Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast, schedule or report.
 
 Each scheduled run receives at most one automatic queueing attempt.
 If the process crashes, or queueing fails after creating some jobs, that run is not retried automatically, because a retry could duplicate partial work.

@@ -1638,10 +1638,10 @@ class AssetAPI(FlaskView):
                         output-sensors:
                           - id: 2092
                             name: power
-                        job_stats:
+                        job-stats:
                           finished: 3
                           failed: 1
-                        redis_connection_err: null
+                        redis-connection-err: null
             401:
               description: UNAUTHORIZED
             403:
@@ -1695,11 +1695,11 @@ class AssetAPI(FlaskView):
             ]
         redis_connection_err = None
         try:
-            automation_data["job_stats"] = get_automation_job_stats(automation)
+            automation_data["job-stats"] = get_automation_job_stats(automation)
         except NoRedisConfigured as e:
-            automation_data["job_stats"] = {}
+            automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
-        automation_data["redis_connection_err"] = redis_connection_err
+        automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 
     @route("/<id>/automations", methods=["POST"])
@@ -2085,7 +2085,7 @@ class AssetAPI(FlaskView):
                             enqueued_at: "2023-10-01T00:00:00"
                             created_via: API
                             metadata_hash: abc123
-                        redis_connection_err: null
+                        redis-connection-err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -2110,7 +2110,7 @@ class AssetAPI(FlaskView):
 
         return {
             "jobs": all_jobs_data,
-            "redis_connection_err": redis_connection_err,
+            "redis-connection-err": redis_connection_err,
         }, 200
 
     @route("/default_asset_view", methods=["POST"])

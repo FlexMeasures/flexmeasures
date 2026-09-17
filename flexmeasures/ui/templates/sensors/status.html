@@ -224,8 +224,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           url: `/api/v3_0/assets/${assetId}/jobs?include_child_assets=${includeChildAssets}`,
           method: "GET",
           success: function (res) {
-            if (res.redis_connection_err) {
-              $("#redis_connection_err").removeClass("d-none").text(res.redis_connection_err);
+            if (res["redis-connection-err"]) {
+              $("#redis_connection_err").removeClass("d-none").text(res["redis-connection-err"]);
             } else {
               $("#redis_connection_err").addClass("d-none").text("");
             }

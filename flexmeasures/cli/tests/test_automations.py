@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import json
+import re
 
 import pytest
+import yaml
 import pytz
 from types import SimpleNamespace
 
@@ -1124,6 +1126,351 @@ def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monke
     assert calls["kwargs"]["end"] - start == timedelta(hours=12)
 
 
+def test_prepare_report_parameters(app):
+    """Report start/end resolve per run: from Pandas offsets, or defaulting to the last cron period."""
+    import pandas as pd
+
+    from flexmeasures.data.services.automations import prepare_report_parameters
+
+    now = pd.Timestamp("2026-07-11T14:00:00+02:00")
+
+    # default: the last cron period (hourly cron -> the previous hour)
+    message = prepare_report_parameters({}, "0 * * * *", "Europe/Amsterdam", now=now)
+    assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
+    assert pd.Timestamp(message["end"]) == now
+
+    # The fallback cron period is interpreted in the automation timezone,
+    # and ends at the claimed run rather than at a delayed runner's wall time.
+    scheduled_at = datetime(2026, 1, 1, 16, 0, tzinfo=timezone.utc)
+    message = prepare_report_parameters(
+        {},
+        "0 1 * * *",
+        "Asia/Seoul",
+        now=datetime(2026, 1, 2, 0, 30, tzinfo=timezone.utc),
+        scheduled_at=scheduled_at,
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2025-12-31T16:00:00+00:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp(scheduled_at)
+
+    # A cron run in Amsterdam's spring gap is canonicalized to 03:00,
+    # while its report starts at the prior day's real 02:30 run.
+    spring_run = datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc)
+    message = prepare_report_parameters(
+        {},
+        "30 2 * * *",
+        "Europe/Amsterdam",
+        scheduled_at=spring_run,
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-03-28T01:30:00+00:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp(spring_run)
+
+    # with a known actual last run, the window starts there instead
+    app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
+    try:
+        message = prepare_report_parameters(
+            {}, "0 * * * *", "Europe/Amsterdam", now=now, automation_id=1234
+        )
+        assert pd.Timestamp(message["start"]) == pd.Timestamp(
+            "2026-07-11T09:30:00+02:00"
+        )
+        assert pd.Timestamp(message["end"]) == now
+        # an unknown automation id still falls back to the last cron period
+        message = prepare_report_parameters(
+            {}, "0 * * * *", "Europe/Amsterdam", now=now, automation_id=5678
+        )
+        assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
+    finally:
+        app.redis_connection.delete("automation-last-run:1234")
+
+    # Offsets are applied to the run time on the automation's own clock, so "DB" is midnight in its timezone.
+    # 14:00 in Amsterdam is 21:00 in Seoul, where the previous day ran from midnight to midnight Seoul time,
+    # which in Amsterdam is 17:00 to 17:00, rather than Amsterdam's own midnight.
+    message = prepare_report_parameters(
+        {"start-offset": "-1D,DB", "end-offset": "DB"},
+        "0 1 * * *",
+        "Asia/Seoul",
+        now=now,
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-07-10T00:00:00+09:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-07-11T00:00:00+09:00")
+    assert "start-offset" not in message and "end-offset" not in message
+
+
+def test_report_coverage_cannot_move_backwards(app, clean_redis):
+    """An older report finishing later may not reopen already covered periods."""
+    from flexmeasures.data.services.automations import (
+        get_automation_last_run,
+        record_automation_run,
+    )
+
+    later_end = datetime(2026, 1, 3, tzinfo=timezone.utc)
+    older_end = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+    assert record_automation_run(42, later_end) is True
+    assert record_automation_run(42, older_end) is False
+    assert get_automation_last_run(42) == later_end
+
+
+def _report_automation_cli_input(
+    tmp_path,
+    sensor1_id,
+    sensor2_id,
+    report_sensor_id,
+    parameters_extra=None,
+    asset_id=1,
+):
+    """CLI input for a report automation using a simple PandasReporter aggregation."""
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[dict(name="df_agg", sensor=report_sensor_id)],
+        **(parameters_extra or {}),
+    )
+    config_file = tmp_path / "reporter_config.yml"
+    config_file.write_text(yaml.dump(reporter_config))
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(yaml.dump(parameters))
+    return [
+        "--asset", str(asset_id),
+        "--name", "Aggregation report",
+        "--cron", "0 1 * * *",
+        "--type", "reporting",
+        "--reporter", "PandasReporter",
+        "--config", str(config_file),
+        "--parameters", str(parameters_file),
+    ]  # fmt: skip
+
+
+def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
+    """Create a reports automation; the reporter config lands on a data source."""
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    from flexmeasures.data.models.time_series import Sensor
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra={"start-offset": "-1D,DB", "end-offset": "DB"},
+            asset_id=report_sensor.generic_asset_id,
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    assert automation.type == "reporting"
+    assert automation.generator is not None
+    assert automation.generator.model == "PandasReporter"
+    assert automation.parameters["start-offset"] == "-1D,DB"
+
+    # a reports automation without a reporter is rejected
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "No reporter",
+            "--cron", "0 1 * * *",
+            "--type", "reporting",
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "reporter is required" in result.output
+
+    # invalid time offsets are rejected (they would otherwise be silently skipped at run time)
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra={
+                "start-offset": "P1D,DB"
+            },  # ISO duration, not a Pandas offset
+        ),
+    )
+    assert result.exit_code != 0
+    assert "Invalid start-offset" in result.output
+
+
+@pytest.mark.parametrize(
+    "fixed_timing",
+    [
+        {"start": "2023-04-10T00:00:00+00:00"},
+        {"end": "2023-04-10T10:00:00+00:00"},
+        {"start-offset": "-1D,DB", "end": "2023-04-10T10:00:00+00:00"},
+    ],
+)
+def test_report_automation_refuses_a_fixed_period(
+    app, fresh_db, setup_dummy_data, tmp_path, fixed_timing
+):
+    """A report automation may not fix its window, or every run would report on the same period."""
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra=fixed_timing,
+        ),
+    )
+    assert result.exit_code != 0
+    assert "every run would then report on the same period" in result.output
+    assert fresh_db.session.scalars(select(Automation)).first() is None
+
+
+def test_run_report_automation(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
+):
+    """A due reports automation queues a reporting job; a worker computes and saves the report."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        # report on today so far, which, with the clock frozen below, is the dummy data's day
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    # the dummy data lives in April 2023
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+
+    result = runner.invoke(run_automations)
+    assert result.exit_code == 0, result.output
+    assert "queued 1 reporting job(s)" in result.output, result.output
+
+    # the queued job recorded how it was created
+    jobs = app.queues["reporting"].jobs
+    assert len(jobs) == 1
+    assert jobs[0].meta["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+    }
+
+    # the covered-until anchor is only recorded once the job succeeds
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
+    # process the job and check the report got saved
+    work_on_rq(app.queues["reporting"])
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+    # the successful job recorded the end of the report window as covered
+    import pandas as pd
+
+    covered_until = app.redis_connection.get(f"automation-last-run:{automation.id}")
+    assert covered_until is not None
+    assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
+        "2023-04-10T10:00:00+00:00"
+    )
+
+
+def test_report_automation_refuses_a_sensor_nobody_checked(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A reporter returning results for a sensor its automation did not declare is refused, before anything is recorded.
+
+    The automation's output sensors were checked against its creator's permissions when it was created,
+    but the reporter decides at run time which sensors it returns results for.
+    Here it returns results for one of its input sensors, which was only ever checked for read access.
+    """
+    import pandas as pd
+
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import (
+        ReportWritesUncheckedSensor,
+        run_report_job,
+    )
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+    job = app.queues["reporting"].jobs[0]
+
+    input_sensor = fresh_db.session.get(Sensor, sensor1_id)
+    mocker.patch.object(
+        PandasReporter,
+        "compute",
+        return_value=[
+            {"name": "df_agg", "sensor": input_sensor, "data": pd.DataFrame()}
+        ],
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+        run_report_job(**job.kwargs)
+
+    # a refused report covers nothing, so the next run still starts where the last successful one ended
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
+
 def test_run_automations(
     app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
 ):
@@ -1249,7 +1596,7 @@ def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
     )
     mocker.patch("flexmeasures.cli.jobs.claim_due_automation", return_value=True)
 
-    def queue_then_fail(_automation):
+    def queue_then_fail(_automation, **_kwargs):
         app.queues["forecasting"].enqueue("flexmeasures.utils.time_utils.server_now")
         raise RuntimeError("failed after queueing")
 
@@ -1491,3 +1838,281 @@ def test_the_data_generator_can_be_named_by_what_it_is(
         select(Automation).filter_by(name=f"Named by {option}")
     ).one()
     assert automation.generator.model == "TrainPredictPipeline"
+
+
+def automation_row_cell(output: str, name: str, header: str) -> str:
+    """Read one cell of the `show automations` table, by the column position of its header.
+
+    Substring checks on a whole row are not enough here, as a cell's value may also occur in the automation's own name.
+    """
+    headers = ["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone"]
+    lines = output.splitlines()
+    header_line = next(line for line in lines if all(h in line for h in headers))
+    starts = [header_line.index(h) for h in headers]
+    row = next(line for line in lines if name in line and line != header_line)
+    column = headers.index(header)
+    end = starts[column + 1] if column + 1 < len(starts) else len(row)
+    return row[starts[column] : end].strip()
+
+
+def test_show_automations_lists_all_and_shows_one(app, fresh_db, setup_dummy_data):
+    """`show automations` lists automations with their IDs, and shows one in detail with --id."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id, regressor_id = setup_dummy_data[0], setup_dummy_data[1]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Day-ahead PV forecasts",
+                "cron": "0 6 * * *",
+                "timezone": "Europe/Amsterdam",
+                "sensor": sensor_id,
+                "regressors": regressor_id,
+            }
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Day-ahead PV forecasts")
+    ).scalar_one()
+    cursor_before = automation.cursor
+
+    # the list view holds the ID to pass to the edit, delete and run commands
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    name = "Day-ahead PV forecasts"
+    assert automation_row_cell(result.output, name, "ID") == str(automation.id)
+    assert automation_row_cell(result.output, name, "Type") == "forecasting"
+    assert automation_row_cell(result.output, name, "Cron") == "0 6 * * *"
+    assert automation_row_cell(result.output, name, "Timezone") == "Europe/Amsterdam"
+    assert (
+        automation_row_cell(result.output, name, "Asset") == "DummyGenericAsset (ID: 1)"
+    )
+
+    # the detail view adds the recurrence in words, the cursor, the parameters and the sensors
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert f"Automation {automation.id}: Day-ahead PV forecasts" in result.output
+    assert "At 06:00" in result.output
+    assert automation.cursor.isoformat() in result.output
+    assert str(regressor_id) in result.output
+    assert (
+        f"{automation.generator.name} (ID: {automation.generator.id}, model: {automation.generator.model})"
+        in result.output
+    )
+    assert "Reads from" in result.output
+    assert "Writes to" in result.output
+    reads_from, writes_to = result.output.split("Reads from:")[1].split("Writes to:")
+    assert "sensor 1" in writes_to
+    assert "sensor 1" in reads_from and "sensor 2" in reads_from
+
+    # showing an automation is not running it, so the next recurring run still happens as scheduled
+    fresh_db.session.refresh(automation)
+    assert automation.cursor == cursor_before
+
+
+def test_show_automations_are_listed_by_asset_and_id(
+    app, fresh_db, automation_scope_assets
+):
+    """The listing is ordered by asset and then by ID, whatever order the automations were created in."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    root_asset = automation_scope_assets["root_asset"]
+    child_asset = automation_scope_assets["child_asset"]
+    sensors = automation_scope_assets["sensors"]
+    assert root_asset.id < child_asset.id
+
+    runner = app.test_cli_runner()
+    # created out of order, so that insertion order cannot pass for the promised order
+    for asset, sensor_name, name in (
+        (child_asset, "child", "Second"),
+        (root_asset, "root", "First"),
+        (child_asset, "child", "Third"),
+    ):
+        result = runner.invoke(
+            add_automation,
+            to_flags(
+                {"asset": asset.id, "name": name, "sensor": sensors[sensor_name].id}
+            ),
+        )
+        assert "Successfully created" in result.output, result.output
+
+    automations = {
+        automation.name: automation
+        for automation in fresh_db.session.scalars(select(Automation)).all()
+    }
+    # the root asset's automation comes first, and the child asset's two follow in ID order
+    expected_ids = [
+        automations["First"].id,
+        automations["Second"].id,
+        automations["Third"].id,
+    ]
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    printed_ids = [
+        int(line.split()[0])
+        for line in result.output.splitlines()
+        if line.strip() and line.strip()[0].isdigit()
+    ]
+    assert printed_ids == expected_ids
+
+
+def test_show_automations_includes_inactive_ones(app, fresh_db, setup_dummy_data):
+    """An automation which is not running is exactly the one an operator is looking for, so it is listed, too."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags(
+            {
+                "asset": 1,
+                "name": "Paused forecasts",
+                "sensor": sensor_id,
+            }
+        )
+        + ["--inactive"],
+    )
+    assert "Successfully created" in result.output, result.output
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
+
+
+def test_show_automations_without_any_automations(app, fresh_db, setup_dummy_data):
+    """Without automations, the command says so rather than printing an empty table."""
+    from flexmeasures.cli.data_show import list_automations
+
+    result = app.test_cli_runner().invoke(list_automations, [])
+
+    assert result.exit_code == 0, result.output
+    assert "No automations created yet" in result.output
+
+
+def test_show_automations_reports_unknown_automation(app, fresh_db, setup_dummy_data):
+    """An ID which does not exist is reported as such."""
+    from flexmeasures.cli.data_show import list_automations
+
+    result = app.test_cli_runner().invoke(list_automations, ["--id", "9999"])
+
+    assert result.exit_code == 2, result.output
+    assert "No automation found with id 9999" in result.output
+
+
+def test_show_automations_handles_unresolved_sensors(app, fresh_db, setup_dummy_data):
+    """When the sensors cannot be worked out, the rest of the automation is still shown.
+
+    Those other details are often what is needed to work out why the sensors do not resolve.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    sensor_id = setup_dummy_data[0]
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        to_flags({"asset": 1, "name": "Broken forecasts", "sensor": sensor_id}),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Broken forecasts")
+    ).scalar_one()
+
+    # the parameters no longer load, as happens when a sensor referred to has been deleted
+    automation.parameters = {"sensor": "no-such-sensor"}
+    fresh_db.session.commit()
+
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert f"Automation {automation.id}: Broken forecasts" in result.output
+    assert automation.cronstr in result.output
+    assert f"Automation {automation.id} ('Broken forecasts')" in result.output
+    assert (
+        f"Could not determine the sensors of automation {automation.id}"
+        in result.output
+    )
+    assert "Reads from" not in result.output
+
+
+def test_show_automations_names_the_automation_when_schedule_sensors_are_unknown(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A schedule automation's own message names its asset, which does not say which automation broke.
+
+    An asset may carry several of them, so the command names the automation itself.
+    """
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('duration: "PT12H"\n')
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Broken schedules",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Broken schedules")
+    ).scalar_one()
+
+    # the parameters no longer load, as happens when a flex-model sensor has been deleted
+    automation.parameters = {"duration": "not a duration"}
+    fresh_db.session.commit()
+
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert f"Automation {automation.id} ('Broken schedules')" in result.output
+    assert "Could not determine the sensors of schedule automation" in result.output
+    assert "Reads from" not in result.output
+
+
+def test_show_automations_shows_a_schedule_automation(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A schedule automation lists and shows like a forecast one, as nothing here is specific to forecasts."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text('duration: "PT12H"\n')
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            # a name which does not itself contain the type, so that the Type cell is really checked
+            "--name", "Nightly run",
+            "--cron", "0 * * * *",
+            "--type", "scheduling",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Nightly run")
+    ).scalar_one()
+    assert automation.type == "scheduling"
+
+    result = runner.invoke(list_automations, [])
+    assert result.exit_code == 0, result.output
+    assert automation_row_cell(result.output, "Nightly run", "Type") == "scheduling"
+
+    result = runner.invoke(list_automations, ["--id", automation.id])
+    assert result.exit_code == 0, result.output
+    assert re.search(r"^Type\s+scheduling$", result.output, re.MULTILINE)
+    assert automation.parameters["duration"] in result.output
