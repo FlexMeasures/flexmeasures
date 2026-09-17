@@ -7,7 +7,7 @@ API change log
 
 v3.0-38 | September 16, 2026
 """"""""""""""""""""""""""""
-- ``GET /api/v3_0/assets/<id>/automations`` now lists the automations of the assets below the asset as well, at any depth, so that a site asset reports everything that runs below it, and each entry names the asset it is defined on in ``asset`` and ``asset-name``. ``GET /api/v3_0/assets/<id>/jobs`` lists the jobs of the assets below the asset in the same way. Pass ``include-child-assets=false`` to either one to list only what belongs to the asset itself. Only the assets below it which the caller may read are included, as a child asset can belong to another organisation than its parent.
+- ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/jobs`` take ``include-child-assets=true`` to also list what belongs to the assets below the asset, at any depth, so that a site asset reports everything below it; by default, they list only what belongs to the asset itself. Only the assets below it which the caller may read are included, as a child asset can belong to another organisation than its parent. Each automation names the asset it is defined on in ``asset`` and ``asset-name``.
 - ``GET /api/v3_0/assets/<id>/automations/<automation_id>`` now reports the data generator's stored configuration as ``config`` on the automation's ``source``, such as the model a forecaster trains and the period it trains over. The configuration is what separates one data source from another of the same model.
 
 v3.0-37 | September 15, 2026

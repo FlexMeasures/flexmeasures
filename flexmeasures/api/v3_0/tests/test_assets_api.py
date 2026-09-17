@@ -2366,7 +2366,7 @@ def test_kpi_counts_each_event_under_one_day_only(
 def test_get_jobs_of_child_assets(
     client, app, add_asset_with_children, clean_redis, requesting_user
 ):
-    """A parent asset lists the jobs of its children, unless the caller opts out."""
+    """A parent asset lists the jobs of its children when the caller asks for them."""
     parent = add_asset_with_children["parent"]
     child = add_asset_with_children["child_1"]
     child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
@@ -2377,7 +2377,10 @@ def test_get_jobs_of_child_assets(
         asset_or_sensor_type="asset",
     )
 
-    response = client.get(url_for("AssetAPI:get_jobs", id=parent.id))
+    response = client.get(
+        url_for("AssetAPI:get_jobs", id=parent.id),
+        query_string={"include-child-assets": "true"},
+    )
     assert response.status_code == 200
     assert child_job.id in [job["job_id"] for job in response.json["jobs"]]
     assert f"asset: {child.name} (Id: {child.id})" in [
@@ -2391,11 +2394,12 @@ def test_get_jobs_of_child_assets(
         child.name,
     ), "the job names the asset it happened on, rather than the asset that was asked about"
 
-    response = client.get(
-        url_for("AssetAPI:get_jobs", id=parent.id),
-        query_string={"include-child-assets": "false"},
-    )
-    assert response.status_code == 200
-    assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
+    # Listing the assets below as well asks more of the server, so a listing only does so when asked to.
+    for query_string in ({}, {"include-child-assets": "false"}):
+        response = client.get(
+            url_for("AssetAPI:get_jobs", id=parent.id), query_string=query_string
+        )
+        assert response.status_code == 200
+        assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
 
     app.queues["scheduling"].empty()

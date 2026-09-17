@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
-{% set include_child_assets = session.get("automations_page_include_child_assets", True) %}
+{% set include_child_assets = session.get("automations_page_include_child_assets", False) %}
 
 {% block title %} {{ asset.name }} - Automations {% endblock %}
 

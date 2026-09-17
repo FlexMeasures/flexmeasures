@@ -844,7 +844,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
 
 def build_asset_jobs_data(
     asset: Asset,
-    include_child_assets: bool = True,
+    include_child_assets: bool = False,
 ) -> list[dict]:
     """Get all jobs data for an asset
 

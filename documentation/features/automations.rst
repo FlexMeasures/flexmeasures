@@ -145,9 +145,9 @@ Viewing automations
 -------------------
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
-Automations are usually defined on a sub-asset, so the page lists what runs anywhere below the asset as well, naming the asset each automation belongs to.
-Turn *Include automations of sub-assets* off to see only the automations defined on the asset itself; the choice is remembered for your next visit.
-The API endpoint does the same, and takes ``include-child-assets=false`` to narrow the listing.
+Automations are often defined on a sub-asset, so turn on *Include automations of sub-assets* to see what runs anywhere below the asset, too, with a column naming the asset each automation belongs to.
+The choice is remembered for your next visit.
+The API endpoint lists only the asset's own automations as well, unless you pass ``include-child-assets=true``.
 Either way, only the assets you may read are included.
 
 The page shows how far off each automation's next scheduled run is, such as "in 6 minutes" or "tomorrow" (excluding any pending catch-up run).
