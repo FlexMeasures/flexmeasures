@@ -1726,7 +1726,10 @@ def add_forecast(  # noqa: C901
                 f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
                 f"{event_range}"
                 f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
-                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+                # The data source is named without its ID on purpose.
+                # A dry run never commits, so a source that this run had to create is rolled back on the way out,
+                # and the ID it was given belongs to nothing by the time the command returns.
+                f" to be recorded under data source `{forecaster.data_source}`.",
                 **MsgStyle.SUCCESS,
             )
             for item in pipeline_returns:
@@ -1735,7 +1738,9 @@ def add_forecast(  # noqa: C901
 
         click.secho(
             f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+            # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+            f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
             **MsgStyle.SUCCESS,
         )
 
