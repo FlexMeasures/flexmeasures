@@ -22,7 +22,6 @@ from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataExcepti
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
 )
-from flexmeasures.data.schemas.forecasting.references import ForecastInputReference
 from flexmeasures.data.models.forecasting.pipelines import base as pipelines_base
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
@@ -823,7 +822,7 @@ def _fill_one_input(sensor_or_reference, values, unit: str = "kW"):
 def test_input_bounds_clean_a_regressor_after_its_gaps_are_filled():
     """A spike is clipped, a near-zero reading is snapped, and the filled gap is bounded too."""
     sensor = _input_sensor_stub()
-    reference = ForecastInputReference(
+    reference = SensorReference(
         sensor=sensor,
         lower="0 kW",
         upper="20 kW",
@@ -843,7 +842,7 @@ def test_input_bounds_leave_an_unbounded_regressor_alone():
 
     plain = _fill_one_input(sensor, [-5.0, 0.3, 99.0, np.nan, 4.0])
     unbounded_reference = _fill_one_input(
-        ForecastInputReference(sensor=sensor), [-5.0, 0.3, 99.0, np.nan, 4.0]
+        SensorReference(sensor=sensor), [-5.0, 0.3, 99.0, np.nan, 4.0]
     )
 
     np.testing.assert_allclose(plain, [-5.0, 0.3, 99.0, 51.5, 4.0])
@@ -853,7 +852,7 @@ def test_input_bounds_leave_an_unbounded_regressor_alone():
 def test_input_bounds_are_read_in_the_regressors_own_unit():
     """A regressor recording watts reads a bound given in kilowatts as watts, not as the target's unit."""
     sensor = _input_sensor_stub(unit="W")
-    reference = ForecastInputReference(sensor=sensor, lower="0.02 kW")
+    reference = SensorReference(sensor=sensor, lower="0.02 kW")
 
     # The target sensor is in kW, so a bound read in the target's unit would clip at 0.02 instead.
     bounded = _fill_one_input(reference, [5.0, 50.0], unit="kW")
@@ -863,7 +862,7 @@ def test_input_bounds_are_read_in_the_regressors_own_unit():
 
 def test_input_bounds_reject_a_unit_the_regressor_cannot_take():
     sensor = _input_sensor_stub(unit="kW")
-    reference = ForecastInputReference(sensor=sensor, lower="5 EUR")
+    reference = SensorReference(sensor=sensor, lower="5 EUR")
 
     with pytest.raises(ValueError, match="Input bounds for meter"):
         _fill_one_input(reference, [1.0, 2.0])
