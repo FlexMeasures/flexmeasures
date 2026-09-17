@@ -44,7 +44,7 @@ def due_forecast_automation(
                 "cron": "0 1 * * *",
                 "timezone": "UTC",
                 "sensor": sensor.id,
-                "start": "2026-08-05T01:00:00+00:00",
+                # A duration alone starts the forecast at the time of each run, which the frozen clock puts at 01:00.
                 "duration": "PT2H",
                 "forecast-frequency": "PT1H",
                 "max-forecast-horizon": "PT2H",

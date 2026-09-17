@@ -3501,18 +3501,18 @@
                         "execution": {
                           "succeeded": 1
                         },
-                        "latest_run": {
+                        "latest-run": {
                           "id": 12,
-                          "scheduled_at": "2026-07-11T04:00:00+00:00",
-                          "schedule_revision": 1,
-                          "dispatch_state": "queued",
-                          "execution_state": "succeeded",
-                          "attempt_count": 1,
-                          "intended_job_count": 2,
-                          "queued_job_count": 2,
-                          "last_error": null
+                          "scheduled-at": "2026-07-11T04:00:00+00:00",
+                          "schedule-revision": 1,
+                          "dispatch-state": "queued",
+                          "execution-state": "succeeded",
+                          "attempt-count": 1,
+                          "intended-job-count": 2,
+                          "queued-job-count": 2,
+                          "last-error": null
                         },
-                        "recent_runs": []
+                        "recent-runs": []
                       },
                       "redis-connection-err": null
                     }

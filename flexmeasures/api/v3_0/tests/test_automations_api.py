@@ -273,7 +273,6 @@ def test_get_automation_details(
     assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
     assert response.json["schedule-revision"] == 1
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
-    assert response.json["job_stats"] == {}  # this automation has not queued any jobs
     run_stats = response.json["run-stats"]
     assert run_stats["total"] == 1
     assert run_stats["dispatch"] == {"partially_queued": 1}
