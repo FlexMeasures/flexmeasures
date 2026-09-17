@@ -45,7 +45,7 @@ from flexmeasures.data.services.automations import (
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
@@ -66,7 +66,7 @@ QUEUE_EXCEPTION_HANDLERS = dict(
 )
 
 
-@click.group("jobs")
+@click.group("jobs", cls=LoggedClickExceptionGroup)
 def fm_jobs():
     """FlexMeasures: Job queueing."""
 
@@ -154,7 +154,8 @@ def run_one_automation(automation: Automation):
     if not returns or returns.get("job_id") is None:
         db.session.rollback()
         click.secho(
-            f"Automation {automation.id} ('{automation.name}') did not queue any job.",
+            (returns or {}).get("message")
+            or f"Automation {automation.id} ('{automation.name}') did not queue any job.",
             **MsgStyle.ERROR,
         )
         raise click.Abort()

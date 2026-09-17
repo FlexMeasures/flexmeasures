@@ -37,6 +37,7 @@ from flexmeasures.data.models.automations import (
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
     asset_is_in_subtree,
@@ -45,7 +46,7 @@ from flexmeasures.data.services.data_generators import (
     check_sensor_access,
     resolve_data_generator_sensors,
 )
-from flexmeasures.utils.time_utils import apply_offset_chain, server_now
+from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
 
 AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
 # How many of an automation's most recent runs its status summary describes in full.
@@ -800,13 +801,231 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     return due_automations
 
 
-class RecurringScheduleFixesAMoment(ValueError):
-    """Raised when a schedule automation's flex config pins a moment in time.
+def claim_due_automation(due_automation: DueAutomation) -> bool:
+    """Persist a run claim if its scheduling configuration is unchanged."""
+    if due_automation.expected_cursor is None:
+        cursor_matches = Automation.cursor.is_(None)
+    else:
+        cursor_matches = Automation.cursor == due_automation.expected_cursor
+    result = db.session.execute(
+        update(Automation)
+        .where(
+            Automation.id == due_automation.automation.id,
+            Automation.active.is_(True),
+            Automation.cronstr == due_automation.expected_cronstr,
+            Automation.timezone == due_automation.expected_timezone,
+            cursor_matches,
+        )
+        .values(cursor=due_automation.scheduled_at)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return False
+    db.session.commit()
+    return True
 
-    Such a value would be stale on the automation's next run, so it cannot configure a recurring schedule.
-    It would also resolve to a different flex config every run, and so to a different data source each time,
-    leaving the sensor with an unbounded number of them, one per run.
+
+class RecurringAutomationFixesAMoment(ValueError):
+    """Raised when an automation's parameters, or a schedule automation's flex config, pin a moment in time.
+
+    Such a value would be stale on the automation's next run, so it cannot configure a recurring automation.
+    In a schedule automation's flex config, it would also resolve to a different flex config every run,
+    and so to a different data source each time, leaving the sensor with an unbounded number of them, one per run.
     """
+
+
+# Fields in an automation's parameters that pin a moment in time, with what pinning each does to the automation's runs.
+# A forecast automation's "train-start" is not among them: it is part of the forecaster's config, not of the parameters,
+# and a fixed start of the training data is a legitimate choice for a recurring forecast.
+FIXED_MOMENT_FIELDS = {
+    "start": "compute the same period",
+    "end": "compute the same period",
+    "prior": "ignore the data recorded since then",
+    "belief_time": "ignore the data recorded since then",  # a report's legacy name for "prior"
+}
+
+
+WINDOW_FIELDS = ("start-offset", "end-offset", "duration")
+
+
+def validate_automation_window(parameters: dict, automation_type: str) -> None:
+    """Check that an automation's parameters describe its window in a way every run can resolve.
+
+    Two of "start-offset", "end-offset" and "duration" describe a window; all three at once are refused.
+    One field alone describes a window too, where the automation type has a default for the other end:
+    a forecast or schedule automation takes a "start-offset" or a "duration" alone, as it starts at the run time by default,
+    and a report automation takes a "start-offset" or an "end-offset" alone,
+    as it ends at the run time, or starts where the last successful report ended, by default.
+    So a forecast or schedule automation needs a "start-offset" or a "duration" with its "end-offset",
+    as it would otherwise start at the run time but end relative to the claimed cron occurrence,
+    and a report automation needs an offset with its "duration", as without one it has nothing to measure the duration from.
+
+    :raises marshmallow.ValidationError: if the offsets or their combination are invalid.
+    """
+    given = [field for field in WINDOW_FIELDS if field in parameters]
+    for offset_field in ("start-offset", "end-offset"):
+        if offset_field in given:
+            try:
+                validate_offset_chain(parameters[offset_field])
+            except ValueError as e:
+                raise ValidationError(f"Invalid {offset_field}: {e}")
+    if len(given) == 3:
+        raise ValidationError(
+            "Give two of 'start-offset', 'end-offset' and 'duration', not all three, as any two of them already fix the third."
+        )
+    if (
+        automation_type in ("forecasting", "scheduling")
+        and "end-offset" in given
+        and len(given) == 1
+    ):
+        raise ValidationError(
+            "Give a 'start-offset' or a 'duration' along with an 'end-offset'."
+        )
+    if automation_type == "reporting" and given == ["duration"]:
+        raise ValidationError(
+            "Give a 'start-offset' or an 'end-offset' along with a report automation's 'duration'."
+        )
+    if "duration" in given:
+        try:
+            duration = isodate.parse_duration(parameters["duration"])
+        except (ISO8601Error, TypeError) as e:
+            raise ValidationError(f"Invalid duration: {e}")
+        reference = pd.Timestamp("2000-01-01", tz="UTC")
+        if _add_duration(reference, duration) <= reference:
+            raise ValidationError(
+                "The duration must be positive, or every run would cover an empty or inverted window."
+            )
+
+
+def _check_window_is_positive(start: pd.Timestamp, end: pd.Timestamp) -> None:
+    """Refuse a window that its offsets and duration resolve to ending before it starts, which no run can cover."""
+    if pd.Timestamp(end) <= pd.Timestamp(start):
+        raise ValidationError(
+            f"The offsets resolve to a window from {pd.Timestamp(start).isoformat()} to {pd.Timestamp(end).isoformat()},"
+            " which does not end after it starts."
+        )
+
+
+def _window_anchor(
+    automation_timezone: str, scheduled_at: datetime | None
+) -> pd.Timestamp:
+    """The moment an automation's offsets apply to: the run's claimed cron occurrence, or now for a run on demand, on the automation's clock."""
+    if scheduled_at is None:
+        scheduled_at = server_now()
+    return pd.Timestamp(floor_to_minute(scheduled_at)).tz_convert(
+        ZoneInfo(automation_timezone)
+    )
+
+
+def _add_duration(moment: pd.Timestamp, duration, sign: int = 1) -> pd.Timestamp:
+    """Add (or, with a negative sign, subtract) an ISO 8601 duration, keeping calendar durations such as a month calendar-aware.
+
+    Other durations count real time, as elsewhere in FlexMeasures, so a day across a daylight saving time transition lasts 24 hours.
+    """
+    # A datetime would count wall-clock time when both sides share a timezone, where a Timestamp counts real time.
+    moment = pd.Timestamp(moment)
+    if isinstance(duration, str):
+        duration = isodate.parse_duration(duration)
+    if isinstance(duration, isodate.Duration):
+        offset = pd.DateOffset(
+            years=int(duration.years),
+            months=int(duration.months),
+            days=duration.tdelta.days,
+            seconds=duration.tdelta.seconds,
+            microseconds=duration.tdelta.microseconds,
+        )
+        return moment + offset if sign > 0 else moment - offset
+    return moment + duration if sign > 0 else moment - duration
+
+
+def resolve_automation_window(
+    parameters: dict,
+    automation_type: str,
+    automation_timezone: str,
+    scheduled_at: datetime | None = None,
+) -> dict:
+    """Turn a forecast or schedule automation's offsets into the start, end or duration its data generator takes.
+
+    The offsets apply to the run's claimed cron occurrence, or to now for a run on demand, on the automation's own clock,
+    so a delayed run still covers the window it was due for.
+    Without offsets, the parameters are passed on as they are, so the data generator's defaults apply,
+    such as starting at the run time, which keeps a caught-up run current.
+    Report automations resolve their window in `prepare_report_parameters`, which also knows where the last report ended.
+    """
+    message = dict(parameters)
+    start_offset = message.pop("start-offset", None)
+    end_offset = message.pop("end-offset", None)
+    if start_offset is None and end_offset is None:
+        return message
+    anchor = _window_anchor(automation_timezone, scheduled_at)
+    # As Timestamps, which count real time when subtracted, rather than as datetimes,
+    # which count wall-clock time when they share a timezone, so that the day the clocks go forward lasts 23 hours.
+    end = (
+        pd.Timestamp(apply_offset_chain(anchor, end_offset))
+        if end_offset is not None
+        else None
+    )
+    if start_offset is not None:
+        start = pd.Timestamp(apply_offset_chain(anchor, start_offset))
+    elif "duration" in message:
+        start = _add_duration(end, message["duration"], sign=-1)
+    else:
+        # Refused on creation (see `validate_automation_window`), so this is a stored automation from before that check.
+        raise ValidationError(
+            "An 'end-offset' needs a 'start-offset' or a 'duration' to say where the window starts."
+        )
+    if end is not None:
+        _check_window_is_positive(start, end)
+    message["start"] = start.isoformat()
+    if end is not None and "duration" not in message:
+        if automation_type == "scheduling":
+            message["duration"] = isodate.duration_isoformat(end - start)
+        else:
+            message["end"] = end.isoformat()
+    if automation_type == "forecasting":
+        # A forecast with an explicit start is believed at that start unless told otherwise,
+        # while an automation's forecast should be believed when it is computed, as it would be without offsets.
+        message["prior"] = server_now().isoformat()
+    return message
+
+
+def refuse_fixed_moments(parameters: dict, automation_type: str) -> None:
+    """Refuse parameters that pin a moment in time, which every run of the automation would share.
+
+    An automation runs again and again on the server clock,
+    so a fixed start or end has every run compute the same period,
+    and a fixed prior has every run ignore the data recorded since then.
+    Left out, each is resolved from the time of the run.
+
+    :raises RecurringAutomationFixesAMoment: if any of those fields is given.
+    """
+    from flexmeasures.utils import flexmeasures_inflection
+
+    fixed_fields = [field for field in FIXED_MOMENT_FIELDS if field in parameters]
+    if not fixed_fields:
+        return
+    consequences = list(
+        dict.fromkeys(FIXED_MOMENT_FIELDS[field] for field in fixed_fields)
+    )
+    if {"start", "end"} & set(fixed_fields):
+        hint = (
+            " Describe the window with two of 'start-offset', 'end-offset' and 'duration' instead,"
+            " where the offsets are Pandas offsets applied to each run's scheduled time in the automation's timezone,"
+        )
+        hint += (
+            " or leave the timing out to report on the period since the last successful report."
+            if automation_type == "reporting"
+            else " or leave the timing out to start at the time of each run."
+        )
+    else:
+        hint = " Leave it out to take into account the data recorded up to each run."
+    raise RecurringAutomationFixesAMoment(
+        f"{flexmeasures_inflection.join_words_into_a_list([repr(field) for field in fixed_fields])}"
+        f" {'fixes' if len(fixed_fields) == 1 else 'fix'} a moment in time,"
+        f" so every run of this {Automation.RESULT_NOUNS[automation_type]} automation would {' and '.join(consequences)}."
+        + hint
+    )
 
 
 class AutomationSensorsUnknown(Exception):
@@ -818,7 +1037,7 @@ class AutomationSensorsUnknown(Exception):
 
 
 def resolve_schedule_automation_sensors(
-    parameters: dict, asset_id: int
+    parameters: dict, asset_id: int, automation_timezone: str | None = None
 ) -> dict[str, list[Sensor]]:
     """Resolve the sensors declared by a prepared schedule trigger.
 
@@ -840,7 +1059,9 @@ def resolve_schedule_automation_sensors(
     from flexmeasures.data.services.scheduling import find_scheduler_class
     from flexmeasures.data.services.utils import get_scheduler_instance
 
-    message = prepare_schedule_trigger_message(parameters, asset_id)
+    message = prepare_schedule_trigger_message(
+        parameters, asset_id, automation_timezone
+    )
     trigger_data = AssetTriggerSchema().load(deepcopy(message))
     try:
         start = trigger_data["start_of_schedule"]
@@ -899,7 +1120,9 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
     if automation.type == "scheduling":
         try:
             return resolve_schedule_automation_sensors(
-                dict(automation.parameters or {}), automation.asset_id
+                dict(automation.parameters or {}),
+                automation.asset_id,
+                automation.timezone,
             )
         except (NotImplementedError, ValidationError, ValueError) as exc:
             raise AutomationSensorsUnknown(
@@ -918,6 +1141,10 @@ def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]
                 automation.cronstr,
                 automation.timezone,
                 automation_id=automation.id,
+            )
+        else:
+            parameters = resolve_automation_window(
+                parameters, automation.type, automation.timezone
             )
         return resolve_data_generator_sensors(
             data_generator,
@@ -1003,14 +1230,26 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     ]
 
 
-def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
+def prepare_schedule_trigger_message(
+    parameters: dict,
+    asset_id: int,
+    automation_timezone: str | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict:
     """Complete stored schedule parameters into a message for the AssetTriggerSchema.
 
-    The asset id is injected, and the (required) schedule start defaults to now,
+    Any offsets are resolved into a start and a duration (see `resolve_automation_window`),
+    on the automation's clock, or the platform's where no automation timezone is given.
+    The asset id is injected, and without offsets the (required) schedule start defaults to now,
     floored to the message's resolution (if given, otherwise to the minute),
     so recurring automations produce fresh schedules on each run.
     """
-    message = dict(parameters)
+    message = resolve_automation_window(
+        parameters,
+        "scheduling",
+        automation_timezone or str(get_timezone()),
+        scheduled_at,
+    )
     message["id"] = asset_id
     if "start" not in message:
         start = server_now()
@@ -1127,6 +1366,7 @@ def prepare_report_parameters(
 
     - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets, such as "-1D,DB" for the start of the previous day,
       applied to the run time in the automation's timezone.
+      A "duration" can take the place of either one.
     - Without offsets, the window runs since the end of the automation's last successfully covered window,
       falling back to the last cron period, from the previous cron fire time until the run time, when none is known, such as on the first run.
     """
@@ -1140,9 +1380,10 @@ def prepare_report_parameters(
     tz = ZoneInfo(automation_timezone)
     now = scheduled_at.astimezone(tz)
 
-    # A report automation cannot fix its window (see `_prepare_report_automation`), so offsets apply to the run time.
+    # A report automation cannot fix its window (see `refuse_fixed_moments`), so offsets apply to the run time.
     start_offset = message.pop("start-offset", None)
     end_offset = message.pop("end-offset", None)
+    duration = message.pop("duration", None)
     start = (
         apply_offset_chain(pd.Timestamp(now), start_offset)
         if start_offset is not None
@@ -1153,6 +1394,16 @@ def prepare_report_parameters(
         if end_offset is not None
         else None
     )
+    # A duration goes with one of the offsets (see `validate_automation_window`), and fixes the other end of the window.
+    if duration is not None:
+        if start is not None and end is None:
+            end = _add_duration(start, duration)
+        elif end is not None and start is None:
+            start = _add_duration(end, duration, sign=-1)
+    # Where the offsets (and duration) fix both ends, the window has to be one a run can cover.
+    # A start carried over from the last successful report is not checked here: it is not the automation's to fix.
+    if start is not None and end is not None:
+        _check_window_is_positive(start, end)
 
     # Default to the window since the last covered window's end,
     # falling back to the last cron period, from the previous cron fire time until the run time.
@@ -1177,8 +1428,29 @@ def prepare_report_parameters(
                     datetime
                 )
                 start = _canonical_run_time(previous_nominal, tz)
+            if end is not None:
+                # An "end-offset" moves the end of the window away from the run time, so the cron period moves along with it.
+                # Otherwise, a first report ending before the previous cron fire time would have no period to cover.
+                # The period is taken on the wall clock, so that a daily report still starts at midnight across a clock change.
+                cron_period = nominal_scheduled_at - previous_nominal
+                end_nominal = _as_nominal_wall_time(
+                    pd.Timestamp(end).to_pydatetime().astimezone(tz)
+                )
+                start = _canonical_run_time(end_nominal - cron_period, tz)
     if end is None:
         end = now
+
+    # A start carried over from the last successful report can sit at or after the end,
+    # where an "end-offset" alone reaches back no further than what was already covered,
+    # for instance when an hourly automation reports up to midnight, or after its "end-offset" was moved back.
+    # Such a window is left empty (see `_run_report_automation`, which then queues no job).
+    if pd.Timestamp(start) > pd.Timestamp(end):
+        current_app.logger.warning(
+            f"Report automation {automation_id} reaches back to {pd.Timestamp(end).isoformat()},"
+            f" which the last successful report already covered, up to {pd.Timestamp(start).isoformat()}."
+            " Nothing is reported until its window reaches past that moment."
+        )
+        start = end
 
     message["start"] = pd.Timestamp(start).isoformat()
     message["end"] = pd.Timestamp(end).isoformat()
@@ -1189,20 +1461,25 @@ def _relevant_sensor_ids(automation: Automation, parameter_values: list) -> set[
     """The asset's sensor ids, plus any (castable) sensor ids among the given parameter values."""
     sensor_ids = {sensor.id for sensor in automation.asset.sensors}
     for value in parameter_values:
-        if value is not None:
-            try:
-                sensor_ids.add(int(value))
-            except (TypeError, ValueError):
-                pass
+        sensor_id = _stored_sensor_id(value)
+        if sensor_id is not None:
+            sensor_ids.add(sensor_id)
     return sensor_ids
 
 
-def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
+def resolve_schedule_generator(
+    asset_id: int,
+    parameters: dict,
+    automation_timezone: str | None = None,
+    scheduled_at: datetime | None = None,
+) -> DataSource:
     """The data source describing the scheduler a schedule automation runs, and the flex config it runs with.
 
     The scheduler class follows from the asset, and the config is the trigger message merged with what the asset tree stores,
     so both can change without the automation changing.
     That is why this is resolved afresh on every run, rather than only when the automation is created.
+    The window is resolved on the same clock, and for the same run, as the schedule this describes,
+    so that the two cannot drift apart if the window ever reaches the data source.
     """
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import (
@@ -1210,7 +1487,9 @@ def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
         get_scheduler_instance,
     )
 
-    message = prepare_schedule_trigger_message(dict(parameters or {}), asset_id)
+    message = prepare_schedule_trigger_message(
+        dict(parameters or {}), asset_id, automation_timezone, scheduled_at
+    )
     trigger_data = AssetTriggerSchema().load(message)
     asset = trigger_data["asset"]
     scheduler = get_scheduler_instance(
@@ -1298,6 +1577,22 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def _stored_sensor_id(sensor_reference: Any) -> int | None:
+    """Return the sensor ID from a stored automation parameter naming a sensor.
+
+    A parameter may name a sensor by ID, or as a source-filtered sensor reference,
+    whose source filters say which beliefs to read and not which sensor is meant.
+    """
+    if isinstance(sensor_reference, Sensor):
+        return sensor_reference.id
+    if isinstance(sensor_reference, dict):
+        sensor_reference = sensor_reference.get("sensor")
+    try:
+        return int(sensor_reference)
+    except (TypeError, ValueError):
+        return None
+
+
 def _prepare_forecast_automation(
     asset, parameters: dict, generator_class: str | None, config: dict | None, source
 ) -> tuple[Forecaster, dict, list[str]]:
@@ -1311,19 +1606,26 @@ def _prepare_forecast_automation(
     warnings = []
     deserialized_parameters = ForecasterParametersSchema().load(parameters)
     sensor = deserialized_parameters.get("sensor")
+    # A target may be given as a source-filtered reference, whose filters say which beliefs to train on, and not which sensor is meant.
+    if isinstance(sensor, SensorReference):
+        sensor = sensor.sensor
     if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
         warnings.append(
             f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
         )
+    model = generator_class or "TrainPredictPipeline"
     forecaster = get_data_generator(
         source=source,
-        model=generator_class or "TrainPredictPipeline",
+        model=model,
         config=config or {},
         save_config=True,
         data_generator_type=Forecaster,
     )
     if forecaster is None:
-        raise ValueError(f"Could not set up forecaster '{generator_class}'.")
+        # With a source, the class and its config come from the source, so the source is what failed.
+        if source is not None:
+            raise ValueError(f"Data source {source.id} does not store a forecaster.")
+        raise ValueError(f"Could not set up forecaster '{model}'.")
     return forecaster, deserialized_parameters, warnings
 
 
@@ -1345,20 +1647,6 @@ def _prepare_report_automation(
         raise ValidationError(
             "A reporter is required for report automations (e.g. PandasReporter)."
         )
-    # An automation runs again and again, so a fixed period would have it report on the same period every time.
-    fixed_fields = [field for field in ("start", "end") if field in parameters]
-    if fixed_fields:
-        raise ValidationError(
-            f"A report automation cannot fix {' or '.join(repr(field) for field in fixed_fields)}, as every run would then report on the same period."
-            " Use 'start-offset' and 'end-offset' (Pandas offsets, applied to the run time in the automation's timezone),"
-            " or leave the timing out to report on the period since the last successful report."
-        )
-    for offset_field in ("start-offset", "end-offset"):
-        if offset_field in parameters:
-            try:
-                validate_offset_chain(parameters[offset_field])
-            except ValueError as e:
-                raise ValidationError(f"Invalid {offset_field}: {e}")
     reporter = get_data_generator(
         source=source,
         model=generator_class,
@@ -1367,6 +1655,9 @@ def _prepare_report_automation(
         data_generator_type=Reporter,
     )
     if reporter is None:
+        # With a source, the class and its config come from the source, so the source is what failed.
+        if source is not None:
+            raise ValueError(f"Data source {source.id} does not store a reporter.")
         raise ValueError(f"Could not set up reporter '{generator_class}'.")
     # Validate with the chosen reporter's own parameters schema,
     # which may extend the base ReporterParametersSchema.
@@ -1415,10 +1706,18 @@ def create_automation(
     data_generator = None
     input_sensors: list[Sensor] = []
     output_sensors: list[Sensor] = []
+    if automation_type in Automation.SUPPORTED_TYPES:
+        # An automation runs again and again, so a moment fixed in its parameters would be shared by every run.
+        refuse_fixed_moments(parameters, automation_type)
+        validate_automation_window(parameters, automation_type)
     if automation_type == "forecasting":
         forecaster, deserialized_parameters, forecast_warnings = (
             _prepare_forecast_automation(
-                asset, parameters, generator_class, config, source
+                asset,
+                resolve_automation_window(parameters, automation_type, timezone),
+                generator_class,
+                config,
+                source,
             )
         )
         warnings.extend(forecast_warnings)
@@ -1442,10 +1741,10 @@ def create_automation(
         # the automation computes a fresh schedule on every run,
         # so a value tied to a fixed moment would be stale on the next one.
         momentary_fields = find_momentary_flex_config_fields(
-            prepare_schedule_trigger_message(dict(parameters), asset.id)
+            prepare_schedule_trigger_message(dict(parameters), asset.id, timezone)
         )
         if momentary_fields:
-            raise RecurringScheduleFixesAMoment(
+            raise RecurringAutomationFixesAMoment(
                 f"{flexmeasures_inflection.join_words_into_a_list(momentary_fields)} fixes a moment in time,"
                 " so it cannot configure a recurring schedule automation, which computes a fresh schedule on every run."
                 " Refer to a sensor instead of a fixed value, or leave the field out."
@@ -1454,14 +1753,11 @@ def create_automation(
         # A schedule is recorded on the sensors that the scheduler returns its results for,
         # and reads whatever other sensors the flex-model and flex-context refer to,
         # such as price sensors and the sensors of inflexible devices.
-        schedule_sensors = resolve_schedule_automation_sensors(parameters, asset.id)
+        schedule_sensors = resolve_schedule_automation_sensors(
+            parameters, asset.id, timezone
+        )
         input_sensors = schedule_sensors["input_sensors"]
         output_sensors = schedule_sensors["output_sensors"]
-        if "start" in parameters:
-            warnings.append(
-                "The schedule 'start' is fixed, so each run will compute the same period."
-                " Omit 'start' to schedule from the run time instead."
-            )
     elif automation_type == "reporting":
         reporter, deserialized_parameters, report_warnings = _prepare_report_automation(
             parameters, cronstr, timezone, generator_class, config, source
@@ -1497,7 +1793,7 @@ def create_automation(
         # The scheduler and its configuration make up the automation's data generator,
         # the same way a forecaster and its configuration do for a forecast automation.
         # It is resolved here, rather than above, for the same reason as the forecaster's.
-        generator_id = resolve_schedule_generator(asset.id, parameters).id
+        generator_id = resolve_schedule_generator(asset.id, parameters, timezone).id
         db.session.flush()
 
     automation_fields = dict(
@@ -1726,10 +2022,9 @@ def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
 
     if isinstance(sensor_reference, Sensor):
         return sensor_reference
-    try:
-        sensor_id = int(sensor_reference)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Forecast automation has no valid output sensor.") from exc
+    sensor_id = _stored_sensor_id(sensor_reference)
+    if sensor_id is None:
+        raise ValueError("Forecast automation has no valid output sensor.")
 
     sensor = db.session.get(Sensor, sensor_id)
     if sensor is None:
@@ -1783,9 +2078,13 @@ def run_automation(
     if scheduled_at is None and automation_run is not None:
         scheduled_at = automation_run.scheduled_at
     if automation.type == "forecasting":
-        return _run_forecast_automation(automation, automation_run)
+        return _run_forecast_automation(
+            automation, automation_run, scheduled_at=scheduled_at
+        )
     elif automation.type == "scheduling":
-        return _run_schedule_automation(automation, automation_run)
+        return _run_schedule_automation(
+            automation, automation_run, scheduled_at=scheduled_at
+        )
     elif automation.type == "reporting":
         # The reporting job records how far the reports reach once it succeeds (see run_report_job),
         # so a failed job leaves no gap for the next run to skip over.
@@ -1796,7 +2095,9 @@ def run_automation(
 
 
 def _run_forecast_automation(
-    automation: Automation, automation_run: AutomationRun | None = None
+    automation: Automation,
+    automation_run: AutomationRun | None = None,
+    scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
     if automation.generator is None:
         raise ValueError(
@@ -1825,7 +2126,15 @@ def _run_forecast_automation(
         automation_id=automation.id,
         automation_run_id=automation_run.id if automation_run is not None else None,
     )
-    return forecaster.compute(as_job=True, parameters=parameters)
+    return forecaster.compute(
+        as_job=True,
+        parameters=resolve_automation_window(
+            parameters,
+            automation.type,
+            automation.timezone,
+            scheduled_at,
+        ),
+    )
 
 
 def _run_report_automation(
@@ -1854,6 +2163,17 @@ def _run_report_automation(
         automation_id=automation.id,
         scheduled_at=scheduled_at,
     )
+    if pd.Timestamp(parameters["start"]) >= pd.Timestamp(parameters["end"]):
+        # Not every reporter can compute a report on an empty window, and a failing job would not record coverage either,
+        # so an empty window queues no job at all.
+        current_app.logger.info(
+            f"Report automation {automation.id} has nothing new to report on, up to {parameters['end']}, so it queues no job."
+        )
+        return {
+            "job_id": None,
+            "n_jobs": 0,
+            "message": f"Automation {automation.id} has nothing new to report on, as its reports already cover its window, which ends at {parameters['end']}.",
+        }
     report_sensors = resolve_data_generator_sensors(
         reporter, reporter._parameters_schema.load(parameters)
     )
@@ -1873,7 +2193,9 @@ def _run_report_automation(
 
 
 def _run_schedule_automation(
-    automation: Automation, automation_run: AutomationRun | None = None
+    automation: Automation,
+    automation_run: AutomationRun | None = None,
+    scheduled_at: datetime | None = None,
 ) -> dict[str, Any]:
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import (
@@ -1889,12 +2211,16 @@ def _run_schedule_automation(
     )
     # The scheduler and the flex config it merges in can both change between runs,
     # so record which data source this run actually computes under.
-    generator = resolve_schedule_generator(automation.asset_id, parameters)
+    generator = resolve_schedule_generator(
+        automation.asset_id, parameters, automation.timezone, scheduled_at
+    )
     if automation.generator_id != generator.id:
         automation.generator_id = generator.id
         db.session.commit()
 
-    message = prepare_schedule_trigger_message(parameters, automation.asset_id)
+    message = prepare_schedule_trigger_message(
+        parameters, automation.asset_id, automation.timezone, scheduled_at
+    )
     trigger_data = AssetTriggerSchema().load(message)
     start = trigger_data["start_of_schedule"]
     scheduler_kwargs = dict(

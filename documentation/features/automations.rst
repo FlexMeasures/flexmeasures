@@ -8,7 +8,7 @@ An automation computes forecasts, schedules or reports.
 
 On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting``, ``scheduling`` or ``reporting`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
-Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results.
+Timing parameters are resolved on each run — for instance, the forecast or schedule start defaults to the time the automation runs, so each run produces fresh results (see :ref:`automation_timing`).
 
 Creating an automation
 ----------------------
@@ -38,6 +38,71 @@ These changes are recorded in the asset's audit log.
 For forecast automations, the sensor on which forecasts are saved (``sensor-to-save``, falling back to ``sensor``) must belong to the automation's asset or one of its descendants.
 This relationship is checked both when the automation is created and immediately before each run.
 
+.. _automation_timing:
+
+Timing each run
+---------------
+
+An automation runs again and again, so its parameters cannot pin a moment in time:
+a fixed ``start`` or ``end`` would have every run compute the same period,
+and a fixed ``prior`` would have every run ignore the data recorded since then.
+All three are refused when the automation is created, whatever its type.
+A forecast automation can still fix ``train-start``, where its training data begins, which is part of the forecaster's configuration.
+
+Instead, say how the period a run covers relates to that run, with two of these fields:
+
+- ``start-offset``: where the period starts, as an offset chain (see below);
+- ``end-offset``: where the period ends, as an offset chain;
+- ``duration``: how long the period lasts, as an ISO 8601 duration.
+
+On the command line, ``--start-offset``, ``--end-offset`` and ``--duration`` set the same fields, so no parameters file is needed for them.
+
+An offset chain is a comma-separated list of steps, applied from left to right.
+Each step is a `Pandas offset alias <https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases>`_,
+optionally preceded by a count and a sign, or one of two steps FlexMeasures adds.
+These are the ones most useful for automations, applied to a run due on Friday 27 March 2026 at noon:
+
+==========  =====================================================================  =================================
+Step        Moves to                                                               Example result
+==========  =====================================================================  =================================
+``DB``      the beginning of the day (FlexMeasures)                                27 March, 00:00
+``HB``      the beginning of the hour (FlexMeasures)                               27 March, 12:00
+``min``     minutes later, or earlier with a minus sign                            ``-30min``: 27 March, 11:30
+``h``       hours later or earlier                                                 ``-2h``: 27 March, 10:00
+``D``       days later or earlier, of 24 hours each                                ``1D``: 28 March, 12:00
+``B``       business days later or earlier                                         ``1B``: 30 March, 12:00
+``W``       the next Sunday, so use ``7D`` for a week                              ``1W``: 29 March, 12:00
+``MS``      the start of the next month, or of this one with ``-1MS``              ``-1MS``: 1 March, 12:00
+``ME``      the end of this month                                                  ``ME``: 31 March, 12:00
+``QS``      the start of the next quarter                                          ``QS``: 1 April, 12:00
+``YS``      the start of the next year                                             ``YS``: 1 January 2027, 12:00
+==========  =====================================================================  =================================
+
+Steps that move to a boundary, such as ``MS``, keep the time of day, so follow them with ``DB`` to start at midnight: ``-1MS,DB`` is the start of the current month.
+Older aliases such as ``H``, ``M`` and ``T`` still work, but Pandas warns that they will be removed; use ``h``, ``ME`` and ``min`` instead.
+
+The offsets apply to the time the run was due, on the automation's own clock, the one its cron string is read in.
+For instance, an automation due every day at noon, with ``start-offset: "1D,DB"`` and ``duration: "P1D"``, covers the whole of the next day.
+A run that only happens after midnight, because the runner was delayed, still covers the day after the one it was due on.
+A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
+two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
+A duration in months or years follows the calendar, so ``P1M`` from midnight ends at midnight, a month later.
+An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
+
+A single field can also be given alone, where the automation has a default for the rest.
+A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
+A ``duration`` alone has a forecast or schedule start at the time of the run, and is not enough for a report.
+An ``end-offset`` alone is for reports only, which then start where the last successful report ended.
+Before the first successful report, such a report covers the cron period before that end.
+When the last successful report already reaches that end, as it does for an hourly report up to midnight after its first run of the day, the run has nothing new to report on, and queues no job.
+
+Without offsets, a forecast starts at the time of the run, rounded down to its sensor's resolution,
+a schedule starts at the time of the run, rounded down to its ``resolution`` or else to the minute,
+and a report covers the period since the last successful report ended (see :ref:`automation_reports`).
+The difference shows after the runner was down.
+It catches up with only the latest missed run (see :ref:`running_automations`), so offsets then cover the period around that run alone,
+while a report without offsets covers everything since the last successful report.
+
 Automating schedules
 --------------------
 
@@ -55,9 +120,8 @@ Because the schedule is recomputed on every run, the flex config may only descri
 A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.
 Refer to a sensor instead, which says where to look rather than what was true once.
 
-Omit the ``start`` field to calculate it afresh from the server time on each run.
+Without offsets (see :ref:`automation_timing`), the start is calculated afresh from the server time on each run.
 It is floored to the fixed, positive ``resolution`` when given, or otherwise to the minute.
-A fixed ``start`` is accepted, but every run then schedules the same period and the CLI warns about this when creating the automation.
 The ``duration`` must be positive; ``resolution`` does not accept nominal durations such as a month.
 As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
 
@@ -67,6 +131,15 @@ For example, this automation queues a scheduling job every hour, each time sched
 
     echo 'duration: "PT12H"' > trigger-message.yml
     flexmeasures add automation --asset 3 --name "Hourly schedules" --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+
+And this one schedules the whole of the next day, every day at noon, as for a day-ahead market:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Day-ahead schedules" --cron "0 12 * * *" --timezone Europe/Amsterdam \
+        --type scheduling --start-offset 1D,DB --duration P1D
+
+.. _automation_reports:
 
 Automating reports
 ------------------
@@ -79,18 +152,10 @@ The sensors a report is recorded on must belong to the automation's asset or one
 This is checked when the automation is created and immediately before each run.
 A report job only records on those sensors, so a reporter that returns results for any other sensor is refused.
 
-Because the report is computed afresh on every run, its parameters cannot fix the period it covers: an absolute ``start`` or ``end`` is refused when the automation is created.
-Say instead how the period relates to the run, in one of two ways:
-
-- Give ``start-offset`` and ``end-offset``, as comma-separated Pandas offsets plus ``DB`` (day begin) and ``HB`` (hour begin), applied to the run time on the automation's own clock, the one its cron string is read in.
-  For instance, ``start-offset: "-1D,DB"`` with ``end-offset: "DB"`` reports on the whole of the previous day.
-  Leave out ``end-offset`` to report up to the run time.
-- Leave the timing out to report on the period since the last successful report ended, falling back to the previous cron period on the first run.
-  That end is recorded by the reporting job itself, once it has succeeded, so a failed report leaves no gap: the next run starts where the last successful one ended.
-
-The two differ after the runner was down.
-It catches up with only the latest missed run (see below), so offsets then report on the period around that run alone,
-while leaving the timing out reports on everything since the last successful report.
+Its period follows :ref:`automation_timing`, with offsets or one offset and a ``duration``.
+For instance, ``start-offset: "-1D,DB"`` with ``end-offset: "DB"`` reports on the whole of the previous day.
+Without offsets, a report covers the period since the last successful report ended, falling back to the previous cron period on the first run.
+That end is recorded by the reporting job itself, once it has succeeded, so a failed report leaves no gap: the next run starts where the last successful one ended.
 
 For example, this automation reports on the previous day, with the offsets above in ``report-parameters.yml``.
 It runs every night at 1 AM, an hour after midnight, so that the day's last readings have had time to arrive:
@@ -100,6 +165,8 @@ It runs every night at 1 AM, an hour after midnight, so that the day's last read
     flexmeasures add automation --asset 3 --name "Daily self-consumption report" --type reporting \
         --cron "0 1 * * *" --timezone Europe/Amsterdam \
         --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
+
+.. _running_automations:
 
 Running automations
 -------------------

@@ -289,6 +289,7 @@ def test_get_automation_details(
         "cycle-001",
         "wrap-up",
     ]
+    assert response.json["job-stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
     sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
     assert response.json["input-sensors"] == [sensor]
