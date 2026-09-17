@@ -22,6 +22,7 @@ from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataExcepti
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
 )
+from flexmeasures.data.schemas.forecasting.references import ForecastInputReference
 from flexmeasures.data.models.forecasting.pipelines import base as pipelines_base
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
@@ -788,6 +789,112 @@ def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     assert any(
         "does not evenly divide one day" in message for message in caplog.messages
     )
+
+
+def _input_sensor_stub(unit: str = "kW", resolution: timedelta = timedelta(hours=1)):
+    """A stand-in for a sensor, carrying just what the filling step reads off one."""
+    return type(
+        "SensorStub",
+        (),
+        {"name": "meter", "id": 7, "unit": unit, "event_resolution": resolution},
+    )()
+
+
+def _fill_one_input(sensor_or_reference, values, unit: str = "kW"):
+    """Run the filling step over a single input column, returning its values."""
+    index = pd.date_range("2025-01-01", periods=len(values), freq="h")
+    df = pd.DataFrame({"event_start": index, "meter": values})
+
+    pipeline = BasePipeline.__new__(BasePipeline)
+    pipeline.missing_threshold = 1.0
+    pipeline.target_sensor = _input_sensor_stub(unit=unit)
+
+    filled = BasePipeline.detect_and_fill_missing_values(
+        pipeline,
+        df=df,
+        sensors=[sensor_or_reference],
+        sensor_names=["meter"],
+        start=index[0].tz_localize("UTC"),
+        end=index[-1].tz_localize("UTC"),
+    )
+    return filled.values().ravel()
+
+
+def test_input_bounds_clean_a_regressor_after_its_gaps_are_filled():
+    """A spike is clipped, a near-zero reading is snapped, and the filled gap is bounded too."""
+    sensor = _input_sensor_stub()
+    reference = ForecastInputReference(
+        sensor=sensor,
+        lower="0 kW",
+        upper="20 kW",
+        snap={"0 kW": ["0 kW", "0.5 kW"]},
+    )
+
+    bounded = _fill_one_input(reference, [-5.0, 0.3, 99.0, np.nan, 4.0])
+
+    # The gap interpolates between 99 and 4 to 51.5 before being clipped back to the upper bound,
+    # because bounding deliberately runs after filling.
+    np.testing.assert_allclose(bounded, [0.0, 0.0, 20.0, 20.0, 4.0])
+
+
+def test_input_bounds_leave_an_unbounded_regressor_alone():
+    """Without bounds, the same readings survive untouched, spike and all."""
+    sensor = _input_sensor_stub()
+
+    plain = _fill_one_input(sensor, [-5.0, 0.3, 99.0, np.nan, 4.0])
+    unbounded_reference = _fill_one_input(
+        ForecastInputReference(sensor=sensor), [-5.0, 0.3, 99.0, np.nan, 4.0]
+    )
+
+    np.testing.assert_allclose(plain, [-5.0, 0.3, 99.0, 51.5, 4.0])
+    np.testing.assert_allclose(unbounded_reference, [-5.0, 0.3, 99.0, 51.5, 4.0])
+
+
+def test_input_bounds_are_read_in_the_regressors_own_unit():
+    """A regressor recording watts reads a bound given in kilowatts as watts, not as the target's unit."""
+    sensor = _input_sensor_stub(unit="W")
+    reference = ForecastInputReference(sensor=sensor, lower="0.02 kW")
+
+    # The target sensor is in kW, so a bound read in the target's unit would clip at 0.02 instead.
+    bounded = _fill_one_input(reference, [5.0, 50.0], unit="kW")
+
+    np.testing.assert_allclose(bounded, [20.0, 50.0])
+
+
+def test_input_bounds_reject_a_unit_the_regressor_cannot_take():
+    sensor = _input_sensor_stub(unit="kW")
+    reference = ForecastInputReference(sensor=sensor, lower="5 EUR")
+
+    with pytest.raises(ValueError, match="Input bounds for meter"):
+        _fill_one_input(reference, [1.0, 2.0])
+
+
+def test_filling_gives_each_regressor_exactly_one_component():
+    """Two regressors must reach the model as two components, not as four."""
+    index = pd.date_range("2025-01-01", periods=3, freq="h")
+    df = pd.DataFrame(
+        {
+            "event_start": index,
+            "meter-a": [1.0, 2.0, 3.0],
+            "meter-b": [10.0, 20.0, 30.0],
+        }
+    )
+
+    pipeline = BasePipeline.__new__(BasePipeline)
+    pipeline.missing_threshold = 1.0
+    pipeline.target_sensor = _input_sensor_stub()
+
+    filled = BasePipeline.detect_and_fill_missing_values(
+        pipeline,
+        df=df,
+        sensors=[_input_sensor_stub(), _input_sensor_stub()],
+        sensor_names=["meter-a", "meter-b"],
+        start=index[0].tz_localize("UTC"),
+        end=index[-1].tz_localize("UTC"),
+    )
+
+    assert list(filled.components) == ["meter-a", "meter-b"]
+    np.testing.assert_allclose(filled.values(), [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
 
 
 def test_forecast_post_processing_clips_and_snaps_values():

@@ -39,22 +39,22 @@ def _is_parseable_quantity(value: Any) -> bool:
     return True
 
 
-def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
+def _quantity_to_sensor_value(
+    value: Any, sensor_unit: str, label: str = "Forecast post-processing"
+) -> float:
     """Parse a configured quantity and return its magnitude in the sensor unit."""
     if isinstance(value, numbers.Real):
         return float(value)
 
     if not isinstance(value, str):
         raise ValueError(
-            f"Forecast post-processing values must be numbers or quantity strings, not {type(value).__name__}."
+            f"Bounds must be numbers or quantity strings, not {type(value).__name__} ({label})."
         )
 
     try:
         quantity = ur.Quantity(value)
     except Exception as exc:
-        raise ValueError(
-            f"Could not parse forecast post-processing value '{value}'."
-        ) from exc
+        raise ValueError(f"Could not parse the value '{value}' ({label}).") from exc
 
     from_unit = f"{quantity.units:~P}"
     if _is_unitless(from_unit):
@@ -63,7 +63,7 @@ def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
     to_unit = sensor_unit or "dimensionless"
     if not units_are_convertible(from_unit, to_unit, duration_known=False):
         raise ValueError(
-            f"Could not convert forecast post-processing value '{value}' to '{sensor_unit}'."
+            f"Could not convert the value '{value}' to '{sensor_unit}' ({label})."
         )
     return float(quantity.to(to_unit).magnitude)
 
@@ -86,14 +86,14 @@ def _parse_snap_intervals(
         if not isinstance(interval, (list, tuple)) or len(interval) != 2:
             raise ValueError(f"{label} snap intervals must contain exactly two bounds.")
 
-        target_value = _quantity_to_sensor_value(target, sensor_unit)
-        first = _quantity_to_sensor_value(interval[0], sensor_unit)
-        second = _quantity_to_sensor_value(interval[1], sensor_unit)
+        target_value = _quantity_to_sensor_value(target, sensor_unit, label)
+        first = _quantity_to_sensor_value(interval[0], sensor_unit, label)
+        second = _quantity_to_sensor_value(interval[1], sensor_unit, label)
         if math.isclose(first, second):
             raise ValueError(f"{label} snap interval bounds must differ.")
         if not min(first, second) <= target_value <= max(first, second):
             raise ValueError(
-                f"{label} snap target must lie within its interval bounds."
+                f"The snap target must lie within its interval bounds ({label})."
             )
         parsed.append((target_value, first, second))
     return parsed
@@ -116,17 +116,23 @@ def parse_bounds(
     :returns:           ``(lower_value, upper_value, snap_intervals)``, ready for :func:`apply_bounds_to_values`.
     """
     lower_value = (
-        _quantity_to_sensor_value(lower, sensor_unit) if lower is not None else None
+        _quantity_to_sensor_value(lower, sensor_unit, label)
+        if lower is not None
+        else None
     )
     upper_value = (
-        _quantity_to_sensor_value(upper, sensor_unit) if upper is not None else None
+        _quantity_to_sensor_value(upper, sensor_unit, label)
+        if upper is not None
+        else None
     )
     if (
         lower_value is not None
         and upper_value is not None
         and lower_value > upper_value
     ):
-        raise ValueError(f"{label} lower bound cannot be greater than upper bound.")
+        raise ValueError(
+            f"The lower bound cannot be greater than the upper bound ({label})."
+        )
     snap_intervals = _parse_snap_intervals(snap or {}, sensor_unit, label)
     return lower_value, upper_value, snap_intervals
 
