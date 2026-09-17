@@ -28,7 +28,7 @@ def build_schedule_automation(asset, **kwargs) -> Automation:
     """
     automation = Automation(asset=asset, type="scheduling", **kwargs)
     automation.generator_id = resolve_schedule_generator(
-        asset.id, automation.parameters
+        asset.id, automation.parameters, automation.timezone
     ).id
     return automation
 
@@ -205,6 +205,60 @@ def test_run_day_ahead_schedule_automation(
     job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
     assert job.meta["scheduler_kwargs"]["start"] == "2026-03-28T00:00:00+01:00"
     assert job.meta["scheduler_kwargs"]["end"] == "2026-03-29T00:00:00+01:00"
+
+
+def test_a_schedule_automations_generator_is_resolved_on_its_own_clock(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    mocker,
+):
+    """The data source a run records under is resolved for the same window as the run itself.
+
+    The platform clock (Asia/Seoul here) would put "1D,DB" eight hours from where the automation's own clock does,
+    and, without the run's own time, a day entirely elsewhere,
+    so a generator resolved that way describes a different window than the schedule it belongs to.
+    """
+    from datetime import datetime, timezone
+
+    import pandas as pd
+
+    from flexmeasures.data.services import scheduling
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    message.pop("start")
+    message.pop("duration")
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+
+    automation = build_schedule_automation(
+        battery,
+        name="Day-ahead schedules",
+        cronstr="0 12 * * *",
+        timezone="Europe/Amsterdam",
+        parameters={
+            **message,
+            "flex-model": [flex_model],
+            "start-offset": "1D,DB",
+            "duration": "P1D",
+        },
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    get_scheduler_instance = mocker.spy(scheduling, "get_scheduler_instance")
+    run_automation(
+        automation, scheduled_at=datetime(2026, 3, 27, 11, 0, tzinfo=timezone.utc)
+    )
+    # The schedulers are handed a start as a datetime here and as its ISO string there, so compare the moments.
+    starts = {
+        pd.Timestamp(call.kwargs["scheduler_params"]["start"])
+        for call in get_scheduler_instance.call_args_list
+    }
+    assert starts == {pd.Timestamp("2026-03-28T00:00:00+01:00")}
 
 
 @pytest.mark.parametrize("sequential", (False, True))

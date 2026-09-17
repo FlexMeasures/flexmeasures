@@ -985,12 +985,19 @@ def _relevant_sensor_ids(automation: Automation, parameter_values: list) -> set[
     return sensor_ids
 
 
-def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
+def resolve_schedule_generator(
+    asset_id: int,
+    parameters: dict,
+    automation_timezone: str | None = None,
+    scheduled_at: datetime | None = None,
+) -> DataSource:
     """The data source describing the scheduler a schedule automation runs, and the flex config it runs with.
 
     The scheduler class follows from the asset, and the config is the trigger message merged with what the asset tree stores,
     so both can change without the automation changing.
     That is why this is resolved afresh on every run, rather than only when the automation is created.
+    The window is resolved on the same clock, and for the same run, as the schedule this describes,
+    so that the two cannot drift apart if the window ever reaches the data source.
     """
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import (
@@ -998,7 +1005,9 @@ def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
         get_scheduler_instance,
     )
 
-    message = prepare_schedule_trigger_message(dict(parameters or {}), asset_id)
+    message = prepare_schedule_trigger_message(
+        dict(parameters or {}), asset_id, automation_timezone, scheduled_at
+    )
     trigger_data = AssetTriggerSchema().load(message)
     asset = trigger_data["asset"]
     scheduler = get_scheduler_instance(
@@ -1283,7 +1292,7 @@ def create_automation(
         # The scheduler and its configuration make up the automation's data generator,
         # the same way a forecaster and its configuration do for a forecast automation.
         # It is resolved here, rather than above, for the same reason as the forecaster's.
-        generator_id = resolve_schedule_generator(asset.id, parameters).id
+        generator_id = resolve_schedule_generator(asset.id, parameters, timezone).id
         db.session.flush()
 
     automation_fields = dict(
@@ -1493,7 +1502,9 @@ def _run_schedule_automation(
 
     # The scheduler and the flex config it merges in can both change between runs,
     # so record which data source this run actually computes under.
-    generator = resolve_schedule_generator(automation.asset_id, automation.parameters)
+    generator = resolve_schedule_generator(
+        automation.asset_id, automation.parameters, automation.timezone, scheduled_at
+    )
     if automation.generator_id != generator.id:
         automation.generator_id = generator.id
         db.session.commit()
