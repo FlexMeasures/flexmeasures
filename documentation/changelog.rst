@@ -19,6 +19,9 @@ v1.1.0 | September XX, 2026
              Select a data source to see the schedule computed under one configuration.
              One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
 
+.. warning:: FlexMeasures no longer depends on ``inflect``.
+             Use the ``pluralize``, ``join_words_into_a_list`` and ``indefinite_article`` helpers in ``flexmeasures.utils.flexmeasures_inflection`` instead, or require ``inflect`` yourself if your plugin relied on FlexMeasures importing it for you.
+
 New features
 -------------
 
@@ -42,6 +45,7 @@ Infrastructure / Support
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
 * Require an exact ``uv`` version (``0.12.7``) via ``[tool.uv].required-version``, which keeps ``uv.lock`` changes reproducible across local development, CI, Docker and Read the Docs, but does mean that anyone running ``uv`` in a FlexMeasures checkout — plugin developers and self-hosters included — needs that same version [see `PR #2451 <https://www.github.com/FlexMeasures/flexmeasures/pull/2451>`_]
 * Speed up ``GET /api/v3_0/assets`` on large catalogs by eager-loading the ``owner``, ``generic_asset_type`` and ``child_assets`` relations alongside the already eager-loaded ``sensors``, instead of lazy-loading each of them once per asset, which made the SQL statement count grow linearly with the number of assets returned [see `PR #2515 <https://www.github.com/FlexMeasures/flexmeasures/pull/2515>`_]
+* Speed up app boot by ~1s by dropping the ``inflect`` dependency in favor of the already-used, much lighter ``inflection`` package; API error messages that list several values, such as the permissions a request requires or the units a quantity accepts, no longer place a comma before the final "and" or "or" [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
@@ -57,6 +61,7 @@ Bugfixes
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * An asset's status page showed only some of the sensors it reported on, in an order that changed between reloads, and it reported on fixed quantities from the flex-context, which have no data to be up to date with [see `PR #2489 <https://www.github.com/FlexMeasures/flexmeasures/pull/2489>`_]
 * Saving an asset chart as PNG or SVG drew the legend over the graph whenever it listed more sensors than fit beside a subplot; the exported image now makes room for every entry beside its own plot, without shrinking the plot, and spells out the sensor names that the on-screen legend abbreviates [see `PR #2517 <https://www.github.com/FlexMeasures/flexmeasures/pull/2517>`_]
+* Asset type groups were named by a pluralization that mangled acronyms and nouns ending in -y, so the asset pages listed ``PVS``, ``EVS``, ``CHPS`` and ``Factorys``; they now read ``PVs``, ``EVs``, ``CHPs`` and ``Factories`` [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
 
 Automations, in detail
 -----------------------
