@@ -1176,7 +1176,14 @@ class BasePipeline:
             else:
                 transformer = MissingValuesFiller(fill="auto")
 
-            data = df.copy()
+            # Keep only this sensor's own column, so each pass contributes exactly one component.
+            # Copying the whole frame would stack every sensor's column once per sensor,
+            # handing the model each regressor several times over.
+            if sensor_name in df.columns:
+                data = df[["event_start", sensor_name]].copy()
+            else:
+                data = df[["event_start"]].copy()
+                data[sensor_name] = np.nan
 
             # Convert start & end to naive UTC
             start = start.tz_localize(None)
