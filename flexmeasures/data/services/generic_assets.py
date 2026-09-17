@@ -14,6 +14,26 @@ from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 """Services for managing assets"""
 
 
+def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
+    """The assets below this one, at any depth, which the current user may read.
+
+    Being below a readable asset grants nothing by itself: a child asset can belong to another account than its parent,
+    so each one is checked on its own.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    from flexmeasures.auth.policy import check_access
+
+    readable = []
+    for descendant in asset.offspring:
+        try:
+            check_access(descendant, "read")
+        except (Forbidden, Unauthorized):
+            continue
+        readable.append(descendant)
+    return readable
+
+
 def create_asset(asset_data: dict) -> GenericAsset:
     """
     Create an asset.

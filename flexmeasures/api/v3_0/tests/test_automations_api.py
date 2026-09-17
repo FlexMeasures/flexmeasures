@@ -991,6 +991,97 @@ def test_get_automations_includes_those_of_child_assets(
     }
 
 
+@pytest.fixture(scope="function")
+def add_automation_on_a_foreign_child_asset(
+    fresh_db, add_battery_assets_fresh_db, add_automation_on_a_child_asset
+):
+    """Put an automation on a sub-asset of the battery which belongs to another organisation than the battery does."""
+    from flexmeasures.data.models.user import Account
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    other_account = Account(name="Another organisation")
+    fresh_db.session.add(other_account)
+    fresh_db.session.flush()
+    foreign_child = GenericAsset(
+        name="Leased inverter",
+        generic_asset_type=battery.generic_asset_type,
+        parent_asset_id=battery.id,
+        account_id=other_account.id,
+    )
+    fresh_db.session.add(foreign_child)
+    fresh_db.session.flush()
+    foreign_automation = Automation(
+        asset_id=foreign_child.id,
+        generator=DataSource(
+            name="foreign child asset generator",
+            type="forecaster",
+            model="TrainPredictPipeline",
+        ),
+        type="forecasting",
+        name="Leased inverter forecasts",
+        cronstr="0 8 * * *",
+        timezone="Europe/Amsterdam",
+        active=True,
+        parameters={"sensor": battery.sensors[0].id},
+    )
+    fresh_db.session.add(foreign_automation)
+    fresh_db.session.flush()
+    return foreign_child, foreign_automation
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_automations_leaves_out_child_assets_the_user_may_not_read(
+    app,
+    add_battery_assets_fresh_db,
+    add_automation_on_a_child_asset,
+    add_automation_on_a_foreign_child_asset,
+    requesting_user,
+):
+    """Being below an asset the user may read grants nothing, as a child asset can belong to another organisation."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    _, own_child_automation = add_automation_on_a_child_asset
+    _, foreign_automation = add_automation_on_a_foreign_child_asset
+    with app.test_client() as client:
+        response = client.get(url_for("AssetAPI:get_automations", id=battery.id))
+    assert response.status_code == 200
+    listed_ids = [a["id"] for a in response.json["automations"]]
+    assert own_child_automation.id in listed_ids
+    assert foreign_automation.id not in listed_ids
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_jobs_leaves_out_child_assets_the_user_may_not_read(
+    app,
+    add_battery_assets_fresh_db,
+    add_automation_on_a_child_asset,
+    add_automation_on_a_foreign_child_asset,
+    clean_redis,
+    requesting_user,
+):
+    """The jobs of a sub-asset of another organisation stay out of the asset's jobs listing, too."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    own_child, _ = add_automation_on_a_child_asset
+    foreign_child, _ = add_automation_on_a_foreign_child_asset
+    job_ids = {}
+    for child in (own_child, foreign_child):
+        job = app.queues["scheduling"].enqueue(sum, [1, 2])
+        app.job_cache.add(
+            child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
+        )
+        job_ids[child.id] = job.id
+    with app.test_client() as client:
+        response = client.get(url_for("AssetAPI:get_jobs", id=battery.id))
+    assert response.status_code == 200
+    listed_ids = [job["job_id"] for job in response.json["jobs"]]
+    assert job_ids[own_child.id] in listed_ids
+    assert job_ids[foreign_child.id] not in listed_ids
+    app.queues["scheduling"].empty()
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )

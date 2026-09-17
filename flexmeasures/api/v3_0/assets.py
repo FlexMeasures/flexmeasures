@@ -20,6 +20,7 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import selectinload, joinedload
 
 from flexmeasures.data.services.generic_assets import (
+    get_readable_offspring,
     create_asset,
     patch_asset,
     delete_asset,
@@ -1546,8 +1547,10 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        # Whoever may read an asset may read its descendants, too, as a child asset belongs to the same account as its parent.
-        assets = [asset] + (asset.offspring if include_child_assets else [])
+        # A child asset can belong to another account than its parent, so only the ones the user may read are listed.
+        assets = [asset] + (
+            get_readable_offspring(asset) if include_child_assets else []
+        )
 
         automations_data = []
         for asset_to_report_on in assets:
