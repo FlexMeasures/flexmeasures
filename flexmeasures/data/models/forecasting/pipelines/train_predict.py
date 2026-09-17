@@ -70,7 +70,7 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
 def _make_sensor_payload(
     sensor_or_reference: Sensor | SensorReference,
 ) -> int | dict[str, Any]:
-    """Serialize a sensor and its optional source filters to database IDs."""
+    """Serialize a sensor, and any source filters and cleaning bounds it carries, to database IDs."""
     if isinstance(sensor_or_reference, SensorReference):
         return SensorReferenceSchema().dump(sensor_or_reference)
     return sensor_or_reference.id

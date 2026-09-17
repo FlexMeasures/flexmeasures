@@ -799,6 +799,75 @@ def _input_sensor_stub(unit: str = "kW", resolution: timedelta = timedelta(hours
     )()
 
 
+def _fill_one_input(sensor_or_reference, values, unit: str = "kW"):
+    """Run the filling step over a single input column, returning its values."""
+    index = pd.date_range("2025-01-01", periods=len(values), freq="h")
+    df = pd.DataFrame({"event_start": index, "meter": values})
+
+    pipeline = BasePipeline.__new__(BasePipeline)
+    pipeline.missing_threshold = 1.0
+    pipeline.target_sensor = _input_sensor_stub(unit=unit)
+
+    filled = BasePipeline.detect_and_fill_missing_values(
+        pipeline,
+        df=df,
+        sensors=[sensor_or_reference],
+        sensor_names=["meter"],
+        start=index[0].tz_localize("UTC"),
+        end=index[-1].tz_localize("UTC"),
+    )
+    return filled.values().ravel()
+
+
+def test_input_bounds_clean_a_regressor_after_its_gaps_are_filled():
+    """A spike is clipped, a near-zero reading is snapped, and the filled gap is bounded too."""
+    sensor = _input_sensor_stub()
+    reference = SensorReference(
+        sensor=sensor,
+        lower="0 kW",
+        upper="20 kW",
+        snap={"0 kW": ["0 kW", "0.5 kW"]},
+    )
+
+    bounded = _fill_one_input(reference, [-5.0, 0.3, 99.0, np.nan, 4.0])
+
+    # The gap interpolates between 99 and 4 to 51.5 before being clipped back to the upper bound,
+    # because bounding deliberately runs after filling.
+    np.testing.assert_allclose(bounded, [0.0, 0.0, 20.0, 20.0, 4.0])
+
+
+def test_input_bounds_leave_an_unbounded_regressor_alone():
+    """Without bounds, the same readings survive untouched, spike and all."""
+    sensor = _input_sensor_stub()
+
+    plain = _fill_one_input(sensor, [-5.0, 0.3, 99.0, np.nan, 4.0])
+    unbounded_reference = _fill_one_input(
+        SensorReference(sensor=sensor), [-5.0, 0.3, 99.0, np.nan, 4.0]
+    )
+
+    np.testing.assert_allclose(plain, [-5.0, 0.3, 99.0, 51.5, 4.0])
+    np.testing.assert_allclose(unbounded_reference, [-5.0, 0.3, 99.0, 51.5, 4.0])
+
+
+def test_input_bounds_are_read_in_the_regressors_own_unit():
+    """A regressor recording watts reads a bound given in kilowatts as watts, not as the target's unit."""
+    sensor = _input_sensor_stub(unit="W")
+    reference = SensorReference(sensor=sensor, lower="0.02 kW")
+
+    # The target sensor is in kW, so a bound read in the target's unit would clip at 0.02 instead.
+    bounded = _fill_one_input(reference, [5.0, 50.0], unit="kW")
+
+    np.testing.assert_allclose(bounded, [20.0, 50.0])
+
+
+def test_input_bounds_reject_a_unit_the_regressor_cannot_take():
+    sensor = _input_sensor_stub(unit="kW")
+    reference = SensorReference(sensor=sensor, lower="5 EUR")
+
+    with pytest.raises(ValueError, match="bounds on sensor meter"):
+        _fill_one_input(reference, [1.0, 2.0])
+
+
 def test_filling_gives_each_regressor_exactly_one_component():
     """Two regressors must reach the model as two components, not as four."""
     index = pd.date_range("2025-01-01", periods=3, freq="h")

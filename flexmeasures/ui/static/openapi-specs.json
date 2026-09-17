@@ -5784,6 +5784,36 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -5938,6 +5968,36 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -6208,7 +6268,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -6238,7 +6298,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2095,
@@ -6261,7 +6321,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -6315,7 +6375,7 @@
               "null"
             ],
             "default": false,
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting <code>lower</code> to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": true
           },
           "lower": {

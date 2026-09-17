@@ -32,6 +32,26 @@ def _entity_id(entity_or_id):
     return getattr(entity_or_id, "id", entity_or_id)
 
 
+def _bound_input_series(
+    series: TimeSeries,
+    sensor_or_reference: Sensor | SensorReference,
+) -> TimeSeries:
+    """Clean a filled input series against the bounds carried by its reference.
+
+    Bounding runs after gap filling, so a value interpolated across a gap is bounded too.
+    A plain sensor, or a reference that asks for no cleaning, leaves the series untouched.
+
+    :param sensor_or_reference: The regressor or target the series was read from.
+    :returns:                   The series, with its values snapped and clipped.
+    """
+    if (
+        not isinstance(sensor_or_reference, SensorReference)
+        or not sensor_or_reference.has_bounds
+    ):
+        return series
+    return series.map(sensor_or_reference.apply_bounds)
+
+
 def _sensor_and_source_filters(
     sensor_or_reference: Sensor | SensorReference,
 ) -> tuple[Sensor, dict]:
@@ -1256,6 +1276,8 @@ class BasePipeline:
                     f"Sensor {sensor_name} has gaps:\n{data_darts_gaps.to_string()}\n"
                     "These were filled using `pd.DataFrame.interpolate()`."
                 )
+
+            data_darts = _bound_input_series(data_darts, sensor)
 
             dfs.append(data_darts)
 
