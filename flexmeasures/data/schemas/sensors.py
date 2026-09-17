@@ -1323,9 +1323,9 @@ class SensorIdOrReferenceField(fields.Raw):
 
         sensor_reference = self.sensor_reference_schema.load(value)
         # A bare sensor is enough unless the reference asks for filtering or cleaning.
-        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(
+        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value) and not _sets_bounds(
             value
-        ) and SENSOR_REFERENCE_BOUND_KEYS.isdisjoint(value):
+        ):
             return sensor_reference["sensor"]
         return SensorReference(**sensor_reference)
 

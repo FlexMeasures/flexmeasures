@@ -987,12 +987,14 @@ def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
     """Without bounds or filters, a reference still collapses to the sensor itself."""
     sensor, *_ = setup_dummy_sensors
 
-    data = TrainPredictPipelineConfigSchema().load(
-        {"past-regressors": [{"sensor": sensor.id}]}
-    )
+    for reference in (
+        {"sensor": sensor.id},
+        {"sensor": sensor.id, "lower": None, "upper": None, "snap": {}},
+    ):
+        data = TrainPredictPipelineConfigSchema().load({"past-regressors": [reference]})
 
-    assert data["past_regressors"] == [sensor]
-    assert isinstance(data["past_regressors"][0], Sensor)
+        assert data["past_regressors"] == [sensor]
+        assert isinstance(data["past_regressors"][0], Sensor)
 
 
 def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
