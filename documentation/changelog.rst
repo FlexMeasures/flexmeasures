@@ -19,6 +19,8 @@ v1.1.0 | September XX, 2026
              Select a data source to see the schedule computed under one configuration.
              One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
 
+.. warning:: This release squashes the migrations older than v1.1.0 into a single baseline. A database that has not run ``flexmeasures db upgrade`` since before that baseline still upgrades through all of the old migrations first, in a single transaction, before being stamped at the baseline. That single-transaction replay can deadlock on a database that is several releases behind: one of the old migrations opens a second connection mid-transaction that then blocks on a lock the upgrade's own still-open transaction holds. Take a backup first (``flexmeasures db-ops dump``), and if you are more than a few releases behind, upgrade incrementally release by release rather than jumping straight to this one.
+
 New features
 -------------
 
@@ -46,6 +48,9 @@ Infrastructure / Support
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
+* Squash the 120 migrations that predate this release into a single baseline migration, so a new database gets its structure in one step rather than by replaying all of them; an existing database is upgraded through the old migrations as before and is then stamped with the baseline, which ``flexmeasures db upgrade`` decides on its own, and the old migration files stay in ``flexmeasures/data/migrations/versions_legacy/`` for that purpose; downgrading past the baseline is not supported and reports so [see `PR #2548 <https://www.github.com/FlexMeasures/flexmeasures/pull/2548>`_]
+* New migrations are written to ``flexmeasures/data/migrations/versions_current/``, with their UTC creation time in the filename, to enable sorting on date [see `PR #2548 <https://www.github.com/FlexMeasures/flexmeasures/pull/2548>`_]
+* Read the expected schema revision at startup from the most recent migration filename (sorted by date), rather than by importing every migration module. Shortens boot times [see `PR #2548 <https://www.github.com/FlexMeasures/flexmeasures/pull/2548>`_]
 
 Bugfixes
 -----------

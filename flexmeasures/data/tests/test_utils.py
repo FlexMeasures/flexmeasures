@@ -5,7 +5,7 @@ import logging
 from alembic.script.revision import ResolutionError
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
-from flexmeasures.data import db, register_at
+from flexmeasures.data import _check_database_schema_revision, db
 from flexmeasures.data.utils import (
     DatabaseSchemaRevisionStatus,
     database_schema_has_revision,
@@ -34,14 +34,6 @@ class _DummyMigrationContext:
         return self._heads
 
 
-class _DummyScriptDirectory:
-    def __init__(self, heads: tuple[str, ...]):
-        self._heads = heads
-
-    def get_heads(self) -> tuple[str, ...]:
-        return self._heads
-
-
 class _DummyRevision:
     def __init__(self, revision: str):
         self.revision = revision
@@ -64,14 +56,11 @@ class _DummyRevisionMapWithUnknownRevision:
         return revisions()
 
 
-class _DummyScriptDirectoryWithRevisionMap(_DummyScriptDirectory):
-    def __init__(self, heads: tuple[str, ...], revisions: tuple[str, ...]):
-        super().__init__(heads)
-        self.revision_map = _DummyRevisionMap(revisions)
+class _DummyScriptDirectory:
+    """Stands in for a ScriptDirectory over the frozen legacy tree."""
 
-
-class _DummyScriptDirectoryWithUnknownRevisionMap(_DummyScriptDirectory):
-    revision_map = _DummyRevisionMapWithUnknownRevision()
+    def __init__(self, revision_map):
+        self.revision_map = revision_map
 
 
 def test_schema_mismatch_log_record_is_deduplicated(
@@ -81,16 +70,9 @@ def test_schema_mismatch_log_record_is_deduplicated(
     revision_status = DatabaseSchemaRevisionStatus(
         current_heads=("current-a",), expected_heads=("head-a",)
     )
-    monkeypatch.setattr("flexmeasures.data.configure_db_for", lambda app: None)
-    monkeypatch.setattr("flexmeasures.data.Migrate", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        "flexmeasures.data._add_vacuum_option_to_db_upgrade", lambda app: None
-    )
     monkeypatch.setattr(
         "flexmeasures.data._is_running_db_upgrade_command", lambda: False
     )
-    monkeypatch.setattr("flexmeasures.data.ma.init_app", lambda app: None)
-    monkeypatch.setattr(app, "teardown_request", lambda function: None)
     monkeypatch.setattr(app, "testing", False)
     monkeypatch.setitem(app.config, "FLEXMEASURES_ENV", "production")
     monkeypatch.setattr(
@@ -99,7 +81,7 @@ def test_schema_mismatch_log_record_is_deduplicated(
     )
 
     with caplog.at_level(logging.ERROR):
-        register_at(app)
+        _check_database_schema_revision(app)
 
     schema_mismatch_record = next(
         record
@@ -129,8 +111,7 @@ def test_database_schema_is_migrated_to_head_when_revisions_match(app, monkeypat
         lambda connection: _DummyMigrationContext(("head-a",)),
     )
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectory(("head-a",)),
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
     )
 
     assert get_database_schema_revision_status(app).is_migrated_to_head is True
@@ -145,8 +126,7 @@ def test_database_schema_revision_status_includes_current_and_expected_heads(
         lambda connection: _DummyMigrationContext(("current-a",)),
     )
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectory(("head-a",)),
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
     )
 
     status = get_database_schema_revision_status(app)
@@ -169,8 +149,7 @@ def test_database_schema_is_not_migrated_to_head_when_revisions_differ(
         lambda connection: _DummyMigrationContext(("current-a",)),
     )
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectory(("head-a",)),
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
     )
 
     assert get_database_schema_revision_status(app).is_migrated_to_head is False
@@ -188,8 +167,7 @@ def test_database_schema_is_not_migrated_to_head_when_revision_lookup_fails(
 
     monkeypatch.setattr(db.engine, "connect", raise_programming_error)
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectory(("head-a",)),
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
     )
 
     assert get_database_schema_revision_status(app).is_migrated_to_head is False
@@ -205,8 +183,7 @@ def test_database_schema_revision_status_records_connectivity_failure(app, monke
 
     monkeypatch.setattr(db.engine, "connect", raise_operational_error)
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectory(("head-a",)),
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
     )
 
     status = get_database_schema_revision_status(app)
@@ -226,9 +203,13 @@ def test_database_schema_has_revision_when_revision_is_in_current_history(
         lambda connection: _DummyMigrationContext(("head-a",)),
     )
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectoryWithRevisionMap(
-            heads=("head-a",), revisions=("head-a", "required-a")
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
+    )
+    monkeypatch.setattr("flexmeasures.data.utils.get_current_tree_revisions", frozenset)
+    monkeypatch.setattr(
+        "flexmeasures.data.utils._script_directory_for",
+        lambda extension, version_locations: _DummyScriptDirectory(
+            _DummyRevisionMap(("head-a", "required-a"))
         ),
     )
 
@@ -244,9 +225,13 @@ def test_database_schema_has_revision_false_when_revision_is_not_in_current_hist
         lambda connection: _DummyMigrationContext(("old-a",)),
     )
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectoryWithRevisionMap(
-            heads=("head-a",), revisions=("old-a",)
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
+    )
+    monkeypatch.setattr("flexmeasures.data.utils.get_current_tree_revisions", frozenset)
+    monkeypatch.setattr(
+        "flexmeasures.data.utils._script_directory_for",
+        lambda extension, version_locations: _DummyScriptDirectory(
+            _DummyRevisionMap(("old-a",))
         ),
     )
 
@@ -262,8 +247,14 @@ def test_database_schema_has_revision_false_when_current_revision_is_unknown(
         lambda connection: _DummyMigrationContext(("unknown-a",)),
     )
     monkeypatch.setattr(
-        "flexmeasures.data.utils.ScriptDirectory.from_config",
-        lambda config: _DummyScriptDirectoryWithUnknownRevisionMap(("head-a",)),
+        "flexmeasures.data.utils.get_current_tree_head", lambda: "head-a"
+    )
+    monkeypatch.setattr("flexmeasures.data.utils.get_current_tree_revisions", frozenset)
+    monkeypatch.setattr(
+        "flexmeasures.data.utils._script_directory_for",
+        lambda extension, version_locations: _DummyScriptDirectory(
+            _DummyRevisionMapWithUnknownRevision()
+        ),
     )
 
     assert database_schema_has_revision(app, "required-a") is False

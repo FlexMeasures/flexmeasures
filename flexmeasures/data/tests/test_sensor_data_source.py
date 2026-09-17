@@ -220,11 +220,13 @@ def test_migration_installs_the_same_trigger_definition():
 
     from flexmeasures.data.models import time_series
 
+    # Stays in versions_legacy/: it still carries real trigger-installing logic,
+    # so the squash didn't fold it into versions_current/ like a no-op merge migration.
     spec = importlib.util.spec_from_file_location(
         "f1c8a3d75e29",
         Path(__file__).parents[1]
         / "migrations"
-        / "versions"
+        / "versions_legacy"
         / "f1c8a3d75e29_add_sensor_data_source_table.py",
     )
     migration = importlib.util.module_from_spec(spec)
