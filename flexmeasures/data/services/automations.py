@@ -968,6 +968,19 @@ def prepare_report_parameters(
     if end is None:
         end = now
 
+    # A start the automation did not fix can still sit after the end, where an "end-offset" alone reaches back
+    # past the moment the last successful report already covered.
+    # Report on nothing rather than on an inverted window, which no reporter reads as the empty window it means,
+    # and say so, because the automation cannot resolve this on its own.
+    if pd.Timestamp(start) > pd.Timestamp(end):
+        current_app.logger.warning(
+            f"Report automation {automation_id} reaches back to {pd.Timestamp(end).isoformat()},"
+            f" which the last successful report already covered, up to {pd.Timestamp(start).isoformat()}."
+            " Reporting on nothing for this run."
+            " Widen the 'end-offset', or leave the timing out to continue from the last successful report."
+        )
+        start = end
+
     message["start"] = pd.Timestamp(start).isoformat()
     message["end"] = pd.Timestamp(end).isoformat()
     return message

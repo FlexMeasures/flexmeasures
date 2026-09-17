@@ -189,3 +189,16 @@ def test_an_end_offset_stored_without_a_duration_is_named(app, automation_type):
         resolve_automation_window(
             {"end-offset": "1D,DB"}, automation_type, TIMEZONE, SCHEDULED_AT
         )
+
+
+def test_a_report_does_not_reach_back_past_what_it_already_covered(app, caplog):
+    """An "end-offset" alone starts where the last successful report ended, which a backward offset can leave behind.
+
+    The run then reports on nothing, rather than on a window that ends before it starts.
+    """
+    with caplog.at_level("WARNING"):
+        message = prepare_report_parameters(
+            {"end-offset": "-1D,DB"}, "0 12 * * *", TIMEZONE, scheduled_at=SCHEDULED_AT
+        )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp(message["end"])
+    assert "Reporting on nothing for this run." in caplog.text
