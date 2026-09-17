@@ -6355,7 +6355,7 @@
               "null"
             ],
             "default": false,
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled). Prefer setting <code>lower</code> to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting <code>lower</code> to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": true
           },
           "lower": {
