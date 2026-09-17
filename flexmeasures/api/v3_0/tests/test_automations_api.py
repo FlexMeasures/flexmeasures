@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from flask import url_for
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+
+
+def _with_sensor(parameters: dict, sensor_id: int) -> dict:
+    """Fill in the sensor id that a parametrised payload leaves as "SENSOR".
+
+    The id only exists once the fixtures have run, which is after the parameters are written.
+    """
+    return json.loads(json.dumps(parameters).replace('"SENSOR"', str(sensor_id)))
 
 
 @pytest.fixture(scope="function")
@@ -930,3 +939,244 @@ def test_a_forecast_automation_names_the_data_generator_it_runs(
 
     fresh_db.session.delete(automation)
     fresh_db.session.flush()
+
+
+@pytest.mark.parametrize(
+    "automation_type, data_generator, config, parameters",
+    [
+        (
+            "forecasting",
+            "TrainPredictPipeline",
+            {"not-a-config-field": 1},
+            {"sensor": "SENSOR"},
+        ),
+        (
+            "reporting",
+            "PandasReporter",
+            {
+                "required_input": [{"name": "flow"}],
+                "required_output": [{"name": "flow"}],
+                "transformations": [],
+                "not-a-config-field": 1,
+            },
+            {
+                "input": [{"name": "flow", "sensor": "SENSOR"}],
+                "output": [{"name": "flow", "sensor": "SENSOR"}],
+            },
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_reports_a_config_error_against_the_config(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    automation_type,
+    data_generator,
+    config,
+    parameters,
+):
+    """A fault in the data generator's config is reported against `config`, not against `parameters`.
+
+    Both are validated by schemas of the data generator's choosing, so naming the wrong one
+    sends the caller looking for a mistake in a part of the request that is fine.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor_id = battery.sensors[0].id
+    parameters = _with_sensor(parameters, sensor_id)
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Bad config",
+                "cron": "0 6 * * *",
+                "type": automation_type,
+                "data-generator": data_generator,
+                "config": config,
+                "parameters": parameters,
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    messages = response.json["message"]["json"]
+    assert "not-a-config-field" in str(messages["config"])
+    assert "parameters" not in messages
+
+
+@pytest.mark.parametrize(
+    "automation_type, data_generator, config, parameters",
+    [
+        (
+            "forecasting",
+            "TrainPredictPipeline",
+            {},
+            {"sensor": "SENSOR", "not-a-parameter": 1},
+        ),
+        (
+            "reporting",
+            "PandasReporter",
+            {
+                "required_input": [{"name": "flow"}],
+                "required_output": [{"name": "flow"}],
+                "transformations": [],
+            },
+            {
+                "input": [{"name": "flow", "sensor": "SENSOR"}],
+                "output": [{"name": "flow", "sensor": "SENSOR"}],
+                "not-a-parameter": 1,
+            },
+        ),
+        ("scheduling", None, {}, {"duration": "PT12H", "not-a-parameter": 1}),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_reports_a_parameter_error_against_the_parameters(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    automation_type,
+    data_generator,
+    config,
+    parameters,
+):
+    """A fault in the parameters is reported against `parameters`, for every automation type."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    parameters = _with_sensor(parameters, battery.sensors[0].id)
+    payload = {
+        "name": "Bad parameters",
+        "cron": "0 6 * * *",
+        "type": automation_type,
+        "parameters": parameters,
+    }
+    if data_generator is not None:
+        payload["data-generator"] = data_generator
+        payload["config"] = config
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id), json=payload
+        )
+
+    assert response.status_code == 422, response.json
+    messages = response.json["message"]["json"]
+    assert "not-a-parameter" in str(messages["parameters"])
+    assert "config" not in messages
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("config", {"model": "CustomLGBM"}),
+        ("data-generator", "TrainPredictPipeline"),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_schedule_automation_rejects_a_data_generator_and_its_config(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user, field, value
+):
+    """A schedule automation resolves its own scheduler and flex config from the asset.
+
+    Taking either field here would record a choice that nothing goes on to read,
+    so each is refused by name rather than silently ignored.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Schedules with an unusable field",
+                "cron": "0 6 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+                field: value,
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    assert field in response.json["message"]["json"]
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Schedules with an unusable field")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_report_automation_without_a_reporter_names_the_field_to_fill_in(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user
+):
+    """A report automation has to name its reporter, and the error says which field is missing."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Reporter-less report",
+                "cron": "0 1 * * *",
+                "type": "reporting",
+                "parameters": {"input": [{"sensor": battery.sensors[0].id}]},
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    assert "A reporter is required" in str(
+        response.json["message"]["json"]["data-generator"]
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_a_refused_automation_leaves_nothing_behind(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user
+):
+    """A rejected request records neither the automation, nor a data source for its generator, nor an audit log entry."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor_id = battery.sensors[0].id
+    before = {
+        model: fresh_db.session.scalar(select(func.count()).select_from(model))
+        for model in (Automation, DataSource, AssetAuditLog)
+    }
+    refused = [
+        {
+            "type": "forecasting",
+            "config": {"not-a-config-field": 1},
+            "parameters": {"sensor": sensor_id},
+        },
+        {
+            "type": "forecasting",
+            "parameters": {"sensor": sensor_id, "not-a-parameter": 1},
+        },
+        {
+            "type": "scheduling",
+            "data-generator": "TrainPredictPipeline",
+            "parameters": {"duration": "PT12H"},
+        },
+    ]
+    with app.test_client() as client:
+        for index, payload in enumerate(refused):
+            response = client.post(
+                url_for("AssetAPI:post_automation", id=battery.id),
+                json={"name": f"Refused {index}", "cron": "0 6 * * *", **payload},
+            )
+            assert response.status_code == 422, response.json
+
+    after = {
+        model: fresh_db.session.scalar(select(func.count()).select_from(model))
+        for model in (Automation, DataSource, AssetAuditLog)
+    }
+    assert after == before
