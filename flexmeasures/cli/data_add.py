@@ -1823,8 +1823,19 @@ def add_forecast(  # noqa: C901
     required=False,
     help="Where the period each run covers ends, as an offset chain like --start-offset takes.",
 )
+@click.option(
+    "--duration",
+    "duration",
+    required=False,
+    help="How long the period each run covers lasts, as an ISO 8601 duration, such as P1D."
+    " For a forecast or schedule automation, the period then starts at the run time, unless --start-offset or --end-offset says otherwise.",
+)
 @add_cli_options_from_schema(
-    ForecasterParametersSchema(), hidden=True, force_optional=True
+    ForecasterParametersSchema(),
+    hidden=True,
+    force_optional=True,
+    # Every automation type describes its window with a duration, so this command declares the option itself.
+    exclude=("duration",),
 )
 @add_cli_options_from_schema(
     TrainPredictPipelineConfigSchema(), hidden=True, force_optional=True

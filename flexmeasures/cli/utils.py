@@ -493,7 +493,11 @@ def split_commas(ctx, param, value):
 
 
 def add_cli_options_from_schema(
-    schema, *, hidden: bool = False, force_optional: bool = False
+    schema,
+    *,
+    hidden: bool = False,
+    force_optional: bool = False,
+    exclude: tuple[str, ...] = (),
 ):
     """Decorator to add CLI options based on a Marshmallow schema's fields.
 
@@ -501,10 +505,13 @@ def add_cli_options_from_schema(
     while still accepting the schema's options.
     Set force_optional to let a field that the schema requires be omitted on the command line,
     so it can be supplied by another route (such as a parameters file) and be validated by the schema itself.
+    Set exclude to leave out the fields with these names, such as a field the command declares an option for itself.
     """
 
     def decorator(command):
         for field_name, field in reversed(schema.fields.items()):
+            if field_name in exclude:
+                continue
             cli = field.metadata.get("cli")
             if not cli:
                 continue

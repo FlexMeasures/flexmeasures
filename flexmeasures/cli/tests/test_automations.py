@@ -545,9 +545,12 @@ def test_add_automation_help_focuses_on_automation_options(app):
         "--timezone",
         "--config",
         "--parameters",
+        "--start-offset",
+        "--end-offset",
+        "--duration",
     ):
         assert automation_option in result.output
-    for forecast_option in ("--sensor ", "--duration", "--train-start"):
+    for forecast_option in ("--sensor ", "--train-start"):
         assert forecast_option not in result.output
 
 
