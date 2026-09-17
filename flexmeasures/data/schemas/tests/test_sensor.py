@@ -311,6 +311,11 @@ def test_scheduling_references_refuse_bounds_they_cannot_apply(
             {"sensor": power_sensor.id, **bounds}
         )
 
+    # An inflexible device reference is loaded by its own schema, which refuses the same bounds.
+    with pytest.raises(ValidationError) as exc:
+        InflexibleDeviceSchema().load({"sensor": power_sensor.id, **bounds})
+    assert message.strip("`") in exc.value.messages
+
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):
     """``{"sensor": <id>, "source-types": [...]}`` deserializes to a :class:`SensorReference`.
