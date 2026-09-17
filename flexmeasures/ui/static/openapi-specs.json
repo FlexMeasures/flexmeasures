@@ -5787,12 +5787,12 @@
           },
           "lower": {
             "default": null,
-            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "0 kW"
           },
           "upper": {
             "default": null,
-            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "20 kW"
           },
           "snap": {
@@ -5801,7 +5801,7 @@
               "null"
             ],
             "default": {},
-            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": {
               "0 kW": [
                 "0 kW",
@@ -5971,12 +5971,12 @@
           },
           "lower": {
             "default": null,
-            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "0 kW"
           },
           "upper": {
             "default": null,
-            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "20 kW"
           },
           "snap": {
@@ -5985,7 +5985,7 @@
               "null"
             ],
             "default": {},
-            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": {
               "0 kW": [
                 "0 kW",

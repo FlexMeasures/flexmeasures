@@ -375,12 +375,6 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
 #: The keys that clean a referenced sensor's readings before they are used.
 SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
 
-#: Scheduling does not apply bounds yet, so a flex-model or flex-context reference refuses them rather than silently ignoring them.
-SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE = (
-    "Sensor references in a flex-model or flex-context do not accept `lower`, `upper` or `snap` yet,"
-    " because scheduling does not apply them; only forecaster inputs do."
-)
-
 
 def _sets_bounds(reference: dict[str, Any]) -> bool:
     """Whether a sensor-reference dict actually sets a bound, so that an explicit null or an empty snap mapping does not count."""
@@ -574,8 +568,6 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        if _sets_bounds(value):
-            raise FMValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -596,8 +588,14 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         if "default" in value:
             default = self._deserialize_default(value["default"], attr, data, **kwargs)
 
-        # If no source filter or default keys are present, keep returning a plain Sensor.
-        if self._SOURCE_FILTER_KEYS.isdisjoint(value.keys()) and default is None:
+        lower, upper, snap = self._deserialize_bounds(value, sensor)
+
+        # If no source filter, default or bound keys are present, keep returning a plain Sensor.
+        if (
+            self._SOURCE_FILTER_KEYS.isdisjoint(value.keys())
+            and not _sets_bounds(value)
+            and default is None
+        ):
             return sensor  # backward compat: no filters → plain Sensor
 
         source_types, exclude_source_types, sources, source_account = (
@@ -610,7 +608,36 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             sources=sources,
             source_account=source_account,
             default=default,
+            lower=lower,
+            upper=upper,
+            snap=snap,
         )
+
+    @staticmethod
+    def _deserialize_bounds(
+        value: dict[str, Any], sensor: Sensor
+    ) -> tuple[Any, Any, dict]:
+        """Validate the bounds of a sensor-reference dict against the referenced sensor's unit.
+
+        Returns ``(lower, upper, snap)`` as given, for the reference to apply to the sensor's readings.
+        """
+        lower, upper, snap = value.get("lower"), value.get("upper"), value.get("snap")
+        errors = bound_validation_errors(
+            lower,
+            upper,
+            snap,
+            sensor_unit=sensor.unit,
+            label=f"bounds on sensor {sensor.name} (ID: {sensor.id})",
+        )
+        if errors:
+            raise FMValidationError(
+                "; ".join(
+                    f"`{field_name}`: {message}"
+                    for field_name, messages in errors.items()
+                    for message in messages
+                )
+            )
+        return lower, upper, snap or {}
 
     def _deserialize_default(self, value, attr, data, **kwargs) -> ur.Quantity:
         """Deserialize a sensor reference fallback value."""
@@ -658,6 +685,36 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             f"{value} {self.default_src_unit}", attr, data, **kwargs
         )
 
+    def _serialize_sensor_reference(self, value: SensorReference) -> dict[str, Any]:
+        """Serialize a sensor reference with its source filters, fallback value and bounds, leaving out what it does not set."""
+        sensor_reference: dict[str, Any] = dict(sensor=value.id)
+        if value.source_types is not None:
+            sensor_reference["source-types"] = value.source_types
+        if value.exclude_source_types is not None:
+            sensor_reference["exclude-source-types"] = value.exclude_source_types
+        if value.sources is not None:
+            sensor_reference["sources"] = [source.id for source in value.sources]
+        if value.source_account is not None:
+            sensor_reference["source-account"] = [
+                account.id for account in value.source_account
+            ]
+        if value.lower is not None:
+            sensor_reference["lower"] = value.lower
+        if value.upper is not None:
+            sensor_reference["upper"] = value.upper
+        if value.snap:
+            sensor_reference["snap"] = value.snap
+        if value.default is not None:
+            # `default` was already resolved to a concrete, compatible unit at
+            # deserialization time (see _deserialize_default), so for a
+            # denominator-only to_unit (e.g. "/MWh", not a valid pint unit on
+            # its own) there is nothing left to convert to.
+            if self.to_unit.startswith("/"):
+                sensor_reference["default"] = str(value.default)
+            else:
+                sensor_reference["default"] = str(value.default.to(self.to_unit))
+        return sensor_reference
+
     def _serialize(
         self,
         value: Sensor | SensorReference | pd.Series | ur.Quantity,
@@ -666,27 +723,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         **kwargs,
     ) -> str | dict[str, Any]:
         if isinstance(value, SensorReference):
-            sensor_reference: dict[str, Any] = dict(sensor=value.id)
-            if value.source_types is not None:
-                sensor_reference["source-types"] = value.source_types
-            if value.exclude_source_types is not None:
-                sensor_reference["exclude-source-types"] = value.exclude_source_types
-            if value.sources is not None:
-                sensor_reference["sources"] = [source.id for source in value.sources]
-            if value.source_account is not None:
-                sensor_reference["source-account"] = [
-                    account.id for account in value.source_account
-                ]
-            if value.default is not None:
-                # `default` was already resolved to a concrete, compatible unit at
-                # deserialization time (see _deserialize_default), so for a
-                # denominator-only to_unit (e.g. "/MWh", not a valid pint unit on
-                # its own) there is nothing left to convert to.
-                if self.to_unit.startswith("/"):
-                    sensor_reference["default"] = str(value.default)
-                else:
-                    sensor_reference["default"] = str(value.default.to(self.to_unit))
-            return sensor_reference
+            return self._serialize_sensor_reference(value)
         elif isinstance(value, Sensor):
             return dict(sensor=value.id)
         elif isinstance(value, pd.Series):
@@ -1194,7 +1231,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         allow_none=True,
         load_default=None,
         metadata=dict(
-            description="Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            description="Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             example="0 kW",
         ),
     )
@@ -1203,7 +1240,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         allow_none=True,
         load_default=None,
         metadata=dict(
-            description="Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            description="Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             example="20 kW",
         ),
     )
@@ -1214,7 +1251,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         allow_none=True,
         load_default={},
         metadata=dict(
-            description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             example={"0 kW": ["0 kW", "0.5 kW"]},
         ),
     )
@@ -1259,28 +1296,32 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 
 
 class InflexibleDeviceSchema(SensorReferenceSchema):
-    """One inflexible device: a sensor reference with optional source filters.
+    """One inflexible device: a sensor reference with optional source filters and cleaning bounds.
 
     Used both in the flex-context (as a list, for site-level inflexible load),
     and in a flex-model entry (as a single reference, when an inflexible device is modelled as its own asset).
-    Deserializes to a plain :class:`Sensor` when no source filters are given (a backward-compatible shape downstream),
+    Deserializes to a plain :class:`Sensor` when no source filters or bounds are given (a backward-compatible shape downstream),
     and to a :class:`SensorReference` otherwise.
     """
 
     class Meta:
         description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
 
-    @validates_schema
-    def refuse_bounds(self, data: dict, **kwargs):
-        """Refuse the bounds this schema inherits, since scheduling does not apply them yet."""
-        if _sets_bounds(data):
-            raise ValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
-
     @post_load
     def to_sensor_or_reference(
         self, data: dict, **kwargs
     ) -> "Sensor | SensorReference":
-        if not any(
+        reference = SensorReference(
+            sensor=data["sensor"],
+            source_types=data.get("source_types"),
+            exclude_source_types=data.get("exclude_source_types"),
+            sources=data.get("sources"),
+            source_account=data.get("source_account"),
+            lower=data.get("lower"),
+            upper=data.get("upper"),
+            snap=data.get("snap") or {},
+        )
+        if not reference.has_bounds and not any(
             data.get(key)
             for key in (
                 "source_types",
@@ -1290,13 +1331,7 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
             )
         ):
             return data["sensor"]
-        return SensorReference(
-            sensor=data["sensor"],
-            source_types=data.get("source_types"),
-            exclude_source_types=data.get("exclude_source_types"),
-            sources=data.get("sources"),
-            source_account=data.get("source_account"),
-        )
+        return reference
 
 
 class SensorIdOrReferenceField(fields.Raw):

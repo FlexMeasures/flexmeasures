@@ -257,42 +257,65 @@ def test_sensor_reference_field_rejects_null_default(setup_dummy_sensors):
     )
 
 
-@pytest.mark.parametrize(
-    "bounds",
-    [{"lower": "0 MW"}, {"upper": "1 MW"}, {"snap": {"0 MW": ["0 MW", "0.1 MW"]}}],
-)
-def test_scheduling_references_refuse_bounds_they_would_ignore(
-    setup_dummy_sensors, bounds
-):
-    """Scheduling does not apply bounds yet, so its references refuse them instead of silently dropping them."""
+def test_scheduling_references_carry_their_bounds(setup_dummy_sensors):
+    """Flex-model and flex-context references keep their bounds, so the scheduler can apply them, and dump them again."""
     *_, power_sensor = setup_dummy_sensors
+    bounds = {"lower": "0 kW", "upper": "2 MW", "snap": {"0 MW": ["0 MW", "0.1 MW"]}}
     reference = {"sensor": power_sensor.id, **bounds}
 
-    with pytest.raises(
-        ValidationError, match="do not accept `lower`, `upper` or `snap` yet"
-    ):
-        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
-            reference
-        )
+    field = VariableQuantityField(to_unit="MW", return_magnitude=False)
+    loaded = field.deserialize(reference)
+    assert isinstance(loaded, SensorReference)
+    assert (loaded.lower, loaded.upper, loaded.snap) == (
+        bounds["lower"],
+        bounds["upper"],
+        bounds["snap"],
+    )
+    assert field._serialize(loaded, None, None) == reference
 
-    with pytest.raises(
-        ValidationError, match="do not accept `lower`, `upper` or `snap` yet"
-    ):
-        InflexibleDeviceSchema().load(reference)
+    device = InflexibleDeviceSchema().load(reference)
+    assert isinstance(device, SensorReference)
+    assert (device.lower, device.upper, device.snap) == (
+        bounds["lower"],
+        bounds["upper"],
+        bounds["snap"],
+    )
 
-    # Without bounds, the same reference still loads, also when it spells out unset bounds.
+    # Without bounds or filters, both still load a plain sensor, also when the reference spells out unset bounds.
     for plain in (
         {"sensor": power_sensor.id},
         {"sensor": power_sensor.id, "lower": None, "upper": None, "snap": {}},
         {"sensor": power_sensor.id, "snap": None},
     ):
-        assert (
-            VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
-                plain
-            )
-            == power_sensor
-        )
+        assert field.deserialize(plain) == power_sensor
         assert InflexibleDeviceSchema().load(plain) == power_sensor
+
+
+@pytest.mark.parametrize(
+    "bounds, message",
+    [
+        ({"lower": "5 EUR"}, "`lower`"),
+        ({"upper": "not a quantity"}, "`upper`"),
+        ({"snap": {"2 MW": ["0 MW", "1 MW"]}}, "`snap`"),
+        ({"snap": {"0 MW": ["0 MW"]}}, "`snap`"),
+        ({"lower": "2 MW", "upper": "1 MW"}, "`lower`"),
+    ],
+)
+def test_scheduling_references_refuse_bounds_they_cannot_apply(
+    setup_dummy_sensors, bounds, message
+):
+    """A flex-model or flex-context bound the sensor cannot take fails when the flex config is loaded, not when the schedule is computed."""
+    *_, power_sensor = setup_dummy_sensors
+
+    with pytest.raises(ValidationError, match=message):
+        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
+            {"sensor": power_sensor.id, **bounds}
+        )
+
+    # An inflexible device reference is loaded by its own schema, which refuses the same bounds.
+    with pytest.raises(ValidationError) as exc:
+        InflexibleDeviceSchema().load({"sensor": power_sensor.id, **bounds})
+    assert message.strip("`") in exc.value.messages
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):

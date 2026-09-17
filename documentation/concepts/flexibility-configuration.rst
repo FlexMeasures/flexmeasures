@@ -108,6 +108,21 @@ Unless stated otherwise, values of such fields can take one of the following for
 
   This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
 
+  A sensor reference can also clean the readings it points at before the scheduler uses them, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster uses to shape its forecasts.
+  This helps when a sensor records the occasional implausible value, such as a negative reading from a meter that can only measure consumption:
+
+  .. code-block:: json
+
+     {
+         "inflexible-consumption": [{"sensor": 58, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.1 kW"]}}]
+     }
+
+  - ``lower`` / ``upper``: readings below or above these values are clipped to them.
+  - ``snap``: a mapping from a target value to an interval; readings inside the interval are replaced by the target. The first bound of the interval is inclusive and the second exclusive.
+
+  Snapping runs before clipping. Bounds without a unit are read in the unit of the referenced sensor, and bounds with a unit must be convertible to it, which is checked when the flex-model or flex-context is loaded.
+  Values missing from the sensor are left missing, so a ``default`` still fills them.
+
 A few fields don't hold a single variable quantity, but a *list* of them, whose values add up.
 The ``soc-gain`` and ``soc-usage`` fields of the flex-model work this way, so that separate components (say, two loads draining the same buffer) can be described independently.
 Each component takes any of the forms listed above, so a component defined for specific time ranges sits one level deeper than in those examples:
