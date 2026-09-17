@@ -3488,11 +3488,11 @@
                           "name": "power"
                         }
                       ],
-                      "job_stats": {
+                      "job-stats": {
                         "finished": 3,
                         "failed": 1
                       },
-                      "redis_connection_err": null
+                      "redis-connection-err": null
                     }
                   }
                 }
@@ -3658,7 +3658,7 @@
       },
       "post": {
         "summary": "Create an automation on an asset.",
-        "description": "Create a recurring task (computing forecasts or schedules) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\nor a schedule trigger message (without the asset id) for type `scheduling`.\nRequires permission to add data under the asset.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
+        "description": "Create a recurring task (computing forecasts, schedules or reports) on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nor report parameters for type `reporting`.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3691,6 +3691,20 @@
                     "type": "forecasting",
                     "parameters": {
                       "sensor": 2092
+                    }
+                  }
+                },
+                "day_ahead_schedules": {
+                  "summary": "Schedules for the whole of the next day",
+                  "description": "Runs every day at noon, and covers the day after the one each run was due on, read on the automation's own clock.",
+                  "value": {
+                    "name": "Day-ahead schedules",
+                    "cron": "0 12 * * *",
+                    "timezone": "Europe/Amsterdam",
+                    "type": "scheduling",
+                    "parameters": {
+                      "start-offset": "1D,DB",
+                      "duration": "P1D"
                     }
                   }
                 }
@@ -4158,7 +4172,7 @@
                           "metadata_hash": "abc123"
                         }
                       ],
-                      "redis_connection_err": null
+                      "redis-connection-err": null
                     }
                   }
                 }
