@@ -1721,8 +1721,7 @@ class AssetAPI(FlaskView):
                   day_ahead_schedules:
                     summary: Schedules for the whole of the next day
                     description: >-
-                      Runs every day at noon, and covers the day after the one each run
-                      was due on, read on the automation's own clock.
+                      Runs every day at noon, and covers the day after the one each run was due on, read on the automation's own clock.
                     value:
                       name: Day-ahead schedules
                       cron: "0 12 * * *"
