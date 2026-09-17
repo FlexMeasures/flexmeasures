@@ -180,3 +180,12 @@ def test_report_offsets_that_end_before_they_start_are_refused(app):
             TIMEZONE,
             scheduled_at=SCHEDULED_AT,
         )
+
+
+@pytest.mark.parametrize("automation_type", ["forecasting", "scheduling"])
+def test_an_end_offset_stored_without_a_duration_is_named(app, automation_type):
+    """Creating such an automation is refused, so resolving one says which field is missing, rather than raising a bare KeyError."""
+    with pytest.raises(ValidationError, match="needs a 'start-offset' or a 'duration'"):
+        resolve_automation_window(
+            {"end-offset": "1D,DB"}, automation_type, TIMEZONE, SCHEDULED_AT
+        )

@@ -505,8 +505,13 @@ def resolve_automation_window(
     )
     if start_offset is not None:
         start = pd.Timestamp(apply_offset_chain(anchor, start_offset))
-    else:
+    elif "duration" in message:
         start = _add_duration(end, message["duration"], sign=-1)
+    else:
+        # Refused on creation (see `validate_automation_window`), so this is a stored automation from before that check.
+        raise ValidationError(
+            "An 'end-offset' needs a 'start-offset' or a 'duration' to say where the window starts."
+        )
     if end is not None:
         _check_window_is_positive(start, end)
     message["start"] = start.isoformat()
