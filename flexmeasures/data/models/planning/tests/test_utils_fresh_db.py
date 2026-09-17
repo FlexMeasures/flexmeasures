@@ -474,8 +474,11 @@ def test_get_power_values_sign_conventions_and_source_filters(fresh_db):
     assert series(reference, consumption_is_positive=False)[0] == pytest.approx(-0.1)
 
 
-def _kw_sensor_with_readings(fresh_db, name: str, start, values, instantaneous=False):
-    """Record readings on a new kW sensor, one per 15 minutes from ``start``, skipping None."""
+def _sensor_with_readings(fresh_db, name: str, start, values, instantaneous=False):
+    """Record readings on a new sensor, one per 15 minutes from ``start``, skipping None.
+
+    The sensor records power in kW, or, if instantaneous, a state of charge in kWh.
+    """
     source = DataSource(name=f"{name}-source", type="demo script")
     asset_type = GenericAssetType(name=f"{name}-asset-type")
     asset = GenericAsset(name=f"{name}-asset", generic_asset_type=asset_type)
@@ -508,7 +511,7 @@ def test_get_series_from_sensor_reference_applies_its_bounds(fresh_db):
     """Readings are snapped and clipped in the sensor's own unit, and a missing reading is still left to the default."""
     start = pd.Timestamp("2025-06-01 08:00:00+02:00")
     query_window = (start, start + timedelta(hours=1))
-    sensor = _kw_sensor_with_readings(
+    sensor = _sensor_with_readings(
         fresh_db, "test-sensor-bounds", start, [-5.0, 0.05, 99.0, None]
     )
 
@@ -541,7 +544,7 @@ def test_get_power_values_applies_reference_bounds(fresh_db):
     from flexmeasures.data.models.planning.utils import get_power_values
 
     start = pd.Timestamp("2025-06-01 08:00:00+02:00")
-    sensor = _kw_sensor_with_readings(
+    sensor = _sensor_with_readings(
         fresh_db, "test-sensor-gpv-bounds", start, [-5.0, 99.0]
     )
     reference = SensorReference(sensor=sensor, lower="0 kW", upper="20 kW")
@@ -560,7 +563,7 @@ def test_get_power_values_applies_reference_bounds(fresh_db):
 def test_soc_at_start_applies_reference_bounds(fresh_db):
     """A state-of-charge reading outside the reference's bounds is clipped before it becomes the starting state of charge."""
     start = pd.Timestamp("2025-06-01 08:00:00+02:00")
-    soc_sensor = _kw_sensor_with_readings(
+    soc_sensor = _sensor_with_readings(
         fresh_db, "test-soc-bounds", start, [-3.0], instantaneous=True
     )
     scheduler = StorageScheduler(
