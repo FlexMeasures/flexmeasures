@@ -32,6 +32,8 @@ since v1.0.0 | August 11, 2026
 * Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
 * ``flexmeasures show data-sources`` now shows the account a data source belongs to, and lists the sensors holding data recorded by a single source with ``--show-sensors``.
+* Add ``flexmeasures show report-templates`` to list prepared report templates, or print one in full (with ``--name``).
+* Add a ``--template`` option to ``flexmeasures add report`` and ``flexmeasures add automation`` (type ``reports``), to start from a prepared report template (any ``--config``/``--parameters`` files and other options override it).
 
 since v0.33.0 | June 01, 2026
 =================================
