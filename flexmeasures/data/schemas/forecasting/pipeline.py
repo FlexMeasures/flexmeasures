@@ -19,7 +19,10 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.sensors import SensorIdOrReferenceField
+from flexmeasures.data.schemas.sensors import (
+    SensorIdOrReferenceField,
+    SensorReference,
+)
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
@@ -425,14 +428,23 @@ class ForecasterParametersSchema(Schema):
     NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
     """
 
-    sensor = SensorIdField(
+    sensor = SensorIdOrReferenceField(
         data_key="sensor",
         required=True,
         metadata={
-            "description": "ID of the sensor to forecast.",
-            "example": 2092,
+            "description": (
+                "ID of the sensor to forecast, or a source-filtered sensor reference."
+                " Use a reference to say which of the sources recording on that sensor hold the truth to train on."
+                " Without one, every source on the sensor is trained on, except forecasters,"
+                " which are left out so that the forecaster does not learn from its own forecasts."
+                " A reference replaces that default entirely, so pass exclude-source-types yourself to keep forecasters out alongside another filter."
+                " When a reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
+            ),
+            "example": {"sensor": 2092, "sources": [12, 13]},
             "cli": {
                 "option": "--sensor",
+                "extra_help": "Pass a bare sensor ID, or a JSON sensor reference to filter by source.",
             },
         },
     )
@@ -716,7 +728,13 @@ class ForecasterParametersSchema(Schema):
         predict_period_in_hours = int(predict_period.total_seconds() / 3600)
 
         if data.get("sensor_to_save") is None:
-            sensor_to_save = target_sensor
+            # Forecasts are recorded on a sensor, never on a source-filtered view of one,
+            # so a referenced target contributes only the sensor it wraps.
+            sensor_to_save = (
+                target_sensor.sensor
+                if isinstance(target_sensor, SensorReference)
+                else target_sensor
+            )
         else:
             sensor_to_save = data["sensor_to_save"]
 

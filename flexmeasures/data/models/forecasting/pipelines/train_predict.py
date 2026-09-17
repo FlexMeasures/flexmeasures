@@ -67,19 +67,19 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
     return attached_source
 
 
-def _make_regressor_payload(
-    regressor: Sensor | SensorReference,
+def _make_sensor_payload(
+    sensor_or_reference: Sensor | SensorReference,
 ) -> int | dict[str, Any]:
-    """Serialize a regressor and its optional source filters to database IDs."""
-    if isinstance(regressor, SensorReference):
-        return SensorReferenceSchema().dump(regressor)
-    return regressor.id
+    """Serialize a sensor and its optional source filters to database IDs."""
+    if isinstance(sensor_or_reference, SensorReference):
+        return SensorReferenceSchema().dump(sensor_or_reference)
+    return sensor_or_reference.id
 
 
-def _load_regressor_payload(
+def _load_sensor_payload(
     payload: int | dict[str, Any],
 ) -> Sensor | SensorReference:
-    """Restore a worker-local regressor from a primitive queued-job payload."""
+    """Restore a worker-local sensor from a primitive queued-job payload."""
     if isinstance(payload, dict):
         return SensorReference(**SensorReferenceSchema().load(payload))
     sensor = _get_attached_sensor(payload)
@@ -114,10 +114,10 @@ def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
     future_regressors = payload.pop("future_regressors", [])
     past_regressors = payload.pop("past_regressors", [])
     payload["future_regressor_ids"] = [
-        _make_regressor_payload(regressor) for regressor in future_regressors
+        _make_sensor_payload(regressor) for regressor in future_regressors
     ]
     payload["past_regressor_ids"] = [
-        _make_regressor_payload(regressor) for regressor in past_regressors
+        _make_sensor_payload(regressor) for regressor in past_regressors
     ]
     payload["annotation_regressors"] = [
         _make_annotation_regressor_payload(spec)
@@ -131,11 +131,11 @@ def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Restore worker config and reload regressors in the worker session."""
     config = dict(payload)
     config["future_regressors"] = [
-        _load_regressor_payload(regressor)
+        _load_sensor_payload(regressor)
         for regressor in config.pop("future_regressor_ids", [])
     ]
     config["past_regressors"] = [
-        _load_regressor_payload(regressor)
+        _load_sensor_payload(regressor)
         for regressor in config.pop("past_regressor_ids", [])
     ]
     return config
@@ -148,12 +148,14 @@ def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
     """
     # Preserve plain parameters, but replace ORM-backed sensors by IDs.
     payload = dict(parameters)
-    sensor_id = _sensor_id(payload.pop("sensor"))
+    target = payload.pop("sensor")
     sensor_to_save_id = _sensor_id(payload.pop("sensor_to_save", None))
-    if sensor_id is None:
+    if target is None:
         raise ValueError("Cannot enqueue a forecasting job without a target sensor.")
-    payload["sensor_id"] = sensor_id
-    payload["sensor_to_save_id"] = sensor_to_save_id or sensor_id
+    # The target may carry source filters, in which case it is serialized as a sensor reference.
+    payload["sensor_id"] = _make_sensor_payload(target)
+    # Forecasts are recorded on a sensor, so a referenced target falls back to the sensor it wraps.
+    payload["sensor_to_save_id"] = sensor_to_save_id or target.id
     _assert_no_orm_objects(payload)
     return payload
 
@@ -161,7 +163,7 @@ def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
 def _load_job_parameters_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Restore worker parameters and reload sensors in the worker session."""
     parameters = dict(payload)
-    parameters["sensor"] = _get_attached_sensor(parameters.pop("sensor_id"))
+    parameters["sensor"] = _load_sensor_payload(parameters.pop("sensor_id"))
     parameters["sensor_to_save"] = _get_attached_sensor(
         parameters.pop("sensor_to_save_id")
     )
@@ -216,6 +218,15 @@ class TrainPredictPipeline(Forecaster):
             setattr(self, k, v)
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
+
+    @property
+    def _target_sensor(self) -> Sensor:
+        """The sensor being forecast, without the source filters it may have been given with.
+
+        The filters say which beliefs to train on, so anything that needs the sensor itself, such as the frame a forecast is returned in, reads it from here.
+        """
+        target = self._parameters["sensor"]
+        return target.sensor if isinstance(target, SensorReference) else target
 
     def run_wrap_up(self, cycle_job_ids: list[str], queue: str = "forecasting"):
         """Log the status of all cycle jobs after completion."""
@@ -323,9 +334,7 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-        self.return_values.append(
-            {"data": forecasts, "sensor": self._parameters["sensor"]}
-        )
+        self.return_values.append({"data": forecasts, "sensor": self._target_sensor})
         return total_runtime
 
     def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
