@@ -14,7 +14,11 @@ from flexmeasures.data.schemas.sensors import SensorReference
 from datetime import datetime, timedelta
 
 from flexmeasures.data import db
-from flexmeasures.utils.unit_utils import units_are_convertible, ur
+from flexmeasures.utils.unit_utils import (
+    QUANTITY_PARSE_ERRORS,
+    units_are_convertible,
+    ur,
+)
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
@@ -40,7 +44,7 @@ def _quantity_to_sensor_value(
 
     try:
         quantity = ur.Quantity(value)
-    except Exception as exc:
+    except QUANTITY_PARSE_ERRORS as exc:
         raise ValueError(f"Could not parse the value '{value}' ({label}).") from exc
 
     from_unit = f"{quantity.units:~P}"
@@ -60,13 +64,11 @@ def _parse_snap_intervals(
 ) -> list[tuple[float, float, float]]:
     """Validate and parse a snap mapping into ``(target, first, second)`` triples.
 
-    Each value that falls inside an interval is replaced by a target that must lie
-    within that interval (on a bound or inside it), so values never snap to a value
-    outside their interval. The first boundary is treated as inclusive and the second
-    as exclusive, so listing the boundaries in reverse order flips which side is closed
-    (``["4 kW", "10 kW"]`` means ``[4, 10)`` while ``["10 kW", "4 kW"]`` means
-    ``(4, 10]``). This keeps adjacent intervals unambiguous: a shared boundary belongs
-    to whichever interval opens at it.
+    Each value that falls inside an interval is replaced by a target that must lie within that interval (on a bound or inside it),
+    so values never snap to a value outside their interval.
+    The first boundary is treated as inclusive and the second as exclusive,
+    so listing the boundaries in reverse order flips which side is closed (``["4 kW", "10 kW"]`` means ``[4, 10)`` while ``["10 kW", "4 kW"]`` means ``(4, 10]``).
+    This keeps adjacent intervals unambiguous: a shared boundary belongs to whichever interval opens at it.
     """
     parsed = []
     for target, interval in snap.items():

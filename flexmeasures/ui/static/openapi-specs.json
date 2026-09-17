@@ -6248,7 +6248,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -6278,7 +6278,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2095,
@@ -6301,7 +6301,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -6355,7 +6355,7 @@
               "null"
             ],
             "default": false,
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled). Prefer setting <code>lower</code> to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": true
           },
           "lower": {
