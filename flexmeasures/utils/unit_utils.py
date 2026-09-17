@@ -33,6 +33,10 @@ ur = pint.UnitRegistry(
         lambda s: s.replace("‰", " permille "),
     ],
 )
+ur.load_definitions(custom_template)
+ur.formatter.default_format = "~P"  # short pretty
+ur.define("percent = 1 / 100 = %")
+ur.define("permille = 1 / 1000 = ‰")
 
 
 #: What pint's string parser raises for input it cannot turn into a quantity.
@@ -62,12 +66,6 @@ def is_parseable_quantity(value: Any) -> bool:
     except QUANTITY_PARSE_ERRORS:
         return False
     return True
-
-
-ur.load_definitions(custom_template)
-ur.formatter.default_format = "~P"  # short pretty
-ur.define("percent = 1 / 100 = %")
-ur.define("permille = 1 / 1000 = ‰")
 
 
 PREFERRED_UNITS = [

@@ -12,10 +12,7 @@ from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.models.forecasting.utils import (
-    apply_bounds_to_values,
-    parse_bounds,
-)
+from flexmeasures.utils.bound_utils import apply_bounds_to_values, parse_bounds
 from flexmeasures.data.schemas.sensors import SensorReference
 
 

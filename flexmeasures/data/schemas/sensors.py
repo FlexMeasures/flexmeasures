@@ -47,8 +47,8 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.time_utils import get_timezone
+from flexmeasures.utils.bound_utils import bound_validation_errors
 from flexmeasures.utils.unit_utils import (
-    is_parseable_quantity,
     is_valid_unit,
     ur,
     units_are_convertible,
@@ -1179,22 +1179,9 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 
         Whether a bound is compatible with the sensor's unit, and whether a snap target lies within its interval, can only be checked once the sensor's data is read, so those run later.
         """
-        errors: dict[str, list[str]] = {}
-        for field_name in ("lower", "upper"):
-            value = data.get(field_name)
-            if value is not None and not is_parseable_quantity(value):
-                errors[field_name] = [
-                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
-                ]
-
-        snap_errors = [
-            f"Snap entry '{target}' must use numbers or parseable quantity strings."
-            for target, interval in (data.get("snap") or {}).items()
-            if not all(is_parseable_quantity(v) for v in (target, *interval))
-        ]
-        if snap_errors:
-            errors["snap"] = snap_errors
-
+        errors = bound_validation_errors(
+            data.get("lower"), data.get("upper"), data.get("snap")
+        )
         if errors:
             raise ValidationError(errors)
 

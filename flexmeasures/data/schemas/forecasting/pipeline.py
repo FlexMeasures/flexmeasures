@@ -29,7 +29,7 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
-from flexmeasures.utils.unit_utils import is_parseable_quantity
+from flexmeasures.utils.bound_utils import bound_validation_errors
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
@@ -366,22 +366,9 @@ class TrainPredictPipelineConfigSchema(Schema):
         Unit compatibility with the sensor and interval semantics can only be
         checked once the output sensor is known, so those run at forecast time.
         """
-        errors: dict[str, list[str]] = {}
-        for field_name in ("lower", "upper"):
-            value = data.get(field_name)
-            if value is not None and not is_parseable_quantity(value):
-                errors[field_name] = [
-                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
-                ]
-
-        snap_errors = [
-            f"Snap entry '{target}' must use numbers or parseable quantity strings."
-            for target, interval in (data.get("snap") or {}).items()
-            if not all(is_parseable_quantity(v) for v in (target, *interval))
-        ]
-        if snap_errors:
-            errors["snap"] = snap_errors
-
+        errors = bound_validation_errors(
+            data.get("lower"), data.get("upper"), data.get("snap")
+        )
         if errors:
             raise ValidationError(errors)
 

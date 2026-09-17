@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import math
-import numbers
-from typing import Any
-
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
@@ -14,149 +10,11 @@ from flexmeasures.data.schemas.sensors import SensorReference
 from datetime import datetime, timedelta
 
 from flexmeasures.data import db
-from flexmeasures.utils.unit_utils import (
-    QUANTITY_PARSE_ERRORS,
-    units_are_convertible,
-    ur,
-)
+from flexmeasures.utils.bound_utils import apply_bounds_to_values, parse_bounds
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
     return np.where(x < 0, 0, x)
-
-
-def _is_unitless(unit: str | None) -> bool:
-    """Check whether a parsed quantity carries no physical unit."""
-    return unit in (None, "", "dimensionless")
-
-
-def _quantity_to_sensor_value(
-    value: Any, sensor_unit: str, label: str = "Forecast post-processing"
-) -> float:
-    """Parse a configured quantity and return its magnitude in the sensor unit."""
-    if isinstance(value, numbers.Real):
-        return float(value)
-
-    if not isinstance(value, str):
-        raise ValueError(
-            f"Bounds must be numbers or quantity strings, not {type(value).__name__} ({label})."
-        )
-
-    try:
-        quantity = ur.Quantity(value)
-    except QUANTITY_PARSE_ERRORS as exc:
-        raise ValueError(f"Could not parse the value '{value}' ({label}).") from exc
-
-    from_unit = f"{quantity.units:~P}"
-    if _is_unitless(from_unit):
-        return float(quantity.magnitude)
-
-    to_unit = sensor_unit or "dimensionless"
-    if not units_are_convertible(from_unit, to_unit, duration_known=False):
-        raise ValueError(
-            f"Could not convert the value '{value}' to '{sensor_unit}' ({label})."
-        )
-    return float(quantity.to(to_unit).magnitude)
-
-
-def _parse_snap_intervals(
-    snap: dict, sensor_unit: str, label: str = "Forecast post-processing"
-) -> list[tuple[float, float, float]]:
-    """Validate and parse a snap mapping into ``(target, first, second)`` triples.
-
-    Each value that falls inside an interval is replaced by a target that must lie within that interval (on a bound or inside it),
-    so values never snap to a value outside their interval.
-    The first boundary is treated as inclusive and the second as exclusive,
-    so listing the boundaries in reverse order flips which side is closed (``["4 kW", "10 kW"]`` means ``[4, 10)`` while ``["10 kW", "4 kW"]`` means ``(4, 10]``).
-    This keeps adjacent intervals unambiguous: a shared boundary belongs to whichever interval opens at it.
-    """
-    parsed = []
-    for target, interval in snap.items():
-        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
-            raise ValueError(f"{label} snap intervals must contain exactly two bounds.")
-
-        target_value = _quantity_to_sensor_value(target, sensor_unit, label)
-        first = _quantity_to_sensor_value(interval[0], sensor_unit, label)
-        second = _quantity_to_sensor_value(interval[1], sensor_unit, label)
-        if math.isclose(first, second):
-            raise ValueError(f"{label} snap interval bounds must differ.")
-        if not min(first, second) <= target_value <= max(first, second):
-            raise ValueError(
-                f"The snap target must lie within its interval bounds ({label})."
-            )
-        parsed.append((target_value, first, second))
-    return parsed
-
-
-def parse_bounds(
-    lower: Any,
-    upper: Any,
-    snap: dict | None,
-    sensor_unit: str,
-    label: str = "Forecast post-processing",
-) -> tuple[float | None, float | None, list[tuple[float, float, float]]]:
-    """Parse configured bounds into plain magnitudes in the sensor unit.
-
-    :param lower:       Optional lower bound, as a number or a quantity string.
-    :param upper:       Optional upper bound, as a number or a quantity string.
-    :param snap:        Optional mapping from snap targets to two-bound intervals.
-    :param sensor_unit: Unit the bounds are converted into.
-    :param label:       Prefix for error messages, naming what is being bounded.
-    :returns:           ``(lower_value, upper_value, snap_intervals)``, ready for :func:`apply_bounds_to_values`.
-    """
-    lower_value = (
-        _quantity_to_sensor_value(lower, sensor_unit, label)
-        if lower is not None
-        else None
-    )
-    upper_value = (
-        _quantity_to_sensor_value(upper, sensor_unit, label)
-        if upper is not None
-        else None
-    )
-    if (
-        lower_value is not None
-        and upper_value is not None
-        and lower_value > upper_value
-    ):
-        raise ValueError(
-            f"The lower bound cannot be greater than the upper bound ({label})."
-        )
-    snap_intervals = _parse_snap_intervals(snap or {}, sensor_unit, label)
-    return lower_value, upper_value, snap_intervals
-
-
-def apply_bounds_to_values(
-    values: np.ndarray,
-    lower_value: float | None,
-    upper_value: float | None,
-    snap_intervals: list[tuple[float, float, float]],
-) -> np.ndarray:
-    """Snap and then clip an array of values, returning a new array.
-
-    Snapping runs first, against the unmodified values, so intervals cannot cascade into each other.
-    Clipping runs afterwards and always takes precedence, so a snap target outside the bounds is still clipped back into range.
-    Values that are not a number are left alone by both steps.
-
-    :param values:         The values to bound.
-    :param lower_value:    Lower clip bound in the same unit, or None to leave the lower side unbounded.
-    :param upper_value:    Upper clip bound in the same unit, or None to leave the upper side unbounded.
-    :param snap_intervals: ``(target, first, second)`` triples, as parsed by :func:`parse_bounds`.
-    :returns:              A new array of bounded values.
-    """
-    original = np.asarray(values, dtype=float)
-    bounded = original.copy()
-    for target_value, first, second in snap_intervals:
-        if first <= second:
-            # First bound inclusive, second exclusive: [first, second).
-            mask = (original >= first) & (original < second)
-        else:
-            # Reversed order flips the closed side: (second, first].
-            mask = (original > second) & (original <= first)
-        bounded[mask] = target_value
-    if lower_value is not None or upper_value is not None:
-        bounded = np.clip(bounded, lower_value, upper_value)
-    return bounded
 
 
 def apply_forecast_post_processing(
