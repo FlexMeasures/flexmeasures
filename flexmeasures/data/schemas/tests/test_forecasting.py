@@ -987,12 +987,15 @@ def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
     """Without bounds or filters, a reference still collapses to the sensor itself."""
     sensor, *_ = setup_dummy_sensors
 
-    data = TrainPredictPipelineConfigSchema().load(
-        {"past-regressors": [{"sensor": sensor.id}]}
-    )
+    for reference in (
+        {"sensor": sensor.id},
+        {"sensor": sensor.id, "lower": None, "upper": None, "snap": {}},
+        {"sensor": sensor.id, "snap": None},
+    ):
+        data = TrainPredictPipelineConfigSchema().load({"past-regressors": [reference]})
 
-    assert data["past_regressors"] == [sensor]
-    assert isinstance(data["past_regressors"][0], Sensor)
+        assert data["past_regressors"] == [sensor]
+        assert isinstance(data["past_regressors"][0], Sensor)
 
 
 def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
@@ -1051,6 +1054,8 @@ def test_cleaning_bounds_live_on_the_shared_sensor_reference(setup_dummy_sensors
         ({"snap": {"0 EUR": ["0 EUR", "1 EUR"]}}, "snap"),
         ({"snap": {"2 kW": ["0 kW", "1 kW"]}}, "snap"),
         ({"lower": "20 kW", "upper": "10 kW"}, "lower"),
+        ({"lower": True}, "lower"),
+        ({"snap": {"0 kW": [False, "1 kW"]}}, "snap"),
     ],
 )
 def test_sensor_reference_refuses_bounds_it_cannot_apply_when_loaded(
@@ -1096,6 +1101,14 @@ def test_a_reference_without_bounds_serialises_as_it_did_before(setup_dummy_sens
         SensorReferenceSchema().dump(SensorReference(sensor=sensor, lower=0))["lower"]
         == 0
     )
+
+
+def test_forecaster_config_schema_refuses_a_boolean_output_bound():
+    """A JSON true is a number to Python, but no bound, so the output bounds refuse it before any sensor unit is known."""
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load({"lower": True})
+
+    assert "lower" in exc.value.messages
 
 
 def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():

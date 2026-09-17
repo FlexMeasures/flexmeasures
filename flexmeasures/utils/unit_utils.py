@@ -57,6 +57,9 @@ def is_parseable_quantity(value: Any) -> bool:
     Used to reject a badly written bound while a schema is still being loaded,
     rather than letting it fail much later, when the data it bounds is read.
     """
+    if isinstance(value, bool):
+        # A bool is a numbers.Real, but true or false is no quantity.
+        return False
     if isinstance(value, numbers.Real):
         return True
     if not isinstance(value, str):

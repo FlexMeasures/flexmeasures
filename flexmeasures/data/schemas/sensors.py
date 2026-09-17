@@ -1248,6 +1248,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         keys=fields.Raw(),
         values=fields.List(fields.Raw(), validate=validate.Length(equal=2)),
         required=False,
+        allow_none=True,
         load_default={},
         metadata=dict(
             description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
@@ -1358,9 +1359,9 @@ class SensorIdOrReferenceField(fields.Raw):
 
         sensor_reference = self.sensor_reference_schema.load(value)
         # A bare sensor is enough unless the reference asks for filtering or cleaning.
-        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(
+        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value) and not _sets_bounds(
             value
-        ) and SENSOR_REFERENCE_BOUND_KEYS.isdisjoint(value):
+        ):
             return sensor_reference["sensor"]
         return SensorReference(**sensor_reference)
 

@@ -285,6 +285,7 @@ def test_scheduling_references_carry_their_bounds(setup_dummy_sensors):
     for plain in (
         {"sensor": power_sensor.id},
         {"sensor": power_sensor.id, "lower": None, "upper": None, "snap": {}},
+        {"sensor": power_sensor.id, "snap": None},
     ):
         assert field.deserialize(plain) == power_sensor
         assert InflexibleDeviceSchema().load(plain) == power_sensor
