@@ -163,6 +163,14 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "2026-08-05T08:00:00+02:00",
         },
     )
+    schedule_revision = ma.auto_field(
+        data_key="schedule-revision",
+        dump_only=True,
+        metadata={
+            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "example": 2,
+        },
+    )
     active = ma.auto_field()
 
     @staticmethod

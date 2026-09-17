@@ -3419,7 +3419,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations),\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3464,6 +3464,7 @@
                       "cursor": "2026-07-11T06:00:00+02:00",
                       "next-run": "2026-07-12T06:00:00+02:00",
                       "recurrence-description": "At 06:00",
+                      "schedule-revision": 1,
                       "active": true,
                       "parameters": {
                         "sensor": 2092
@@ -3491,6 +3492,27 @@
                       "job-stats": {
                         "finished": 3,
                         "failed": 1
+                      },
+                      "run-stats": {
+                        "total": 1,
+                        "dispatch": {
+                          "queued": 1
+                        },
+                        "execution": {
+                          "succeeded": 1
+                        },
+                        "latest-run": {
+                          "id": 12,
+                          "scheduled-at": "2026-07-11T04:00:00+00:00",
+                          "schedule-revision": 1,
+                          "dispatch-state": "queued",
+                          "execution-state": "succeeded",
+                          "attempt-count": 1,
+                          "intended-job-count": 2,
+                          "queued-job-count": 2,
+                          "last-error": null
+                        },
+                        "recent-runs": []
                       },
                       "redis-connection-err": null
                     }
@@ -3630,6 +3652,7 @@
                           "cursor": "2026-07-11T06:00:00+02:00",
                           "next-run": "2026-07-12T06:00:00+02:00",
                           "recurrence-description": "At 06:00",
+                          "schedule-revision": 1,
                           "active": true
                         }
                       ]
