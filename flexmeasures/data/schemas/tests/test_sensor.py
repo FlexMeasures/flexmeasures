@@ -280,13 +280,18 @@ def test_scheduling_references_refuse_bounds_they_would_ignore(
     ):
         InflexibleDeviceSchema().load(reference)
 
-    # Without bounds, the same reference still loads.
-    plain = {"sensor": power_sensor.id}
-    assert (
-        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(plain)
-        == power_sensor
-    )
-    assert InflexibleDeviceSchema().load(plain) == power_sensor
+    # Without bounds, the same reference still loads, also when it spells out unset bounds.
+    for plain in (
+        {"sensor": power_sensor.id},
+        {"sensor": power_sensor.id, "lower": None, "upper": None, "snap": {}},
+    ):
+        assert (
+            VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
+                plain
+            )
+            == power_sensor
+        )
+        assert InflexibleDeviceSchema().load(plain) == power_sensor
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):

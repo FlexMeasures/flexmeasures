@@ -382,6 +382,13 @@ SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE = (
 )
 
 
+def _sets_bounds(reference: dict[str, Any]) -> bool:
+    """Whether a sensor-reference dict actually sets a bound, so that an explicit null or an empty snap mapping does not count."""
+    return any(
+        reference.get(key) not in (None, {}) for key in SENSOR_REFERENCE_BOUND_KEYS
+    )
+
+
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     _UNSUPPORTED_VALUE_TYPE_MESSAGE = (
         "Unsupported value type. `{value_type}` was provided but only dict, list, "
@@ -567,7 +574,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        if not SENSOR_REFERENCE_BOUND_KEYS.isdisjoint(value.keys()):
+        if _sets_bounds(value):
             raise FMValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
@@ -1265,7 +1272,7 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
     @validates_schema
     def refuse_bounds(self, data: dict, **kwargs):
         """Refuse the bounds this schema inherits, since scheduling does not apply them yet."""
-        if any(data.get(key) not in (None, {}) for key in ("lower", "upper", "snap")):
+        if _sets_bounds(data):
             raise ValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
 
     @post_load
