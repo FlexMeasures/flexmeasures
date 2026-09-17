@@ -458,11 +458,11 @@ def split_into_magnitude_and_unit(value: str) -> tuple[str | None, str | None]:
     try:
         # ur.Quantity parses the number and unit automatically
         qty = ur.Quantity(value)
-        value = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
+        magnitude = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
 
         # We return the units formatted with "~P" (short pretty format)
         # to match the registry settings.
-        return value, f"{qty.units:~P}"
+        return magnitude, f"{qty.units:~P}"
     except Exception:
         return None, None
 
