@@ -49,6 +49,7 @@ Infrastructure / Support
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
+* Stop installing the libraries for passkey and authenticator-app sign-in, which FlexMeasures does not support: it ships email-based two-factor authentication only [see `PR #2564 <https://www.github.com/FlexMeasures/flexmeasures/pull/2564>`_]
 
 Bugfixes
 -----------
