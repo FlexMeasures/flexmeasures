@@ -43,3 +43,10 @@ Creating a forecast
 Users with permission to record data on a sensor can create a forecast directly from the sensor page by clicking the **Create forecast** button in the left side panel. The forecast duration defaults to 48 hours (configured via ``FLEXMEASURES_PLANNING_HORIZON``) but can be adjusted up to 7 days in the panel. The button is enabled once the sensor has at least two days of historical data. After clicking, a background job is queued and the page shows progress updates via status messages. When the job finishes, the chart is refreshed to display the new forecast alongside the historical data.
 
 See :ref:`forecasting` for more details on how FlexMeasures generates forecasts.
+
+Annotating sensor data
+----------------------
+
+Users with permission to record data on a sensor can add a label from the **Annotate** panel on its page. Enter a label and click **Annotate**. FlexMeasures records the annotation with the signed-in user as its data source and shows it on the time chart.
+
+The label applies to the time interval currently visible in the chart. To annotate one belief or a small range, select that part of the time chart with the mouse to zoom in, then enter the label. Without a zoom selection, the label covers the date range selected on the left. Histogram and heatmap charts use that selected date range because they do not have a time axis to zoom into.
