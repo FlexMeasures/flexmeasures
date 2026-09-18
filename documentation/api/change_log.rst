@@ -12,6 +12,10 @@ v3.0-37 | September 15, 2026
 v3.0-36 | September 14, 2026
 """"""""""""""""""""""""""""
 - ``GET /api/v3_0/assets`` now scopes a listing the way its parameters say. ``num-records`` respects the ``root`` and ``depth`` constraints, so a listing scoped to an asset subtree reports how many assets that subtree holds, where it used to count every asset in the account and asset-type scope, making a paginated client report the rest as having been filtered out by the search term. And an explicit ``include_public=false`` is now honoured: leaving the parameter out keeps the behaviour it had, where ``all_accessible`` and ``root`` include public assets and a listing of a single account does not, but passing it no longer loses out to those two, so a client can offer the choice.
+- ``GET /api/v3_0/sensors/<id>/status`` now accepts an optional ``asset_id`` query parameter, naming the asset whose status page the sensor is reported on.
+  It only affects the reported ``relation``, which previously always claimed that the sensor belongs to the asset shown, also for a sensor of another asset that is only listed because the asset's flex-context or graphs page refers to it.
+  Without it, the sensor is still reported relative to the asset it belongs to.
+  Reading the status of a sensor in the context of an asset requires read permission on that asset, too.
 
 v3.0-35 | September 9, 2026
 """""""""""""""""""""""""""
