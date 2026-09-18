@@ -605,6 +605,11 @@ def test_post_annotation_default_type(client, setup_api_test_data):
         response.status_code == 201
     ), f"Expected 201, but got {response.status_code} with {response.json}"
     assert response.json["type"] == "label"
+    annotation = client.application.db.session.get(Annotation, response.json["id"])
+    assert annotation.source.type == "user"
+    assert (
+        annotation.source.user_id == find_user_by_email("test_admin_user@seita.nl").id
+    )
 
 
 def test_post_annotation_all_three_endpoints(client, setup_api_test_data):

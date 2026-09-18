@@ -2301,6 +2301,42 @@ export function renderFastChart(elementId, data, options) {
   wireTouchTooltipDismiss(instance, elementId);
 }
 
+// The sensor annotation form uses the time interval currently visible after
+// mouse zooming, which can be narrower than the date picker's query window.
+export function visibleTimeRangeFromOption(option) {
+  const axis = option && option.xAxis && option.xAxis[0];
+  const zoom = option && option.dataZoom && option.dataZoom[0];
+  if (!axis || axis.type !== "time" || !zoom) return null;
+  const min = new Date(axis.min).getTime();
+  const max = new Date(axis.max).getTime();
+  const start = typeof zoom.start === "number" ? zoom.start : 0;
+  const end = typeof zoom.end === "number" ? zoom.end : 100;
+  if (!isFinite(min) || !isFinite(max) || min >= max ||
+      !isFinite(start) || !isFinite(end) || start < 0 || end > 100 || start >= end) return null;
+  return {
+    start: new Date(min + (max - min) * start / 100),
+    end: new Date(min + (max - min) * end / 100),
+  };
+}
+
+export function getFastChartVisibleTimeRange(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return null;
+  return visibleTimeRangeFromOption(instance.chart.getOption());
+}
+
+// Refresh annotation marks without discarding the user's current zoom.
+export function refreshFastChartAnnotations(elementId, annotations) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed() || !instance.lastArgs) return;
+  const zoom = (instance.chart.getOption().dataZoom || [])[0];
+  const { data, options } = instance.lastArgs;
+  renderFastChart(elementId, data, { ...options, annotations });
+  if (zoom && typeof zoom.start === "number" && typeof zoom.end === "number") {
+    instance.chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: zoom.start, end: zoom.end });
+  }
+}
+
 // Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
 // shared, resettable zoom; the category-axis charts (histogram, heatmaps) do not.
 function isZoomableChartType(chartType) {
