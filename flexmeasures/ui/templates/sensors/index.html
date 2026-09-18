@@ -206,6 +206,20 @@ For the data, note the following:
                               </fieldset>
                           </div>
                       </div>
+                      <div class="sidepanel-container">
+                          <div class="sidepanel-label">Annotate</div>
+                          <div class="sidepanel-content" style="text-align: left;">
+                              <form id="annotateForm">
+                                  <label for="annotationLabel" class="form-label fw-bold">Label</label>
+                                  <input id="annotationLabel" class="form-control" type="text" maxlength="1024" required aria-describedby="annotationHelp" />
+                                  <div id="annotationHelp" class="form-text text-white">
+                                      To annotate one or a small range of beliefs, select them with the mouse to zoom in, then enter the label.
+                                  </div>
+                                  <button id="annotateButton" class="btn btn-sm btn-responsive btn-success create-button mt-3" type="submit"
+                                      style="border: 1px solid var(--light-gray);">Annotate</button>
+                              </form>
+                          </div>
+                      </div>
                   {% endif %}
 
                   {% if user_can_delete_sensor %}
