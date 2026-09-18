@@ -2,7 +2,7 @@
 
 
 def test_visible_time_range_tracks_mouse_zoom(assert_js):
-    """Annotations use the time chart's zoomed interval, or its full time domain."""
+    """The visible time range follows mouse zoom and resets to the full domain."""
     assert_js("""
         import { visibleTimeRangeFromOption } from "/js/fast-chart.js";
         const option = {
