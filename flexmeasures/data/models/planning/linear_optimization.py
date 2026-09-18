@@ -3,26 +3,11 @@ from __future__ import annotations
 import inspect
 from functools import lru_cache
 
+from typing import TYPE_CHECKING
+
 from flask import current_app
 import pandas as pd
 import numpy as np
-from pyomo.core import (
-    ConcreteModel,
-    Var,
-    RangeSet,
-    Set,
-    Param,
-    Reals,
-    NonNegativeReals,
-    NonPositiveReals,
-    Binary,
-    Constraint,
-    Objective,
-    minimize,
-)
-from pyomo.environ import UnknownSolver  # noqa F401
-from pyomo.environ import value
-from pyomo.opt import SolverFactory, SolverResults
 
 from flexmeasures.data.models.planning import (
     Commitment,
@@ -39,6 +24,12 @@ from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
     solver_options,
     validate_highs_options,
 )
+
+if TYPE_CHECKING:
+    # Only named in annotations, which are strings under "from __future__ import annotations",
+    # so importing them here keeps pyomo off the import path at runtime.
+    from pyomo.core import ConcreteModel
+    from pyomo.opt import SolverResults
 
 infinity = float("inf")
 
@@ -229,6 +220,24 @@ def device_scheduler(  # noqa C901
         )
 
         return device_scheduler_highspy(**highspy_arguments)
+
+    # Imported here rather than at module level to reduce module import time and because it is only needed once a schedule is actually built with this backend.
+    from pyomo.core import (
+        ConcreteModel,
+        Var,
+        RangeSet,
+        Set,
+        Param,
+        Reals,
+        NonNegativeReals,
+        NonPositiveReals,
+        Binary,
+        Constraint,
+        Objective,
+        minimize,
+    )
+    from pyomo.environ import value
+    from pyomo.opt import SolverFactory, SolverResults
 
     model = ConcreteModel()
 

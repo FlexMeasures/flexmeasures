@@ -36,6 +36,8 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Import pyomo, LightGBM and the Sentry helpers only when they are used, cutting about 0.35 s off the boot time of every process [see `PR #2565 <https://www.github.com/FlexMeasures/flexmeasures/pull/2565>`_]
+* ``flexmeasures.data.models.planning.linear_optimization`` no longer exposes pyomo's ``UnknownSolver``, which nothing in FlexMeasures used; import it from ``pyomo.environ`` instead [see `PR #2565 <https://www.github.com/FlexMeasures/flexmeasures/pull/2565>`_]
 * Report parameters name their belief time ``prior``, as schedule and forecast parameters do; the name ``belief_time`` is still accepted, while the ``belief_time`` of an ``input`` entry, which selects the beliefs to report on rather than stamping the report, keeps its name [see `PR #2551 <https://www.github.com/FlexMeasures/flexmeasures/pull/2551>`_]
 * A test now holds new API and CLI field names to kebab-case, listing the names that predate the convention so that the list can only shrink [see `PR #2547 <https://www.github.com/FlexMeasures/flexmeasures/pull/2547>`_]
 * Drop the nine obsolete tables that predate the ``GenericAsset``/``Sensor`` data model, asking you to confirm first if any of them still hold data, which cleans up after v0.18.0, where seven of them were dropped but ``asset_type`` and ``weather_sensor_type`` were missed, and where a database that was downgraded past that release and upgraded again kept all nine [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
