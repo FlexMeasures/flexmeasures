@@ -126,6 +126,8 @@ def test_trigger_forecast_panel_visible_for_account_member(
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
+    assert b'id="annotateForm"' in response.data
+    assert b"select them with the mouse to zoom in" in response.data
     assert b"firstAvailableEventStartForForecastTraining" in response.data
     assert (
         b"firstAvailableEventStartForForecastTraining = e.detail.firstEventStart"
@@ -140,6 +142,7 @@ def test_trigger_forecast_panel_visible_for_admin(db, client, setup_assets, as_a
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
+    assert b'id="annotateForm"' in response.data
 
 
 def test_trigger_forecast_panel_hidden_for_other_account(
@@ -153,6 +156,7 @@ def test_trigger_forecast_panel_hidden_for_other_account(
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" not in response.data
+    assert b'id="annotateForm"' not in response.data
     assert b"firstAvailableEventStartForForecastTraining" not in response.data
 
 

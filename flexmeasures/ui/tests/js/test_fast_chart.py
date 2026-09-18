@@ -1,5 +1,28 @@
 """Tests for flexmeasures/ui/static/js/fast-chart.js."""
 
+
+def test_visible_time_range_tracks_mouse_zoom(assert_js):
+    """Annotations use the time chart's zoomed interval, or its full time domain."""
+    assert_js("""
+        import { visibleTimeRangeFromOption } from "/js/fast-chart.js";
+        const option = {
+            xAxis: [{type: "time", min: 0, max: 1000000}],
+            dataZoom: [{start: 20, end: 30}],
+        };
+        const zoomed = visibleTimeRangeFromOption(option);
+        eq("zoom start follows the mouse selection", zoomed.start.getTime(), 200000);
+        eq("zoom end follows the mouse selection", zoomed.end.getTime(), 300000);
+
+        option.dataZoom[0] = {start: 0, end: 100};
+        const full = visibleTimeRangeFromOption(option);
+        eq("unzoomed start is the date picker start", full.start.getTime(), 0);
+        eq("unzoomed end is the date picker end", full.end.getTime(), 1000000);
+
+        option.xAxis[0].type = "category";
+        eq("a non-time chart falls back to the date picker", visibleTimeRangeFromOption(option), null);
+    """)
+
+
 # A chart as fast-chart.js lays one out: a 1200x400 canvas with one subplot and,
 # beside it, a paginated legend of 13 sensors (the case reported in issue #2513).
 SIDE_LEGEND_CHART = """
