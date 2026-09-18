@@ -22,8 +22,8 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
-* Add labels to sensor data from the sensor page, using the visible chart range and recording the signed-in user as the source [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
+* In the UI, users can now add annotation labels to sensor data from the sensor page, using the visible chart range and recording the signed-in user as the source [see `PR #2570 <https://www.github.com/FlexMeasures/flexmeasures/pull/2570>`_]
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
 * A forecaster can now clean the data it trains on, by giving one of its regressors or its target a ``lower``, ``upper`` or ``snap`` bound, so that a sensor with implausible readings can be forecast from without first correcting it at the source [see `PR #2555 <https://www.github.com/FlexMeasures/flexmeasures/pull/2555>`_]
