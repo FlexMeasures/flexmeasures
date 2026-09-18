@@ -77,7 +77,9 @@ dependencies = [
     "flask-migrate>=4.1.0",
     "flask-wtf>=1.2.2",
     "flask-mail>=0.10.0",
-    "Flask-Security-Too[fsqla,mfa]>=5.0",
+    # No mfa extra: it installs webauthn and qrcode, for passkey and authenticator-app sign-in, neither of which FlexMeasures supports.
+    # Email-based 2FA needs cryptography only, which is a direct dependency below.
+    "Flask-Security-Too[fsqla]>=5.0",
     "flask-login>=0.6.3",
     "Flask-Classful>=0.16",
     "flask-marshmallow>=1.4.0",
@@ -118,10 +120,8 @@ dependencies = [
     # Below: minimum requirements solely here for security reasons
     "urllib3>=2.7.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/602 (and 603)
     "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
-    "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
     "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
-    "pyasn1>=0.6.4",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/622 (and 623)
     "setuptools>=83.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/621
 ]
 
