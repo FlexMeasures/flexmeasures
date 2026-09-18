@@ -207,7 +207,7 @@
     }
 
     {% if active_page == "sensors" and user_can_create_children_sensor %}
-    function visibleAnnotationRange() {
+    function visibleRange() {
         if (!storeStartDate || !storeEndDate) return null;
         let range = null;
         if (chartType === 'bar_chart') {
@@ -437,7 +437,7 @@
             input.reportValidity();
             return;
         }
-        const range = visibleAnnotationRange();
+        const range = visibleRange();
         if (!range) {
             showToast('Select dates on the chart before annotating.', 'error');
             return;
