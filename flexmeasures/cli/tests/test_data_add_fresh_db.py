@@ -440,6 +440,172 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data, caplog):
         assert all(report_sensor_2.search_beliefs() == 0)
 
 
+def _report_cli_input(tmp_path, sensor1_id, sensor2_id, report_sensor_id):
+    """Config and parameters files for a single-output aggregation report."""
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[dict(name="df_agg", sensor=report_sensor_id)],
+    )
+    config_file = tmp_path / "reporter_config.yaml"
+    config_file.write_text(yaml.safe_dump(reporter_config))
+    parameters_file = tmp_path / "parameters.json"
+    parameters_file.write_text(json.dumps(parameters))
+    return {
+        "config": str(config_file),
+        "parameters": str(parameters_file),
+        "reporter": "PandasReporter",
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-10T10:00:00+00:00",
+    }
+
+
+def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data, tmp_path):
+    """A synchronous report run records beliefs for its output sensor."""
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data
+    runner = app.test_cli_runner()
+
+    beliefs_before = _count_beliefs(fresh_db, report_sensor_id)
+    result = runner.invoke(
+        add_report,
+        to_flags(_report_cli_input(tmp_path, *setup_dummy_data[:2], report_sensor_id)),
+    )
+    check_command_ran_without_error(result)
+    assert "Saving report for sensor" in result.output
+    assert "has been saved to the database" in result.output
+
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+
+def test_add_report_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data, tmp_path):
+    """A dry run shows the computed report without recording any belief."""
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data
+    runner = app.test_cli_runner()
+
+    beliefs_before = _count_beliefs(fresh_db, report_sensor_id)
+    result = runner.invoke(
+        add_report,
+        to_flags(_report_cli_input(tmp_path, *setup_dummy_data[:2], report_sensor_id))
+        + ["--dry-run"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Not saving report for sensor" in result.output
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before
+
+    # A real run right after does record, so the dry run skipped only persistence.
+    result = runner.invoke(
+        add_report,
+        to_flags(_report_cli_input(tmp_path, *setup_dummy_data[:2], report_sensor_id)),
+    )
+    check_command_ran_without_error(result)
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
+
+
+def test_add_report_rejects_dry_run_as_job(app, setup_dummy_data):
+    """A dry run cannot be queued, because its results would never reach the user."""
+    from flexmeasures.cli.data_add import add_report
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_report, ["--dry-run", "--as-job"])
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
+
+
+def test_add_report_persistence_failure_saves_nothing(
+    app, fresh_db, setup_dummy_data, tmp_path, mocker
+):
+    """If persistence fails midway, the synchronous run records nothing (single transaction)."""
+    from flexmeasures.cli.data_add import add_report
+
+    sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+    runner = app.test_cli_runner()
+
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[
+            dict(name="df_agg", sensor=report_sensor_id),
+            dict(name="df_sub", sensor=report_sensor_2_id),
+        ],
+    )
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}, {"name": "df_sub"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+            dict(
+                df_input="sensor_1",
+                method="subtract",
+                args=["@sensor_2"],
+                df_output="df_sub",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    config_file = tmp_path / "reporter_config.yaml"
+    config_file.write_text(yaml.safe_dump(reporter_config))
+    parameters_file = tmp_path / "parameters.json"
+    parameters_file.write_text(json.dumps(parameters))
+    cli_input = to_flags(
+        {
+            "config": str(config_file),
+            "parameters": str(parameters_file),
+            "reporter": "PandasReporter",
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T10:00:00+00:00",
+        }
+    )
+
+    beliefs_before = (
+        _count_beliefs(fresh_db, report_sensor_id),
+        _count_beliefs(fresh_db, report_sensor_2_id),
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.save_to_db",
+        side_effect=[None, RuntimeError("database gone")],
+    )
+    with pytest.raises(RuntimeError, match="database gone"):
+        runner.invoke(add_report, cli_input)
+
+    fresh_db.session.rollback()
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before[0]
+    assert _count_beliefs(fresh_db, report_sensor_2_id) == beliefs_before[1]
+
+
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(
     app, process_power_sensor, process_type, add_market_prices_fresh_db, db

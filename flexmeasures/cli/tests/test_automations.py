@@ -1790,6 +1790,257 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
 
 
+def _two_output_report_automation_cli_input(
+    tmp_path,
+    sensor1_id,
+    sensor2_id,
+    report_sensor_id,
+    report_sensor_2_id,
+    parameters_extra=None,
+    asset_id=1,
+):
+    """CLI input for a report automation aggregating into two output sensors."""
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}, {"name": "df_sub"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+            dict(
+                df_input="sensor_1",
+                method="subtract",
+                args=["@sensor_2"],
+                df_output="df_sub",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[
+            dict(name="df_agg", sensor=report_sensor_id),
+            dict(name="df_sub", sensor=report_sensor_2_id),
+        ],
+        **(parameters_extra or {}),
+    )
+    config_file = tmp_path / "reporter_config.yml"
+    config_file.write_text(yaml.dump(reporter_config))
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(yaml.dump(parameters))
+    return [
+        "--asset", str(asset_id),
+        "--name", "Aggregation report",
+        "--cron", "0 1 * * *",
+        "--type", "reporting",
+        "--reporter", "PandasReporter",
+        "--config", str(config_file),
+        "--parameters", str(parameters_file),
+    ]  # fmt: skip
+
+
+def _queue_two_output_report_automation(
+    app, fresh_db, runner, tmp_path, sensor_ids, report_asset_id
+):
+    """Create a due two-output reporting automation and queue its job; return (automation, job)."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+
+    sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = sensor_ids
+    cli_input = _two_output_report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        report_sensor_2_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+    return automation, app.queues["reporting"].jobs[0]
+
+
+def test_run_report_automation_with_two_outputs_saves_both(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path, freeze_server_now
+):
+    """A reporting automation with two outputs persists both, with per-sensor counts."""
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    # the dummy data lives in April 2023
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    automation, job = _queue_two_output_report_automation(
+        app,
+        fresh_db,
+        runner,
+        tmp_path,
+        setup_dummy_data,
+        report_sensor.generic_asset_id,
+    )
+
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+    work_on_rq(app.queues["reporting"])
+
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_agg = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_agg.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+    report_sensor_2 = fresh_db.session.get(Sensor, report_sensor_2_id)
+    stored_sub = report_sensor_2.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_sub.values.T == [0, 0, 0, 0, 0]).all()
+
+    assert job.return_value() == [
+        {"sensor_id": report_sensor_id, "n_rows": 5},
+        {"sensor_id": report_sensor_2_id, "n_rows": 5},
+    ]
+
+    import pandas as pd
+
+    covered_until = app.redis_connection.get(f"automation-last-run:{automation.id}")
+    assert covered_until is not None
+    assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
+        "2023-04-10T10:00:00+00:00"
+    )
+
+
+def test_report_automation_refusal_leaves_all_outputs_unchanged(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A reporter returning an unchecked sensor alongside valid outputs records nothing anywhere.
+
+    The whole set of outputs is judged before any of it is written, so the
+    permitted outputs stay exactly as they were, too.
+    """
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import (
+        ReportWritesUncheckedSensor,
+        run_report_job,
+    )
+
+    sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    automation, job = _queue_two_output_report_automation(
+        app,
+        fresh_db,
+        runner,
+        tmp_path,
+        setup_dummy_data,
+        report_sensor.generic_asset_id,
+    )
+
+    input_sensor = fresh_db.session.get(Sensor, sensor1_id)
+    real_compute = PandasReporter.compute
+
+    def compute_with_rogue(self, *args, **kwargs):
+        computed = real_compute(self, *args, **kwargs)
+        return computed + [
+            {"name": "rogue", "sensor": input_sensor, "data": computed[0]["data"]}
+        ]
+
+    mocker.patch.object(
+        PandasReporter, "compute", autospec=True, side_effect=compute_with_rogue
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+        run_report_job(**job.kwargs)
+
+    for sensor_id in (report_sensor_id, report_sensor_2_id):
+        sensor = fresh_db.session.get(Sensor, sensor_id)
+        assert (
+            len(
+                sensor.search_beliefs(
+                    event_starts_after="2023-04-10T00:00:00+00:00",
+                    event_ends_before="2023-04-10T10:00:00+00:00",
+                )
+            )
+            == 0
+        )
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
+
+def test_report_job_persistence_failure_rolls_back_all_outputs(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """If saving fails midway, the job records nothing (single transaction) and the automation cursor does not move."""
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import run_report_job
+
+    sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    automation, job = _queue_two_output_report_automation(
+        app,
+        fresh_db,
+        runner,
+        tmp_path,
+        setup_dummy_data,
+        report_sensor.generic_asset_id,
+    )
+
+    mocker.patch(
+        "flexmeasures.data.services.reporting.save_to_db",
+        side_effect=[None, RuntimeError("database gone")],
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+    with pytest.raises(RuntimeError, match="database gone"):
+        run_report_job(**job.kwargs)
+
+    fresh_db.session.rollback()
+    for sensor_id in (report_sensor_id, report_sensor_2_id):
+        sensor = fresh_db.session.get(Sensor, sensor_id)
+        assert (
+            len(
+                sensor.search_beliefs(
+                    event_starts_after="2023-04-10T00:00:00+00:00",
+                    event_ends_before="2023-04-10T10:00:00+00:00",
+                )
+            )
+            == 0
+        )
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
+
 def test_run_automations(
     app, fresh_db, setup_dummy_data, clean_redis, freeze_server_now
 ):

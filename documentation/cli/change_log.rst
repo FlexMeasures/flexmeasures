@@ -17,6 +17,7 @@ since v1.1.0 | September XX, 2026
 * Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute from standard five-field cron expressions. Run this command once per minute. It makes at most one queueing attempt per automation per minute, including when an attempt fails after partially queueing jobs. Runs missed while the runner was down are caught up once, with several missed forecast runs coalesced into the latest useful forecast, and a run at a skipped or repeated daylight-saving-time hour happens exactly once.
 * Add ``flexmeasures jobs run-automation --automation <id>`` to queue the jobs for a single run of one automation, now, on top of its recurring runs. This leaves the automation's cursor alone, so its next recurring run still happens as scheduled, and inactive automations can be run this way, too.
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
+* Consolidate report computation and persistence behind one shared reporting-service function used by both ``flexmeasures add report`` and the reporting worker, so dry runs, multi-sensor reports and automation permission checks behave identically on both paths.
 
 since v1.0.1 | September 9, 2026
 =================================
