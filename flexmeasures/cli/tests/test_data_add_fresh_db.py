@@ -542,6 +542,7 @@ def test_add_report_persistence_failure_saves_nothing(
 ):
     """If persistence fails midway, the synchronous run records nothing (single transaction)."""
     from flexmeasures.cli.data_add import add_report
+    from flexmeasures.data.services import reporting as reporting_service
 
     sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
     runner = app.test_cli_runner()
@@ -594,14 +595,25 @@ def test_add_report_persistence_failure_saves_nothing(
         _count_beliefs(fresh_db, report_sensor_id),
         _count_beliefs(fresh_db, report_sensor_2_id),
     )
-    mocker.patch(
-        "flexmeasures.data.services.reporting.save_to_db",
-        side_effect=[None, RuntimeError("database gone")],
+    real_save_to_db = reporting_service.save_to_db
+    saves_attempted = []
+
+    def fail_on_second_save(data, **kwargs):
+        saves_attempted.append(data)
+        if len(saves_attempted) > 1:
+            raise RuntimeError("database gone")
+        return real_save_to_db(data, **kwargs)
+
+    mocker.patch.object(
+        reporting_service, "save_to_db", side_effect=fail_on_second_save
     )
     with pytest.raises(RuntimeError, match="database gone"):
         runner.invoke(add_report, cli_input)
 
-    fresh_db.session.rollback()
+    # The first output really was saved before the failure, so the unchanged
+    # counts below prove the failed run rolled everything back, leaving neither
+    # output pending nor committed.
+    assert len(saves_attempted) == 2
     assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before[0]
     assert _count_beliefs(fresh_db, report_sensor_2_id) == beliefs_before[1]
 

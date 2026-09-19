@@ -130,11 +130,17 @@ def compute_and_save_report(
                 f" which are not among the sensors automation {automation_id}"
                 " was checked against when it was created."
             )
-    for result in results:
-        n_rows = _count_persistable_values(result["data"])
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_rows})
-    db.session.commit()
+    try:
+        for result in results:
+            n_rows = _count_persistable_values(result["data"])
+            save_to_db(result["data"])
+            saved.append({"sensor_id": result["sensor"].id, "n_rows": n_rows})
+        db.session.commit()
+    except Exception:
+        # Leave nothing half-saved behind: the caller sees the original error
+        # with the session rolled back to before this report ran.
+        db.session.rollback()
+        raise
     return results, saved
 
 
@@ -169,7 +175,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         if permitted_output_sensor_ids is not None
         else None
     )
-    results, saved = compute_and_save_report(
+    _, saved = compute_and_save_report(
         reporter,
         parameters,
         persist=True,

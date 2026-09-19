@@ -1990,6 +1990,63 @@ def test_report_automation_refusal_leaves_all_outputs_unchanged(
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
 
 
+def test_empty_permitted_output_set_rejects_everything_before_any_save(
+    app, fresh_db, setup_dummy_data, mocker
+):
+    """An empty permitted-output set refuses every result before anything is saved."""
+    import timely_beliefs as tb
+
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services import reporting as reporting_service
+    from flexmeasures.data.services.reporting import (
+        ReportWritesUncheckedSensor,
+        compute_and_save_report,
+    )
+
+    sensor1_id, *_ = setup_dummy_data
+    sensor = fresh_db.session.get(Sensor, sensor1_id)
+
+    class StubReporter:
+        def compute(self, parameters=None):
+            return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
+
+    save = mocker.patch.object(reporting_service, "save_to_db")
+    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+        compute_and_save_report(
+            StubReporter(),
+            {},
+            persist=True,
+            permitted_output_sensor_ids=set(),
+            automation_id=7,
+        )
+    save.assert_not_called()
+
+
+def test_none_permitted_output_set_disables_output_guard(
+    app, fresh_db, setup_dummy_data, mocker
+):
+    """Without a permitted-output set, results for any sensor proceed to saving (e.g. the trusted CLI path)."""
+    import timely_beliefs as tb
+
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services import reporting as reporting_service
+    from flexmeasures.data.services.reporting import compute_and_save_report
+
+    sensor1_id, *_ = setup_dummy_data
+    sensor = fresh_db.session.get(Sensor, sensor1_id)
+
+    class StubReporter:
+        def compute(self, parameters=None):
+            return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
+
+    save = mocker.patch.object(reporting_service, "save_to_db", return_value="mocked")
+    _, saved = compute_and_save_report(
+        StubReporter(), {}, persist=True, permitted_output_sensor_ids=None
+    )
+    save.assert_called_once()
+    assert saved == [{"sensor_id": sensor1_id, "n_rows": 0}]
+
+
 def test_report_job_persistence_failure_rolls_back_all_outputs(
     app,
     fresh_db,
@@ -2001,6 +2058,7 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
 ):
     """If saving fails midway, the job records nothing (single transaction) and the automation cursor does not move."""
     from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services import reporting as reporting_service
     from flexmeasures.data.services.reporting import run_report_job
 
     sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
@@ -2017,16 +2075,27 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
     )
 
     mocker.patch(
-        "flexmeasures.data.services.reporting.save_to_db",
-        side_effect=[None, RuntimeError("database gone")],
-    )
-    mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+    real_save_to_db = reporting_service.save_to_db
+    saves_attempted = []
+
+    def fail_on_second_save(data, **kwargs):
+        saves_attempted.append(data)
+        if len(saves_attempted) > 1:
+            raise RuntimeError("database gone")
+        return real_save_to_db(data, **kwargs)
+
+    mocker.patch.object(
+        reporting_service, "save_to_db", side_effect=fail_on_second_save
     )
     with pytest.raises(RuntimeError, match="database gone"):
         run_report_job(**job.kwargs)
 
-    fresh_db.session.rollback()
+    # The first output really was saved before the failure, so the unchanged
+    # counts below prove the failed run rolled everything back, leaving neither
+    # output pending nor committed.
+    assert len(saves_attempted) == 2
     for sensor_id in (report_sensor_id, report_sensor_2_id):
         sensor = fresh_db.session.get(Sensor, sensor_id)
         assert (
