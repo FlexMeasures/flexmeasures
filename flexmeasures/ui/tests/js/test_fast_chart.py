@@ -100,3 +100,62 @@ def test_export_hides_the_toolbox(assert_js):
         eq("progressive rendering is off, so every series is drawn in one pass",
            exported.option.series[0].progressive, 0);
         """)
+
+
+def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
+    """Crossing belief hit areas keeps the annotation visible; a click pins it."""
+    assert_js("""
+        import { wireAnnotationHover } from "/js/fast-chart.js";
+
+        const canvasHandlers = {};
+        const patches = [];
+        const container = document.createElement("div");
+        const canvas = document.createElement("canvas");
+        const tooltip = document.createElement("div");
+        container.appendChild(canvas);
+        container.appendChild(tooltip);
+        document.body.appendChild(container);
+        container.getBoundingClientRect = () => ({left: 20, top: 30});
+        canvas.getBoundingClientRect = () => ({left: 35, top: 50});
+        const move = (target, x) => target.dispatchEvent(
+            new MouseEvent("mousemove", {bubbles: true, clientX: x + 35, clientY: 60})
+        );
+        const zr = {
+            on: (name, handler) => { canvasHandlers[name] = handler; },
+            off: (name) => { delete canvasHandlers[name]; },
+        };
+        const chart = {
+            getZr: () => zr,
+            getDom: () => container,
+            containPixel: (_grid, [x, y]) => x >= 0 && x < 20 && y >= 0 && y < 100,
+            convertFromPixel: (_axis, x) => x,
+            setOption: (patch) => patches.push(patch),
+        };
+        const instance = {
+            chart,
+            replayTime: null,
+            _annotCtx: {
+                annotations: [{start: 0, end: 20, label: "A day-long note", type: "label"}],
+                grids: [{seriesIndex: 0, toleranceMs: 1}],
+            },
+        };
+        const labelShown = () => patches.at(-1).series[0].markArea.data[0][0].label.show;
+
+        wireAnnotationHover(instance);
+        move(canvas, 10);
+        check("hover shows the annotation", labelShown());
+        // The canvas may report an exit while the pointer is still in the chart.
+        if (canvasHandlers.globalout) canvasHandlers.globalout();
+        check("a canvas exit does not hide the annotation", labelShown());
+        move(tooltip, 11);
+        check("moving across the HTML tooltip keeps the annotation", labelShown());
+
+        container.dispatchEvent(new MouseEvent("mouseleave"));
+        check("leaving the chart clears an unpinned annotation", !labelShown());
+
+        canvasHandlers.click({offsetX: 11, offsetY: 10});
+        container.dispatchEvent(new MouseEvent("mouseleave"));
+        check("the annotation stays visible after a click and pointer exit", labelShown());
+        canvasHandlers.click({offsetX: 150, offsetY: 150});
+        check("clicking outside releases the pin", !labelShown());
+        """)

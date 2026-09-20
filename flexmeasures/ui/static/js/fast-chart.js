@@ -2502,19 +2502,24 @@ function wireSessionTooltipRedirect(instance, opts) {
 // hovered subplot ONLY (the other subplots keep the light shading), matching the
 // Vega-Lite annotation layers. Clicking (or tapping, on touch) pins the highlight;
 // clicking it again, or clicking outside any annotation, releases it. markArea
-// emphasis does not fire because the axisPointer intercepts mouse events, so we
-// react to zrender mouse events directly: the pointer's pixel position tells us
-// which subplot (grid) is hovered, and converting it to the time domain tells us
-// which annotation it is on. The regular data tooltip is untouched throughout
-// (the annotation marks are silent and sit behind the data).
-function wireAnnotationHover(instance) {
+// emphasis does not fire because the axisPointer intercepts mouse events. Track
+// hover on the chart container, rather than the canvas: crossing belief hit areas
+// or the HTML data tooltip must not briefly clear the annotation. ZRender still
+// handles clicks, including touch taps. The regular data tooltip is untouched
+// throughout (the annotation marks are silent and sit behind the data).
+export function wireAnnotationHover(instance) {
   const chart = instance.chart;
   const zr = chart.getZr();
+  const container = chart.getDom();
+  // The chart container has card padding, while containPixel/convertFromPixel
+  // use canvas coordinates. Keep the canvas as the coordinate reference even
+  // when the mouse event bubbles from the HTML tooltip.
+  const canvas = container.querySelector("canvas") || container;
 
   // Drop any handlers from a previous render before deciding whether to add new ones.
   if (instance.onAnnotMove) {
-    zr.off("mousemove", instance.onAnnotMove);
-    zr.off("globalout", instance.onAnnotOut);
+    container.removeEventListener("mousemove", instance.onAnnotMove);
+    container.removeEventListener("mouseleave", instance.onAnnotOut);
     zr.off("click", instance.onAnnotClick);
     instance.onAnnotMove = null;
     instance.onAnnotOut = null;
@@ -2575,15 +2580,20 @@ function wireAnnotationHover(instance) {
     chart.setOption({ series: seriesPatch });
   };
 
-  instance.onAnnotMove = (e) => apply(locate([e.offsetX, e.offsetY]), pin);
+  instance.onAnnotMove = (e) => {
+    // offsetX/offsetY would be relative to the tooltip when it covers the
+    // canvas, so convert viewport coordinates to chart coordinates instead.
+    const rect = canvas.getBoundingClientRect();
+    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pin);
+  };
   instance.onAnnotOut = () => apply({ grid: -1, idx: -1 }, pin);
   instance.onAnnotClick = (e) => {
     const at = locate([e.offsetX, e.offsetY]);
     const samePin = at.grid === pin.grid && at.idx === pin.idx;
     apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
   };
-  zr.on("mousemove", instance.onAnnotMove);
-  zr.on("globalout", instance.onAnnotOut);
+  container.addEventListener("mousemove", instance.onAnnotMove);
+  container.addEventListener("mouseleave", instance.onAnnotOut);
   zr.on("click", instance.onAnnotClick);
 }
 
@@ -2606,6 +2616,11 @@ export function setFastChartReplayTime(elementId, beliefTimeMs) {
 export function disposeFastChart(elementId) {
   const instance = instances[elementId];
   if (instance) {
+    if (instance.onAnnotMove && !instance.chart.isDisposed()) {
+      const container = instance.chart.getDom();
+      container.removeEventListener("mousemove", instance.onAnnotMove);
+      container.removeEventListener("mouseleave", instance.onAnnotOut);
+    }
     window.removeEventListener("resize", instance.onResize);
     // These are document-level listeners, so chart.dispose() won't remove them.
     if (instance.onCtrlDown) {
