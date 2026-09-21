@@ -193,7 +193,7 @@ def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
     """Pinned text stays stable while hovered text occupies a separate row."""
     assert_js("""
-        import { wireAnnotationHover } from "/js/fast-chart.js";
+        import { normalizeAnnotations, wireAnnotationHover } from "/js/fast-chart.js";
 
         const canvasHandlers = {};
         const chartHandlers = {};
@@ -227,11 +227,18 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
             chart,
             replayTime: null,
             _annotCtx: {
-                annotations: [
-                    {start: 0, end: 10, label: "Pinned\\nnote", type: "label"},
-                    {start: 10, end: 20, label: "Hovered note", type: "label"},
-                    {start: 150, end: 170, label: "Far note", type: "label"},
-                ],
+                annotations: normalizeAnnotations([
+                    {
+                        start: 0,
+                        end: 10,
+                        belief_time: 5,
+                        content: ["Pinned", "note"],
+                        source: "Test source",
+                        type: "label",
+                    },
+                    {start: 10, end: 20, content: "Hovered note", type: "label"},
+                    {start: 150, end: 170, content: "Far note", type: "label"},
+                ]),
                 grids: [{
                     seriesIndex: 0,
                     toleranceMs: 1,
@@ -249,7 +256,13 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
         move(canvas, 5);
         check("hover shows the annotation", shown(hoverLabel));
         eq("multiline content stays in one stable row", hoverLabel.textContent, "Pinned · note");
-        eq("the full multiline content remains available", hoverLabel.title, "Pinned\\nnote");
+        check("the full multiline content remains available",
+              hoverLabel.title.startsWith("Pinned\\nnote\\n"), hoverLabel.title);
+        check("the annotation context is available on label hover",
+              hoverLabel.title.includes("Source: Test source") &&
+              hoverLabel.title.includes("Belief time: ") &&
+              hoverLabel.title.includes("Start: ") &&
+              hoverLabel.title.includes("End: "), hoverLabel.title);
         eq("the label accounts for the padded canvas origin", hoverLabel.style.left, "15px");
         eq("the label accounts for the canvas's vertical offset", hoverLabel.style.top, "120px");
         check("canvas annotation labels stay disabled",

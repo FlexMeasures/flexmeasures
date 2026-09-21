@@ -1094,16 +1094,19 @@ const ANNOTATION_STRIP = 48;
 const ANNOTATION_LABEL_OFFSET = 34; // text sits this far below the subplot, clear of the two-line x-axis labels
 const ANNOTATION_LABEL_ROW_HEIGHT = FONT_SIZE + 4;
 
-// Parse the annotation records (start, end, content, type) into sorted
-// {start, end, label, type} entries with epoch-ms bounds. Zero-duration
+// Parse the annotation records into sorted entries with epoch-ms bounds.
+// Preserve their provenance for the annotation label's hover tooltip. Zero-duration
 // entries (start == end) are "instant" annotations, drawn as a rule.
-function normalizeAnnotations(raw) {
+export function normalizeAnnotations(raw) {
   if (!Array.isArray(raw) || raw.length === 0) return [];
   return raw
     .map((a) => ({
       start: new Date(a.start).getTime(),
       end: new Date(a.end).getTime(),
+      beliefTime: a.belief_time == null ? null : new Date(a.belief_time).getTime(),
       label: Array.isArray(a.content) ? a.content.join("\n") : (a.content || ""),
+      source:
+        typeof a.source === "object" ? sourceLabel(a.source || {}) : (a.source || ""),
       type: a.type,
     }))
     .filter((a) => isFinite(a.start) && isFinite(a.end))
@@ -2606,9 +2609,20 @@ export function wireAnnotationHover(instance) {
     const canvasTop = canvasRect.top - containerRect.top - container.clientTop;
     const plotWidth = grid.labelRight - grid.labelLeft;
     // A label is one row even when annotation content has several lines. The
-    // full content remains available through the native title on hover.
+    // full content and annotation context remain available through the native
+    // title on hover.
     label.textContent = annotation.label.replace(/\n+/g, " · ");
-    label.title = annotation.label;
+    label.title = [
+      annotation.label,
+      "Source: " + (annotation.source || "Unknown"),
+      "Belief time: " + (
+        annotation.beliefTime == null || !isFinite(annotation.beliefTime)
+          ? "Unknown"
+          : formatFullDate(annotation.beliefTime)
+      ),
+      "Start: " + formatFullDate(annotation.start),
+      "End: " + formatFullDate(annotation.end),
+    ].join("\n");
     label.style.color = annotationColor(annotation);
     label.style.maxWidth = plotWidth + "px";
     label.style.display = "inline-block";
