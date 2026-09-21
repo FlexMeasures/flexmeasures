@@ -185,3 +185,48 @@ def test_poll_job_status_can_be_stopped(assert_js):
         check("after having polled more than once", atAbort > 1, String(atAbort));
         eq("a stop function is returned too", typeof stop, "function");
         """)
+
+
+def test_escape_html(assert_js):
+    assert_js("""
+        import { escapeHtml, unitHtml } from "/js/ui-utils.js";
+        eq("markup becomes text", escapeHtml(`<img src=x onerror="alert('hi')"> & more`),
+           "&lt;img src=x onerror=&quot;alert(&#39;hi&#39;)&quot;&gt; &amp; more");
+        eq("nothing becomes the empty string", [escapeHtml(null), escapeHtml(undefined)], ["", ""]);
+        eq("numbers are written as they are", escapeHtml(4.5), "4.5");
+
+        const holder = document.createElement("div");
+        holder.innerHTML = `<b title="${escapeHtml('" onmouseover="x')}">${escapeHtml("<i>name</i>")}</b>`;
+        eq("an escaped value stays inside its attribute", holder.firstChild.getAttributeNames(), ["title"]);
+        eq("and inside its element", holder.firstChild.children.length, 0);
+
+        eq("a unit is escaped", unitHtml("<b>kW</b>"), "&lt;b&gt;kW&lt;/b&gt;");
+        check("an empty unit is explained", unitHtml("").includes(">dimensionless</span>"), unitHtml(""));
+        """)
+
+
+def test_process_resource_raw_json_reads_json_too(assert_js):
+    """The API sends a flex-context or flex-model as a JSON string, which the asset graph page passes on."""
+    assert_js("""
+        import { processResourceRawJSON } from "/js/ui-utils.js";
+        const [values] = processResourceRawJSON({}, JSON.stringify({"prefer-charging-sooner": true, "soc-min": null, name: "Bob's"}), true);
+        eq("JSON is read as it is", values, {"prefer-charging-sooner": true, "soc-min": null, name: "Bob's"});
+        """)
+
+
+def test_rendered_sensors_show_names_as_text(assert_js):
+    assert_js("""
+        import { renderSensor } from "/js/ui-utils.js";
+        localStorage.clear();
+        const hostile = "<img src=x onerror=window.__ran=1>";
+        window.fetch = async (url) => ({json: async () =>
+            url.includes("/sensors/") ? {id: 1, name: hostile, unit: "", generic_asset_id: 2}
+            : url.includes("/assets/") ? {id: 2, name: hostile, account_id: 3}
+            : {id: 3, name: hostile}});
+        const holder = document.createElement("div");
+        holder.innerHTML = await renderSensor(1);
+        eq("no element is made from a name", holder.querySelectorAll("img").length, 0);
+        check("the names are shown as they were typed", holder.textContent.includes(hostile), holder.textContent);
+        check("a dimensionless sensor says so", holder.textContent.includes("dimensionless"), holder.textContent);
+        localStorage.clear();
+        """)

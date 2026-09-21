@@ -1,5 +1,35 @@
 export const apiBasePath = window.location.origin;
 
+/**
+ * Escape text for use in HTML, as element content or as a quoted attribute value.
+ *
+ * Names, units and descriptions are whatever a user typed,
+ * so they must be escaped wherever they are built into markup rather than set as textContent.
+ *
+ * @param {*} value - The text to escape; null and undefined become the empty string.
+ * @returns {string} - The escaped text.
+ */
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/**
+ * Markup for a sensor unit, explaining the empty unit of a dimensionless sensor.
+ *
+ * @param {string} unit - The sensor's unit.
+ * @returns {string} - HTML.
+ */
+export function unitHtml(unit) {
+  return unit === ""
+    ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
+    : escapeHtml(unit);
+}
+
 // Fetch Account Details
 export async function getAccount(accountId) {
   const cacheKey = `account_${accountId}`;
@@ -168,15 +198,11 @@ export async function renderSensor(sensorId) {
                 <b>Sensor:</b> <a href="${apiBasePath}/sensors/${
                   sensorData.id
                 }">${sensorData.id}</a>,
-                <b>Unit:</b> ${
-                  sensorData.unit === ""
-                    ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-                    : sensorData.unit
-                },
-                <b>Name:</b> ${sensorData.name},
+                <b>Unit:</b> ${unitHtml(sensorData.unit)},
+                <b>Name:</b> ${escapeHtml(sensorData.name)},
                 <div style="padding-top: 1px;"></div>
-                <b>Asset:</b> ${Asset.name},
-                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                <b>Asset:</b> ${escapeHtml(Asset.name)},
+                <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
             </div>
         </div>
     `;
@@ -253,19 +279,15 @@ export function renderSensorSearchResults(
     col.innerHTML = `
                 <div class="card m-0">
                     <div class="card-body p-0 result-sensor-card">
-                        <h5 class="card-title">${sensor.name}</h5>
+                        <h5 class="card-title">${escapeHtml(sensor.name)}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${
                               sensor.id
                             }">${sensor.id}</a>,
-                            <b>Unit:</b> ${
-                              sensor.unit === ""
-                                ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-                                : sensor.unit
-                            },
-                            <b>Asset:</b> ${Asset.name},
+                            <b>Unit:</b> ${unitHtml(sensor.unit)},
+                            <b>Asset:</b> ${escapeHtml(Asset.name)},
                             <b>Account:</b> ${
-                              Account?.name ? Account.name : "PUBLIC"
+                              Account?.name ? escapeHtml(Account.name) : "PUBLIC"
                             }
                         </p>
                     </div>

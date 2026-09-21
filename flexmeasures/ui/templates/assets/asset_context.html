@@ -259,8 +259,13 @@
                         // Set the href; you can modify this as needed, for example using sensor.link if available
                         a.href = sensor.link;
                         td.appendChild(a);
+                    } else if (key === "unit" && sensor[key] === "") {
+                        const dimensionless = document.createElement("span");
+                        dimensionless.title = "A sensor recording numbers rather than physical or economical quantities.";
+                        dimensionless.textContent = "dimensionless";
+                        td.appendChild(dimensionless);
                     } else {
-                        td.innerHTML = sensor[key] !== undefined ? sensor[key] : "N/A";
+                        td.textContent = sensor[key] !== undefined ? sensor[key] : "N/A";
                     }
                     row.appendChild(td);
                 });
@@ -332,9 +337,7 @@
     const flexSelect = document.getElementById('flexSelect');
     const flexInfoContainer = document.getElementById('flexInfoContainer');
     const flexOptionsContainer = document.getElementById('flexOptionsContainer');
-    let availableUnitsRawJSON = "{{ available_units | safe }}";
-    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-    const availableUnits = JSON.parse(availableUnitsRawJSON);
+    const availableUnits = {{ available_units | tojson }};
 
     // Flex-context fields defined on ancestor assets (nearest first), which apply
     // when scheduling this asset unless shadowed by a field set here.

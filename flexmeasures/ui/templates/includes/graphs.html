@@ -23,7 +23,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+    import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
@@ -1072,10 +1072,10 @@
                     const label = labelMap[kpi.downsample_function];
                     card.innerHTML = `
                   <div class="card-body d-flex flex-column justify-content-between">
-                      <h5 class="card-title">${kpi.title}</h5>
+                      <h5 class="card-title">${escapeHtml(kpi.title)}</h5>
                       <h5 class="card-text">
                           <strong>
-                              ${label}: ${kpi.downsample_value} ${kpi.unit}
+                              ${label}: ${escapeHtml(kpi.downsample_value)} ${escapeHtml(kpi.unit)}
                           </strong>
                       </h5>
                   </div>
