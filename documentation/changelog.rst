@@ -33,6 +33,7 @@ New features
 * Changing the selected time range on an asset or sensor chart now only loads the data that is actually new, instead of reloading the whole range, which makes stepping through or extending a long period much faster; reloading the page, or leaving it open for five minutes, still fetches everything afresh [see `PR #2433 <https://www.github.com/FlexMeasures/flexmeasures/pull/2433>`_]
 * The statistics table on a sensor page now shows all data sources together by default, as the graph does [see `PR #2462 <https://www.github.com/FlexMeasures/flexmeasures/pull/2462>`_]
 * The asset lists on an organisation's page and on the asset overview now show only top-level assets per default, so the sites you are looking for are no longer buried among their sub-assets, and both offer the same two checkboxes to widen the list again: untick *Top-level only* for the whole tree, or tick *Include public assets*, which is off per default [see `PR #2523 <https://www.github.com/FlexMeasures/flexmeasures/pull/2523>`_]
+* Clean graphs display to make annotations more useful: Annotation labels on sensor and asset charts no longer flicker while moving between beliefs, can be pinned by clicking their range, and use separate rows when pinned and hovered labels would overlap. Fast chart tooltips now show only value and time by default, plus the sensor on asset charts, with a *Full belief info* switch for the remaining fields [see `PR #2575 <https://www.github.com/FlexMeasures/flexmeasures/pull/2575>`_]
 
 Infrastructure / Support
 -------------------------
@@ -52,7 +53,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Annotation labels on sensor and asset charts no longer flicker while moving between beliefs, can be pinned by clicking their range, and use separate rows when pinned and hovered labels would overlap. Fast chart tooltips now show only value and time by default, plus the sensor on asset charts, with a *Full belief info* switch for the remaining fields [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * A forecaster given more than one regressor of the same kind trained on each of them several times over, because every regressor's data was collected once per regressor [see `PR #2560 <https://www.github.com/FlexMeasures/flexmeasures/pull/2560>`_]
 * Organisation audit logs now show only changed fields with their previous and new values, and user role and active-status changes identify the affected user [see `PR #2522 <https://www.github.com/FlexMeasures/flexmeasures/pull/2522>`_]
 * ``GET /api/v3_0/assets/(id)/jobs`` now reports its Redis connection error as ``redis-connection-err`` rather than ``redis_connection_err``, so the field is spelled the same way there as on the automation endpoints that also report it [see `PR #2545 <https://www.github.com/FlexMeasures/flexmeasures/pull/2545>`_]
