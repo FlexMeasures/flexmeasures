@@ -103,11 +103,12 @@ def test_export_hides_the_toolbox(assert_js):
 
 
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
-    """Crossing belief hit areas keeps the annotation visible; a click pins it."""
+    """Pinned text stays stable while hovered text occupies a separate row."""
     assert_js("""
         import { wireAnnotationHover } from "/js/fast-chart.js";
 
         const canvasHandlers = {};
+        const chartHandlers = {};
         const patches = [];
         const container = document.createElement("div");
         const canvas = document.createElement("canvas");
@@ -129,33 +130,71 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
             getDom: () => container,
             containPixel: (_grid, [x, y]) => x >= 0 && x < 20 && y >= 0 && y < 100,
             convertFromPixel: (_axis, x) => x,
+            convertToPixel: (_axis, x) => x,
             setOption: (patch) => patches.push(patch),
+            on: (name, handler) => { chartHandlers[name] = handler; },
+            off: (name) => { delete chartHandlers[name]; },
         };
         const instance = {
             chart,
             replayTime: null,
             _annotCtx: {
-                annotations: [{start: 0, end: 20, label: "A day-long note", type: "label"}],
-                grids: [{seriesIndex: 0, toleranceMs: 1}],
+                annotations: [
+                    {start: 0, end: 10, label: "Pinned\\nnote", type: "label"},
+                    {start: 10, end: 20, label: "Hovered note", type: "label"},
+                ],
+                grids: [{
+                    seriesIndex: 0,
+                    toleranceMs: 1,
+                    labelTop: 100,
+                    labelLeft: 0,
+                    labelRight: 200,
+                }],
             },
         };
-        const labelShown = () => patches.at(-1).series[0].markArea.data[0][0].label.show;
+        const shown = (label) => label.style.display === "inline-block";
 
         wireAnnotationHover(instance);
-        move(canvas, 10);
-        check("hover shows the annotation", labelShown());
-        // The canvas may report an exit while the pointer is still in the chart.
-        if (canvasHandlers.globalout) canvasHandlers.globalout();
-        check("a canvas exit does not hide the annotation", labelShown());
-        move(tooltip, 11);
-        check("moving across the HTML tooltip keeps the annotation", labelShown());
+        const pinLabel = container.querySelector('[data-annotation-label="pin"]');
+        const hoverLabel = container.querySelector('[data-annotation-label="hover"]');
+        move(canvas, 5);
+        check("hover shows the annotation", shown(hoverLabel));
+        eq("multiline content stays in one stable row", hoverLabel.textContent, "Pinned · note");
+        eq("the full multiline content remains available", hoverLabel.title, "Pinned\\nnote");
+        eq("the label accounts for the padded canvas origin", hoverLabel.style.left, "15px");
+        eq("the label accounts for the canvas's vertical offset", hoverLabel.style.top, "120px");
+        check("canvas annotation labels stay disabled",
+              !patches.at(-1).series[0].markArea.data[0][0].label.show);
+        const patchCount = patches.length;
+        move(canvas, 6);
+        eq("movement within one annotation does not redraw it", patches.length, patchCount);
+        move(tooltip, 6);
+        check("moving across the HTML tooltip keeps the annotation", shown(hoverLabel));
 
         container.dispatchEvent(new MouseEvent("mouseleave"));
-        check("leaving the chart clears an unpinned annotation", !labelShown());
+        check("leaving the chart clears an unpinned annotation", !shown(hoverLabel));
 
-        canvasHandlers.click({offsetX: 11, offsetY: 10});
+        canvasHandlers.click({offsetX: 5, offsetY: 10});
         container.dispatchEvent(new MouseEvent("mouseleave"));
-        check("the annotation stays visible after a click and pointer exit", labelShown());
+        check("the annotation stays visible after a click and pointer exit", shown(pinLabel));
+        eq("the pin has the clicked content", pinLabel.textContent, "Pinned · note");
+        const pinnedPosition = pinLabel.style.cssText;
+
+        move(canvas, 15);
+        check("the pin remains visible while another annotation is hovered", shown(pinLabel));
+        eq("hover does not rewrite or move the pinned label", pinLabel.style.cssText, pinnedPosition);
+        eq("the second annotation is also visible", hoverLabel.textContent, "Hovered note");
+        check("the two labels occupy separate rows", pinLabel.style.top !== hoverLabel.style.top,
+              `${pinLabel.style.top} and ${hoverLabel.style.top}`);
+        chartHandlers.datazoom();
+        eq("zoom keeps the pin in its stable row", pinLabel.style.cssText, pinnedPosition);
+
         canvasHandlers.click({offsetX: 150, offsetY: 150});
-        check("clicking outside releases the pin", !labelShown());
+        check("clicking outside releases the pin", !shown(pinLabel));
+
+        wireAnnotationHover(instance);
+        check("rewiring removes the old label nodes", !pinLabel.isConnected && !hoverLabel.isConnected);
+        eq("rewiring creates exactly one stable pair", container.querySelectorAll(
+            "[data-annotation-label]"
+        ).length, 2);
         """)

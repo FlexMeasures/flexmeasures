@@ -1078,10 +1078,11 @@ const ANNOTATION_ALERT_COLOR = "#d9822b";
 const ANNOTATION_RESTING_OPACITY = 0.2;
 const ANNOTATION_HOVER_OPACITY = 0.55;
 const ANNOTATION_SELECT_OPACITY = 0.65;
-// Extra strip below each subplot's x-axis labels where the hovered annotation's
-// text appears, so revealing it never changes the chart layout.
-const ANNOTATION_STRIP = 28;
+// Extra strip below each subplot's x-axis labels where annotation text appears.
+// It fits a pinned label and a second, hovered label without either moving.
+const ANNOTATION_STRIP = 48;
 const ANNOTATION_LABEL_OFFSET = 34; // text sits this far below the subplot, clear of the two-line x-axis labels
+const ANNOTATION_LABEL_ROW_HEIGHT = FONT_SIZE + 4;
 
 // Parse the annotation records (start, end, content, type) into sorted
 // {start, end, label, type} entries with epoch-ms bounds. Zero-duration
@@ -1103,18 +1104,6 @@ function annotationColor(a) {
   if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
   const cs = getComputedStyle(document.documentElement);
   return cs.getPropertyValue("--gray").trim() || "#bbb";
-}
-
-// The annotation text below the hovered/pinned subplot, colored like its
-// annotation, mirroring the Vega-Lite text layer.
-function annotationLabelConfig(a, show) {
-  return {
-    show: show,
-    fontSize: FONT_SIZE,
-    fontStyle: "italic",
-    color: annotationColor(a),
-    formatter: () => a.label,
-  };
 }
 
 // Build the markArea config for one subplot's annotation bands (annotations
@@ -1146,12 +1135,10 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
             // carrier — into the blur state, which would dim the marks to near
             // invisibility. Pin the blur state to the normal style instead.
             blur: { itemStyle: itemStyle },
-            label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
-              position: ["0%", "100%"], // at the band's left edge, at the bottom of the subplot
-              offset: [0, ANNOTATION_LABEL_OFFSET],
-              align: "left",
-              verticalAlign: "top",
-            }),
+            // Text is a DOM overlay managed by wireAnnotationHover. Keeping it
+            // outside markArea prevents every hover update from recreating all
+            // visible labels on the canvas.
+            label: { show: false },
           },
           { xAxis: a.end },
         ];
@@ -1178,10 +1165,8 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
         itemStyle: itemStyle,
         // Immune to the blur state, like the markArea items (see there)
         blur: { lineStyle: lineStyle, itemStyle: itemStyle },
-        label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
-          position: "start", // at the bottom end of the rule, below the subplot
-          distance: ANNOTATION_LABEL_OFFSET,
-        }),
+        // Text is a DOM overlay managed by wireAnnotationHover (see markArea).
+        label: { show: false },
       };
     })
     .filter(Boolean);
@@ -1430,6 +1415,9 @@ function buildLineBarOption(elementId, groups, opts) {
       annotGrids.push({
         seriesIndex: series.length,
         toleranceMs: groupResolutionsMs.length > 0 ? Math.min(...groupResolutionsMs) : 3600 * 1000,
+        labelTop: top + GRID_HEIGHT + ANNOTATION_LABEL_OFFSET,
+        labelLeft: GRID_LEFT,
+        labelRight: containerWidth - gridRight,
       });
       const carrier = {
         type: "line",
@@ -2525,9 +2513,45 @@ export function wireAnnotationHover(instance) {
     instance.onAnnotOut = null;
     instance.onAnnotClick = null;
   }
+  if (instance.onAnnotZoom) {
+    chart.off("datazoom", instance.onAnnotZoom);
+    instance.onAnnotZoom = null;
+  }
+  if (instance._annotLabels) {
+    Object.values(instance._annotLabels).forEach((label) => label.remove());
+    instance._annotLabels = null;
+  }
   const ctx = instance._annotCtx;
   if (!ctx) return;
   const annotations = ctx.annotations;
+
+  // Keep text outside the ECharts canvas. Updating markArea/markLine rebuilds
+  // those canvas elements, which made both the hovered label and an existing
+  // pinned label blink. These two stable DOM nodes are independent of that
+  // redraw. A simultaneous hover uses the second row below the pinned label.
+  if (getComputedStyle(container).position === "static") container.style.position = "relative";
+  const makeLabel = (kind) => {
+    const label = document.createElement("div");
+    label.dataset.annotationLabel = kind;
+    Object.assign(label.style, {
+      position: "absolute",
+      display: "none",
+      pointerEvents: "auto",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      width: "max-content",
+      fontFamily: CHART_FONT,
+      fontSize: FONT_SIZE + "px",
+      fontStyle: "italic",
+      lineHeight: ANNOTATION_LABEL_ROW_HEIGHT + "px",
+      zIndex: "10",
+    });
+    container.appendChild(label);
+    return label;
+  };
+  const labels = { pin: makeLabel("pin"), hover: makeLabel("hover") };
+  instance._annotLabels = labels;
 
   let hover = { grid: -1, idx: -1 };
   let pin = { grid: -1, idx: -1 };
@@ -2554,10 +2578,42 @@ export function wireAnnotationHover(instance) {
     p: pn.grid === g ? pn.idx : -1,
   });
 
+  const renderLabel = (label, state, row) => {
+    if (state.grid < 0 || state.idx < 0) {
+      label.style.display = "none";
+      return;
+    }
+    const annotation = annotations[state.idx];
+    const grid = ctx.grids[state.grid];
+    const annotationX = chart.convertToPixel({ xAxisIndex: state.grid }, annotation.start);
+    const containerRect = container.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const canvasLeft = canvasRect.left - containerRect.left - container.clientLeft;
+    const canvasTop = canvasRect.top - containerRect.top - container.clientTop;
+    const plotWidth = grid.labelRight - grid.labelLeft;
+    // A label is one row even when annotation content has several lines. The
+    // full content remains available through the native title on hover.
+    label.textContent = annotation.label.replace(/\n+/g, " · ");
+    label.title = annotation.label;
+    label.style.color = annotationColor(annotation);
+    label.style.maxWidth = plotWidth + "px";
+    label.style.display = "inline-block";
+    // Measure after showing it, then shift a right-edge label left instead of
+    // squeezing it into a narrow column. Long labels use the whole plot width.
+    const labelWidth = Math.min(label.offsetWidth, plotWidth);
+    const x = Math.max(grid.labelLeft, Math.min(annotationX, grid.labelRight - labelWidth));
+    label.style.left = Math.round(canvasLeft + x) + "px";
+    label.style.top =
+      Math.round(canvasTop + grid.labelTop + row * ANNOTATION_LABEL_ROW_HEIGHT) + "px";
+  };
+
   // Re-shade the subplots whose highlight state changed. setOption merges series
   // by position, so build a patch array up to the last changed annotation-bearing
   // series; only those carry new marks, the rest pass through untouched.
   const apply = (newHover, newPin) => {
+    const hoverChanged = newHover.grid !== hover.grid || newHover.idx !== hover.idx;
+    const pinChanged = newPin.grid !== pin.grid || newPin.idx !== pin.idx;
+    if (!hoverChanged && !pinChanged) return;
     const patches = new Map();
     let maxSeriesIdx = -1;
     ctx.grids.forEach((info, g) => {
@@ -2570,17 +2626,28 @@ export function wireAnnotationHover(instance) {
       patches.set(info.seriesIndex, marks);
       if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
     });
+    if (maxSeriesIdx >= 0) {
+      const seriesPatch = [];
+      for (let i = 0; i <= maxSeriesIdx; i++) {
+        seriesPatch.push(patches.get(i) || {});
+      }
+      chart.setOption({ series: seriesPatch });
+    }
+    if (pinChanged) renderLabel(labels.pin, newPin, 0);
+    if (hoverChanged || pinChanged) {
+      const hoverDuplicatesPin =
+        newHover.grid === newPin.grid && newHover.idx === newPin.idx && newHover.idx >= 0;
+      const hoverRow = newHover.grid === newPin.grid && newPin.idx >= 0 ? 1 : 0;
+      renderLabel(labels.hover, hoverDuplicatesPin ? { grid: -1, idx: -1 } : newHover, hoverRow);
+    }
     hover = newHover;
     pin = newPin;
-    if (maxSeriesIdx < 0) return;
-    const seriesPatch = [];
-    for (let i = 0; i <= maxSeriesIdx; i++) {
-      seriesPatch.push(patches.get(i) || {});
-    }
-    chart.setOption({ series: seriesPatch });
   };
 
   instance.onAnnotMove = (e) => {
+    // Let a user reach an ellipsized label's native title without clearing the
+    // hover that made the label visible.
+    if (e.target && e.target.closest && e.target.closest("[data-annotation-label]")) return;
     // offsetX/offsetY would be relative to the tooltip when it covers the
     // canvas, so convert viewport coordinates to chart coordinates instead.
     const rect = canvas.getBoundingClientRect();
@@ -2592,9 +2659,16 @@ export function wireAnnotationHover(instance) {
     const samePin = at.grid === pin.grid && at.idx === pin.idx;
     apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
   };
+  instance.onAnnotZoom = () => {
+    renderLabel(labels.pin, pin, 0);
+    const hoverDuplicatesPin = hover.grid === pin.grid && hover.idx === pin.idx && hover.idx >= 0;
+    const hoverRow = hover.grid === pin.grid && pin.idx >= 0 ? 1 : 0;
+    renderLabel(labels.hover, hoverDuplicatesPin ? { grid: -1, idx: -1 } : hover, hoverRow);
+  };
   container.addEventListener("mousemove", instance.onAnnotMove);
   container.addEventListener("mouseleave", instance.onAnnotOut);
   zr.on("click", instance.onAnnotClick);
+  chart.on("datazoom", instance.onAnnotZoom);
 }
 
 /**
@@ -2620,6 +2694,13 @@ export function disposeFastChart(elementId) {
       const container = instance.chart.getDom();
       container.removeEventListener("mousemove", instance.onAnnotMove);
       container.removeEventListener("mouseleave", instance.onAnnotOut);
+    }
+    if (instance._annotLabels) {
+      Object.values(instance._annotLabels).forEach((label) => label.remove());
+      instance._annotLabels = null;
+    }
+    if (instance.onAnnotZoom && !instance.chart.isDisposed()) {
+      instance.chart.off("datazoom", instance.onAnnotZoom);
     }
     window.removeEventListener("resize", instance.onResize);
     // These are document-level listeners, so chart.dispose() won't remove them.
