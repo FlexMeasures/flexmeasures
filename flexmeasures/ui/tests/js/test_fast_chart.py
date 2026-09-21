@@ -169,9 +169,11 @@ def test_a_bar_reports_the_event_it_covers(assert_js):
         const day = 24 * 3600 * 1000;
         const midnight = Date.UTC(2030, 0, 15);
         const six = midnight + 6 * 3600 * 1000;
-        const meta = {points: [[midnight, 122.4294, 0], [six, 90, 0]], xOffsetMs: day / 2};
-        eq("the first bar reports its own event", nearestRealPoint(meta, [midnight + day / 2, 122.4294])[0], midnight);
-        eq("the second bar reports its own event", nearestRealPoint(meta, [six + day / 2, 90])[0], six);
-        const line = {points: [[midnight, 122.4294, 0]]};
-        eq("a series drawn on its event starts is looked up as it is", nearestRealPoint(line, [midnight, 122.4294])[0], midnight);
+        // The event values are a plain 1 and 2, because this lookup is about time alone:
+        // every check below reads the event start ([0]) of the point that comes back, and never its value.
+        const meta = {points: [[midnight, 1, 0], [six, 2, 0]], xOffsetMs: day / 2};
+        eq("the first bar reports its own event", nearestRealPoint(meta, [midnight + day / 2, 1])[0], midnight);
+        eq("the second bar reports its own event", nearestRealPoint(meta, [six + day / 2, 2])[0], six);
+        const line = {points: [[midnight, 1, 0]]};
+        eq("a series drawn on its event starts is looked up as it is", nearestRealPoint(line, [midnight, 1])[0], midnight);
         """)
