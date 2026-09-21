@@ -216,7 +216,7 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
         const chart = {
             getZr: () => zr,
             getDom: () => container,
-            containPixel: (_grid, [x, y]) => x >= 0 && x < 20 && y >= 0 && y < 100,
+            containPixel: (_grid, [x, y]) => x >= 0 && x < 200 && y >= 0 && y < 100,
             convertFromPixel: (_axis, x) => x,
             convertToPixel: (_axis, x) => x,
             setOption: (patch) => patches.push(patch),
@@ -230,6 +230,7 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
                 annotations: [
                     {start: 0, end: 10, label: "Pinned\\nnote", type: "label"},
                     {start: 10, end: 20, label: "Hovered note", type: "label"},
+                    {start: 150, end: 170, label: "Far note", type: "label"},
                 ],
                 grids: [{
                     seriesIndex: 0,
@@ -274,10 +275,13 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
         eq("the second annotation is also visible", hoverLabel.textContent, "Hovered note");
         check("the two labels occupy separate rows", pinLabel.style.top !== hoverLabel.style.top,
               `${pinLabel.style.top} and ${hoverLabel.style.top}`);
+
+        move(canvas, 155);
+        eq("labels that do not overlap share one row", hoverLabel.style.top, pinLabel.style.top);
         chartHandlers.datazoom();
         eq("zoom keeps the pin in its stable row", pinLabel.style.cssText, pinnedPosition);
 
-        canvasHandlers.click({offsetX: 150, offsetY: 150});
+        canvasHandlers.click({offsetX: 250, offsetY: 150});
         check("clicking outside releases the pin", !shown(pinLabel));
 
         wireAnnotationHover(instance);

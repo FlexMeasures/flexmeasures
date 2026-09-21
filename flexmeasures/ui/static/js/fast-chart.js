@@ -2621,6 +2621,32 @@ export function wireAnnotationHover(instance) {
       Math.round(canvasTop + grid.labelTop + row * ANNOTATION_LABEL_ROW_HEIGHT) + "px";
   };
 
+  const labelsOverlap = (first, second) => {
+    const firstLeft = parseFloat(first.style.left);
+    const secondLeft = parseFloat(second.style.left);
+    return (
+      firstLeft < secondLeft + second.offsetWidth &&
+      secondLeft < firstLeft + first.offsetWidth
+    );
+  };
+
+  const renderHoverLabel = (newHover, newPin) => {
+    const hoverDuplicatesPin =
+      newHover.grid === newPin.grid && newHover.idx === newPin.idx && newHover.idx >= 0;
+    if (hoverDuplicatesPin) {
+      renderLabel(labels.hover, { grid: -1, idx: -1 }, 0);
+      return;
+    }
+    renderLabel(labels.hover, newHover, 0);
+    if (
+      newHover.grid >= 0 &&
+      newHover.grid === newPin.grid &&
+      labelsOverlap(labels.pin, labels.hover)
+    ) {
+      renderLabel(labels.hover, newHover, 1);
+    }
+  };
+
   // Re-shade the subplots whose highlight state changed. setOption merges series
   // by position, so build a patch array up to the last changed annotation-bearing
   // series; only those carry new marks, the rest pass through untouched.
@@ -2648,12 +2674,7 @@ export function wireAnnotationHover(instance) {
       chart.setOption({ series: seriesPatch });
     }
     if (pinChanged) renderLabel(labels.pin, newPin, 0);
-    if (hoverChanged || pinChanged) {
-      const hoverDuplicatesPin =
-        newHover.grid === newPin.grid && newHover.idx === newPin.idx && newHover.idx >= 0;
-      const hoverRow = newHover.grid === newPin.grid && newPin.idx >= 0 ? 1 : 0;
-      renderLabel(labels.hover, hoverDuplicatesPin ? { grid: -1, idx: -1 } : newHover, hoverRow);
-    }
+    if (hoverChanged || pinChanged) renderHoverLabel(newHover, newPin);
     hover = newHover;
     pin = newPin;
   };
@@ -2675,9 +2696,7 @@ export function wireAnnotationHover(instance) {
   };
   instance.onAnnotZoom = () => {
     renderLabel(labels.pin, pin, 0);
-    const hoverDuplicatesPin = hover.grid === pin.grid && hover.idx === pin.idx && hover.idx >= 0;
-    const hoverRow = hover.grid === pin.grid && pin.idx >= 0 ? 1 : 0;
-    renderLabel(labels.hover, hoverDuplicatesPin ? { grid: -1, idx: -1 } : hover, hoverRow);
+    renderHoverLabel(hover, pin);
   };
   container.addEventListener("mousemove", instance.onAnnotMove);
   container.addEventListener("mouseleave", instance.onAnnotOut);
