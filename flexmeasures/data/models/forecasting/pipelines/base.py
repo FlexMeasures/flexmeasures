@@ -32,24 +32,44 @@ def _entity_id(entity_or_id):
     return getattr(entity_or_id, "id", entity_or_id)
 
 
-def _regressor_sensor_and_source_filters(
-    regressor: Sensor | SensorReference,
+def _bound_input_series(
+    series: TimeSeries,
+    sensor_or_reference: Sensor | SensorReference,
+) -> TimeSeries:
+    """Clean a filled input series against the bounds carried by its reference.
+
+    Bounding runs after gap filling, so a value interpolated across a gap is bounded too.
+    A plain sensor, or a reference that asks for no cleaning, leaves the series untouched.
+
+    :param sensor_or_reference: The regressor or target the series was read from.
+    :returns:                   The series, with its values snapped and clipped.
+    """
+    if (
+        not isinstance(sensor_or_reference, SensorReference)
+        or not sensor_or_reference.has_bounds
+    ):
+        return series
+    return series.map(sensor_or_reference.apply_bounds)
+
+
+def _sensor_and_source_filters(
+    sensor_or_reference: Sensor | SensorReference,
 ) -> tuple[Sensor, dict]:
-    """Return the underlying sensor and belief-search filters for a regressor."""
-    if not isinstance(regressor, SensorReference):
-        return regressor, {}
+    """Return the underlying sensor and belief-search filters of a regressor or of the target sensor."""
+    if not isinstance(sensor_or_reference, SensorReference):
+        return sensor_or_reference, {}
 
     source_filters = {
-        "source_types": regressor.source_types,
-        "exclude_source_types": regressor.exclude_source_types,
-        "source": regressor.sources,
+        "source_types": sensor_or_reference.source_types,
+        "exclude_source_types": sensor_or_reference.exclude_source_types,
+        "source": sensor_or_reference.sources,
         "source_account_ids": (
-            [account.id for account in regressor.source_account]
-            if regressor.source_account is not None
+            [account.id for account in sensor_or_reference.source_account]
+            if sensor_or_reference.source_account is not None
             else None
         ),
     }
-    return regressor.sensor, {
+    return sensor_or_reference.sensor, {
         key: value for key, value in source_filters.items() if value is not None
     }
 
@@ -212,7 +232,7 @@ class BasePipeline:
 
     def __init__(
         self,
-        target_sensor: Sensor,
+        target_sensor: Sensor | SensorReference,
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
         n_steps_to_predict: int,
@@ -246,11 +266,11 @@ class BasePipeline:
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
-            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_FR-{idx}"
+            f"{_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_FR-{idx}"
             for idx, regressor in enumerate(self.future)
         ]
         self.past_regressors = [
-            f"{_regressor_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_PR-{idx}"
+            f"{_sensor_and_source_filters(regressor)[0].name} (ID: {regressor.id})_PR-{idx}"
             for idx, regressor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
@@ -327,9 +347,7 @@ class BasePipeline:
         entries = []
         searches: dict[tuple, dict] = {}
         for name, regressor_or_sensor in zip(sensor_names, sensors):
-            sensor, source_filters = _regressor_sensor_and_source_filters(
-                regressor_or_sensor
-            )
+            sensor, source_filters = _sensor_and_source_filters(regressor_or_sensor)
 
             sensor_event_ends_before = self.event_ends_before
             sensor_event_starts_after = self.event_starts_after
@@ -343,8 +361,10 @@ class BasePipeline:
 
                 most_recent_beliefs_only = False  # load all beliefs available to include forecasts available at each timestamp
 
-            if name == self.target:
+            if name == self.target and not source_filters:
                 # Exclude forecasters from the target data to avoid training on forecasts.
+                # A target given as a source-filtered reference says which sources hold the truth,
+                # so its own filters are used as given, and this default is not added on top.
                 source_filters["exclude_source_types"] = ["forecaster"]
 
             search = dict(
@@ -425,7 +445,7 @@ class BasePipeline:
             sensor_names, sensors
         )
         for name, regressor_or_sensor, search_key in entries:
-            sensor, _ = _regressor_sensor_and_source_filters(regressor_or_sensor)
+            sensor, _ = _sensor_and_source_filters(regressor_or_sensor)
             logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
             df = beliefs_per_search[search_key]
@@ -1176,7 +1196,14 @@ class BasePipeline:
             else:
                 transformer = MissingValuesFiller(fill="auto")
 
-            data = df.copy()
+            # Keep only this sensor's own column, so each pass contributes exactly one component.
+            # Copying the whole frame would stack every sensor's column once per sensor,
+            # handing the model each regressor several times over.
+            if sensor_name in df.columns:
+                data = df[["event_start", sensor_name]].copy()
+            else:
+                data = df[["event_start"]].copy()
+                data[sensor_name] = np.nan
 
             # Convert start & end to naive UTC
             start = start.tz_localize(None)
@@ -1249,6 +1276,8 @@ class BasePipeline:
                     f"Sensor {sensor_name} has gaps:\n{data_darts_gaps.to_string()}\n"
                     "These were filled using `pd.DataFrame.interpolate()`."
                 )
+
+            data_darts = _bound_input_series(data_darts, sensor)
 
             dfs.append(data_darts)
 

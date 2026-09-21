@@ -1,92 +1,20 @@
 from __future__ import annotations
 
-import math
-import numbers
-from typing import Any
-
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 
 from datetime import datetime, timedelta
 
 from flexmeasures.data import db
-from flexmeasures.utils.unit_utils import units_are_convertible, ur
+from flexmeasures.utils.bound_utils import apply_bounds_to_values, parse_bounds
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
     return np.where(x < 0, 0, x)
-
-
-def _is_unitless(unit: str | None) -> bool:
-    """Check whether a parsed quantity carries no physical unit."""
-    return unit in (None, "", "dimensionless")
-
-
-def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
-    """Parse a configured quantity and return its magnitude in the sensor unit."""
-    if isinstance(value, numbers.Real):
-        return float(value)
-
-    if not isinstance(value, str):
-        raise ValueError(
-            f"Forecast post-processing values must be numbers or quantity strings, not {type(value).__name__}."
-        )
-
-    try:
-        quantity = ur.Quantity(value)
-    except Exception as exc:
-        raise ValueError(
-            f"Could not parse forecast post-processing value '{value}'."
-        ) from exc
-
-    from_unit = f"{quantity.units:~P}"
-    if _is_unitless(from_unit):
-        return float(quantity.magnitude)
-
-    to_unit = sensor_unit or "dimensionless"
-    if not units_are_convertible(from_unit, to_unit, duration_known=False):
-        raise ValueError(
-            f"Could not convert forecast post-processing value '{value}' to '{sensor_unit}'."
-        )
-    return float(quantity.to(to_unit).magnitude)
-
-
-def _parse_snap_intervals(
-    snap: dict, sensor_unit: str
-) -> list[tuple[float, float, float]]:
-    """Validate and parse a snap mapping into ``(target, first, second)`` triples.
-
-    Each value that falls inside an interval is replaced by a target that must lie
-    within that interval (on a bound or inside it), so values never snap to a value
-    outside their interval. The first boundary is treated as inclusive and the second
-    as exclusive, so listing the boundaries in reverse order flips which side is closed
-    (``["4 kW", "10 kW"]`` means ``[4, 10)`` while ``["10 kW", "4 kW"]`` means
-    ``(4, 10]``). This keeps adjacent intervals unambiguous: a shared boundary belongs
-    to whichever interval opens at it.
-    """
-    parsed = []
-    for target, interval in snap.items():
-        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
-            raise ValueError(
-                "Forecast post-processing snap intervals must contain exactly two bounds."
-            )
-
-        target_value = _quantity_to_sensor_value(target, sensor_unit)
-        first = _quantity_to_sensor_value(interval[0], sensor_unit)
-        second = _quantity_to_sensor_value(interval[1], sensor_unit)
-        if math.isclose(first, second):
-            raise ValueError(
-                "Forecast post-processing snap interval bounds must differ."
-            )
-        if not min(first, second) <= target_value <= max(first, second):
-            raise ValueError(
-                "Forecast post-processing snap target must lie within its interval bounds."
-            )
-        parsed.append((target_value, first, second))
-    return parsed
 
 
 def apply_forecast_post_processing(
@@ -116,39 +44,17 @@ def apply_forecast_post_processing(
 
     processed = data.copy()
     forecast_columns = [f"{h}h" for h in range(1, horizon + 1)]
-    lower_value = (
-        _quantity_to_sensor_value(lower, sensor_unit) if lower is not None else None
+    lower_value, upper_value, snap_intervals = parse_bounds(
+        lower, upper, snap, sensor_unit
     )
-    upper_value = (
-        _quantity_to_sensor_value(upper, sensor_unit) if upper is not None else None
-    )
-
-    if (
-        lower_value is not None
-        and upper_value is not None
-        and lower_value > upper_value
-    ):
-        raise ValueError(
-            "Forecast post-processing lower bound cannot be greater than upper bound."
-        )
-
-    snap_intervals = _parse_snap_intervals(snap, sensor_unit)
 
     for column in forecast_columns:
-        # Snap against the pre-snap predictions so intervals cannot chain into each other.
-        original_values = processed[column]
-        for target_value, first, second in snap_intervals:
-            if first <= second:
-                # First bound inclusive, second exclusive: [first, second).
-                mask = (original_values >= first) & (original_values < second)
-            else:
-                # Reversed order flips the closed side: (second, first].
-                mask = (original_values > second) & (original_values <= first)
-            processed.loc[mask, column] = target_value
-
-    processed[forecast_columns] = processed[forecast_columns].clip(
-        lower=lower_value, upper=upper_value, axis=None
-    )
+        processed[column] = apply_bounds_to_values(
+            processed[column].to_numpy(dtype=float),
+            lower_value,
+            upper_value,
+            snap_intervals,
+        )
     return processed
 
 
@@ -156,7 +62,7 @@ def data_to_bdf(
     data: pd.DataFrame,
     horizon: int,
     probabilistic: bool,
-    target_sensor: Sensor,
+    target_sensor: Sensor | SensorReference,
     sensor_to_save: Sensor,
     data_source: DataSource,
 ) -> tb.BeliefsDataFrame:
@@ -171,7 +77,7 @@ def data_to_bdf(
                             a forecast horizon of 48 hours. Similarly, if the sensor resolution is 15 minutes,
                             a horizon of 4*48 represents a forecast horizon of 48 hours.
     :param probabilistic:   Whether the forecasts are probabilistic or deterministic.
-    :param target_sensor:   The Sensor object for which the predictions are made.
+    :param target_sensor:   The Sensor object for which the predictions are made, or a source-filtered reference to it.
     :param sensor_to_save:  The Sensor object to save the forecasts to.
     :param data_source:     The DataSource object to attribute the forecasts to.
     :returns:               A formatted BeliefsDataFrame ready for database insertion.

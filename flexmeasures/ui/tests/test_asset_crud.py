@@ -11,6 +11,7 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.tests.utils import (
+    assert_asset_listing_filter_row,
     mock_asset_data,
     mock_asset_data_with_kpis,
     mock_asset_data_as_form_input,
@@ -28,6 +29,13 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 def test_assets_page_empty(db, client, as_prosumer_user1):
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
+
+
+def test_assets_page_filter_checkboxes(db, client, as_prosumer_user1):
+    """The asset listing offers both filter checkboxes in one row: 'Top-level only' checked, 'Include public assets' not."""
+    asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
+    assert asset_index.status_code == 200
+    assert_asset_listing_filter_row(asset_index.data)
 
 
 def test_new_asset_page(client, setup_assets, as_admin):
@@ -72,8 +80,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
         assert "Schedules".encode() in asset_page.data
+        assert "Reports".encode() in asset_page.data
         assert b'id="automationsTable-forecasting"' in asset_page.data
         assert b'id="automationsTable-scheduling"' in asset_page.data
+        assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
         assert b"No ${automationType} automations" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
@@ -81,7 +91,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Timezone"' in asset_page.data
+        assert b'title: "Recurrence timezone"' in asset_page.data
+        assert b'title: "Next run (local)"' in asset_page.data
+        assert b"timeZone: automation.timezone" in asset_page.data
+        assert b'"next-run": nextRun(automation)' in asset_page.data
         assert b"Cursor (UTC)" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
@@ -90,6 +103,26 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Edit flex-context".encode() in asset_page.data
         assert "Structure".encode() in asset_page.data
         assert "Location".encode() in asset_page.data
+
+
+def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
+    asset = setup_assets["wind-asset-1"]
+
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+
+    assert response.status_code == 200
+    assert b'id="automationTimezone"' in response.data
+    assert f'value="{asset.timezone}"'.encode() in response.data
+    assert b'<option value="Europe/Amsterdam"></option>' in response.data
+    assert b'id="editAutomationModal"' in response.data
+    assert b'id="editAutomationTimezone"' in response.data
+    assert (
+        b"Use five fields: minute, hour, day of month, month, day of week."
+        in response.data
+    )
+    assert b"The local clock the recurrence is read in." in response.data
+    assert b'timezone: $("#automationTimezone").val()' in response.data
+    assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
 
 @pytest.mark.parametrize(
