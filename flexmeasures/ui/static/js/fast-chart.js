@@ -14,7 +14,7 @@
  * - line/bar charts with centered subplot titles and "Sensor-type (unit)" y-axis titles
  * - histogram (binned values per source) and daily/weekly heatmaps
  *   (most prevalent source, diverging color scale centered at 0)
- * - per-point tooltips listing sensor, value, time, horizon and source details
+ * - compact per-point tooltips, with full belief provenance available on demand
  * - replay support (belief-time ruler), legends beside or below each subplot,
  *   and CSV/SVG/PNG export from the toolbox
  *
@@ -952,22 +952,28 @@ function noDataOption(message) {
   };
 }
 
-// Tooltip matching the Vega-Lite charts: a two-column table per data point
-// Render the rich single-point table for one series' data point.
-function singlePointTooltip(meta, value) {
+// Render one series' data point. Compact tooltips keep the exact value and time,
+// plus the sensor on asset charts. The remaining belief provenance is opt-in.
+export function singlePointTooltip(meta, value, options) {
   if (!meta || !value) {
     return "";
   }
-  return tooltipTable([
-    ["Sensor", meta.sensorDescription],
+  const opts = options || {};
+  const rows = [
     [capFirst(meta.sensorType), formatQuantity(value[1], meta.unit)],
     ["Time and date", formatFullDate(value[0])],
-    ["Horizon", formatTimedelta(value[2])],
-    ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
-    ["Type", meta.source.display_type || ""],
-    ["Model", meta.source.model || ""],
-    ["Version", meta.source.version || ""],
-  ]);
+  ];
+  if (opts.showSensor) rows.unshift(["Sensor", meta.sensorDescription]);
+  if (opts.fullBeliefInfo) {
+    rows.push(
+      ["Horizon", formatTimedelta(value[2])],
+      ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
+      ["Type", meta.source.display_type || ""],
+      ["Model", meta.source.model || ""],
+      ["Version", meta.source.version || ""]
+    );
+  }
+  return tooltipTable(rows);
 }
 
 // Choose, among the axis-trigger params (one point per series at the ruler), the
@@ -1049,6 +1055,10 @@ function syncEmphasis(instance, seriesIndex, dataIndex) {
 }
 
 function seriesTooltipFormatter(seriesMeta, instance) {
+  const tooltipOptions = () => ({
+    showSensor: !(instance && instance.isSensorPage),
+    fullBeliefInfo: !!(instance && instance.fullBeliefInfo),
+  });
   return function (params) {
     // Axis trigger passes an array of the series' points near the ruler; item
     // trigger passes a single point. In both cases we show just the nearest one,
@@ -1060,13 +1070,13 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       const best = pickNearestParam(params, instance);
       const meta = seriesMeta[best.seriesIndex];
       if (instance) syncEmphasis(instance, best.seriesIndex, best.dataIndex);
-      return singlePointTooltip(meta, nearestRealPoint(meta, best.value));
+      return singlePointTooltip(meta, nearestRealPoint(meta, best.value), tooltipOptions());
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
     const meta = seriesMeta[params.seriesIndex];
-    return singlePointTooltip(meta, nearestRealPoint(meta, params.value));
+    return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
   };
 }
 
@@ -1986,7 +1996,7 @@ const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
 // sessions chart type shows them; the default multi-sensor view hides this group.
 const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
 
-function buildChargePointSessionsOption(elementId, data, opts) {
+export function buildChargePointSessionsOption(elementId, data, opts) {
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
     return null;
@@ -2189,7 +2199,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       triggerOn: IS_TOUCH ? "click" : "mousemove|click", // tap-only on touch (see line chart)
       enterable: IS_TOUCH,
       extraCssText: IS_TOUCH ? "pointer-events: auto;" : undefined,
-      formatter: seriesTooltipFormatter(seriesMeta),
+      formatter: seriesTooltipFormatter(seriesMeta, sessionsInstance),
     },
     toolbox: toolbox,
     dataZoom: [
@@ -2218,7 +2228,8 @@ function buildChargePointSessionsOption(elementId, data, opts) {
  *
  * @param {string} elementId - The id of the container div.
  * @param {Object[]} data - Decompressed chart data rows.
- * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName }.
+ * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName,
+ *   fullBeliefInfo }.
  *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap",
  *   "weekly_heatmap" or "chart_for_chargepoint_sessions".
  */
@@ -2254,6 +2265,8 @@ export function renderFastChart(elementId, data, options) {
     instances[elementId] = instance;
   }
   instance.lastArgs = { data: data, options: options };
+  instance.isSensorPage = !!opts.isSensorPage;
+  instance.fullBeliefInfo = !!opts.fullBeliefInfo;
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
@@ -2455,6 +2468,7 @@ function wirePointerTracking(instance) {
     zr.off("globalout", instance.onPointerOut);
   }
   instance.onPointerOut = () => {
+    instance._pointerPixel = null;
     instance._emphKey = null;
     if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
   };
@@ -2679,6 +2693,24 @@ export function setFastChartReplayTime(elementId, beliefTimeMs) {
   const instance = instances[elementId];
   if (instance) {
     instance.replayTime = beliefTimeMs;
+  }
+}
+
+/**
+ * Show or hide belief provenance fields without rebuilding or fetching chart data.
+ * Refresh an open tooltip at its last known pointer position when possible.
+ */
+export function setFastChartFullBeliefInfo(elementId, showFullBeliefInfo) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance.fullBeliefInfo = !!showFullBeliefInfo;
+  if (instance._pointerPixel) {
+    instance.chart.dispatchAction({ type: "hideTip" });
+    instance.chart.dispatchAction({
+      type: "showTip",
+      x: instance._pointerPixel[0],
+      y: instance._pointerPixel[1],
+    });
   }
 }
 

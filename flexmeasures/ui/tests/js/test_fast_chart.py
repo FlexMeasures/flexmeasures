@@ -102,6 +102,94 @@ def test_export_hides_the_toolbox(assert_js):
         """)
 
 
+def test_belief_tooltip_compacts_and_expands_without_new_data(assert_js):
+    """Compact belief tooltips keep essentials; the switch reveals provenance."""
+    assert_js("""
+        import { singlePointTooltip } from "/js/fast-chart.js";
+
+        const meta = {
+            sensorDescription: "Grid power (ID: 7)",
+            sensorType: "power",
+            unit: "kW",
+            source: {
+                id: 3,
+                name: "Weather model",
+                display_type: "forecaster",
+                model: "LinearRegression",
+                version: "2.0",
+            },
+        };
+        const value = [Date.parse("2026-09-21T10:00:00Z"), 12.5, 3600000];
+        const rowCount = (html) => (html.match(/<tr>/g) || []).length;
+
+        const sensorCompact = singlePointTooltip(meta, value, {
+            showSensor: false,
+            fullBeliefInfo: false,
+        });
+        eq("sensor compact mode has value and time", rowCount(sensorCompact), 2);
+        check("compact mode includes the exact value", sensorCompact.includes("12.5 kW"));
+        check("compact mode includes time", sensorCompact.includes("Time and date"));
+        check("sensor compact mode omits the redundant sensor", !sensorCompact.includes("Sensor"));
+        check("compact mode omits provenance", !sensorCompact.includes("Horizon"));
+
+        const assetCompact = singlePointTooltip(meta, value, {
+            showSensor: true,
+            fullBeliefInfo: false,
+        });
+        eq("asset compact mode adds the sensor", rowCount(assetCompact), 3);
+        check("asset compact mode identifies the sensor", assetCompact.includes("Grid power (ID: 7)"));
+
+        const assetFull = singlePointTooltip(meta, value, {
+            showSensor: true,
+            fullBeliefInfo: true,
+        });
+        eq("full asset mode restores all eight fields", rowCount(assetFull), 8);
+        ["Horizon", "Source", "Type", "Model", "Version"].forEach((field) => {
+            check(`full mode includes ${field}`, assetFull.includes(field));
+        });
+
+        const sensorFull = singlePointTooltip(meta, value, {
+            showSensor: false,
+            fullBeliefInfo: true,
+        });
+        eq("full sensor mode has seven fields", rowCount(sensorFull), 7);
+        check("sensor identity stays omitted on its own page", !sensorFull.includes("Sensor"));
+        """)
+
+
+def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
+    """The belief preference does not break purpose-built session tooltips."""
+    assert_js("""
+        const originalMatchMedia = window.matchMedia;
+        window.matchMedia = () => ({matches: true});
+        const { buildChargePointSessionsOption } = await import("/js/fast-chart.js?sessions-touch");
+        window.matchMedia = originalMatchMedia;
+
+        const container = document.createElement("div");
+        container.id = "sessions-chart";
+        document.body.appendChild(container);
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const sensor = (name) => ({
+            id: name === "arrival" ? 1 : 2,
+            name,
+            unit: "s",
+            asset_id: 4,
+            asset_description: "Charger 4",
+        });
+        const option = buildChargePointSessionsOption("sessions-chart", [
+            {sensor: sensor("arrival"), event_start: eventStart, event_value: eventStart},
+            {sensor: sensor("departure"), event_start: eventStart, event_value: eventStart + 3600000},
+        ], {groupSpec: [], datasetName: "sessions", isSensorPage: false});
+
+        check("the session chart renders", option.series.length >= 2);
+        const visibleSession = option.series.find((series) => series.tooltip && series.tooltip.formatter);
+        const tooltip = visibleSession.tooltip.formatter();
+        check("session start stays visible", tooltip.includes("Arrival"));
+        check("session end stays visible", tooltip.includes("Departure"));
+        check("session asset stays visible", tooltip.includes("Charger 4"));
+        """)
+
+
 def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
     """Pinned text stays stable while hovered text occupies a separate row."""
     assert_js("""
