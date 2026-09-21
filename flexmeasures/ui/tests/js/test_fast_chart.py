@@ -141,6 +141,8 @@ def test_bar_width_covers_exactly_one_interval(assert_js):
         eq("a day of a three-day window is a quarter of the widened axis", width, 225);
         // ECharts widens the 3-day axis by that bar width, to 4 days, on which 225 px is exactly one day.
         eq("the bar then covers exactly one day", (width * 4 * day) / 900, day);
+        // The other extreme, dense data: two days hold 192 fifteen-minute bars, and the widened axis holds one more.
+        // So a bar is 900 / 193 = 4.66 px.
         eq("a 15-minute bar of a two-day window is a sliver", +barWidthPx(900000, 2 * day, 900).toFixed(2), 4.66);
         """)
 
