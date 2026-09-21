@@ -54,18 +54,66 @@ export async function getSensor(id) {
   return sensor;
 }
 
+/**
+ * Convert the Python representation of a dict (as Jinja renders one) to JSON.
+ *
+ * Only what `repr` writes for JSON-like data is handled:
+ * strings in either quote style, with Python's escapes, and the constants None, True and False.
+ * Those constants are only replaced outside strings, so a value such as "Nonetheless" survives.
+ *
+ * @param {string} text - The Python representation.
+ * @returns {string} - The same data as JSON.
+ */
+export function pythonReprToJSON(text) {
+  const constants = { None: "null", True: "true", False: "false" };
+  const escapes = { n: "\n", t: "\t", r: "\r", b: "\b", f: "\f", 0: "\0" };
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') {
+      let value = "";
+      let j = i + 1;
+      while (j < text.length && text[j] !== ch) {
+        if (text[j] === "\\") {
+          const next = text[j + 1];
+          const hexLength = { x: 2, u: 4, U: 8 }[next];
+          if (hexLength) {
+            value += String.fromCodePoint(parseInt(text.slice(j + 2, j + 2 + hexLength), 16));
+            j += 2 + hexLength;
+          } else {
+            value += next in escapes ? escapes[next] : next;
+            j += 2;
+          }
+          continue;
+        }
+        value += text[j];
+        j++;
+      }
+      out += JSON.stringify(value);
+      i = j + 1;
+      continue;
+    }
+    const word = /^[A-Za-z_]\w*/.exec(text.slice(i));
+    if (word) {
+      out += constants[word[0]] ?? word[0];
+      i += word[0].length;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
   /*
-    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema. 
+    rawJSON - the resource's fields, either as an object or as the Python representation of a dict.
+    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema.
     If false, those fields will be ignored.
   */
-  let processedJSON = rawJSON.replace(/'/g, '"');
-  // change None to null, True to true and False to false
-  processedJSON = processedJSON.replaceAll("None", "null");
-  processedJSON = processedJSON.replaceAll("True", "true");
-  processedJSON = processedJSON.replaceAll("False", "false");
-  // update the assetFlexModel fields
-  processedJSON = JSON.parse(processedJSON);
+  const processedJSON =
+    typeof rawJSON === "string" ? JSON.parse(pythonReprToJSON(rawJSON)) : rawJSON;
   const extraFields = {};
 
   for (const [key, value] of Object.entries(processedJSON)) {

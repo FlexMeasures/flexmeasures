@@ -60,3 +60,40 @@ def test_get_unique_values_ignores_records_without_the_key(assert_js):
         eq("only records without the key means nothing to report",
            getUniqueValues([{event_value: 1}], "source.id"), []);
         """)
+
+
+def test_convert_to_csv_writes_timestamps_in_local_time(assert_js):
+    assert_js(
+        """
+        import { convertToCSV } from "/js/data-utils.js";
+        const ms = Date.UTC(2022, 6, 1, 10);
+        const csv = convertToCSV([{event_start: ms, belief_time: ms, event_value: 3}]);
+        const [header, row] = csv.replace("data:text/csv;charset=utf-8,", "").split("\\n");
+        eq("the csv is a data URL", csv.startsWith("data:text/csv;charset=utf-8,"), true);
+        eq("the header lists the columns in order", header, "event_start,belief_time,event_value");
+        eq("timestamps are written with the viewer's offset",
+           row, "2022-07-01T12:00:00.000+02:00,2022-07-01T12:00:00.000+02:00,3");
+        """,
+        timezone="Europe/Amsterdam",
+    )
+
+
+def test_convert_to_csv_writes_horizons_as_durations(assert_js):
+    assert_js("""
+        import { convertToCSV } from "/js/data-utils.js";
+        const horizon = (ms) => convertToCSV([{belief_horizon: ms}]).split("\\n")[1];
+        eq("hours, minutes and seconds", horizon(3600000 + 2 * 60000 + 3000), "PT1H2M3S");
+        eq("a horizon of more than a day is still counted in hours", horizon(90000000), "PT25H");
+        eq("a negative horizon (a belief formed after the fact) keeps its sign", horizon(-1800000), "-PT30M");
+        """)
+
+
+def test_convert_to_csv_describes_nested_objects(assert_js):
+    assert_js("""
+        import { convertToCSV } from "/js/data-utils.js";
+        const csv = convertToCSV([
+            {sensor: {id: 1, description: "power (kW)"}, source: {id: 9}, event_value: null},
+        ]);
+        eq("a sensor or source is written as its description, or left empty",
+           csv.split("\\n")[1], "power (kW),,");
+        """)

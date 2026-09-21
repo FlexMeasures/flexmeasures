@@ -71,8 +71,8 @@
                 <!-- Structure Content -->
                 <div class="tab-pane fade {% if assets|length > 2 %}show active{% endif %}" id="structure">
                     <div class="col-sm-12">
-                        {% from "_macros.html" import show_tree %}
-                        {{ show_tree(assets, asset.name) }}
+                        {% from "_macros.html" import show_tree with context %}
+                        {{ show_tree(assets, asset.id) }}
                     </div>
                 </div>
 
@@ -215,7 +215,7 @@
 
 <script>
     function openSensorsModal() {
-        const sensors = {{ current_asset_sensors | safe }};
+        const sensors = {{ current_asset_sensors | tojson }};
         document.getElementById("modalTitle").innerText = "Sensors for " + {{ asset.name | tojson }};
         let tableHead = document.getElementById("modalTableHead");
         let tableBody = document.getElementById("modalTableBody");
@@ -254,7 +254,8 @@
                     if (key === "name") {
                         // Create an anchor element
                         let a = document.createElement("a");
-                        a.innerHTML = sensor[key] !== undefined ? sensor[key] : "N/A";
+                        // As text: a sensor name is whatever its creator typed.
+                        a.textContent = sensor[key] !== undefined ? sensor[key] : "N/A";
                         // Set the href; you can modify this as needed, for example using sensor.link if available
                         a.href = sensor.link;
                         td.appendChild(a);
@@ -314,10 +315,15 @@
 
 <script type="module">
     import {
-        getFlexFieldTitle, renderSensor, getAsset, createReactiveState,
+        getFlexFieldTitle, renderSensor, getAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
         extractApiErrorMessage
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+    import * as flexContextUtils from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
+    const {
+        entrySensorId, isStructuralField, cleanFlexContext, findFlexContextCurrency, currencyInUnit,
+        parseCommitmentValue, describeCommitmentValue
+    } = flexContextUtils;
 
     let hasInitialized = false;
     const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -347,23 +353,14 @@
         assetFlexContextSchema[key] = value["default"];
     }
 
-    // Sensor-only fields offer no "Fixed value" tab in the editor.
-    // typeTwo = a single sensor reference, typeFour = a list of sensors.
+    // Sensor-only fields offer no "Fixed value" tab in the editor (see flex-context-utils.js).
     function isSensorOnlyField(fieldName) {
-        const backendType = schemaSpecs[fieldName]?.["types"]?.["backend"];
-        return backendType === "typeTwo" || backendType === "typeFour";
+        return flexContextUtils.isSensorOnlyField(schemaSpecs, fieldName);
     }
 
-    // Multi-sensor list fields (e.g. inflexible-consumption/inflexible-production)
-    // keep their card active so several sensors can be added in a row.
+    // Multi-sensor list fields keep their card active so several sensors can be added in a row.
     function isSensorListField(fieldName) {
-        return schemaSpecs[fieldName]?.["types"]?.["backend"] === "typeFour";
-    }
-
-    // Entries of sensor list fields are sensor references ({"sensor": <id>}, possibly
-    // with source filters); the deprecated inflexible-device-sensors field holds bare ids.
-    function entrySensorId(entry) {
-        return (typeof entry === "object" && entry !== null) ? entry["sensor"] : entry;
+        return flexContextUtils.isSensorListField(schemaSpecs, fieldName);
     }
 
     // ============== Commodity scope BEGIN ============== //
@@ -372,24 +369,12 @@
     // "commodities" list (activeCommodityIndex is that entry's index).
     let activeCommodityIndex = null;
 
-    // Fields managed by the commodity tab bar rather than as cards.
-    const structuralFields = ["commodities", "commodity"];
-
     function getActiveContext(assetFlexContext) {
-        if (activeCommodityIndex === null) {
-            return assetFlexContext;
-        }
-        return assetFlexContext["commodities"][activeCommodityIndex];
+        return flexContextUtils.getActiveContext(assetFlexContext, activeCommodityIndex);
     }
 
     function isFieldAvailableInScope(fieldName) {
-        if (structuralFields.includes(fieldName)) {
-            return false;
-        }
-        if (activeCommodityIndex === null) {
-            return true;
-        }
-        return schemaSpecs[fieldName]?.["per-commodity"] === true;
+        return flexContextUtils.isFieldAvailableInScope(schemaSpecs, fieldName, activeCommodityIndex);
     }
 
     function switchCommodityScope(newIndex) {
@@ -470,7 +455,13 @@
         });
     }
     // ============== Commodity scope END ============== //
-    const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexContextSchema }, "{{ asset.flex_context | safe }}", true);
+    const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON(
+        { ...assetFlexContextSchema },
+        // As JSON rather than as the Python representation inside a string literal,
+        // which a double quote in any value (such as a commitment's name) would end early.
+        {{ (asset.flex_context or {}) | tojson }},
+        true,
+    );
 
     const spinnerElement = document.getElementById('spinnerElement');
     const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -528,41 +519,7 @@
 
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
-        let data = getFlexContext();
-
-        function cleanContext(context, isCommodityContext) {
-            // Take out keys that are not in the specs, sparing structural keys
-            // (the commodities list itself is not part of the UI schema).
-            for (const key in context) {
-                if (isCommodityContext && key === "commodity") {
-                    continue;
-                }
-                if (!isCommodityContext && key === "commodities") {
-                    continue;
-                }
-                if (!assetFlexContextSchema.hasOwnProperty(key)) {
-                    delete context[key];
-                }
-            }
-
-            // Clean null values
-            for (const [key, value] of Object.entries(context)) {
-                if (
-                    value === null ||
-                    value === "" ||
-                    (Array.isArray(value) && value.length === 0)
-                ) {
-                    delete context[key];
-                }
-            }
-        }
-
-        cleanContext(data, false);
-        if (data["commodities"]) {
-            for (const commodityContext of data["commodities"]) {
-                cleanContext(commodityContext, true);
-            }
-        }
+        const data = cleanFlexContext(getFlexContext(), assetFlexContextSchema);
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
@@ -961,7 +918,7 @@
         const activeContext = getActiveContext(assetFlexContext);
 
         for (const [key, value] of Object.entries(activeContext)) {
-            if (value !== null && !structuralFields.includes(key)) {
+            if (value !== null && !isStructuralField(key)) {
                 const fieldCard = await renderFlexContextCard(key);
                 flexContextFormEle.appendChild(fieldCard);
             }
@@ -1189,30 +1146,18 @@ Make sure that the sensor data will be available consistently, though, so schedu
     // The scheduler requires all prices to share one currency, so derive the
     // default from price fields already in the flex-context (falling back to EUR).
     async function activeCurrency() {
-        const assetFlexContext = getFlexContext();
-        const contexts = [assetFlexContext, ...(assetFlexContext["commodities"] || [])];
-        const priceSensorIds = [];
-        for (const context of contexts) {
-            for (const [key, value] of Object.entries(context || {})) {
-                if (typeof value === "string") {
-                    const currencyMatch = value.match(/([A-Z]{3})\/[kMG]?W/);
-                    if (currencyMatch) {
-                        return currencyMatch[1];
-                    }
-                }
-                if (key.includes("price") && value !== null && typeof value === "object" && value["sensor"]) {
-                    priceSensorIds.push(value["sensor"]);
-                }
-            }
+        const { currency, priceSensorIds } = findFlexContextCurrency(getFlexContext());
+        if (currency) {
+            return currency;
         }
         // No fixed price values found: best effort, look up the unit of
         // sensor-referenced price fields (getSensor caches in localStorage).
         for (const sensorId of priceSensorIds) {
             try {
                 const sensor = await getSensor(sensorId);
-                const currencyMatch = (sensor["unit"] || "").match(/([A-Z]{3})\/[kMG]?W/);
-                if (currencyMatch) {
-                    return currencyMatch[1];
+                const sensorCurrency = currencyInUnit(sensor["unit"]);
+                if (sensorCurrency) {
+                    return sensorCurrency;
                 }
             } catch (error) {
                 // Ignore lookup failures; worst case we fall back to EUR.
@@ -1255,27 +1200,6 @@ Make sure that the sensor data will be available consistently, though, so schedu
         commitments[commitmentIndex][key] = value;
         localStorage.setItem('activeCard', 'commitments');
         setFlexContext(assetFlexContext);
-    }
-
-    // Turn free text into a commitment value: "sensor 536" (any casing) becomes
-    // a sensor reference, anything else is kept as a fixed quantity string.
-    function parseCommitmentValue(raw) {
-        const sensorMatch = raw.trim().toLowerCase().match(/^sensor\s+(\d+)$/);
-        if (sensorMatch) {
-            return { "sensor": parseInt(sensorMatch[1], 10) };
-        }
-        return raw.trim();
-    }
-
-    // Returns a plain-text description, or null when the value is not set.
-    function describeCommitmentValue(value) {
-        if (value === undefined || value === null || value === "") {
-            return null;
-        }
-        if (typeof value === "object" && value["sensor"]) {
-            return `sensor ${value["sensor"]}`;
-        }
-        return String(value);
     }
 
     function renderCommitmentsEditor() {
