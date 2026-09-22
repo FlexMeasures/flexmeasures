@@ -204,7 +204,7 @@ Embedding charts
 
 Creating charts from data can consume lots of development time.
 FlexMeasures can help here by delivering ready-made charts.
-In this tutorial, we'll embed the charts of a building, showing its electricity prices and power flows.
+In this tutorial, we'll embed a chart with electricity prices.
 
 First, we define a div tag for the chart and a basic layout (full width). We also load the visualization libraries we need (more about that below), and set up a custom formatter we use in FlexMeasures charts.
 
@@ -220,15 +220,15 @@ First, we define a div tag for the chart and a basic layout (full width). We als
         });
     </script>
 
-    <div id="asset-chart" style="width: 100%;"></div>
+    <div id="sensor-chart" style="width: 100%;"></div>
 
 Now we define a JavaScript function to ask the FlexMeasures API for a chart and then embed it:
 
 .. code-block:: JavaScript
 
-    function embedChart(params, authToken, assetId, divId){
+    function embedChart(params, authToken, sensorId, divId){
         fetch(
-            flexmeasures_domain + '/api/v3_0/assets/' + assetId + '/chart?include-data=true&' + params.toString(),
+            flexmeasures_domain + '/api/ui/sensor/' + sensorId + '/chart?include_data=true&' + params.toString(),
             {
                 method: "GET",
                 mode: "cors",
@@ -245,11 +245,10 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
 This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-From FlexMeasures, we are using the `[GET] /assets/(id)/chart <../api/v3_0.html#get--api-v3_0-assets-id-chart>`_ endpoint, which returns the chart of an asset.
+From FlexMeasures, we are using the `GET /api/ui/sensor/(id)/chart/ <../api/ui.html#get--api-ui-sensor-id-chart->`_ endpoint.
 Browse the endpoint documentation to learn more about it.
 
-An asset's chart shows the graphs set up for that asset, just like its *Graphs* page in the FlexMeasures UI does.
-To chart other sensors, change which sensors the asset shows, on that page or through the asset's ``sensors_to_show`` attribute (see :ref:`view_asset_graphs`).
+.. note:: This endpoint supports the FlexMeasures UI, and is not part of the official API, so it may change in any FlexMeasures version.
 
 Here are some common parameter choices for our JavaScript function:
 
@@ -279,13 +278,13 @@ Now let's call this function when the HTML page is opened, to embed our chart:
 
                 var params = new URLSearchParams();
                 params.append("start", '2022-01-01T00:00+01');
-                embedChart(params, authToken, 2, '#asset-chart');
+                embedChart(params, authToken, 1, '#sensor-chart');
             })
         }
     }
 
-The parameters we pass in describe what we want to see: all data since 2022, for the graphs of asset 2.
-If you followed our :ref:`toy tutorial<tut_toy_schedule>` on a fresh FlexMeasures installation, ``FM_TOY_BUILDING_ASSET_ID`` contains the ID of the toy building, whose graphs show its electricity prices and power flows (authenticate with the toy-user to gain access).
+The parameters we pass in describe what we want to see: all data for sensor 3 since 2022.
+If you followed our :ref:`toy tutorial<tut_toy_schedule>` on a fresh FlexMeasures installation, ``FM_TOY_PRICE_SENSOR_ID`` contains the market-price sensor ID (authenticate with the toy-user to gain access).
 
            
 The result looks like this in your browser:
