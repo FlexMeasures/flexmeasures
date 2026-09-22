@@ -60,3 +60,19 @@ def test_chart_attributes(client, setup_api_test_data, requesting_user, db):
 def test_chart_endpoints_need_a_logged_in_user(client, setup_api_test_data, db):
     sensor = _gas_sensor(db)
     assert client.get(f"/api/ui/sensor/{sensor.id}/chart_data").status_code == 401
+
+
+def test_ui_support_endpoints_are_left_out_of_the_openapi_specs():
+    """The published specs describe the official API, and so leave out the endpoints supporting the UI, under either prefix."""
+    import json
+    from importlib.resources import files
+
+    specs = json.loads(
+        files("flexmeasures.ui").joinpath("static/openapi-specs.json").read_text()
+    )
+    assert "/api/v3_0/assets/{id}/chart" in specs["paths"]
+    assert not [
+        path
+        for path in specs["paths"]
+        if path.startswith("/api/ui/") or path.startswith("/api/dev/")
+    ]
