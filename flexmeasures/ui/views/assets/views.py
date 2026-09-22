@@ -191,7 +191,7 @@ class AssetCrudUI(FlaskView):
             {
                 "name": sensor.name,
                 "resolution": duration_isoformat(sensor.event_resolution),
-                "unit": sensor._ui_unit,
+                "unit": sensor.unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
@@ -500,7 +500,7 @@ class AssetCrudUI(FlaskView):
             account_assets=account_assets,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
-            asset_flexmodel=json.dumps(asset.flex_model),
+            asset_flexmodel=asset.flex_model,
             available_units=available_units(),
             asset_summary=asset_summary,
             asset_form=asset_form,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numbers
 import os
 
 from datetime import timedelta
@@ -30,10 +29,10 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.utils.bound_utils import bound_validation_errors
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import ur
 
 DEFAULT_TRAIN_PERIOD = timedelta(days=30)
 
@@ -49,19 +48,6 @@ def _fixed_length_or_none(value) -> timedelta | None:
     except ValidationError:
         return None
     return parsed if isinstance(parsed, timedelta) else None
-
-
-def _is_parseable_quantity(value) -> bool:
-    """Whether a post-processing value is a number or a pint-parseable quantity string."""
-    if isinstance(value, numbers.Real):
-        return True
-    if not isinstance(value, str):
-        return False
-    try:
-        ur.Quantity(value)
-    except Exception:
-        return False
-    return True
 
 
 class AnnotationRegressorSchema(Schema):
@@ -123,7 +109,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references to be treated only as future regressors."
+                "Sensor IDs or sensor references to be treated only as future regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -143,7 +130,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
+                "Sensor IDs or sensor references to be treated only as past regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -160,7 +148,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references used as both past and future regressors."
+                "Sensor IDs or sensor references used as both past and future regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -233,7 +222,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=False,
         allow_none=True,
         metadata={
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            # Meant to be deprecated in favour of the explicit `lower` bound, which says the same thing without hiding it inside the model.
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting ``lower`` to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": True,
             "cli": {
                 "option": "--ensure-positive",
@@ -376,22 +366,9 @@ class TrainPredictPipelineConfigSchema(Schema):
         Unit compatibility with the sensor and interval semantics can only be
         checked once the output sensor is known, so those run at forecast time.
         """
-        errors: dict[str, list[str]] = {}
-        for field_name in ("lower", "upper"):
-            value = data.get(field_name)
-            if value is not None and not _is_parseable_quantity(value):
-                errors[field_name] = [
-                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
-                ]
-
-        snap_errors = [
-            f"Snap entry '{target}' must use numbers or parseable quantity strings."
-            for target, interval in (data.get("snap") or {}).items()
-            if not all(_is_parseable_quantity(v) for v in (target, *interval))
-        ]
-        if snap_errors:
-            errors["snap"] = snap_errors
-
+        errors = bound_validation_errors(
+            data.get("lower"), data.get("upper"), data.get("snap")
+        )
         if errors:
             raise ValidationError(errors)
 
@@ -433,8 +410,10 @@ class ForecasterParametersSchema(Schema):
         required=True,
         metadata={
             "description": (
-                "ID of the sensor to forecast, or a source-filtered sensor reference."
-                " Use a reference to say which of the sources recording on that sensor hold the truth to train on."
+                "ID of the sensor to forecast, or a sensor reference."
+                " Use a reference to say which of the sources recording on that sensor hold the truth to train on,"
+                " and to carry lower, upper and snap bounds that clean the target's readings before they become training labels."
+                " Those bounds clean what the model learns from; the forecaster's own lower, upper and snap config shapes what it writes back out."
                 " Without one, every source on the sensor is trained on, except forecasters,"
                 " which are left out so that the forecaster does not learn from its own forecasts."
                 " A reference replaces that default entirely, so pass exclude-source-types yourself to keep forecasters out alongside another filter."
@@ -444,7 +423,7 @@ class ForecasterParametersSchema(Schema):
             "example": {"sensor": 2092, "sources": [12, 13]},
             "cli": {
                 "option": "--sensor",
-                "extra_help": "Pass a bare sensor ID, or a JSON sensor reference to filter by source.",
+                "extra_help": "Pass a bare sensor ID, or a JSON sensor reference to filter by source or to clean the target's readings.",
             },
         },
     )
