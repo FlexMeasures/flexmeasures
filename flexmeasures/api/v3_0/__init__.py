@@ -40,9 +40,6 @@ from flexmeasures.api.v3_0.sources import SourceAPI
 from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
-    DefaultAssetViewJSONSchema,
-    StatusPageTabJSONSchema,
-    StatusPageChildJobsJSONSchema,
 )
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.automations import (
@@ -130,8 +127,28 @@ def collapse_schema_to_field(
 
 
 def flask_rule_to_openapi_path(rule: str) -> str:
-    """Turn a Flask rule like "/api/v3_0/assets/<id>/data" into its OpenAPI path."""
-    return re.sub(r"<(?:[^:<>]+:)?([^<>]+)>", r"{\1}", rule)
+    """Turn a Flask rule like "/api/v3_0/assets/<id>/automations/<int:automation_id>" into its OpenAPI path.
+
+    Path parameters are spelled in kebab-case, like the rest of the API, as in "/api/v3_0/assets/{id}/automations/{automation-id}".
+    Flask cannot name a route variable that way, so the rule keeps the underscore, which never reaches the wire.
+    """
+    return re.sub(
+        r"<(?:[^:<>]+:)?([^<>]+)>",
+        lambda match: "{" + match.group(1).replace("_", "-") + "}",
+        rule,
+    )
+
+
+def kebab_case_path_parameters(spec_dict: dict):
+    """Spell the path parameters in the paths of the OpenAPI specs in kebab-case (see `flask_rule_to_openapi_path`)."""
+    spec_dict["paths"] = {
+        re.sub(
+            r"{([^{}]+)}",
+            lambda match: "{" + match.group(1).replace("_", "-") + "}",
+            path,
+        ): operations
+        for path, operations in spec_dict.get("paths", {}).items()
+    }
 
 
 def trigger_limited_operations_of(rule, view) -> set[tuple]:
@@ -238,9 +255,6 @@ def create_openapi_specs(app: Flask):
         ("AutomationUpdateSchema", AutomationUpdateSchema),
         ("ReportTriggerSchema", ReportTriggerSchema),
         ("CopyAssetSchema", CopyAssetSchema),
-        ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
-        ("StatusPageTabJSONSchema", StatusPageTabJSONSchema),
-        ("StatusPageChildJobsJSONSchema", StatusPageChildJobsJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountCreateSchema", AccountCreateSchema()),
         ("AccountPatchSchema", AccountPatchSchema()),
@@ -309,6 +323,7 @@ def create_openapi_specs(app: Flask):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     spec_dict = spec.to_dict()
+    kebab_case_path_parameters(spec_dict)
     document_rate_limits(spec_dict, trigger_limited_operations)
 
     with open(output_path, "w") as f:

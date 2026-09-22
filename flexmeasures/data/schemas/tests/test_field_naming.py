@@ -52,11 +52,11 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "generic_asset_type_id",
         "horizons_at_least",
         "horizons_at_most",
-        "include_child_assets",
         "include_consultancy_clients",
         "include_inactive",
         "include_public",
         "include_public_assets",
+        "keep_legends_below_graphs",
         "last_login_at",
         "last_seen_at",
         "logo_url",
@@ -83,7 +83,6 @@ KNOWN_SNAKE_CASE_WIRE_NAMES = frozenset(
         "source_types",
         "staleness_search",
         "start_time",
-        "status_page_tab",
         "sum_multiple",
         "use_as_default",
         "use_latest_version_only",
@@ -220,4 +219,44 @@ def test_the_list_of_known_snake_case_names_has_no_stale_entries(wire_names):
     assert not stale, (
         "these names are excused but no longer on the wire, so drop them from"
         f" KNOWN_SNAKE_CASE_WIRE_NAMES:\n  {', '.join(stale)}"
+    )
+
+
+def test_a_path_parameter_in_the_openapi_specs_is_kebab_case():
+    """The same rule, for the path parameters the published specs name, such as the automation-id in the automation endpoints' paths.
+
+    Flask cannot name a route variable with a dash, so the specs spell it in kebab-case where the route keeps its underscore.
+    """
+    import json
+    import re
+    from importlib.resources import files
+
+    specs = json.loads(
+        files("flexmeasures.ui").joinpath("static/openapi-specs.json").read_text()
+    )
+    offenders = sorted(
+        path
+        for path in specs["paths"]
+        if any("_" in name for name in re.findall(r"{([^{}]+)}", path))
+    )
+    declared = sorted(
+        {
+            parameter["name"]
+            for operations in specs["paths"].values()
+            for operation in operations.values()
+            if isinstance(operation, dict)
+            for parameter in operation.get("parameters", [])
+            if parameter.get("in") == "path" and "_" in parameter.get("name", "")
+        }
+    )
+
+    assert (
+        not offenders
+    ), "these paths have a path parameter with an underscore:\n  " + "\n  ".join(
+        offenders
+    )
+    assert (
+        not declared
+    ), "these path parameters are declared with an underscore:\n  " + "\n  ".join(
+        declared
     )

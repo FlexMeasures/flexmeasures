@@ -24,9 +24,14 @@ def register_at(app: Flask):
         LegacyDevSensorAPI,
         SensorAPI,
     )
+    from flexmeasures.api.ui.session import LegacyV3SessionAPI, SessionAPI
 
     SensorAPI.register(app, route_prefix=UI_API_PREFIX)
     AssetAPI.register(app, route_prefix=UI_API_PREFIX)
 
+    SessionAPI.register(app, route_prefix=UI_API_PREFIX)
+
     LegacyDevSensorAPI.register(app, route_prefix=LEGACY_DEV_API_PREFIX)
     LegacyDevAssetAPI.register(app, route_prefix=LEGACY_DEV_API_PREFIX)
+    # Two session endpoints were released under v3 of the official API, where they keep working, undocumented, until v4.
+    LegacyV3SessionAPI.register(app, route_prefix="/api/v3_0")

@@ -11,8 +11,8 @@ Summary
 -------
 
 .. qrefflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api.ui.sensors
-    :undoc-endpoints: LegacyDevSensorAPI:get, LegacyDevSensorAPI:get_chart, LegacyDevSensorAPI:get_chart_data, LegacyDevSensorAPI:get_chart_annotations, LegacyDevAssetAPI:get
+    :modules: flexmeasures.api.ui.sensors, flexmeasures.api.ui.session
+    :undoc-endpoints: LegacyDevSensorAPI:get, LegacyDevSensorAPI:get_chart, LegacyDevSensorAPI:get_chart_data, LegacyDevSensorAPI:get_chart_annotations, LegacyDevAssetAPI:get, LegacyV3SessionAPI:update_default_asset_view, LegacyV3SessionAPI:update_keep_legends_below_graphs
     :order: path
     :include-empty-docstring:
 
@@ -20,7 +20,7 @@ API Details
 -----------
 
 .. autoflask:: flexmeasures.app:create(env="documentation")
-    :modules: flexmeasures.api.ui.sensors
-    :undoc-endpoints: LegacyDevSensorAPI:get, LegacyDevSensorAPI:get_chart, LegacyDevSensorAPI:get_chart_data, LegacyDevSensorAPI:get_chart_annotations, LegacyDevAssetAPI:get
+    :modules: flexmeasures.api.ui.sensors, flexmeasures.api.ui.session
+    :undoc-endpoints: LegacyDevSensorAPI:get, LegacyDevSensorAPI:get_chart, LegacyDevSensorAPI:get_chart_data, LegacyDevSensorAPI:get_chart_annotations, LegacyDevAssetAPI:get, LegacyV3SessionAPI:update_default_asset_view, LegacyV3SessionAPI:update_keep_legends_below_graphs
     :order: path
     :include-empty-docstring:
