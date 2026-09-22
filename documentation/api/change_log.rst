@@ -720,3 +720,11 @@ v1.0-0 | 2018-07-10
 - Added a description of the *getService* endpoint in the Introduction section
 - Added a description of the *postMeterData* endpoint in the MDC section
 - Added a description of the *getMeterData* endpoint in the Prosumer section
+
+
+Endpoints supporting the FlexMeasures UI
+""""""""""""""""""""""""""""""""""""""""
+
+.. note:: The endpoints below are not part of the official API, and not meant for external UIs. They support the FlexMeasures UI, live under ``/api/ui``, and can change or disappear with any FlexMeasures version.
+
+- September 22, 2026: The endpoints under ``/api/dev`` moved to ``/api/ui``: ``GET /api/ui/sensor/<id>``, with its ``/chart``, ``/chart_data`` and ``/chart_annotations``, and ``GET /api/ui/asset/<id>``. They are still served under ``/api/dev`` as well, until FlexMeasures v2.

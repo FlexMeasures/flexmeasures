@@ -5707,6 +5707,11 @@
       }
     },
     "/api/v3_0/docs/{path}": {},
+    "/api/ui/sensor/{id}": {},
+    "/api/ui/sensor/{id}/chart": {},
+    "/api/ui/sensor/{id}/chart_annotations": {},
+    "/api/ui/sensor/{id}/chart_data": {},
+    "/api/ui/asset/{id}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
     "/api/dev/sensor/{id}/chart_annotations": {},
