@@ -256,7 +256,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   }
 
   function rememberStatusPageTab(tabName) {
-    fetch(`${window.location.origin}/api/dev/session/status-page-tab`, {
+    fetch(`${window.location.origin}/api/ui/session/status-page-tab`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ "status-page-tab": tabName }),
@@ -266,7 +266,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   }
 
   function rememberIncludeChildAssets(include) {
-    fetch(`${window.location.origin}/api/dev/session/status-page-child-jobs`, {
+    fetch(`${window.location.origin}/api/ui/session/status-page-child-jobs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ "include-child-assets": include }),

@@ -664,7 +664,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   }
 
   function rememberIncludeChildAssets(include) {
-    fetch(`${window.location.origin}/api/dev/session/automations-page-child-assets`, {
+    fetch(`${window.location.origin}/api/ui/session/automations-page-child-assets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ "include-child-assets": include }),

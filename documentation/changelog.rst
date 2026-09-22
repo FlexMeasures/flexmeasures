@@ -19,12 +19,16 @@ v1.1.0 | September XX, 2026
              Select a data source to see the schedule computed under one configuration.
              One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
 
+.. warning:: FlexMeasures no longer depends on ``inflect``.
+             Use the ``pluralize``, ``join_words_into_a_list`` and ``indefinite_article`` helpers in ``flexmeasures.utils.flexmeasures_inflection`` instead, or require ``inflect`` yourself if your plugin relied on FlexMeasures importing it for you.
+
 New features
 -------------
 
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
+* A forecaster can now clean the data it trains on, by giving one of its regressors or its target a ``lower``, ``upper`` or ``snap`` bound, so that a sensor with implausible readings can be forecast from without first correcting it at the source [see `PR #2555 <https://www.github.com/FlexMeasures/flexmeasures/pull/2555>`_]
 * Try out a forecast without recording it, using ``flexmeasures add forecasts --dry-run``, which computes the forecast in full and reports the sensor, data source, number of beliefs and event range it would have saved [see `PR #2483 <https://www.github.com/FlexMeasures/flexmeasures/pull/2483>`_]
 * Run one-off reports as background jobs from the CLI or the asset API, with sensor-level authorization and a dedicated reporting worker queue [see `PR #2298 <https://github.com/FlexMeasures/flexmeasures/pull/2298>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
@@ -35,6 +39,9 @@ New features
 
 Infrastructure / Support
 -------------------------
+* The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
+* Find the built-in schedulers, reporters and forecasters from an explicit list, instead of importing every module under ``flexmeasures.data.models`` at start-up to look for them. Shortens boot time for every process and keeps an unrelated broken module from stopping the app; plugins keep being discovered as before [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
+* ``MetaStorageScheduler``, an internal base class that was never meant to be selected, is no longer registered and can no longer be named as a custom scheduler; name ``StorageScheduler`` instead [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
 * Report parameters name their belief time ``prior``, as schedule and forecast parameters do; the name ``belief_time`` is still accepted, while the ``belief_time`` of an ``input`` entry, which selects the beliefs to report on rather than stamping the report, keeps its name [see `PR #2551 <https://www.github.com/FlexMeasures/flexmeasures/pull/2551>`_]
 * A test now holds new API and CLI field names to kebab-case, listing the names that predate the convention so that the list can only shrink [see `PR #2547 <https://www.github.com/FlexMeasures/flexmeasures/pull/2547>`_]
 * Drop the nine obsolete tables that predate the ``GenericAsset``/``Sensor`` data model, asking you to confirm first if any of them still hold data, which cleans up after v0.18.0, where seven of them were dropped but ``asset_type`` and ``weather_sensor_type`` were missed, and where a database that was downgraded past that release and upgraded again kept all nine [see `PR #2475 <https://www.github.com/FlexMeasures/flexmeasures/pull/2475>`_]
@@ -44,13 +51,16 @@ Infrastructure / Support
 * Shrink the Docker image by excluding dev-only dependencies, pruning stray ``docs``/``examples`` payloads bundled by ``sktime``/``scikit-base`` (issue: https://github.com/sktime/sktime/issues/10891), stripping the symbol tables that the compiled extensions ship with, and dropping the ``sktime``-backed belief-formation extra of ``timely-beliefs``, which FlexMeasures does not use [see `PR #2438 <https://www.github.com/FlexMeasures/flexmeasures/pull/2438>`_, `PR #2439 <https://www.github.com/FlexMeasures/flexmeasures/pull/2439>`_ and `PR #2440 <https://www.github.com/FlexMeasures/flexmeasures/pull/2440>`_]
 * Require an exact ``uv`` version (``0.12.7``) via ``[tool.uv].required-version``, which keeps ``uv.lock`` changes reproducible across local development, CI, Docker and Read the Docs, but does mean that anyone running ``uv`` in a FlexMeasures checkout — plugin developers and self-hosters included — needs that same version [see `PR #2451 <https://www.github.com/FlexMeasures/flexmeasures/pull/2451>`_]
 * Speed up ``GET /api/v3_0/assets`` on large catalogs by eager-loading the ``owner``, ``generic_asset_type`` and ``child_assets`` relations alongside the already eager-loaded ``sensors``, instead of lazy-loading each of them once per asset, which made the SQL statement count grow linearly with the number of assets returned [see `PR #2515 <https://www.github.com/FlexMeasures/flexmeasures/pull/2515>`_]
+* Speed up app boot by ~1s by dropping the ``inflect`` dependency in favor of the already-used, much lighter ``inflection`` package; API error messages that list several values, such as the permissions a request requires or the units a quantity accepts, no longer place a comma before the final "and" or "or" [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
 * The UI's JavaScript modules can now be tested, by running them in a headless browser from pytest, without adding a Node.js toolchain [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
+* Test much more of the UI's JavaScript, and move the asset tree's layout and the flex-context editor's logic out of their templates into modules, so that they can be tested too [see `PR #2574 <https://www.github.com/FlexMeasures/flexmeasures/pull/2574>`_]
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
 
 Bugfixes
 -----------
+* A forecaster given more than one regressor of the same kind trained on each of them several times over, because every regressor's data was collected once per regressor [see `PR #2560 <https://www.github.com/FlexMeasures/flexmeasures/pull/2560>`_]
 * Organisation audit logs now show only changed fields with their previous and new values, and user role and active-status changes identify the affected user [see `PR #2522 <https://www.github.com/FlexMeasures/flexmeasures/pull/2522>`_]
 * ``GET /api/v3_0/assets/(id)/jobs`` now reports its Redis connection error as ``redis-connection-err`` rather than ``redis_connection_err``, so the field is spelled the same way there as on the automation endpoints that also report it [see `PR #2545 <https://www.github.com/FlexMeasures/flexmeasures/pull/2545>`_]
 * Where several data sources report the same event, which one a search keeps is now decided the same way every time: a source version only counts against other versions of that source, and a caller that lists its sources gets the order it asked for [see `PR #2494 <https://www.github.com/FlexMeasures/flexmeasures/pull/2494>`_]
@@ -59,6 +69,8 @@ Bugfixes
 * The time range sent when loading an asset's KPIs was off by the viewer's UTC offset, so KPIs could cover the wrong days [see `PR #2435 <https://www.github.com/FlexMeasures/flexmeasures/pull/2435>`_]
 * An asset's status page showed only some of the sensors it reported on, in an order that changed between reloads, and it reported on fixed quantities from the flex-context, which have no data to be up to date with [see `PR #2489 <https://www.github.com/FlexMeasures/flexmeasures/pull/2489>`_]
 * Saving an asset chart as PNG or SVG drew the legend over the graph whenever it listed more sensors than fit beside a subplot; the exported image now makes room for every entry beside its own plot, without shrinking the plot, and spells out the sensor names that the on-screen legend abbreviates [see `PR #2517 <https://www.github.com/FlexMeasures/flexmeasures/pull/2517>`_]
+* Asset type groups were named by a pluralization that mangled acronyms and nouns ending in -y, so the asset pages listed ``PVS``, ``EVS``, ``CHPS`` and ``Factorys``; they now read ``PVs``, ``EVs``, ``CHPs`` and ``Factories`` [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
+* A new commitment's prices now default to the currency of the price sensors in the flex-context, where they fell back to EUR unless a fixed price was set [see `PR #2574 <https://www.github.com/FlexMeasures/flexmeasures/pull/2574>`_]
 
 Automations, in detail
 -----------------------

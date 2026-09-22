@@ -730,7 +730,8 @@ v1.0-0 | 2018-07-10
 Endpoints supporting the FlexMeasures UI
 """"""""""""""""""""""""""""""""""""""""
 
-.. note:: The endpoints below are not part of the official API. They support the FlexMeasures UI, live under ``/api/dev``, and can change or disappear with any FlexMeasures version, which may break any other client using them.
+.. note:: The endpoints below are not part of the official API, and not meant for external UIs. They support the FlexMeasures UI, live under ``/api/ui``, and can change or disappear with any FlexMeasures version.
 
-- September 17, 2026: Added ``POST /api/dev/session/default-asset-view``, ``POST /api/dev/session/keep-legends-below-graphs``, ``POST /api/dev/session/status-page-tab``, ``POST /api/dev/session/status-page-child-jobs`` and ``POST /api/dev/session/automations-page-child-assets``, which store the current user's choices in the FlexMeasures UI in their session.
-  The first two replace ``POST /api/v3_0/assets/default_asset_view`` and ``POST /api/v3_0/assets/keep_legends_below_graphs``, which are no longer part of the official API.
+- September 22, 2026: The endpoints under ``/api/dev`` moved to ``/api/ui``: ``GET /api/ui/sensor/<id>``, with its ``/chart``, ``/chart_data`` and ``/chart_annotations``, and ``GET /api/ui/asset/<id>``. They are still served under ``/api/dev`` as well, until FlexMeasures v2.
+- September 22, 2026: Added ``POST /api/ui/session/default-asset-view``, ``POST /api/ui/session/keep-legends-below-graphs``, ``POST /api/ui/session/status-page-tab``, ``POST /api/ui/session/status-page-child-jobs`` and ``POST /api/ui/session/automations-page-child-assets``, which store the current user's choices in the FlexMeasures UI in their session.
+  The first two take over from ``POST /api/v3_0/assets/default_asset_view`` and ``POST /api/v3_0/assets/keep_legends_below_graphs``, which are no longer documented, but keep working in v3 of the API.
