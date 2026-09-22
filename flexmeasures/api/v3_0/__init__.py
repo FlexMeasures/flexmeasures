@@ -62,6 +62,8 @@ from flexmeasures.api.common.rate_limiting import (
 )
 from flexmeasures.utils.doc_utils import rst_to_openapi
 
+UI_SUPPORT_PACKAGE = "flexmeasures.api.ui"
+
 OPENAPI_DOCSTRING_REPLACEMENTS = {
     "{{CONSULTANCY_ACCOUNT_ROLE}}": CONSULTANCY_ACCOUNT_ROLE,
 }
@@ -272,8 +274,11 @@ def create_openapi_specs(app: Flask):
                 trigger_limited_operations_of(rule, target)
             )
 
-            # Document all API endpoints under /api or root /
-            if rule.rule.startswith("/api/") or rule.rule == "/":
+            # Document all API endpoints under /api or root /,
+            # except the endpoints supporting the UI, which are not part of the official API (see flexmeasures.api.ui).
+            if (
+                rule.rule.startswith("/api/") or rule.rule == "/"
+            ) and not view_function.__module__.startswith(UI_SUPPORT_PACKAGE):
                 try:
                     spec.path(view=view_function)
                     documented_endpoints_counter += 1
