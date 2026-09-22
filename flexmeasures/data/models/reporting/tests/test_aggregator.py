@@ -337,6 +337,11 @@ def test_aggregator_over_asset_leaves_out_output_sensor(setup_site_data, db):
     assert len(result) == 24
     assert result["event_value"].values == pytest.approx(0.3)
 
+    # the output sensor records in MW, so the units filter selects it, but it is not reported as being read
+    assert site_power_sensor.id not in [
+        sensor.id for sensor in agg_reporter.input_sensors
+    ]
+
 
 def test_aggregator_over_listed_sensors(setup_site_data, db):
     """Select the sensors to aggregate by ID, and weigh one of them by its generated name."""
