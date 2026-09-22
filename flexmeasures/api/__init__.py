@@ -179,9 +179,9 @@ def register_at(app: Flask):
 
     # Load all versions of the API functionality
     from flexmeasures.api.v3_0 import register_at as v3_0_register_at
-    from flexmeasures.api.dev import register_at as dev_register_at
+    from flexmeasures.api.ui import register_at as ui_register_at
     from flexmeasures.api.sunset import register_at as sunset_register_at
 
     v3_0_register_at(app)
-    dev_register_at(app)
+    ui_register_at(app)
     sunset_register_at(app)
