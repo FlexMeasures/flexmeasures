@@ -190,6 +190,10 @@ def _load_data_generator(automation: Automation) -> DataGenerator:
         raise AutomationNotCopyable(
             f"Its data generator could not be set up: {e}"
         ) from e
+    except ValidationError as e:
+        raise AutomationNotCopyable(
+            f"Its stored data generator configuration no longer validates: {e.messages}"
+        ) from e
 
 
 def _copy_generator(
@@ -306,6 +310,45 @@ def _output_sensors(automation_type: str, parameters: dict) -> list[Sensor]:
     return sensors
 
 
+def _field_name(field: fields.Field) -> str:
+    """Name a schema field the way it is spelled in the stored data."""
+    return field.data_key or field.name or "value"
+
+
+def _require_stored_type(
+    value, expected: type, described_as: str, field: fields.Field
+) -> None:
+    """Require a stored value to have the shape its schema field describes.
+
+    :raises AutomationNotCopyable: if it does not, as its references then cannot be checked.
+    """
+    if not isinstance(value, expected):
+        raise AutomationNotCopyable(
+            f"Its stored {_field_name(field)} is {type(value).__name__} rather than {described_as}, so its references cannot be checked."
+        )
+
+
+def _reference_id(value, kind: str) -> int:
+    """Read one stored reference as an ID.
+
+    Configuration and parameters are stored as JSON that a schema wrote but that nothing re-checks on the way out,
+    so a value that is not an ID means this one automation cannot be checked,
+    not that the whole asset copy should fail.
+
+    :raises AutomationNotCopyable: if the value cannot be read as an ID.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, str, float)):
+        raise AutomationNotCopyable(
+            f"It holds {value!r} where a {kind} ID belongs, so its references cannot be checked."
+        )
+    try:
+        return int(value)
+    except (TypeError, ValueError) as e:
+        raise AutomationNotCopyable(
+            f"It holds {value!r} where a {kind} ID belongs, so its references cannot be checked."
+        ) from e
+
+
 class _ReferenceRemapper:
     """Points the references in a serialized configuration or parameter set at a copied subtree.
 
@@ -346,8 +389,10 @@ class _ReferenceRemapper:
         if value is None:
             return None
         if isinstance(field, fields.List):
+            _require_stored_type(value, list, "a list", field)
             return [self._remap_value(item, field.inner) for item in value]
         if isinstance(field, fields.Nested):
+            _require_stored_type(value, dict, "an object", field)
             return self.remap(value, field.schema)
         if isinstance(field, SensorIdOrReferenceField):
             if isinstance(value, dict):
@@ -371,7 +416,7 @@ class _ReferenceRemapper:
 
     def _remap_sensor_id(self, value) -> int:
         """Point a sensor reference at the copied sensor, or keep it if the destination may read it."""
-        sensor_id = int(value)
+        sensor_id = _reference_id(value, "sensor")
         if sensor_id in self.sensor_id_map:
             return self.sensor_id_map[sensor_id]
         sensor = db.session.get(Sensor, sensor_id)
@@ -391,7 +436,7 @@ class _ReferenceRemapper:
 
     def _remap_asset_id(self, value) -> int:
         """Point an asset reference at the copied asset, or keep it if the destination may read it."""
-        asset_id = int(value)
+        asset_id = _reference_id(value, "asset")
         if asset_id in self.asset_id_map:
             return self.asset_id_map[asset_id]
         asset = db.session.get(GenericAsset, asset_id)
@@ -407,7 +452,7 @@ class _ReferenceRemapper:
 
     def _check_data_source_id(self, value) -> None:
         """Refuse a data source reference the destination organisation cannot read."""
-        source_id = int(value)
+        source_id = _reference_id(value, "data source")
         source = db.session.get(DataSource, source_id)
         if source is None:
             raise AutomationNotCopyable(
@@ -420,7 +465,7 @@ class _ReferenceRemapper:
 
     def _check_account_id(self, value) -> None:
         """Refuse an organisation reference the destination organisation cannot read."""
-        account_id = int(value)
+        account_id = _reference_id(value, "organisation")
         if not _account_can_read(account_id, self.destination_account_id):
             raise AutomationNotCopyable(
                 f"It references organisation {account_id}, whose data the destination organisation cannot read."
