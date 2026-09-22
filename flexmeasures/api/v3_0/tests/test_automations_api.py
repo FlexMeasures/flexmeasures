@@ -1,4 +1,4 @@
-"""Tests for the automations endpoints (GET /api/v3_0/assets/<id>/automations[/<automation_id>])."""
+"""Tests for the automations endpoints (GET /api/v3_0/assets/<id>/automations[/<automation-id>])."""
 
 from __future__ import annotations
 

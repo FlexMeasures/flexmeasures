@@ -3367,7 +3367,7 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/automations/{automation_id}": {
+    "/api/v3_0/assets/{id}/automations/{automation-id}": {
       "delete": {
         "summary": "Delete an automation.",
         "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires permission to add data under the asset.\n",
@@ -3388,7 +3388,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -3437,7 +3437,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -3543,7 +3543,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -4711,7 +4711,7 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/automations/{automation_id}/trigger": {
+    "/api/v3_0/assets/{id}/automations/{automation-id}/trigger": {
       "post": {
         "summary": "Trigger a single run of an automation.",
         "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
@@ -4732,7 +4732,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation to run.",
             "schema": {

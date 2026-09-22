@@ -200,7 +200,7 @@ This is useful to try out a new automation, to re-run one after fixing what made
 
     flexmeasures jobs run-automation --automation 4
 
-The same is available in the API, as `[POST] /assets/(id)/automations/(automation_id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation_id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
 
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.

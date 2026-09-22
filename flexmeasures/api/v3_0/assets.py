@@ -1556,7 +1556,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation.
               schema:
@@ -1803,7 +1803,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation.
               schema:
@@ -1875,7 +1875,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation.
               schema:
@@ -1943,7 +1943,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation to run.
               schema:
