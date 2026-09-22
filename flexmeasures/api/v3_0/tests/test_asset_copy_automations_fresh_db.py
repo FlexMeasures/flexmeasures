@@ -429,3 +429,61 @@ def test_copy_asset_api_reports_skipped_automations(
         )
     ]
     assert copied_names == ["Site power forecasts"]
+
+
+def test_copy_skips_an_automation_whose_parameters_are_malformed(
+    fresh_db, automated_site
+):
+    """Parameters reach the remapper unvalidated, so a malformed one must skip that automation alone."""
+    malformed = _add_automation(
+        fresh_db,
+        asset=automated_site["site"],
+        name="Malformed parameters",
+        # A list where a sensor ID belongs, as a hand-edited or legacy row may hold.
+        parameters={"sensor": [automated_site["power"].id]},
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert [skipped.name for skipped in asset_copy.skipped_automations] == [
+        malformed.name
+    ]
+    assert "sensor ID" in asset_copy.skipped_automations[0].reason
+    # The rest of the copy went through.
+    assert [
+        automation.name for automation in _automations_of(fresh_db, asset_copy.asset)
+    ] == ["Site power forecasts"]
+
+
+def test_copy_skips_an_automation_whose_stored_config_no_longer_validates(
+    fresh_db, automated_site
+):
+    """A stored generator config that no longer loads must skip that automation alone."""
+    generator = DataSource(
+        name="legacy forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        # A scalar where a list of regressors belongs.
+        attributes={"data_generator": {"config": {"future-regressors": 12345}}},
+    )
+    fresh_db.session.add(generator)
+    fresh_db.session.flush()
+    malformed = _add_automation(
+        fresh_db,
+        asset=automated_site["site"],
+        name="Malformed config",
+        parameters={"sensor": automated_site["power"].id},
+        generator=generator,
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert [skipped.name for skipped in asset_copy.skipped_automations] == [
+        malformed.name
+    ]
+    assert "no longer validates" in asset_copy.skipped_automations[0].reason
+    assert [
+        automation.name for automation in _automations_of(fresh_db, asset_copy.asset)
+    ] == ["Site power forecasts"]
