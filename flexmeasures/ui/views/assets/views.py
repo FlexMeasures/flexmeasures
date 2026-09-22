@@ -18,6 +18,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    get_readable_offspring,
 )
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
@@ -192,7 +193,7 @@ class AssetCrudUI(FlaskView):
             {
                 "name": sensor.name,
                 "resolution": duration_isoformat(sensor.event_resolution),
-                "unit": sensor._ui_unit,
+                "unit": sensor.unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
@@ -254,6 +255,13 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id>/automations to show the automations defined on the asset."""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
+        include_child_assets = session.get(
+            "automations_page_include_child_assets", True
+        )
+        assets_to_report_on = [asset] + (
+            get_readable_offspring(asset) if include_child_assets else []
+        )
+        registered_types = get_automation_types()
 
         return render_flexmeasures_template(
             "assets/asset_automations.html",
@@ -261,12 +269,13 @@ class AssetCrudUI(FlaskView):
             available_timezones=all_timezones,
             automation_types={
                 type_id: handler.display_name
-                for type_id, handler in get_automation_types().items()
+                for type_id, handler in registered_types.items()
             }
             | {
                 automation.type: f"{automation.type} (plugin unavailable)"
-                for automation in asset.automations
-                if automation.type not in get_automation_types()
+                for asset_to_report_on in assets_to_report_on
+                for automation in asset_to_report_on.automations
+                if automation.type not in registered_types
             },
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
@@ -510,7 +519,7 @@ class AssetCrudUI(FlaskView):
             account_assets=account_assets,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
-            asset_flexmodel=json.dumps(asset.flex_model),
+            asset_flexmodel=asset.flex_model,
             available_units=available_units(),
             asset_summary=asset_summary,
             asset_form=asset_form,

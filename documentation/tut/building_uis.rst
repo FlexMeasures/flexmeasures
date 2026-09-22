@@ -228,7 +228,7 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
     function embedChart(params, authToken, sensorId, divId){
         fetch(
-            flexmeasures_domain + '/api/dev/sensor/' + sensorId + '/chart?include_data=true&' + params.toString(),
+            flexmeasures_domain + '/api/ui/sensor/' + sensorId + '/chart?include_data=true&' + params.toString(),
             {
                 method: "GET",
                 mode: "cors",
@@ -245,10 +245,10 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
 This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-id-chart->`_ endpoint.
+From FlexMeasures, we are using the `GET /api/ui/sensor/(id)/chart/ <../api/ui.html#get--api-ui-sensor-(id)-chart>`_ endpoint.
 Browse the endpoint documentation to learn more about it.
 
-.. note:: Endpoints in the developer API are still under development and are subject to change in new releases.
+.. note:: This endpoint supports the FlexMeasures UI, and is not part of the official API, so it may change in any FlexMeasures version.
 
 Here are some common parameter choices for our JavaScript function:
 

@@ -153,7 +153,7 @@ class AutomationHandler:
                 "forecasting": _run_forecast_automation,
                 "scheduling": _run_schedule_automation,
             }[self.type_id]
-            return runner(automation)
+            return runner(automation, scheduled_at=scheduled_at)
         generator, sensors = resolve_plugin_generator(automation, self)
         validate_output_scope(automation.asset_id, sensors["output_sensors"])
         source_id = generator.data_source.id

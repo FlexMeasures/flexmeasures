@@ -28,7 +28,7 @@ class PredictPipeline(BasePipeline):
         self,
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
-        target_sensor: Sensor,
+        target_sensor: Sensor | SensorReference,
         model_path: str,
         output_path: str,
         n_steps_to_predict: int,

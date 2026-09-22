@@ -45,6 +45,7 @@ from flexmeasures.utils.time_utils import (
     server_now,
 )
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     MsgStyle,
     validate_unique,
     tabulate_account_assets,
@@ -58,7 +59,7 @@ from flexmeasures.cli.utils import (
 )
 
 
-@click.group("show")
+@click.group("show", cls=LoggedClickExceptionGroup)
 def fm_show_data():
     """FlexMeasures: Show data."""
 

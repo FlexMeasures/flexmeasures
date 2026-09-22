@@ -391,6 +391,85 @@ def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
     assert captured_configs[1]["past_regressors"] == [regressor_sensor]
 
 
+def test_add_forecast_cli_accepts_a_source_filtered_target_sensor(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+):
+    """The target sensor takes a bare ID, or a JSON reference naming the sources to train on."""
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        ForecasterParametersSchema,
+    )
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    captured_parameters = []
+
+    class StubForecaster:
+        def set_job_trigger(self, origin):
+            pass
+
+        def compute(self, **kwargs):
+            captured_parameters.append(
+                ForecasterParametersSchema().load(kwargs["parameters"])
+            )
+            return {"n_jobs": 1}
+
+    monkeypatch.setattr(
+        data_add, "get_data_generator", lambda **kwargs: StubForecaster()
+    )
+    runner = app.test_cli_runner()
+
+    reference_result = runner.invoke(
+        data_add.add_forecast,
+        [
+            "--sensor",
+            json.dumps({"sensor": target_sensor.id, "sources": [source.id]}),
+            "--as-job",
+        ],
+    )
+    plain_id_result = runner.invoke(
+        data_add.add_forecast,
+        ["--sensor", str(target_sensor.id), "--as-job"],
+    )
+
+    check_command_ran_without_error(reference_result)
+    check_command_ran_without_error(plain_id_result)
+    filtered_target = captured_parameters[0]["sensor"]
+    assert isinstance(filtered_target, SensorReference)
+    assert filtered_target.sensor == target_sensor
+    assert filtered_target.sources == [source]
+    # Forecasts are recorded on the sensor itself, not on a source-filtered view of it.
+    assert captured_parameters[0]["sensor_to_save"] == target_sensor
+    assert captured_parameters[1]["sensor"] == target_sensor
+
+
+def test_add_forecast_cli_reports_a_malformed_target_sensor_reference(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+):
+    """A --sensor value that was meant to be a reference is reported as such, not as a bad integer."""
+    from flexmeasures.cli import data_add
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        data_add.add_forecast,
+        ["--sensor", '{"sensor": %d, "sources": [1]' % target_sensor.id],
+    )
+
+    assert result.exit_code != 0
+    assert "looks like a JSON sensor reference" in result.output
+    assert "Not a valid integer" not in result.output
+
+
 def test_add_holidays_with_timezone(app, fresh_db, setup_roles_users_fresh_db):
     """Test that add_holidays respects --timezone and stores midnight local time."""
     from flexmeasures.cli.data_add import add_holidays

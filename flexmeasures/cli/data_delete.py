@@ -35,6 +35,7 @@ from flexmeasures.data.schemas import (
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     abort,
     done,
     DeprecatedOption,
@@ -75,7 +76,7 @@ def _count_affected_secrets(
     )
 
 
-@click.group("delete")
+@click.group("delete", cls=LoggedClickExceptionGroup)
 def fm_delete_data():
     """FlexMeasures: Delete data."""
 

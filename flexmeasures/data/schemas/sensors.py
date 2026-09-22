@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import cached_property
 from datetime import timedelta
 from difflib import get_close_matches
 import numbers
@@ -33,6 +34,7 @@ from marshmallow.validate import Validator
 import re
 import isodate
 from marshmallow_oneofschema import OneOfSchema
+import numpy as np
 import pandas as pd
 
 from flexmeasures.data import ma, db
@@ -47,6 +49,11 @@ from flexmeasures.data.schemas.utils import (
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.time_utils import get_timezone
+from flexmeasures.utils.bound_utils import (
+    apply_bounds_to_values,
+    bound_validation_errors,
+    parse_bounds,
+)
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
     ur,
@@ -365,6 +372,22 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
     {"source-types", "exclude-source-types", "sources", "source-account"}
 )
 
+#: The keys that clean a referenced sensor's readings before they are used.
+SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
+
+#: Scheduling does not apply bounds yet, so a flex-model or flex-context reference refuses them rather than silently ignoring them.
+SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE = (
+    "Sensor references in a flex-model or flex-context do not accept `lower`, `upper` or `snap` yet,"
+    " because scheduling does not apply them; only forecaster inputs do."
+)
+
+
+def _sets_bounds(reference: dict[str, Any]) -> bool:
+    """Whether a sensor-reference dict actually sets a bound, so that an explicit null or an empty snap mapping does not count."""
+    return any(
+        reference.get(key) not in (None, {}) for key in SENSOR_REFERENCE_BOUND_KEYS
+    )
+
 
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     _UNSUPPORTED_VALUE_TYPE_MESSAGE = (
@@ -551,6 +574,8 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if _sets_bounds(value):
+            raise FMValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -1030,7 +1055,7 @@ class QuantitySchema(Schema):
 class SensorReference:
     """A sensor reference that wraps a Sensor with optional query settings.
 
-    Exposes the same ``unit``, ``id``, and ``event_resolution`` properties as a plain
+    Exposes the same ``unit``, ``id``, ``name``, ``event_resolution`` and ``timezone`` properties as a plain
     :class:`~flexmeasures.data.models.time_series.Sensor`, so code that reads those
     properties works without modification. The source filters and optional default
     value are passed through to
@@ -1043,6 +1068,38 @@ class SensorReference:
     sources: list[DataSource] | None = field(default=None)
     source_account: list[Account] | None = field(default=None)
     default: ur.Quantity | None = field(default=None)
+    lower: Any = field(default=None)
+    upper: Any = field(default=None)
+    snap: dict = field(default_factory=dict)
+
+    @property
+    def has_bounds(self) -> bool:
+        """Whether this reference asks for its readings to be cleaned at all."""
+        return self.lower is not None or self.upper is not None or bool(self.snap)
+
+    @cached_property
+    def _parsed_bounds(
+        self,
+    ) -> tuple[float | None, float | None, list[tuple[float, float, float]]]:
+        """The bounds as magnitudes in the sensor's unit, parsed once per reference rather than once per read."""
+        return parse_bounds(
+            self.lower,
+            self.upper,
+            self.snap,
+            self.unit,
+            label=f"bounds on sensor {self.name} (ID: {self.id})",
+        )
+
+    def apply_bounds(self, values: np.ndarray) -> np.ndarray:
+        """Snap and clip readings taken from the sensor, in the sensor's own unit.
+
+        :param values:      Readings in the unit of the referenced sensor.
+        :returns:           The readings, cleaned by this reference's bounds, or unchanged if it has none.
+        :raises ValueError: If a bound cannot be read in the sensor's unit (normally caught when the reference is loaded).
+        """
+        if not self.has_bounds:
+            return values
+        return apply_bounds_to_values(values, *self._parsed_bounds)
 
     @property
     def unit(self) -> str:
@@ -1055,9 +1112,19 @@ class SensorReference:
         return self.sensor.id
 
     @property
+    def name(self) -> str:
+        """Name of the underlying sensor."""
+        return self.sensor.name
+
+    @property
     def event_resolution(self) -> timedelta:
         """Event resolution of the underlying sensor."""
         return self.sensor.event_resolution
+
+    @property
+    def timezone(self) -> str:
+        """Timezone of the underlying sensor."""
+        return self.sensor.timezone
 
 
 class SharedSensorReferenceSchema(Schema):
@@ -1077,7 +1144,7 @@ class OutputSensorReferenceSchema(SharedSensorReferenceSchema):
 
 
 class SensorReferenceSchema(SharedSensorReferenceSchema):
-    """Sensor reference with optional source filters and fallback value."""
+    """Sensor reference with optional source filters, fallback value and cleaning bounds."""
 
     class Meta:
         description = "Sensor reference from which to look up a variable quantity."
@@ -1122,15 +1189,72 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         ),
     )
 
-    @post_dump
-    def remove_unset_default(self, data: dict, **kwargs) -> dict:
-        """Leave out `default` entirely when the reference does not define one.
+    lower = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata=dict(
+            description="Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            example="0 kW",
+        ),
+    )
+    upper = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata=dict(
+            description="Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            example="20 kW",
+        ),
+    )
+    snap = fields.Dict(
+        keys=fields.Raw(),
+        values=fields.List(fields.Raw(), validate=validate.Length(equal=2)),
+        required=False,
+        allow_none=True,
+        load_default={},
+        metadata=dict(
+            description="Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            example={"0 kW": ["0 kW", "0.5 kW"]},
+        ),
+    )
 
-        Without this, references that set no fallback would serialize a
-        `default: None` key, which is not valid input on the way back in.
+    @validates_schema
+    def validate_bounds(self, data: dict, **kwargs):
+        """Fail fast on a bound that cannot be applied to the referenced sensor.
+
+        The sensor is already loaded at this point, so besides whether each bound can be read as a quantity,
+        this also checks that it is compatible with the sensor's unit, that each snap target lies within its interval,
+        and that the lower bound does not exceed the upper bound.
         """
-        if data.get("default") is None:
-            data.pop("default", None)
+        sensor = data.get("sensor")
+        errors = bound_validation_errors(
+            data.get("lower"),
+            data.get("upper"),
+            data.get("snap"),
+            sensor_unit=sensor.unit if sensor is not None else None,
+            label=(
+                f"bounds on sensor {sensor.name} (ID: {sensor.id})"
+                if sensor is not None
+                else "sensor reference bounds"
+            ),
+        )
+        if errors:
+            raise ValidationError(errors)
+
+    @post_dump
+    def remove_unset_default_and_bounds(self, data: dict, **kwargs) -> dict:
+        """Leave out `default` and the bounds entirely when the reference does not define them.
+
+        Without this, references that set no fallback and no bounds would serialize `default: None` and empty bound keys,
+        which are not valid input on the way back in.
+        A zero bound is meaningful, so only None and an empty snap mapping are dropped.
+        """
+        for field_name in ("default", "lower", "upper"):
+            if data.get(field_name) is None:
+                data.pop(field_name, None)
+        if not data.get("snap"):
+            data.pop("snap", None)
         return data
 
 
@@ -1145,6 +1269,12 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
 
     class Meta:
         description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @validates_schema
+    def refuse_bounds(self, data: dict, **kwargs):
+        """Refuse the bounds this schema inherits, since scheduling does not apply them yet."""
+        if _sets_bounds(data):
+            raise ValidationError(SCHEDULING_BOUNDS_NOT_APPLIED_MESSAGE)
 
     @post_load
     def to_sensor_or_reference(
@@ -1170,7 +1300,7 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
 
 
 class SensorIdOrReferenceField(fields.Raw):
-    """Field accepting either a sensor ID or a source-filtered sensor reference."""
+    """Field accepting either a sensor ID or a sensor reference, which may filter by source and carry cleaning bounds."""
 
     def __init__(self, *args, **kwargs):
         metadata = dict(kwargs.pop("metadata", {}))
@@ -1193,7 +1323,10 @@ class SensorIdOrReferenceField(fields.Raw):
             return self.sensor_id_field.deserialize(value, attr, data, **kwargs)
 
         sensor_reference = self.sensor_reference_schema.load(value)
-        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value):
+        # A bare sensor is enough unless the reference asks for filtering or cleaning.
+        if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value) and not _sets_bounds(
+            value
+        ):
             return sensor_reference["sensor"]
         return SensorReference(**sensor_reference)
 
