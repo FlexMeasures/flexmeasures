@@ -11,7 +11,7 @@ from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 from flexmeasures.auth.policy import can_modify_role, check_access
 
-from flexmeasures.data.models.audit_log import AuditLog
+from flexmeasures.data.models.audit_log import AuditLog, truncate_string
 from flexmeasures.data.models.user import User as UserModel, Account
 from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
@@ -476,7 +476,7 @@ class UserAPI(FlaskView):
                             f"You are not allowed to remove ({role.name}) role from this user."
                         )
                 if roles_being_removed:
-                    audit_event += f"Removed role(s): [{','.join([r.name for r in roles_being_removed])}]."
+                    audit_event += f"Removed role(s): [{','.join(sorted(r.name for r in roles_being_removed))}]. "
 
                 roles_being_added = new_roles - current_roles
                 for role in roles_being_added:
@@ -485,13 +485,14 @@ class UserAPI(FlaskView):
                             f"You are not allowed to add ({role.name}) role to this user."
                         )
                 if roles_being_added:
-                    audit_event += f"Added role(s): [{','.join([r.name for r in roles_being_added])}]."
+                    audit_event += f"Added role(s): [{','.join(sorted(r.name for r in roles_being_added))}]. "
 
+            old_value = getattr(user, k)
             setattr(user, k, v)
             if k == "active" and v is False:
                 remove_cookie_and_token_access(user)
-            if k == "active":
-                audit_event += f"Active status set to '{v}'."
+            if k == "active" and old_value != v:
+                audit_event += f"Active status changed from '{old_value}' to '{v}'. "
         if audit_event:
             user_audit_log = create_user_audit_log(audit_event, user)
             db.session.add(user_audit_log)
@@ -690,7 +691,10 @@ def create_user_audit_log(audit_event: str, user: UserModel):
         )
     return AuditLog(
         event_datetime=server_now(),
-        event=audit_event,
+        event=truncate_string(
+            f"Updated user {user.username!r} (ID: {user.id}): {audit_event.strip()}",
+            500,
+        ),
         active_user_id=active_user_id,
         active_user_name=active_user_name,
         affected_user_id=user.id,

@@ -8,10 +8,10 @@ from flask.cli import with_appcontext
 import flask_migrate as migrate
 import click
 
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
 
-@click.group("db-ops")
+@click.group("db-ops", cls=LoggedClickExceptionGroup)
 def fm_db_ops():
     """FlexMeasures: Reset, Dump/Restore or Save/Load the DB data."""
 
