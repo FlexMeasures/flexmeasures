@@ -245,7 +245,7 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
 This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-From FlexMeasures, we are using the `GET /api/ui/sensor/(id)/chart/ <../api/ui.html#get--api-ui-sensor-id-chart->`_ endpoint.
+From FlexMeasures, we are using the `GET /api/ui/sensor/(id)/chart/ <../api/ui.html#get--api-ui-sensor-(id)-chart>`_ endpoint.
 Browse the endpoint documentation to learn more about it.
 
 .. note:: This endpoint supports the FlexMeasures UI, and is not part of the official API, so it may change in any FlexMeasures version.
