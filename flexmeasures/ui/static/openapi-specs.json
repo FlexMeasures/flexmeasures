@@ -5488,6 +5488,8 @@
     "/api/dev/sensor/{id}/chart_annotations": {},
     "/api/dev/sensor/{id}/chart_data": {},
     "/api/dev/asset/{id}": {},
+    "/api/v3_0/assets/default_asset_view": {},
+    "/api/v3_0/assets/keep_legends_below_graphs": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
   },

@@ -45,6 +45,20 @@ class IncludeChildAssetsSchema(Schema):
     )
 
 
+def _store_default_asset_view(default_asset_view: str | None, use_as_default: bool):
+    if use_as_default and default_asset_view is not None:
+        session["default_asset_view"] = default_asset_view
+    elif not use_as_default:
+        clear_session(keys_to_clear=["default_asset_view"])
+
+
+def _store_keep_legends_below_graphs(keep_legends_below_graphs: bool):
+    if keep_legends_below_graphs:
+        session["keep_legends_below_graphs"] = True
+    else:
+        clear_session(keys_to_clear=["keep_legends_below_graphs"])
+
+
 class SessionAPI(FlaskView):
     """
     These endpoints store the current user's choices in the FlexMeasures UI in their session,
@@ -65,10 +79,7 @@ class SessionAPI(FlaskView):
         self, use_as_default: bool = True, default_asset_view: str | None = None
     ):
         """Set which asset view the current user sees first when opening an asset, or go back to the system default."""
-        if use_as_default and default_asset_view is not None:
-            session["default_asset_view"] = default_asset_view
-        elif not use_as_default:
-            clear_session(keys_to_clear=["default_asset_view"])
+        _store_default_asset_view(default_asset_view, use_as_default)
         return {"message": "Default asset view updated successfully."}, 200
 
     @route("/keep-legends-below-graphs", methods=["POST"])
@@ -76,10 +87,7 @@ class SessionAPI(FlaskView):
     @as_json
     def update_keep_legends_below_graphs(self, keep_legends_below_graphs: bool = True):
         """Set whether the current user's charts keep their legends below the graphs, even for many sensors."""
-        if keep_legends_below_graphs:
-            session["keep_legends_below_graphs"] = True
-        else:
-            clear_session(keys_to_clear=["keep_legends_below_graphs"])
+        _store_keep_legends_below_graphs(keep_legends_below_graphs)
         return {"message": "Legend position preference updated successfully."}, 200
 
     @route("/status-page-tab", methods=["POST"])
@@ -107,3 +115,51 @@ class SessionAPI(FlaskView):
         return {
             "message": "Preferred automations page scope updated successfully."
         }, 200
+
+
+class LegacyDefaultAssetViewSchema(Schema):
+    """The request body `POST /api/v3_0/assets/default_asset_view` has taken since before it moved to `SessionAPI`."""
+
+    default_asset_view = fields.Str(
+        required=True,
+        validate=validate.OneOf(ASSET_VIEWS),
+    )
+    use_as_default = fields.Bool(load_default=True)
+
+
+class LegacyKeepLegendsBelowGraphsSchema(Schema):
+    """The request body `POST /api/v3_0/assets/keep_legends_below_graphs` has taken since before it moved to `SessionAPI`."""
+
+    keep_legends_below_graphs = fields.Bool(load_default=True)
+
+
+class LegacyV3SessionAPI(FlaskView):
+    """
+    The two session endpoints that were released as part of v3 of the official API, before they moved to `SessionAPI`.
+
+    They are no longer documented, but keep working, with the request bodies they always took,
+    until v4 of the official API, as v3 does not break its endpoints.
+    They are registered under /api/v3_0/assets, where they always were (see `flexmeasures.api.ui.register_at`).
+    """
+
+    route_base = "/assets"
+    trailing_slash = False
+    decorators = [auth_required()]
+
+    @route("/default_asset_view", methods=["POST"])
+    @use_kwargs(LegacyDefaultAssetViewSchema, location="json")
+    @as_json
+    def update_default_asset_view(
+        self, default_asset_view: str, use_as_default: bool = True
+    ):
+        """Set which asset view the current user sees first, as `SessionAPI.update_default_asset_view` does."""
+        _store_default_asset_view(default_asset_view, use_as_default)
+        return {"message": "Default asset view updated successfully."}, 200
+
+    @route("/keep_legends_below_graphs", methods=["POST"])
+    @use_kwargs(LegacyKeepLegendsBelowGraphsSchema, location="json")
+    @as_json
+    def update_keep_legends_below_graphs(self, keep_legends_below_graphs: bool = True):
+        """Set whether the current user's charts keep their legends below the graphs, as `SessionAPI.update_keep_legends_below_graphs` does."""
+        _store_keep_legends_below_graphs(keep_legends_below_graphs)
+        return {"message": "Default legend position updated successfully."}, 200
