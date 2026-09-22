@@ -34,8 +34,8 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         {
             "method" : "sum",
             "asset" : 3,
-            "sensor_name_pattern" : "(?i)pv",
-            "sensor_units" : ["MW"]
+            "sensor-name-pattern" : "(?i)pv",
+            "sensor-units" : ["MW"]
         }
     """
 
@@ -44,10 +44,12 @@ class AggregatorConfigSchema(ReporterConfigSchema):
 
     asset = GenericAssetIdField(required=False)
     sensors = fields.List(SensorIdField(), required=False)
-    sensor_name_pattern = fields.Str(required=False)
-    sensor_units = fields.List(fields.Str(), required=False)
+    sensor_name_pattern = fields.Str(required=False, data_key="sensor-name-pattern")
+    sensor_units = fields.List(fields.Str(), required=False, data_key="sensor-units")
 
-    convert_units = fields.Bool(required=False, dump_default=True, load_default=True)
+    convert_units = fields.Bool(
+        required=False, dump_default=True, load_default=True, data_key="convert-units"
+    )
 
     @validates("sensor_name_pattern")
     def validate_sensor_name_pattern(self, pattern: str, **kwargs):

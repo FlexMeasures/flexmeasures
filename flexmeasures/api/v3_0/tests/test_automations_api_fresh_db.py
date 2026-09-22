@@ -127,9 +127,9 @@ def test_schedule_details_include_stored_flex_sensors(
     )
 
     assert response.status_code == 200
-    assert response.json["input_sensors"] == [
+    assert response.json["input-sensors"] == [
         {"id": price_sensor.id, "name": price_sensor.name}
     ]
-    assert response.json["output_sensors"] == [
+    assert response.json["output-sensors"] == [
         {"id": power_sensor.id, "name": power_sensor.name}
     ]

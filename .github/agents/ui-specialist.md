@@ -7,7 +7,9 @@ description: Guards UI consistency, permission patterns, JavaScript interaction 
 
 ## Role
 
-Owns the quality, consistency, and correctness of all FlexMeasures UI work: Flask/Jinja2 templates, Python view logic, JavaScript interaction patterns (fetch → poll → Toast → reload), CSS, and UI-focused tests. Ensures new UI features follow established side-panel patterns, permission-gate correctly, and do not introduce security regressions.
+Owns the quality, consistency, and correctness of all FlexMeasures UI work: Flask/Jinja2 templates, Python view logic,
+JavaScript interaction patterns (fetch → poll → Toast → reload), CSS, and UI-focused tests.
+Ensures new UI features follow established side-panel patterns, permission-gate correctly, and do not introduce security regressions.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -51,7 +53,8 @@ When a new side panel is added to a sensor or asset page:
 - [ ] `user_can_delete(sensor)` is used for delete buttons
 - [ ] `get_timerange` (or any other DB call) is called **only after** the permission check passes — never unconditionally
 - [ ] Template variables are named consistently: `user_can_<action>_sensor`, `sensor_has_<condition>_for_<feature>`
-- [ ] `Sensor` objects are valid to pass to `user_can_*` helpers because `Sensor` inherits `AuthModelMixin` (same as `GenericAsset`); the `GenericAsset` type hint is advisory only
+- [ ] `Sensor` objects are valid to pass to `user_can_*` helpers because `Sensor` inherits `AuthModelMixin` (same as `GenericAsset`);
+  the `GenericAsset` type hint is advisory only
 
 ### Fetch → Poll → Toast → Reload Pattern
 
@@ -70,7 +73,8 @@ When a button triggers a background job and polls for completion:
 
 ### Toast Usage
 
-- [ ] `showToast(message, type)` — the global function accepts `(message, type, options)` with optional third argument; do not invent a different signature
+- [ ] `showToast(message, type)` — the global function accepts `(message, type, options)` with optional third argument;
+  do not invent a different signature
 - [ ] `type` values: `"info"`, `"success"`, `"error"`
 - [ ] Error messages include the API error field (e.g., `errorData.message || response.statusText`) to help users debug
 - [ ] Info toasts used for progress, not success (reserve `"success"` for completion)
@@ -93,7 +97,8 @@ When a feature is unavailable due to insufficient data (not insufficient permiss
 
 ### API Field Key Awareness
 
-- [ ] Verify the `data_key` attribute of each Marshmallow field used in a POST body — if a field has `data_key="some-key"` the JSON must use `"some-key"`, not `"some_key"` (snake_case)
+- [ ] Verify the `data_key` attribute of each Marshmallow field used in a POST body — if a field has `data_key="some-key"` the JSON must use `"some-key"`,
+  not `"some_key"` (snake_case)
 - [ ] Fields **without** a `data_key` use the Python attribute name (e.g., `duration` → `"duration"`)
 - [ ] Cross-check the API spec example in the endpoint docstring against what the JS sends
 
@@ -108,7 +113,8 @@ When a feature is unavailable due to insufficient data (not insufficient permiss
 - [ ] Test: button disabled + message present when data insufficient (check `b"triggerForecastButton" not in response.data`)
 - [ ] Test: button enabled + JS present when data sufficient (patch `get_timerange` to return adequate range)
 - [ ] Test: boundary condition — exactly `threshold - 1s` is insufficient
-- [ ] Test: verify DB-expensive call (`get_timerange` etc.) is **not called** when user has no permission (use `unittest.mock.patch` + `assert_not_called()`)
+- [ ] Test:
+  verify DB-expensive call (`get_timerange` etc.) is **not called** when user has no permission (use `unittest.mock.patch` + `assert_not_called()`)
 - [ ] Tests use `_get_<entity>` helper functions for DRY fixture access across multiple tests
 - [ ] Tests in separate account fixture use a `scope="function"` fixture with proper `login`/`logout` teardown
 
@@ -116,7 +122,8 @@ When a feature is unavailable due to insufficient data (not insufficient permiss
 
 - [ ] Sensor/asset IDs embedded in JS use `{{ sensor.id }}` (integer, safe), not `.name` or freeform text
 - [ ] User-supplied values displayed in HTML use `{{ value | e }}` or `{{ value | safe }}` (only for pre-sanitised server values like `sensor._ui_unit | safe`)
-- [ ] `availableUnitsRawJSON.replace(/'/g, '"')` pattern is used for JSON embedded via template — this is the established workaround for Flask's single-quote JSON serialisation
+- [ ] `availableUnitsRawJSON.replace(/'/g,
+  '"')` pattern is used for JSON embedded via template — this is the established workaround for Flask's single-quote JSON serialisation
 
 ## Domain Knowledge
 
@@ -126,7 +133,8 @@ When a feature is unavailable due to insufficient data (not insufficient permiss
 - **Templates**: `flexmeasures/ui/templates/` — Jinja2, extend `base.html`, use `{% block divs %}`
 - **Static assets**: `flexmeasures/ui/static/` — `flexmeasures.js`, `flexmeasures.css`, `ui-utils.js`, `chart-data-utils.js`
 - **Global JS functions**: `showToast` defined in `templates/includes/toasts.html` (attached to `window`)
-- **Sensor page**: `templates/sensors/index.html` — left sidebar (col-md-2) with multiple collapsible side panels, chart area (col-sm-8), replay column (col-sm-2)
+- **Sensor page**: `templates/sensors/index.html` — left sidebar (col-md-2) with multiple collapsible side panels, chart area (col-sm-8),
+  replay column (col-sm-2)
 
 ### Permission Model
 
@@ -134,7 +142,8 @@ When a feature is unavailable due to insufficient data (not insufficient permiss
 - `user_can_update(entity)`: checks `"update"` permission; used for edit panels
 - `user_can_delete(entity)`: checks `"delete"` permission; used for delete buttons
 - All helpers call `check_access(entity, permission)` from `flexmeasures.auth.policy`
-- `Sensor` uses `AuthModelMixin` directly (same mechanism as `GenericAsset`), so passing a `Sensor` to helpers typed as `GenericAsset` is safe at runtime
+- `Sensor` uses `AuthModelMixin` directly (same mechanism as `GenericAsset`),
+  so passing a `Sensor` to helpers typed as `GenericAsset` is safe at runtime
 - ACL rule: every member of the account that **owns** a sensor gets `"create-children"` on it; other-account users do not
 
 ### Side Panel Pattern (established)
@@ -177,18 +186,17 @@ window.showToast(message, type, { highlightDuplicates = true, showDuplicateCount
 
 ## Interaction Rules
 
-- If a change modifies the forecast trigger/poll API contract, escalate to **API & Backward Compatibility Specialist** to verify the JS payload still matches
+- If a change modifies the forecast trigger/poll API contract,
+  escalate to **API & Backward Compatibility Specialist** to verify the JS payload still matches
 - If `get_timerange` or other time-arithmetic logic changes, escalate to **Data & Time Semantics Specialist**
 - If test fixtures or mock strategy is complex, coordinate with **Test Specialist**
 - Escalate to **Coordinator** if a new UI pattern emerges that needs to be standardised across agents
 
 ## Self-Improvement Notes
 
-Update this file when: a new panel type is added to the sensor/asset page (encode its pattern), the
-Toast API changes, a new fetch→poll pattern variation is used, a CSRF mitigation is added to the
-UI (currently absent), new permission types are used in view code, or new JS utilities are added
-to `ui-utils.js`/`flexmeasures.js`. Edit the relevant section in place — don't append a dated
-narrative.
+Update this file when: a new panel type is added to the sensor/asset page (encode its pattern), the Toast API changes,
+a new fetch→poll pattern variation is used, a CSRF mitigation is added to the UI (currently absent), new permission types are used in view code,
+or new JS utilities are added to `ui-utils.js`/`flexmeasures.js`. Edit the relevant section in place — don't append a dated narrative.
 
 ### Known Gaps / Technical Debt to Watch
 
@@ -199,7 +207,8 @@ narrative.
 
 ### Toast vs. alert-info — when to use which
 
-**Rule**: Use toast notifications for transient action results (success, failure, progress). Use inline `alert-info` divs only for persistent contextual information that the user needs to read while interacting with the page.
+**Rule**: Use toast notifications for transient action results (success, failure, progress).
+Use inline `alert-info` divs only for persistent contextual information that the user needs to read while interacting with the page.
 
 | Use case | Pattern | Example |
 |---|---|---|
@@ -208,8 +217,8 @@ narrative.
 | Background job progress | `showToast("...", "info")` | "Queuing job..." |
 | Inline help about a field | `<div class="alert alert-info">` | Flex model field descriptions |
 
-**Post-redirect toast (server-side)**:
-Use `session["toast_msg"] = "message"` before redirecting in a view, then in the redirect target pass `toast_msg=session.pop("toast_msg", None)` to the template, and render it in the template:
+**Post-redirect toast (server-side)**: Use `session["toast_msg"] = "message"` before redirecting in a view,
+then in the redirect target pass `toast_msg=session.pop("toast_msg", None)` to the template, and render it in the template:
 ```html
 {% if toast_msg %}
 <script>
@@ -222,4 +231,5 @@ Use `session["toast_msg"] = "message"` before redirecting in a view, then in the
 
 **Client-side fetch toast**: Call `showToast(...)` directly in JS after a `fetch()` resolves.
 
-**Do NOT migrate** inline `alert-info` divs that display persistent informational content (e.g., field descriptions in a modal) to toasts — they would disappear before the user reads them.
+**Do NOT migrate** inline `alert-info` divs that display persistent informational content (e.g.,
+field descriptions in a modal) to toasts — they would disappear before the user reads them.
