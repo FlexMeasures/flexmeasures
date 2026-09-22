@@ -488,18 +488,6 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
 }
 
 /**
- * Render a value as text, safe to place in a string that is later assigned to innerHTML.
- *
- * @param {*} value - The value to render.
- * @returns {string} - The value with any markup characters escaped.
- */
-function escapeHtml(value) {
-  const holder = document.createElement("div");
-  holder.textContent = String(value);
-  return holder.innerHTML;
-}
-
-/**
  * Report the automations that an asset copy left out, as returned by the copy endpoint.
  *
  * Copying an asset copies its automations too, but an automation that cannot be copied safely is skipped,
