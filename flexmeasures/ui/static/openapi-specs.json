@@ -5707,11 +5707,6 @@
       }
     },
     "/api/v3_0/docs/{path}": {},
-    "/api/dev/sensor/{id}": {},
-    "/api/dev/sensor/{id}/chart": {},
-    "/api/dev/sensor/{id}/chart_annotations": {},
-    "/api/dev/sensor/{id}/chart_data": {},
-    "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
   },

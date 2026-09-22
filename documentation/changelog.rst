@@ -39,6 +39,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
 * Find the built-in schedulers, reporters and forecasters from an explicit list, instead of importing every module under ``flexmeasures.data.models`` at start-up to look for them. Shortens boot time for every process and keeps an unrelated broken module from stopping the app; plugins keep being discovered as before [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
 * ``MetaStorageScheduler``, an internal base class that was never meant to be selected, is no longer registered and can no longer be named as a custom scheduler; name ``StorageScheduler`` instead [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
 * Report parameters name their belief time ``prior``, as schedule and forecast parameters do; the name ``belief_time`` is still accepted, while the ``belief_time`` of an ``input`` entry, which selects the beliefs to report on rather than stamping the report, keeps its name [see `PR #2551 <https://www.github.com/FlexMeasures/flexmeasures/pull/2551>`_]

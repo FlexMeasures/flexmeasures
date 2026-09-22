@@ -56,7 +56,7 @@
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
     let combineLegend = 'true';
     let dataPath;
-    let dataDevPath;
+    let chartAttributesPath;
     let datasetName;
     let elementId = 'sensorchart';
     let chartSpecsPath;
@@ -87,7 +87,7 @@
     // Initialize Jinja variables
     {% if active_page == "assets" %}
     dataPath = '/api/v3_0/assets/' + {{ asset.id }};
-    dataDevPath = '/api/dev/asset/' + {{ asset.id }};
+    chartAttributesPath = '/api/ui/asset/' + {{ asset.id }};
     datasetName = 'asset_' + {{ asset.id }};
     // Mirror the Vega-Lite chart's subplot structure (one entry per subplot, in order).
     // Entries from validate_sensors_to_show() hold their sensors in a "plots" list,
@@ -142,8 +142,8 @@
     {% endif %}
     {% endif %}
     {% elif active_page == "sensors" %}
-    dataPath = '/api/dev/sensor/' + {{ sensor.id }};
-    dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+    dataPath = '/api/ui/sensor/' + {{ sensor.id }};
+    chartAttributesPath = '/api/ui/sensor/' + {{ sensor.id }};
     datasetName = 'sensor_' + {{ sensor.id }};
     fastChartGroupSpec = [
         {
@@ -535,7 +535,7 @@
     {% else %}
     var timerangeNotSetYet = true;
     {% endif %}
-    fetch(dataDevPath, {
+    fetch(chartAttributesPath, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
     })
