@@ -56,8 +56,18 @@ class AggregatorReporter(Reporter):
 
     @property
     def input_sensors(self) -> list:
-        """Return the sensors read by this reporter, including the ones selected in its config."""
-        return self._resolve_sensors(super().input_sensors, self._find_sensors())
+        """Return the sensors read by this reporter, including the ones selected in its config.
+
+        A selected sensor that the report is recorded on is left out, just as it is when the report is computed.
+        A sensor named in the `input` parameters is kept, even when it is also an output sensor, because naming it there asks for it to be read.
+        """
+        output_sensor_ids = {sensor.id for sensor in self.output_sensors}
+        selected_sensors = [
+            sensor
+            for sensor in self._find_sensors()
+            if sensor.id not in output_sensor_ids
+        ]
+        return self._resolve_sensors(super().input_sensors, selected_sensors)
 
     def _find_sensors(self) -> list[Sensor]:
         """Find the sensors that the reporter's configuration selects.
