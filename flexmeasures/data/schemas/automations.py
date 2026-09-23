@@ -5,11 +5,19 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from croniter.croniter import CroniterBadDateError
-from marshmallow import fields, validate, validates, Schema, ValidationError
+from marshmallow import (
+    fields,
+    validate,
+    validates,
+    validates_schema,
+    Schema,
+    ValidationError,
+)
 from pytz import all_timezones_set
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -109,6 +117,43 @@ class AutomationCreationSchema(Schema):
             "example": {},
         },
     )
+    source = DataSourceIdField(
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": "Id of an existing data source to reuse, instead of naming a `data-generator` and its `config`."
+            " The data generator class and the configuration it runs under are read from that source,"
+            " and the automation records its results under it, so several automations can share one generator and one lineage of data."
+            " A schedule automation cannot name one, as it resolves its data source from the asset and the flex config on every run.",
+            "example": 6,
+        },
+    )
+
+    @validates_schema
+    def validate_generator_is_named_once(self, data: dict, **kwargs):
+        """A data source already determines the data generator and its config, so the two ways of naming one are exclusive."""
+        if data.get("source") is None:
+            return
+        named_alongside = [
+            data_key
+            for data_key, value in (
+                ("data-generator", data.get("generator_class")),
+                ("config", data.get("config")),
+            )
+            if value
+        ]
+        if named_alongside:
+            raise ValidationError(
+                f"{' and '.join(named_alongside)} cannot be combined with source:"
+                " a data source already stores the data generator and the configuration it runs under.",
+                field_name="source",
+            )
+        if data.get("automation_type") == "scheduling":
+            raise ValidationError(
+                "A schedule automation cannot name a source:"
+                " its data source follows from the asset and the flex config, and is resolved afresh on every run.",
+                field_name="source",
+            )
 
 
 class AutomationUpdateSchema(Schema):

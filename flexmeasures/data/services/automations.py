@@ -1226,17 +1226,26 @@ def create_automation(
     An audit log record is added to the asset.
 
     :param check_permissions: whether to require that the current user may read the sensors that the automation reads from,
-                              and record data on the sensors it writes to.
+                              record data on the sensors it writes to, and read the data source they name, if they name one.
                               Set this for automations created by a user (through the API or the UI);
                               the CLI runs without a user, and is trusted.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the data generator cannot be set up.
-    :raises werkzeug.exceptions.Forbidden: if a sensor is not accessible to the user.
+    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
     :returns: the automation and a list of warnings.
     """
     from marshmallow import ValidationError
+    from werkzeug.exceptions import Forbidden
 
     from flexmeasures.data.models.audit_log import AssetAuditLog
+    from flexmeasures.data.services.data_sources import user_may_read_source
+
+    # A named source hands over whatever configuration it stores, and the automation's results are recorded under it,
+    # so it is only the user's to name if it is theirs to read.
+    if check_permissions and source is not None and not user_may_read_source(source):
+        exception = Forbidden()
+        exception.api_message = f"You cannot define an automation on data source {source.id}, which you cannot read yourself."
+        raise exception
 
     parameters = parameters or {}
     timezone = timezone or get_default_automation_timezone(asset)

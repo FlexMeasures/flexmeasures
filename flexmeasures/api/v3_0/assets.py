@@ -1730,6 +1730,18 @@ class AssetAPI(FlaskView):
                       parameters:
                         start-offset: "1D,DB"
                         duration: P1D
+                  forecasts_on_an_existing_source:
+                    summary: Forecasts computed by an existing data source
+                    description: >-
+                      Reuses the forecaster and the configuration stored on data source 6,
+                      and records the forecasts under that same source.
+                    value:
+                      name: Day-ahead PV forecasts
+                      cron: "0 6 * * *"
+                      type: forecasting
+                      source: 6
+                      parameters:
+                        sensor: 2092
           responses:
             201:
               description: CREATED
