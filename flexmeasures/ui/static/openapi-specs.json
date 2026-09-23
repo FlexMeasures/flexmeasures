@@ -5643,7 +5643,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nand the <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5657,6 +5657,26 @@
             "schema": {
               "type": "boolean",
               "default": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "description": "Search terms, separated by spaces, matched against the source's name, its model and its id prefix. A source matching any of the terms is returned.",
+            "schema": {
+              "type": "string",
+              "example": "TrainPredictPipeline"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "description": "Only return sources of this type, such as forecaster, scheduler or reporter.",
+            "schema": {
+              "type": "string",
+              "example": "forecaster"
             },
             "required": false
           }

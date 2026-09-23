@@ -3,15 +3,20 @@ from __future__ import annotations
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import current_user, auth_required
+from flask_security import auth_required
 from marshmallow import fields, Schema
 from packaging.version import Version, InvalidVersion
 from sqlalchemy import select, or_, and_
 from webargs.flaskparser import use_kwargs
 
-from flexmeasures.auth.policy import user_has_admin_access, CONSULTANT_ROLE
+from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
+from flexmeasures.data.queries.utils import id_prefix_filter
+from flexmeasures.data.services.data_sources import (
+    get_readable_source_account_ids,
+    user_may_read_source,
+)
 
 """
 API endpoint to list accessible data sources and defined source types.
@@ -30,21 +35,31 @@ class SourceQuerySchema(Schema):
             )
         },
     )
+    filter = SearchFilterField(
+        required=False,
+        metadata={
+            "description": "Search terms, separated by spaces, matched against the source's name, its model and its id prefix. A source matching any of the terms is returned.",
+            "example": "TrainPredictPipeline",
+        },
+    )
+    type = fields.Str(
+        required=False,
+        metadata={
+            "description": "Only return sources of this type, such as forecaster, scheduler or reporter.",
+            "example": "forecaster",
+        },
+    )
 
 
-def _get_accessible_account_ids() -> list[int] | None:
-    """Return account IDs whose sources the current user may read.
-
-    Returns None to indicate "all accounts" (admin access).
-    """
-    if user_has_admin_access(current_user, "read"):
-        return None  # all sources
-
-    accessible_ids = [current_user.account_id]
-    if current_user.has_role(CONSULTANT_ROLE):
-        for client_account in current_user.account.consultancy_client_accounts:
-            accessible_ids.append(client_account.id)
-    return accessible_ids
+def source_search_term_filter(term: str):
+    """Match a search term against what identifies a source: its name, its model, its description and its id."""
+    filters = [
+        DataSource.name.ilike(f"%{term}%"),
+        DataSource.model.ilike(f"%{term}%"),
+    ]
+    if term.isdecimal():
+        filters.append(id_prefix_filter(DataSource.id, term))
+    return or_(*filters)
 
 
 def _filter_sources_to_latest(sources: list[DataSource]) -> list[DataSource]:
@@ -92,7 +107,12 @@ class SourceAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(SourceQuerySchema, location="query")
     @as_json
-    def index(self, only_latest: bool = True):
+    def index(
+        self,
+        only_latest: bool = True,
+        filter: list[str] | None = None,
+        type: str | None = None,
+    ):
         """List accessible data sources and defined source types.
 
         .. :quickref: Sources; List accessible data sources and defined source types.
@@ -103,6 +123,9 @@ class SourceAPI(FlaskView):
           description: |
             Returns the list of data sources accessible to the current user and
             the defined source types.
+
+            The ``filter`` parameter searches the sources by name, by model and by id prefix,
+            and the ``type`` parameter narrows the list to one source type, such as ``forecaster``.
 
             **Access rules:**
 
@@ -148,7 +171,7 @@ class SourceAPI(FlaskView):
           tags:
             - Sources
         """
-        accessible_account_ids = _get_accessible_account_ids()
+        accessible_account_ids = get_readable_source_account_ids()
 
         query = select(DataSource)
         if accessible_account_ids is not None:
@@ -162,6 +185,12 @@ class SourceAPI(FlaskView):
                         DataSource.user_id.is_(None),
                     ),
                 )
+            )
+        if type is not None:
+            query = query.where(DataSource.type == type)
+        if filter is not None:
+            query = query.where(
+                or_(*(source_search_term_filter(term) for term in filter))
             )
 
         sources: list[DataSource] = list(db.session.scalars(query).all())
@@ -234,11 +263,7 @@ class SourceAPI(FlaskView):
         source = db.session.get(DataSource, id)
         if source is None:
             return {"message": f"No data source found with id {id}."}, 404
-        accessible_account_ids = _get_accessible_account_ids()
-        if accessible_account_ids is not None and not (
-            source.account_id in accessible_account_ids
-            or (source.account_id is None and source.user_id is None)
-        ):
+        if not user_may_read_source(source):
             return {"message": "You cannot read this data source."}, 403
         return _serialize_source(source, with_attributes=True), 200
 

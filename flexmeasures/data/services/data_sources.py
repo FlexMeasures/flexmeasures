@@ -131,3 +131,35 @@ def get_data_generator(
 
         data_generator._save_config = save_config
     return data_generator
+
+
+def get_readable_source_account_ids() -> list[int] | None:
+    """Return the ids of the accounts whose data sources the current user may read.
+
+    Returns None to say that every account's sources are readable, which is what admin access amounts to.
+    """
+    from flask_security import current_user
+
+    from flexmeasures.auth.policy import user_has_admin_access, CONSULTANT_ROLE
+
+    if user_has_admin_access(current_user, "read"):
+        return None  # all sources
+    readable_ids = [current_user.account_id]
+    if current_user.has_role(CONSULTANT_ROLE):
+        for client_account in current_user.account.consultancy_client_accounts:
+            readable_ids.append(client_account.id)
+    return readable_ids
+
+
+def user_may_read_source(source: DataSource) -> bool:
+    """Whether the current user may read the given data source.
+
+    A source belonging to one of the user's own accounts is readable, and so is a system source,
+    which is one that names neither an account nor a user.
+    """
+    readable_account_ids = get_readable_source_account_ids()
+    if readable_account_ids is None:
+        return True
+    if source.account_id in readable_account_ids:
+        return True
+    return source.account_id is None and source.user_id is None
