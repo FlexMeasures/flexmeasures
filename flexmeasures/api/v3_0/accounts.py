@@ -17,7 +17,11 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.audit_log import AuditLog, truncate_string
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.data.services.accounts import (
+    create_account,
+    get_accounts,
+    get_audit_log_records,
+)
 from flexmeasures.api.common.responses import unprocessable_entity
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import (
@@ -236,8 +240,7 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        account = Account(**account_data)
-        db.session.add(account)
+        account = create_account(context="via API", **account_data)
         db.session.commit()
 
         return account_schema.dump(account), 201

@@ -3,9 +3,38 @@ from __future__ import annotations
 from sqlalchemy import select, func
 
 from flexmeasures.data import db
-from flexmeasures.data.models.audit_log import AuditLog
+from flexmeasures.data.models.audit_log import AuditLog, get_current_user_id_name
 from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.utils.time_utils import server_now
+
+
+def create_account(*, context: str | None = None, **account_data) -> Account:
+    """Create an account and record its creation in the audit log.
+
+    Does not validate data or commit the session.
+
+    :param context: context describing how the account was created
+    :param account_data: keyword arguments for the new account
+    """
+    account = Account(**account_data)
+    db.session.add(account)
+    db.session.flush()
+
+    active_user_id, active_user_name = get_current_user_id_name()
+    event = f"Created organisation '{account.name}': {account.id}"
+    if context:
+        event = f"{event} {context}"
+    db.session.add(
+        AuditLog(
+            event_datetime=server_now(),
+            event=event,
+            active_user_id=active_user_id,
+            active_user_name=active_user_name,
+            affected_account_id=account.id,
+        )
+    )
+    return account
 
 
 def get_accounts(
