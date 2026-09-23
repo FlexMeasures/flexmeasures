@@ -321,13 +321,27 @@ class AssetAuditLogPaginationSchema(PaginationSchema):
 
 
 class DefaultAssetViewJSONSchema(Schema):
+    """Which asset view to open per default.
+
+    The accepted names must stay in sync with the asset views listed in `flexmeasures.ui.utils.breadcrumb_utils.get_breadcrumb_info`,
+    since that list is what renders the "Set as default view" checkbox.
+    A name accepted here is lowercased and stripped of spaces to address a route on `AssetCrudUI`, so only names with a matching route belong in it.
+    """
+
     default_asset_view = fields.Str(
         required=True,
         validate=validate.OneOf(
-            ["Audit Log", "Context", "Graphs", "Properties", "Status"]
+            ["Audit Log", "Automations", "Context", "Graphs", "Properties", "Status"]
         ),
         metadata={
-            "enum": ["Audit Log", "Context", "Graphs", "Properties", "Status"],
+            "enum": [
+                "Audit Log",
+                "Automations",
+                "Context",
+                "Graphs",
+                "Properties",
+                "Status",
+            ],
             "description": "The default asset view to show.",
         },
     )
@@ -2108,6 +2122,7 @@ class AssetAPI(FlaskView):
 
             ## Example values for `default_asset_view`:
             - "Audit Log"
+            - "Automations"
             - "Context"
             - "Graphs"
             - "Properties"

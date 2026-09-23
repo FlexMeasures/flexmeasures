@@ -5054,7 +5054,7 @@
     "/api/v3_0/assets/default_asset_view": {
       "post": {
         "summary": "Update the default asset view for the current user",
-        "description": "Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).\n\nThis endpoint sets the default asset view for the current user session if `use_as_default` is true.\nIf `use_as_default` is `false`, it clears the session variable for the default asset view.\n\n## Example values for `default_asset_view`:\n- \"Audit Log\"\n- \"Context\"\n- \"Graphs\"\n- \"Properties\"\n- \"Status\"\n",
+        "description": "Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).\n\nThis endpoint sets the default asset view for the current user session if `use_as_default` is true.\nIf `use_as_default` is `false`, it clears the session variable for the default asset view.\n\n## Example values for `default_asset_view`:\n- \"Audit Log\"\n- \"Automations\"\n- \"Context\"\n- \"Graphs\"\n- \"Properties\"\n- \"Status\"\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -6922,6 +6922,7 @@
             "type": "string",
             "enum": [
               "Audit Log",
+              "Automations",
               "Context",
               "Graphs",
               "Properties",
