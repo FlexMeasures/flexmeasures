@@ -488,7 +488,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             [self.model not in current_app.data_generators[_type] for _type in types]
         ):
             raise NotImplementedError(
-                "DataGenerator `{self.model}` not registered in this FlexMeasures instance."
+                f"DataGenerator `{self.model}` not registered in this FlexMeasures instance."
             )
 
         # fetch DataGenerator details

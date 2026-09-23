@@ -439,7 +439,8 @@
 
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON,
+            escapeHtml
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -454,9 +455,7 @@
         }
 
         // Parse available units
-        let availableUnitsRawJSON = "{{ available_units | safe }}";
-        availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-        const availableUnits = JSON.parse(availableUnitsRawJSON);
+        const availableUnits = {{ available_units | tojson }};
 
 
         // This variable is used to prevent reRenderForm from running on initial load
@@ -498,7 +497,7 @@
             FlexModelFieldValidTypes[key] = validTypes;
         }
 
-        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, '{{ asset_flexmodel | safe }}', true);
+        const [assetFlexModelRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexModelSchema }, {{ asset_flexmodel | tojson }}, true);
 
         document.addEventListener('DOMContentLoaded', async function () {
             const flexOptionsContainer = document.getElementById('flexOptionsContainer');
@@ -1155,7 +1154,7 @@
                                 <div class="col-4 ps-0">
                                     <select id="flexUnitsSelect" class="form-select">
                                         <option value="${null}" selected>Units</option>
-                                        ${availableUnits.map(unit => '<option value="' + unit + '">' + unit + '</option>').join('')}
+                                        ${availableUnits.map(unit => '<option value="' + escapeHtml(unit) + '">' + escapeHtml(unit) + '</option>').join('')}
                                     </select>
                                 </div>
                             </div>
