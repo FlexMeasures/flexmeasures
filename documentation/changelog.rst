@@ -62,7 +62,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Ticking *Set as default view* on an asset's Automations page had no effect, so the assets you clicked next kept opening on Context; that view can now be made your default, and a view preference the server refuses is reported instead of quietly dropped [see `PR #2582 <https://www.github.com/FlexMeasures/flexmeasures/pull/2582>`_]
 * A forecaster given more than one regressor of the same kind trained on each of them several times over, because every regressor's data was collected once per regressor [see `PR #2560 <https://www.github.com/FlexMeasures/flexmeasures/pull/2560>`_]
 * Organisation audit logs now show only changed fields with their previous and new values, and user role and active-status changes identify the affected user [see `PR #2522 <https://www.github.com/FlexMeasures/flexmeasures/pull/2522>`_]
 * ``GET /api/v3_0/assets/(id)/jobs`` now reports its Redis connection error as ``redis-connection-err`` rather than ``redis_connection_err``, so the field is spelled the same way there as on the automation endpoints that also report it [see `PR #2545 <https://www.github.com/FlexMeasures/flexmeasures/pull/2545>`_]
@@ -91,6 +90,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Every automation times its runs the same way: a fixed ``start``, ``end`` or ``prior`` in its parameters is refused, as every run would share that moment, and two of ``start-offset``, ``end-offset`` and ``duration`` describe the period each run covers instead, with the offsets applied to the time the run was due on the automation's own clock, so that, for instance, a schedule automation can plan the whole of the next day [see `PR #2551 <https://www.github.com/FlexMeasures/flexmeasures/pull/2551>`_]
 * Look up automations from the command line with ``flexmeasures show automations``, which lists them all (inactive ones included) with the IDs that the edit, delete and run commands expect, and, with ``--id``, shows a single automation's recurrence, cursor, parameters and the sensors it reads from and writes to [see `PR #2533 <https://www.github.com/FlexMeasures/flexmeasures/pull/2533>`_]
 * The *Automations* page lists the automations of the assets below an asset too, says when each automation runs next, keeps itself up to date, and shows the configuration of an automation's data source, which the *New automation* form now also lets you set [see `PR #2554 <https://www.github.com/FlexMeasures/flexmeasures/pull/2554>`_]
+* The *Automations* page can be set as your default asset view, the way the other asset views already could, so that clicking an asset opens what its automations are doing; a view preference the server refuses is now reported, rather than leaving the checkbox showing a setting that was never stored [see `PR #2582 <https://www.github.com/FlexMeasures/flexmeasures/pull/2582>`_]
 
 
 v1.0.1 | September 9, 2026
