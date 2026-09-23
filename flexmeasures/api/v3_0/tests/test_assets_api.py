@@ -18,6 +18,8 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
 from flexmeasures.api.common.utils.api_utils import copy_asset
+from flexmeasures.api.v3_0.assets import DefaultAssetViewJSONSchema
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -2391,6 +2393,62 @@ def test_update_status_page_tab_rejects_unknown_tab(
     assert response.status_code == 422
     with client.session_transaction() as session:
         assert "status_page_tab" not in session
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "view",
+    ["Audit Log", "Automations", "Context", "Graphs", "Properties", "Status"],
+)
+def test_update_default_asset_view(client, setup_api_test_data, requesting_user, view):
+    """Posting an asset view records it in the session, for the next asset page the user opens."""
+    response = client.post(
+        url_for("AssetAPI:update_default_asset_view"),
+        json={"default_asset_view": view},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["default_asset_view"] == view
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_update_default_asset_view_rejects_unknown_view(
+    client, setup_api_test_data, requesting_user
+):
+    """A name without an asset view behind it is refused, rather than stored to break every later asset page."""
+    response = client.post(
+        url_for("AssetAPI:update_default_asset_view"),
+        json={"default_asset_view": "Sensors"},
+    )
+    assert response.status_code == 422
+    with client.session_transaction() as session:
+        assert "default_asset_view" not in session
+
+
+def test_default_asset_view_accepts_every_view_the_breadcrumb_offers(
+    app, setup_api_test_data
+):
+    """Every view the breadcrumb offers can be stored as the default, and resolves to a route.
+
+    The breadcrumb is what renders the "Set as default view" checkbox,
+    so a view it offers that the schema rejects is a checkbox that silently does nothing.
+    """
+    asset = db.session.scalars(select(GenericAsset)).first()
+    schema = DefaultAssetViewJSONSchema()
+    with app.test_request_context():
+        views = get_breadcrumb_info(asset, current_page="Context")["views"]
+        assert views, "the breadcrumb offers no asset views to check"
+        for view in views:
+            schema.load({"default_asset_view": view["name"]})
+            # The stored name addresses a route this way, so one without a route would 500 on every later asset page.
+            url_for(
+                "AssetCrudUI:{}".format(view["name"].replace(" ", "").lower()),
+                id=asset.id,
+            )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
