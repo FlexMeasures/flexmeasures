@@ -19,6 +19,27 @@ def account_events(db, account_id):
     ).all()
 
 
+def test_account_creation_is_audited(
+    fresh_db, client, setup_roles_users_fresh_db, requesting_user
+):
+    """Creating an organisation records the actor and affected organisation."""
+    response = client.post(
+        url_for("AccountAPI:post"), json={"name": "Created Organisation"}
+    )
+
+    assert response.status_code == 201, response.json
+    account_id = response.json["id"]
+    logs = account_events(fresh_db, account_id)
+    assert len(logs) == 1
+    assert (
+        logs[0].event
+        == f"Created organisation 'Created Organisation': {account_id} via API"
+    )
+    assert logs[0].active_user_id == requesting_user.id
+    assert logs[0].active_user_name == requesting_user.username
+    assert logs[0].affected_user_id is None
+
+
 @pytest.mark.parametrize("resubmit_unchanged_fields", [False, True])
 def test_account_attribute_audit_reports_only_changes(
     fresh_db,
