@@ -202,6 +202,22 @@ end = "2023-01-02T00:00:00+01:00"
             },
             True,
         ),
+        (  # missing required input
+            {
+                "output": [{"sensor": 3}],
+                "start": start,
+                "end": end,
+            },
+            False,
+        ),
+        (  # missing required output
+            {
+                "input": [{"sensor": 4}],
+                "start": start,
+                "end": end,
+            },
+            False,
+        ),
         (  # wrong output unit
             {
                 "input": [{"sensor": 4}],  # unit: MW
@@ -313,3 +329,48 @@ def test_beliefs_search_config_schema_source_account_ids(
     else:
         with pytest.raises(ValidationError):
             schema.load(config)
+
+
+@pytest.mark.parametrize("belief_time_key", ["prior", "belief_time"])
+def test_report_parameters_name_their_belief_time_prior(
+    belief_time_key, db, app, setup_dummy_sensors
+):
+    """Report parameters name their belief time "prior", as schedule and forecast parameters do.
+
+    The name "belief_time", which report parameters used up to v1.0, is still accepted.
+    """
+    from flexmeasures.data.schemas.reporting import ReporterParametersSchema
+
+    sensor = setup_dummy_sensors[0]
+    parameters = {
+        "input": [{"sensor": sensor.id}],
+        "output": [{"sensor": sensor.id}],
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-11T00:00:00+00:00",
+        belief_time_key: "2023-04-11T06:00:00+00:00",
+    }
+    schema = ReporterParametersSchema()
+    loaded = schema.load(parameters)
+    assert loaded["belief_time"].isoformat() == "2023-04-11T06:00:00+00:00"
+    dumped = schema.dump(loaded)
+    assert "prior" in dumped and "belief_time" not in dumped
+
+
+def test_report_parameters_prefer_prior_over_a_leftover_belief_time(
+    db, app, setup_dummy_sensors
+):
+    """Given both names, "prior" wins, as a data generator merges a new run's parameters into those of its previous run."""
+    from flexmeasures.data.schemas.reporting import ReporterParametersSchema
+
+    sensor = setup_dummy_sensors[0]
+    loaded = ReporterParametersSchema().load(
+        {
+            "input": [{"sensor": sensor.id}],
+            "output": [{"sensor": sensor.id}],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-11T00:00:00+00:00",
+            "belief_time": "2023-04-11T06:00:00+00:00",
+            "prior": "2023-04-12T06:00:00+00:00",
+        }
+    )
+    assert loaded["belief_time"].isoformat() == "2023-04-12T06:00:00+00:00"

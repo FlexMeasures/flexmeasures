@@ -7,6 +7,7 @@ from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from marshmallow import ValidationError
+from pytz import all_timezones
 
 from flexmeasures.data import db
 from flexmeasures.auth.policy import check_access
@@ -190,7 +191,7 @@ class AssetCrudUI(FlaskView):
             {
                 "name": sensor.name,
                 "resolution": duration_isoformat(sensor.event_resolution),
-                "unit": sensor._ui_unit,
+                "unit": sensor.unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
@@ -256,6 +257,9 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_automations.html",
             asset=asset,
+            available_timezones=all_timezones,
+            # Managing an automation is gated like running one, so both follow create-children.
+            user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
             current_page="Automations",
         )
@@ -496,7 +500,7 @@ class AssetCrudUI(FlaskView):
             account_assets=account_assets,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
-            asset_flexmodel=json.dumps(asset.flex_model),
+            asset_flexmodel=asset.flex_model,
             available_units=available_units(),
             asset_summary=asset_summary,
             asset_form=asset_form,

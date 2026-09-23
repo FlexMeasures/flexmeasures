@@ -43,6 +43,7 @@ from flexmeasures.cli.utils import (
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    LoggedClickExceptionGroup,
     add_cli_options_from_schema,
     split_commas,
 )
@@ -52,16 +53,15 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.schemas.scheduling import find_momentary_flex_config_fields
 from flexmeasures.data.services.automations import (
-    prepare_schedule_trigger_message,
-    resolve_schedule_generator,
+    AutomationSensorsUnknown,
+    create_automation,
+    RecurringAutomationFixesAMoment,
 )
 from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
-from flexmeasures.data.services.automations import validate_forecast_output_scope
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import (
@@ -77,10 +77,7 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.models.automations import (
-    Automation,
-    get_default_automation_timezone,
-)
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.automations import CronField, TimezoneField
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -142,7 +139,24 @@ def _parse_regressor_cli_values(values: tuple | list) -> list:
     return parsed_values
 
 
-@click.group("add")
+def _parse_target_sensor_cli_value(value):
+    """Parse the target sensor option: a bare sensor ID, or a JSON sensor reference with source filters.
+
+    Only a value shaped like a reference is parsed here, so that a bare ID reaches the schema just as it was typed.
+    """
+    if not isinstance(value, str) or not value.lstrip().startswith("{"):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as e:
+        raise click.UsageError(
+            f"--sensor looks like a JSON sensor reference, but it could not be parsed: {e}."
+            " Pass a sensor ID, or a JSON object naming the sensor and the sources to train on,"
+            ' such as \'{"sensor": 2092, "sources": [12]}\'.'
+        ) from e
+
+
+@click.group("add", cls=LoggedClickExceptionGroup)
 def fm_add_data():
     """FlexMeasures: Add data."""
 
@@ -1462,7 +1476,8 @@ def _assemble_forecaster_config_and_parameters(
         config = _load_yaml_mapping(config_file, "--config")
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         field_value = kwargs.pop(field_name, None)
-        if field_value is not None:
+        # Skip unset options: click passes None, or an empty tuple for a multiple-value option.
+        if field_value is not None and field_value != ():
             if field_name in {
                 "future_regressors",
                 "past_regressors",
@@ -1483,7 +1498,10 @@ def _assemble_forecaster_config_and_parameters(
         # that were left out still show up in the config, with their schema defaults.
         conflicting_options = _find_options_given_on_command_line(
             {
+                # `add forecasts` and `add automation` name this parameter differently,
+                # and a parameter the running command does not have is simply not reported.
                 "forecaster_class": "--forecaster",
+                "generator_class": "--data-generator",
                 "config_file": "--config",
                 "edit_config": "--edit-config",
             },
@@ -1511,8 +1529,12 @@ def _assemble_forecaster_config_and_parameters(
         if kebab_key not in parameters:
             parameters[kebab_key] = v
 
-    # Drop None values
-    parameters = {k: v for k, v in parameters.items() if v is not None}
+    # The target sensor is given either as a bare ID, or as a JSON sensor reference with source filters.
+    if "sensor" in parameters:
+        parameters["sensor"] = _parse_target_sensor_cli_value(parameters["sensor"])
+
+    # Drop unset values
+    parameters = {k: v for k, v in parameters.items() if v is not None and v != ()}
 
     return config, parameters
 
@@ -1704,7 +1726,10 @@ def add_forecast(  # noqa: C901
                 f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
                 f"{event_range}"
                 f" for sensor `{sensor_to_save}` (ID {sensor_to_save.id}),"
-                f" to be recorded under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
+                # The data source is named without its ID on purpose.
+                # A dry run never commits, so a source that this run had to create is rolled back on the way out,
+                # and the ID it was given belongs to nothing by the time the command returns.
+                f" to be recorded under data source `{forecaster.data_source}`.",
                 **MsgStyle.SUCCESS,
             )
             for item in pipeline_returns:
@@ -1713,36 +1738,15 @@ def add_forecast(  # noqa: C901
 
         click.secho(
             f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}.",
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
+            # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+            f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
             **MsgStyle.SUCCESS,
         )
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
         raise
-
-
-def _check_schedule_automation_parameters(parameters: dict, asset) -> DataSource:
-    """Validate a schedule automation's trigger message, and return the data generator it will run with.
-
-    The message has to be a valid schedule trigger, and its flex config has to describe the site and its devices,
-    rather than one moment: the automation computes a fresh schedule on every run,
-    so a value tied to a fixed moment would be stale on the next one.
-    """
-    try:
-        message = prepare_schedule_trigger_message(parameters, asset.id)
-        AssetTriggerSchema().load(message)
-    except ValidationError as e:
-        click.secho(f"Invalid schedule parameters: {e.messages}", **MsgStyle.ERROR)
-        raise click.Abort()
-    momentary_fields = find_momentary_flex_config_fields(message)
-    if momentary_fields:
-        raise click.UsageError(
-            f"{flexmeasures_inflection.join_words_into_a_list(momentary_fields)} fixes a moment in time,"
-            " so it cannot configure a recurring schedule automation, which computes a fresh schedule on every run."
-            " Refer to a sensor instead of a fixed value, or leave the field out."
-        )
-    return resolve_schedule_generator(asset.id, parameters)
 
 
 @fm_add_data.command("automation")
@@ -1773,10 +1777,12 @@ def _check_schedule_automation_parameters(parameters: dict, asset) -> DataSource
 @click.option(
     "--timezone",
     "timezone",
-    default=get_default_automation_timezone,
-    show_default="FLEXMEASURES_TIMEZONE",
+    default=None,
+    show_default="the asset's timezone, else FLEXMEASURES_TIMEZONE",
     type=TimezoneField(),
-    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam". Defaults to FLEXMEASURES_TIMEZONE.',
+    help='IANA timezone in which to interpret --cron, e.g. "UTC" or "Europe/Amsterdam".'
+    " Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors,"
+    " and to FLEXMEASURES_TIMEZONE if the asset has neither.",
 )
 @click.option(
     "--type",
@@ -1793,28 +1799,32 @@ def _check_schedule_automation_parameters(parameters: dict, asset) -> DataSource
     help="Add this flag to create the automation in deactivated state.",
 )
 @click.option(
+    "--data-generator",
     "--forecaster",
-    "forecaster_class",
+    "--scheduler",
+    "--reporter",
+    "generator_class",
     default=None,
     type=click.STRING,
-    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
-    " Defaults to TrainPredictPipeline. Use the command `flexmeasures show forecasters` to list all the available forecasters."
-    " Cannot be combined with --source, which already determines the forecaster.",
+    help="Class of the data generator that computes this automation's results, registered in FlexMeasures or in an available plugin."
+    " Name it by what it is, if you prefer: --forecaster, --scheduler and --reporter all set the same thing."
+    " Defaults to TrainPredictPipeline for a forecast automation. Use `flexmeasures show forecasters` to list the available forecasters."
+    " Cannot be combined with --source, which already determines the data generator.",
 )
 @click.option(
     "--source",
     "source",
     required=False,
     type=DataSourceIdField(),
-    help="DataSource ID of the `Forecaster`. The forecaster class and its configuration are read from"
-    " the data source's data generator attributes, so --forecaster and --config are not needed (or allowed) with it.",
+    help="DataSource ID of the data generator (`Forecaster` or `Reporter`). The generator class and its configuration are read from"
+    " the data source's attributes, so --forecaster/--reporter and --config are not needed (or allowed) with it.",
 )
 @click.option(
     "--config",
     "config_file",
     required=False,
     type=click.File("r"),
-    help="Path to the JSON or YAML file with the configuration of the forecaster."
+    help="Path to the JSON or YAML file with the configuration of the forecaster or reporter."
     " Cannot be combined with --source, which already determines the configuration.",
 )
 @click.option(
@@ -1823,10 +1833,36 @@ def _check_schedule_automation_parameters(parameters: dict, asset) -> DataSource
     required=False,
     type=click.File("r"),
     help="Path to the JSON or YAML file with the parameters used on each run of the automation:"
-    " forecast parameters for --type forecasting, or a schedule trigger message for --type scheduling.",
+    " forecast parameters for --type forecasting, a schedule trigger message for --type scheduling,"
+    " or report parameters for --type reporting.",
+)
+@click.option(
+    "--start-offset",
+    "start_offset",
+    required=False,
+    help="Where the period each run covers starts, relative to the time the run was due, on the automation's own clock:"
+    " an offset chain of comma-separated Pandas offsets, plus DB (day begin) and HB (hour begin), such as 1D,DB for the next day."
+    " Describe the period with two of --start-offset, --end-offset and --duration.",
+)
+@click.option(
+    "--end-offset",
+    "end_offset",
+    required=False,
+    help="Where the period each run covers ends, as an offset chain like --start-offset takes.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    required=False,
+    help="How long the period each run covers lasts, as an ISO 8601 duration, such as P1D."
+    " For a forecast or schedule automation, the period then starts at the run time, unless --start-offset or --end-offset says otherwise.",
 )
 @add_cli_options_from_schema(
-    ForecasterParametersSchema(), hidden=True, force_optional=True
+    ForecasterParametersSchema(),
+    hidden=True,
+    force_optional=True,
+    # Every automation type describes its window with a duration, so this command declares the option itself.
+    exclude=("duration",),
 )
 @add_cli_options_from_schema(
     TrainPredictPipelineConfigSchema(), hidden=True, force_optional=True
@@ -1838,14 +1874,14 @@ def add_automation(
     timezone: str,
     automation_type: str,
     inactive: bool = False,
-    forecaster_class: str | None = None,
+    generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
     **kwargs,
 ):
     """
-    Add an automation: a recurring task (computing forecasts or schedules) on an asset.
+    Add an automation: a recurring task (computing forecasts, schedules or reports) on an asset.
 
     \b
     Examples
@@ -1854,12 +1890,17 @@ def add_automation(
         --parameters forecast-parameters.yml
       flexmeasures add automation --asset 3 --name "Hourly schedules"
         --cron "0 * * * *" --type scheduling --parameters trigger-message.yml
+      flexmeasures add automation --asset 3 --name "Daily self-consumption report"
+        --cron "0 1 * * *" --type reporting --reporter PandasReporter
+        --config reporter-config.yml --parameters report-parameters.yml
 
-    For forecasts, the forecaster configuration is stored on a data source, and
-    the forecast parameters are validated and stored on the automation itself.
-    For schedules, the parameters form a schedule trigger message (as accepted by
-    the [POST] /assets/(id)/schedules/trigger API endpoint, without the asset id);
-    omit its "start" field to schedule from the run time on each run.
+    For forecasts and reports, the data generator configuration is stored on a data source,
+    and the parameters are validated and stored on the automation itself.
+    For schedules, the parameters form a schedule trigger message, as accepted by the [POST] /assets/(id)/schedules/trigger API endpoint,
+    without the asset id.
+    A fixed "start", "end" or "prior" is refused for any automation, as every run would share it:
+    describe the period each run covers with two of --start-offset, --end-offset and --duration instead,
+    or leave the timing out to start at the run time, or, for a report, to cover the period since the last successful report.
     Each time the automation runs, jobs are queued (see `flexmeasures jobs run-automations`).
 
     Alternatively, pass an existing data source (--source) to reuse the forecaster
@@ -1872,8 +1913,10 @@ def add_automation(
     A configuration option given on the command line overrides the same setting from --config,
     while a parameter from --parameters takes precedence over the matching command-line option.
     """
-    if forecaster_class is None:
-        forecaster_class = "TrainPredictPipeline"
+    # Only a forecast automation has a default generator:
+    # a report automation has to name its reporter, and the service says so, while a schedule automation resolves its own.
+    if generator_class is None and automation_type == "forecasting":
+        generator_class = "TrainPredictPipeline"
 
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, source, config_file, parameters_file
@@ -1894,7 +1937,7 @@ def add_automation(
         # configuration options that were left out still show up here, with their defaults.
         forecast_options = _find_options_given_on_command_line(
             {
-                "forecaster_class": "--forecaster",
+                "generator_class": "--data-generator",
                 "source": "--source",
                 "config_file": "--config",
                 "edit_config": "--edit-config",
@@ -1907,66 +1950,38 @@ def add_automation(
                 " combined with --type scheduling: a schedule automation is not computed by a forecaster."
             )
 
-    # Validate the parameters using the forecast parameters schema (we store them serialized)
-    generator_id = None
-    if automation_type == "forecasting":
-        try:
-            deserialized_parameters = ForecasterParametersSchema().load(parameters)
-        except ValidationError as e:
-            click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
-            raise click.Abort()
-        output_sensor = deserialized_parameters.get(
-            "sensor_to_save"
-        ) or deserialized_parameters.get("sensor")
-        try:
-            validate_forecast_output_scope(asset.id, output_sensor)
-        except ValueError as exc:
-            click.secho(str(exc), **MsgStyle.ERROR)
-            raise click.Abort()
-
-        forecaster = get_data_generator(
-            source=source,
-            model=forecaster_class,
+    # The service validates the parameters by automation type (we store them serialized)
+    try:
+        automation, warnings = create_automation(
+            asset=asset,
+            name=name,
+            cronstr=cronstr,
+            timezone=timezone,
+            automation_type=automation_type,
+            active=not inactive,
+            parameters=parameters,
+            generator_class=generator_class,
             config=config,
-            save_config=True,
-            data_generator_type=Forecaster,
+            source=source,
+            origin="CLI",
         )
-        if forecaster is None:
-            click.secho(
-                f"Could not set up forecaster '{forecaster_class}'.", **MsgStyle.ERROR
-            )
-            raise click.Abort()
-        generator = (
-            forecaster.data_source
-        )  # looks up or creates the data source storing the forecaster config
-        db.session.flush()
-        generator_id = generator.id
-    else:  # scheduling
-        # The scheduler and its configuration make up the automation's data generator,
-        # the same way a forecaster and its configuration do for a forecast automation.
-        generator_id = _check_schedule_automation_parameters(parameters, asset).id
-        if "start" in parameters:
-            click.secho(
-                "Warning: the schedule 'start' is fixed, so each run will compute the same period."
-                " Omit 'start' to schedule from the run time instead.",
-                **MsgStyle.WARN,
-            )
-
-    automation = Automation(
-        asset_id=asset.id,
-        type=automation_type,
-        name=name,
-        cronstr=cronstr,
-        timezone=timezone,
-        active=not inactive,
-        generator_id=generator_id,
-        parameters=parameters,
-    )
-    db.session.add(automation)
-    db.session.flush()
-    AssetAuditLog.add_record(
-        asset, f"Created automation '{name}' ({automation.id}) via CLI."
-    )
+    except ValidationError as e:
+        click.secho(
+            f"Invalid {Automation.RESULT_NOUNS[automation_type]} parameters: {e.messages}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    except RecurringAutomationFixesAMoment as e:
+        # A usage error: the automation cannot be defined this way, whatever the data says.
+        raise click.UsageError(str(e))
+    except AutomationSensorsUnknown as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+    except ValueError as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+    for warning in warnings:
+        click.secho(f"Warning: {warning}", **MsgStyle.WARN)
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"

@@ -401,7 +401,7 @@
 <script type="module">
     import {
         getFlexFieldTitle, renderSensor, getAsset, getAccount, getSensor, createReactiveState,
-        apiBasePath, processResourceRawJSON, convertHtmlToElement, moveArrayItem
+        apiBasePath, processResourceRawJSON, convertHtmlToElement, moveArrayItem, escapeHtml, unitHtml
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     import { renderAssetPlotCard, renderSensorCard, renderSensorsList } from "{{ url_for('flexmeasures_ui.static', filename='js/components.js') }}?v={{ flexmeasures_version }}";
@@ -1051,10 +1051,10 @@
                     }
                     if (!asset || !asset.name) {
                         unavailablePlotCount += 1;
-                        plotHeader.innerHTML = `<b>Asset ${plot.asset}: ${plot["flex-model"] || plot["flex-context"]} (Not available)</b>`;
+                        plotHeader.innerHTML = `<b>Asset ${escapeHtml(plot.asset)}: ${escapeHtml(plot["flex-model"] || plot["flex-context"])} (Not available)</b>`;
                         plotHeader.classList.add("text-warning");
                     } else {
-                        plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                        plotHeader.innerHTML = `<b>${escapeHtml(asset.name)}: ${escapeHtml(plot["flex-model"] || plot["flex-context"])}</b>`;
                     }
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
@@ -1351,15 +1351,15 @@
                 col.innerHTML = `
             <div class="card m-0">
                 <div class="card-body p-0 sensor-card">
-                    <h5 class="card-title">${sensor.name}</h5>
+                    <h5 class="card-title">${escapeHtml(sensor.name)}</h5>
                     <p class="card-text">
                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                        <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
-                        <b>Asset:</b> ${Asset.name},
-                        <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                        <b>Unit:</b> ${unitHtml(sensor.unit)},
+                        <b>Asset:</b> ${escapeHtml(Asset.name)},
+                        <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
                     </p>
                     ${activeCard() && activeCard().id === `graph_${graphIndex}`
-                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${currentlySelectedGraphText}' Graph</button>`
+                        ? `<button class="btn btn-primary btn-sm" onclick="addSensorToExistingGraph(${graphIndex}, ${sensor.id})">Add to '${escapeHtml(currentlySelectedGraphText)}' Graph</button>`
                         : `<button class="btn btn-primary btn-sm" onclick="addSensorAsGraph(${sensor.id})">Add new Graph</button>`
                     }
                 </div>
@@ -1387,12 +1387,12 @@
                 col.innerHTML = `
                 <div class="card m-0">
                     <div class="card-body p-0 sensor-card">
-                        <h5 class="card-title">${sensor.name}</h5>
+                        <h5 class="card-title">${escapeHtml(sensor.name)}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
-                            <b>Unit:</b> ${sensor.unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : sensor.unit},
-                            <b>Asset:</b> ${Asset.name},
-                            <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                            <b>Unit:</b> ${unitHtml(sensor.unit)},
+                            <b>Asset:</b> ${escapeHtml(Asset.name)},
+                            <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
                         </p>
                         <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
                     </div>
