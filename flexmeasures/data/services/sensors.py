@@ -522,24 +522,6 @@ def _get_sensor_bdfs_by_source_type(
             source=sources,
             **belief_search,
         )
-        if bdf.empty and staleness_search.get("beliefs_before") is not None:
-            # The most-recent-only fast track fetches the single most recent event first,
-            # and only then drops the beliefs that were formed after `beliefs_before`.
-            # So whenever the most recent event is one we could not know about yet, such as tomorrow's day-ahead prices,
-            # the fast track comes back empty, and a sensor holding plenty of data looks like it never recorded anything.
-            # Widening `beliefs_before` would not help, as those are exactly the beliefs we should not be using yet.
-            # What we are after is the most recent event we could know about by now,
-            # so search again without the fast track, and pick that event ourselves.
-            bdf = TimedBelief.search(
-                sensors=sensor,
-                most_recent_beliefs_only=True,
-                source=sources,
-                **belief_search,
-            )
-            if not bdf.empty:
-                bdf = bdf[
-                    bdf.index.get_level_values("event_start") == bdf.event_starts[-1]
-                ]
         if not bdf.empty:
             bdfs_by_source[source_type] = bdf
     return None if not bdfs_by_source else bdfs_by_source

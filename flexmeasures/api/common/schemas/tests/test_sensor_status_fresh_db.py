@@ -20,11 +20,12 @@ from flexmeasures.data.services.sensors import (
 def test_get_status_data_recorded_ahead_of_its_knowledge_time(
     fresh_db, add_market_prices_fresh_db, setup_sources_fresh_db
 ):
-    """A sensor whose most recent data is not knowable yet has data, and is not stale.
+    """A sensor whose most recent data is not knowable yet is not stale.
 
-    Regression test for a day-ahead price sensor on the status page,
-    which reported "no data recorded" and showed a red light,
+    Regression test for a day-ahead price sensor showing a red light on the status page,
     because tomorrow's prices were recorded ahead of their knowledge time.
+    Only sources that are expected to deliver future data, such as forecasters and schedulers,
+    are held to a minimum lead time.
     """
     sensor = add_market_prices_fresh_db["epex_da"]
 
