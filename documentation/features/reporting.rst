@@ -127,6 +127,45 @@ The output sensor itself is left out of the aggregation, so a report can be reco
 Sensors named in the ``input`` parameters are read as described there, and the selected sensors are added to them.
 
 
+Letting the flex-context describe the portfolio
+--------------------------------------------------
+
+A site that is scheduled already says what it is made of.
+Its flex-context lists the sensors of its inflexible load under ``inflexible-consumption`` and ``inflexible-production``,
+and it can name the sensors that the aggregate of each belongs on, under ``aggregate-consumption`` and ``aggregate-production``.
+That is the same portfolio a report would otherwise restate, so the ``AggregatorReporter`` can read it from there:
+
+.. code-block:: json
+
+    {
+        "method" : "sum",
+        "asset" : 3,
+        "portfolio" : "consumption"
+    }
+
+.. code-block:: json
+
+    {
+        "start" : "2023-01-01T00:00:00+00:00",
+        "end" : "2023-01-03T00:00:00+00:00"
+    }
+
+The parameters name no sensors at all.
+``portfolio`` takes the sensors to aggregate from the asset's ``inflexible-consumption``,
+and records the result on the sensor its ``aggregate-consumption`` names.
+Naming an ``output`` sensor in the parameters still overrides the latter, for a one-off report that belongs elsewhere.
+
+The flex-context is resolved up the asset tree, as it is for scheduling, so a portfolio defined on a site also serves the assets below it.
+Each entry may carry the source filters that flex-context sensor references accept (``source-types``, ``exclude-source-types``, ``sources`` and ``source-account``),
+and those are passed to the belief search unchanged, so a portfolio that points at a forecaster's values aggregates exactly those.
+
+Two things are worth knowing.
+``portfolio`` uses ``asset`` to find the flex-context, not as a subtree to walk, so it aggregates the sensors the portfolio lists rather than every sensor below the asset;
+combine it with ``sensors`` to add more.
+And the deprecated ``inflexible-device-sensors`` field is not accepted, because it says nothing about whether a sensor records consumption or production ―
+split it into ``inflexible-consumption`` and ``inflexible-production`` first.
+
+
 Example: Profits & losses
 ---------------------------
 
