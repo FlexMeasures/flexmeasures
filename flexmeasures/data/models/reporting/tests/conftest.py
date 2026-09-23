@@ -388,3 +388,29 @@ def setup_site_data(db, app, setup_dummy_data):
     db.session.commit()
 
     yield site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, temperature_sensor
+
+
+@pytest.fixture(scope="module")
+def setup_portfolio_flex_context(db, app, setup_site_data):
+    """Describe the site's consumption portfolio in its flex-context, the way a scheduler reads it.
+
+    The two PV sensors become the portfolio, and the sensor holding a previous report becomes the place the aggregate is recorded.
+    """
+    site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, temperature_sensor = (
+        setup_site_data
+    )
+
+    site.flex_context = {
+        "inflexible-consumption": [
+            {"sensor": roof_pv_sensor.id},
+            {"sensor": carport_pv_sensor.id},
+        ],
+        "aggregate-consumption": {"sensor": site_power_sensor.id},
+    }
+    db.session.commit()
+
+    yield setup_site_data
+
+    # reset to the column default, so the other modules' tests see an asset without a flex-context
+    site.flex_context = {}
+    db.session.commit()
