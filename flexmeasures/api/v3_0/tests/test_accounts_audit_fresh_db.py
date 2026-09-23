@@ -40,6 +40,31 @@ def test_account_creation_is_audited(
     assert logs[0].affected_user_id is None
 
 
+def test_ui_client_account_creation_audit_identifies_page_and_consultancy(
+    fresh_db, client, setup_roles_users_fresh_db, requesting_user
+):
+    """Creating a client organisation identifies its UI page and consultancy."""
+    consultancy = find_user_by_email("test_consultant@seita.nl").account
+    response = client.post(
+        url_for("AccountAPI:post"),
+        headers={"X-FlexMeasures-UI-Context": "/accounts/new"},
+        json={
+            "name": "Created Client Organisation",
+            "consultancy_account_id": consultancy.id,
+        },
+    )
+
+    assert response.status_code == 201, response.json
+    account_id = response.json["id"]
+    logs = account_events(fresh_db, account_id)
+    assert len(logs) == 1
+    assert logs[0].event == (
+        f"Created organisation 'Created Client Organisation': {account_id} "
+        f"via UI from /accounts/new as client of organisation "
+        f"'{consultancy.name}': {consultancy.id}"
+    )
+
+
 @pytest.mark.parametrize("resubmit_unchanged_fields", [False, True])
 def test_account_attribute_audit_reports_only_changes(
     fresh_db,
