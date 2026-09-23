@@ -19,6 +19,13 @@ from flexmeasures.data.schemas.reporting.aggregation import (
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, units_are_convertible
 
+#: For each portfolio, the flex-context field listing the sensors to aggregate,
+#: and the one naming the sensor to record the aggregate on.
+PORTFOLIO_FLEX_CONTEXT_FIELDS = {
+    "consumption": ("inflexible-consumption", "aggregate-consumption"),
+    "production": ("inflexible-production", "aggregate-production"),
+}
+
 
 def units_match(unit: str, units: list[str]) -> bool:
     """Tell whether a sensor unit is one of the units to filter on.
@@ -40,6 +47,8 @@ class AggregatorReporter(Reporter):
     The sensors to aggregate can be listed one by one, as `input` parameters, but they can also be selected in the reporter's configuration,
     which is what makes this reporter useful for a whole site: name an asset and every sensor below it is aggregated,
     optionally narrowed down by a pattern on the sensor name and by the units the sensors record in.
+    A site's flex-context already describes its portfolio, so naming a `portfolio` reads the sensors from there instead,
+    along with the sensor to record the aggregate on.
 
     Values are converted to the unit of the output sensor, and resampled to its resolution,
     so that sensors recording in different units and at different resolutions can be aggregated.
@@ -63,9 +72,11 @@ class AggregatorReporter(Reporter):
         """
         output_sensor_ids = {sensor.id for sensor in self.output_sensors}
         selected_sensors = [
-            sensor
-            for sensor in self._find_sensors()
-            if sensor.id not in output_sensor_ids
+            description["sensor"]
+            for description in self._portfolio_input_descriptions()
+        ] + self._find_sensors()
+        selected_sensors = [
+            sensor for sensor in selected_sensors if sensor.id not in output_sensor_ids
         ]
         return self._resolve_sensors(super().input_sensors, selected_sensors)
 
@@ -75,8 +86,14 @@ class AggregatorReporter(Reporter):
         The pool of candidates holds the sensors of the asset named in the `asset` field and of its offspring, together with the sensors listed in the `sensors` field.
         The `sensor-name-pattern` and `sensor-units` fields then narrow that pool down.
         Sensors are returned ordered by ID, so that an aggregation over a site does not depend on the order in which its sensors happen to be loaded.
+
+        A configured `portfolio` reads the asset's flex-context instead of walking its subtree,
+        so that naming a portfolio aggregates the sensors it lists and not every sensor that happens to sit below the asset.
+        The `sensors` field still contributes alongside it.
         """
-        asset: GenericAsset | None = self._config.get("asset")
+        asset: GenericAsset | None = (
+            None if self._config.get("portfolio") else self._config.get("asset")
+        )
         listed_sensors: list[Sensor] = self._config.get("sensors") or []
         name_pattern: str | None = self._config.get("sensor_name_pattern")
         units: list[str] | None = self._config.get("sensor_units")
@@ -100,6 +117,112 @@ class AggregatorReporter(Reporter):
 
         return sorted(sensors, key=lambda sensor: sensor.id)
 
+    @property
+    def output_sensors(self) -> list:
+        """Return the sensors this reporter records on, including one taken from the asset's flex-context.
+
+        This is what an automation checks a report against, so it has to name the sensor the report will really be written to.
+        """
+        parameters = self._parameters or {}
+        try:
+            output = self._resolve_output(parameters.get("output") or [])
+        except ValueError:
+            # nothing configured to record on; the computation reports that, with its own message
+            return []
+        return self._resolve_sensors([item.get("sensor") for item in output])
+
+    def _flex_context_field(self, which: int) -> tuple[Any, str] | tuple[None, None]:
+        """Return the asset's flex-context value for the configured portfolio, and the field name it came from.
+
+        `which` picks the field from PORTFOLIO_FLEX_CONTEXT_FIELDS: 0 for the sensors to aggregate, 1 for the sensor to record on.
+        Returns (None, None) when no portfolio is configured.
+        """
+        portfolio: str | None = self._config.get("portfolio")
+        if portfolio is None:
+            return None, None
+
+        asset: GenericAsset | None = self._config.get("asset")
+        if asset is None:
+            raise ValueError(
+                f"The AggregatorReporter needs an `asset` to read the '{portfolio}' portfolio from."
+                " Name the asset whose flex-context describes the portfolio, or list the sensors yourself."
+            )
+
+        field_name = PORTFOLIO_FLEX_CONTEXT_FIELDS[portfolio][which]
+        # the flex-context is resolved up the asset tree, so a site's portfolio also serves the assets below it
+        return asset.get_flex_context().get(field_name), field_name
+
+    def _portfolio_input_descriptions(self) -> list[dict[str, Any]]:
+        """Read the sensors to aggregate from the configured portfolio in the asset's flex-context.
+
+        Each entry there may carry source filters, which are passed on to the belief search as they are,
+        so that a portfolio naming a forecaster's values aggregates exactly those.
+        """
+        from flexmeasures.data.schemas.sensors import (
+            InflexibleDeviceSchema,
+            SensorReference,
+        )
+
+        entries, field_name = self._flex_context_field(0)
+        if field_name is None:
+            return []
+
+        if entries is None:
+            asset: GenericAsset = self._config.get("asset")
+            if "inflexible-device-sensors" in asset.get_flex_context():
+                raise ValueError(
+                    f"Asset {asset.id} ({asset.name}) describes its portfolio with the deprecated `inflexible-device-sensors`, which says nothing about whether a sensor is consumption or production."
+                    f" Move it to `inflexible-consumption` and `inflexible-production` to aggregate a portfolio."
+                )
+            raise ValueError(
+                f"Asset {asset.id} ({asset.name}) has no `{field_name}` in its flex-context, so there is no portfolio to aggregate."
+                " Set that field, or select the sensors with `sensors`, `sensor-name-pattern` or `sensor-units` instead."
+            )
+
+        input_descriptions = []
+        for reference in InflexibleDeviceSchema(many=True).load(entries):
+            if not isinstance(reference, SensorReference):
+                input_descriptions.append({"sensor": reference})
+                continue
+            description: dict[str, Any] = {"sensor": reference.sensor}
+            if reference.sources:
+                description["sources"] = reference.sources
+            if reference.source_types:
+                description["source_types"] = reference.source_types
+            if reference.exclude_source_types:
+                description["exclude_source_types"] = reference.exclude_source_types
+            if reference.source_account:
+                description["source_account_ids"] = [
+                    account.id for account in reference.source_account
+                ]
+            input_descriptions.append(description)
+
+        return input_descriptions
+
+    def _resolve_output(self, output: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Settle which sensor the aggregate is recorded on.
+
+        An output named in the parameters wins, so a caller can send a portfolio's aggregate somewhere else for once.
+        Otherwise the configured portfolio's `aggregate-consumption` or `aggregate-production` says where it goes.
+        """
+        from flexmeasures.data.schemas.sensors import OutputSensorReferenceSchema
+
+        if output:
+            return output
+
+        entry, field_name = self._flex_context_field(1)
+        if field_name is None:
+            raise ValueError(
+                "The AggregatorReporter has no sensor to record its report on. Name one in the `output` parameters."
+            )
+        if entry is None:
+            asset: GenericAsset = self._config.get("asset")
+            raise ValueError(
+                f"Asset {asset.id} ({asset.name}) has no `{field_name}` in its flex-context, so there is nowhere to record the aggregate."
+                " Set that field, or name an output sensor in the `output` parameters."
+            )
+        return [{"sensor": OutputSensorReferenceSchema().load(entry)["sensor"]}]
+
     def _collect_input_descriptions(
         self, input: list[dict[str, Any]], output_sensor: Sensor
     ) -> list[dict[str, Any]]:
@@ -113,6 +236,12 @@ class AggregatorReporter(Reporter):
         described_sensor_ids = {
             input_description["sensor"].id for input_description in input_descriptions
         }
+
+        for description in self._portfolio_input_descriptions():
+            if description["sensor"].id in described_sensor_ids:
+                continue
+            described_sensor_ids.add(description["sensor"].id)
+            input_descriptions.append(description)
 
         for sensor in self._find_sensors():
             if sensor.id in described_sensor_ids or sensor.id == output_sensor.id:
@@ -177,6 +306,7 @@ class AggregatorReporter(Reporter):
         weights: dict = self._config.get("weights", {})
         convert_to_output_unit: bool = self._config.get("convert_units", True)
 
+        output = self._resolve_output(output)
         output_sensor: Sensor = output[0]["sensor"]
 
         # Read and resample to the resolution of the output sensor, unless the caller asked for another resolution.
@@ -189,7 +319,7 @@ class AggregatorReporter(Reporter):
         if len(input_descriptions) == 0:
             raise ValueError(
                 "The AggregatorReporter has no sensors to aggregate."
-                " Name them in the `input` parameters, or select them in the reporter's config with the `asset`, `sensors`, `sensor-name-pattern` and `sensor-units` fields."
+                " Name them in the `input` parameters, or select them in the reporter's config with the `asset`, `portfolio`, `sensors`, `sensor-name-pattern` and `sensor-units` fields."
             )
 
         dataframes = []

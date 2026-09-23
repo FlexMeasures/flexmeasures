@@ -450,3 +450,183 @@ def test_aggregator_data_source_records_sensor_selection(setup_site_data, db):
     config = agg_reporter.data_source.attributes["data_generator"]["config"]
     assert config["asset"] == site.id
     assert config["sensor-name-pattern"] == "PV"
+
+
+def test_aggregator_portfolio_from_flex_context(setup_portfolio_flex_context, db):
+    """Naming a portfolio takes both the sensors and the output sensor from the asset's flex-context.
+
+    Neither `input` nor `output` is passed here: the whole report is described by the site's flex-context.
+    """
+    site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, _ = (
+        setup_portfolio_flex_context
+    )
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, portfolio="consumption")
+    )
+
+    assert sorted(sensor.id for sensor in agg_reporter.input_sensors) == sorted(
+        [roof_pv_sensor.id, carport_pv_sensor.id]
+    )
+    assert [sensor.id for sensor in agg_reporter.output_sensors] == [
+        site_power_sensor.id
+    ]
+
+    result = agg_reporter.compute(
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )
+
+    assert result[0]["sensor"].id == site_power_sensor.id
+    assert len(result[0]["data"]) == 24
+    assert result[0]["data"]["event_value"].values == pytest.approx(0.3)
+
+
+def test_aggregator_portfolio_passes_on_source_filters(
+    setup_portfolio_flex_context, db
+):
+    """A portfolio entry's source filters reach the belief search, so a portfolio can name whose data to aggregate."""
+    site, site_power_sensor, roof_pv_sensor, carport_pv_sensor, _ = (
+        setup_portfolio_flex_context
+    )
+
+    # the site's data is recorded by a source of type "A", so excluding that type silences the roof
+    site.flex_context = {
+        **site.flex_context,
+        "inflexible-consumption": [
+            {"sensor": roof_pv_sensor.id, "exclude-source-types": ["A"]},
+            {"sensor": carport_pv_sensor.id},
+        ],
+    }
+    db.session.commit()
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, portfolio="consumption")
+    )
+    result = agg_reporter.compute(
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )[0]["data"]
+
+    # only the carport's 0.2 MW is left
+    assert result["event_value"].values == pytest.approx(0.2)
+
+    site.flex_context = {
+        **site.flex_context,
+        "inflexible-consumption": [
+            {"sensor": roof_pv_sensor.id},
+            {"sensor": carport_pv_sensor.id},
+        ],
+    }
+    db.session.commit()
+
+
+def test_aggregator_portfolio_output_can_be_overridden(
+    setup_portfolio_flex_context, db, setup_dummy_data
+):
+    """An output named in the parameters wins over the one the flex-context points at."""
+    site, site_power_sensor, _, _, _ = setup_portfolio_flex_context
+    _, _, _, _, report_sensor, _ = setup_dummy_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, portfolio="consumption")
+    )
+    result = agg_reporter.compute(
+        output=[dict(sensor=report_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+        belief_time=datetime(2023, 12, 1, tzinfo=utc),
+    )
+
+    assert result[0]["sensor"].id == report_sensor.id
+    assert result[0]["sensor"].id != site_power_sensor.id
+
+
+def test_aggregator_portfolio_needs_an_asset(setup_portfolio_flex_context, db):
+    """A portfolio is read off an asset, so there has to be one."""
+    _, site_power_sensor, _, _, _ = setup_portfolio_flex_context
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", portfolio="consumption")
+    )
+
+    with pytest.raises(ValueError, match="needs an `asset`"):
+        agg_reporter.compute(
+            output=[dict(sensor=site_power_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+            belief_time=datetime(2023, 12, 1, tzinfo=utc),
+        )
+
+
+def test_aggregator_portfolio_missing_from_flex_context(
+    setup_portfolio_flex_context, db
+):
+    """The site describes a consumption portfolio but not a production one, and the reporter says so."""
+    site, site_power_sensor, _, _, _ = setup_portfolio_flex_context
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, portfolio="production")
+    )
+
+    with pytest.raises(ValueError, match="inflexible-production"):
+        agg_reporter.compute(
+            output=[dict(sensor=site_power_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+            belief_time=datetime(2023, 12, 1, tzinfo=utc),
+        )
+
+
+def test_aggregator_portfolio_rejects_deprecated_field(
+    setup_portfolio_flex_context, db
+):
+    """`inflexible-device-sensors` says nothing about direction, so it cannot answer for a consumption portfolio."""
+    site, site_power_sensor, roof_pv_sensor, _, _ = setup_portfolio_flex_context
+
+    kept = site.flex_context
+    site.flex_context = {"inflexible-device-sensors": [roof_pv_sensor.id]}
+    db.session.commit()
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, portfolio="consumption")
+    )
+
+    with pytest.raises(ValueError, match="inflexible-device-sensors"):
+        agg_reporter.compute(
+            output=[dict(sensor=site_power_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+            belief_time=datetime(2023, 12, 1, tzinfo=utc),
+        )
+
+    site.flex_context = kept
+    db.session.commit()
+
+
+def test_aggregator_without_any_output(setup_site_data, db):
+    """With no output named and no portfolio to look one up from, the reporter says what is missing."""
+    site, _, _, _, _ = setup_site_data
+
+    agg_reporter = AggregatorReporter(
+        config=dict(method="sum", asset=site.id, **{"sensor-name-pattern": "PV"})
+    )
+
+    with pytest.raises(ValueError, match="no sensor to record its report on"):
+        agg_reporter.compute(
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+            belief_time=datetime(2023, 12, 1, tzinfo=utc),
+        )
+
+
+def test_aggregator_portfolio_must_name_a_known_direction(setup_site_data, db):
+    """Only the two portfolios the flex-context describes can be aggregated, and a typo is caught where it is written."""
+    site, _, _, _, _ = setup_site_data
+
+    with pytest.raises(ValidationError, match="Must be one of"):
+        AggregatorReporter(
+            config=dict(method="sum", asset=site.id, portfolio="consuption")
+        )
