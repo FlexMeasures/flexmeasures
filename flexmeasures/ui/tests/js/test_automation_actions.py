@@ -50,7 +50,7 @@ def test_automation_actions_are_grouped_and_permission_gated(assert_js):
             recurrence_description: "At 06:00", next_run: "2026-09-15T04:00:00+00:00",
         }};
         const row = manager.AutomationRow(automation);
-        check("one menu holds all four controls", ["run-automation", "automation-edit", "automation-toggle", "automation-delete"]
+        check("one menu holds all five controls", ["run-automation", "automation-edit", "automation-copy", "automation-toggle", "automation-delete"]
               .every(name => row.actions.includes(name)), row.actions);
         check("run now is no longer mixed with details", !row.details.includes("run-automation"), row.details);
         check("details stays its own button", row.details.includes("automation-details"), row.details);
@@ -60,8 +60,8 @@ def test_automation_actions_are_grouped_and_permission_gated(assert_js):
         const toggle = holder.querySelector(".automation-actions .dropdown-toggle");
         check("the row offers a single Actions toggle", toggle !== null
               && holder.querySelectorAll(".automation-actions > .btn").length === 1, row.actions);
-        check("the four actions sit in its menu as items",
-              holder.querySelectorAll(".automation-actions .dropdown-menu .dropdown-item").length === 4,
+        check("the five actions sit in its menu as items",
+              holder.querySelectorAll(".automation-actions .dropdown-menu .dropdown-item").length === 5,
               row.actions);
         const inactive = manager.AutomationRow({{...automation, active: false, next_run: null}});
         check("inactive action says Activate", inactive.actions.includes("Activate") && !inactive.actions.includes("Deactivate"), inactive.actions);
