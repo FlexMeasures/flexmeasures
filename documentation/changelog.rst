@@ -62,6 +62,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* ``GET /api/v3_0/assets`` without a sort parameter no longer skips assets when paging, because the query now always orders by the asset id, which is unique, so every page break falls on a stable boundary [see `PR #2585 <https://www.github.com/FlexMeasures/flexmeasures/pull/2583>`_]
 * A forecaster given more than one regressor of the same kind trained on each of them several times over, because every regressor's data was collected once per regressor [see `PR #2560 <https://www.github.com/FlexMeasures/flexmeasures/pull/2560>`_]
 * Organisation audit logs now show only changed fields with their previous and new values, and user role and active-status changes identify the affected user [see `PR #2522 <https://www.github.com/FlexMeasures/flexmeasures/pull/2522>`_]
 * ``GET /api/v3_0/assets/(id)/jobs`` now reports its Redis connection error as ``redis-connection-err`` rather than ``redis_connection_err``, so the field is spelled the same way there as on the automation endpoints that also report it [see `PR #2545 <https://www.github.com/FlexMeasures/flexmeasures/pull/2545>`_]
