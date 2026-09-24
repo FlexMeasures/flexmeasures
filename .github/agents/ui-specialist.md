@@ -121,9 +121,10 @@ When a feature is unavailable due to insufficient data (not insufficient permiss
 ### Jinja2 Template Safety
 
 - [ ] Sensor/asset IDs embedded in JS use `{{ sensor.id }}` (integer, safe), not `.name` or freeform text
-- [ ] User-supplied values displayed in HTML use `{{ value | e }}` or `{{ value | safe }}` (only for pre-sanitised server values like `sensor._ui_unit | safe`)
-- [ ] `availableUnitsRawJSON.replace(/'/g,
-  '"')` pattern is used for JSON embedded via template — this is the established workaround for Flask's single-quote JSON serialisation
+- [ ] User-supplied values displayed in HTML rely on Jinja's auto-escaping (`{{ value }}`), never `{{ value | safe }}`
+- [ ] Data embedded in a `<script>` uses `{{ value | tojson }}`, which yields valid JavaScript and cannot close the script element;
+  never a Python dict or list rendered with `| safe`, nor either of those inside a JavaScript string literal
+- [ ] JavaScript sets user-supplied text with `textContent`, or passes it through `escapeHtml` (from `ui-utils.js`) when building markup for `innerHTML`
 
 ## Domain Knowledge
 

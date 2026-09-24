@@ -433,6 +433,33 @@ function inferResolutionMs(rowsOrTimestamps) {
   return Math.max(res, 60 * 1000); // at least 1 minute, to bound the number of cells
 }
 
+// The time span one bar stands for: the sensor's own event resolution,
+// falling back to the event spacing for legacy data that does not carry one.
+// Instantaneous sensors (resolution 0) have no width of their own, so they fall back as well.
+export function barIntervalMs(series) {
+  const sec = series.eventResolutionSec;
+  if (typeof sec === "number" && sec > 0) return sec * 1000;
+  return inferResolutionMs(series.eventStarts || []);
+}
+
+// How wide (in pixels) a bar covering `intervalMs` must be drawn on a time axis spanning `spanMs` across `gridWidthPx` pixels.
+//
+// ECharts derives a bar's width from the spacing between data points, which leaves it guessing when a series holds a single point:
+// the bar then covers most of the window, and the axis widens to fit it (issue #2454).
+// Setting the width ourselves takes that guess out of the picture.
+//
+// ECharts widens a bar chart's axis to keep the outermost bars inside the grid, by the width of the widest bar:
+// an axis configured to span S ends up spanning S + w, with w the bar width in domain units.
+// Solving w / (S + w) = barWidth / gridWidthPx for the width that makes a bar cover exactly one interval on the widened axis gives the ratio below,
+// and the axis then spans exactly `spanMs + intervalMs`.
+//
+// A bar therefore never widens the shown range by more than its own interval, at any zoom level,
+// and zooming in below one interval is bounded by that same interval rather than blowing the axis up.
+export function barWidthPx(intervalMs, spanMs, gridWidthPx) {
+  if (!(intervalMs > 0) || !(spanMs > 0) || !(gridWidthPx > 0)) return null;
+  return Math.max(1, (gridWidthPx * intervalMs) / (spanMs + intervalMs)); // at least a pixel, so a bar never vanishes
+}
+
 /* ============================== chart parts ============================== */
 
 function yAxisTitle(sensorType, units) {
@@ -587,6 +614,54 @@ function refreshRoundedSteps(instance) {
   chart.setOption({ series: patch });
 }
 
+// Recompute every bar series' width so each bar still covers exactly one event resolution at the current zoom,
+// then merge it back in.
+// Called after each render and on every dataZoom, because a width in pixels does not scale with the axis by itself.
+//
+// The axis on screen is already one bar width wider than the span it was configured with (see barWidthPx),
+// so that padding is taken back out before the new width is derived from it.
+function refreshBarWidths(instance) {
+  const chart = instance.chart;
+  const list = instance._barSeries;
+  const gridWidth = instance._gridWidth;
+  if (!chart || chart.isDisposed() || !Array.isArray(list) || list.length === 0 || !(gridWidth > 0)) return;
+  // The widest bar of a subplot is the one whose width ECharts padded that subplot's axis with.
+  const paddingByGrid = new Map();
+  for (const b of list) {
+    const previous = chart.getModel().getSeriesByIndex(b.seriesIndex);
+    const width = previous ? previous.get("barWidth") : 0;
+    if (typeof width === "number" && width > (paddingByGrid.get(b.gridIndex) || 0)) paddingByGrid.set(b.gridIndex, width);
+  }
+  const spanByGrid = new Map();
+  const configuredSpan = (gridIndex) => {
+    if (spanByGrid.has(gridIndex)) return spanByGrid.get(gridIndex);
+    let span = null;
+    try {
+      const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
+      const msPerPx = Math.abs(xa(200) - xa(100)) / 100;
+      const padding = paddingByGrid.get(gridIndex) || 0;
+      if (isFinite(msPerPx) && msPerPx > 0) span = msPerPx * (gridWidth - padding);
+    } catch (e) {
+      span = null;
+    }
+    spanByGrid.set(gridIndex, span);
+    return span;
+  };
+
+  const widthByIndex = new Map();
+  let maxIdx = -1;
+  for (const b of list) {
+    const width = barWidthPx(b.intervalMs, configuredSpan(b.gridIndex), gridWidth);
+    if (!width) continue;
+    widthByIndex.set(b.seriesIndex, width);
+    if (b.seriesIndex > maxIdx) maxIdx = b.seriesIndex;
+  }
+  if (maxIdx < 0) return;
+  const patch = [];
+  for (let i = 0; i <= maxIdx; i++) patch.push(widthByIndex.has(i) ? { barWidth: widthByIndex.get(i) } : {});
+  chart.setOption({ series: patch });
+}
+
 // Nearest human-friendly time step (ms) giving about `target` gridlines for `span`.
 function niceTimeStep(span, target) {
   const raw = span / Math.max(target, 1);
@@ -613,8 +688,8 @@ function refreshTimeTicks(instance) {
 }
 
 // Wire the zoom-driven refreshes for line/bar charts: keep the rounded step corners
-// pixel-accurate (refreshRoundedSteps) and the x-axis gridlines equidistant
-// (refreshTimeTicks), both initially and on every dataZoom.
+// pixel-accurate (refreshRoundedSteps), the bars one event resolution wide (refreshBarWidths),
+// and the x-axis gridlines equidistant (refreshTimeTicks), both initially and on every dataZoom.
 function wireZoomRefresh(instance) {
   const chart = instance.chart;
   if (instance.onZoomRefresh) {
@@ -622,10 +697,12 @@ function wireZoomRefresh(instance) {
     instance.onZoomRefresh = null;
   }
   const hasRounded = Array.isArray(instance._roundedSeries) && instance._roundedSeries.length > 0;
+  const hasBars = Array.isArray(instance._barSeries) && instance._barSeries.length > 0;
   const hasTimeTicks = instance._xDomainSpan > 0;
-  if (!hasRounded && !hasTimeTicks) return;
+  if (!hasRounded && !hasBars && !hasTimeTicks) return;
   const refresh = () => {
     if (hasRounded) refreshRoundedSteps(instance);
+    if (hasBars) refreshBarWidths(instance);
     if (hasTimeTicks) refreshTimeTicks(instance);
   };
   refresh(); // initial pass
@@ -1015,11 +1092,12 @@ function pickNearestParam(params, instance) {
 
 // Nearest real data point (in a series' original `points`) to a given x value.
 // Used so the tooltip reports true data even when the drawn line carries extra,
-// purely-visual vertices (the rounded step corners from roundedStepData).
-function nearestRealPoint(meta, value) {
+// purely-visual vertices (the rounded step corners from roundedStepData),
+// and when a bar is plotted half a resolution late so that it covers its own event (`xOffsetMs`, see buildLineBarOption).
+export function nearestRealPoint(meta, value) {
   const pts = meta && meta.points;
   if (!Array.isArray(pts) || pts.length === 0 || !value) return value;
-  const x = value[0];
+  const x = value[0] - ((meta && meta.xOffsetMs) || 0);
   // points are kept sorted by x (groupData sorts them), so binary-search the nearest.
   let lo = 0;
   let hi = pts.length - 1;
@@ -1282,6 +1360,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const titles = [];
   const legends = [];
   const roundedList = []; // stepped series to re-round in pixel space (see refreshRoundedSteps)
+  const barList = []; // bar series to re-width on zoom (see refreshBarWidths)
   const annotGrids = []; // per subplot: which series carries the annotation marks, and the instant-hover tolerance
   const series = [];
   const seriesMeta = [];
@@ -1314,6 +1393,11 @@ function buildLineBarOption(elementId, groups, opts) {
       : isFinite(sharedMinTime) && isFinite(sharedMaxTime)
       ? { min: sharedMinTime, max: sharedMaxTime }
       : {};
+  const xDomainSpan =
+    typeof sharedXDomain.min === "number" && typeof sharedXDomain.max === "number"
+      ? sharedXDomain.max - sharedXDomain.min
+      : 0;
+  const gridWidth = containerWidth - GRID_LEFT - gridRight;
 
   groups.forEach((group, i) => {
     const top = topOffset + i * (GRID_HEIGHT + gridGap);
@@ -1471,12 +1555,24 @@ function buildLineBarOption(elementId, groups, opts) {
         entry.color = sensorColor.get(s.name);
       }
       let rounded = false;
+      let barInterval = 0;
       if (isBar) {
         Object.assign(entry, {
           barGap: "-100%", // overlay sources, as in the Vega-Lite bar chart
           large: true,
           itemStyle: { opacity: 0.7 },
         });
+        // A bar stands for one event, so draw it one event resolution wide rather than leaving that to ECharts' guess (see barWidthPx).
+        barInterval = barIntervalMs(s);
+        const width = barWidthPx(barInterval, xDomainSpan, gridWidth);
+        if (width) entry.barWidth = width;
+        // An event covers the resolution that FOLLOWS its start, and the Vega-Lite bar chart draws it that way,
+        // but ECharts centres a bar on its x value.
+        // Plotting each bar half a resolution late lands it on its own event; the tooltip reads the real event start back off the series' points (see nearestRealPoint).
+        if (barInterval > 0) {
+          s.xOffsetMs = barInterval / 2;
+          entry.data = s.points.map((p) => [p[0] + s.xOffsetMs, p[1], p[2]]);
+        }
       } else {
         const lineStyle = { width: 2.2, type: lineTypeForSource(s.source) };
         // Round the stepped corners when the series is sparse enough to see them.
@@ -1512,6 +1608,10 @@ function buildLineBarOption(elementId, groups, opts) {
       }
       series.push(entry);
       seriesMeta.push(s);
+      if (isBar && entry.barWidth) {
+        // Record for the zoom-driven re-width (see refreshBarWidths).
+        barList.push({ seriesIndex: series.length - 1, gridIndex: i, intervalMs: barInterval });
+      }
       if (rounded) {
         // Record for the pixel-accurate corner recompute (see refreshRoundedSteps).
         roundedList.push({ seriesIndex: series.length - 1, points: s.points, gridIndex: i });
@@ -1568,11 +1668,10 @@ function buildLineBarOption(elementId, groups, opts) {
   // so the recorded indices wouldn't line up); those keep their data-space rounding.
   if (!opts._companion) {
     instance._roundedSeries = roundedList;
+    instance._barSeries = barList;
+    instance._gridWidth = gridWidth;
     // Full visible time span, for the equidistant/adaptive x-axis ticks (see refreshTimeTicks).
-    instance._xDomainSpan =
-      typeof sharedXDomain.min === "number" && typeof sharedXDomain.max === "number"
-        ? sharedXDomain.max - sharedXDomain.min
-        : 0;
+    instance._xDomainSpan = xDomainSpan;
     // Context for the per-subplot annotation hover/pin handling (see wireAnnotationHover).
     instance._annotCtx = annotations.length > 0 ? { annotations: annotations, grids: annotGrids } : null;
   }
@@ -2271,6 +2370,7 @@ export function renderFastChart(elementId, data, options) {
   if (instance._zoomMode === undefined) instance._zoomMode = true;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
+  instance._barSeries = []; // rebuilt by buildLineBarOption for bar charts (see refreshBarWidths)
   instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
   instance._annotCtx = null; // rebuilt by buildLineBarOption when annotations are shown
 

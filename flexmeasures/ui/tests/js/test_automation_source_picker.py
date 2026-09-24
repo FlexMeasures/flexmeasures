@@ -1,14 +1,12 @@
 """Browser checks for the data source picker in the automation page's creation modal."""
 
 import json
-import re
-from pathlib import Path
 
 import pytest
 
-TEMPLATE = (
-    Path(__file__).resolve().parents[2] / "templates/assets/asset_automations.html"
-)
+# The page's script is rendered by one helper, which asserts that it leaves no Jinja value behind.
+# Sharing it keeps these checks from breaking whenever the page reads another value.
+from test_automation_actions import automation_script
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -17,15 +15,8 @@ def setup_ui_test_data():
 
 
 def picker_script() -> str:
-    """Render the page's inline JavaScript, with the three Jinja values it reads filled in."""
-    match = re.search(r"<script>(.*?)</script>", TEMPLATE.read_text(), re.DOTALL)
-    assert match is not None
-    return (
-        match.group(1)
-        .replace("{{ asset.id }}", "3")
-        .replace("{{ user_can_manage_automations | tojson }}", "true")
-        .replace("{{ user_can_create_children | tojson }}", "true")
-    )
+    """Render the page's inline JavaScript, as a user who may define automations sees it."""
+    return automation_script(can_manage=True, can_run=True)
 
 
 def test_source_search_asks_for_the_sources_of_the_automations_own_type(assert_js):
