@@ -14,7 +14,7 @@ from flexmeasures.auth.policy import (
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.models.audit_log import AuditLog
+from flexmeasures.data.models.audit_log import AuditLog, truncate_string
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
@@ -386,30 +386,37 @@ class AccountAPI(FlaskView):
             "account_roles",
         ]
 
-        modified_fields = {
-            field: getattr(account, field)
-            for field in fields_to_check
-            if account_data.get(field) != getattr(account, field)
-        }
+        modified_fields = {}
+        for field in fields_to_check:
+            if field not in account_data:
+                continue
+            old_value = getattr(account, field)
+            new_value = account_data[field]
+            if field == "account_roles":
+                old_value = sorted(role.name for role in old_value)
+                new_value = sorted(role.name for role in new_value)
+            if old_value != new_value:
+                modified_fields[field] = (old_value, new_value)
 
-        # Compile modified fields string
-        modified_fields_str = ", ".join(modified_fields.keys())
+        # Compile modified fields with their old and new values before updating.
+        changes = "; ".join(
+            f"{field}: {old_value!r} -> {new_value!r}"
+            for field, (old_value, new_value) in modified_fields.items()
+        )
 
         for k, v in account_data.items():
             setattr(account, k, v)
 
-        event_message = f"Account Updated, Field: {modified_fields_str}"
-
-        # Add Audit log
-        account_audit_log = AuditLog(
-            event_datetime=server_now(),
-            event=event_message,
-            active_user_id=current_user.id,
-            active_user_name=current_user.username,
-            affected_user_id=current_user.id,
-            affected_account_id=account.id,
-        )
-        db.session.add(account_audit_log)
+        # Add Audit log only when values actually changed.
+        if modified_fields:
+            account_audit_log = AuditLog(
+                event_datetime=server_now(),
+                event=truncate_string(f"Organisation updated: {changes}", 500),
+                active_user_id=current_user.id,
+                active_user_name=current_user.username,
+                affected_account_id=account.id,
+            )
+            db.session.add(account_audit_log)
         db.session.commit()
         return account_schema.dump(account), 200
 

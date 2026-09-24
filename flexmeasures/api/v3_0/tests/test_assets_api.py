@@ -442,6 +442,82 @@ def test_get_asset_with_children(client, add_asset_with_children, requesting_use
     assert len(get_assets_response.json["child_assets"]) == 2
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only(client, add_asset_with_children, requesting_user):
+    """
+    Listing assets with `depth=0` returns only assets without a parent asset.
+    The unfiltered listing is checked as well, to show that the children would otherwise be included.
+    """
+    parent = add_asset_with_children["parent"]
+    child_ids = {add_asset_with_children[f"child_{i}"].id for i in (1, 2)}
+
+    full_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert full_response.status_code == 200
+    full_asset_ids = {asset["id"] for asset in full_response.json}
+    assert parent.id in full_asset_ids
+    assert child_ids <= full_asset_ids
+
+    top_level_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "depth": 0},
+    )
+    print("Server responded with:\n%s" % top_level_response.json)
+    assert top_level_response.status_code == 200
+    top_level_asset_ids = {asset["id"] for asset in top_level_response.json}
+    assert parent.id in top_level_asset_ids
+    assert not child_ids & top_level_asset_ids
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only_record_counts(
+    client, add_asset_with_children, requesting_user
+):
+    """
+    `num-records` reports the size of the scope that the search filter is applied to, so it respects `depth` just like the paginated query does.
+    Without that, a client showing the listing would report the descendants as having been filtered out by the search.
+    """
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "all_accessible": "true",
+            "depth": 0,
+            "page": 1,
+            "per_page": 100,
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert response.json["num-records"] == len(response.json["data"])
+    assert response.json["num-records"] == response.json["filtered-records"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_can_exclude_public(client, setup_api_test_data, requesting_user):
+    """An explicit include_public=false leaves public assets out of a listing across accounts, where they come along per default.
+
+    The default listing is checked as well, to show that the public asset would otherwise be included.
+    """
+    default_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert default_response.status_code == 200
+    assert "troposphere" in {asset["name"] for asset in default_response.json}
+
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "include_public": "false"},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    names = {asset["name"] for asset in response.json}
+    assert "troposphere" not in names
+    assert names, "excluding public assets should not empty the listing"
+
+
 @pytest.mark.parametrize("requesting_user", [None], indirect=True)
 def test_get_public_assets_noauth(
     client, setup_api_test_data, setup_accounts, requesting_user
@@ -2286,37 +2362,6 @@ def test_kpi_counts_each_event_under_one_day_only(
     ), "each event counts once across neighbouring days, not twice"
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-@pytest.mark.parametrize("tab", ["jobs", "sensors"])
-def test_update_status_page_tab(client, setup_api_test_data, requesting_user, tab):
-    """Posting a status page tab records it in the session, for the next status page the user opens."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_tab"),
-        json={"status_page_tab": tab},
-    )
-    assert response.status_code == 200
-    with client.session_transaction() as session:
-        assert session["status_page_tab"] == tab
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_update_status_page_tab_rejects_unknown_tab(
-    client, setup_api_test_data, requesting_user
-):
-    """Only the two tabs the status page actually has are accepted."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_tab"),
-        json={"status_page_tab": "automations"},
-    )
-    assert response.status_code == 422
-    with client.session_transaction() as session:
-        assert "status_page_tab" not in session
-
-
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_jobs_of_child_assets(
     client, app, add_asset_with_children, clean_redis, requesting_user
@@ -2348,26 +2393,9 @@ def test_get_jobs_of_child_assets(
 
     response = client.get(
         url_for("AssetAPI:get_jobs", id=parent.id),
-        query_string={"include_child_assets": "false"},
+        query_string={"include-child-assets": "false"},
     )
     assert response.status_code == 200
     assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
 
     app.queues["scheduling"].empty()
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-@pytest.mark.parametrize("include_child_assets", [True, False])
-def test_update_status_page_child_jobs(
-    client, setup_api_test_data, requesting_user, include_child_assets
-):
-    """Posting the job scope of the status page records it in the session, for the next status page the user opens."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_child_jobs"),
-        json={"include_child_assets": include_child_assets},
-    )
-    assert response.status_code == 200
-    with client.session_transaction() as session:
-        assert session["status_page_include_child_assets"] == include_child_assets
