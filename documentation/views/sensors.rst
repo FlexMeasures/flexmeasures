@@ -49,4 +49,4 @@ Annotating sensor data
 
 Users with permission to record data on a sensor can add a label from the **Annotate** panel on its page. Enter a label and click **Annotate**. FlexMeasures records the annotation with the signed-in user as its data source and shows it on the time chart.
 
-The label applies to the time interval currently visible in the chart. To annotate one belief or a small range, select that part of the time chart with the mouse to zoom in, then enter the label. Without a zoom selection, the label covers the date range selected on the left. Histogram and heatmap charts use that selected date range because they do not have a time axis to zoom into.
+The label applies to the time interval currently visible in the chart. To annotate one event or a small range, select that part of the time chart with the mouse to zoom in, then enter the label. Without a zoom selection, the label covers the date range selected on the left. Histogram and heatmap charts use that selected date range because they do not have a time axis to zoom into.
