@@ -5,9 +5,6 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-39 | September 17, 2026
-""""""""""""""""""""""""""""
-- ``POST /api/v3_0/assets/<id>/automations`` now names the part of the request each validation error came from. An error in the data generator's configuration is reported under ``config``, where every error used to be reported under ``parameters``, and a report automation that names no reporter is reported under ``data-generator`` rather than as a bare message. A ``scheduling`` automation now rejects ``config`` and ``data-generator`` with a ``422`` naming the field, where it used to answer ``201 Created`` and ignore both: a schedule automation's scheduler and the flex config it runs under follow from the asset and its flex context. This is not a breaking change, as the automation endpoints have not been part of a release.
 v3.0-38 | September 16, 2026
 """"""""""""""""""""""""""""
 - ``GET /api/v3_0/assets/<id>/automations`` now lists the automations of the assets below the asset as well, at any depth, so that a site asset reports everything that runs below it, and each entry names the asset it is defined on in ``asset`` and ``asset-name``. ``GET /api/v3_0/assets/<id>/jobs`` lists the jobs of the assets below the asset in the same way. Pass ``include-child-assets=false`` to either one to list only what belongs to the asset itself. Only the assets below it which the caller may read are included, as a child asset can belong to another organisation than its parent.
