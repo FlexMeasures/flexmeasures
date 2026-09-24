@@ -65,7 +65,6 @@
       $.ajax({
         type: "POST",
         url: "/api/v3_0/accounts",
-        headers: { "X-FlexMeasures-UI-Context": window.location.pathname },
         contentType: "application/json",
         data: JSON.stringify(payload),
         success: function (response) {

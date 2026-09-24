@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from flask import request
 from flask_classful import FlaskView, route
 from flexmeasures.data import db
 from webargs.flaskparser import use_kwargs, use_args
@@ -241,10 +240,7 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        ui_context = request.headers.get("X-FlexMeasures-UI-Context")
-        context = (
-            "via UI from /accounts/new" if ui_context == "/accounts/new" else "via API"
-        )
+        context = "via API"
         consultancy_account_id = account_data.get("consultancy_account_id")
         if consultancy_account_id is not None:
             consultancy_account = db.session.get(Account, consultancy_account_id)
