@@ -2,13 +2,12 @@
 
 import json
 import re
-from pathlib import Path
 
 import pytest
 
-TEMPLATE = (
-    Path(__file__).resolve().parents[2] / "templates/assets/asset_automations.html"
-)
+# The page's script is rendered by one helper, which asserts that it leaves no Jinja value behind.
+# Sharing it keeps these checks from breaking whenever the page reads another value.
+from test_automation_actions import TEMPLATE, automation_script
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -17,15 +16,8 @@ def setup_ui_test_data():
 
 
 def copy_script(can_manage: bool = True) -> str:
-    """Render the page's inline JavaScript, with the three Jinja values it reads filled in."""
-    match = re.search(r"<script>(.*?)</script>", TEMPLATE.read_text(), re.DOTALL)
-    assert match is not None
-    return (
-        match.group(1)
-        .replace("{{ asset.id }}", "3")
-        .replace("{{ user_can_manage_automations | tojson }}", str(can_manage).lower())
-        .replace("{{ user_can_create_children | tojson }}", "true")
-    )
+    """Render the page's inline JavaScript, as someone who may copy an automation sees it."""
+    return automation_script(can_manage=can_manage, can_run=True)
 
 
 def creation_form_html() -> str:
@@ -68,6 +60,10 @@ JQUERY_STUB = """
             },
             removeClass: function (name) {
                 nodes.forEach(node => node.classList.remove(name));
+                return self;
+            },
+            toggle: function (on) {
+                nodes.forEach(node => { node.style.display = on ? "" : "none"; });
                 return self;
             },
             toggleClass: function (name, on) {
@@ -168,6 +164,19 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
         eq("and the parameters", JSON.parse(document.getElementById("automationParameters").value), {{sensor: 2092}});
         eq("and leaves the copy inactive", document.getElementById("automationActive").checked, false);
 
+        const generatorFields = () => [...document.querySelectorAll(".chooses-generator")];
+        check("a report copy can still name a data generator",
+              generatorFields().length > 0 && generatorFields().every(field => field.style.display !== "none"),
+              "hidden for a type that chooses its own generator");
+
+        // A schedule automation works its generator out from the asset on every run, so a copy of one may not name it.
+        page.prefillNewAutomationForm(page.automationCopyValues(
+            {{id: 8, name: "Battery schedule", type: "scheduling", "cron": "0 * * * *", timezone: "UTC"}},
+            {{parameters: {{}}, source: {{id: 6}}}}));
+        check("a schedule copy hides the data generator fields",
+              generatorFields().every(field => field.style.display === "none"),
+              "still shown for a schedule automation");
+
         page.resetNewAutomationForm();
 
         eq("opening a blank form clears the copied name", document.getElementById("automationName").value, "");
@@ -178,6 +187,8 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
         eq("and the default type", document.getElementById("automationType").value, "forecasting");
         eq("and a new automation is active again, as the form is rendered",
            document.getElementById("automationActive").checked, true);
+        check("and the data generator fields are shown again, after a schedule copy hid them",
+              generatorFields().every(field => field.style.display !== "none"), "still hidden");
         check("and the data generator fields are usable again, whatever the copy did to them",
               !document.getElementById("automationGenerator").disabled
               && !document.getElementById("automationConfig").disabled, "still disabled");
