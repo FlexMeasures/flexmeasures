@@ -40,14 +40,13 @@ def test_account_creation_is_audited(
     assert logs[0].affected_user_id is None
 
 
-def test_ui_client_account_creation_audit_identifies_page_and_consultancy(
+def test_client_account_creation_audit_identifies_consultancy(
     fresh_db, client, setup_roles_users_fresh_db, requesting_user
 ):
-    """Creating a client organisation identifies its UI page and consultancy."""
+    """Creating a client organisation identifies its consultancy."""
     consultancy = find_user_by_email("test_consultant@seita.nl").account
     response = client.post(
         url_for("AccountAPI:post"),
-        headers={"X-FlexMeasures-UI-Context": "/accounts/new"},
         json={
             "name": "Created Client Organisation",
             "consultancy_account_id": consultancy.id,
@@ -60,7 +59,7 @@ def test_ui_client_account_creation_audit_identifies_page_and_consultancy(
     assert len(logs) == 1
     assert logs[0].event == (
         f"Created organisation 'Created Client Organisation': {account_id} "
-        f"via UI from /accounts/new as client of organisation "
+        f"via API as client of organisation "
         f"'{consultancy.name}': {consultancy.id}"
     )
 
