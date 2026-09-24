@@ -142,6 +142,25 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Location".encode() in asset_page.data
 
 
+@pytest.mark.parametrize("default_view", ["Automations", "Graphs"])
+def test_asset_page_opens_the_view_set_as_default(
+    db, client, setup_assets, as_prosumer_user1, default_view
+):
+    """Clicking an asset opens the view the user set as their default, rather than Context."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    with client.session_transaction() as session:
+        session["default_asset_view"] = default_view
+
+    asset_page = client.get(url_for("AssetCrudUI:get", id=asset.id))
+    assert asset_page.status_code == 302
+    assert asset_page.headers["Location"].endswith(
+        "/assets/{}/{}".format(asset.id, default_view.lower())
+    )
+
+
 def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
     asset = setup_assets["wind-asset-1"]
 
