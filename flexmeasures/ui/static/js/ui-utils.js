@@ -1,5 +1,35 @@
 export const apiBasePath = window.location.origin;
 
+/**
+ * Escape text for use in HTML, as element content or as a quoted attribute value.
+ *
+ * Names, units and descriptions are whatever a user typed,
+ * so they must be escaped wherever they are built into markup rather than set as textContent.
+ *
+ * @param {*} value - The text to escape; null and undefined become the empty string.
+ * @returns {string} - The escaped text.
+ */
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/**
+ * Markup for a sensor unit, explaining the empty unit of a dimensionless sensor.
+ *
+ * @param {string} unit - The sensor's unit.
+ * @returns {string} - HTML.
+ */
+export function unitHtml(unit) {
+  return unit === ""
+    ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
+    : escapeHtml(unit);
+}
+
 // Fetch Account Details
 export async function getAccount(accountId) {
   const cacheKey = `account_${accountId}`;
@@ -54,18 +84,66 @@ export async function getSensor(id) {
   return sensor;
 }
 
+/**
+ * Convert the Python representation of a dict (as Jinja renders one) to JSON.
+ *
+ * Only what `repr` writes for JSON-like data is handled:
+ * strings in either quote style, with Python's escapes, and the constants None, True and False.
+ * Those constants are only replaced outside strings, so a value such as "Nonetheless" survives.
+ *
+ * @param {string} text - The Python representation.
+ * @returns {string} - The same data as JSON.
+ */
+export function pythonReprToJSON(text) {
+  const constants = { None: "null", True: "true", False: "false" };
+  const escapes = { n: "\n", t: "\t", r: "\r", b: "\b", f: "\f", 0: "\0" };
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') {
+      let value = "";
+      let j = i + 1;
+      while (j < text.length && text[j] !== ch) {
+        if (text[j] === "\\") {
+          const next = text[j + 1];
+          const hexLength = { x: 2, u: 4, U: 8 }[next];
+          if (hexLength) {
+            value += String.fromCodePoint(parseInt(text.slice(j + 2, j + 2 + hexLength), 16));
+            j += 2 + hexLength;
+          } else {
+            value += next in escapes ? escapes[next] : next;
+            j += 2;
+          }
+          continue;
+        }
+        value += text[j];
+        j++;
+      }
+      out += JSON.stringify(value);
+      i = j + 1;
+      continue;
+    }
+    const word = /^[A-Za-z_]\w*/.exec(text.slice(i));
+    if (word) {
+      out += constants[word[0]] ?? word[0];
+      i += word[0].length;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 export function processResourceRawJSON(schema, rawJSON, allowExtra = false) {
   /*
-    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema. 
+    rawJSON - the resource's fields, either as an object or as the Python representation of a dict.
+    allowExtra - whether to allow extra fields in the rawJSON that are not in the schema.
     If false, those fields will be ignored.
   */
-  let processedJSON = rawJSON.replace(/'/g, '"');
-  // change None to null, True to true and False to false
-  processedJSON = processedJSON.replaceAll("None", "null");
-  processedJSON = processedJSON.replaceAll("True", "true");
-  processedJSON = processedJSON.replaceAll("False", "false");
-  // update the assetFlexModel fields
-  processedJSON = JSON.parse(processedJSON);
+  const processedJSON =
+    typeof rawJSON === "string" ? JSON.parse(pythonReprToJSON(rawJSON)) : rawJSON;
   const extraFields = {};
 
   for (const [key, value] of Object.entries(processedJSON)) {
@@ -120,15 +198,11 @@ export async function renderSensor(sensorId) {
                 <b>Sensor:</b> <a href="${apiBasePath}/sensors/${
                   sensorData.id
                 }">${sensorData.id}</a>,
-                <b>Unit:</b> ${
-                  sensorData.unit === ""
-                    ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-                    : sensorData.unit
-                },
-                <b>Name:</b> ${sensorData.name},
+                <b>Unit:</b> ${unitHtml(sensorData.unit)},
+                <b>Name:</b> ${escapeHtml(sensorData.name)},
                 <div style="padding-top: 1px;"></div>
-                <b>Asset:</b> ${Asset.name},
-                <b>Account:</b> ${Account?.name ? Account.name : "PUBLIC"}
+                <b>Asset:</b> ${escapeHtml(Asset.name)},
+                <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
             </div>
         </div>
     `;
@@ -205,19 +279,15 @@ export function renderSensorSearchResults(
     col.innerHTML = `
                 <div class="card m-0">
                     <div class="card-body p-0 result-sensor-card">
-                        <h5 class="card-title">${sensor.name}</h5>
+                        <h5 class="card-title">${escapeHtml(sensor.name)}</h5>
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${
                               sensor.id
                             }">${sensor.id}</a>,
-                            <b>Unit:</b> ${
-                              sensor.unit === ""
-                                ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-                                : sensor.unit
-                            },
-                            <b>Asset:</b> ${Asset.name},
+                            <b>Unit:</b> ${unitHtml(sensor.unit)},
+                            <b>Asset:</b> ${escapeHtml(Asset.name)},
                             <b>Account:</b> ${
-                              Account?.name ? Account.name : "PUBLIC"
+                              Account?.name ? escapeHtml(Account.name) : "PUBLIC"
                             }
                         </p>
                     </div>
@@ -249,50 +319,73 @@ export function convertHtmlToElement(htmlString) {
   return tempDiv.firstChild;
 }
 
-// Set default asset view
+/**
+ * Remember this asset view as the one to open per default, or stop doing so.
+ *
+ * The click has already moved the checkbox, so a refusal puts it back:
+ * a box left ticked claims a preference the server never stored.
+ *
+ * @param {HTMLInputElement} checkbox - The checkbox the user just clicked.
+ * @param {string} view_name - The name of the view currently shown.
+ * @returns {Promise} Settles once the preference was stored or the failure was reported.
+ */
 export function setDefaultAssetView(checkbox, view_name) {
   // Get the checked status of the checkbox
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/v3_0/assets/default_asset_view", {
+  return fetch(apiBasePath + "/api/ui/session/default-asset-view", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": "{{ csrf_token }}",
     },
     body: JSON.stringify({
-      default_asset_view: view_name,
-      use_as_default: isChecked,
+      "default-asset-view": view_name,
+      "use-as-default": isChecked,
     }),
   })
-    .then((response) => response.json())
+    .then(rejectIfNotOk)
     .catch((error) => {
-      console.error("Error during API call:", error);
+      checkbox.checked = !isChecked;
+      showToast("Could not save your default view: " + error.message, "error");
     });
 }
 
+/**
+ * Remember whether graph legends belong below their graph, and reload to apply it.
+ *
+ * The reload happens only once the preference was stored,
+ * since reloading after a refusal redraws the old setting and reads as the toggle bouncing back.
+ *
+ * @param {HTMLInputElement} checkbox - The checkbox the user just clicked.
+ * @returns {Promise} Settles once the preference was stored or the failure was reported.
+ */
 export function setDefaultLegendPosition(checkbox) {
   // Get the checked status of the checkbox
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/v3_0/assets/keep_legends_below_graphs", {
+  return fetch(apiBasePath + "/api/ui/session/keep-legends-below-graphs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": "{{ csrf_token }}",
     },
     body: JSON.stringify({
-      keep_legends_below_graphs: isChecked,
+      "keep-legends-below-graphs": isChecked,
     }),
   })
-    .then((response) => {
-      response.json();
+    .then(rejectIfNotOk)
+    .then(() => {
       location.reload();
     })
     .catch((error) => {
-      console.error("Error during API call:", error);
+      checkbox.checked = !isChecked;
+      showToast(
+        "Could not save your legend placement: " + error.message,
+        "error",
+      );
     });
 }
 
@@ -384,6 +477,28 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
 }
 
 /**
+ * Turn an error response into a rejection that carries the server's own message.
+ *
+ * `fetch` rejects only on a network-level failure, so a 4xx or 5xx arrives as a resolved response;
+ * a caller that does not check `response.ok` reads a refusal as a success and drops it silently.
+ * A JSON body is read through `extractApiErrorMessage`, so that a validation error reaches the user as the fields it named, rather than as the status text.
+ *
+ * @param {Response} response - The response to inspect.
+ * @returns {Response} The same response, when it was a success.
+ */
+function rejectIfNotOk(response) {
+  if (response.ok) return response;
+  const fallback = response.statusText || "Request failed";
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json().then((err) => {
+      throw new Error(extractApiErrorMessage(err, fallback));
+    });
+  }
+  throw new Error(fallback);
+}
+
+/**
  * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
@@ -401,20 +516,43 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
 function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
   if (confirmMessage && !confirm(confirmMessage)) return;
   fetch(url, options)
-    .then((response) => {
-      if (response.ok) return response;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return response.json().then((err) => {
-          throw new Error(
-            err.message || response.statusText || "Request failed",
-          );
-        });
-      }
-      throw new Error(response.statusText || "Request failed");
-    })
+    .then(rejectIfNotOk)
     .then(onSuccess)
     .catch((err) => showToast(errorPrefix + ": " + err.message, "error"));
+}
+
+/**
+ * Report the automations that an asset copy left out, as returned by the copy endpoint.
+ *
+ * Copying an asset copies its automations too, but an automation that cannot be copied safely is skipped,
+ * so say which ones those were and why, rather than let the user find out when a forecast never arrives.
+ *
+ * An automation's name is whatever a user typed, and `showToast` renders the message as HTML,
+ * so the parts that come from the response are escaped here.
+ *
+ * @param {object} data - The copy endpoint's response body.
+ * @returns {boolean} - Whether anything was reported, so the caller can leave the toast up long enough to read.
+ */
+export const SKIPPED_AUTOMATIONS_TOAST_DELAY = 8000;
+
+export function reportSkippedAutomations(data) {
+  const skipped = (data && data["skipped-automations"]) || [];
+  if (skipped.length === 0) return false;
+  const details = skipped
+    .map(
+      (automation) =>
+        '"' +
+        escapeHtml(automation.name) +
+        '" — ' +
+        escapeHtml(automation.reason),
+    )
+    .join(" ");
+  showToast(
+    skipped.length + " automation(s) could not be copied: " + details,
+    "info",
+    { delay: SKIPPED_AUTOMATIONS_TOAST_DELAY },
+  );
+  return true;
 }
 
 /**
@@ -451,6 +589,7 @@ export function initCopyAssetButtons() {
         (response) =>
           response.json().then((data) => {
             showToast("Asset copied successfully.", "success");
+            const redirectDelay = reportSkippedAutomations(data) ? SKIPPED_AUTOMATIONS_TOAST_DELAY : 1500;
             setTimeout(() => {
               const dest = "/assets/" + data.asset + "/properties";
               if (openInNewTab) {
@@ -458,7 +597,7 @@ export function initCopyAssetButtons() {
               } else {
                 window.location.href = dest;
               }
-            }, 1500);
+            }, redirectDelay);
           }),
         "Failed to copy asset",
       );

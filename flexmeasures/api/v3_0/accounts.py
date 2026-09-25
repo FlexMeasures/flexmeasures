@@ -17,7 +17,11 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.audit_log import AuditLog, truncate_string
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.data.services.accounts import (
+    create_account,
+    get_accounts,
+    get_audit_log_records,
+)
 from flexmeasures.api.common.responses import unprocessable_entity
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import (
@@ -129,9 +133,7 @@ class AccountAPI(FlaskView):
                 else []
             )
 
-        query = db.session.query(Account).filter(
-            Account.id.in_([a.id for a in accounts])
-        )
+        query = select(Account).filter(Account.id.in_([a.id for a in accounts]))
 
         if role is not None:
             query = query.filter(Account.account_roles.contains(role))
@@ -186,7 +188,7 @@ class AccountAPI(FlaskView):
                 "filtered-records": select_pagination.total,
             }
         else:
-            response = accounts_schema.dump(query.all(), many=True)
+            response = accounts_schema.dump(db.session.scalars(query).all(), many=True)
 
         return response, 200
 
@@ -236,8 +238,15 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        account = Account(**account_data)
-        db.session.add(account)
+        context = "via API"
+        consultancy_account_id = account_data.get("consultancy_account_id")
+        if consultancy_account_id is not None:
+            consultancy_account = db.session.get(Account, consultancy_account_id)
+            context += (
+                f" as client of organisation '{consultancy_account.name}': "
+                f"{consultancy_account.id}"
+            )
+        account = create_account(context=context, **account_data)
         db.session.commit()
 
         return account_schema.dump(account), 201
