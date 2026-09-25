@@ -1049,3 +1049,43 @@ def test_a_claim_that_expired_while_waiting_its_turn_is_not_dispatched(
         dispatch_automation_run(
             ClaimedAutomationRun(run=claimed.run, attempt=claimed.attempt)
         )
+
+
+def test_execution_ends_when_the_last_job_does(fresh_db, due_forecast_automation):
+    """A run with a job still running has not ended yet, also when another of its jobs failed already."""
+    from flexmeasures.data.services.automations import (
+        ensure_automation_run_job_intents,
+        mark_automation_job_queued,
+        record_automation_job_failed,
+        record_automation_job_started,
+        record_automation_job_succeeded,
+    )
+
+    run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        "forecasting",
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+    specs = [
+        {
+            "logical_job_key": key,
+            "rq_job_id": f"automation-run-{run.id}-{key}",
+            "kind": "cycle",
+            "queue": "forecasting",
+        }
+        for key in ("cycle-001", "cycle-002")
+    ]
+    ensure_automation_run_job_intents(run.id, specs)
+    for spec in specs:
+        mark_automation_job_queued(run.id, spec["logical_job_key"], spec["rq_job_id"])
+
+    record_automation_job_started(run.id, "cycle-002")
+    record_automation_job_failed(run.id, "cycle-001", RuntimeError("no prices"))
+    fresh_db.session.refresh(run)
+    assert run.execution_state == "failed"
+    assert run.execution_completed_at is None, "the second cycle is still running"
+
+    record_automation_job_succeeded(run.id, "cycle-002")
+    fresh_db.session.refresh(run)
+    assert run.execution_completed_at is not None

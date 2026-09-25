@@ -213,6 +213,9 @@ and the run's record says what went wrong on each attempt.
 Retrying a failed dispatch this way is what a forecast run does.
 A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
 
+A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
+A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs are not recorded individually yet.
+
 A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.

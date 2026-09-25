@@ -270,7 +270,6 @@ def claim_existing_automation_run(
             AutomationRun.id == run.id,
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
-            # A run which used up its attempts is left as it is, rather than dispatched again every minute.
             AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
             _claim_is_available(now),
         )
@@ -321,6 +320,7 @@ def get_dispatchable_automation_runs(
             AutomationRun.automation_type == "forecasting",
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
+            # A run which used up its attempts is left as it is, rather than dispatched again every minute.
             AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
             _claim_is_available(now),
         )
@@ -485,7 +485,13 @@ def _refresh_run_execution_state(run: AutomationRun, now: datetime) -> None:
         run.execution_state = "succeeded"
     else:
         run.execution_state = "running"
-    if finished or run.execution_state == "failed":
+    if finished or (
+        run.execution_state == "failed"
+        and not any(status == "running" for status in statuses)
+    ):
+        # A failed run is over once nothing of it is running any more:
+        # the jobs it has left are a wrap-up that reports on a job which failed, or cycles a failed job blocks.
+        # While a sibling job is still computing, though, the run has not ended, whatever became of its first failure.
         run.execution_completed_at = run.execution_completed_at or now
 
 
@@ -559,29 +565,6 @@ def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
         )
         return True
     return False
-
-
-# Fields naming a sensor that a scheduler records its results on, rather than reads from.
-# A scheduler hands its results to `make_schedule` as (sensor, data) pairs, and these are the fields that decide which sensors those are:
-# besides the power sensor of each device in the flex-model, its state of charge and its consumption and production sensors,
-# plus the aggregates over all devices, which are defined in the flex-context.
-#
-# NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
-# Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
-# A field this list misses is not left unchecked so much as checked for the wrong thing:
-# the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
-# A schedule job created by an automation is therefore held to the sensors predicted here (see `sensors_automation_job_may_record_on`),
-# so that drift shows up as a refusal rather than a quiet downgrade.
-OUTPUT_SENSOR_FIELDS = (
-    "consumption",
-    "production",
-    "state-of-charge",
-    "state_of_charge",
-    "aggregate-consumption",
-    "aggregate_consumption",
-    "aggregate-production",
-    "aggregate_production",
-)
 
 
 # Fields naming a sensor that a scheduler records its results on, rather than reads from.
@@ -870,31 +853,6 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
                 )
             )
     return due_automations
-
-
-def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist a run claim if its scheduling configuration is unchanged."""
-    if due_automation.expected_cursor is None:
-        cursor_matches = Automation.cursor.is_(None)
-    else:
-        cursor_matches = Automation.cursor == due_automation.expected_cursor
-    result = db.session.execute(
-        update(Automation)
-        .where(
-            Automation.id == due_automation.automation.id,
-            Automation.active.is_(True),
-            Automation.cronstr == due_automation.expected_cronstr,
-            Automation.timezone == due_automation.expected_timezone,
-            cursor_matches,
-        )
-        .values(cursor=due_automation.scheduled_at)
-        .execution_options(synchronize_session=False)
-    )
-    if result.rowcount != 1:
-        db.session.rollback()
-        return False
-    db.session.commit()
-    return True
 
 
 class RecurringAutomationFixesAMoment(ValueError):
