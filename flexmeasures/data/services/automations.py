@@ -345,18 +345,16 @@ def ensure_automation_run_job_intents(
         raise ValueError(f"Automation run {run_id} does not exist.")
     existing_intents = {intent.logical_job_key: intent for intent in run.job_intents}
     if existing_intents:
-        planned_afresh = [
-            spec["logical_job_key"]
-            for spec in job_specs
-            if spec["logical_job_key"] not in existing_intents
-        ]
-        if planned_afresh:
+        planned = {spec["logical_job_key"] for spec in job_specs}
+        if planned != set(existing_intents):
             # The jobs a retry plans have to be the jobs the run was planned with, or its deterministic IDs say nothing.
             # Configuration that decides how many jobs a run has, such as a forecaster's retrain frequency,
             # can be edited between two attempts, which is what this catches.
+            # A plan that leaves one of them out is refused too: those jobs would stay pending for good,
+            # while the run reports itself as fully queued.
             raise AutomationRunPlanChanged(
                 f"Automation run {run_id} was planned with jobs {sorted(existing_intents)},"
-                f" but this attempt plans {sorted(spec['logical_job_key'] for spec in job_specs)}."
+                f" but this attempt plans {sorted(planned)}."
                 " The automation was edited in a way that changes the jobs of a run that was already dispatched."
             )
         return [existing_intents[spec["logical_job_key"]] for spec in job_specs]
@@ -536,6 +534,12 @@ def record_automation_job_failed(
         )
     ).one_or_none()
     if intent is None:
+        return
+    if intent.status == "failed":
+        # A job's failure reaches this twice: the job says so itself, and the queue's exception handler says so
+        # for a job that could not (see `handle_forecasting_exception`). The first of them is the one that counts,
+        # so that the moment recorded is the moment the job failed.
+        db.session.rollback()
         return
     intent.status = "failed"
     intent.finished_at = now

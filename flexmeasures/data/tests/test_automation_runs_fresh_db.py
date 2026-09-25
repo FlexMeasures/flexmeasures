@@ -979,36 +979,40 @@ def test_a_retry_that_plans_other_jobs_says_so(fresh_db, due_forecast_automation
         "forecasting",
         datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
     )
-    ensure_automation_run_job_intents(
-        run.id,
-        [
-            {
-                "logical_job_key": "cycle-001",
-                "rq_job_id": f"automation-run-{run.id}-cycle-001",
-                "kind": "cycle",
-                "queue": "forecasting",
-            }
-        ],
-    )
+    planned = [
+        {
+            "logical_job_key": "cycle-001",
+            "rq_job_id": f"automation-run-{run.id}-cycle-001",
+            "kind": "cycle",
+            "queue": "forecasting",
+        },
+        {
+            "logical_job_key": "cycle-002",
+            "rq_job_id": f"automation-run-{run.id}-cycle-002",
+            "kind": "cycle",
+            "queue": "forecasting",
+        },
+    ]
+    ensure_automation_run_job_intents(run.id, planned)
 
-    with pytest.raises(AutomationRunPlanChanged, match="cycle-002"):
+    # A job the run never had, as a shorter retrain frequency would plan.
+    with pytest.raises(AutomationRunPlanChanged, match="cycle-003"):
         ensure_automation_run_job_intents(
             run.id,
-            [
+            planned
+            + [
                 {
-                    "logical_job_key": "cycle-001",
-                    "rq_job_id": f"automation-run-{run.id}-cycle-001",
-                    "kind": "cycle",
-                    "queue": "forecasting",
-                },
-                {
-                    "logical_job_key": "cycle-002",
-                    "rq_job_id": f"automation-run-{run.id}-cycle-002",
+                    "logical_job_key": "cycle-003",
+                    "rq_job_id": f"automation-run-{run.id}-cycle-003",
                     "kind": "cycle",
                     "queue": "forecasting",
                 },
             ],
         )
+
+    # And one of the run's jobs left out, which would stay pending for good while the run reports itself queued.
+    with pytest.raises(AutomationRunPlanChanged, match="cycle-002"):
+        ensure_automation_run_job_intents(run.id, planned[:1])
 
 
 def test_a_claim_that_expired_while_waiting_its_turn_is_not_dispatched(
@@ -1089,3 +1093,38 @@ def test_execution_ends_when_the_last_job_does(fresh_db, due_forecast_automation
     record_automation_job_succeeded(run.id, "cycle-002")
     fresh_db.session.refresh(run)
     assert run.execution_completed_at is not None
+
+
+def test_a_job_failure_is_recorded_once(fresh_db, due_forecast_automation):
+    """A job's failure reaches the run once, although both the job and its queue's exception handler report it."""
+    from flexmeasures.data.services.automations import (
+        ensure_automation_run_job_intents,
+        mark_automation_job_queued,
+        record_automation_job_failed,
+    )
+
+    run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        "forecasting",
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+    spec = {
+        "logical_job_key": "cycle-001",
+        "rq_job_id": f"automation-run-{run.id}-cycle-001",
+        "kind": "cycle",
+        "queue": "forecasting",
+    }
+    ensure_automation_run_job_intents(run.id, [spec])
+    mark_automation_job_queued(run.id, spec["logical_job_key"], spec["rq_job_id"])
+
+    record_automation_job_failed(run.id, "cycle-001", RuntimeError("no prices"))
+    intent = next(i for i in run.job_intents if i.logical_job_key == "cycle-001")
+    fresh_db.session.refresh(intent)
+    failed_at, error = intent.finished_at, intent.last_error_message
+
+    # The queue's exception handler reports the same failure afterwards.
+    record_automation_job_failed(run.id, "cycle-001", RuntimeError("something else"))
+    fresh_db.session.refresh(intent)
+    assert intent.finished_at == failed_at
+    assert intent.last_error_message == error
