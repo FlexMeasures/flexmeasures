@@ -37,6 +37,7 @@ from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
 from flexmeasures.data.services.automations import (
+    AutomationRunClaimLost,
     dispatch_automation_run,
     floor_to_minute,
     get_dispatchable_automation_runs,
@@ -105,6 +106,10 @@ def run_automations():
                 **MsgStyle.SUCCESS,
             )
             n_run += 1
+        except AutomationRunClaimLost as e:
+            # Another runner took this run over, which is how a long batch hands its tail on. Not this runner's failure.
+            db.session.rollback()
+            click.secho(str(e), **MsgStyle.WARN)
         except Exception as e:
             db.session.rollback()
             click.secho(

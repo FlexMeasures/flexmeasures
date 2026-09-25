@@ -345,6 +345,20 @@ def ensure_automation_run_job_intents(
         raise ValueError(f"Automation run {run_id} does not exist.")
     existing_intents = {intent.logical_job_key: intent for intent in run.job_intents}
     if existing_intents:
+        planned_afresh = [
+            spec["logical_job_key"]
+            for spec in job_specs
+            if spec["logical_job_key"] not in existing_intents
+        ]
+        if planned_afresh:
+            # The jobs a retry plans have to be the jobs the run was planned with, or its deterministic IDs say nothing.
+            # Configuration that decides how many jobs a run has, such as a forecaster's retrain frequency,
+            # can be edited between two attempts, which is what this catches.
+            raise AutomationRunPlanChanged(
+                f"Automation run {run_id} was planned with jobs {sorted(existing_intents)},"
+                f" but this attempt plans {sorted(spec['logical_job_key'] for spec in job_specs)}."
+                " The automation was edited in a way that changes the jobs of a run that was already dispatched."
+            )
         return [existing_intents[spec["logical_job_key"]] for spec in job_specs]
 
     run.plan = {
@@ -529,15 +543,45 @@ def record_automation_job_failed(
 
 
 def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
-    """Return whether Redis already has the deterministic job for an intent."""
+    """Return whether an earlier attempt at this run already created the job this intent describes.
+
+    The record of the run says so for every job that was queued: those are the intents past 'pending'.
+    Redis is asked only about an intent that was never queued, because a job that was queued may have left Redis since,
+    where a job's hash is dropped once it has run (after ``FLEXMEASURES_PLANNING_TTL``) or expired unstarted (after ``FLEXMEASURES_JOB_TTL``).
+    Asking Redis about those, too, would have a retry create them again, under the same IDs, and so compute the same results twice.
+    """
+    if intent.status != "pending":
+        return True
     connection = current_app.queues[intent.queue].connection
     if Job.exists(intent.rq_job_id, connection=connection):
-        if intent.status == "pending":
-            mark_automation_job_queued(
-                intent.run_id, intent.logical_job_key, intent.rq_job_id
-            )
+        mark_automation_job_queued(
+            intent.run_id, intent.logical_job_key, intent.rq_job_id
+        )
         return True
     return False
+
+
+# Fields naming a sensor that a scheduler records its results on, rather than reads from.
+# A scheduler hands its results to `make_schedule` as (sensor, data) pairs, and these are the fields that decide which sensors those are:
+# besides the power sensor of each device in the flex-model, its state of charge and its consumption and production sensors,
+# plus the aggregates over all devices, which are defined in the flex-context.
+#
+# NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
+# Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
+# A field this list misses is not left unchecked so much as checked for the wrong thing:
+# the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
+# A schedule job created by an automation is therefore held to the sensors predicted here (see `sensors_automation_job_may_record_on`),
+# so that drift shows up as a refusal rather than a quiet downgrade.
+OUTPUT_SENSOR_FIELDS = (
+    "consumption",
+    "production",
+    "state-of-charge",
+    "state_of_charge",
+    "aggregate-consumption",
+    "aggregate_consumption",
+    "aggregate-production",
+    "aggregate_production",
+)
 
 
 # Fields naming a sensor that a scheduler records its results on, rather than reads from.
@@ -1053,6 +1097,14 @@ def refuse_fixed_moments(parameters: dict, automation_type: str) -> None:
         f" so every run of this {Automation.RESULT_NOUNS[automation_type]} automation would {' and '.join(consequences)}."
         + hint
     )
+
+
+class AutomationRunClaimLost(Exception):
+    """Raised when a runner's claim on a run has gone before it got to dispatching it."""
+
+
+class AutomationRunPlanChanged(Exception):
+    """Raised when a retry of a durable automation run plans other jobs than the run was planned with."""
 
 
 class AutomationSensorsUnknown(Exception):
@@ -2129,11 +2181,49 @@ def validate_automation_output_scope(
         )
 
 
+def renew_automation_run_claim(
+    run_id: int,
+    owner: str,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> bool:
+    """Extend this runner's claim on a run, and say whether it still holds it.
+
+    A runner claims every run it is about to work on at once, and then dispatches them one after the other,
+    so the claim on the last of them may be older than the lease by the time its turn comes.
+    Renewing it just before dispatching keeps the lease describing the dispatch that is actually happening.
+    """
+    now = _now_utc()
+    result = db.session.execute(
+        update(AutomationRun)
+        .where(
+            AutomationRun.id == run_id,
+            AutomationRun.claim_owner == owner,
+            AutomationRun.claim_expires_at > now,
+        )
+        .values(claim_expires_at=_claim_expires_at(now, lease))
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    return result.rowcount == 1
+
+
 def dispatch_automation_run(
     claimed_run: ClaimedAutomationRun,
 ) -> dict[str, Any]:
-    """Dispatch an already claimed automation run and record its attempt outcome."""
+    """Dispatch an already claimed automation run and record its attempt outcome.
+
+    :raises AutomationRunClaimLost: if another runner took the run over while this one was working through its batch.
+    """
     run = claimed_run.run
+    # The attempt says which runner is dispatching, where the run itself says who holds it now, which may be another runner.
+    owner = claimed_run.attempt.owner if claimed_run.attempt is not None else None
+    if owner is not None and not renew_automation_run_claim(run.id, owner):
+        # Say so on the attempt, so that the record shows why this runner queued nothing.
+        _finish_attempt(claimed_run.attempt, "claim_lost", 0)
+        db.session.commit()
+        raise AutomationRunClaimLost(
+            f"Automation run {run.id} is no longer claimed by {owner}, so another runner is dispatching it."
+        )
     try:
         returns = run_automation(run.automation, automation_run=run)
     except Exception as exc:
@@ -2183,16 +2273,23 @@ def _run_forecast_automation(
     automation_run: AutomationRun | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    if automation.generator is None:
+    # A run records the data generator it was claimed with, so a retry forecasts with the configuration
+    # the run was planned with, also when the automation has been pointed at another one since.
+    # That configuration decides how many jobs a run has, so re-planning it with another one would
+    # plan jobs the run's intents do not describe (see `ensure_automation_run_job_intents`).
+    generator = automation.generator
+    if automation_run is not None and automation_run.generator_id is not None:
+        generator = db.session.get(DataSource, automation_run.generator_id) or generator
+    if generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
         )
     # Work on a copy, as the data generator is cached on the data source,
     # which may be shared by several automations (as in `resolve_automation_sensors`).
-    forecaster = copy(automation.generator.data_generator)
+    forecaster = copy(generator.data_generator)
     if not isinstance(forecaster, Forecaster):
         raise ValueError(
-            f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
+            f"Data source {generator.id} of automation {automation.id} does not store a Forecaster."
         )
     parameters = (
         dict(automation_run.parameters)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from rq.job import Job
 from sqlalchemy import event, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DatabaseError, IntegrityError
@@ -904,3 +905,147 @@ def test_a_dispatch_that_keeps_failing_is_given_up_on(
     fresh_db.session.refresh(run)
     assert run.attempt_count == AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS
     assert run.dispatch_state == "failed"
+
+
+def test_a_job_that_left_redis_is_not_queued_again(
+    app, fresh_db, clean_redis, due_forecast_automation, mocker
+):
+    """A retry leaves a job the run already queued alone, also once Redis no longer holds it.
+
+    Redis drops a job's hash once it has run, so asking Redis alone would have a retry create the same job again,
+    under the same ID, and so compute the same forecast twice.
+    """
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.automations import AutomationRunJob
+
+    queue = app.queues["forecasting"]
+    original_enqueue_job = queue.enqueue_job
+    calls: list[str] = []
+
+    def enqueue_once_then_fail(job):
+        calls.append(job.id)
+        if len(calls) == 1:
+            return original_enqueue_job(job)
+        raise RuntimeError("redis unavailable")
+
+    patched = mocker.patch.object(
+        queue, "enqueue_job", side_effect=enqueue_once_then_fail
+    )
+    runner = app.test_cli_runner()
+    runner.invoke(run_automations)
+
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    assert run.dispatch_state == "partially_queued"
+    queued_intents = [
+        intent for intent in run.job_intents if intent.status != "pending"
+    ]
+    assert queued_intents, "the first attempt queued nothing to hold on to"
+    queued_job_id = queued_intents[0].rq_job_id
+
+    # The job it queued has run since, so Redis no longer holds it.
+    queue.connection.delete(f"rq:job:{queued_job_id}")
+    assert not Job.exists(queued_job_id, connection=queue.connection)
+
+    def enqueue_and_record(job):
+        calls.append(job.id)
+        return original_enqueue_job(job)
+
+    patched.side_effect = enqueue_and_record
+    calls.clear()
+    runner.invoke(run_automations)
+
+    assert (
+        calls
+    ), "the retry queued nothing at all, so it proves nothing about what it left alone"
+    assert queued_job_id not in calls, "a job that had already run was queued again"
+    fresh_db.session.refresh(run)
+    assert run.dispatch_state == "queued"
+    still_recorded = fresh_db.session.scalars(
+        select(AutomationRunJob).filter_by(rq_job_id=queued_job_id)
+    ).one()
+    assert still_recorded.status != "pending"
+
+
+def test_a_retry_that_plans_other_jobs_says_so(fresh_db, due_forecast_automation):
+    """A retry has to plan the jobs the run was planned with, or its deterministic IDs say nothing about it."""
+    from flexmeasures.data.services.automations import (
+        AutomationRunPlanChanged,
+        ensure_automation_run_job_intents,
+    )
+
+    run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        "forecasting",
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+    ensure_automation_run_job_intents(
+        run.id,
+        [
+            {
+                "logical_job_key": "cycle-001",
+                "rq_job_id": f"automation-run-{run.id}-cycle-001",
+                "kind": "cycle",
+                "queue": "forecasting",
+            }
+        ],
+    )
+
+    with pytest.raises(AutomationRunPlanChanged, match="cycle-002"):
+        ensure_automation_run_job_intents(
+            run.id,
+            [
+                {
+                    "logical_job_key": "cycle-001",
+                    "rq_job_id": f"automation-run-{run.id}-cycle-001",
+                    "kind": "cycle",
+                    "queue": "forecasting",
+                },
+                {
+                    "logical_job_key": "cycle-002",
+                    "rq_job_id": f"automation-run-{run.id}-cycle-002",
+                    "kind": "cycle",
+                    "queue": "forecasting",
+                },
+            ],
+        )
+
+
+def test_a_claim_that_expired_while_waiting_its_turn_is_not_dispatched(
+    fresh_db, due_forecast_automation, freeze_server_now
+):
+    """A runner working through a long batch checks its claim is still its own before dispatching a run.
+
+    Every run of a batch is claimed up front, so the claim on the last of them can expire before its turn comes,
+    and another runner may have taken it over by then.
+    """
+    from flexmeasures.data.services.automations import (
+        AutomationRunClaimLost,
+        ClaimedAutomationRun,
+        claim_existing_automation_run,
+        dispatch_automation_run,
+    )
+
+    freeze_server_now(datetime(2026, 8, 5, 2, 0, tzinfo=timezone.utc))
+    run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        "forecasting",
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+    claimed = claim_existing_automation_run(run, owner="runner:1")
+    assert claimed is not None
+    first_owner = claimed.run.claim_owner
+
+    # The batch took longer than the lease, and the next runner took this run over.
+    freeze_server_now(datetime(2026, 8, 5, 2, 30, tzinfo=timezone.utc))
+    taken_over = claim_existing_automation_run(claimed.run, owner="runner:2")
+    assert taken_over is not None
+
+    assert first_owner == "runner:1" and claimed.attempt.owner == "runner:1"
+
+    # The first runner gets to this run at last, with the attempt it opened when it claimed it.
+    with pytest.raises(AutomationRunClaimLost):
+        dispatch_automation_run(
+            ClaimedAutomationRun(run=claimed.run, attempt=claimed.attempt)
+        )
