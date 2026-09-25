@@ -47,7 +47,7 @@ def provision_default_template_assets_on_startup(app: Flask) -> None:
         )
         return
 
-    from sqlalchemy.exc import OperationalError, ProgrammingError
+    from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
     from flexmeasures.data import db
     from flexmeasures.data.scripts.data_gen import provision_default_template_assets
@@ -55,6 +55,11 @@ def provision_default_template_assets_on_startup(app: Flask) -> None:
     try:
         with app.app_context():
             provision_default_template_assets(db)
+    except IntegrityError as exc:
+        # Another process inserted the same rows first, e.g. one that does not take the provisioning lock yet.
+        app.logger.info(
+            f"Skipping startup template provisioning, as another process provisioned first: {exc.orig}"
+        )
     except (OperationalError, ProgrammingError) as exc:
         app.logger.warning(
             f"Skipping startup template provisioning due to an error: {exc}"

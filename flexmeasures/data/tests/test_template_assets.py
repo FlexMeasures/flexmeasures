@@ -1,10 +1,13 @@
-from sqlalchemy import func, select
+import threading
 
-from flexmeasures.data.models.generic_assets import GenericAsset
+from sqlalchemy import func, select, text
+
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     provision_default_template_assets,
+    TEMPLATE_ASSETS_LOCK_KEY,
 )
 
 
@@ -104,4 +107,39 @@ def test_template_asset_provisioning_skips_database_commands(fresh_db, monkeypat
     assert (
         fresh_db.session.scalar(select(func.count()).select_from(Sensor))
         == sensor_count
+    )
+
+
+def test_provisioning_waits_for_another_process_provisioning(fresh_db):
+    """Provisioning waits for a concurrent one to commit, rather than inserting the same rows and failing.
+
+    Another process is simulated by a second connection, which holds the provisioning lock,
+    and has inserted the solar asset type without committing yet.
+    Without the lock, our insert of that type would wait on the unique index, and fail once the other one commits.
+    """
+    other_process = fresh_db.engine.connect()
+    other_transaction = other_process.begin()
+    other_process.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"), {"key": TEMPLATE_ASSETS_LOCK_KEY}
+    )
+    other_process.execute(
+        text(
+            "INSERT INTO generic_asset_type (name, description) VALUES ('solar', 'solar panel(s)')"
+        )
+    )
+    committer = threading.Timer(1, other_transaction.commit)
+    committer.start()
+    try:
+        provision_default_template_assets(fresh_db)
+    finally:
+        committer.join()
+        other_process.close()
+
+    assert (
+        fresh_db.session.scalar(
+            select(func.count())
+            .select_from(GenericAssetType)
+            .where(GenericAssetType.name == "solar")
+        )
+        == 1
     )
