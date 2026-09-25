@@ -73,8 +73,12 @@ def dump():
         subprocess.run(command_for_dumping, check=True)
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
 
-    except (subprocess.CalledProcessError, OSError) as e:
-        click.secho(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
+    # We report the exit code rather than the exception, whose command includes the URI and thus the password.
+    except subprocess.CalledProcessError as e:
+        click.secho(f"pg_dump exited with code {e.returncode}", **MsgStyle.ERROR)
+        click.secho("db dump unsuccessful", **MsgStyle.ERROR)
+    except OSError as e:
+        click.secho(f"Could not run pg_dump: {e.strerror}", **MsgStyle.ERROR)
         click.secho("db dump unsuccessful", **MsgStyle.ERROR)
 
 
@@ -101,8 +105,12 @@ def restore(file: str):
         subprocess.run(command_for_restoring, check=True)
         click.secho("db restore successful", **MsgStyle.SUCCESS)
 
-    except (subprocess.CalledProcessError, OSError) as e:
-        click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
+    # We report the exit code rather than the exception, whose command includes the URI and thus the password.
+    except subprocess.CalledProcessError as e:
+        click.secho(f"pg_restore exited with code {e.returncode}", **MsgStyle.ERROR)
+        click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+    except OSError as e:
+        click.secho(f"Could not run pg_restore: {e.strerror}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
 
 
