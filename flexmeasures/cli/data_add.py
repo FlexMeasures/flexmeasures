@@ -1960,8 +1960,9 @@ def add_automation(
             origin="CLI",
         )
     except ValidationError as e:
+        # The messages name the part of the request at fault, which is not always the parameters.
         click.secho(
-            f"Invalid {Automation.RESULT_NOUNS[automation_type]} parameters: {e.messages}",
+            f"Invalid {Automation.RESULT_NOUNS[automation_type]} automation: {e.messages}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()
@@ -1979,7 +1980,7 @@ def add_automation(
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
-        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
+        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{automation.timezone}'.",
         **MsgStyle.SUCCESS,
     )
 
