@@ -263,3 +263,21 @@ def test_deprecated_options_command_logs_click_errors(caplog):
 
     assert result.exit_code == 2
     assert "Click error in `group cmd`: something the body objected to" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "sqlalchemy_uri, expected",
+    [
+        # libpq does not know SQLAlchemy's driver names, so they are dropped.
+        (
+            "postgresql+psycopg2://fm:p%40ss@db.example.com:5432/fm",
+            "postgresql://fm:p%40ss@db.example.com:5432/fm",
+        ),
+        ("postgresql://fm:pw@localhost/fm", "postgresql://fm:pw@localhost/fm"),
+    ],
+)
+def test_libpq_uri(sqlalchemy_uri, expected):
+    """pg_dump and pg_restore get a URI they can read, password included."""
+    from flexmeasures.cli.db_ops import libpq_uri
+
+    assert libpq_uri(sqlalchemy_uri) == expected

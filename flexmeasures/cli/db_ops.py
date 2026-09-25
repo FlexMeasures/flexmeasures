@@ -7,6 +7,7 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 import flask_migrate as migrate
 import click
+from sqlalchemy.engine import make_url
 
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
@@ -52,7 +53,7 @@ def dump():
 
     $ docker stop <container>; docker rm <container>
     """
-    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
     db_name = db_host_and_db_name.split("/")[-1]
@@ -82,7 +83,7 @@ def restore(file: str):
 
     """
 
-    db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI")  # type: ignore
+    db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))  # type: ignore
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
     command_for_restoring = f"pg_restore -d {db_uri} {file}"
@@ -93,6 +94,19 @@ def restore(file: str):
     except Exception as e:
         click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+
+
+def libpq_uri(sqlalchemy_uri: str) -> str:
+    """Turn a SQLAlchemy database URI into one that libpq tools (pg_dump, pg_restore) accept.
+
+    libpq does not know SQLAlchemy's driver names (e.g. postgresql+psycopg2://),
+    and would read such a URI as the name of a database on the local socket.
+    """
+    return (
+        make_url(sqlalchemy_uri)
+        .set(drivername="postgresql")
+        .render_as_string(hide_password=False)
+    )
 
 
 app.cli.add_command(fm_db_ops)
