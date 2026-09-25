@@ -1035,6 +1035,7 @@ def refuse_fixed_moments(parameters: dict, automation_type: str) -> None:
 
     :raises RecurringAutomationFixesAMoment: if any of those fields is given.
     """
+    from flexmeasures.data.automations import get_automation_handler
     from flexmeasures.utils import flexmeasures_inflection
 
     fixed_fields = [field for field in FIXED_MOMENT_FIELDS if field in parameters]
@@ -1058,7 +1059,7 @@ def refuse_fixed_moments(parameters: dict, automation_type: str) -> None:
     raise RecurringAutomationFixesAMoment(
         f"{flexmeasures_inflection.join_words_into_a_list([repr(field) for field in fixed_fields])}"
         f" {'fixes' if len(fixed_fields) == 1 else 'fix'} a moment in time,"
-        f" so every run of this {Automation.RESULT_NOUNS[automation_type]} automation would {' and '.join(consequences)}."
+        f" so every run of this {get_automation_handler(automation_type).result_noun} automation would {' and '.join(consequences)}."
         + hint
     )
 
@@ -1575,9 +1576,16 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
 
     Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
     """
+    from flexmeasures.data.automations import get_automation_types
+
+    handler = get_automation_types().get(automation.type)
+    if handler is None:
+        return {}
     # Determine the job cache entries to scan.
     parameters = automation.parameters or {}
-    if automation.type == "scheduling":
+    if handler.generator_class is not None:
+        cache_refs = [(automation.asset_id, handler.queue, "asset")]
+    elif automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
         # and under individual sensors (per-device jobs).
         assets = [automation.asset, *automation.asset.offspring]
@@ -1756,6 +1764,51 @@ def _prepare_report_automation(
 
 
 def create_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    timezone: str | None = None,
+    automation_type: str = "forecasting",
+    active: bool = True,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source: DataSource | None = None,
+    origin: str = "API",
+    check_permissions: bool = False,
+) -> tuple[Automation, list[str]]:
+    """Create an automation through its registered handler, without committing."""
+    from flask_security import current_user
+    from flexmeasures.data.automations import (
+        get_automation_handler,
+        validate_automation_type,
+    )
+
+    validate_automation_type(automation_type)
+    automation, warnings = get_automation_handler(automation_type).create(
+        asset=asset,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        automation_type=automation_type,
+        active=active,
+        source=source,
+        generator_class=generator_class,
+        config=config,
+        parameters=parameters,
+        origin=origin,
+        check_permissions=check_permissions,
+    )
+    if check_permissions:
+        if current_user.is_anonymous:
+            from werkzeug.exceptions import Unauthorized
+
+            raise Unauthorized()
+        automation.execution_user_id = current_user.id
+    return automation, warnings
+
+
+def _create_builtin_automation(
     asset,
     name: str,
     cronstr: str,
@@ -2213,22 +2266,18 @@ def run_automation(
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
+    from flexmeasures.data.automations import (
+        check_execution_access,
+        get_automation_handler,
+    )
+
     if scheduled_at is None and automation_run is not None:
         scheduled_at = automation_run.scheduled_at
-    if automation.type == "forecasting":
-        return _run_forecast_automation(
-            automation, automation_run, scheduled_at=scheduled_at
-        )
-    elif automation.type == "scheduling":
-        return _run_schedule_automation(
-            automation, automation_run, scheduled_at=scheduled_at
-        )
-    elif automation.type == "reporting":
-        # The reporting job records how far the reports reach once it succeeds (see run_report_job),
-        # so a failed job leaves no gap for the next run to skip over.
-        return _run_report_automation(automation, automation_run, scheduled_at)
-    raise NotImplementedError(
-        f"Automations of type '{automation.type}' cannot be run yet."
+    handler = get_automation_handler(automation.type)
+    if automation.execution_user_id is not None:
+        check_execution_access(automation, resolve_automation_sensors(automation))
+    return handler.run(
+        automation, automation_run=automation_run, scheduled_at=scheduled_at
     )
 
 

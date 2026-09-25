@@ -1447,7 +1447,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1701,11 +1701,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts, schedules or reports) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
             a schedule trigger message (without the asset id) for type `scheduling`,
-            or report parameters for type `reporting`.
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             An automation runs again and again, so its parameters cannot fix a moment in time:
@@ -2007,7 +2007,12 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
-        except (NotImplementedError, ValueError, ValidationError) as e:
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
             db.session.rollback()
             return unprocessable_entity(
                 e.messages if isinstance(e, ValidationError) else str(e)
