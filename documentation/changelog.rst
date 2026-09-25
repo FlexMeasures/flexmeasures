@@ -99,6 +99,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Automations now keep a durable record of every scheduled run, so a forecast run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and, for its forecast jobs, how they ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_]
 * Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization [see `PR #2553 <https://github.com/FlexMeasures/flexmeasures/pull/2553>`_]
+* An asset's *Automations* page now shows each automation's recent job counts with the listing itself, counted in one pass over the job cache, rather than asking for them once per automation, and loads an automation's full details only when they are opened [see `PR #2299 <https://www.github.com/FlexMeasures/flexmeasures/pull/2299>`_]
 
 
 v1.0.1 | September 9, 2026

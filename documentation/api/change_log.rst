@@ -5,6 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-40 | September 26, 2026
+""""""""""""""""""""""""""""
+- Automation list entries now include recent ``job-stats`` counts, collected in one batched cache pass. If Redis is unavailable, the list remains available with empty counts and a ``redis-connection-err`` message.
+
 v3.0-39 | September 22, 2026
 """"""""""""""""""""""""""""
 - ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where both the destination organisation and the user making the copy may read it. Forecast and report automations are copied; a schedule automation is skipped for now, as its parameters point at sensors in ways a copy cannot follow. A copy that lands in another organisation records under a data source of that organisation. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped-automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.

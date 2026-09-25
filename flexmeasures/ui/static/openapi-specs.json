@@ -3684,9 +3684,13 @@
                           "next-run": "2026-07-12T06:00:00+02:00",
                           "recurrence-description": "At 06:00",
                           "schedule-revision": 1,
-                          "active": true
+                          "active": true,
+                          "job-stats": {
+                            "finished": 3
+                          }
                         }
-                      ]
+                      ],
+                      "redis-connection-err": null
                     }
                   }
                 }
