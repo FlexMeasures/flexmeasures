@@ -492,8 +492,8 @@ def test_copy_skips_an_automation_whose_stored_config_no_longer_validates(
 def test_an_automation_that_times_its_runs_is_copied(fresh_db, automated_site):
     """An automation timing its runs with offsets is copied, rather than refused for the timing every automation uses.
 
-    A run resolves those offsets into the window it computes, so the parameters an automation stores hold the offsets
-    and not the window, which is what its data generator's schema describes.
+    A run resolves those offsets into the window it computes,
+    so the parameters an automation stores hold the offsets and not the window, which is what its data generator's schema describes.
     """
     automation = _add_automation(
         fresh_db,

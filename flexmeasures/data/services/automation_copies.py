@@ -318,13 +318,15 @@ def _copy_parameters(
         for field, value in remapped_parameters.items()
         if field not in RUN_TIME_RESOLVED_PARAMETERS
     }
-    # A schema which requires a window, as a reporter's does, is given one, so that the rest of the parameters
-    # is checked the way the run will present them, rather than refused for a window the run has yet to resolve.
+    # A schema which requires a window, as a reporter's does, is given one,
+    # so that the rest of the parameters is checked the way the run will present them,
+    # rather than refused for a window the run has yet to resolve.
     for field, stand_in in PLACEHOLDER_WINDOW.items():
         if field in parameters_schema.fields and field not in to_check:
             to_check[field] = stand_in
-    # Validate the fields rather than load them: loading would also run what the schema derives from a whole run's
-    # parameters, such as a forecast's prediction window, which the fields set aside above are part of.
+    # Validate the fields rather than load them:
+    # loading would also run what the schema derives from a whole run's parameters,
+    # such as a forecast's prediction window, which the fields set aside above are part of.
     errors = parameters_schema.validate(to_check, partial=RUN_TIME_RESOLVED_PARAMETERS)
     if errors:
         raise AutomationNotCopyable(
