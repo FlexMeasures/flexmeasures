@@ -25,7 +25,6 @@ v1.1.0 | September XX, 2026
 New features
 -------------
 
-* Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
@@ -94,6 +93,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Every automation times its runs the same way: a fixed ``start``, ``end`` or ``prior`` in its parameters is refused, as every run would share that moment, and two of ``start-offset``, ``end-offset`` and ``duration`` describe the period each run covers instead, with the offsets applied to the time the run was due on the automation's own clock, so that, for instance, a schedule automation can plan the whole of the next day [see `PR #2551 <https://www.github.com/FlexMeasures/flexmeasures/pull/2551>`_]
 * Look up automations from the command line with ``flexmeasures show automations``, which lists them all (inactive ones included) with the IDs that the edit, delete and run commands expect, and, with ``--id``, shows a single automation's recurrence, cursor, parameters and the sensors it reads from and writes to [see `PR #2533 <https://www.github.com/FlexMeasures/flexmeasures/pull/2533>`_]
 * The *Automations* page lists the automations of the assets below an asset too, says when each automation runs next, keeps itself up to date, and shows the configuration of an automation's data source, which the *New automation* form now also lets you set [see `PR #2554 <https://www.github.com/FlexMeasures/flexmeasures/pull/2554>`_]
+* Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 
 
 v1.0.1 | September 9, 2026
