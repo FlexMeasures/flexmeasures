@@ -487,3 +487,202 @@ def test_copy_skips_an_automation_whose_stored_config_no_longer_validates(
     assert [
         automation.name for automation in _automations_of(fresh_db, asset_copy.asset)
     ] == ["Site power forecasts"]
+
+
+def test_an_automation_that_times_its_runs_is_copied(fresh_db, automated_site):
+    """An automation timing its runs with offsets is copied, rather than refused for the timing every automation uses.
+
+    A run resolves those offsets into the window it computes, so the parameters an automation stores hold the offsets
+    and not the window, which is what its data generator's schema describes.
+    """
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["site"],
+        name="Day-ahead forecasts",
+        parameters={
+            "sensor": automated_site["power"].id,
+            "start-offset": "1D,DB",
+            "duration": "P1D",
+        },
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert asset_copy.skipped_automations == []
+    copied = [
+        copied_automation
+        for copied_automation in _automations_of(fresh_db, asset_copy.asset)
+        if copied_automation.name == automation.name
+    ][0]
+    copied_power = _sensor_named(fresh_db, asset_copy.asset, "site power")
+    assert copied.parameters == {
+        "sensor": copied_power.id,
+        "start-offset": "1D,DB",
+        "duration": "P1D",
+    }
+
+
+def test_a_report_automation_is_copied(fresh_db, automated_site):
+    """A report automation is copied, although the window its reporter requires is one each run resolves."""
+    from flexmeasures.data.models.reporting import Reporter
+    from flexmeasures.data.services.data_sources import get_data_generator
+
+    reporter = get_data_generator(
+        source=None,
+        model="PandasReporter",
+        config={
+            "required_input": [{"name": "power"}],
+            "required_output": [{"name": "power"}],
+            "transformations": [],
+        },
+        save_config=True,
+        data_generator_type=Reporter,
+    )
+    assert reporter is not None
+    automation = Automation(
+        asset=automated_site["site"],
+        generator=reporter.data_source,
+        type="reporting",
+        name="Daily report",
+        cronstr="0 1 * * *",
+        timezone="UTC",
+        active=True,
+        cursor=OLD_CURSOR,
+        parameters={
+            "input": [{"name": "power", "sensor": automated_site["temperature"].id}],
+            "output": [{"name": "power", "sensor": automated_site["power"].id}],
+            "start-offset": "-1D,DB",
+            "end-offset": "DB",
+        },
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert asset_copy.skipped_automations == []
+    copied = [
+        copied_automation
+        for copied_automation in _automations_of(fresh_db, asset_copy.asset)
+        if copied_automation.name == automation.name
+    ][0]
+    meter_copy = _child_of(fresh_db, asset_copy.asset)
+    copied_temperature = _sensor_named(fresh_db, meter_copy, "meter temperature")
+    copied_power = _sensor_named(fresh_db, asset_copy.asset, "site power")
+    # Its inputs and outputs point at the copied sensors, and its timing is kept as it is.
+    assert copied.parameters["input"] == [
+        {"name": "power", "sensor": copied_temperature.id}
+    ]
+    assert copied.parameters["output"] == [{"name": "power", "sensor": copied_power.id}]
+    assert copied.parameters["start-offset"] == "-1D,DB"
+
+
+def test_a_schedule_automation_is_skipped_with_a_reason_of_its_own(
+    fresh_db, automated_site
+):
+    """A schedule automation is not copied yet, and says why, rather than reporting what its scheduler does not describe."""
+    from flexmeasures.data.models.data_sources import DataSource
+
+    scheduler_source = DataSource(
+        name="FlexMeasures",
+        type="scheduler",
+        model="StorageScheduler",
+        version="1",
+    )
+    fresh_db.session.add(scheduler_source)
+    fresh_db.session.flush()
+    fresh_db.session.add(
+        Automation(
+            asset=automated_site["site"],
+            generator=scheduler_source,
+            type="scheduling",
+            name="Nightly schedules",
+            cronstr="0 0 * * *",
+            timezone="UTC",
+            active=True,
+            cursor=OLD_CURSOR,
+            parameters={"flex-model": [{"sensor": automated_site["power"].id}]},
+        )
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    skipped = [
+        skipped_automation
+        for skipped_automation in asset_copy.skipped_automations
+        if skipped_automation.name == "Nightly schedules"
+    ]
+    assert len(skipped) == 1
+    assert "cannot be copied yet" in skipped[0].reason
+
+
+def test_a_copy_records_under_a_data_source_of_its_own_organisation(
+    fresh_db, setup_accounts_fresh_db, automated_site
+):
+    """A copy that lands in another organisation records under a data source of that organisation.
+
+    A data source of the organisation the automation came from would attribute the copy's results to that organisation,
+    where a source filter on the copy's own organisation would not find them.
+    """
+    supplier = setup_accounts_fresh_db["Supplier"]
+
+    asset_copy = copy_asset(automated_site["site"], account=supplier)
+
+    assert asset_copy.skipped_automations == []
+    copied = _automations_of(fresh_db, asset_copy.asset)[0]
+    # Its configuration names the copied sensors, so the copy has a data source of its own.
+    assert copied.generator_id != automated_site["site_automation"].generator_id
+    assert copied.generator.account_id == supplier.id
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultancy_user_without_consultant_access@seita.nl"],
+    indirect=True,
+)
+def test_a_copy_keeps_no_reference_its_maker_cannot_read(
+    fresh_db,
+    setup_roles_users_fresh_db,
+    setup_accounts_fresh_db,
+    automated_site,
+    requesting_user,
+):
+    """A reference kept as it is has to be one the user doing the copying may read, not only their organisation.
+
+    A consultancy reads its client's data, but only through its users who hold the consultant role,
+    so a copy made by one of its other users cannot keep pointing at that client's sensor.
+    """
+    asset_type = automated_site["site"].generic_asset_type
+    consultancy_site = GenericAsset(
+        name="Consultancy site",
+        generic_asset_type=asset_type,
+        owner=setup_accounts_fresh_db["Consultancy"],
+    )
+    client_asset = GenericAsset(
+        name="Client site",
+        generic_asset_type=asset_type,
+        owner=setup_accounts_fresh_db["ConsultancyClient"],
+    )
+    fresh_db.session.add_all([consultancy_site, client_asset])
+    consultancy_power = _add_sensor(fresh_db, consultancy_site, "consultancy power")
+    client_power = _add_sensor(fresh_db, client_asset, "client power")
+    automation = _add_automation(
+        fresh_db,
+        asset=consultancy_site,
+        name="Forecasts reading the client's sensor",
+        parameters={"sensor": consultancy_power.id},
+        config={"regressors": [client_power.id]},
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(consultancy_site)
+
+    skipped = [
+        skipped_automation
+        for skipped_automation in asset_copy.skipped_automations
+        if skipped_automation.automation_id == automation.id
+    ]
+    assert len(skipped) == 1
+    assert str(client_power.id) in skipped[0].reason

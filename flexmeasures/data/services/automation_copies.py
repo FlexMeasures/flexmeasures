@@ -23,6 +23,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField, SensorIdOrReferenceField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.services.automations import (
+    WINDOW_FIELDS,
     get_forecast_output_sensor,
     validate_automation_output_scope,
 )
@@ -30,6 +31,23 @@ from flexmeasures.data.services.data_sources import get_or_create_source
 
 # The automation types whose output sensors have to sit in the automation's own asset subtree, as `create_automation` requires.
 OUTPUT_SCOPED_AUTOMATION_TYPES = frozenset({"forecasting", "reporting"})
+
+# The automation types a copy can point at the copied sensors.
+# A schedule automation's parameters are a trigger message, whose flex config holds sensor references
+# in fields that no schema walks (the trigger's 'flex-context' is a raw field),
+# so copying one would quietly keep computing with the original's sensors.
+COPYABLE_AUTOMATION_TYPES = frozenset({"forecasting", "reporting"})
+
+# The parameters an automation leaves to each run, which its stored parameters therefore do not hold.
+# A data generator's schema requires or refuses these, so they are set aside while the stored parameters are checked.
+# The window fields describe when a run computes (see `resolve_automation_window`), and 'start' and 'end' are what a report resolves them into.
+RUN_TIME_RESOLVED_PARAMETERS = tuple(WINDOW_FIELDS) + ("start", "end")
+
+# Any window will do: it stands in for the one each run resolves, only while the other parameters are checked.
+PLACEHOLDER_WINDOW = {
+    "start": "2020-01-01T00:00:00+00:00",
+    "end": "2020-01-02T00:00:00+00:00",
+}
 
 
 @dataclass(frozen=True)
@@ -107,7 +125,9 @@ def copy_automations(
                     sensor_id_map=sensor_id_map,
                     destination_account_id=destination_account_id,
                 )
-        except AutomationNotCopyable as e:
+        except Exception as e:
+            # Whatever an automation's stored data generator does on the way in, it does not take the asset copy with it.
+            # Its class may be gone, its configuration may no longer load, or its constructor may refuse what was stored.
             current_app.logger.warning(
                 "Skipped copying automation %s ('%s') from asset %s: %s",
                 automation.id,
@@ -136,6 +156,11 @@ def _copy_automation(
 
     :raises AutomationNotCopyable: if the copy would not be safe or would not run.
     """
+    if automation.type not in COPYABLE_AUTOMATION_TYPES:
+        raise AutomationNotCopyable(
+            f"An automation of type '{automation.type}' cannot be copied yet:"
+            " its parameters hold sensor references that a copy cannot point at the copied sensors."
+        )
     data_generator = _load_data_generator(automation)
     remapper = _ReferenceRemapper(
         sensor_id_map=sensor_id_map,
@@ -194,6 +219,11 @@ def _load_data_generator(automation: Automation) -> DataGenerator:
         raise AutomationNotCopyable(
             f"Its stored data generator configuration no longer validates: {e.messages}"
         ) from e
+    except Exception as e:
+        # A data generator's own constructor decides what it accepts, and a stored configuration can outlive that.
+        raise AutomationNotCopyable(
+            f"Its data generator could not be set up: {e.__class__.__name__}: {e}"
+        ) from e
 
 
 def _copy_generator(
@@ -218,6 +248,11 @@ def _copy_generator(
 
     config = _stored_generator_config(generator)
     config_schema = data_generator._config_schema
+    if config_schema is None:
+        raise AutomationNotCopyable(
+            "Its data generator does not describe the configuration it takes,"
+            " so a copy could not point its sensor references at the copied sensors."
+        )
     remapped_config = remapper.remap(config, config_schema)
     if remapped_config == config:
         return generator
@@ -231,13 +266,20 @@ def _copy_generator(
 
     attributes = deepcopy(dict(generator.attributes or {}))
     attributes.setdefault("data_generator", {})["config"] = remapped_config
+    # The copy records under a data source of the organisation it lands in, rather than of the one it came from,
+    # so that what the copy computes is that organisation's own data, and its source filters find it.
+    destination_account = (
+        db.session.get(Account, destination_account_id)
+        if destination_account_id is not None
+        else None
+    )
     return get_or_create_source(
         source=generator.name,
         source_type=generator.type,
         model=generator.model,
         version=generator.version,
         attributes=attributes,
-        account=generator.account,
+        account=destination_account,
     )
 
 
@@ -259,18 +301,57 @@ def _copy_parameters(
     """
     parameters_schema = data_generator._parameters_schema
     if parameters_schema is None:
+        # A schedule automation's parameters are a trigger message, which its scheduler does not describe.
+        # Its flex config holds sensor references in fields that no schema walks (the trigger's 'flex-context' is a raw field),
+        # so a copy could not point them at the copied sensors, and would quietly keep computing with the original's.
         raise AutomationNotCopyable(
-            "Its data generator does not describe the parameters it takes, so its sensor references cannot be remapped."
+            f"An automation of type '{automation.type}' cannot be copied yet:"
+            " its parameters describe no sensor references that a copy could point at the copied sensors."
         )
     parameters = deepcopy(dict(automation.parameters or {}))
     remapped_parameters = remapper.remap(parameters, parameters_schema)
-    try:
-        parameters_schema.load(remapped_parameters)
-    except ValidationError as e:
+    # An automation stores what stays the same between its runs, so the schema sees it without what each run resolves.
+    # Checking those fields here would refuse an automation for timing it the way automations are timed.
+    to_check = {
+        field: value
+        for field, value in remapped_parameters.items()
+        if field not in RUN_TIME_RESOLVED_PARAMETERS
+    }
+    # A schema which requires a window, as a reporter's does, is given one, so that the rest of the parameters
+    # is checked the way the run will present them, rather than refused for a window the run has yet to resolve.
+    for field, stand_in in PLACEHOLDER_WINDOW.items():
+        if field in parameters_schema.fields and field not in to_check:
+            to_check[field] = stand_in
+    # Validate the fields rather than load them: loading would also run what the schema derives from a whole run's
+    # parameters, such as a forecast's prediction window, which the fields set aside above are part of.
+    errors = parameters_schema.validate(to_check, partial=RUN_TIME_RESOLVED_PARAMETERS)
+    if errors:
         raise AutomationNotCopyable(
-            f"Its parameters do not hold up after remapping: {e.messages}"
-        ) from e
+            f"Its parameters do not hold up after remapping: {errors}"
+        )
     return remapped_parameters
+
+
+def _user_can_read(sensor_or_asset) -> bool:
+    """Whether the user doing the copying may read this themselves, where there is one.
+
+    The organisation a copy lands in may read a client's data through a consultancy relation,
+    but only its users with the consultant role do (see `GenericAsset.__acl__`).
+    A copy is made on someone's behalf, so what it keeps a reference to is held to what that someone may read,
+    the way `create_automation` holds a new automation to its creator (see `check_sensor_access`).
+    """
+    from flask_security import current_user
+    from flexmeasures.auth.policy import check_access
+    from werkzeug.exceptions import Forbidden
+
+    if not current_user or not getattr(current_user, "is_authenticated", False):
+        # Copying outside a request, as a script does, is held to the organisation check alone.
+        return True
+    try:
+        check_access(sensor_or_asset, "read")
+    except Forbidden:
+        return False
+    return True
 
 
 def _account_can_read(
@@ -371,6 +452,11 @@ class _ReferenceRemapper:
         self.asset_id_map = asset_id_map
         self.destination_account_id = destination_account_id
 
+    # NB a field which describes no fields of its own, such as a mapping of settings, is kept as it is.
+    # No schema in FlexMeasures holds a sensor, asset, data source or organisation reference in such a field,
+    # and one that did would have its references kept rather than pointed at the copies,
+    # so a data generator which takes references that way cannot be copied correctly.
+
     def remap(self, data: dict, schema: Schema) -> dict:
         """Return a copy of serialized `data` with its references remapped.
 
@@ -426,8 +512,10 @@ class _ReferenceRemapper:
             )
         asset = db.session.get(GenericAsset, sensor.generic_asset_id)
         owner_account_id = asset.account_id if asset is not None else None
-        if asset is None or not _account_can_read(
-            owner_account_id, self.destination_account_id
+        if (
+            asset is None
+            or not _account_can_read(owner_account_id, self.destination_account_id)
+            or not _user_can_read(sensor)
         ):
             raise AutomationNotCopyable(
                 f"It references sensor {sensor_id}, which lies outside the copied assets and which the destination organisation cannot read."
@@ -444,7 +532,9 @@ class _ReferenceRemapper:
             raise AutomationNotCopyable(
                 f"It references asset {asset_id}, which no longer exists."
             )
-        if not _account_can_read(asset.account_id, self.destination_account_id):
+        if not _account_can_read(
+            asset.account_id, self.destination_account_id
+        ) or not _user_can_read(asset):
             raise AutomationNotCopyable(
                 f"It references asset {asset_id}, which lies outside the copied assets and which the destination organisation cannot read."
             )

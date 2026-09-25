@@ -672,14 +672,16 @@ def copy_asset(
             f"to '{copied_root.name}': {copied_root.id}"
         )
         if skipped_automations:
-            audit_message += (
-                f". Skipped {len(skipped_automations)} automation(s): "
-                + "; ".join(
-                    f"'{skipped.name}' ({skipped.automation_id}): {skipped.reason}"
-                    for skipped in skipped_automations
-                )
-            )
+            audit_message += f". Skipped {len(skipped_automations)} automation(s), each recorded on its own."
         AssetAuditLog.add_record(copied_root, audit_message)
+        # One record per skipped automation, as an audit event is truncated to 500 characters,
+        # and the reasons are the whole point of recording them.
+        for skipped in skipped_automations:
+            AssetAuditLog.add_record(
+                copied_root,
+                f"Did not copy automation '{skipped.name}' ({skipped.automation_id})"
+                f" of asset {skipped.asset_id}: {skipped.reason}",
+            )
         db.session.commit()
         return AssetCopy(asset=copied_root, skipped_automations=skipped_automations)
     except Exception as e:
