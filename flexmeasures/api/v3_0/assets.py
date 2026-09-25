@@ -1447,7 +1447,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1701,11 +1701,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts, schedules or reports) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
             a schedule trigger message (without the asset id) for type `scheduling`,
-            or report parameters for type `reporting`.
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             An automation runs again and again, so its parameters cannot fix a moment in time:
@@ -2007,7 +2007,12 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
-        except (NotImplementedError, ValueError, ValidationError) as e:
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
             db.session.rollback()
             return unprocessable_entity(
                 e.messages if isinstance(e, ValidationError) else str(e)
@@ -2679,6 +2684,11 @@ class AssetAPI(FlaskView):
             The asset copy will also have copies of child assets, including sensors and flex-configuration.
             No beliefs will be copied.
 
+            Automations on the copied assets are copied too, but start out inactive and with no run history,
+            so they can be inspected and tested before they are switched on.
+            An automation that cannot be copied safely is skipped, and listed under `skipped-automations` with the reason;
+            the asset, its sensors and the other automations are still copied.
+
             The new asset can optionally be placed under a `target` account and/or `parent` asset.
 
             Resolution rules:
@@ -2705,8 +2715,13 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   example:
-                    message: Successfully copied asset 10 to account 2.
+                    message: Successfully copied asset 10 to account 2. 1 automation(s) could not be copied.
                     asset: 99
+                    skipped-automations:
+                      - id: 7
+                        name: Day-ahead PV forecasts
+                        asset: 10
+                        reason: It references sensor 42, which lies outside the copied assets and which the destination organisation cannot read.
             400:
               description: INVALID_REQUEST
             401:
@@ -2749,9 +2764,10 @@ class AssetAPI(FlaskView):
                 )
 
         try:
-            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+            asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
         except ValueError as err:
             return unprocessable_entity(str(err))
+        new_asset = asset_copy.asset
 
         account_given = "account" in request.args
         parent_given = "parent" in request.args
@@ -2775,7 +2791,13 @@ class AssetAPI(FlaskView):
                 f"under parent {new_asset.parent_asset_id}."
             )
 
+        if asset_copy.skipped_automations:
+            message += f" {len(asset_copy.skipped_automations)} automation(s) could not be copied."
+
         return {
             "message": message,
             "asset": new_asset.id,
+            "skipped-automations": [
+                skipped.to_dict() for skipped in asset_copy.skipped_automations
+            ],
         }, 201

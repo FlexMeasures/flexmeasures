@@ -10,6 +10,7 @@ from marshmallow import ValidationError
 from pytz import all_timezones
 
 from flexmeasures.data import db
+from flexmeasures.data.automations import get_automation_types
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -17,6 +18,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    get_readable_offspring,
 )
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
@@ -253,11 +255,26 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id>/automations to show the automations defined on the asset."""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
+        # The page's tabs cover every type it can come to list, rather than the types its current scope holds:
+        # the scope is widened on the page itself, which refreshes the listing without rendering the tabs again,
+        # and an automation of a type without a tab would have nowhere to be listed.
+        assets_it_can_list = [asset] + get_readable_offspring(asset)
+        registered_types = get_automation_types()
 
         return render_flexmeasures_template(
             "assets/asset_automations.html",
             asset=asset,
             available_timezones=all_timezones,
+            automation_types={
+                type_id: handler.display_name
+                for type_id, handler in registered_types.items()
+            }
+            | {
+                automation.type: f"{automation.type} (plugin unavailable)"
+                for asset_it_can_list in assets_it_can_list
+                for automation in asset_it_can_list.automations
+                if automation.type not in registered_types
+            },
             # Managing an automation is gated like running one, so both follow create-children.
             user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),

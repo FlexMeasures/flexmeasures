@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
+from jinja2 import Environment, StrictUndefined
 
 TEMPLATE = (
     Path(__file__).resolve().parents[2] / "templates/assets/asset_automations.html"
@@ -22,27 +23,31 @@ def automation_script(
     has_children: bool = False,
     include_children: bool = True,
 ) -> str:
-    """Render the Jinja values used by the page's inline JavaScript."""
+    """Render inline JavaScript with representative registered automation types."""
     template = TEMPLATE.read_text()
     match = re.search(r"<script>(.*?)</script>", template, re.DOTALL)
     assert match is not None
     script = (
-        match.group(1)
-        .replace("{{ asset.id }}", "3")
-        .replace("{{ user_can_manage_automations | tojson }}", str(can_manage).lower())
-        .replace("{{ user_can_create_children | tojson }}", str(can_run).lower())
-        .replace(
-            "{{ 'true' if include_child_assets else 'false' }}",
-            str(include_children).lower(),
-        )
-        .replace(
-            "{{ 'true' if asset.child_assets else 'false' }}", str(has_children).lower()
+        Environment(autoescape=True, undefined=StrictUndefined)
+        .from_string(match.group(1))
+        .render(
+            asset={"id": 3, "child_assets": [object()] if has_children else []},
+            include_child_assets=include_children,
+            user_can_manage_automations=can_manage,
+            user_can_create_children=can_run,
+            automation_types={
+                "forecasting": "Forecasts",
+                "scheduling": "Schedules",
+                "mock-ingestion": "Mock ingestion",
+            },
         )
     )
     # An unrendered value would reach the browser as a syntax error, which reads as every check failing at once.
     assert (
         "{{" not in script
     ), "this helper does not render every Jinja value the page's script uses"
+    assert '"mock-ingestion"' in script
+    assert "Object.keys(automationTypes)" in script
     return script
 
 
