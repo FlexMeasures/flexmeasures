@@ -138,8 +138,12 @@ class AutomationHandler:
         )
         return automation, []
 
-    def run(self, automation, scheduled_at=None):
-        """Queue work using only registered code and committed identifiers."""
+    def run(self, automation, automation_run=None, scheduled_at=None):
+        """Queue work using only registered code and committed identifiers.
+
+        A durable run (see `dispatch_automation_run`) carries the parameters and the jobs its run was planned with,
+        which the built-in types read to pick up where an earlier attempt at the same run stopped.
+        """
         if self.generator_class is None:
             from flexmeasures.data.services.automations import (
                 _run_forecast_automation,
@@ -148,12 +152,14 @@ class AutomationHandler:
             )
 
             if self.type_id == "reporting":
-                return _run_report_automation(automation, scheduled_at=scheduled_at)
+                return _run_report_automation(
+                    automation, automation_run, scheduled_at=scheduled_at
+                )
             runner = {
                 "forecasting": _run_forecast_automation,
                 "scheduling": _run_schedule_automation,
             }[self.type_id]
-            return runner(automation, scheduled_at=scheduled_at)
+            return runner(automation, automation_run, scheduled_at=scheduled_at)
         generator, sensors = resolve_plugin_generator(automation, self)
         validate_output_scope(automation.asset_id, sensors["output_sensors"])
         source_id = generator.data_source.id
