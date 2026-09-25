@@ -1924,7 +1924,7 @@ def add_automation(  # noqa: C901
         )
     else:
         config, parameters = _assemble_plugin_automation_payload(
-            source, generator_class, config_file, parameters_file
+            kwargs, source, generator_class, config_file, parameters_file
         )
 
     # An automation exists to record what it computes, so a dry run would render it pointless.
@@ -2969,7 +2969,7 @@ def parse_source(source):
 
 
 def _assemble_plugin_automation_payload(
-    source, generator_class, config_file, parameters_file
+    kwargs, source, generator_class, config_file, parameters_file
 ):
     """Load plugin payloads without the hidden forecasting option defaults."""
     # Custom handlers validate their own schemas, so forecast defaults must not enter their payloads.
@@ -2977,9 +2977,29 @@ def _assemble_plugin_automation_payload(
     parameters = (
         _load_yaml_mapping(parameters_file, "--parameters") if parameters_file else {}
     )
-    supplied_forecast_options = _find_options_given_on_command_line(
-        {}, TrainPredictPipelineConfigSchema()
-    ) + _find_options_given_on_command_line({}, ForecasterParametersSchema())
+    # A plugin type decides for itself when its runs compute, so the window options would go nowhere.
+    # Say so, rather than accept an automation that quietly ignores the timing it was given.
+    window_options = {
+        "--start-offset": kwargs.get("start_offset"),
+        "--end-offset": kwargs.get("end_offset"),
+        "--duration": kwargs.get("duration"),
+    }
+    given_window_options = [
+        option for option, value in window_options.items() if value is not None
+    ]
+    if given_window_options:
+        raise click.UsageError(
+            f"{flexmeasures_inflection.join_words_into_a_list(given_window_options)} cannot be used with"
+            " a plugin automation type: such a type says for itself which period each of its runs covers."
+        )
+    supplied_forecast_options = [
+        option
+        for option in _find_options_given_on_command_line(
+            {}, TrainPredictPipelineConfigSchema()
+        )
+        + _find_options_given_on_command_line({}, ForecasterParametersSchema())
+        if option not in window_options
+    ]
     if supplied_forecast_options:
         raise click.UsageError(
             "Forecast-specific options cannot be used with plugin automation types. "

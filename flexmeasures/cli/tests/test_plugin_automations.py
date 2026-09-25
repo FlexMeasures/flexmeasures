@@ -142,3 +142,20 @@ def test_ui_inspects_custom_and_unavailable_type(
     else:
         assert "mock-ingestion (plugin unavailable)" in response
     assert "Create plugin-defined automation types with the CLI" in response
+
+
+def test_window_options_are_refused_for_a_plugin_type(
+    app, fresh_db, ingestion_plugin, ingestion_assets, tmp_path
+):
+    """A plugin type says for itself when its runs compute, so a window option is refused rather than dropped."""
+    from flexmeasures.cli.data_add import add_automation
+
+    root, sensors = ingestion_assets
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        ingestion_cli_args(tmp_path, root, sensors[0], "value: 3\n")
+        + ["--start-offset", "1D,DB"],
+    )
+    assert result.exit_code != 0
+    assert "--start-offset" in result.output
+    assert "cannot be used with" in result.output

@@ -62,25 +62,34 @@ class AutomationHandler:
                 )
             return _create_builtin_automation(**kwargs)
         selected_class = kwargs.get("generator_class")
-        if selected_class not in (
-            None,
-            "TrainPredictPipeline",
-            self.generator_class.__name__,
-        ):
+        if selected_class not in (None, self.generator_class.__name__):
             raise ValidationError("This automation type determines its data generator.")
         asset = kwargs["asset"]
         source = kwargs.get("source")
         if source is not None:
+            try:
+                generator = copy(source.data_generator)
+            except NotImplementedError as exc:
+                raise ValidationError(
+                    f"The source stores no data generator this server can set up: {exc}"
+                ) from exc
+            if type(generator) is not self.generator_class:
+                raise ValidationError(
+                    "The source does not belong to this automation type."
+                )
+            installed_version = self.installed_generator_version()
+            if source.version != installed_version:
+                # Every run checks this too (see `resolve_plugin_generator`), so an automation which cannot pass it
+                # is refused here rather than at every run it will ever have.
+                raise ValidationError(
+                    f"The source stores generator version {source.version},"
+                    f" while version {installed_version} is installed."
+                )
             load_automation_payload(
                 self.generator_class._config_schema,
                 source.attributes.get("data_generator", {}).get("config", {}),
                 "config",
             )
-            generator = copy(source.data_generator)
-            if type(generator) is not self.generator_class:
-                raise ValidationError(
-                    "The source does not belong to this automation type."
-                )
             if kwargs.get("config"):
                 raise ValidationError("Use either a source or configuration, not both.")
         else:
@@ -138,11 +147,17 @@ class AutomationHandler:
         )
         return automation, []
 
+    def installed_generator_version(self) -> str:
+        """The version of the generator class this server has, as a data source records it."""
+        return str(Version(str(getattr(self.generator_class, "__version__", "0.1"))))
+
     def run(self, automation, automation_run=None, scheduled_at=None):
         """Queue work using only registered code and committed identifiers.
 
         A durable run (see `dispatch_automation_run`) carries the parameters and the jobs its run was planned with,
         which the built-in types read to pick up where an earlier attempt at the same run stopped.
+        A plugin type's run is dispatched with the parameters its run was planned with, but records no jobs of its own,
+        so such a run reports how far its dispatch got and leaves its execution state at 'pending'.
         """
         if self.generator_class is None:
             from flexmeasures.data.services.automations import (
@@ -160,10 +175,17 @@ class AutomationHandler:
                 "scheduling": _run_schedule_automation,
             }[self.type_id]
             return runner(automation, automation_run, scheduled_at=scheduled_at)
-        generator, sensors = resolve_plugin_generator(automation, self)
+        planned_parameters = (
+            dict(automation_run.parameters)
+            if automation_run is not None
+            else dict(automation.parameters or {})
+        )
+        generator, sensors = resolve_plugin_generator(
+            automation, self, parameters=planned_parameters
+        )
         validate_output_scope(automation.asset_id, sensors["output_sensors"])
         source_id = generator.data_source.id
-        parameters = dict(automation.parameters or {})
+        parameters = planned_parameters
         db.session.commit()
         queue = current_app.queues[self.queue]
         job = Job.create(
@@ -298,9 +320,7 @@ def resolve_plugin_generator(automation, handler, parameters=None):
 
     if automation.generator is None:
         raise ValueError(f"Automation {automation.id} has no data source to run.")
-    installed_version = str(
-        Version(str(getattr(handler.generator_class, "__version__", "0.1")))
-    )
+    installed_version = handler.installed_generator_version()
     if automation.generator.version != installed_version:
         raise ValueError(
             f"Automation {automation.id} uses generator version {automation.generator.version},"

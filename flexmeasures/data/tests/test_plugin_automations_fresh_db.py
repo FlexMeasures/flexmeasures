@@ -336,3 +336,36 @@ def test_worker_requires_installed_plugin(
     assert job.is_failed
     assert "Install or enable" in job.latest_result().exc_string
     assert fresh_db.session.query(TimedBelief).count() == 0
+
+
+def test_a_source_of_another_version_is_refused_at_creation(
+    app, fresh_db, ingestion_plugin, ingestion_assets
+):
+    """A source recording another version of the plugin is refused when the automation is created.
+
+    Every run checks this too, so accepting it here would make an automation that can only ever fail.
+    """
+    from flexmeasures.data.automations import get_automation_handler
+    from flexmeasures.data.models.data_sources import DataSource
+
+    root, sensors = ingestion_assets
+    handler = get_automation_handler("mock-ingestion")
+    stale_source = DataSource(
+        name="Mock ingestion",
+        type=handler.generator_class.__data_generator_base__,
+        model=handler.generator_class.__name__,
+        version="0.0.1",
+        attributes={"data_generator": {"config": {"sensor": sensors[0].id}}},
+    )
+    fresh_db.session.add(stale_source)
+    fresh_db.session.flush()
+    assert stale_source.version != handler.installed_generator_version()
+
+    with pytest.raises(ValidationError, match="0.0.1"):
+        create_automation(
+            asset=root,
+            name="Ingestion from a stale source",
+            cronstr="0 * * * *",
+            automation_type="mock-ingestion",
+            source=stale_source,
+        )

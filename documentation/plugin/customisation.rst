@@ -435,7 +435,7 @@ The output declarations must cover every sensor returned by the computation.
 The worker rejects undeclared outputs, records results with the generator's data source and version, and attaches automation provenance to the job.
 
 Type identifiers must be unique across built-in types and installed plugins.
-The built-in identifiers ``forecasting`` and ``scheduling`` are reserved.
+The built-in identifiers ``forecasting``, ``scheduling`` and ``reporting`` are reserved.
 Keep identifiers stable: stored automations refer to them, so removing or renaming a handler makes those automations unavailable until the plugin is restored or the automations are migrated.
 Do not store credentials in generator configuration or automation parameters; read credentials from deployment settings instead.
 
