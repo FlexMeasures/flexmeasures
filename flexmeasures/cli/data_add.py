@@ -1985,7 +1985,7 @@ def add_automation(
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
-        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{timezone}'.",
+        f" for {automation_type} on asset {asset.id}, recurring per cron string '{cronstr}' in timezone '{automation.timezone}'.",
         **MsgStyle.SUCCESS,
     )
 
