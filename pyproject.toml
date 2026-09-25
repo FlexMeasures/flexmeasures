@@ -33,6 +33,9 @@ dependencies = [
     "pyyaml>=6.0.3",
     "altair>=6.0.0",
     "pandas>=2.2.1",
+    # pandas 2 (timely-beliefs does not support pandas 3 yet) emits DeprecationWarnings on numpy 2.5 when parsing timedeltas,
+    # and timely-beliefs raises warnings during timedelta parsing as errors
+    "numpy<2.5",
     "pint>=0.19.1",
     "py-moneyed>=3.0",
     "iso8601>=2.1.0",
