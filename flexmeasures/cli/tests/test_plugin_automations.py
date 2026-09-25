@@ -144,6 +144,41 @@ def test_ui_inspects_custom_and_unavailable_type(
     assert "Create plugin-defined automation types with the CLI" in response
 
 
+def test_the_page_has_a_tab_for_a_type_it_can_come_to_list(
+    app, fresh_db, ingestion_plugin, ingestion_assets, setup_roles_users_fresh_db
+):
+    """The tabs cover the types of the assets below the asset, too, whatever the page is listing right now.
+
+    The page widens its own scope, and refreshes the listing without rendering its tabs again,
+    so an automation of a type without a tab would have nowhere to be listed.
+    """
+    from flask import session
+    from flask_security import login_user, logout_user
+
+    from flexmeasures.data.models.user import User
+    from flexmeasures.ui.views.assets.views import AssetCrudUI
+
+    root, sensors = ingestion_assets
+    user = fresh_db.session.get(User, setup_roles_users_fresh_db["Test Prosumer User"])
+    root.owner = user.account
+    child = [asset for asset in root.child_assets if asset.name != root.name][0]
+    child.owner = user.account
+    fresh_db.session.commit()
+    # The only automation of this type sits on a child asset.
+    make_automation(fresh_db, child, sensors[1])
+
+    with app.test_request_context(f"/assets/{root.id}/automations"):
+        login_user(user)
+        try:
+            # The page was last left listing the asset's own automations only.
+            session["automations_page_include_child_assets"] = False
+            response = AssetCrudUI().automations(str(root.id))
+        finally:
+            logout_user()
+
+    assert 'id="automationsTable-mock-ingestion"' in response
+
+
 def test_window_options_are_refused_for_a_plugin_type(
     app, fresh_db, ingestion_plugin, ingestion_assets, tmp_path
 ):

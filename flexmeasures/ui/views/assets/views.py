@@ -255,12 +255,10 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id>/automations to show the automations defined on the asset."""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
-        include_child_assets = session.get(
-            "automations_page_include_child_assets", True
-        )
-        assets_to_report_on = [asset] + (
-            get_readable_offspring(asset) if include_child_assets else []
-        )
+        # The page's tabs cover every type it can come to list, rather than the types its current scope holds:
+        # the scope is widened on the page itself, which refreshes the listing without rendering the tabs again,
+        # and an automation of a type without a tab would have nowhere to be listed.
+        assets_it_can_list = [asset] + get_readable_offspring(asset)
         registered_types = get_automation_types()
 
         return render_flexmeasures_template(
@@ -273,8 +271,8 @@ class AssetCrudUI(FlaskView):
             }
             | {
                 automation.type: f"{automation.type} (plugin unavailable)"
-                for asset_to_report_on in assets_to_report_on
-                for automation in asset_to_report_on.automations
+                for asset_it_can_list in assets_it_can_list
+                for automation in asset_it_can_list.automations
                 if automation.type not in registered_types
             },
             # Managing an automation is gated like running one, so both follow create-children.
