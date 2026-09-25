@@ -162,10 +162,10 @@ class EfficiencyField(QuantityField):
     Examples:
 
         >>> ef = EfficiencyField()
-        >>> ef.deserialize(0.9)
-        <Quantity(90.0, 'percent')>
-        >>> ef.deserialize("90%")
-        <Quantity(90, 'percent')>
+        >>> print(ef.deserialize(0.9))
+        90.0 %
+        >>> print(ef.deserialize("90%"))
+        90 %
         >>> ef.deserialize("0%")
         Traceback (most recent call last):
         ...
