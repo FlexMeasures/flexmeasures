@@ -479,7 +479,16 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         data_generator = None
 
-        generator_class = current_app.data_generators.get(self.type, {}).get(self.model)
+        # Say which of the three it is, as only the last of them is answered by installing something.
+        if self.type not in current_app.data_generators:
+            raise NotImplementedError(
+                f"Data source {self.id} is of type '{self.type}', which is not a kind of data generator."
+            )
+        if not self.model:
+            raise NotImplementedError(
+                f"Data source {self.id} names no data generator to set up."
+            )
+        generator_class = current_app.data_generators[self.type].get(self.model)
         if generator_class is None:
             raise NotImplementedError(
                 f"Data generator '{self.type}/{self.model}' is unavailable. Install or enable its plugin on the server and worker."
