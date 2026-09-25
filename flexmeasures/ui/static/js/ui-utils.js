@@ -533,6 +533,8 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
  * @param {object} data - The copy endpoint's response body.
  * @returns {boolean} - Whether anything was reported, so the caller can leave the toast up long enough to read.
  */
+export const SKIPPED_AUTOMATIONS_TOAST_DELAY = 8000;
+
 export function reportSkippedAutomations(data) {
   const skipped = (data && data["skipped-automations"]) || [];
   if (skipped.length === 0) return false;
@@ -548,7 +550,7 @@ export function reportSkippedAutomations(data) {
   showToast(
     skipped.length + " automation(s) could not be copied: " + details,
     "info",
-    { delay: 10000 },
+    { delay: SKIPPED_AUTOMATIONS_TOAST_DELAY },
   );
   return true;
 }
@@ -587,7 +589,7 @@ export function initCopyAssetButtons() {
         (response) =>
           response.json().then((data) => {
             showToast("Asset copied successfully.", "success");
-            const redirectDelay = reportSkippedAutomations(data) ? 8000 : 1500;
+            const redirectDelay = reportSkippedAutomations(data) ? SKIPPED_AUTOMATIONS_TOAST_DELAY : 1500;
             setTimeout(() => {
               const dest = "/assets/" + data.asset + "/properties";
               if (openInNewTab) {

@@ -33,8 +33,8 @@ from flexmeasures.data.services.data_sources import get_or_create_source
 OUTPUT_SCOPED_AUTOMATION_TYPES = frozenset({"forecasting", "reporting"})
 
 # The automation types a copy can point at the copied sensors.
-# A schedule automation's parameters are a trigger message, whose flex config holds sensor references
-# in fields that no schema walks (the trigger's 'flex-context' is a raw field),
+# A schedule automation's parameters are a trigger message,
+# whose flex config holds sensor references in fields that no schema walks (the trigger's 'flex-context' is a raw field),
 # so copying one would quietly keep computing with the original's sensors.
 COPYABLE_AUTOMATION_TYPES = frozenset({"forecasting", "reporting"})
 
@@ -134,6 +134,7 @@ def copy_automations(
                 automation.name,
                 automation.asset_id,
                 e,
+                exc_info=True,
             )
             skipped.append(
                 SkippedAutomation(

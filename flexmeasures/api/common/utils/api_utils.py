@@ -684,6 +684,6 @@ def copy_asset(
             )
         db.session.commit()
         return AssetCopy(asset=copied_root, skipped_automations=skipped_automations)
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise e
+        raise
