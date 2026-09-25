@@ -61,6 +61,7 @@ Infrastructure / Support
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
 * Support SQLAlchemy 2.1 and upgrade dependencies, including timely-beliefs 4.4 and Flask-Security-Too 5.9, while FlexMeasures keeps connecting through psycopg2 when ``SQLALCHEMY_DATABASE_URI`` names no driver, and ``flexmeasures db-ops dump`` and ``restore`` now also work when it does [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 * Durations for Flask-Security, such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``, can now also be given as an ISO 8601 duration (e.g. ``"P1W"``), and in weeks (e.g. ``"1 week"``) on any version of Flask-Security [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
+* FlexMeasures now connects to its database through psycopg 3 when ``SQLALCHEMY_DATABASE_URI`` names no driver (``postgresql://``); to keep using psycopg2, name it: ``postgresql+psycopg2://`` [see `PR #2601 <https://www.github.com/FlexMeasures/flexmeasures/pull/2601>`_]
 
 Bugfixes
 -----------
@@ -79,6 +80,7 @@ Bugfixes
 * Asset type groups were named by a pluralization that mangled acronyms and nouns ending in -y, so the asset pages listed ``PVS``, ``EVS``, ``CHPS`` and ``Factorys``; they now read ``PVs``, ``EVs``, ``CHPs`` and ``Factories`` [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
 * A new commitment's prices now default to the currency of the price sensors in the flex-context, where they fell back to EUR unless a fixed price was set [see `PR #2574 <https://www.github.com/FlexMeasures/flexmeasures/pull/2574>`_]
 * A page failing on an unexpected error now shows the error page, where browsers behind a proxy reported a broken or insecure connection instead, and such an error no longer reveals the database query that failed [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
+* A request for an asset, sensor or other resource by an id larger than any stored id now answers that there is no such resource, and the audit log page of an unknown organisation now shows a not-found page, rather than an error [see `PR #2601 <https://www.github.com/FlexMeasures/flexmeasures/pull/2601>`_]
 
 Automations, in detail
 -----------------------
