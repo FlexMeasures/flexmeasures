@@ -457,7 +457,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ),
       timezone: esc(automation.timezone),
       "next-run": nextRun(automation),
-      jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
+      // The listing counts the jobs of every automation it holds, so a row says so without a request of its own.
+      jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">${esc(jobStatsText(automation["job-stats"]))}</span>`,
       info: `<button type="button" class="btn btn-sm btn-success automation-info" data-bs-target="#AutomationInfoModal-${automation.id}" data-bs-toggle="modal">Info</button>
         <div class="modal fade automation-info-modal" id="AutomationInfoModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
@@ -620,6 +621,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           }
         }
         markAutomationsRefreshed();
+        // The listing counts the jobs itself, so it is also where it says when Redis could not be reached.
+        if (res["redis-connection-err"]) {
+          showAutomationsError(res["redis-connection-err"]);
+        }
       },
       error: function (xhr) {
         console.error("Error fetching automations:", xhr);
