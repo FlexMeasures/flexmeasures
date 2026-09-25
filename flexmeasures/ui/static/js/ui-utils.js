@@ -319,13 +319,22 @@ export function convertHtmlToElement(htmlString) {
   return tempDiv.firstChild;
 }
 
-// Set default asset view
+/**
+ * Remember this asset view as the one to open per default, or stop doing so.
+ *
+ * The click has already moved the checkbox, so a refusal puts it back:
+ * a box left ticked claims a preference the server never stored.
+ *
+ * @param {HTMLInputElement} checkbox - The checkbox the user just clicked.
+ * @param {string} view_name - The name of the view currently shown.
+ * @returns {Promise} Settles once the preference was stored or the failure was reported.
+ */
 export function setDefaultAssetView(checkbox, view_name) {
   // Get the checked status of the checkbox
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/ui/session/default-asset-view", {
+  return fetch(apiBasePath + "/api/ui/session/default-asset-view", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -336,18 +345,28 @@ export function setDefaultAssetView(checkbox, view_name) {
       "use-as-default": isChecked,
     }),
   })
-    .then((response) => response.json())
+    .then(rejectIfNotOk)
     .catch((error) => {
-      console.error("Error during API call:", error);
+      checkbox.checked = !isChecked;
+      showToast("Could not save your default view: " + error.message, "error");
     });
 }
 
+/**
+ * Remember whether graph legends belong below their graph, and reload to apply it.
+ *
+ * The reload happens only once the preference was stored,
+ * since reloading after a refusal redraws the old setting and reads as the toggle bouncing back.
+ *
+ * @param {HTMLInputElement} checkbox - The checkbox the user just clicked.
+ * @returns {Promise} Settles once the preference was stored or the failure was reported.
+ */
 export function setDefaultLegendPosition(checkbox) {
   // Get the checked status of the checkbox
   const isChecked = checkbox.checked;
 
   const apiBasePath = window.location.origin;
-  fetch(apiBasePath + "/api/ui/session/keep-legends-below-graphs", {
+  return fetch(apiBasePath + "/api/ui/session/keep-legends-below-graphs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -357,12 +376,16 @@ export function setDefaultLegendPosition(checkbox) {
       "keep-legends-below-graphs": isChecked,
     }),
   })
-    .then((response) => {
-      response.json();
+    .then(rejectIfNotOk)
+    .then(() => {
       location.reload();
     })
     .catch((error) => {
-      console.error("Error during API call:", error);
+      checkbox.checked = !isChecked;
+      showToast(
+        "Could not save your legend placement: " + error.message,
+        "error",
+      );
     });
 }
 
@@ -454,6 +477,28 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
 }
 
 /**
+ * Turn an error response into a rejection that carries the server's own message.
+ *
+ * `fetch` rejects only on a network-level failure, so a 4xx or 5xx arrives as a resolved response;
+ * a caller that does not check `response.ok` reads a refusal as a success and drops it silently.
+ * A JSON body is read through `extractApiErrorMessage`, so that a validation error reaches the user as the fields it named, rather than as the status text.
+ *
+ * @param {Response} response - The response to inspect.
+ * @returns {Response} The same response, when it was a success.
+ */
+function rejectIfNotOk(response) {
+  if (response.ok) return response;
+  const fallback = response.statusText || "Request failed";
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json().then((err) => {
+      throw new Error(extractApiErrorMessage(err, fallback));
+    });
+  }
+  throw new Error(fallback);
+}
+
+/**
  * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
@@ -471,18 +516,7 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
 function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
   if (confirmMessage && !confirm(confirmMessage)) return;
   fetch(url, options)
-    .then((response) => {
-      if (response.ok) return response;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return response.json().then((err) => {
-          throw new Error(
-            err.message || response.statusText || "Request failed",
-          );
-        });
-      }
-      throw new Error(response.statusText || "Request failed");
-    })
+    .then(rejectIfNotOk)
     .then(onSuccess)
     .catch((err) => showToast(errorPrefix + ": " + err.message, "error"));
 }
