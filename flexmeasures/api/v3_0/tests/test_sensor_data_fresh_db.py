@@ -72,7 +72,7 @@ def test_post_sensor_data(
     sensor = setup_api_fresh_test_data["some gas sensor"]
     filters = (
         TimedBelief.sensor_id == sensor.id,
-        TimedBelief.event_start >= post_data["start"],
+        TimedBelief.event_start >= pd.Timestamp(post_data["start"]),
     )
     beliefs_before = db.session.scalars(select(TimedBelief).filter(*filters)).all()
     print(f"BELIEFS BEFORE: {beliefs_before}")

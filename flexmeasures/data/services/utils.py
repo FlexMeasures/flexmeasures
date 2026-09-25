@@ -192,7 +192,18 @@ def get_or_create_model(
             pass
 
     # See if the model already exists as a db row
-    model_query = select(model_class).filter_by(**filter_by_kwargs)
+    model_query = select(model_class)
+    for kw, arg in filter_by_kwargs.items():
+        model_attribute = getattr(model_class, kw)
+        if arg is None or not hasattr(model_attribute, "type"):
+            # A check for NULL, or a relationship, which filter_by knows how to handle
+            model_query = model_query.filter_by(**{kw: arg})
+        else:
+            # Bind the value as the column's own type, so the database reads it as it does when inserting,
+            # e.g. an ISO 8601 duration such as "PT1H" for an interval column, rather than comparing the column with text.
+            model_query = model_query.filter(
+                model_attribute == literal(arg, model_attribute.type)
+            )
     for kw, arg in filter_json_kwargs.items():
         model_query = model_query.filter(
             cast(getattr(model_class, kw), String) == cast(literal(arg, JSON()), String)

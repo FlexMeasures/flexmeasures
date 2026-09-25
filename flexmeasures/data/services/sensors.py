@@ -19,6 +19,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
@@ -318,7 +319,7 @@ def cleanup_sensor_references_in_assets(
             sa.or_(
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_model,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 # Also matches {"sensor": id} entries nested in lists, e.g. of the
@@ -326,32 +327,32 @@ def cleanup_sensor_references_in_assets(
                 # jsonpath auto-unwraps arrays at every level of the $.** wildcard).
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_context,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_context,
-                    '$."inflexible-device-sensors"[*] ? (@ == $sid)',
+                    sa.cast('$."inflexible-device-sensors"[*] ? (@ == $sid)', JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.sensors[*] ? (@ == $sid)",
+                    sa.cast("$.**.sensors[*] ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$[*] ? (@ == $sid)",
+                    sa.cast("$[*] ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show_as_kpis,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
             )

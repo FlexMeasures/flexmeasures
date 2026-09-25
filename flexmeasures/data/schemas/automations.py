@@ -8,9 +8,10 @@ from croniter.croniter import CroniterBadDateError
 from marshmallow import fields, validate, validates, Schema, ValidationError
 from pytz import all_timezones_set
 
-from flexmeasures.data import ma, db
+from flexmeasures.data import ma
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
@@ -57,7 +58,7 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value, attr, obj, **kwargs) -> Automation:
         """Turn an automation id into an Automation."""
         value = super()._deserialize(value, attr, obj, **kwargs)
-        automation = db.session.get(Automation, value)
+        automation = get_by_id(Automation, value)
         if automation is None:
             raise FMValidationError(f"No automation found with id {value}.")
         return automation

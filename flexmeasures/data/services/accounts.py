@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select, func
+from werkzeug.exceptions import NotFound
 
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog, get_current_user_id_name
@@ -34,6 +35,16 @@ def create_account(*, context: str | None = None, **account_data) -> Account:
             affected_account_id=account.id,
         )
     )
+    return account
+
+
+def get_account_by_id_or_raise_notfound(account_id: str | int) -> Account:
+    """Get an account, e.g. by an id taken from a URL, and raise NotFound if there is none."""
+    if not str(account_id).isdigit():
+        raise NotFound(f"Account with id {account_id} not found.")
+    account = db.session.get(Account, int(account_id))
+    if account is None:
+        raise NotFound(f"Account with id {account_id} not found.")
     return account
 
 

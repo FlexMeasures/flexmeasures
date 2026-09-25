@@ -90,7 +90,7 @@ class AssetCrudUI(FlaskView):
         """GET /assets/owned_by/<account_id>"""
         msg = ""
         account: Account | None = (
-            db.session.query(Account).filter_by(id=account_id).one_or_none()
+            db.session.get(Account, int(account_id)) if account_id.isdigit() else None
         )
         if account is None:
             assets = []

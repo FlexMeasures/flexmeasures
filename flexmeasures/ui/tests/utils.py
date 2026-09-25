@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import timedelta
 import json
 import re
 from sqlalchemy import select
@@ -94,7 +95,7 @@ def mock_asset_data_with_kpis(
         asset_id=asset_id, account_id=account_id, as_list=as_list, multiple=multiple
     )
     sensor: Sensor = db.session.execute(
-        select(Sensor).filter_by(event_resolution="PT24H")
+        select(Sensor).filter_by(event_resolution=timedelta(hours=24))
     ).scalar_one_or_none()
 
     if not sensor:

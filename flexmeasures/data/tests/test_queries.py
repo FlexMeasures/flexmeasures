@@ -301,8 +301,8 @@ def test_search_sources(db, setup_multiple_sources):
     # time window filter
     assert get_sources_names(
         test_sensor.search_data_sources(
-            event_starts_after="2024-01-01T00:00:00+01:00",
-            event_ends_before="2024-01-02T00:00:00+01:00",
+            event_starts_after=pd.Timestamp("2024-01-01T00:00:00+01:00"),
+            event_ends_before=pd.Timestamp("2024-01-02T00:00:00+01:00"),
         )
     ) == ["S1", "S2"]
 
