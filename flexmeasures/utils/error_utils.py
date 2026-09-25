@@ -62,8 +62,9 @@ def get_err_source_info(original_traceback=None) -> dict:
 def error_handling_router(error: Exception):
     """
     Generic handler for errors.
-    We respond in JSON if the request content-type is JSON, if the URL is an API endpoint (under /api),
+    We respond in JSON if the request content-type is JSON, if the request matched an API route (under /api),
     or if the error is a SecurityError.
+    A URL under /api that matches no route (a 404) therefore gets the HTML error page, unless the request is JSON.
     Otherwise, the ui package can define how it wants to render HTML errors, by setting a function.
 
     Any exception that is not an HTTPException (e.g. a database error) is logged in full,
