@@ -12,7 +12,6 @@ from flask import current_app
 from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
-from psycopg2.errors import UniqueViolation
 from rq import Queue, Worker
 from rq.job import Job
 from sqlalchemy import select
@@ -218,14 +217,21 @@ def process_sensor_data_ingestion(
     return invalid_replacement()
 
 
+UNIQUE_VIOLATION = "23505"  # SQLSTATE
+
+
 def catch_timed_belief_replacements(error: IntegrityError):
     """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
 
     Return a more informative message.
+    The error is recognised by its SQLSTATE rather than by its class,
+    because the class depends on the database driver:
+    psycopg2 exposes the SQLSTATE as pgcode, and psycopg 3 as sqlstate.
     """
-    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
-        error.orig
-    ):
+    sqlstate = getattr(error.orig, "sqlstate", None) or getattr(
+        error.orig, "pgcode", None
+    )
+    if sqlstate == UNIQUE_VIOLATION and "timed_belief_pkey" in str(error.orig):
         # Some beliefs represented replacements, which was forbidden
         return invalid_replacement()
 
