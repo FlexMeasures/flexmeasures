@@ -1,14 +1,14 @@
 """Retain the user authorizing unattended automation runs.
 
 Revision ID: b63a02d5e184
-Revises: c7a2f13b9e04
+Revises: f3d8e2c9a741
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "b63a02d5e184"
-down_revision = "c7a2f13b9e04"
+down_revision = "f3d8e2c9a741"
 branch_labels = None
 depends_on = None
 
