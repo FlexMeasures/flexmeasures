@@ -8,6 +8,7 @@ from flexmeasures.utils.config_utils import (
     get_config_warnings,
     normalize_trusted_hosts,
     parse_bool_env,
+    pin_database_driver,
     read_env_vars,
 )
 
@@ -118,6 +119,30 @@ def test_normalize_trusted_hosts(value, expected):
     app.config["TRUSTED_HOSTS"] = value
     normalize_trusted_hosts(app)
     assert app.config["TRUSTED_HOSTS"] == expected
+
+
+@pytest.mark.parametrize(
+    "uri, expected",
+    [
+        # SQLAlchemy 2.1 would pick psycopg 3 for a plain URI, so we name psycopg2.
+        ("postgresql://fm:pw@localhost/fm", "postgresql+psycopg2://fm:pw@localhost/fm"),
+        # An explicitly chosen driver is left alone.
+        (
+            "postgresql+psycopg2://fm:pw@localhost/fm",
+            "postgresql+psycopg2://fm:pw@localhost/fm",
+        ),
+        (
+            "postgresql+psycopg://fm:pw@localhost/fm",
+            "postgresql+psycopg://fm:pw@localhost/fm",
+        ),
+        (None, None),
+    ],
+)
+def test_pin_database_driver(uri, expected):
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = uri
+    pin_database_driver(app)
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == expected
 
 
 def test_config_warnings_flag_unset_trusted_hosts():

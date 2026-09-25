@@ -153,6 +153,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
     normalize_trusted_hosts(app)
+    pin_database_driver(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -302,6 +303,21 @@ def normalize_trusted_hosts(app: Flask) -> None:
         app.config["TRUSTED_HOSTS"] = trusted_hosts
     if trusted_hosts is not None and len(trusted_hosts) == 0:
         app.config["TRUSTED_HOSTS"] = None
+
+
+def pin_database_driver(app: Flask) -> None:
+    """Connect through psycopg2 if the database URI names no driver.
+
+    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, but SQLAlchemy 2.1 through psycopg 3.
+    Unlike psycopg2, psycopg 3 binds parameters on the server,
+    which rejects comparisons FlexMeasures still makes, such as an integer id with an id string from a URL.
+    An explicitly chosen driver (e.g. postgresql+psycopg://) is left alone.
+    """
+    uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    if isinstance(uri, str) and uri.startswith("postgresql://"):
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            "postgresql+psycopg2://" + uri.removeprefix("postgresql://")
+        )
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:
