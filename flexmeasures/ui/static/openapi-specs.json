@@ -1043,6 +1043,15 @@
               "type": "integer"
             },
             "required": true
+          },
+          {
+            "in": "query",
+            "name": "asset_id",
+            "required": false,
+            "description": "ID of the asset whose status page the sensor is reported on.\nThis asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.\nIt only affects the reported relation between the sensor and the asset.\nDefaults to the asset that the sensor belongs to.\n",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -3367,7 +3376,7 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/automations/{automation_id}": {
+    "/api/v3_0/assets/{id}/automations/{automation-id}": {
       "delete": {
         "summary": "Delete an automation.",
         "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires permission to add data under the asset.\n",
@@ -3388,7 +3397,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -3419,7 +3428,7 @@
       },
       "get": {
         "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations),\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3437,7 +3446,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -3471,7 +3480,11 @@
                       },
                       "source": {
                         "id": 6,
-                        "description": "forecaster 'TrainPredictPipeline' (v1)"
+                        "description": "forecaster 'TrainPredictPipeline' (v1)",
+                        "config": {
+                          "model": "CustomLGBM",
+                          "train-period": "P30D"
+                        }
                       },
                       "input-sensors": [
                         {
@@ -3561,7 +3574,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -3614,7 +3627,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n",
+        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n\nBy default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.\nPass `include-child-assets=false` to list only the automations defined on the asset itself.\nOnly the assets below it which you may read are included.\nEach entry names the asset it is defined on, in `asset` and `asset-name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3628,6 +3641,15 @@
             "description": "ID of the asset to get the automations for.",
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include-child-assets",
+            "required": false,
+            "description": "Whether to also list the automations of the assets below it, at any depth (default true).",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -3645,6 +3667,7 @@
                           "id": 1,
                           "created-at": "2026-07-11T00:00:00+00:00",
                           "asset": 1,
+                          "asset-name": "Solar panels",
                           "type": "forecasting",
                           "name": "Day-ahead PV forecasts",
                           "cron": "0 6 * * *",
@@ -4145,7 +4168,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.\nPass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
+        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4163,9 +4186,9 @@
           },
           {
             "in": "query",
-            "name": "include_child_assets",
+            "name": "include-child-assets",
             "required": false,
-            "description": "Whether to also list the jobs of the asset's child assets (default true).",
+            "description": "Whether to also list the jobs of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
             }
@@ -4720,7 +4743,7 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/automations/{automation_id}/trigger": {
+    "/api/v3_0/assets/{id}/automations/{automation-id}/trigger": {
       "post": {
         "summary": "Trigger a single run of an automation.",
         "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
@@ -4741,7 +4764,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation to run.",
             "schema": {
@@ -5067,254 +5090,6 @@
           },
           "429": {
             "description": "TOO_MANY_REQUESTS - You called the API, or triggered computation, more often than your rate limits allow. Triggering endpoints share a stricter limit than the rest of the API. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/default_asset_view": {
-      "post": {
-        "summary": "Update the default asset view for the current user",
-        "description": "Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).\n\nThis endpoint sets the default asset view for the current user session if `use_as_default` is true.\nIf `use_as_default` is `false`, it clears the session variable for the default asset view.\n\n## Example values for `default_asset_view`:\n- \"Audit Log\"\n- \"Context\"\n- \"Graphs\"\n- \"Properties\"\n- \"Status\"\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DefaultAssetViewJSONSchema"
-              },
-              "examples": {
-                "default_asset_view": {
-                  "summary": "Setting the user's default asset view to \"Graphs\"",
-                  "value": {
-                    "default_asset_view": "Graphs",
-                    "use_as_default": true
-                  }
-                },
-                "resetting_default_view": {
-                  "summary": "resetting the user's default asset view (will return to use system default)",
-                  "value": {
-                    "use_as_default": false
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Default asset view updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "403": {
-            "description": "INVALID_SENDER"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/keep_legends_below_graphs": {
-      "post": {
-        "summary": "Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.",
-        "description": "This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "keep_legends_below_graphs": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "keep_legends_below_graphs"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Legend position preference updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/status_page_child_jobs": {
-      "post": {
-        "summary": "Remember whether the current user wants the asset status page to list the jobs of child assets, too.",
-        "description": "The jobs tab of the status page lists the jobs of the asset's child assets as well, so that a site asset shows what happened anywhere below it.\nThis endpoint records the user's choice in their session, so their next visit to a status page keeps to it.\nWithout a recorded choice, the jobs of child assets are included.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusPageChildJobsJSONSchema"
-              },
-              "examples": {
-                "status_page_child_jobs": {
-                  "summary": "Listing only the asset's own jobs from now on",
-                  "value": {
-                    "include_child_assets": false
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Preferred status page job scope updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/status_page_tab": {
-      "post": {
-        "summary": "Remember which tab of the asset status page the current user last opened.",
-        "description": "The status page shows a sensor data tab and a jobs tab, of which only the opened one loads its data.\nThis endpoint records the user's choice in their session, so their next visit to a status page opens the same tab.\nWithout a recorded choice, the jobs tab opens.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusPageTabJSONSchema"
-              },
-              "examples": {
-                "status_page_tab": {
-                  "summary": "Opening the sensor data tab from now on",
-                  "value": {
-                    "status_page_tab": "sensors"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Preferred status page tab updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
           }
         },
         "tags": [
@@ -5730,11 +5505,6 @@
       }
     },
     "/api/v3_0/docs/{path}": {},
-    "/api/dev/sensor/{id}": {},
-    "/api/dev/sensor/{id}/chart": {},
-    "/api/dev/sensor/{id}/chart_annotations": {},
-    "/api/dev/sensor/{id}/chart_data": {},
-    "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
   },
@@ -5807,6 +5577,36 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -5961,6 +5761,36 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -6231,7 +6061,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -6261,7 +6091,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2095,
@@ -6284,7 +6114,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -6338,7 +6168,7 @@
               "null"
             ],
             "default": false,
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting <code>lower</code> to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": true
           },
           "lower": {
@@ -6876,61 +6706,6 @@
             "example": 482
           }
         },
-        "additionalProperties": false
-      },
-      "DefaultAssetViewJSONSchema": {
-        "type": "object",
-        "properties": {
-          "default_asset_view": {
-            "type": "string",
-            "enum": [
-              "Audit Log",
-              "Context",
-              "Graphs",
-              "Properties",
-              "Status"
-            ],
-            "description": "The default asset view to show."
-          },
-          "use_as_default": {
-            "type": "boolean",
-            "default": true,
-            "description": "Whether to use this view as default."
-          }
-        },
-        "required": [
-          "default_asset_view"
-        ],
-        "additionalProperties": false
-      },
-      "StatusPageTabJSONSchema": {
-        "type": "object",
-        "properties": {
-          "status_page_tab": {
-            "type": "string",
-            "enum": [
-              "jobs",
-              "sensors"
-            ],
-            "description": "The tab to open on the asset's status page."
-          }
-        },
-        "required": [
-          "status_page_tab"
-        ],
-        "additionalProperties": false
-      },
-      "StatusPageChildJobsJSONSchema": {
-        "type": "object",
-        "properties": {
-          "include_child_assets": {
-            "type": "boolean",
-            "description": "Whether the asset's status page should list the jobs of its child assets, too."
-          }
-        },
-        "required": [
-          "include_child_assets"
-        ],
         "additionalProperties": false
       },
       "AccountRole": {

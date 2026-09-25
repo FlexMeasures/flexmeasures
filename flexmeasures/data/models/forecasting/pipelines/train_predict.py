@@ -7,6 +7,8 @@ import time
 import logging
 from datetime import datetime, timedelta
 
+import inflection
+
 from rq.job import Job
 from sqlalchemy import inspect as sa_inspect
 
@@ -23,7 +25,6 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
-from flexmeasures.utils.flexmeasures_inflection import p
 
 
 def _sensor_id(sensor: Sensor | int | None) -> int | None:
@@ -70,7 +71,7 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
 def _make_sensor_payload(
     sensor_or_reference: Sensor | SensorReference,
 ) -> int | dict[str, Any]:
-    """Serialize a sensor and its optional source filters to database IDs."""
+    """Serialize a sensor, and any source filters and cleaning bounds it carries, to database IDs."""
     if isinstance(sensor_or_reference, SensorReference):
         return SensorReferenceSchema().dump(sensor_or_reference)
     return sensor_or_reference.id
@@ -312,7 +313,7 @@ class TrainPredictPipeline(Forecaster):
         train_pipeline.run(counter=counter)
         train_runtime = time.time() - train_start_time
         logging.info(
-            f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
+            f"{inflection.ordinalize(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
         # Make predictions
         predict_pipeline = PredictPipeline(
@@ -361,14 +362,14 @@ class TrainPredictPipeline(Forecaster):
         forecasts = predict_pipeline.run(delete_model=self.delete_model)
         predict_runtime = time.time() - predict_start_time
         logging.info(
-            f"{p.ordinal(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
+            f"{inflection.ordinalize(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
         )
 
         total_runtime = (
             train_runtime + predict_runtime
         )  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
         logging.info(
-            f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
+            f"{inflection.ordinalize(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
         self.return_values.append({"data": forecasts, "sensor": self._target_sensor})
         return total_runtime

@@ -15,7 +15,6 @@ from sqlalchemy import text
 
 from flexmeasures.data.config import configure_db_for, db
 from flexmeasures.data.transactional import after_request_exception_rollback_session
-from flexmeasures.utils.sentry_utils import SENTRY_DEDUPLICATION_KEY_ATTRIBUTE
 
 ma: Marshmallow = Marshmallow()
 
@@ -101,6 +100,9 @@ def register_at(app: Flask):
         from flexmeasures.data.utils import (
             format_database_schema_revision_status,
             get_database_schema_revision_status,
+        )
+        from flexmeasures.utils.sentry_utils import (
+            SENTRY_DEDUPLICATION_KEY_ATTRIBUTE,
         )
 
         revision_status = get_database_schema_revision_status(app)
