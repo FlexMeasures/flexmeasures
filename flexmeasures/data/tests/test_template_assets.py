@@ -122,7 +122,7 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
     """
     lock_taken = threading.Event()
     provisioning_waited = threading.Event()
-    engine = fresh_db.engine  # needs the app context, which the thread does not have
+    engine = fresh_db.engine  # needs the app context, which the thread does not have.
     # The session keeps this connection for the transaction in which provisioning then runs.
     provisioning_pid = fresh_db.session.execute(
         text("SELECT pg_backend_pid()")
@@ -152,7 +152,7 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
                 ).scalar()
                 if provisioning_waits:
                     provisioning_waited.set()
-                    return  # commit, now that the provisioning waits for us
+                    return  # commit, now that the provisioning waits for us.
                 time.sleep(0.05)
 
     other_process = threading.Thread(target=provision_in_another_process)

@@ -247,8 +247,7 @@ TEMPLATE_ASSETS_LOCK_KEY = 2599
 def provision_default_template_assets(db: SQLAlchemy):
     """Ensure the default starter template assets exist.
 
-    This currently provisions the single-asset starter templates which are
-    intended to show up in the asset copy UI.
+    This currently provisions the single-asset starter templates, which are intended to show up in the asset copy UI.
 
     Every process that creates the app provisions them, e.g. each gunicorn worker, and a CLI command running next to them.
     To keep them from racing to insert the same rows, each takes a transaction-level advisory lock first,

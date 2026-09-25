@@ -22,6 +22,7 @@ from flexmeasures.utils.sentry_utils import (
 )
 
 TEMPLATE_ASSETS_REQUIRED_MIGRATION = "4b0f2e9c1a6d"
+UNIQUE_VIOLATION = "23505"  # SQLSTATE.
 
 
 def provision_default_template_assets_on_startup(app: Flask) -> None:
@@ -56,7 +57,14 @@ def provision_default_template_assets_on_startup(app: Flask) -> None:
         with app.app_context():
             provision_default_template_assets(db)
     except IntegrityError as exc:
-        # Another process inserted the same rows first, e.g. one that does not take the provisioning lock yet.
+        # A unique violation means another process inserted the same rows first, e.g. one that does not take the provisioning lock yet.
+        # Any other integrity error is a bug in the provisioning, so we let it stop the app.
+        # psycopg2 exposes the SQLSTATE as pgcode, and psycopg 3 as sqlstate.
+        sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(
+            exc.orig, "pgcode", None
+        )
+        if sqlstate != UNIQUE_VIOLATION:
+            raise
         app.logger.info(
             f"Skipping startup template provisioning, as another process provisioned first: {exc.orig}"
         )
