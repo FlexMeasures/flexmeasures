@@ -14,8 +14,8 @@ depends_on = None
 
 
 def upgrade():
-    # Legacy automations retain trusted execution. No FK: a deleted creator must
-    # remain identifiable so a run fails closed rather than gaining CLI trust.
+    # Legacy automations retain trusted execution.
+    # No FK: a deleted creator must remain identifiable, so a run fails closed rather than gaining CLI trust.
     with op.batch_alter_table("automation") as batch_op:
         batch_op.add_column(sa.Column("execution_user_id", sa.Integer(), nullable=True))
 

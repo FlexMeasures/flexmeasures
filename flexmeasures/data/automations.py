@@ -34,9 +34,9 @@ def load_automation_payload(schema: Schema, payload: dict, field: str) -> dict:
 class AutomationHandler:
     """Declare a type backed by a generator with configuration and parameter schemas.
 
-    Plugins expose instances in ``__automation_types__``. Generator sensor properties
-    must enumerate every sensor read or written by the computation. Credentials belong
-    in server settings, never configuration or parameters persisted by this handler.
+    Plugins expose instances in ``__automation_types__``.
+    Generator sensor properties must enumerate every sensor read or written by the computation.
+    Credentials belong in server settings, never configuration or parameters persisted by this handler.
     """
 
     type_id: str
@@ -79,8 +79,8 @@ class AutomationHandler:
                 )
             installed_version = self.installed_generator_version()
             if source.version != installed_version:
-                # Every run checks this too (see `resolve_plugin_generator`), so an automation which cannot pass it
-                # is refused here rather than at every run it will ever have.
+                # Every run checks this too (see `resolve_plugin_generator`),
+                # so an automation which cannot pass it is refused here rather than at every run it will ever have.
                 raise ValidationError(
                     f"The source stores generator version {source.version},"
                     f" while version {installed_version} is installed."
