@@ -112,6 +112,14 @@ function create_user() {
 function grant_privileges(){
   echo "Connect $2 to $1 "
    psql_as_superuser -d postgres -c "GRANT CONNECT ON DATABASE $(sql_identifier "$1") TO $(sql_identifier "$2")"
+   echo "Making $2 the owner of $1"
+   # The database is created by the superuser running this script, so without this it
+   # is the superuser who owns it. Schema "public" is owned by "pg_database_owner",
+   # which resolves to whoever owns the database, and since PostgreSQL 15 no other role
+   # may create in it. The grant below covers the tables, but there are none yet at this
+   # point, and nothing here would let the user create any: "flexmeasures db upgrade" at
+   # the end of this script then fails with "permission denied for schema public".
+   psql_as_superuser -d postgres -c "ALTER DATABASE $(sql_identifier "$1") OWNER TO $(sql_identifier "$2")"
    echo "Grant required privileges"
    psql_as_superuser -d "$1" -c "GRANT USAGE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $(sql_identifier "$2")"
 }
