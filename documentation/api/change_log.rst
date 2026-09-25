@@ -7,7 +7,6 @@ API change log
 
 v3.0-39 | September 23, 2026
 """"""""""""""""""""""""""""
-- ``POST /api/v3_0/assets/<id>/automations`` now accepts a ``source``: the id of an existing data source whose data generator and configuration the automation reuses, and under which it records what it computes. It cannot be combined with ``data-generator`` or ``config``, which a data source already determines, and a schedule automation cannot name one, since it resolves its data source from the asset and the flex config on every run (a ``422`` in both cases). A data source that the caller cannot read is refused with a ``403``.
 - ``GET /api/v3_0/sources`` now accepts a ``filter`` of space-separated search terms, matched against a source's name, its model and its id prefix, and a ``type``, which narrows the listing to one source type, such as ``forecaster``.
 
 v3.0-38 | September 16, 2026
