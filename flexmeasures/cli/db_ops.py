@@ -77,9 +77,11 @@ def dump():
     except subprocess.CalledProcessError as e:
         click.secho(f"pg_dump exited with code {e.returncode}", **MsgStyle.ERROR)
         click.secho("db dump unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
     except OSError as e:
         click.secho(f"Could not run pg_dump: {e.strerror}", **MsgStyle.ERROR)
         click.secho("db dump unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
 
 
 @fm_db_ops.command()
@@ -109,9 +111,11 @@ def restore(file: str):
     except subprocess.CalledProcessError as e:
         click.secho(f"pg_restore exited with code {e.returncode}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
     except OSError as e:
         click.secho(f"Could not run pg_restore: {e.strerror}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
 
 
 def libpq_uri(sqlalchemy_uri: str | None) -> str:
