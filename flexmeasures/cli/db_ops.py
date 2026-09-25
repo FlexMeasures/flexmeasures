@@ -59,12 +59,21 @@ def dump():
     db_name = db_host_and_db_name.split("/")[-1]
     time_of_saving = datetime.now().strftime("%F-%H%M")
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} '{db_uri}'"
+    # An argument list rather than a shell command, so that no character in the URI (e.g. in a password) can break it.
+    command_for_dumping = [
+        "pg_dump",
+        "--no-privileges",
+        "--no-owner",
+        "--data-only",
+        "--format=c",
+        f"--file={dump_filename}",
+        db_uri,
+    ]
     try:
-        subprocess.check_output(command_for_dumping, shell=True)
+        subprocess.run(command_for_dumping, check=True)
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
 
-    except Exception as e:
+    except (subprocess.CalledProcessError, OSError) as e:
         click.secho(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
         click.secho("db dump unsuccessful", **MsgStyle.ERROR)
 
@@ -86,12 +95,13 @@ def restore(file: str):
     db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
-    command_for_restoring = f"pg_restore -d {db_uri} {file}"
+    # An argument list rather than a shell command, so that no character in the URI (e.g. in a password) can break it.
+    command_for_restoring = ["pg_restore", "-d", db_uri, file]
     try:
-        subprocess.check_output(command_for_restoring, shell=True)
+        subprocess.run(command_for_restoring, check=True)
         click.secho("db restore successful", **MsgStyle.SUCCESS)
 
-    except Exception as e:
+    except (subprocess.CalledProcessError, OSError) as e:
         click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
 
