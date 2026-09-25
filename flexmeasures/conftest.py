@@ -951,7 +951,9 @@ def create_test_battery_kWh_assets(
         ),
     )
 
-    db.session.add(test_battery_consumption_sensor, test_battery_inflexible_sensor)
+    db.session.add_all(
+        [test_battery_consumption_sensor, test_battery_inflexible_sensor]
+    )
 
     data_source = DataSource("source1")
 

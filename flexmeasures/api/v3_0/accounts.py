@@ -133,9 +133,8 @@ class AccountAPI(FlaskView):
                 else []
             )
 
-        query = db.session.query(Account).filter(
-            Account.id.in_([a.id for a in accounts])
-        )
+        # A select() statement rather than a legacy Query, which db.paginate no longer accepts as of SQLAlchemy 2.1
+        query = select(Account).filter(Account.id.in_([a.id for a in accounts]))
 
         if role is not None:
             query = query.filter(Account.account_roles.contains(role))
@@ -190,7 +189,7 @@ class AccountAPI(FlaskView):
                 "filtered-records": select_pagination.total,
             }
         else:
-            response = accounts_schema.dump(query.all(), many=True)
+            response = accounts_schema.dump(db.session.scalars(query).all(), many=True)
 
         return response, 200
 

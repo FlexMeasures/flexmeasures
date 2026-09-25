@@ -2384,7 +2384,7 @@ def add_report(  # noqa: C901
         last_value_datetime = db.session.execute(
             select(func.max(TimedBelief.event_start))
             .select_from(TimedBelief)
-            .filter_by(sensor_id=output[0]["sensor"].id)
+            .filter(TimedBelief.sensor_id == output[0]["sensor"].id)
         ).scalar_one_or_none()
         # If there's data saved to the reporter sensors
         if last_value_datetime is not None:
