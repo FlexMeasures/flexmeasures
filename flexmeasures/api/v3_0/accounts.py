@@ -133,7 +133,7 @@ class AccountAPI(FlaskView):
                 else []
             )
 
-        # A select() statement rather than a legacy Query, which db.paginate no longer accepts as of SQLAlchemy 2.1
+        # A select() statement rather than a legacy Query, which db.paginate no longer accepts as of SQLAlchemy 2.1.
         query = select(Account).filter(Account.id.in_([a.id for a in accounts]))
 
         if role is not None:

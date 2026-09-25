@@ -281,3 +281,12 @@ def test_libpq_uri(sqlalchemy_uri, expected):
     from flexmeasures.cli.db_ops import libpq_uri
 
     assert libpq_uri(sqlalchemy_uri) == expected
+
+
+@pytest.mark.parametrize("sqlalchemy_uri", [None, "", "sqlite:///fm.db"])
+def test_libpq_uri_needs_a_postgresql_uri(sqlalchemy_uri):
+    """Without a PostgreSQL URI, we say so, rather than failing somewhere inside SQLAlchemy or pg_dump."""
+    from flexmeasures.cli.db_ops import libpq_uri
+
+    with pytest.raises(click.ClickException):
+        libpq_uri(sqlalchemy_uri)

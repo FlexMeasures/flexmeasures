@@ -1571,7 +1571,7 @@ def error_endpoints(app):
             if request.args.get("type") == "forbidden":
                 raise Forbidden("Forbidden Test Message")
             if request.args.get("type") == "database_error":
-                # Not an HTTPException, and its code ("f405") is not an HTTP status
+                # Not an HTTPException, and its code ("f405") is not an HTTP status.
                 raise ProgrammingError(
                     "SELECT secret FROM account WHERE id = %(id)s",
                     {"id": "5"},

@@ -83,7 +83,7 @@ def restore(file: str):
 
     """
 
-    db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))  # type: ignore
+    db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
     command_for_restoring = f"pg_restore -d {db_uri} {file}"
@@ -96,17 +96,20 @@ def restore(file: str):
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
 
 
-def libpq_uri(sqlalchemy_uri: str) -> str:
+def libpq_uri(sqlalchemy_uri: str | None) -> str:
     """Turn a SQLAlchemy database URI into one that libpq tools (pg_dump, pg_restore) accept.
 
     libpq does not know SQLAlchemy's driver names (e.g. postgresql+psycopg2://),
     and would read such a URI as the name of a database on the local socket.
     """
-    return (
-        make_url(sqlalchemy_uri)
-        .set(drivername="postgresql")
-        .render_as_string(hide_password=False)
-    )
+    if not sqlalchemy_uri:
+        raise click.ClickException("SQLALCHEMY_DATABASE_URI is not set.")
+    url = make_url(sqlalchemy_uri)
+    if url.get_backend_name() != "postgresql":
+        raise click.ClickException(
+            f"pg_dump and pg_restore need a PostgreSQL database, not {url.get_backend_name()}."
+        )
+    return url.set(drivername="postgresql").render_as_string(hide_password=False)
 
 
 app.cli.add_command(fm_db_ops)
