@@ -43,6 +43,8 @@ dependencies = [
     "inflection>=0.5.1",
     "pydantic>=2.12.5",
     "humanize>=4.15.0",
+    "psycopg[binary]>=3.2",
+    # Only needed for a SQLALCHEMY_DATABASE_URI that names psycopg2 (postgresql+psycopg2://).
     "psycopg2-binary>=2.9.11",
     # hashing backend for passlib
     "argon2-cffi>=25.1.0",

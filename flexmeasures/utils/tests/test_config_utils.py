@@ -129,8 +129,8 @@ def test_normalize_trusted_hosts(value, expected):
 @pytest.mark.parametrize(
     "uri, expected",
     [
-        # SQLAlchemy 2.1 would pick psycopg 3 for a plain URI, so we name psycopg2.
-        ("postgresql://fm:pw@localhost/fm", "postgresql+psycopg2://fm:pw@localhost/fm"),
+        # Which driver SQLAlchemy picks for a plain URI depends on its version, so we name psycopg 3.
+        ("postgresql://fm:pw@localhost/fm", "postgresql+psycopg://fm:pw@localhost/fm"),
         # An explicitly chosen driver is left alone.
         (
             "postgresql+psycopg2://fm:pw@localhost/fm",
