@@ -62,6 +62,7 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
+from flexmeasures.data.services.reporting import compute_and_save_report
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import (
@@ -115,7 +116,6 @@ from flexmeasures.cli.utils import (
     validate_rate_limit_cli,
     validate_url_cli,
 )
-from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 
@@ -2446,8 +2446,8 @@ def add_report(  # noqa: C901
 
     click.echo("Report computation is running...")
 
-    # compute the report
-    results = reporter.compute(parameters=parameters)
+    # compute the report (and save it, unless running in dry mode)
+    results, _ = compute_and_save_report(reporter, parameters, persist=not dry_run)
 
     for result in results:
         data = result["data"]
@@ -2465,8 +2465,6 @@ def add_report(  # noqa: C901
         # save the report if it's not running in dry mode
         if not dry_run:
             click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data)
-            db.session.commit()
             click.secho(
                 f"Success. The report for sensor `{sensor}` has been saved to the database.",
                 **MsgStyle.SUCCESS,
