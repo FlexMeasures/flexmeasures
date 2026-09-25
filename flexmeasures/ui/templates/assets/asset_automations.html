@@ -577,7 +577,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ordering: true,
       order: [[createdAtColumn, "desc"]],  // most recently created first
       language: {
-        emptyTable: `No ${automationType} automations have been defined ${scope} yet.`
+        emptyTable: `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
           + (userCanManage ? (["forecasting", "scheduling", "reporting"].includes(automationType)
             ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`."
             : " Create one with the CLI command `flexmeasures add automation`.") : ""),
