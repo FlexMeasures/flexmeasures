@@ -60,7 +60,7 @@ Infrastructure / Support
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
 * Support SQLAlchemy 2.1 and upgrade dependencies, including timely-beliefs 4.4 and Flask-Security-Too 5.9, while FlexMeasures keeps connecting through psycopg2 when ``SQLALCHEMY_DATABASE_URI`` names no driver, and ``flexmeasures db-ops dump`` and ``restore`` now also work when it does [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
-* If you set a Flask-Security duration such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY`` yourself, give it in a unit Python's ``timedelta`` knows (e.g. ``"7 days"``, not ``"1 week"``), as Flask-Security-Too 5.9 reads it at startup [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
+* Durations for Flask-Security, such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``, can now also be given as an ISO 8601 duration (e.g. ``"P1W"``), and in weeks (e.g. ``"1 week"``) on any version of Flask-Security [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 
 Bugfixes
 -----------
