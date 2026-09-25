@@ -111,11 +111,11 @@ def error_handling_router(error: Exception):
 def log_http_error(error: HTTPException, http_error_code: int):
     """Log an HTTPException, leaving out the traceback where it is not interesting."""
     if http_error_code == 404:
-        # For 404 Not Found we only log the name, because the description is just 'The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.'
+        # For 404 Not Found we only log the name, because the description is always the same generic advice to check the URL.
         log_error(
             error,
             error.name,
-            verbose=False,  # not interesting
+            verbose=False,  # the traceback is not interesting.
         )
     elif http_error_code in (401, 403, 410) or isinstance(error, SecurityError):
         log_error(
