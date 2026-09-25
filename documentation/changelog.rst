@@ -24,7 +24,6 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization [see `PR #2553 <https://github.com/FlexMeasures/flexmeasures/pull/2553>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
@@ -95,6 +94,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Look up automations from the command line with ``flexmeasures show automations``, which lists them all (inactive ones included) with the IDs that the edit, delete and run commands expect, and, with ``--id``, shows a single automation's recurrence, cursor, parameters and the sensors it reads from and writes to [see `PR #2533 <https://www.github.com/FlexMeasures/flexmeasures/pull/2533>`_]
 * The *Automations* page lists the automations of the assets below an asset too, says when each automation runs next, keeps itself up to date, and shows the configuration of an automation's data source, which the *New automation* form now also lets you set [see `PR #2554 <https://www.github.com/FlexMeasures/flexmeasures/pull/2554>`_]
 * Automations now keep a durable record of every scheduled run, so a forecast run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and, for its forecast jobs, how they ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_]
+* Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization [see `PR #2553 <https://github.com/FlexMeasures/flexmeasures/pull/2553>`_]
 
 
 v1.0.1 | September 9, 2026
