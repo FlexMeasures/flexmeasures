@@ -76,6 +76,7 @@ Bugfixes
 * A chart of a sensor with a single data point in view, such as a daily sensor of which only one day was recorded, drew that point as a bar spanning most of the chart and stretched the shown time range around it; a bar now covers exactly the event it reports, whatever the chart holds [see `PR #2511 <https://www.github.com/FlexMeasures/flexmeasures/pull/2511>`_]
 * Asset type groups were named by a pluralization that mangled acronyms and nouns ending in -y, so the asset pages listed ``PVS``, ``EVS``, ``CHPS`` and ``Factorys``; they now read ``PVs``, ``EVs``, ``CHPs`` and ``Factories`` [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
 * A new commitment's prices now default to the currency of the price sensors in the flex-context, where they fell back to EUR unless a fixed price was set [see `PR #2574 <https://www.github.com/FlexMeasures/flexmeasures/pull/2574>`_]
+* Several FlexMeasures processes starting at once right after a database migration, such as the web server's workers and a CLI command, no longer fail to start because each tried to create the same starter templates [see `PR #2600 <https://www.github.com/FlexMeasures/flexmeasures/pull/2600>`_]
 
 Automations, in detail
 -----------------------
