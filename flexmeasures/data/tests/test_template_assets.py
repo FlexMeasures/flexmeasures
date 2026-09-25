@@ -1,4 +1,5 @@
 import threading
+import time
 
 from sqlalchemy import func, select, text
 
@@ -113,27 +114,34 @@ def test_template_asset_provisioning_skips_database_commands(fresh_db, monkeypat
 def test_provisioning_waits_for_another_process_provisioning(fresh_db):
     """Provisioning waits for a concurrent one to commit, rather than inserting the same rows and failing.
 
-    Another process is simulated by a second connection, which holds the provisioning lock,
-    and has inserted the solar asset type without committing yet.
+    Another process is simulated by a thread with its own connection, which takes the provisioning lock,
+    inserts the solar asset type, and only commits a second later.
     Without the lock, our insert of that type would wait on the unique index, and fail once the other one commits.
     """
-    other_process = fresh_db.engine.connect()
-    other_transaction = other_process.begin()
-    other_process.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"), {"key": TEMPLATE_ASSETS_LOCK_KEY}
-    )
-    other_process.execute(
-        text(
-            "INSERT INTO generic_asset_type (name, description) VALUES ('solar', 'solar panel(s)')"
-        )
-    )
-    committer = threading.Timer(1, other_transaction.commit)
-    committer.start()
+    lock_taken = threading.Event()
+    engine = fresh_db.engine  # needs the app context, which the thread does not have
+
+    def provision_in_another_process():
+        with engine.connect() as connection, connection.begin():
+            connection.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": TEMPLATE_ASSETS_LOCK_KEY},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO generic_asset_type (name, description) VALUES ('solar', 'solar panel(s)')"
+                )
+            )
+            lock_taken.set()
+            time.sleep(1)
+
+    other_process = threading.Thread(target=provision_in_another_process)
+    other_process.start()
+    assert lock_taken.wait(timeout=10)
     try:
         provision_default_template_assets(fresh_db)
     finally:
-        committer.join()
-        other_process.close()
+        other_process.join()
 
     assert (
         fresh_db.session.scalar(
