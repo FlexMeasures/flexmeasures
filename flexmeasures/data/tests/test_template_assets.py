@@ -157,11 +157,13 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
 
     other_process = threading.Thread(target=provision_in_another_process)
     other_process.start()
-    assert lock_taken.wait(timeout=10)
     try:
+        assert lock_taken.wait(timeout=10), "The other process never took the lock."
         provision_default_template_assets(fresh_db)
     finally:
-        other_process.join()
+        # Join on every path, so a failing test does not leave the thread running into the next one.
+        other_process.join(timeout=30)
+    assert not other_process.is_alive(), "The other process never finished."
 
     assert (
         provisioning_waited.is_set()
