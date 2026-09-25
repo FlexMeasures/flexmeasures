@@ -248,6 +248,58 @@ def test_get_assets_sort_with_search_filter(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_paging_without_sort_sees_all_assets(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Paging through the asset list without a sort order must not skip assets.
+
+    Regression test: without a sort order (or when sorting ties on e.g. owner),
+    the query had no total order, so Postgres was free to return rows in
+    whatever order each query plan produced. Walking LIMIT/OFFSET pages then
+    showed some assets twice and never showed others (#2572).
+    """
+    account = setup_accounts["Prosumer"]
+    asset_type = db.session.query(GenericAssetType).first()
+    for i in range(30):
+        db.session.add(
+            GenericAsset(
+                name=f"paging-test asset {i:02d}",
+                generic_asset_type_id=asset_type.id,
+                account_id=account.id,
+            )
+        )
+    db.session.commit()
+
+    per_page = 3
+    seen_ids: list[int] = []
+    page = 1
+    total_pages = None
+    while total_pages is None or page <= total_pages:
+        response = client.get(
+            url_for("AssetAPI:index"),
+            query_string={"page": page, "per_page": per_page, "all_accessible": True},
+        )
+        assert response.status_code == 200
+        seen_ids.extend(asset["id"] for asset in response.json["data"])
+        total_pages = -(-response.json["filtered-records"] // per_page)
+        page += 1
+        assert page <= 100  # pagination terminates
+
+    duplicates = len(seen_ids) - len(set(seen_ids))
+    assert duplicates == 0, f"unsorted paging duplicated {duplicates} rows"
+    num_assets = db.session.query(GenericAsset).count()
+    assert (
+        len(set(seen_ids)) == num_assets
+    ), f"unsorted paging skipped {num_assets - len(set(seen_ids))} assets"
+
+    # Clean up: later tests count the assets the fixtures seeded.
+    db.session.query(GenericAsset).filter(
+        GenericAsset.name.like("paging-test asset%")
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):
