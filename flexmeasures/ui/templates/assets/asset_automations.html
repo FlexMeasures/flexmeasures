@@ -145,7 +145,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
         {% if user_can_manage_automations %}
         <div class="mb-2 text-end">
-          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
+          <button class="btn btn-primary" id="newAutomationButton" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
         </div>
 
         <datalist id="automationTimezones">
@@ -332,6 +332,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
   const automationsById = new Map();
+  // What the details endpoint said about each automation, kept so that copying one does not have to ask again.
+  const automationDetailsById = new Map();
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
   // How often the listing catches up with the server, while the tab is in front and nothing is open.
   const REFRESH_INTERVAL_MS = 60000;
@@ -460,6 +462,68 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     setGeneratorFieldsEnabled(true);
   }
 
+  /* A forecast and a report each run a data generator the creator chooses and configures;
+     a schedule automation's generator follows from the asset and its flex config instead.
+     The rule sits here, rather than in the ready callback, because filling the form in from an existing automation applies it too. */
+  function typeChoosesGenerator() {
+    return $("#automationType").val() !== "scheduling";
+  }
+
+  function showGeneratorFields() {
+    $(".chooses-generator").toggle(typeChoosesGenerator());
+  }
+
+  /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
+     The form is shared with the Copy action, which leaves the previous automation's settings in it,
+     so opening it blank has to clear them rather than trust that they were never there. */
+  function resetNewAutomationForm() {
+    document.getElementById("newAutomationForm").reset();
+    // Resetting restores the type the form was rendered with, and the generator fields follow whichever type that is.
+    clearSelectedSource();
+    showGeneratorFields();
+    $("#newAutomationErr").addClass("d-none").text("");
+  }
+
+  function prefillNewAutomationForm(values) {
+    resetNewAutomationForm();
+    $("#automationName").val(values.name);
+    $("#automationType").val(values.type);
+    // The type decides whether a data generator can be named at all, so the fields follow it before anything is filled in.
+    showGeneratorFields();
+    $("#automationCron").val(values.cron);
+    $("#automationTimezone").val(values.timezone);
+    $("#automationParameters").val(values.parameters);
+    $("#automationActive").prop("checked", values.active);
+  }
+
+  // The name column allows 80 characters, and so does the API, so a long name loses its tail rather than the suffix that marks the copy.
+  const MAX_AUTOMATION_NAME_LENGTH = 80;
+  const AUTOMATION_COPY_SUFFIX = " (copy)";
+
+  function copiedAutomationName(name) {
+    const room = MAX_AUTOMATION_NAME_LENGTH - AUTOMATION_COPY_SUFFIX.length;
+    return `${String(name ?? "").slice(0, room)}${AUTOMATION_COPY_SUFFIX}`;
+  }
+
+  /* What the creation form should hold to recreate an automation on this same asset.
+     The copy starts inactive, so that a variation being worked on does not start running while it is still being edited,
+     and so that two automations writing the same results never appear by a single click.
+     The sensors the parameters name stay valid, as the copy stays on this asset, so they are carried over as they are stored.
+     A forecast or report automation reuses the original's data source, which already stores the data generator and its configuration;
+     a schedule automation resolves its own source on every run, so it names none. */
+  function automationCopyValues(automation, details) {
+    const sourceId = details?.source?.id;
+    return {
+      name: copiedAutomationName(automation.name),
+      type: automation.type,
+      cron: automation["cron"],
+      timezone: automation.timezone,
+      parameters: JSON.stringify(details?.parameters ?? {}, null, 4),
+      active: false,
+      sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
+    };
+  }
+
   // Run this automation once, now, on top of its recurring runs.
   function runButton(automation) {
     if (!userCanRunAutomations) {
@@ -476,6 +540,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     ` : "";
     const manageItems = userCanManage ? `
       <li><button type="button" class="dropdown-item automation-edit" data-id="${automation.id}">Edit</button></li>
+      <li><button type="button" class="dropdown-item automation-copy" data-id="${automation.id}"
+        title="Open the creation form with this automation's settings filled in, to create a variation on it. The copy starts inactive.">Copy</button></li>
       <li><button type="button" class="dropdown-item automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
         ${automation.active ? "Deactivate" : "Activate"}
       </button></li>
@@ -611,6 +677,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       url: automationUrl(automationId),
       method: "GET",
       success: function (res) {
+        // Copying an automation reads its parameters and its data source from here, rather than asking for them again.
+        automationDetailsById.set(automationId, res);
+
         // Show job stats in the table row
         const jobStats = res["job-stats"] || {};
         const statsStr = Object.keys(jobStats).length
@@ -851,6 +920,44 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
     });
 
+    // Open the creation form filled in from an existing automation, to create a variation on it.
+    $(document).on("click", ".automation-copy", function () {
+      const automationId = Number($(this).data("id"));
+      const automation = automationsById.get(automationId);
+      const details = automationDetailsById.get(automationId);
+      if (!automation) {
+        showToast("Could not find the automation to copy. Refresh the page to try again.", "error");
+        return;
+      }
+      if (!details) {
+        // The parameters and the data source come from the details request, which every row starts on page load.
+        showToast("This automation's details are still loading. Try again in a moment.", "error");
+        return;
+      }
+      const values = automationCopyValues(automation, details);
+      prefillNewAutomationForm(values);
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("newAutomationModal")).show();
+      if (values.sourceId) {
+        // The form is already open while this loads, so a slow read of the source does not hold up the rest of the copy.
+        $.ajax({
+          url: `/api/v3_0/sources/${values.sourceId}`,
+          method: "GET",
+          success: (source) => showSelectedSource(source),
+          error: function (xhr) {
+            // Without the source, the copy would fall back to a default data generator rather than the original's, so say so plainly.
+            $("#newAutomationErr").removeClass("d-none").text(
+              `Could not read data source ${values.sourceId}, which this automation computes under:`
+              + ` ${automationAjaxErrorMessage(xhr)}.`
+              + " Name a data generator and its configuration below, or the copy will use the default one."
+            );
+          },
+        });
+      }
+    });
+
+    // Opening the form from the New automation button starts from the defaults, not from whatever a copy left in it.
+    $("#newAutomationButton").on("click", () => resetNewAutomationForm());
+
     $("#editAutomationForm").submit(function (event) {
       event.preventDefault();
       const automationId = $("#editAutomationId").val();
@@ -898,14 +1005,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
-    /* A forecast and a report each run a data generator the creator chooses and configures;
-       a schedule automation's generator follows from the asset and its flex config instead. */
-    function typeChoosesGenerator() {
-      return $("#automationType").val() !== "scheduling";
-    }
-    function showGeneratorFields() {
-      $(".chooses-generator").toggle(typeChoosesGenerator());
-    }
     $("#automationType").on("change", function () {
       showGeneratorFields();
       // The sources offered are of the automation's own type, so a selection made for another type no longer applies.
