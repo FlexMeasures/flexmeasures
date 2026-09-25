@@ -967,6 +967,101 @@ def add_automation_on_a_child_asset(fresh_db, add_battery_assets_fresh_db):
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
+def test_post_automation_reusing_a_data_source(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+):
+    """Naming an existing data source reuses the data generator and the configuration stored on it."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor_id = battery.sensors[0].id
+    with app.test_client() as client:
+        first_response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts defining a generator",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "parameters": {"sensor": sensor_id},
+            },
+        )
+        assert first_response.status_code == 201, first_response.json
+        source_id = fresh_db.session.get(
+            Automation, first_response.json["id"]
+        ).generator_id
+
+        second_response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts reusing that generator",
+                "cron": "0 18 * * *",
+                "type": "forecasting",
+                "source": source_id,
+                "parameters": {"sensor": sensor_id},
+            },
+        )
+    assert second_response.status_code == 201, second_response.json
+    reusing_automation = fresh_db.session.get(Automation, second_response.json["id"])
+    assert reusing_automation.generator_id == source_id
+
+
+@pytest.mark.parametrize(
+    "extra_fields, expected_message",
+    [
+        (
+            {"data-generator": "TrainPredictPipeline"},
+            "data-generator cannot be combined with source",
+        ),
+        ({"config": {"model": "CustomLGBM"}}, "config cannot be combined with source"),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_automation_refuses_a_source_beside_a_generator(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    extra_fields,
+    expected_message,
+):
+    """A data source already stores the data generator and its config, so naming both ways at once is refused."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    source = DataSource(
+        name="reusable forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={"data_generator": {"config": {}}},
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Over-specified forecasts",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "source": source.id,
+                "parameters": {"sensor": battery.sensors[0].id},
+                **extra_fields,
+            },
+        )
+    assert response.status_code == 422
+    assert expected_message in str(response.json)
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Over-specified forecasts")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_get_automations_includes_those_of_child_assets(
     app,
     add_battery_assets_fresh_db,
@@ -1027,6 +1122,40 @@ def add_automation_on_a_foreign_child_asset(
     fresh_db.session.add(foreign_automation)
     fresh_db.session.flush()
     return foreign_child, foreign_automation
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_schedule_automation_refuses_a_source(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+):
+    """A schedule automation resolves its data source on every run, so it cannot be pinned to one."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    source = DataSource(
+        name="reusable forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={"data_generator": {"config": {}}},
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Pinned schedules",
+                "cron": "0 0 * * *",
+                "type": "scheduling",
+                "source": source.id,
+                "parameters": {"duration": "PT12H"},
+            },
+        )
+    assert response.status_code == 422
+    assert "schedule automation cannot name a source" in str(response.json)
 
 
 @pytest.mark.parametrize(
@@ -1146,3 +1275,44 @@ def test_automation_details_report_the_data_source_configuration(
         "model": "CustomLGBM",
         "train-period": "P30D",
     }
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_automation_with_a_source_of_another_account(
+    app,
+    fresh_db,
+    setup_accounts_fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+):
+    """A data source the caller cannot read is not theirs to compute under, whatever it stores."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    foreign_source = DataSource(
+        name="foreign forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={"data_generator": {"config": {}}},
+        account=setup_accounts_fresh_db["Dummy"],
+    )
+    fresh_db.session.add(foreign_source)
+    fresh_db.session.flush()
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Borrowed forecasts",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "source": foreign_source.id,
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+    assert response.status_code == 403
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Borrowed forecasts")
+        ).scalar_one_or_none()
+        is None
+    )

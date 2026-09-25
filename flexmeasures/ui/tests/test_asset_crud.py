@@ -118,8 +118,14 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
             in asset_page.data
         )
         # It is the sending that matters, so pin the payload lines, not just the parsing.
-        assert b'"data-generator": generator || null' in asset_page.data
-        assert b"config: config," in asset_page.data
+        # The payload is assembled before it is sent, because a reused data source replaces both of these.
+        assert (
+            b'automationData["data-generator"] = generator || null;' in asset_page.data
+        )
+        assert b"automationData.config = config;" in asset_page.data
+        assert (
+            b"automationData.source = selectedAutomationSource.id;" in asset_page.data
+        )
         # A schedule automation's generator follows from the asset, so it is not offered one.
         assert (
             b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data

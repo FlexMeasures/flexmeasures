@@ -366,3 +366,54 @@ def test_get_source_auth(
 def test_get_nonexistent_source(client, setup_api_test_data, requesting_user):
     response = client.get(url_for("SourceAPI:get", id=99999))
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_filtered_by_type_and_search_term(
+    client, setup_api_test_data, requesting_user, db
+):
+    """The listing can be narrowed to one source type, and searched by name, by model and by id."""
+    forecaster = DataSource(
+        name="SearchableSeita",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
+    reporter = DataSource(
+        name="SearchableSeita",
+        type="reporter",
+        model="PandasReporter",
+    )
+    db.session.add_all([forecaster, reporter])
+    db.session.flush()
+
+    by_type = client.get(url_for("SourceAPI:index"), query_string={"type": "reporter"})
+    assert by_type.status_code == 200
+    assert {source["type"] for source in by_type.json["sources"]} == {"reporter"}
+    assert reporter.id in {source["id"] for source in by_type.json["sources"]}
+    assert forecaster.id not in {source["id"] for source in by_type.json["sources"]}
+
+    by_model = client.get(
+        url_for("SourceAPI:index"), query_string={"filter": "TrainPredictPipeline"}
+    )
+    assert by_model.status_code == 200
+    assert forecaster.id in {source["id"] for source in by_model.json["sources"]}
+    assert reporter.id not in {source["id"] for source in by_model.json["sources"]}
+
+    by_name = client.get(
+        url_for("SourceAPI:index"), query_string={"filter": "searchableseita"}
+    )
+    assert by_name.status_code == 200
+    assert {forecaster.id, reporter.id} <= {
+        source["id"] for source in by_name.json["sources"]
+    }
+
+    by_id = client.get(
+        url_for("SourceAPI:index"),
+        query_string={"filter": str(forecaster.id), "only_latest": "false"},
+    )
+    assert by_id.status_code == 200
+    assert forecaster.id in {source["id"] for source in by_id.json["sources"]}

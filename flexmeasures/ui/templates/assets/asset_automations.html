@@ -96,6 +96,21 @@
     background: var(--bs-btn-hover-bg);
     border-color: var(--bs-btn-hover-border-color);
   }
+  /* The search results sit under their input, and a long list scrolls rather than pushing the rest of the form down. */
+  .automation-source-results {
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+  .automation-source-results .list-group-item {
+    cursor: pointer;
+  }
+  /* A data generator config can be wide, so it wraps rather than scrolling the modal sideways. */
+  #automationSourceConfig {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 12rem;
+    overflow-y: auto;
+  }
 </style>
 
 <div class="container-fluid">
@@ -171,6 +186,27 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <div class="form-text">The local clock the recurrence is read in. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
                 </div>
                 <!-- A schedule automation's generator follows from the asset and its flex config, so it is not chosen here. -->
+                <div class="mb-3 chooses-generator">
+                  <label for="automationSourceSearch" class="form-label">Existing data source</label>
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="automationSourceSearch" autocomplete="off"
+                           placeholder="Search by id, name or data generator class ...">
+                    <button type="button" class="btn btn-outline-secondary d-none" id="automationSourceClear">Clear</button>
+                  </div>
+                  <div class="list-group automation-source-results d-none" id="automationSourceResults"></div>
+                  <div class="form-text">
+                    Optional. Pick a data source to take its data generator and configuration from, instead of setting the two fields below.
+                    The automation then records what it computes under that same source, alongside the data it already holds.
+                  </div>
+                  <div class="card mt-2 d-none" id="automationSourcePreview">
+                    <div class="card-body py-2">
+                      <h6 class="mb-1">Selected data source</h6>
+                      <p class="mb-2" id="automationSourceSelected"></p>
+                      <h6 class="mb-1">Configuration</h6>
+                      <pre class="mb-0" id="automationSourceConfig"></pre>
+                    </div>
+                  </div>
+                </div>
                 <div class="mb-3 chooses-generator">
                   <label for="automationGenerator" class="form-label">Data generator</label>
                   <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
@@ -337,6 +373,91 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   function showAutomationsMessage(message) {
     $("#automations_msg").removeClass("d-none").text(message);
+  }
+
+  // A data source stores a data generator and the configuration it runs under, and the results computed under it are recorded on it,
+  // so picking one here is an alternative to setting the two fields below by hand.
+  // Only forecast and report automations can name one: a schedule automation works its source out from the asset and the flex config on every run.
+  const SOURCE_TYPE_PER_AUTOMATION_TYPE = {
+    forecasting: "forecaster",
+    reporting: "reporter",
+  };
+
+  // How many search results the list shows at once, so that a broad search stays readable.
+  const MAX_SOURCE_RESULTS = 25;
+
+  // The data source the new automation will reuse, or null while none is picked.
+  let selectedAutomationSource = null;
+
+  function sourceSearchUrl(automationType, searchTerm) {
+    const parameters = new URLSearchParams();
+    // Every version of a source can be picked, so the listing is not collapsed to the latest one per generator.
+    parameters.append("only_latest", "false");
+    const sourceType = SOURCE_TYPE_PER_AUTOMATION_TYPE[automationType];
+    if (sourceType) {
+      parameters.append("type", sourceType);
+    }
+    if (searchTerm) {
+      parameters.append("filter", searchTerm);
+    }
+    return `/api/v3_0/sources?${parameters.toString()}`;
+  }
+
+  function sourceLabel(source) {
+    return `${source.description || source.name} (data source ${source.id})`;
+  }
+
+  function sourceResultsHtml(sources) {
+    if (!sources || !sources.length) {
+      return '<div class="list-group-item text-muted">No matching data sources.</div>';
+    }
+    const items = sources.slice(0, MAX_SOURCE_RESULTS).map(source =>
+      `<button type="button" class="list-group-item list-group-item-action automation-source-option" data-source-id="${source.id}">
+        ${esc(sourceLabel(source))}
+      </button>`
+    );
+    if (sources.length > MAX_SOURCE_RESULTS) {
+      items.push(
+        `<div class="list-group-item text-muted">${sources.length - MAX_SOURCE_RESULTS} more match; narrow the search to see them.</div>`
+      );
+    }
+    return items.join("");
+  }
+
+  // The configuration a data generator stores on its source, as the source's own record spells it.
+  function sourceConfigText(source) {
+    const config = source?.attributes?.data_generator?.config;
+    if (config === undefined || config === null) {
+      return "This data source stores no data generator configuration.";
+    }
+    return JSON.stringify(config, null, 4);
+  }
+
+  // While a source is picked, it determines the class and the config, so those two fields cannot also be filled in.
+  function setGeneratorFieldsEnabled(enabled) {
+    $("#automationGenerator, #automationConfig").prop("disabled", !enabled);
+  }
+
+  function showSelectedSource(source) {
+    selectedAutomationSource = source;
+    $("#automationSourceResults").addClass("d-none").empty();
+    $("#automationSourceSearch").val(sourceLabel(source));
+    $("#automationSourceClear").removeClass("d-none");
+    $("#automationSourceSelected").text(sourceLabel(source));
+    $("#automationSourceConfig").text(sourceConfigText(source));
+    $("#automationSourcePreview").removeClass("d-none");
+    setGeneratorFieldsEnabled(false);
+  }
+
+  function clearSelectedSource() {
+    selectedAutomationSource = null;
+    $("#automationSourceSearch").val("");
+    $("#automationSourceClear").addClass("d-none");
+    $("#automationSourceResults").addClass("d-none").empty();
+    $("#automationSourcePreview").addClass("d-none");
+    $("#automationSourceSelected").text("");
+    $("#automationSourceConfig").text("");
+    setGeneratorFieldsEnabled(true);
   }
 
   // Run this automation once, now, on top of its recurring runs.
@@ -785,8 +906,73 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     function showGeneratorFields() {
       $(".chooses-generator").toggle(typeChoosesGenerator());
     }
-    $("#automationType").on("change", showGeneratorFields);
+    $("#automationType").on("change", function () {
+      showGeneratorFields();
+      // The sources offered are of the automation's own type, so a selection made for another type no longer applies.
+      clearSelectedSource();
+    });
     showGeneratorFields();
+
+    // Search the data sources whose data generator a new automation can reuse
+    let sourceSearchTimer = null;
+    function searchSources(searchTerm, delayMs) {
+      window.clearTimeout(sourceSearchTimer);
+      sourceSearchTimer = window.setTimeout(function () {
+        $.ajax({
+          url: sourceSearchUrl($("#automationType").val(), searchTerm),
+          method: "GET",
+          success: function (res) {
+            $("#automationSourceResults").html(sourceResultsHtml(res.sources)).removeClass("d-none");
+          },
+          error: function (xhr) {
+            $("#automationSourceResults")
+              .html(`<div class="list-group-item text-danger">Could not search data sources: ${esc(automationAjaxErrorMessage(xhr))}.</div>`)
+              .removeClass("d-none");
+          },
+        });
+      }, delayMs);
+    }
+
+    $("#automationSourceSearch").on("input", function () {
+      if (selectedAutomationSource) {
+        // Typing over the name of the picked source starts a new search, rather than editing a label.
+        clearSelectedSource();
+        $("#automationSourceSearch").val(this.value);
+      }
+      // Typing waits for a pause, so that a word does not send a request per letter.
+      searchSources(this.value.trim(), 250);
+    });
+
+    // Clicking into the empty box lists what there is to pick, so the sources can be browsed without guessing a search term.
+    $("#automationSourceSearch").on("focus", function () {
+      if (!selectedAutomationSource) {
+        searchSources(this.value.trim(), 0);
+      }
+    });
+
+    // Clicking away closes the list, which is otherwise left hanging over the rest of the form.
+    $(document).on("click", function (event) {
+      if (!$(event.target).closest("#automationSourceSearch, #automationSourceResults").length) {
+        $("#automationSourceResults").addClass("d-none");
+      }
+    });
+
+    // Read the picked source's own record, which is what carries the configuration its data generator stores.
+    $(document).on("click", ".automation-source-option", function () {
+      const sourceId = $(this).data("source-id");
+      $.ajax({
+        url: `/api/v3_0/sources/${sourceId}`,
+        method: "GET",
+        success: (source) => showSelectedSource(source),
+        error: function (xhr) {
+          $("#newAutomationErr").removeClass("d-none").text(
+            `Could not read data source ${sourceId}: ${automationAjaxErrorMessage(xhr)}.`
+          );
+        },
+      });
+    });
+
+    $("#automationSourceClear").on("click", () => clearSelectedSource());
 
     // Read a JSON textarea, reporting where it is malformed rather than failing silently.
     function readJsonField(selector, label) {
@@ -805,31 +991,38 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#newAutomationForm").submit(function (event) {
       event.preventDefault();
       const choosesGenerator = typeChoosesGenerator();
+      // A picked data source already stores the generator and its config, which is why those two fields are disabled while it is picked.
+      const reusesSource = choosesGenerator && selectedAutomationSource !== null;
       let parameters, config;
       try {
         parameters = readJsonField("#automationParameters", "Parameters");
-        config = choosesGenerator ? readJsonField("#automationConfig", "Data generator config") : {};
+        config = choosesGenerator && !reusesSource ? readJsonField("#automationConfig", "Data generator config") : {};
       } catch (error) {
         $("#newAutomationErr").removeClass("d-none").text(error.message);
         return;
       }
-      const generator = choosesGenerator ? $("#automationGenerator").val().trim() : "";
+      const generator = choosesGenerator && !reusesSource ? $("#automationGenerator").val().trim() : "";
+      const automationData = {
+        name: $("#automationName").val(),
+        type: $("#automationType").val(),
+        cron: $("#automationCron").val(),
+        timezone: $("#automationTimezone").val(),
+        active: $("#automationActive").is(":checked"),
+        parameters: parameters,
+      };
+      if (reusesSource) {
+        automationData.source = selectedAutomationSource.id;
+      } else {
+        // Read from the gated values, so a schedule automation sends no generator
+        // left behind in the hidden fields by an earlier choice of type.
+        automationData["data-generator"] = generator || null;
+        automationData.config = config;
+      }
       $.ajax({
         url: `/api/v3_0/assets/${assetId}/automations`,
         method: "POST",
         contentType: "application/json",
-        data: JSON.stringify({
-          name: $("#automationName").val(),
-          type: $("#automationType").val(),
-          cron: $("#automationCron").val(),
-          timezone: $("#automationTimezone").val(),
-          active: $("#automationActive").is(":checked"),
-          // Read from the gated values, so a schedule automation sends no generator
-          // left behind in the hidden fields by an earlier choice of type.
-          "data-generator": generator || null,
-          config: config,
-          parameters: parameters,
-        }),
+        data: JSON.stringify(automationData),
         success: () => location.reload(),
         error: function (xhr) {
           $("#newAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not create the automation."));

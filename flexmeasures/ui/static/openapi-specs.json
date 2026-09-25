@@ -3730,6 +3730,19 @@
                       "duration": "P1D"
                     }
                   }
+                },
+                "forecasts_on_an_existing_source": {
+                  "summary": "Forecasts computed by an existing data source",
+                  "description": "Reuses the forecaster and the configuration stored on data source 6, and records the forecasts under that same source.",
+                  "value": {
+                    "name": "Day-ahead PV forecasts",
+                    "cron": "0 6 * * *",
+                    "type": "forecasting",
+                    "source": 6,
+                    "parameters": {
+                      "sensor": 2092
+                    }
+                  }
                 }
               }
             }
@@ -5418,7 +5431,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nand the <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5432,6 +5445,26 @@
             "schema": {
               "type": "boolean",
               "default": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "description": "Search terms, separated by spaces, matched against the source's name, its model and its id prefix. A source matching any of the terms is returned.",
+            "schema": {
+              "type": "string",
+              "example": "TrainPredictPipeline"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "description": "Only return sources of this type, such as forecaster, scheduler or reporter.",
+            "schema": {
+              "type": "string",
+              "example": "forecaster"
             },
             "required": false
           }
@@ -6618,6 +6651,15 @@
             "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by a forecast or report automation.",
             "example": {},
             "additionalProperties": {}
+          },
+          "source": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "description": "Id of an existing data source to reuse, instead of naming a `data-generator` and its `config`. The data generator class and the configuration it runs under are read from that source, and the automation records its results under it, so several automations can share one generator and one lineage of data. A schedule automation cannot name one, as it resolves its data source from the asset and the flex config on every run.",
+            "example": 6
           }
         },
         "required": [
