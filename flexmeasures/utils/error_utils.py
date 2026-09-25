@@ -8,6 +8,7 @@ import traceback
 from flask import Flask, jsonify, current_app, request
 from werkzeug.exceptions import (
     HTTPException,
+    InternalServerError,
     SecurityError,
 )
 from sqlalchemy.orm import Query
@@ -58,36 +59,25 @@ def get_err_source_info(original_traceback=None) -> dict:
         return dict(module="", linenr=0, method="", src_code="")
 
 
-def error_handling_router(error: HTTPException):
+def error_handling_router(error: Exception):
     """
     Generic handler for errors.
     We respond in json if the request content-type is JSON.
     The ui package can also define how it wants to render HTML errors, by setting a function.
+
+    Any exception that is not an HTTPException (e.g. a database error) is logged in full,
+    and then answered as an InternalServerError.
+    Its code attribute is not an HTTP status (SQLAlchemy errors carry codes like "f405"),
+    which would otherwise end up in the response's status line,
+    and its message may reveal internals (e.g. SQL), which belong in the logs only.
     """
-
-    http_error_code = 500  # fallback
-    if hasattr(error, "code"):
-        try:
-            http_error_code = int(error.code)
-        except (ValueError, TypeError):  # if code is not an int or None
-            pass
-
-    # Some errors don't need a verbose log statement
-    if http_error_code == 404:
-        # For 404 Not Found we only log the name, because the description is just 'The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.'
-        log_error(
-            error,
-            error.name,
-            verbose=False,  # not interesting
-        )
-    elif http_error_code in (401, 403, 410) or isinstance(error, SecurityError):
-        log_error(
-            error,
-            error.description,
-            verbose=False,
-        )
+    if not isinstance(error, HTTPException):
+        log_error(error, str(error))
+        error = InternalServerError(original_exception=error)
+        http_error_code = 500
     else:
-        log_error(error, getattr(error, "description", str(error)))
+        http_error_code = error.code or 500  # a bare HTTPException has no code
+        log_http_error(error, http_error_code)
 
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
@@ -114,6 +104,25 @@ def error_handling_router(error: HTTPException):
     # This fallback is ugly but better than nothing.
     else:
         return "%s: %s" % (error.__class__.__name__, error_text), http_error_code
+
+
+def log_http_error(error: HTTPException, http_error_code: int):
+    """Log an HTTPException, leaving out the traceback where it is not interesting."""
+    if http_error_code == 404:
+        # For 404 Not Found we only log the name, because the description is just 'The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.'
+        log_error(
+            error,
+            error.name,
+            verbose=False,  # not interesting
+        )
+    elif http_error_code in (401, 403, 410) or isinstance(error, SecurityError):
+        log_error(
+            error,
+            error.description,
+            verbose=False,
+        )
+    else:
+        log_error(error, getattr(error, "description", str(error)))
 
 
 def add_basic_error_handlers(app: Flask):
