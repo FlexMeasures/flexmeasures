@@ -8,6 +8,7 @@ import pytest
 from random import random, seed
 from datetime import datetime, timedelta
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
@@ -950,7 +951,9 @@ def create_test_battery_kWh_assets(
         ),
     )
 
-    db.session.add(test_battery_consumption_sensor, test_battery_inflexible_sensor)
+    db.session.add_all(
+        [test_battery_consumption_sensor, test_battery_inflexible_sensor]
+    )
 
     data_source = DataSource("source1")
 
@@ -1567,6 +1570,13 @@ def error_endpoints(app):
                 raise Unauthorized("Unauthorized Test Message")
             if request.args.get("type") == "forbidden":
                 raise Forbidden("Forbidden Test Message")
+            if request.args.get("type") == "database_error":
+                # Not an HTTPException, and its code ("f405") is not an HTTP status.
+                raise ProgrammingError(
+                    "SELECT secret FROM account WHERE id = %(id)s",
+                    {"id": "5"},
+                    Exception("operator does not exist: integer = character varying"),
+                )
         return jsonify({"message": "Nothing bad happened."}), 200
 
     @app.route("/protected-endpoint-only-for-admins")
