@@ -1,0 +1,37 @@
+# Prepared report template: clipped values.
+#
+# Copies a sensor's values, pulling any value outside a valid range to the nearest bound,
+# using the PandasReporter.
+# Replace each FILL_IN placeholder: the bounds of the valid range, and your own sensor IDs.
+name: clipped-values
+description: Sensor values clipped to a valid range, with out-of-range values pulled to the nearest bound.
+reporter: PandasReporter
+config:
+  required_input:
+    - name: measurements
+  required_output:
+    - name: clipped
+  transformations:
+    - df_input: measurements
+      df_output: clipped
+      method: clip
+      kwargs:
+        # The bounds of the valid range, in the unit of the input sensor.
+        # Drop either one to leave that side unbounded.
+        lower: FILL_IN
+        upper: FILL_IN
+parameters:
+  input:
+    # The sensor recording the values to clip.
+    - name: measurements
+      sensor: FILL_IN
+  output:
+    # The sensor to store the report; it should record the same unit and event resolution
+    # as the input sensor, as the values are clipped event by event.
+    - name: clipped
+      sensor: FILL_IN
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: -1D,DB
+  end-offset: DB

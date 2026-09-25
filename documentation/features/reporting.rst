@@ -151,10 +151,13 @@ so you don't have to author a report definition from scratch. List them with:
 
     $ flexmeasures show report-templates
 
-    Name              Reporter              Description
-    ----------------  --------------------  ---------------------------------------------------------------------------------------------------------------
-    energy-costs      ProfitOrLossReporter  Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
-    self-consumption  PandasReporter        Share of produced energy consumed on-site, from a production and a consumption sensor.
+    Name                  Reporter              Description
+    --------------------  --------------------  -----------------------------------------------------------------------------------------------------------------------
+    building-consumption  AggregatorReporter    Total consumption of a site, summed from several power or energy sensors.
+    clipped-values        PandasReporter        Sensor values clipped to a valid range, with out-of-range values pulled to the nearest bound.
+    daily-energy          PandasReporter        Daily energy total from a single power or energy sensor.
+    energy-costs          ProfitOrLossReporter  Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
+    self-consumption      PandasReporter        Share of produced energy consumed on-site, from a production and a consumption sensor.
 
 Print a template in full (e.g. to pipe it to a file and edit it):
 
@@ -164,6 +167,8 @@ Print a template in full (e.g. to pipe it to a file and edit it):
 
 In a template's parameters skeleton, you fill in your own sensors by replacing the ``FILL_IN`` placeholders
 (a clear validation error points out any placeholders you left unfilled).
+A placeholder usually stands for one of your sensor IDs, but a template can leave another value to you as well,
+such as the bounds of the valid range in ``clipped-values``.
 The templates also recommend a rolling reporting window (``start-offset``/``end-offset`` fields, reporting on the previous day), for recurring use.
 
 You can pass a template directly to ``flexmeasures add report`` or ``flexmeasures add automation --type reporting`` with the ``--template`` option.
