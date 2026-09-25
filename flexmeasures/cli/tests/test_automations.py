@@ -461,6 +461,8 @@ def test_add_automation_defaults_to_the_assets_timezone(
     assert result.exit_code == 0, result.output
     automation = fresh_db.session.scalars(select(Automation)).one()
     assert automation.timezone == "Europe/Amsterdam"
+    # The success message reports the timezone that was stored, not the option that was left out.
+    assert "in timezone 'Europe/Amsterdam'" in result.output
 
 
 def test_add_and_edit_automation_reject_invalid_timezone(
