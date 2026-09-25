@@ -118,8 +118,7 @@ class AutomationCreationSchema(Schema):
         },
     )
     source = DataSourceIdField(
-        load_default=None,
-        allow_none=True,
+        required=False,
         metadata={
             "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
             "example": 6,

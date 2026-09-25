@@ -22,11 +22,5 @@ class DataSourceIdField(MarshmallowClickMixin, fields.Int):
         return source
 
     def _serialize(self, source, attr, data, **kwargs):
-        """Turn a DataSource into a source id.
-
-        A field that is allowed to be left out serializes its absence, rather than failing on it,
-        which is what dumping an optional field's default asks for.
-        """
-        if source is None:
-            return None
+        """Turn a DataSource into a source id."""
         return source.id
