@@ -258,8 +258,8 @@ def claim_existing_automation_run(
 ) -> ClaimedAutomationRun | None:
     """Claim a durable automation run whose dispatch is unfinished and unclaimed.
 
-    A run is only up for grabs once no other runner holds a live claim on it, because the dispatch state turns to
-    'partially_queued' while the owning runner is still queueing the rest of its jobs.
+    A run is only up for grabs once no other runner holds a live claim on it,
+    because the dispatch state turns to 'partially_queued' while the owning runner is still queueing the rest of its jobs.
     A runner which fails releases its own claim, so its run is immediately retryable.
     """
     owner = owner or _runner_owner()
@@ -472,8 +472,9 @@ def record_automation_job_started(
 def _refresh_run_execution_state(run: AutomationRun, now: datetime) -> None:
     """Derive a run's execution state from the state of all the jobs it created.
 
-    A failed job keeps the whole run failed: a later job succeeding, as the wrap-up job does whatever became of the
-    cycle jobs it reports on, must not put the run back to 'running' and bury the failure.
+    A failed job keeps the whole run failed:
+    a later job succeeding, as the wrap-up job does whatever became of the cycle jobs it reports on,
+    must not put the run back to 'running' and bury the failure.
     """
     statuses = [job.status for job in run.job_intents]
     finished = all(status in ("succeeded", "failed", "canceled") for status in statuses)
@@ -520,9 +521,10 @@ def record_automation_job_failed(
 ) -> None:
     """Record that a worker failed an automation-created job.
 
-    The job may well have failed on the database itself, which leaves the session in an aborted transaction where
-    every further statement is refused. Roll back first, so that the failure is still recorded. The job's own
-    uncommitted work is lost either way, since it is failing.
+    The job may well have failed on the database itself,
+    which leaves the session in an aborted transaction where every further statement is refused.
+    Roll back first, so that the failure is still recorded.
+    The job's own uncommitted work is lost either way, since it is failing.
     """
     if run_id is None or logical_job_key is None:
         return
@@ -536,9 +538,9 @@ def record_automation_job_failed(
     if intent is None:
         return
     if intent.status == "failed":
-        # A job's failure reaches this twice: the job says so itself, and the queue's exception handler says so
-        # for a job that could not (see `handle_forecasting_exception`). The first of them is the one that counts,
-        # so that the moment recorded is the moment the job failed.
+        # A job's failure reaches this twice:
+        # the job says so itself, and the queue's exception handler (see `handle_forecasting_exception`) says so for a job that could not.
+        # The first of them is the one that counts, so that the moment recorded is the moment the job failed.
         db.session.rollback()
         return
     intent.status = "failed"
@@ -2235,10 +2237,11 @@ def _run_forecast_automation(
     automation_run: AutomationRun | None = None,
     scheduled_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    # A run records the data generator it was claimed with, so a retry forecasts with the configuration
-    # the run was planned with, also when the automation has been pointed at another one since.
-    # That configuration decides how many jobs a run has, so re-planning it with another one would
-    # plan jobs the run's intents do not describe (see `ensure_automation_run_job_intents`).
+    # A run records the data generator it was claimed with,
+    # so a retry forecasts with the configuration the run was planned with,
+    # also when the automation has been pointed at another one since.
+    # That configuration decides how many jobs a run has,
+    # so re-planning it with another one would plan jobs the run's intents do not describe (see `ensure_automation_run_job_intents`).
     generator = automation.generator
     if automation_run is not None and automation_run.generator_id is not None:
         generator = db.session.get(DataSource, automation_run.generator_id) or generator
