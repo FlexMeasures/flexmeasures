@@ -164,8 +164,10 @@ def test_the_page_has_a_tab_for_a_type_it_can_come_to_list(
     child = [asset for asset in root.child_assets if asset.name != root.name][0]
     child.owner = user.account
     fresh_db.session.commit()
-    # The only automation of this type sits on a child asset.
+    # The only automation of this type sits on a child asset, and its plugin is not installed here,
+    # so the page knows the type from that automation alone.
     make_automation(fresh_db, child, sensors[1])
+    del app.automation_handlers["mock-ingestion"]
 
     with app.test_request_context(f"/assets/{root.id}/automations"):
         login_user(user)
@@ -177,6 +179,7 @@ def test_the_page_has_a_tab_for_a_type_it_can_come_to_list(
             logout_user()
 
     assert 'id="automationsTable-mock-ingestion"' in response
+    assert "mock-ingestion (plugin unavailable)" in response
 
 
 def test_window_options_are_refused_for_a_plugin_type(
