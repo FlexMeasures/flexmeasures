@@ -50,6 +50,14 @@ from flexmeasures.data.services.data_generators import (
 from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
 
 AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
+# How often a runner may attempt one run's dispatch, and how long it waits between attempts.
+# A dispatch which keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
+# so the attempts are spaced further apart each time, and run out.
+# Without either, a stuck run would be re-dispatched every minute for as long as its automation stays active,
+# recording an attempt and an error each time.
+AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS = 5
+AUTOMATION_RUN_FIRST_RETRY_DELAY = timedelta(minutes=1)
+AUTOMATION_RUN_MAX_RETRY_DELAY = timedelta(hours=1)
 # How many of an automation's most recent runs its status summary describes in full.
 AUTOMATION_RUN_STATS_RECENT_LIMIT = 10
 # Dispatch is only finished once `dispatch_completed_at` is set, so every other dispatch state is resumable.
@@ -99,6 +107,20 @@ def _now_utc() -> datetime:
 def _claim_expires_at(now: datetime, lease: timedelta) -> datetime:
     """Return the UTC timestamp at which a claim becomes stale."""
     return now + lease
+
+
+def _retry_delay(attempt_count: int) -> timedelta:
+    """How long to wait before a run may be dispatched again, after this many attempts.
+
+    The delay doubles with each attempt, up to a ceiling, so that a run which fails for a passing reason is retried soon,
+    while one which fails for a lasting reason stops taking a runner's minute.
+    """
+    if attempt_count <= 1:
+        # A first failure is often a passing one, such as a runner that lost Redis, so the next runner picks the run straight up.
+        return timedelta(0)
+    doubling = attempt_count - 2
+    delay = AUTOMATION_RUN_FIRST_RETRY_DELAY * (2**doubling)
+    return min(delay, AUTOMATION_RUN_MAX_RETRY_DELAY)
 
 
 def _claim_is_available(now: datetime):
@@ -248,6 +270,8 @@ def claim_existing_automation_run(
             AutomationRun.id == run.id,
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
+            # A run which used up its attempts is left as it is, rather than dispatched again every minute.
+            AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
             _claim_is_available(now),
         )
         .values(
@@ -297,6 +321,7 @@ def get_dispatchable_automation_runs(
             AutomationRun.automation_type == "forecasting",
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
+            AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
             _claim_is_available(now),
         )
         .order_by(AutomationRun.scheduled_at, AutomationRun.id)
@@ -402,9 +427,10 @@ def mark_automation_run_dispatch_failed(
     run.dispatch_state = "partially_queued" if queued_count else "failed"
     run.last_error_type = error.__class__.__name__
     run.last_error_message = str(error)
-    # Hand the occurrence back rather than making the next runner wait out this attempt's lease.
+    # Hand the occurrence back rather than making the next runner wait out this attempt's lease,
+    # but not before the delay this attempt earned (see `_retry_delay`).
     run.claim_owner = None
-    run.claim_expires_at = None
+    run.claim_expires_at = _now_utc() + _retry_delay(run.attempt_count)
     _finish_attempt(attempt, run.dispatch_state, queued_count, error)
     db.session.commit()
 

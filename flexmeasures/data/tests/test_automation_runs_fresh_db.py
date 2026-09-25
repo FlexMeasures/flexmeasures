@@ -853,3 +853,54 @@ def test_only_a_forecast_run_is_dispatched_a_second_time(
 
     assert forecast_run.id in claimed_ids
     assert schedule_run.id not in claimed_ids
+
+
+def test_a_dispatch_that_keeps_failing_is_given_up_on(
+    app, fresh_db, clean_redis, due_forecast_automation, mocker, freeze_server_now
+):
+    """A run whose dispatch keeps failing is attempted a few times, further apart each time, and then left alone.
+
+    A dispatch which fails again on every attempt fails for a reason no retry fixes,
+    so retrying it every minute would only record an attempt and an error every minute, for as long as the automation is active.
+    """
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.services.automations import (
+        AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
+    )
+
+    queue = app.queues["forecasting"]
+    mocker.patch.object(
+        queue, "enqueue_job", side_effect=RuntimeError("redis unavailable")
+    )
+    runner = app.test_cli_runner()
+    now = datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc)
+
+    runner.invoke(run_automations)
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    assert run.attempt_count == 1
+
+    # A first failure is often a passing one, so the next runner picks the run straight up.
+    freeze_server_now(now + timedelta(minutes=1))
+    runner.invoke(run_automations)
+    fresh_db.session.refresh(run)
+    assert run.attempt_count == 2
+
+    # From there on it waits out the delay each attempt earned, so half a minute later is too soon.
+    freeze_server_now(now + timedelta(minutes=1, seconds=30))
+    runner.invoke(run_automations)
+    fresh_db.session.refresh(run)
+    assert run.attempt_count == 2
+
+    # Each attempt waits longer than the last, so stepping an hour ahead each time takes them all.
+    for attempt_no in range(3, AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS + 1):
+        freeze_server_now(now + timedelta(hours=attempt_no))
+        runner.invoke(run_automations)
+        fresh_db.session.refresh(run)
+        assert run.attempt_count == attempt_no
+
+    # Its attempts are used up, so a later runner leaves it where it is.
+    freeze_server_now(now + timedelta(hours=12))
+    runner.invoke(run_automations)
+    fresh_db.session.refresh(run)
+    assert run.attempt_count == AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS
+    assert run.dispatch_state == "failed"

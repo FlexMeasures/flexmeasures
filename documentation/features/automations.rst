@@ -206,6 +206,10 @@ A run which queued only some of its jobs resumes from the same plan, recognizes 
 Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
 Timings the automation left to the run time are not part of those parameters, so they are resolved afresh on each attempt: a resumed run's jobs can therefore cover a later window than the ones its first attempt queued.
 
+A dispatch which fails is attempted again, each time after a longer wait, and stops being attempted after five attempts.
+A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
+and the run's record says what went wrong on each attempt.
+
 Retrying a failed dispatch this way is what a forecast run does.
 A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
 
