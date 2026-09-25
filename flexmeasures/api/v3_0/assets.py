@@ -62,6 +62,7 @@ from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_asset_automations_job_stats,
     get_automation_job_stats,
+    get_automation_run_stats,
     resolve_automation_sensors,
     run_automation,
     update_automation,
@@ -1495,6 +1496,7 @@ class AssetAPI(FlaskView):
                             cursor: "2026-07-11T06:00:00+02:00"
                             next-run: "2026-07-12T06:00:00+02:00"
                             recurrence-description: "At 06:00"
+                            schedule-revision: 1
                             active: true
                             job-stats:
                               finished: 3
@@ -1570,8 +1572,8 @@ class AssetAPI(FlaskView):
             the automation's parameters (forecast parameters or a schedule trigger message),
             the data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,
             the sensors it reads from and writes to,
-            and counts of recently created jobs, per job status.
-            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            durable run status, and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.
             The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
@@ -1608,6 +1610,7 @@ class AssetAPI(FlaskView):
                         cursor: "2026-07-11T06:00:00+02:00"
                         next-run: "2026-07-12T06:00:00+02:00"
                         recurrence-description: "At 06:00"
+                        schedule-revision: 1
                         active: true
                         parameters:
                           sensor: 2092
@@ -1628,6 +1631,23 @@ class AssetAPI(FlaskView):
                         job-stats:
                           finished: 3
                           failed: 1
+                        run-stats:
+                          total: 1
+                          dispatch:
+                            queued: 1
+                          execution:
+                            succeeded: 1
+                          latest-run:
+                            id: 12
+                            scheduled-at: "2026-07-11T04:00:00+00:00"
+                            schedule-revision: 1
+                            dispatch-state: queued
+                            execution-state: succeeded
+                            attempt-count: 1
+                            intended-job-count: 2
+                            queued-job-count: 2
+                            last-error: null
+                          recent-runs: []
                         redis-connection-err: null
             401:
               description: UNAUTHORIZED
@@ -1695,6 +1715,7 @@ class AssetAPI(FlaskView):
             redis_connection_err = (
                 "Redis is unavailable; job statistics could not be loaded."
             )
+        automation_data["run-stats"] = get_automation_run_stats(automation)
         automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 

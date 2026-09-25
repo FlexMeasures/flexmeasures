@@ -507,6 +507,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         const generator = res.source
           ? `${res.source.description} (data source ${res.source.id})`
           : "None";
+        const runStats = res["run-stats"] || {};
+        const latestRun = runStats["latest-run"];
+        const latestRunSummary = latestRun
+          ? {
+              id: latestRun.id,
+              "scheduled-at": latestRun["scheduled-at"],
+              "dispatch-state": latestRun["dispatch-state"],
+              "execution-state": latestRun["execution-state"],
+              "attempt-count": latestRun["attempt-count"],
+              "intended-job-count": latestRun["intended-job-count"],
+              "queued-job-count": latestRun["queued-job-count"],
+              "last-error": latestRun["last-error"],
+            }
+          : null;
         /* The configuration belongs with the source it describes: it is what separates this data source
            from another one of the same model, so it is read together with the source rather than apart from it. */
         const generatorConfig = res.source && res.source.config && Object.keys(res.source.config).length
@@ -517,6 +531,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${esc(res.timezone)}</p>
           <h6 title="Read on the automation's own clock, ${esc(res.timezone)}.">Cursor</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
+          <h6>Schedule revision</h6>
+          <p>${esc(res["schedule-revision"])}</p>
           <h6>Data source</h6>
           <p>${esc(generator)}</p>
           <h6 title="The static settings this data source was created with. Changing one of them makes a new data source.">Configuration</h6>
@@ -527,6 +543,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${sensorLinks(res["output-sensors"], res.source)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
+          <h6>Durable runs</h6>
+          <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
