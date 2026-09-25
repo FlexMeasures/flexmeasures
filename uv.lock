@@ -1466,8 +1466,6 @@ dependencies = [
     { name = "marshmallow-oneofschema" },
     { name = "marshmallow-polyfield" },
     { name = "marshmallow-sqlalchemy" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and os_name == 'nt') or (python_full_version < '3.11' and platform_machine != 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32') or (python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32') or (os_name != 'nt' and platform_machine == 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and os_name == 'nt') or (python_full_version >= '3.11' and platform_machine != 'x86_64' and sys_platform != 'linux' and sys_platform != 'win32') or (python_full_version >= '3.11' and sys_platform == 'linux') or (python_full_version >= '3.11' and sys_platform == 'win32')" },
     { name = "openpyxl" },
     { name = "packaging" },
     { name = "pandas" },
@@ -1599,7 +1597,6 @@ requires-dist = [
     { name = "marshmallow-oneofschema", specifier = ">=3.2.0" },
     { name = "marshmallow-polyfield", specifier = ">=5.11" },
     { name = "marshmallow-sqlalchemy", specifier = ">=0.23.1" },
-    { name = "numpy", specifier = "<2.5" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "packaging", specifier = ">=26.2" },
     { name = "pandas", specifier = ">=2.2.1" },
@@ -1623,7 +1620,7 @@ requires-dist = [
     { name = "setuptools", specifier = ">=83.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
-    { name = "timely-beliefs", specifier = ">=4.2.0" },
+    { name = "timely-beliefs", specifier = ">=4.4.1" },
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "uniplot", specifier = ">=0.12.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
@@ -5000,7 +4997,7 @@ wheels = [
 
 [[package]]
 name = "timely-beliefs"
-version = "4.4.0"
+version = "4.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-metadata" },
@@ -5019,9 +5016,9 @@ dependencies = [
     { name = "sqlalchemy", version = "2.0.54", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "sqlalchemy", version = "2.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/fb/f1dbaf23298b8a499abb719d3c0577f8f69a151e39691693fbac2c2fb579/timely_beliefs-4.4.0.tar.gz", hash = "sha256:783869431897b9c961a9cb20672359504d3af923961a88284e2625cf8e8118c6", size = 816396, upload-time = "2026-09-25T09:42:15.283Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/57/769d59116d85f6ebf953b31b78ce1496bf8b539fbf2f33a410a5404eb2f9/timely_beliefs-4.4.1.tar.gz", hash = "sha256:47a85e43992efc96b097344ecb208f92224b26817c28413370da99add36288b3", size = 816807, upload-time = "2026-09-25T20:36:46.451Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/db/5f52369ffc8a1345630c94ee0064359fa7e889334d683fad3b59d0554332/timely_beliefs-4.4.0-py2.py3-none-any.whl", hash = "sha256:6792273090385fff64f042950f870e6fc411a72d53ddc7c00b7f2ce0639cda69", size = 828612, upload-time = "2026-09-25T09:42:13.835Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/7b/1a70b376ce9dd5a6e7a11b7a59d45f041c1668ce3774bcbe1b6a6a605b20/timely_beliefs-4.4.1-py2.py3-none-any.whl", hash = "sha256:af3cbeb677450d2c23fb64f122d28b3f1fb22742d92a41613fd8170824bcf1f1", size = 829091, upload-time = "2026-09-25T20:36:44.295Z" },
 ]
 
 [[package]]
