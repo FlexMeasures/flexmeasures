@@ -59,6 +59,8 @@ Infrastructure / Support
 * Add ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` so hosts can configure deprecation and sunset dates and information links per deprecated API version [see `PR #2362 <https://github.com/FlexMeasures/flexmeasures/pull/2362>`_].
 * A CLI command that is called with an invalid option value now logs one error line, so that a cron job which captures only the log file still records why the command failed, where previously Click reported it on stderr alone and nothing was written [see `PR #2544 <https://www.github.com/FlexMeasures/flexmeasures/pull/2544>`_]
 * Settings that a plugin declares in its ``__settings__`` can now be set as environment variables, next to being set in the config file (which still wins), can declare a ``default`` to fall back to, and are reported as missing with a message that says whether such a default applies or the setting stays unset [see `PR #2501 <https://www.github.com/FlexMeasures/flexmeasures/pull/2501>`_]
+* Support SQLAlchemy 2.1 and upgrade dependencies, including timely-beliefs 4.4 and Flask-Security-Too 5.9, while FlexMeasures keeps connecting through psycopg2 when ``SQLALCHEMY_DATABASE_URI`` names no driver, and ``flexmeasures db-ops dump`` and ``restore`` now also work when it does [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
+* Durations for Flask-Security, such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``, can now also be given as an ISO 8601 duration (e.g. ``"P1W"``), and in weeks (e.g. ``"1 week"``) on any version of Flask-Security [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 
 Bugfixes
 -----------
@@ -76,6 +78,7 @@ Bugfixes
 * A chart of a sensor with a single data point in view, such as a daily sensor of which only one day was recorded, drew that point as a bar spanning most of the chart and stretched the shown time range around it; a bar now covers exactly the event it reports, whatever the chart holds [see `PR #2511 <https://www.github.com/FlexMeasures/flexmeasures/pull/2511>`_]
 * Asset type groups were named by a pluralization that mangled acronyms and nouns ending in -y, so the asset pages listed ``PVS``, ``EVS``, ``CHPS`` and ``Factorys``; they now read ``PVs``, ``EVs``, ``CHPs`` and ``Factories`` [see `PR #2514 <https://www.github.com/FlexMeasures/flexmeasures/pull/2514>`_]
 * A new commitment's prices now default to the currency of the price sensors in the flex-context, where they fell back to EUR unless a fixed price was set [see `PR #2574 <https://www.github.com/FlexMeasures/flexmeasures/pull/2574>`_]
+* A page failing on an unexpected error now shows the error page, where browsers behind a proxy reported a broken or insecure connection instead, and such an error no longer reveals the database query that failed [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 
 Automations, in detail
 -----------------------
@@ -94,6 +97,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Look up automations from the command line with ``flexmeasures show automations``, which lists them all (inactive ones included) with the IDs that the edit, delete and run commands expect, and, with ``--id``, shows a single automation's recurrence, cursor, parameters and the sensors it reads from and writes to [see `PR #2533 <https://www.github.com/FlexMeasures/flexmeasures/pull/2533>`_]
 * The *Automations* page lists the automations of the assets below an asset too, says when each automation runs next, keeps itself up to date, and shows the configuration of an automation's data source, which the *New automation* form now also lets you set [see `PR #2554 <https://www.github.com/FlexMeasures/flexmeasures/pull/2554>`_]
 * Automations now keep a durable record of every scheduled run, so a forecast run which failed before queueing any work is simply picked up again, while one which failed halfway only queues the jobs it still owes; an automation's details show, per run, what it queued, how many attempts that took, and, for its forecast jobs, how they ended [see `PR #2457 <https://www.github.com/FlexMeasures/flexmeasures/pull/2457>`_]
+* Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization [see `PR #2553 <https://github.com/FlexMeasures/flexmeasures/pull/2553>`_]
 
 
