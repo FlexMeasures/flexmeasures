@@ -121,10 +121,7 @@ class AutomationCreationSchema(Schema):
         load_default=None,
         allow_none=True,
         metadata={
-            "description": "Id of an existing data source to reuse, instead of naming a `data-generator` and its `config`."
-            " The data generator class and the configuration it runs under are read from that source,"
-            " and the automation records its results under it, so several automations can share one generator and one lineage of data."
-            " A schedule automation cannot name one, as it resolves its data source from the asset and the flex config on every run.",
+            "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
             "example": 6,
         },
     )
