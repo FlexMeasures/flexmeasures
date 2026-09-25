@@ -64,6 +64,7 @@ from flexmeasures.data.services.data_sources import (
     get_data_generator,
 )
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
+from flexmeasures.data.services.accounts import create_account
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import (
     Account,
@@ -100,7 +101,7 @@ from flexmeasures.data.schemas.generic_assets import (
 from flexmeasures.data.schemas.utils import snake_to_kebab
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.data_sources import (
     get_source_or_none,
@@ -363,15 +364,14 @@ def new_account(
         else secondary_color
     )
 
-    account = Account(
+    account = create_account(
         name=name,
         consultancy_account=consultancy_account,
         primary_color=primary_color,
         secondary_color=secondary_color,
         logo_url=logo_url,
+        context="via CLI",
     )
-    db.session.add(account)
-    db.session.flush()
     if roles:
         for role_name in roles.split(","):
             role = db.session.execute(
@@ -382,12 +382,6 @@ def new_account(
                 role = AccountRole(name=role_name)
                 db.session.add(role)
             db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
-    account_audit_log = AuditLog(
-        event_datetime=server_now(),
-        event=f"Created account '{name}' ({account.id}) via CLI",
-        affected_account_id=account.id,
-    )
-    db.session.add(account_audit_log)
     db.session.commit()
     click.secho(
         f"Account '{name}' (ID: {account.id}) successfully created.",
@@ -1979,8 +1973,9 @@ def add_automation(  # noqa: C901
             origin="CLI",
         )
     except ValidationError as e:
+        # The messages name the part of the request at fault, which is not always the parameters.
         click.secho(
-            f"Invalid {handler.result_noun} parameters: {e.messages}",
+            f"Invalid {handler.result_noun} automation: {e.messages}",
             **MsgStyle.ERROR,
         )
         raise click.Abort()

@@ -73,7 +73,7 @@ def test_custom_cli_rejects_invalid_parameters(
         add_automation, ingestion_cli_args(tmp_path, root, sensors[0], parameters)
     )
     assert result.exit_code != 0
-    assert "Invalid measurement parameters" in result.output
+    assert "Invalid measurement automation" in result.output
     assert "Unknown field" in result.output or "Not a valid number" in result.output
     assert fresh_db.session.scalar(select(Automation)) is None
 
