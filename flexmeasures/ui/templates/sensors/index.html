@@ -288,7 +288,7 @@ For the data, note the following:
                               </tr>
                               <tr>
                                   <th>Unit</th>
-                                  <td>{{ sensor._ui_unit | safe }}</td>
+                                  <td>{% if sensor.unit == "" %}<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>{% else %}{{ sensor.unit }}{% endif %}</td>
                               </tr>
                               <tr>
                                   <th>Event resolution</th>
@@ -491,9 +491,7 @@ For the data, note the following:
     document.getElementById('sourceDetailsButton')?.addEventListener('click', function () {
         showSourceDetails(this.dataset.sourceId);
     });
-    let availableUnitsRawJSON = "{{ available_units | safe }}";
-    availableUnitsRawJSON = availableUnitsRawJSON.replace(/'/g, '"');
-    const availableUnits = JSON.parse(availableUnitsRawJSON);
+    const availableUnits = {{ available_units | tojson }};
     
     const flexUnitsSelect = document.getElementById('flexUnitsSelect');
     
