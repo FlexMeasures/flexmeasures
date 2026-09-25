@@ -118,10 +118,15 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
     inserts the solar asset type, and only commits once our provisioning is waiting for it.
     With the lock, we wait on the lock; without it, our insert of that type waits on the unique index, and fails once the other one commits.
     Either way, our connection shows up in pg_stat_activity as waiting on a lock, which is what the other one waits for.
+    It watches our connection only, so an unrelated backend waiting on a lock cannot set it off.
     """
     lock_taken = threading.Event()
     provisioning_waited = threading.Event()
     engine = fresh_db.engine  # needs the app context, which the thread does not have
+    # The session keeps this connection for the transaction in which provisioning then runs.
+    provisioning_pid = fresh_db.session.execute(
+        text("SELECT pg_backend_pid()")
+    ).scalar()
 
     def provision_in_another_process():
         with engine.connect() as connection, connection.begin():
@@ -139,13 +144,13 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
             while time.monotonic() < deadline:
                 # Within a transaction, pg_stat_activity is a snapshot, unless we clear it.
                 connection.execute(text("SELECT pg_stat_clear_snapshot()"))
-                others_waiting = connection.execute(
+                provisioning_waits = connection.execute(
                     text(
-                        "SELECT count(*) FROM pg_stat_activity"
-                        " WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'"
-                    )
+                        "SELECT count(*) FROM pg_stat_activity WHERE pid = :pid AND wait_event_type = 'Lock'"
+                    ),
+                    {"pid": provisioning_pid},
                 ).scalar()
-                if others_waiting:
+                if provisioning_waits:
                     provisioning_waited.set()
                     return  # commit, now that the provisioning waits for us
                 time.sleep(0.05)
