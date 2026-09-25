@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from sqlalchemy import select
 
 from flask import url_for
@@ -21,6 +22,35 @@ def login(the_client, email, password):
 
 def logout(client):
     return client.get(url_for("security.logout"), follow_redirects=True)
+
+
+def assert_asset_listing_filter_row(page_data: bytes):
+    """Assert that an asset listing offers its two filter checkboxes side by side, with the defaults we want.
+
+    The checkboxes share one flex row because a Bootstrap card is itself a flex column: a direct child of it is blockified, so two `form-check-inline` divs would stack and eat vertical space.
+    """
+    row = re.search(
+        rb'<div class="d-flex flex-wrap">(.*?)<div class="table-responsive">',
+        page_data,
+        re.S,
+    )
+    assert row is not None, "no filter row precedes the asset table"
+    top_level = re.search(
+        rb'<input\s[^>]*id="topLevelAssetsOnlyCheckbox"[^>]*>', row.group(1)
+    )
+    include_public = re.search(
+        rb'<input\s[^>]*id="includePublicAssetsCheckbox"[^>]*>', row.group(1)
+    )
+    assert (
+        top_level is not None
+    ), "the 'Top-level only' checkbox is not in the filter row"
+    assert (
+        include_public is not None
+    ), "the 'Include public assets' checkbox is not in the filter row"
+    assert b"checked" in top_level.group(0), "'Top-level only' should start out checked"
+    assert b"checked" not in include_public.group(
+        0
+    ), "'Include public assets' should start out unchecked"
 
 
 def mock_asset_data(

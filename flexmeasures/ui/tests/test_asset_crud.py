@@ -11,6 +11,7 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.tests.utils import (
+    assert_asset_listing_filter_row,
     mock_asset_data,
     mock_asset_data_with_kpis,
     mock_asset_data_as_form_input,
@@ -28,6 +29,13 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 def test_assets_page_empty(db, client, as_prosumer_user1):
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
+
+
+def test_assets_page_filter_checkboxes(db, client, as_prosumer_user1):
+    """The asset listing offers both filter checkboxes in one row: 'Top-level only' checked, 'Include public assets' not."""
+    asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
+    assert asset_index.status_code == 200
+    assert_asset_listing_filter_row(asset_index.data)
 
 
 def test_new_asset_page(client, setup_assets, as_admin):
@@ -72,8 +80,10 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
         assert "Schedules".encode() in asset_page.data
+        assert "Reports".encode() in asset_page.data
         assert b'id="automationsTable-forecasting"' in asset_page.data
         assert b'id="automationsTable-scheduling"' in asset_page.data
+        assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
         assert b"No ${automationType} automations" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
@@ -81,15 +91,88 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
         assert b"`#automationsTable-${automationType}`" in asset_page.data
         assert b"columns.adjust();" in asset_page.data
-        assert b'title: "Timezone"' in asset_page.data
-        assert b"Cursor (UTC)" in asset_page.data
+        assert b'title: "Recurrence timezone"' in asset_page.data
+        # The cell says how far off the run is; the clock time moved to its tooltip.
+        assert b'title: "Next run"' in asset_page.data
+        assert b"timeZone: timezone" in asset_page.data
+        assert b'"next-run": nextRun(automation)' in asset_page.data
+        assert (
+            b'getHumanFriendlyDeltaOrTimeStr(automation["next-run"]' in asset_page.data
+        )
+        # The cursor is rendered in the automation's own timezone, so the label no longer says UTC.
+        assert b"Cursor (UTC)" not in asset_page.data
+        assert b">Cursor</h6>" in asset_page.data
         assert b"timezone: esc(automation.timezone)" in asset_page.data
         assert b'esc(res.cursor || "Not initialized yet")' in asset_page.data
+        # The listing reaches below the asset, and refreshes itself.
+        assert b"include-child-assets=${includeChildAssets}" in asset_page.data
+        assert (
+            b"setInterval(refreshAutomationsWhenIdle, REFRESH_INTERVAL_MS)"
+            in asset_page.data
+        )
+        # A forecast or report automation can be given its generator's configuration on creation.
+        assert b'id="automationConfig"' in asset_page.data
+        assert b'id="automationGenerator"' in asset_page.data
+        assert (
+            b'readJsonField("#automationConfig", "Data generator config")'
+            in asset_page.data
+        )
+        # It is the sending that matters, so pin the payload lines, not just the parsing.
+        assert b'"data-generator": generator || null' in asset_page.data
+        assert b"config: config," in asset_page.data
+        # A schedule automation's generator follows from the asset, so it is not offered one.
+        assert (
+            b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data
+        )
+        assert b'$("#automationType").val() !== "scheduling"' in asset_page.data
+        # The per-automation panel is called Info, and reports the data source's configuration.
+        assert b">Info</button>" in asset_page.data
+        assert b"<h6>Data source</h6>" in asset_page.data
+        assert b"res.source.config" in asset_page.data
     if view in ("get", "context"):
         assert "Show sensors".encode() in asset_page.data
         assert "Edit flex-context".encode() in asset_page.data
         assert "Structure".encode() in asset_page.data
         assert "Location".encode() in asset_page.data
+
+
+@pytest.mark.parametrize("default_view", ["Automations", "Graphs"])
+def test_asset_page_opens_the_view_set_as_default(
+    db, client, setup_assets, as_prosumer_user1, default_view
+):
+    """Clicking an asset opens the view the user set as their default, rather than Context."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    with client.session_transaction() as session:
+        session["default_asset_view"] = default_view
+
+    asset_page = client.get(url_for("AssetCrudUI:get", id=asset.id))
+    assert asset_page.status_code == 302
+    assert asset_page.headers["Location"].endswith(
+        "/assets/{}/{}".format(asset.id, default_view.lower())
+    )
+
+
+def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
+    asset = setup_assets["wind-asset-1"]
+
+    response = client.get(url_for("AssetCrudUI:automations", id=asset.id))
+
+    assert response.status_code == 200
+    assert b'id="automationTimezone"' in response.data
+    assert f'value="{asset.timezone}"'.encode() in response.data
+    assert b'<option value="Europe/Amsterdam"></option>' in response.data
+    assert b'id="editAutomationModal"' in response.data
+    assert b'id="editAutomationTimezone"' in response.data
+    assert (
+        b"Use five fields: minute, hour, day of month, month, day of week."
+        in response.data
+    )
+    assert b"The local clock the recurrence is read in." in response.data
+    assert b'timezone: $("#automationTimezone").val()' in response.data
+    assert b'timezone: $("#editAutomationTimezone").val()' in response.data
 
 
 @pytest.mark.parametrize(

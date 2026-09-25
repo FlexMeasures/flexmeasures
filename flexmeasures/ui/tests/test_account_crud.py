@@ -10,7 +10,11 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.utils.time_utils import server_now
 
-from flexmeasures.ui.tests.utils import login, logout
+from flexmeasures.ui.tests.utils import (
+    assert_asset_listing_filter_row,
+    login,
+    logout,
+)
 
 account_api_path = "http://localhost//api/v3_0/accounts"
 
@@ -32,6 +36,16 @@ def test_account_page(db, client, as_prosumer_user1):
     assert str(f"Account: {current_user.account.name}") in str(account_page.data)
     assert b"All users" in account_page.data
     assert str(current_user.username) in str(account_page.data)
+
+
+def test_account_page_asset_filter_checkboxes(db, client, as_prosumer_user1):
+    """The account's asset listing offers both filter checkboxes in one row: 'Top-level only' checked, 'Include public assets' not."""
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=current_user.account_id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 200
+    assert_asset_listing_filter_row(account_page.data)
 
 
 def test_account_page_breadcrumb(db, client, as_prosumer_user1):

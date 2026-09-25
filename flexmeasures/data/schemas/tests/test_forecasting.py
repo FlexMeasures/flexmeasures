@@ -10,7 +10,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.sensors import SensorReference
+from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
 
@@ -665,6 +665,55 @@ def test_forecaster_config_schema_loads_plain_regressor_sensor_ids(
         assert isinstance(data[field_name][0], Sensor)
 
 
+def test_forecaster_parameters_schema_loads_filtered_target_reference(
+    setup_dummy_sensors,
+    setup_sources,
+    setup_accounts,
+    db,
+):
+    """The target sensor may name the sources whose beliefs to train on."""
+    sensor, *_ = setup_dummy_sensors
+    source = setup_sources["Seita"]
+    account = setup_accounts["Prosumer"]
+    db.session.flush()
+
+    data = ForecasterParametersSchema().load(
+        {
+            "sensor": {
+                "sensor": sensor.id,
+                "sources": [source.id],
+                "source-types": ["demo script"],
+                "exclude-source-types": ["forecaster"],
+                "source-account": [account.id],
+            }
+        }
+    )
+
+    target = data["sensor"]
+    assert isinstance(target, SensorReference)
+    assert target.sensor == sensor
+    assert target.sources == [source]
+    assert target.source_types == ["demo script"]
+    assert target.exclude_source_types == ["forecaster"]
+    assert target.source_account == [account]
+
+    # Forecasts are recorded on a sensor, so the output sensor is the plain sensor the reference wraps.
+    assert data["sensor_to_save"] == sensor
+    assert isinstance(data["sensor_to_save"], Sensor)
+
+
+def test_forecaster_parameters_schema_still_loads_a_bare_target_sensor_id(
+    setup_dummy_sensors,
+):
+    """A target given by ID keeps deserializing to a plain sensor."""
+    sensor, *_ = setup_dummy_sensors
+
+    data = ForecasterParametersSchema().load({"sensor": sensor.id})
+
+    assert data["sensor"] == sensor
+    assert isinstance(data["sensor"], Sensor)
+
+
 @pytest.mark.parametrize(
     "regressor_field", ["future-regressors", "past-regressors", "regressors"]
 )
@@ -902,6 +951,164 @@ def test_forecaster_config_schema_falls_back_to_the_default_training_period():
     """Asking for no period of its own leaves the default to say how much history to use."""
     config = TrainPredictPipelineConfigSchema().load({"train-period": None})
     assert config["train_period_in_hours"] == 30 * 24
+
+
+def test_forecaster_config_schema_loads_regressor_cleaning_bounds(
+    setup_dummy_sensors,
+):
+    """A regressor may say how its own readings should be cleaned before training."""
+    # The MW sensor, so that bounds given in kW can be read in its unit.
+    *_, sensor = setup_dummy_sensors
+
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "past-regressors": [
+                {
+                    "sensor": sensor.id,
+                    "lower": "0 kW",
+                    "upper": "20 kW",
+                    "snap": {"0 kW": ["0 kW", "0.5 kW"]},
+                }
+            ]
+        }
+    )
+
+    regressor = data["past_regressors"][0]
+    assert isinstance(regressor, SensorReference)
+    assert regressor.sensor == sensor
+    assert (regressor.lower, regressor.upper) == ("0 kW", "20 kW")
+    assert regressor.snap == {"0 kW": ["0 kW", "0.5 kW"]}
+    assert regressor.has_bounds
+
+
+def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
+    setup_dummy_sensors,
+):
+    """Without bounds or filters, a reference still collapses to the sensor itself."""
+    sensor, *_ = setup_dummy_sensors
+
+    for reference in (
+        {"sensor": sensor.id},
+        {"sensor": sensor.id, "lower": None, "upper": None, "snap": {}},
+        {"sensor": sensor.id, "snap": None},
+    ):
+        data = TrainPredictPipelineConfigSchema().load({"past-regressors": [reference]})
+
+        assert data["past_regressors"] == [sensor]
+        assert isinstance(data["past_regressors"][0], Sensor)
+
+
+def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
+    setup_dummy_sensors,
+    db,
+):
+    """The target may be cleaned before it becomes training labels."""
+    # The MW sensor, so that bounds given in kW can be read in its unit.
+    *_, sensor = setup_dummy_sensors
+    db.session.flush()
+
+    data = ForecasterParametersSchema().load(
+        {"sensor": {"sensor": sensor.id, "lower": "0 kW"}}
+    )
+
+    target = data["sensor"]
+    assert isinstance(target, SensorReference)
+    assert target.lower == "0 kW"
+
+
+def test_forecaster_config_schema_rejects_an_unparseable_regressor_bound(
+    setup_dummy_sensors,
+):
+    sensor, *_ = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"past-regressors": [{"sensor": sensor.id, "lower": "not a quantity"}]}
+        )
+
+    assert "past-regressors" in exc.value.messages
+
+
+def test_cleaning_bounds_live_on_the_shared_sensor_reference(setup_dummy_sensors):
+    """The bounds sit on the shared reference, so every sensor reference can carry them.
+
+    Only forecaster inputs act on them for now, so flex-model and flex-context references refuse them (see test_sensor.py).
+    """
+    # The MW sensor, so that bounds given in kW can be read in its unit.
+    *_, sensor = setup_dummy_sensors
+
+    loaded = SensorReferenceSchema().load({"sensor": sensor.id, "lower": "0 kW"})
+    assert loaded["lower"] == "0 kW"
+
+    # A bound that cannot be read as a quantity is still refused here.
+    with pytest.raises(ValidationError) as exc:
+        SensorReferenceSchema().load({"sensor": sensor.id, "lower": "not a quantity"})
+    assert "lower" in exc.value.messages
+
+
+@pytest.mark.parametrize(
+    "bounds, rejected_field",
+    [
+        ({"lower": "5 EUR"}, "lower"),
+        ({"upper": "5 EUR"}, "upper"),
+        ({"snap": {"0 EUR": ["0 EUR", "1 EUR"]}}, "snap"),
+        ({"snap": {"2 kW": ["0 kW", "1 kW"]}}, "snap"),
+        ({"lower": "20 kW", "upper": "10 kW"}, "lower"),
+        ({"lower": True}, "lower"),
+        ({"snap": {"0 kW": [False, "1 kW"]}}, "snap"),
+    ],
+)
+def test_sensor_reference_refuses_bounds_it_cannot_apply_when_loaded(
+    setup_dummy_sensors, bounds, rejected_field
+):
+    """Bounds that only fail once applied are refused when the reference is loaded, not when a job reads the data.
+
+    The referenced sensor is known at load time,
+    so an incompatible unit, a snap target outside its interval and a lower bound above the upper bound are all caught up front.
+    """
+    *_, power_sensor = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        SensorReferenceSchema().load({"sensor": power_sensor.id, **bounds})
+
+    assert rejected_field in exc.value.messages
+
+
+def test_forecaster_config_schema_refuses_a_regressor_bound_in_an_incompatible_unit(
+    setup_dummy_sensors,
+):
+    """A regressor bound the regressor cannot take fails the config, rather than the queued forecasting job."""
+    *_, power_sensor = setup_dummy_sensors
+
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"past-regressors": [{"sensor": power_sensor.id, "lower": "5 EUR"}]}
+        )
+
+    assert "past-regressors" in exc.value.messages
+
+
+def test_a_reference_without_bounds_serialises_as_it_did_before(setup_dummy_sensors):
+    """Adding the bounds must not add empty keys to references that set none."""
+    sensor, *_ = setup_dummy_sensors
+
+    dumped = SensorReferenceSchema().dump(SensorReference(sensor=sensor))
+
+    assert "lower" not in dumped and "upper" not in dumped and "snap" not in dumped
+
+    # A zero bound is meaningful, so it survives the same cleanup.
+    assert (
+        SensorReferenceSchema().dump(SensorReference(sensor=sensor, lower=0))["lower"]
+        == 0
+    )
+
+
+def test_forecaster_config_schema_refuses_a_boolean_output_bound():
+    """A JSON true is a number to Python, but no bound, so the output bounds refuse it before any sensor unit is known."""
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load({"lower": True})
+
+    assert "lower" in exc.value.messages
 
 
 def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():

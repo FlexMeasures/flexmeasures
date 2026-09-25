@@ -910,6 +910,10 @@ def _resolve_schedule_output_sign(
     return 1
 
 
+class ScheduleWritesUncheckedSensor(PermissionError):
+    """Raised when a scheduler returns results for a sensor that nobody's permissions were checked against."""
+
+
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
@@ -1040,6 +1044,30 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
+
+    permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
+    if permitted_output_sensor_ids is not None:
+        # Judge the whole set before writing any of it.
+        # The job's transaction would roll an interrupted write back, since `save_to_db` only flushes,
+        # but a refusal should not depend on the caller's transaction discipline,
+        # and `make_schedule` is also called directly.
+        refused = sorted(
+            {
+                result["sensor"].id
+                for result in consumption_schedule
+                if "sensor" in result
+                and result["sensor"].id not in permitted_output_sensor_ids
+            }
+        )
+        if refused:
+            raise ScheduleWritesUncheckedSensor(
+                f"This schedule would record data on sensor(s) {', '.join(str(i) for i in refused)},"
+                f" which are not among the sensors automation {rq_job.meta['trigger']['automation_id']}"
+                " was checked against when it was created."
+            )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     num_beliefs_created = 0
     for result in consumption_schedule:

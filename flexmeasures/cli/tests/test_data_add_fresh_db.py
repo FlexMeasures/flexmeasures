@@ -1,3 +1,5 @@
+import re
+
 import pytest
 import json
 import yaml
@@ -10,6 +12,7 @@ from sqlalchemy import func, select
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
@@ -59,6 +62,14 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     )
     assert f"for sensor `sensor 1` (ID {sensor_id})" in result.output
 
+    # The source is named, but never by ID: a source this run had to create is rolled back on the way out,
+    # so any ID reported for it would belong to nothing by the time the command returns.
+    assert "to be recorded under data source `" in result.output
+    assert (
+        "data source `FlexMeasures's TrainPredictPipeline forecaster` (ID"
+        not in result.output
+    )
+
     # The forecaster's data source is flushed, because the dry run reports which source it would have recorded under,
     # but it is never committed, so no more of it survives the session than of the beliefs.
     fresh_db.session.rollback()
@@ -70,6 +81,14 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     assert result.exit_code == 0, result.output
     assert "Successfully created" in result.output
     assert _count_beliefs(fresh_db, sensor_id) > beliefs_before_dry_run
+
+    # A run that commits does name its data source by ID, and that ID is one you can look up.
+    reported_source_id = int(
+        re.search(r"under data source `.*` \(ID (\d+)\)", result.output).group(1)
+    )
+    assert (
+        fresh_db.session.get(DataSource, reported_source_id).type == "forecaster"
+    ), f"the source ID reported on a committed run should exist: {result.output}"
 
 
 def test_add_forecast_dry_run_reports_an_empty_forecast(
@@ -607,6 +626,11 @@ def test_add_account(
             select(Account).filter_by(name=cli_input["name"])
         ).scalar_one_or_none()
         assert account.consultancy_account_id == consultancy_account_id
+        audit_log = fresh_db.session.execute(
+            select(AuditLog).filter_by(affected_account_id=account.id)
+        ).scalar_one()
+        assert audit_log.event == f"Created organisation '{name}': {account.id} via CLI"
+        assert audit_log.active_user_id is None
 
     else:
         # fail because "Test ConsultancyClient Account" already exists
