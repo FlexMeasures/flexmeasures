@@ -84,7 +84,12 @@ class Config(object):
     SECURITY_TWO_FACTOR_ALWAYS_VALIDATE = (
         True  # False if you want to skip validation for testing
     )
-    SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
+    # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False.
+    # Flask-Security builds a timedelta from "<amount> <unit>", so the unit must be a timedelta keyword ("days", not "week");
+    # it deprecates strings in favour of a timedelta as of 5.9, but on Python 3.10 we still get 5.8, which only reads strings.
+    SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "7 days"
+    # The UI logs out through a plain link, i.e. a GET request, which Flask-Security no longer allows by default as of 5.9
+    SECURITY_LOGOUT_METHODS = ["GET", "POST"]
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
     # this default probably is not what you want (default sender is usually a no-reply address)
     SECURITY_TWO_FACTOR_RESCUE_MAIL = (
