@@ -115,10 +115,12 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
     """Provisioning waits for a concurrent one to commit, rather than inserting the same rows and failing.
 
     Another process is simulated by a thread with its own connection, which takes the provisioning lock,
-    inserts the solar asset type, and only commits a second later.
-    Without the lock, our insert of that type would wait on the unique index, and fail once the other one commits.
+    inserts the solar asset type, and only commits once our provisioning is waiting for it.
+    With the lock, we wait on the lock; without it, our insert of that type waits on the unique index, and fails once the other one commits.
+    Either way, our connection shows up in pg_stat_activity as waiting on a lock, which is what the other one waits for.
     """
     lock_taken = threading.Event()
+    provisioning_waited = threading.Event()
     engine = fresh_db.engine  # needs the app context, which the thread does not have
 
     def provision_in_another_process():
@@ -133,7 +135,20 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
                 )
             )
             lock_taken.set()
-            time.sleep(1)
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                # Within a transaction, pg_stat_activity is a snapshot, unless we clear it.
+                connection.execute(text("SELECT pg_stat_clear_snapshot()"))
+                others_waiting = connection.execute(
+                    text(
+                        "SELECT count(*) FROM pg_stat_activity"
+                        " WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'"
+                    )
+                ).scalar()
+                if others_waiting:
+                    provisioning_waited.set()
+                    return  # commit, now that the provisioning waits for us
+                time.sleep(0.05)
 
     other_process = threading.Thread(target=provision_in_another_process)
     other_process.start()
@@ -143,6 +158,9 @@ def test_provisioning_waits_for_another_process_provisioning(fresh_db):
     finally:
         other_process.join()
 
+    assert (
+        provisioning_waited.is_set()
+    ), "Provisioning never waited for the other process."
     assert (
         fresh_db.session.scalar(
             select(func.count())
