@@ -467,6 +467,54 @@ def test_provision_default_template_assets_on_startup_skips_database_commands(
     provision_default_template_assets_on_startup(app)
 
 
+class _DBAPIError(Exception):
+    """Stands in for a driver error, which carries its SQLSTATE (as pgcode in psycopg2)."""
+
+    def __init__(self, pgcode: str):
+        super().__init__(f"SQLSTATE {pgcode}")
+        self.pgcode = pgcode
+
+
+@pytest.mark.parametrize(
+    "pgcode, starts",
+    [
+        ("23505", True),  # unique violation: another process provisioned first.
+        ("23502", False),  # not-null violation: a bug in the provisioning.
+    ],
+)
+def test_provision_default_template_assets_on_startup_only_tolerates_unique_violations(
+    app, monkeypatch, caplog, pgcode, starts
+):
+    from sqlalchemy.exc import IntegrityError
+
+    def provision_with_integrity_error(db):
+        raise IntegrityError(
+            "INSERT INTO generic_asset_type ...", {}, _DBAPIError(pgcode)
+        )
+
+    monkeypatch.setattr(app, "testing", False)
+    monkeypatch.setitem(app.config, "FLEXMEASURES_ENV", "production")
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", True
+    )
+    monkeypatch.setattr("flexmeasures.data.is_running_database_command", lambda: False)
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.database_schema_has_revision", lambda app, rev: True
+    )
+    monkeypatch.setattr(
+        "flexmeasures.data.scripts.data_gen.provision_default_template_assets",
+        provision_with_integrity_error,
+    )
+
+    if starts:
+        with caplog.at_level(logging.INFO):
+            provision_default_template_assets_on_startup(app)
+        assert "another process provisioned first" in caplog.text
+    else:
+        with pytest.raises(IntegrityError):
+            provision_default_template_assets_on_startup(app)
+
+
 def test_is_running_database_command(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
