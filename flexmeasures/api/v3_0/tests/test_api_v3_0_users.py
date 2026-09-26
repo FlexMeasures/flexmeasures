@@ -1,10 +1,7 @@
-from importlib import metadata
-
 from flask import url_for
 from flask_login import current_user, logout_user
 from sqlalchemy import select
 import pytest
-from packaging.version import Version
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.services.users import find_user_by_email
@@ -300,10 +297,6 @@ def test_logout(client, setup_api_test_data, requesting_user):
     assert current_user.is_anonymous
 
 
-@pytest.mark.skipif(
-    Version(metadata.version("flask-security-too")) < Version("5.9"),
-    reason="Flask-Security allows logging out by GET before 5.9.",
-)
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_logout_needs_a_post(client, setup_api_test_data, requesting_user):
     """A GET request does not log out, so that another site cannot log users out by linking to the logout URL."""

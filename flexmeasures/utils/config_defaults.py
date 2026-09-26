@@ -85,6 +85,8 @@ class Config(object):
         True  # False if you want to skip validation for testing
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
+    # Flask-Security's default as of 5.9, set here for 5.8, which Python 3.10 still gets, and which also allows GET.
+    SECURITY_LOGOUT_METHODS = ["POST"]
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
     # this default probably is not what you want (default sender is usually a no-reply address)
     SECURITY_TWO_FACTOR_RESCUE_MAIL = (
