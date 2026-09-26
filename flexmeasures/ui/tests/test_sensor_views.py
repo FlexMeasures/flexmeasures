@@ -52,6 +52,8 @@ def test_sensor_page_loads(db, client, setup_assets, as_prosumer_user1):
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert sensor.name.encode() in response.data
+    assert b'id="fullBeliefInfoToggle"' in response.data
+    assert b"Full belief info" in response.data
 
 
 def test_sensor_page_preselects_source(db, client, setup_assets, as_prosumer_user1):

@@ -76,6 +76,9 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         follow_redirects=True,
     )
     assert asset_page.status_code == 200
+    if view == "graphs":
+        assert b'id="fullBeliefInfoToggle"' in asset_page.data
+        assert b"Full belief info" in asset_page.data
     if view == "automations":
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data

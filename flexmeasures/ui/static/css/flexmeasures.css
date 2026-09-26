@@ -1867,18 +1867,15 @@ div.heading-group {
   justify-content: flex-start;
 }
 
-/* "Fast chart" toggle, relocated to the top of the replay column so it shares a
-   column with the replay button (its top). Keep it clear of the play button and,
-   in the narrow replay column, let it wrap and stay inside the column instead of
-   overflowing onto the chart card. */
+/* Chart switches at the top of the replay column. Keep each row on one line and
+   align their controls to the same left edge despite different label widths. */
 .fast-chart-toggle {
-  /* Switch + "Fast chart (beta)" on a single line, centered. In the narrow replay
-     column this can overflow the column a little — that's accepted, in exchange for
-     the cleaner single-line look. */
   margin: 0.5rem 0;
+  width: 100%;
+  justify-content: flex-start !important;
   flex-wrap: nowrap;
   white-space: nowrap;
-  padding-left: 0; /* override Bootstrap .form-check's 2.5em */
+  padding-left: 0.75rem; /* replace Bootstrap's 2.5em switch offset with a shared inset */
 }
 .fast-chart-toggle .form-check-input {
   margin-left: 0; /* override the -2.5em float offset so the switch stays in flow */
