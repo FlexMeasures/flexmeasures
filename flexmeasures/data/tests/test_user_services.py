@@ -75,7 +75,12 @@ def test_create_user_no_account(
 
     account_audit_log = (
         fresh_db.session.query(AuditLog)
-        .filter_by(event="Account new_account created while creating user new_user")
+        .filter_by(
+            event=(
+                f"Created organisation 'new_account': {user.account_id} "
+                "while creating user new_user"
+            )
+        )
         .one_or_none()
     )
     assert account_audit_log.affected_user_id is None

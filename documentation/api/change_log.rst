@@ -5,9 +5,13 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-39 | September 23, 2026
+v3.0-40 | September 26, 2026
 """"""""""""""""""""""""""""
 - ``GET /api/v3_0/sources`` now accepts a ``filter`` of space-separated search terms, matched against a source's name, its model and its id prefix, and a ``type``, which narrows the listing to one source type, such as ``forecaster``.
+
+v3.0-39 | September 22, 2026
+""""""""""""""""""""""""""""
+- ``POST /api/v3_0/assets/<id>/copy`` now copies the automations of each copied asset, too. A copied automation keeps its name, type, cron expression and timezone, but starts out inactive and with a fresh cursor, so it inherits neither the original's run history nor its queued jobs. Sensor references in its parameters and in its generator configuration are pointed at the copied sensors; a reference to a sensor outside the copied assets is kept only where both the destination organisation and the user making the copy may read it. Forecast and report automations are copied; a schedule automation is skipped for now, as its parameters point at sensors in ways a copy cannot follow. A copy that lands in another organisation records under a data source of that organisation. An automation that cannot be copied safely is skipped rather than failing the copy, and the response lists each one under a new ``skipped-automations`` field, as ``id``, ``name``, ``asset`` and ``reason``.
 
 v3.0-38 | September 16, 2026
 """"""""""""""""""""""""""""
@@ -39,6 +43,7 @@ v3.0-33 | September 1, 2026
 - Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off report as a background job. It returns ``202 Accepted`` with the canonical ``job`` and ``job-url`` fields, and shares the trigger rate limit with forecast and schedule endpoints.
 - Added ``GET /api/v3_0/assets/<id>/automations`` and ``GET /api/v3_0/assets/<id>/automations/<automation-id>`` for listing and inspecting forecast automations, including the sensors an automation reads from and writes to. Each automation shows the IANA ``timezone`` in which its cron expression is interpreted, and a ``cursor``: the offset-aware UTC time of the most recent run it committed to. The cursor advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded. Asset job entries now include ``created_via`` provenance; automation identity is included only when the caller may read that automation.
 - Added ``GET /api/v3_0/sources/<id>`` to show the full record of one data source, including the attributes in which data generators store their configuration.
+- Automation responses now also include ``schedule-revision``, which counts the execution-affecting edits made to the automation's schedule, and automation detail responses gained a ``run-stats`` object. It summarizes the durable runs of that automation and describes the most recent ones: their scheduled time, dispatch state (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), execution state (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``), attempt count, intended and queued job counts, timestamps, last error, latest attempt, and the individual jobs they created. Execution state, and the jobs a run created, are recorded for forecast automations; for the other types a run reports its dispatch, while its execution state stays ``pending``. Both additions are backward compatible: no existing field changed.
 - ``GET /api/v3_0/sensors/<id>/stats`` now reports an ``All sources`` entry summarising every data source, whenever more than one recorded. Its mean divides by the values that were summed, not by ``Number of values``, which also counts rows holding NaN.
 
 v3.0-32 | August 11, 2026

@@ -71,7 +71,12 @@ A simple asset form, including a map selector:
 
 |
 
-You can also copy an exisiting asset, including its child assets, sensors and flex-config.
+You can also copy an existing asset, including its child assets, sensors and flex-config.
+The automations on the copied assets come along, pointed at the copied sensors, but switched off and without any run history,
+so you can go through them and try them out before you let them run.
+An automation that cannot be copied safely, for instance because it reads a sensor that you or the receiving organisation cannot read,
+is left out and reported, while the rest of the copy goes ahead.
+Schedule automations are left out for now: their parameters point at sensors in ways a copy cannot follow.
 You can search for the asset you want to copy:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_copy.png
