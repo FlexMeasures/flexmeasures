@@ -10,7 +10,9 @@
     <div class="col-md-2 col-action-left">
       <div class="header-action-button mt-3">
         <div>
-          <a href="/logout" class="btn btn-sm btn-responsive btn-info nav-button">Log out</a>
+          <form method="post" action="{{ url_for('security.logout') }}">
+            <button type="submit" class="btn btn-sm btn-responsive btn-info nav-button">Log out</button>
+          </form>
         </div>
         <div>
           <a href="/users/reset_password_for/{{ logged_in_user.id }}"

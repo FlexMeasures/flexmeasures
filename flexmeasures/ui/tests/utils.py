@@ -22,7 +22,7 @@ def login(the_client, email, password):
 
 
 def logout(client):
-    return client.get(url_for("security.logout"), follow_redirects=True)
+    return client.post(url_for("security.logout"), follow_redirects=True)
 
 
 def assert_asset_listing_filter_row(page_data: bytes):
