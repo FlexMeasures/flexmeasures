@@ -15,6 +15,21 @@ depends_on = None
 
 def upgrade():
     connection = op.get_bind()
+    # Imported roles can have explicit IDs while the serial sequence remains at 1.
+    # Lock inserts while reconciling it with the largest stored ID. Keep an
+    # already-ahead sequence ahead by including its next value.
+    connection.execute(sa.text("LOCK TABLE role IN SHARE ROW EXCLUSIVE MODE"))
+    max_role_id = connection.execute(sa.text("SELECT MAX(id) FROM role")).scalar_one()
+    if max_role_id is not None:
+        connection.execute(
+            sa.text(
+                "SELECT setval("
+                "pg_get_serial_sequence('role', 'id'), "
+                "GREATEST(nextval(pg_get_serial_sequence('role', 'id')), :max_role_id), "
+                "true)"
+            ),
+            {"max_role_id": max_role_id},
+        )
     member_role_id = connection.execute(
         sa.text("SELECT id FROM role WHERE name = 'member'")
     ).scalar_one_or_none()
