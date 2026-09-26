@@ -294,7 +294,7 @@ def query_assets_by_search_terms(
     return query
 
 
-def descendants_cte(root_asset_id: int, max_depth: int):
+def descendants_cte(root_asset_id: int, max_depth: int | None):
     """
     Build a recursive Common Table Expression (CTE) selecting all descendant assets of a given root asset.
 
@@ -308,6 +308,7 @@ def descendants_cte(root_asset_id: int, max_depth: int):
     -   Combining hierarchy constraints with search, sorting, or pagination
 
     :param root_asset_id:   ID of the asset that acts as the root of the subtree.
+    :param max_depth:       How many levels below the root to include, or None for all of them.
     :returns:               A recursive SQLAlchemy CTE yielding asset IDs and parent IDs for the entire subtree.
     """
     asset = GenericAsset.__table__
