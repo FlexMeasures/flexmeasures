@@ -589,8 +589,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       columns: columns,
       data: automations.map(AutomationRow),
     });
-    // Load more details per automation asynchronously
-    automations.forEach(automation => loadAutomationInfo(automation.id));
   }
 
   /* Put fresh rows into a table that already stands, keeping the sort the user chose
@@ -606,7 +604,6 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     dataTable.clear();
     dataTable.rows.add(automations.map(AutomationRow));
     dataTable.draw(false);  // false: hold the current paging and ordering rather than resetting them
-    automations.forEach(automation => loadAutomationInfo(automation.id));
   }
 
   // The types the page keeps a tab and a table for.
@@ -737,6 +734,12 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     });
 
     // Edit an automation's recurrence settings
+    /* The listing already says how many jobs each automation has, so only opening a panel asks about one,
+       rather than every refresh asking about each of them in turn. */
+    $(document).on("show.bs.modal", ".automation-info-modal", function () {
+      loadAutomationInfo($(this).attr("id").replace("AutomationInfoModal-", ""));
+    });
+
     $(document).on("click", ".automation-edit", function () {
       const automation = automationsById.get(Number($(this).data("id")));
       if (!automation) {
@@ -873,7 +876,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           showAutomationsMessage(
             `${queued} for automation ${automationId}. Recent jobs are listed on the status page.`
           );
-          loadAutomationInfo(automationId);  // refresh this automation's job stats.
+          loadAutomations({ rebuild: false });  // the listing carries the job counts
         },
         error: function (xhr) {
           $("#automations_msg").addClass("d-none");
