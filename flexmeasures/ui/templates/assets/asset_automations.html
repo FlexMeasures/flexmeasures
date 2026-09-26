@@ -325,6 +325,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automations_err").removeClass("d-none").text(message);
   }
 
+  function clearAutomationsError() {
+    $("#automations_err").addClass("d-none").text("");
+  }
+
   function jobStatsText(jobStats) {
     return Object.keys(jobStats || {}).length
       ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
@@ -488,10 +492,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       method: "GET",
       success: function (res) {
         const jobStats = res["job-stats"] || {};
-        const statsStr = Object.keys(jobStats).length
-          ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
-          : "none";
-        $(`#automation-jobs-${automationId}`).text(statsStr);
+        $(`#automation-jobs-${automationId}`).text(jobStatsText(jobStats));
 
         // Fill the info modal
         const generator = res.source
@@ -636,6 +637,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         // The listing counts the jobs itself, so it is also where it says when Redis could not be reached.
         if (res["redis-connection-err"]) {
           showAutomationsError(res["redis-connection-err"]);
+        } else {
+          clearAutomationsError();
         }
       },
       error: function (xhr) {

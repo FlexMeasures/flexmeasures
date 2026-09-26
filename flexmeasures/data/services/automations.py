@@ -1594,7 +1594,7 @@ def _job_cache_refs(
 
     handler = get_automation_types().get(automation.type)
     if handler is None:
-        return {}
+        return set()
     # Determine the job cache entries to scan.
     parameters = automation.parameters or {}
     if handler.generator_class is not None:
