@@ -51,3 +51,14 @@ def test_logged_in_user_page_breadcrumb(client, as_prosumer_user1):
     assert b'aria-label="breadcrumb' in page.data
     assert current_user.account.name.encode() in page.data
     assert current_user.username.encode() in page.data
+
+
+def test_logged_in_user_page_logs_out_by_post(client, as_prosumer_user1):
+    """The user page's "Log out" button submits a POST form, as a plain link (a GET) no longer logs out."""
+    page = client.get(
+        url_for("flexmeasures_ui.logged_in_user_view"), follow_redirects=True
+    )
+    assert page.status_code == 200
+    logout_url = url_for("security.logout").encode()
+    assert b'<form method="post" action="' + logout_url + b'">' in page.data
+    assert b'<a href="' + logout_url + b'"' not in page.data
