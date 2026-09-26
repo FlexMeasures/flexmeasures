@@ -213,7 +213,7 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         old_value = asset_or_sensor.attributes.get(attribute_key)
         if isinstance(asset_or_sensor, Sensor):
             event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id}; "
-            affected_asset_id = (asset_or_sensor.generic_asset_id,)
+            affected_asset_id = asset_or_sensor.generic_asset_id
         elif isinstance(asset_or_sensor, GenericAsset):
             event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = asset_or_sensor.id

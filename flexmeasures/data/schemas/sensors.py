@@ -42,6 +42,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
@@ -334,7 +335,7 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
             )
         sensor_id: int = super()._deserialize(value, attr, data, **kwargs)
 
-        sensor = db.session.get(Sensor, sensor_id)
+        sensor = get_by_id(Sensor, sensor_id)
 
         if sensor is None:
             raise FMValidationError(f"No sensor found with ID {sensor_id}.")
