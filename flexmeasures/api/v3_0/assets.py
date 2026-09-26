@@ -20,6 +20,7 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import selectinload, joinedload
 
 from flexmeasures.data.services.generic_assets import (
+    get_readable_offspring,
     create_asset,
     patch_asset,
     delete_asset,
@@ -59,6 +60,7 @@ from flexmeasures.data.services.automations import (
     delete_automation as remove_automation,
     describe_cronstr,
     get_automation_job_stats,
+    get_automation_run_stats,
     resolve_automation_sensors,
     run_automation,
     update_automation,
@@ -104,7 +106,7 @@ from flexmeasures.api.common.responses import (
 from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
-from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
+from flexmeasures.ui.utils.view_utils import set_session_variables
 from flexmeasures.auth.policy import check_access, user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
@@ -320,50 +322,24 @@ class AssetAuditLogPaginationSchema(PaginationSchema):
     )
 
 
-class DefaultAssetViewJSONSchema(Schema):
-    default_asset_view = fields.Str(
-        required=True,
-        validate=validate.OneOf(
-            ["Audit Log", "Context", "Graphs", "Properties", "Status"]
-        ),
-        metadata={
-            "enum": ["Audit Log", "Context", "Graphs", "Properties", "Status"],
-            "description": "The default asset view to show.",
-        },
-    )
-    use_as_default = fields.Bool(
-        required=False,
-        load_default=True,
-        metadata={"description": "Whether to use this view as default."},
-    )
-
-
-class StatusPageTabJSONSchema(Schema):
-    status_page_tab = fields.Str(
-        required=True,
-        validate=validate.OneOf(["jobs", "sensors"]),
-        metadata={
-            "enum": ["jobs", "sensors"],
-            "description": "The tab to open on the asset's status page.",
-        },
-    )
-
-
 class AssetJobsQuerySchema(Schema):
     include_child_assets = fields.Bool(
+        data_key="include-child-assets",
         required=False,
         load_default=True,
         metadata={
-            "description": "Whether to also list the jobs of the asset's child assets.",
+            "description": "Whether to also list the jobs of the assets below this one, at any depth, as far as you may read them.",
         },
     )
 
 
-class StatusPageChildJobsJSONSchema(Schema):
+class AssetAutomationsQuerySchema(Schema):
     include_child_assets = fields.Bool(
-        required=True,
+        data_key="include-child-assets",
+        required=False,
+        load_default=True,
         metadata={
-            "description": "Whether the asset's status page should list the jobs of its child assets, too.",
+            "description": "Whether to also list the automations of the assets below this one, at any depth, as far as you may read them.",
         },
     )
 
@@ -1458,9 +1434,12 @@ class AssetAPI(FlaskView):
         {"asset": AssetIdField(data_key="id")},
         location="path",
     )
+    @use_kwargs(AssetAutomationsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_automations(self, id: int, asset: GenericAsset):
+    def get_automations(
+        self, id: int, asset: GenericAsset, include_child_assets: bool = True
+    ):
         """
         .. :quickref: Assets; Get all automations defined on an asset.
 
@@ -1468,12 +1447,17 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
             and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
             The next run excludes pending catch-up work.
+
+            By default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.
+            Pass `include-child-assets=false` to list only the automations defined on the asset itself.
+            Only the assets below it which you may read are included.
+            Each entry names the asset it is defined on, in `asset` and `asset-name`.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1483,6 +1467,12 @@ class AssetAPI(FlaskView):
               description: ID of the asset to get the automations for.
               schema:
                 type: integer
+            - in: query
+              name: include-child-assets
+              required: false
+              description: Whether to also list the automations of the assets below it, at any depth (default true).
+              schema:
+                type: boolean
           responses:
             200:
               description: PROCESSED
@@ -1496,6 +1486,7 @@ class AssetAPI(FlaskView):
                           - id: 1
                             created-at: "2026-07-11T00:00:00+00:00"
                             asset: 1
+                            asset-name: Solar panels
                             type: forecasting
                             name: Day-ahead PV forecasts
                             cron: "0 6 * * *"
@@ -1503,6 +1494,7 @@ class AssetAPI(FlaskView):
                             cursor: "2026-07-11T06:00:00+02:00"
                             next-run: "2026-07-12T06:00:00+02:00"
                             recurrence-description: "At 06:00"
+                            schedule-revision: 1
                             active: true
             401:
               description: UNAUTHORIZED
@@ -1513,13 +1505,21 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # A child asset can belong to another account than its parent, so only the ones the user may read are listed.
+        assets = [asset] + (
+            get_readable_offspring(asset) if include_child_assets else []
+        )
+
         automations_data = []
-        for automation in asset.automations:
-            automation_data = automation_schema.dump(automation)
-            automation_data["recurrence-description"] = describe_cronstr(
-                automation.cronstr
-            )
-            automations_data.append(automation_data)
+        for asset_to_report_on in assets:
+            for automation in asset_to_report_on.automations:
+                automation_data = automation_schema.dump(automation)
+                automation_data["recurrence-description"] = describe_cronstr(
+                    automation.cronstr
+                )
+                # Name the asset here, so that a listing spanning several of them stays readable.
+                automation_data["asset-name"] = asset_to_report_on.name
+                automations_data.append(automation_data)
         return {"automations": automations_data}, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
@@ -1542,10 +1542,10 @@ class AssetAPI(FlaskView):
           description: |
             In addition to the fields shown when listing automations, the response shows
             the automation's parameters (forecast parameters or a schedule trigger message),
-            the data source it records under, as its `source` (null for schedule automations),
+            the data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,
             the sensors it reads from and writes to,
-            and counts of recently created jobs, per job status.
-            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            durable run status, and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.
             The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
@@ -1558,7 +1558,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation.
               schema:
@@ -1582,12 +1582,16 @@ class AssetAPI(FlaskView):
                         cursor: "2026-07-11T06:00:00+02:00"
                         next-run: "2026-07-12T06:00:00+02:00"
                         recurrence-description: "At 06:00"
+                        schedule-revision: 1
                         active: true
                         parameters:
                           sensor: 2092
                         source:
                           id: 6
                           description: "forecaster 'TrainPredictPipeline' (v1)"
+                          config:
+                            model: CustomLGBM
+                            train-period: P30D
                         input-sensors:
                           - id: 2092
                             name: power
@@ -1599,6 +1603,23 @@ class AssetAPI(FlaskView):
                         job-stats:
                           finished: 3
                           failed: 1
+                        run-stats:
+                          total: 1
+                          dispatch:
+                            queued: 1
+                          execution:
+                            succeeded: 1
+                          latest-run:
+                            id: 12
+                            scheduled-at: "2026-07-11T04:00:00+00:00"
+                            schedule-revision: 1
+                            dispatch-state: queued
+                            execution-state: succeeded
+                            attempt-count: 1
+                            intended-job-count: 2
+                            queued-job-count: 2
+                            last-error: null
+                          recent-runs: []
                         redis-connection-err: null
             401:
               description: UNAUTHORIZED
@@ -1623,6 +1644,11 @@ class AssetAPI(FlaskView):
             {
                 "id": automation.generator.id,
                 "description": automation.generator.description,
+                # The static settings the data generator was configured with, such as the model it trains.
+                # They are what distinguishes this source from another one of the same model, so they belong with it.
+                "config": automation.generator.attributes.get("data_generator", {}).get(
+                    "config", {}
+                ),
             }
             if automation.generator is not None
             else None
@@ -1652,6 +1678,7 @@ class AssetAPI(FlaskView):
         except NoRedisConfigured as e:
             automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
+        automation_data["run-stats"] = get_automation_run_stats(automation)
         automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 
@@ -1674,11 +1701,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts, schedules or reports) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
             a schedule trigger message (without the asset id) for type `scheduling`,
-            or report parameters for type `reporting`.
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             An automation runs again and again, so its parameters cannot fix a moment in time:
@@ -1747,7 +1774,9 @@ class AssetAPI(FlaskView):
                 asset, origin="API", check_permissions=True, **automation_data
             )
         except ValidationError as e:
-            return unprocessable_entity({"parameters": e.messages})
+            # The service names the part of the request each error came from,
+            # so that an error in the config is not reported against the parameters.
+            return unprocessable_entity(e.messages)
         except AutomationSensorsUnknown as e:
             return unprocessable_entity(str(e))
         except ValueError as e:
@@ -1797,7 +1826,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation.
               schema:
@@ -1869,7 +1898,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation.
               schema:
@@ -1937,7 +1966,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: path
-              name: automation_id
+              name: automation-id
               required: true
               description: ID of the automation to run.
               schema:
@@ -1978,7 +2007,12 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
-        except (NotImplementedError, ValueError, ValidationError) as e:
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
             db.session.rollback()
             return unprocessable_entity(
                 e.messages if isinstance(e, ValidationError) else str(e)
@@ -2024,8 +2058,9 @@ class AssetAPI(FlaskView):
             The response will be a list of jobs.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
 
-            By default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.
-            Pass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.
+            By default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.
+            Pass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.
+            Only the assets below it which you may read are included.
             Each job names the asset it happened on, in `asset_id` and `asset_name`.
           security:
             - ApiKeyAuth: []
@@ -2037,9 +2072,9 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              name: include_child_assets
+              name: include-child-assets
               required: false
-              description: Whether to also list the jobs of the asset's child assets (default true).
+              description: Whether to also list the jobs of the assets below it, at any depth (default true).
               schema:
                 type: boolean
           responses:
@@ -2089,258 +2124,6 @@ class AssetAPI(FlaskView):
         return {
             "jobs": all_jobs_data,
             "redis-connection-err": redis_connection_err,
-        }, 200
-
-    @route("/default_asset_view", methods=["POST"])
-    @as_json
-    @use_kwargs(DefaultAssetViewJSONSchema, location="json")
-    def update_default_asset_view(self, **kwargs):
-        """
-        .. :quickref: Assets; Update the default asset view for the current user
-        ---
-        post:
-          summary: Update the default asset view for the current user
-          description: |
-            Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).
-
-            This endpoint sets the default asset view for the current user session if `use_as_default` is true.
-            If `use_as_default` is `false`, it clears the session variable for the default asset view.
-
-            ## Example values for `default_asset_view`:
-            - "Audit Log"
-            - "Context"
-            - "Graphs"
-            - "Properties"
-            - "Status"
-          security:
-            - ApiKeyAuth: []
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema: DefaultAssetViewJSONSchema
-                examples:
-                  default_asset_view:
-                    summary: Setting the user's default asset view to "Graphs"
-                    value:
-                      default_asset_view: "Graphs"
-                      use_as_default: true
-                  resetting_default_view:
-                    summary: resetting the user's default asset view (will return to use system default)
-                    value:
-                      use_as_default: false
-          responses:
-            200:
-              description: PROCESSED
-              content:
-                application/json:
-                  examples:
-                    message:
-                      summary: Message
-                      value:
-                        message: "Default asset view updated successfully."
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-            401:
-              description: UNAUTHORIZED
-            403:
-              description: INVALID_SENDER
-            422:
-              description: UNPROCESSABLE_ENTITY
-          tags:
-            - Assets
-        """
-        # Update the request.values
-        request_values = request.values.copy()
-        request_values.update(kwargs)
-        request.values = request_values
-
-        use_as_default = kwargs.get("use_as_default", True)
-        if use_as_default:
-            # Set the default asset view for the current user session
-            set_session_variables(
-                "default_asset_view",
-            )
-        else:
-            # Remove the default asset view from the session
-            clear_session(keys_to_clear=["default_asset_view"])
-
-        return {
-            "message": "Default asset view updated successfully.",
-        }, 200
-
-    @route("/status_page_tab", methods=["POST"])
-    @as_json
-    @use_kwargs(StatusPageTabJSONSchema, location="json")
-    def update_status_page_tab(self, **kwargs):
-        """
-        .. :quickref: Assets; Remember which tab of the asset status page the current user last opened.
-        ---
-        post:
-          summary: Remember which tab of the asset status page the current user last opened.
-          description: |
-            The status page shows a sensor data tab and a jobs tab, of which only the opened one loads its data.
-            This endpoint records the user's choice in their session, so their next visit to a status page opens the same tab.
-            Without a recorded choice, the jobs tab opens.
-          security:
-            - ApiKeyAuth: []
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema: StatusPageTabJSONSchema
-                examples:
-                  status_page_tab:
-                    summary: Opening the sensor data tab from now on
-                    value:
-                      status_page_tab: "sensors"
-          responses:
-            200:
-              description: PROCESSED
-              content:
-                application/json:
-                  examples:
-                    message:
-                      summary: Message
-                      value:
-                        message: "Preferred status page tab updated successfully."
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-            401:
-              description: UNAUTHORIZED
-            422:
-              description: UNPROCESSABLE_ENTITY
-          tags:
-            - Assets
-        """
-        # Update the request.values, as that is where set_session_variables reads from.
-        request_values = request.values.copy()
-        request_values.update(kwargs)
-        request.values = request_values
-
-        set_session_variables("status_page_tab")
-
-        return {
-            "message": "Preferred status page tab updated successfully.",
-        }, 200
-
-    @route("/status_page_child_jobs", methods=["POST"])
-    @as_json
-    @use_kwargs(StatusPageChildJobsJSONSchema, location="json")
-    def update_status_page_child_jobs(self, **kwargs):
-        """
-        .. :quickref: Assets; Remember whether the current user wants the asset status page to list the jobs of child assets, too.
-        ---
-        post:
-          summary: Remember whether the current user wants the asset status page to list the jobs of child assets, too.
-          description: |
-            The jobs tab of the status page lists the jobs of the asset's child assets as well, so that a site asset shows what happened anywhere below it.
-            This endpoint records the user's choice in their session, so their next visit to a status page keeps to it.
-            Without a recorded choice, the jobs of child assets are included.
-          security:
-            - ApiKeyAuth: []
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema: StatusPageChildJobsJSONSchema
-                examples:
-                  status_page_child_jobs:
-                    summary: Listing only the asset's own jobs from now on
-                    value:
-                      include_child_assets: false
-          responses:
-            200:
-              description: PROCESSED
-              content:
-                application/json:
-                  examples:
-                    message:
-                      summary: Message
-                      value:
-                        message: "Preferred status page job scope updated successfully."
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-            401:
-              description: UNAUTHORIZED
-            422:
-              description: UNPROCESSABLE_ENTITY
-          tags:
-            - Assets
-        """
-        # Update the request.values, as that is where set_session_variables reads from.
-        request_values = request.values.copy()
-        request_values.update(kwargs)
-        request.values = request_values
-
-        # The session key is namespaced to the status page, while the request key reads naturally next to the one of [GET] /assets/(id)/jobs.
-        set_session_variables(
-            "status_page_include_child_assets",
-            aliases={"status_page_include_child_assets": "include_child_assets"},
-        )
-
-        return {
-            "message": "Preferred status page job scope updated successfully.",
-        }, 200
-
-    @route("/keep_legends_below_graphs", methods=["POST"])
-    @as_json
-    @use_kwargs(
-        {"keep_legends_below_graphs": fields.Boolean(required=False)}, location="json"
-    )
-    def update_keep_legends_below_graphs(self, **kwargs):
-        """
-        .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
-        ---
-        post:
-          summary: Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
-          description: |
-            This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.
-          security:
-            - ApiKeyAuth: []
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    keep_legends_below_graphs:
-                      type: boolean
-                  required:
-                    - keep_legends_below_graphs
-          responses:
-            200:
-              description: PROCESSED
-              content:
-                application/json:
-                  examples:
-                    message:
-                      summary: Message
-                      value:
-                        message: "Legend position preference updated successfully."
-            400:
-              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
-          tags:
-            - Assets
-        """
-        # Update the request.values
-        request_values = request.values.copy()
-        request_values.update(kwargs)
-        request.values = request_values
-
-        keep_legends_below_graphs = kwargs.get("keep_legends_below_graphs", True)
-        if keep_legends_below_graphs:
-            # Set the default legend position for asset charts for the current user session
-            set_session_variables(
-                "keep_legends_below_graphs",
-            )
-        else:
-            # Remove the default legend position from the session
-            clear_session(keys_to_clear=["keep_legends_below_graphs"])
-
-        return {
-            "message": "Default legend position updated successfully.",
         }, 200
 
     @route("/<id>/reports/trigger", methods=["POST"])
@@ -2901,6 +2684,11 @@ class AssetAPI(FlaskView):
             The asset copy will also have copies of child assets, including sensors and flex-configuration.
             No beliefs will be copied.
 
+            Automations on the copied assets are copied too, but start out inactive and with no run history,
+            so they can be inspected and tested before they are switched on.
+            An automation that cannot be copied safely is skipped, and listed under `skipped-automations` with the reason;
+            the asset, its sensors and the other automations are still copied.
+
             The new asset can optionally be placed under a `target` account and/or `parent` asset.
 
             Resolution rules:
@@ -2927,8 +2715,13 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   example:
-                    message: Successfully copied asset 10 to account 2.
+                    message: Successfully copied asset 10 to account 2. 1 automation(s) could not be copied.
                     asset: 99
+                    skipped-automations:
+                      - id: 7
+                        name: Day-ahead PV forecasts
+                        asset: 10
+                        reason: It references sensor 42, which lies outside the copied assets and which the destination organisation cannot read.
             400:
               description: INVALID_REQUEST
             401:
@@ -2971,9 +2764,10 @@ class AssetAPI(FlaskView):
                 )
 
         try:
-            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+            asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
         except ValueError as err:
             return unprocessable_entity(str(err))
+        new_asset = asset_copy.asset
 
         account_given = "account" in request.args
         parent_given = "parent" in request.args
@@ -2997,7 +2791,13 @@ class AssetAPI(FlaskView):
                 f"under parent {new_asset.parent_asset_id}."
             )
 
+        if asset_copy.skipped_automations:
+            message += f" {len(asset_copy.skipped_automations)} automation(s) could not be copied."
+
         return {
             "message": message,
             "asset": new_asset.id,
+            "skipped-automations": [
+                skipped.to_dict() for skipped in asset_copy.skipped_automations
+            ],
         }, 201

@@ -33,13 +33,25 @@ def id_prefix_filter(
     if prefix_value == 0:
         return id_column == 0
 
+    from flexmeasures.data.schemas.utils import POSTGRES_INTEGER_MAX
+
+    # Bounds beyond what an integer id column holds cannot match, and psycopg 3 would send them as a bigint the database refuses to compare.
+    if prefix_value > POSTGRES_INTEGER_MAX:
+        return false()
     filters = [id_column == prefix_value]
     num_prefix_digits = len(prefix_digits)
     for digits in range(num_prefix_digits + 1, max_digits + 1):
         factor = 10 ** (digits - num_prefix_digits)
         lower_bound = prefix_value * factor
+        if lower_bound > POSTGRES_INTEGER_MAX:
+            break
         upper_bound = (prefix_value + 1) * factor
-        filters.append((id_column >= lower_bound) & (id_column < upper_bound))
+        if upper_bound > POSTGRES_INTEGER_MAX:
+            filters.append(
+                (id_column >= lower_bound) & (id_column <= POSTGRES_INTEGER_MAX)
+            )
+        else:
+            filters.append((id_column >= lower_bound) & (id_column < upper_bound))
     return or_(*filters)
 
 

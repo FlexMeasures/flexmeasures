@@ -3,6 +3,7 @@ from typing import Any
 from flask import current_app
 from sqlalchemy import delete
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -12,6 +13,26 @@ from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchem
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
 """Services for managing assets"""
+
+
+def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
+    """The assets below this one, at any depth, which the current user may read.
+
+    Being below a readable asset grants nothing by itself: a child asset can belong to another account than its parent,
+    so each one is checked on its own.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    from flexmeasures.auth.policy import check_access
+
+    readable = []
+    for descendant in asset.offspring:
+        try:
+            check_access(descendant, "read")
+        except (Forbidden, Unauthorized):
+            continue
+        readable.append(descendant)
+    return readable
 
 
 def create_asset(asset_data: dict) -> GenericAsset:
@@ -380,7 +401,7 @@ def cleanup_asset_references_in_assets(
                 GenericAsset.id != asset_id,
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.asset ? (@ == $aid)",
+                    sa.cast("$.**.asset ? (@ == $aid)", JSONPATH),
                     vars_json,
                 ),
             )

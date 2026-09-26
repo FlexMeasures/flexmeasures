@@ -170,7 +170,7 @@ def test_add_automation_default_cron(
     """Without --cron, an automation recurs daily."""
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.data.services.automations import (
-        claim_due_automation,
+        claim_due_automation_run,
         get_due_automations,
     )
 
@@ -196,7 +196,7 @@ def test_add_automation_default_cron(
     assert [d.automation.id for d in due] == [automation.id]
 
     # and, once claimed, not handed out again an hour later
-    assert claim_due_automation(due[0])
+    assert claim_due_automation_run(due[0]) is not None
     assert get_due_automations(midnight + timedelta(hours=1)) == []
 
 
@@ -461,6 +461,8 @@ def test_add_automation_defaults_to_the_assets_timezone(
     assert result.exit_code == 0, result.output
     automation = fresh_db.session.scalars(select(Automation)).one()
     assert automation.timezone == "Europe/Amsterdam"
+    # The success message reports the timezone that was stored, not the option that was left out.
+    assert "in timezone 'Europe/Amsterdam'" in result.output
 
 
 def test_add_and_edit_automation_reject_invalid_timezone(
@@ -914,7 +916,11 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
         ],
     )  # fmt: skip
     assert result.exit_code != 0
-    assert "Invalid schedule parameters" in result.output
+    # The error names the part of the request at fault, which for a schedule automation is always the parameters.
+    assert "Invalid schedule automation" in result.output
+    assert (
+        "{'parameters': {'not-a-trigger-field': ['Unknown field.']}}" in result.output
+    )
 
     # minimal valid parameters (flex config can live on the asset)
     parameters_file.write_text('duration: "PT12H"\n')
@@ -1029,7 +1035,8 @@ def test_add_schedule_automation_rejects_unsupported_durations(
     )
 
     assert result.exit_code != 0
-    assert "Invalid schedule parameters" in result.output
+    assert "Invalid schedule automation" in result.output
+    assert "'parameters'" in result.output
 
 
 def test_add_schedule_automation_rejects_forecast_config(
@@ -1103,7 +1110,45 @@ def test_add_forecast_automation_still_requires_sensor(app, fresh_db, setup_dumm
     )
 
     assert result.exit_code != 0
-    assert "Invalid forecast parameters" in result.output
+    assert "Invalid forecast automation" in result.output
+    assert (
+        "{'parameters': {'sensor': ['Missing data for required field.']}}"
+        in result.output
+    )
+
+
+def test_add_forecast_automation_reports_a_config_error_against_the_config(
+    app, fresh_db, setup_dummy_data, tmp_path
+):
+    """A fault in the forecaster's config is reported against the config, rather than against the parameters.
+
+    Both are validated by schemas of the data generator's choosing, so naming the wrong one
+    sends the user looking for a mistake in a part of the command that is fine.
+    """
+    from flexmeasures.cli.data_add import add_automation
+
+    config_file = tmp_path / "config.yml"
+    config_file.write_text("not-a-config-field: 1\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Bad forecaster config",
+            "--cron", "0 6 * * *",
+            "--sensor", str(setup_dummy_data[0]),
+            "--config", str(config_file),
+        ],
+    )  # fmt: skip
+
+    assert result.exit_code != 0
+    assert "Invalid forecast automation" in result.output
+    assert "{'config': {'not-a-config-field': ['Unknown field.']}}" in result.output
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Bad forecaster config")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 @pytest.mark.parametrize("is_dst", (True, False))
@@ -1651,12 +1696,16 @@ def test_run_report_automation(
     assert result.exit_code == 0, result.output
     assert "queued 1 reporting job(s)" in result.output, result.output
 
-    # the queued job recorded how it was created
+    # the queued job recorded how it was created, including the durable run it belongs to
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
     jobs = app.queues["reporting"].jobs
     assert len(jobs) == 1
     assert jobs[0].meta["trigger"] == {
         "origin": "automation",
         "automation_id": automation.id,
+        "automation_run_id": run.id,
     }
 
     # the covered-until anchor is only recorded once the job succeeds
@@ -1897,41 +1946,35 @@ def test_run_automations_catches_up_once_after_downtime(
     assert automation.cursor == datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
 
 
-def test_failed_automation_attempt_is_not_retried(app, clean_redis, mocker):
-    """A failure after partial queueing must not duplicate that work on retry."""
+def test_run_automations_reports_durable_run_status(app, clean_redis, mocker):
+    """The automation runner reports durable run and retry-attempt identifiers."""
     from flexmeasures.cli.jobs import run_automations
-    from flexmeasures.data.services.automations import DueAutomation
 
-    automation = SimpleNamespace(id=42, name="Partial run", asset_id=1)
-    due_automation = DueAutomation(
+    automation = SimpleNamespace(
+        id=42, name="Partial run", asset_id=1, type="scheduling"
+    )
+    run = SimpleNamespace(
+        id=7,
         automation=automation,
         scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
-        expected_cursor=datetime(2026, 8, 5, 0, 0, tzinfo=timezone.utc),
-        expected_cronstr="0 * * * *",
-        expected_timezone="UTC",
+    )
+    attempt = SimpleNamespace(attempt_no=2)
+    claimed_run = SimpleNamespace(run=run, attempt=attempt)
+    mocker.patch(
+        "flexmeasures.cli.jobs.get_dispatchable_automation_runs",
+        return_value=[claimed_run],
     )
     mocker.patch(
-        "flexmeasures.cli.jobs.get_due_automations", return_value=[due_automation]
+        "flexmeasures.cli.jobs.dispatch_automation_run",
+        return_value={"run_id": 7, "job_id": "job-1", "n_jobs": 3},
     )
-    mocker.patch("flexmeasures.cli.jobs.claim_due_automation", return_value=True)
-
-    def queue_then_fail(_automation, **_kwargs):
-        app.queues["forecasting"].enqueue("flexmeasures.utils.time_utils.server_now")
-        raise RuntimeError("failed after queueing")
-
-    mocker.patch("flexmeasures.cli.jobs.run_automation", side_effect=queue_then_fail)
     runner = app.test_cli_runner()
 
-    first_result = runner.invoke(run_automations)
-    assert first_result.exit_code == 1, first_result.output
-    assert "failed after queueing" in first_result.output
-    assert app.queues["forecasting"].count == 1
+    result = runner.invoke(run_automations)
 
-    retry_result = runner.invoke(run_automations)
-    assert retry_result.exit_code == 0, retry_result.output
-    assert "already attempted" in retry_result.output
-    assert "Skipping to avoid duplicate jobs" in retry_result.output
-    assert app.queues["forecasting"].count == 1
+    assert result.exit_code == 0, result.output
+    assert "run 7 queued 3 scheduling job(s) for asset 1" in result.output
+    assert "scheduled for 2026-08-05 01:00:00+00:00" in result.output
 
 
 def test_run_automation_revalidates_output_scope(

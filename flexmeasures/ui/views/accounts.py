@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from flask import request
+from flask import current_app, request
 from sqlalchemy import or_, select
-from werkzeug.exceptions import Forbidden, Unauthorized, NotFound
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
 from flask_security import login_required
 from flask_security.core import current_user
@@ -18,7 +18,11 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, AccountRole, Plan
-from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.data.services.accounts import (
+    get_account_by_id_or_raise_notfound,
+    get_accounts,
+    get_audit_log_records,
+)
 from flexmeasures.data import db
 from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
@@ -88,9 +92,7 @@ class AccountCrudUI(FlaskView):
     @login_required
     def get(self, account_id: str):
         """/accounts/<account_id>"""
-        account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
-        if account is None:
-            raise NotFound(f"Account with id {account_id} not found.")
+        account = get_account_by_id_or_raise_notfound(account_id)
         check_access(account, "read")
         if account.consultancy_account_id:
             consultancy_account = db.session.execute(
@@ -142,6 +144,22 @@ class AccountCrudUI(FlaskView):
             role.name: role.id for role in db.session.scalars(select(AccountRole)).all()
         }
         selected_account_roles = [role.name for role in account.account_roles]
+        plan = account.plan
+        effective_default_rate_limit = (
+            plan.default_rate_limit
+            if plan is not None and plan.default_rate_limit is not None
+            else current_app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
+        )
+        effective_trigger_rate_limit = (
+            plan.trigger_rate_limit
+            if plan is not None and plan.trigger_rate_limit is not None
+            else current_app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
+        )
+        effective_rate_limit_key = (
+            plan.rate_limit_key.value
+            if plan is not None and plan.rate_limit_key is not None
+            else current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
+        )
 
         return render_flexmeasures_template(
             "accounts/account.html",
@@ -152,6 +170,9 @@ class AccountCrudUI(FlaskView):
             can_add_client_account=can_add_client_account,
             account_role_options=account_role_options,
             selected_account_roles=selected_account_roles,
+            effective_default_rate_limit=effective_default_rate_limit,
+            effective_trigger_rate_limit=effective_trigger_rate_limit,
+            effective_rate_limit_key=effective_rate_limit_key,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
@@ -165,7 +186,7 @@ class AccountCrudUI(FlaskView):
     @login_required
     def auditlog(self, account_id: str):
         """/accounts/auditlog/<account_id>"""
-        account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
+        account = get_account_by_id_or_raise_notfound(account_id)
         check_access(account, "read")
 
         audit_logs = get_audit_log_records(account)

@@ -21,6 +21,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
+from flexmeasures.data.services.accounts import create_account
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -121,17 +122,9 @@ def create_user(  # noqa: C901
         active_user_id, active_user_name = current_user.id, current_user.username
     if account is None:
         print(f"Creating account {account_name} ...")
-        account = Account(name=account_name)
-        db.session.add(account)
-        db.session.flush()
-        account_audit_log = AuditLog(
-            event_datetime=server_now(),
-            event=f"Account {account_name} created while creating user {username}",
-            active_user_id=active_user_id,
-            active_user_name=active_user_name,
-            affected_account_id=account.id,
+        account = create_account(
+            name=account_name, context=f"while creating user {username}"
         )
-        db.session.add(account_audit_log)
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
