@@ -60,6 +60,7 @@ from flexmeasures.data.services.automations import (
     delete_automation as remove_automation,
     describe_cronstr,
     get_automation_job_stats,
+    get_automation_run_stats,
     resolve_automation_sensors,
     run_automation,
     update_automation,
@@ -1446,7 +1447,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1493,6 +1494,7 @@ class AssetAPI(FlaskView):
                             cursor: "2026-07-11T06:00:00+02:00"
                             next-run: "2026-07-12T06:00:00+02:00"
                             recurrence-description: "At 06:00"
+                            schedule-revision: 1
                             active: true
             401:
               description: UNAUTHORIZED
@@ -1542,8 +1544,8 @@ class AssetAPI(FlaskView):
             the automation's parameters (forecast parameters or a schedule trigger message),
             the data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,
             the sensors it reads from and writes to,
-            and counts of recently created jobs, per job status.
-            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+            durable run status, and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.
             The cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.
             It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.
           security:
@@ -1580,6 +1582,7 @@ class AssetAPI(FlaskView):
                         cursor: "2026-07-11T06:00:00+02:00"
                         next-run: "2026-07-12T06:00:00+02:00"
                         recurrence-description: "At 06:00"
+                        schedule-revision: 1
                         active: true
                         parameters:
                           sensor: 2092
@@ -1600,6 +1603,23 @@ class AssetAPI(FlaskView):
                         job-stats:
                           finished: 3
                           failed: 1
+                        run-stats:
+                          total: 1
+                          dispatch:
+                            queued: 1
+                          execution:
+                            succeeded: 1
+                          latest-run:
+                            id: 12
+                            scheduled-at: "2026-07-11T04:00:00+00:00"
+                            schedule-revision: 1
+                            dispatch-state: queued
+                            execution-state: succeeded
+                            attempt-count: 1
+                            intended-job-count: 2
+                            queued-job-count: 2
+                            last-error: null
+                          recent-runs: []
                         redis-connection-err: null
             401:
               description: UNAUTHORIZED
@@ -1658,6 +1678,7 @@ class AssetAPI(FlaskView):
         except NoRedisConfigured as e:
             automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
+        automation_data["run-stats"] = get_automation_run_stats(automation)
         automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
 
@@ -1680,11 +1701,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts, schedules or reports) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
             a schedule trigger message (without the asset id) for type `scheduling`,
-            or report parameters for type `reporting`.
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             An automation runs again and again, so its parameters cannot fix a moment in time:
@@ -1986,7 +2007,12 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
-        except (NotImplementedError, ValueError, ValidationError) as e:
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
             db.session.rollback()
             return unprocessable_entity(
                 e.messages if isinstance(e, ValidationError) else str(e)
@@ -2658,6 +2684,11 @@ class AssetAPI(FlaskView):
             The asset copy will also have copies of child assets, including sensors and flex-configuration.
             No beliefs will be copied.
 
+            Automations on the copied assets are copied too, but start out inactive and with no run history,
+            so they can be inspected and tested before they are switched on.
+            An automation that cannot be copied safely is skipped, and listed under `skipped-automations` with the reason;
+            the asset, its sensors and the other automations are still copied.
+
             The new asset can optionally be placed under a `target` account and/or `parent` asset.
 
             Resolution rules:
@@ -2684,8 +2715,13 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   example:
-                    message: Successfully copied asset 10 to account 2.
+                    message: Successfully copied asset 10 to account 2. 1 automation(s) could not be copied.
                     asset: 99
+                    skipped-automations:
+                      - id: 7
+                        name: Day-ahead PV forecasts
+                        asset: 10
+                        reason: It references sensor 42, which lies outside the copied assets and which the destination organisation cannot read.
             400:
               description: INVALID_REQUEST
             401:
@@ -2728,9 +2764,10 @@ class AssetAPI(FlaskView):
                 )
 
         try:
-            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+            asset_copy = copy_asset(asset, account=account, parent_asset=parent_asset)
         except ValueError as err:
             return unprocessable_entity(str(err))
+        new_asset = asset_copy.asset
 
         account_given = "account" in request.args
         parent_given = "parent" in request.args
@@ -2754,7 +2791,13 @@ class AssetAPI(FlaskView):
                 f"under parent {new_asset.parent_asset_id}."
             )
 
+        if asset_copy.skipped_automations:
+            message += f" {len(asset_copy.skipped_automations)} automation(s) could not be copied."
+
         return {
             "message": message,
             "asset": new_asset.id,
+            "skipped-automations": [
+                skipped.to_dict() for skipped in asset_copy.skipped_automations
+            ],
         }, 201

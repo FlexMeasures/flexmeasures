@@ -100,7 +100,12 @@ class DataGenerator:
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
 
-    def set_job_trigger(self, origin: str, automation_id: int | None = None):
+    def set_job_trigger(
+        self,
+        origin: str,
+        automation_id: int | None = None,
+        automation_run_id: int | None = None,
+    ):
         """Record how any queued jobs got created (e.g. via the CLI, the API or an automation).
 
         This information is stored on the jobs themselves (as job meta data).
@@ -108,6 +113,8 @@ class DataGenerator:
         self._job_trigger = {"origin": origin}
         if automation_id is not None:
             self._job_trigger["automation_id"] = automation_id
+        if automation_run_id is not None:
+            self._job_trigger["automation_run_id"] = automation_run_id
 
     @property
     def input_sensors(self) -> list:
@@ -472,23 +479,19 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         data_generator = None
 
-        if self.type not in ["scheduler", "forecaster", "reporter"]:
+        # Say which of the three it is, as only the last of them is answered by installing something.
+        if self.type not in current_app.data_generators:
             raise NotImplementedError(
-                "Only the classes Scheduler, Forecaster and Reporters are DataGenerator's."
+                f"Data source {self.id} is of type '{self.type}', which is not a kind of data generator."
             )
-
         if not self.model:
             raise NotImplementedError(
-                "There's no DataGenerator class defined in this DataSource."
+                f"Data source {self.id} names no data generator to set up."
             )
-
-        types = current_app.data_generators
-
-        if all(
-            [self.model not in current_app.data_generators[_type] for _type in types]
-        ):
+        generator_class = current_app.data_generators[self.type].get(self.model)
+        if generator_class is None:
             raise NotImplementedError(
-                f"DataGenerator `{self.model}` not registered in this FlexMeasures instance."
+                f"Data generator '{self.type}/{self.model}' is unavailable. Install or enable its plugin on the server and worker."
             )
 
         # fetch DataGenerator details
@@ -497,9 +500,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         parameters = data_generator_details.get("parameters", {})
 
         # create DataGenerator class and add the parameters
-        data_generator = current_app.data_generators[self.type][self.model](
-            config=config
-        )
+        data_generator = generator_class(config=config)
         data_generator._parameters = parameters
 
         # assign the current DataSource (self) as its source

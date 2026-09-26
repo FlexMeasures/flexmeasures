@@ -3,6 +3,7 @@ from typing import Any
 from flask import current_app
 from sqlalchemy import delete
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -400,7 +401,7 @@ def cleanup_asset_references_in_assets(
                 GenericAsset.id != asset_id,
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.asset ? (@ == $aid)",
+                    sa.cast("$.**.asset ? (@ == $aid)", JSONPATH),
                     vars_json,
                 ),
             )

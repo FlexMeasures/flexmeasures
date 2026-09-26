@@ -85,7 +85,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b'id="automationsTable-scheduling"' in asset_page.data
         assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
-        assert b"No ${automationType} automations" in asset_page.data
+        assert b"No automations of type" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
         assert b"Could not load automations:" in asset_page.data
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.

@@ -159,6 +159,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                     <option value="scheduling">scheduling</option>
                     <option value="reporting">reporting</option>
                   </select>
+                  <div class="form-text">Create plugin-defined automation types with the CLI. They can be viewed and managed here.</div>
                 </div>
                 <div class="mb-3">
                   <label for="automationCron" class="form-label">Schedule (cron expression)</label>
@@ -255,32 +256,20 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           title="This page brings itself up to date about once a minute, while it is the tab in front and nothing is open over it."></div>
 
         <ul class="nav nav-tabs" role="tablist">
+          {% for type_id, display_name in automation_types.items() %}
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="forecasting-tab" data-bs-toggle="tab" data-bs-target="#forecasting-tab-pane" type="button" role="tab" aria-controls="forecasting-tab-pane" aria-selected="true">Forecasts</button>
+            <button class="nav-link{% if loop.first %} active{% endif %}" id="{{ type_id }}-tab" data-bs-toggle="tab" data-bs-target="#{{ type_id }}-tab-pane" type="button" role="tab" aria-controls="{{ type_id }}-tab-pane" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ display_name }}</button>
           </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="scheduling-tab" data-bs-toggle="tab" data-bs-target="#scheduling-tab-pane" type="button" role="tab" aria-controls="scheduling-tab-pane" aria-selected="false">Schedules</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="reporting-tab" data-bs-toggle="tab" data-bs-target="#reporting-tab-pane" type="button" role="tab" aria-controls="reporting-tab-pane" aria-selected="false">Reports</button>
-          </li>
+          {% endfor %}
         </ul>
         <div class="tab-content">
-          <div class="tab-pane fade show active" id="forecasting-tab-pane" role="tabpanel">
+          {% for type_id in automation_types %}
+          <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="{{ type_id }}-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable-forecasting" class="table table-striped w-100"></table>
+              <table id="automationsTable-{{ type_id }}" class="table table-striped w-100"></table>
             </div>
           </div>
-          <div class="tab-pane fade" id="scheduling-tab-pane" role="tabpanel">
-            <div class="table-responsive">
-              <table id="automationsTable-scheduling" class="table table-striped w-100"></table>
-            </div>
-          </div>
-          <div class="tab-pane fade" id="reporting-tab-pane" role="tabpanel">
-            <div class="table-responsive">
-              <table id="automationsTable-reporting" class="table table-striped w-100"></table>
-            </div>
-          </div>
+          {% endfor %}
         </div>
 
         <div class="alert alert-success d-none mt-2" id="automations_msg"></div>
@@ -295,6 +284,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   const userCanManage = {{ user_can_manage_automations | tojson }};
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
+  const automationTypes = {{ automation_types | tojson }};
   const automationsById = new Map();
   let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
   // How often the listing catches up with the server, while the tab is in front and nothing is open.
@@ -501,16 +491,34 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         const generator = res.source
           ? `${res.source.description} (data source ${res.source.id})`
           : "None";
+        const runStats = res["run-stats"] || {};
+        const latestRun = runStats["latest-run"];
+        const latestRunSummary = latestRun
+          ? {
+              id: latestRun.id,
+              "scheduled-at": latestRun["scheduled-at"],
+              "dispatch-state": latestRun["dispatch-state"],
+              "execution-state": latestRun["execution-state"],
+              "attempt-count": latestRun["attempt-count"],
+              "intended-job-count": latestRun["intended-job-count"],
+              "queued-job-count": latestRun["queued-job-count"],
+              "last-error": latestRun["last-error"],
+            }
+          : null;
         /* The configuration belongs with the source it describes: it is what separates this data source
            from another one of the same model, so it is read together with the source rather than apart from it. */
         const generatorConfig = res.source && res.source.config && Object.keys(res.source.config).length
           ? `<pre>${esc(JSON.stringify(res.source.config, null, 4))}</pre>`
           : `<p class="text-muted">This data source records no configuration.</p>`;
         $(`#AutomationInfoBody-${automationId}`).html(`
+          <h6>Type</h6>
+          <p>${esc(automationTypes[res.type] || res.type)}</p>
           <h6>Timezone</h6>
           <p>${esc(res.timezone)}</p>
           <h6 title="Read on the automation's own clock, ${esc(res.timezone)}.">Cursor</h6>
           <p title="The most recent run this automation committed to. Runs at or before it are never queued again. It advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.">${esc(res.cursor || "Not initialized yet")}</p>
+          <h6>Schedule revision</h6>
+          <p>${esc(res["schedule-revision"])}</p>
           <h6>Data source</h6>
           <p>${esc(generator)}</p>
           <h6 title="The static settings this data source was created with. Changing one of them makes a new data source.">Configuration</h6>
@@ -521,6 +529,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${sensorLinks(res["output-sensors"], res.source)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
+          <h6>Durable runs</h6>
+          <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs</h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
@@ -567,8 +577,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       ordering: true,
       order: [[createdAtColumn, "desc"]],  // most recently created first
       language: {
-        emptyTable: `No ${automationType} automations have been defined ${scope} yet.`
-          + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
+        emptyTable: `No automations of type '${esc(automationTypes[automationType] || automationType)}' have been defined ${scope} yet.`
+          + (userCanManage ? (["forecasting", "scheduling", "reporting"].includes(automationType)
+            ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`."
+            : " Create one with the CLI command `flexmeasures add automation`.") : ""),
       },
       columns: columns,
       data: automations.map(AutomationRow),
@@ -594,7 +606,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   }
 
   // The types the page keeps a tab and a table for.
-  const AUTOMATION_TYPES = ["forecasting", "scheduling", "reporting"];
+  const AUTOMATION_TYPES = Object.keys(automationTypes);
 
   function loadAutomations({ rebuild = false } = {}) {
     // One refresh at a time: a slow response must not pile up behind the next tick.

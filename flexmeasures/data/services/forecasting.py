@@ -53,3 +53,13 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
 
     job.meta["exception"] = exception
     job.save_meta()
+
+    trigger = job.meta.get("trigger", {})
+    automation_run_id = job.meta.get("automation_run_id") or trigger.get(
+        "automation_run_id"
+    )
+    logical_job_key = job.meta.get("logical_job_key")
+    if automation_run_id is not None and logical_job_key is not None:
+        from flexmeasures.data.services.automations import record_automation_job_failed
+
+        record_automation_job_failed(automation_run_id, logical_job_key, exc_value)
