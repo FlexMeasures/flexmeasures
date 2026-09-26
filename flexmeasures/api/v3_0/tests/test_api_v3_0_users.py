@@ -286,7 +286,7 @@ def test_login(client, setup_api_test_data, email, status_code):
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_logout(client, setup_api_test_data, requesting_user):
-    """Tries to log out, which should succeed as a url direction."""
+    """Logs out by POST, which redirects."""
 
     assert not current_user.is_anonymous
 
