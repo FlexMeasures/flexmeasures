@@ -22,7 +22,17 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.queries.annotations import filter_by_belief_time
-from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
+from flexmeasures.auth.policy import (
+    AuthModelMixin,
+    PERMISSIONS,
+    ADMIN_ROLE,
+    ADMIN_READER_ROLE,
+    CONSULTANT_ROLE,
+    ACCOUNT_ADMIN_ROLE,
+    MEMBER_ROLE,
+    READ_ONLY_ROLE,
+    INTEGRATION_ROLE,
+)
 from flexmeasures.utils.time_utils import server_now
 
 if TYPE_CHECKING:
@@ -156,22 +166,28 @@ class Account(db.Model, AuthModelMixin):
             read_access.append(
                 (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
+        create_access = [
+            (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
+                f"account:{self.consultancy_account_id}",
+                f"role:{CONSULTANT_ROLE}",
+            ),
+        ]
+        update_access = [
+            f"account:{self.id}",
+            (
+                f"account:{self.consultancy_account_id}",
+                f"role:{CONSULTANT_ROLE}",
+            ),
+        ]
         return {
-            "create-children": [
-                (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    f"account:{self.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                ),
-            ],
+            "create-children": create_access,
             "read": read_access,
-            "update": [
-                f"account:{self.id}",
-                (
-                    f"account:{self.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                ),
-            ],
+            "update": update_access,
+            "edit-account": update_access,
+            "manage-users": create_access,
+            "edit-assets": create_access,
+            "annotate": read_access,
         }
 
     def get_path(self, separator: str = ">"):
@@ -294,10 +310,32 @@ class RolesUsers(db.Model):
 
 
 class Role(db.Model, RoleMixin):
+    """A code-defined bundle of named permissions."""
+
     __tablename__ = "role"
     id = Column(Integer(), primary_key=True)
     name = Column(String(80), unique=True)
     description = Column(String(255))
+
+    @property
+    def permissions(self) -> frozenset[str]:
+        """Return this role's grants. Unknown roles grant no named permissions."""
+        all_permissions = frozenset(PERMISSIONS)
+        member_permissions = all_permissions - {
+            "delete-data",
+            "manage-users",
+            "delete",
+        }
+        grants = {
+            READ_ONLY_ROLE: frozenset({"read", "reset-password"}),
+            INTEGRATION_ROLE: frozenset({"read", "post-data", "reset-password"}),
+            MEMBER_ROLE: member_permissions,
+            ACCOUNT_ADMIN_ROLE: all_permissions,
+            CONSULTANT_ROLE: all_permissions,
+            ADMIN_READER_ROLE: frozenset({"read"}),
+            ADMIN_ROLE: all_permissions,
+        }
+        return grants.get(self.name, frozenset())
 
     def __repr__(self):
         return "<Role:%s (ID:%s)>" % (self.name, self.id)
@@ -351,6 +389,13 @@ class User(db.Model, UserMixin, AuthModelMixin):
         Check policy.can_modify_role() for special treatment of roles.
         Creation and deletion are left to site admins in CLI.
         """
+        admin_access = [
+            (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
+                f"account:{self.account.consultancy_account_id}",
+                f"role:{CONSULTANT_ROLE}",
+            ),
+        ]
         return {
             "read": [
                 f"account:{self.account_id}",
@@ -359,14 +404,10 @@ class User(db.Model, UserMixin, AuthModelMixin):
                     f"role:{CONSULTANT_ROLE}",
                 ),
             ],
-            "update": [
-                f"user:{self.id}",
-                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    f"account:{self.account.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                ),
-            ],
+            "update": [f"user:{self.id}", *admin_access],
+            "edit-profile": f"user:{self.id}",
+            "manage-users": admin_access,
+            "reset-password": [f"user:{self.id}", *admin_access],
         }
 
     @property

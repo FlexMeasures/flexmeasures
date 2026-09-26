@@ -28,7 +28,7 @@ from flexmeasures.data.services.users import find_user_by_email
             201,
         ),  # account-admin can annotate own account
         ("test_admin_user@seita.nl", 201),  # admin can annotate any account
-        ("test_prosumer_user@seita.nl", 403),  # regular user without admin role
+        ("test_prosumer_user@seita.nl", 201),  # member can annotate own account
         ("test_dummy_user_3@seita.nl", 403),  # user from different account
         (None, 401),  # no authentication
     ],
@@ -42,7 +42,7 @@ def test_post_account_annotation_permissions(
     Validates that:
     - Account admins can annotate their own account
     - Platform admins can annotate any account
-    - Regular users without account-admin role cannot annotate
+    - Members can annotate their own account
     - Users from different accounts cannot annotate
     - Unauthenticated requests are rejected
     """

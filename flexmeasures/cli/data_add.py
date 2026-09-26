@@ -456,7 +456,7 @@ def new_user(
         password=pwd1,
         account_name=account.name,
         timezone=timezone,
-        user_roles=roles,
+        user_roles=roles or None,
         check_email_deliverability=False,
     )
     db.session.commit()

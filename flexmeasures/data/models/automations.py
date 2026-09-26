@@ -137,6 +137,7 @@ class Automation(db.Model, AuthModelMixin):
             "read": asset_acl["read"],
             "update": asset_acl["create-children"],
             "delete": asset_acl["create-children"],
+            "manage-automations": asset_acl["manage-automations"],
         }
 
     def __repr__(self):

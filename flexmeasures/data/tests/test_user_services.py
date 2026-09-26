@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import (
     create_user,
     find_user_by_email,
@@ -32,11 +32,7 @@ def test_create_user(
     assert user.email == "new_user@seita.nl"
     assert user.username == "new_user"
     assert user.account.name == "Test Prosumer Account"
-    assert user.roles == [
-        fresh_db.session.execute(
-            select(Role).filter_by(name="SomeRole")
-        ).scalar_one_or_none()
-    ]
+    assert {role.name for role in user.roles} == {"member", "SomeRole"}
     assert fresh_db.session.execute(
         select(DataSource).filter_by(user_id=user.id)
     ).scalar_one_or_none()

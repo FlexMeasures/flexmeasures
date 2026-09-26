@@ -24,7 +24,7 @@
         </div>
         {% endif %}
 
-        {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
+        {% if can_reset_password %}
         <div>
           <a href="/users/reset_password_for/{{ user.id }}"
              class="btn btn-sm btn-info delete-button"

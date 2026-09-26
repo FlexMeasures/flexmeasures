@@ -21,6 +21,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
+from flexmeasures.auth.policy import MEMBER_ROLE
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.utils.time_utils import server_now
 
@@ -136,6 +137,19 @@ def create_user(  # noqa: C901
     user.tf_totp_secret = jsonified_totp
 
     user.account = account
+
+    # A new user's implicit home-account rights are represented by member.
+    # Read-only and integration are deliberately restricted alternatives.
+    if user_roles is None:
+        user_roles = [MEMBER_ROLE]
+    elif user_roles:
+        if not isinstance(user_roles, list):
+            user_roles = [user_roles]
+        names = {
+            role["name"] if isinstance(role, dict) else role for role in user_roles
+        }
+        if not names.intersection({"read-only", "integration", MEMBER_ROLE}):
+            user_roles = [MEMBER_ROLE, *user_roles]
 
     # add roles to user (creating new roles if necessary)
     if user_roles:

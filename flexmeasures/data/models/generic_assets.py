@@ -344,14 +344,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         is allowed for every user in the account or consultants.
         Deletion is only allowed for account admins, as well as for consultants.
 
-        Asymmetry note: because create-children is open to all account members, a
-        plain (no-role) user can copy an asset indefinitely but cannot delete the
-        resulting copies — deletion requires account-admin. Account admins are
-        responsible for pruning unwanted copies. This is intentional: the design
-        allows members to contribute data freely while admins retain control over
-        structural cleanup.
+        Members may remove an empty asset; deleting recorded data requires
+        account-admin or consultant rights at the endpoint.
         """
-        return {
+        acl = {
             "create-children": [
                 f"account:{self.account_id}",
                 (
@@ -391,6 +387,19 @@ class GenericAsset(db.Model, AuthModelMixin):
                 ),
             ],
         }
+        acl.update(
+            {
+                "edit-assets": acl["update"],
+                "edit-flex-config": acl["update"],
+                "edit-sensors": acl["create-children"],
+                "annotate": acl["create-children"],
+                "manage-automations": acl["create-children"],
+                "trigger-schedules": acl["create-children"],
+                "trigger-reports": acl["create-children"],
+                "delete-data": acl["delete"],
+            }
+        )
+        return acl
 
     def __repr__(self):
         return "<GenericAsset %s: %r (%s)>" % (

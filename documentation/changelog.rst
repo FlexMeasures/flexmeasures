@@ -24,6 +24,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* Authorization now uses named permissions granted by code-defined user roles and checked against each resource's ACL. New ``read-only`` and ``integration`` roles support scoped access to home-account resources; the ``consultant`` role grants access only through consultancy ACLs on client accounts. A data migration assigns ``member`` to existing users to preserve their previous home-account rights. To give an existing user read-only or integration access, remove their ``member`` role after assigning the new role.
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]

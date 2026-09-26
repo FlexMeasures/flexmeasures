@@ -5,7 +5,7 @@ from sqlalchemy import select
 from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, User, Role
 
 
 @pytest.mark.parametrize(
@@ -68,7 +68,7 @@ def test_user_reset_password(
     "requesting_user, expected_status_code, user_to_update, expected_role",
     [
         # Admin updates user 4 (initially no roles) to become admin-reader & consultant
-        ("test_admin_user@seita.nl", 200, 4, [3, 4]),
+        ("test_admin_user@seita.nl", 200, 4, ["admin-reader", "consultant"]),
         # Admin updates user 5 (initially an account-admin), removing the account-admin role
         ("test_admin_user@seita.nl", 200, 5, []),
     ],
@@ -88,7 +88,13 @@ def test_user_role_successful_modification_permission(
     previous_ids = set(fresh_db.session.scalars(select(AuditLog.id)).all())
     patch_user_response = client.patch(
         url_for("UserAPI:patch", id=user_to_update),
-        json={"flexmeasures_roles": expected_role},
+        json={
+            "flexmeasures_roles": list(
+                fresh_db.session.scalars(
+                    select(Role.id).where(Role.name.in_(expected_role))
+                )
+            )
+        },
     )
 
     print("Server responded with:\n%s" % patch_user_response.data)

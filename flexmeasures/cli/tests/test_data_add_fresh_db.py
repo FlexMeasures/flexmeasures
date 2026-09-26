@@ -763,7 +763,7 @@ def test_add_user_roles(
     user = fresh_db.session.execute(
         select(User).filter_by(username=username)
     ).scalar_one()
-    assert {role.name for role in user.roles} == expected_roles
+    assert {role.name for role in user.roles} == expected_roles | {"member"}
 
 
 def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):

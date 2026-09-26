@@ -157,7 +157,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         Editing as well as deletion is left to account admins.
         Everyone in the account and its consultant can add beliefs.
         """
-        return {
+        acl = {
             "create-children": [
                 f"account:{self.generic_asset.account_id}",
                 (
@@ -199,6 +199,17 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 ),
             ],
         }
+        acl.update(
+            {
+                "post-data": acl["create-children"],
+                "trigger-schedules": acl["create-children"],
+                "trigger-forecasts": acl["create-children"],
+                "annotate": acl["create-children"],
+                "edit-sensors": acl["update"],
+                "delete-data": acl["delete"],
+            }
+        )
+        return acl
 
     @property
     def asset(self) -> GenericAsset:

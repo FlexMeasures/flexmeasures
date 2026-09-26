@@ -158,6 +158,8 @@ For the data, note the following:
                                 </fieldset>
                             </div>
                         </div>
+                  {% endif %}
+                  {% if user_can_trigger_forecasts %}
                           <div class="sidepanel-container">
                               <div class="sidepanel-label">Forecast</div>
                           <div class="sidepanel-content" style="text-align: left;">
@@ -208,7 +210,7 @@ For the data, note the following:
                       </div>
                   {% endif %}
 
-                  {% if user_can_delete_sensor %}
+                  {% if user_can_delete_sensor_data %}
                   <div class="sidepanel-container">
                       <div class="sidepanel-label">Delete data</div>
                       <div class="sidepanel-content" style="text-align: left;">
@@ -599,7 +601,7 @@ For the data, note the following:
         }
     });
 
-    {% if user_can_create_children_sensor %}
+    {% if user_can_trigger_forecasts %}
     let firstAvailableEventStartForForecastTraining = null;
 
     async function triggerForecast() {
@@ -709,7 +711,7 @@ For the data, note the following:
     document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
     {% endif %}
 
-    {% if user_can_delete_sensor %}
+    {% if user_can_delete_sensor_data %}
     const button = document.getElementById('deleteDataButton');
     const spinner = document.getElementById('spinner-delete-data');
 

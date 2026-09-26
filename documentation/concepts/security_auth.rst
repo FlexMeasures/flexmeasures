@@ -50,17 +50,9 @@ For instance, a user is authorized to update his or her personal data, like the 
 
 .. note:: Each user belongs to exactly one account.
 
-In a nutshell, the way FlexMeasures implements authorization works as follows: The data models codify under which conditions a user can have certain permissions to work with their data (in code, look for the ``__acl__`` function, where the access control list is defined). 
+Authorization requires both a named permission granted by an eligible user role and access to the particular resource. The ``Role.permissions`` property defines grants in code; they are not stored on each role in the database. Each model's ``__acl__`` method maps permission names to principals, such as the resource's account, that identify who can exercise the permission there. API and UI endpoints check the permission for their resource before carrying out an action.
 
-The following permissions exist:
-
-- read
-- update
-- delete
-- create-children
-
-The API endpoints are where we know what needs to happen to what data, so there we make sure that the user has the necessary permissions.
-The concept of "children" refers to the hierarchy of assets-sensors-beliefs, see :ref:`datamodel`. Note that assets can also have other assets as children.
+For example, ``trigger-schedules`` is the same identifier in a role's grants, an asset's ACL and the endpoint's check. An account member with that grant can trigger schedules only where the asset ACL also matches their home account. The names for these permissions are defined in ``flexmeasures.auth.policy``; ``read``, ``post-data``, ``trigger-schedules``, ``edit-assets`` and ``manage-users`` are examples. The older ``create-children``, ``update`` and ``delete`` names remain available for custom ACLs during the transition. "Children" refers to the hierarchy of assets, sensors and beliefs described in :ref:`datamodel`; assets can have other assets as children.
 
 
 User and Account Roles
@@ -69,7 +61,7 @@ User and Account Roles
 We already discussed certain conditions under which a user has access to data ― being a certain user or belonging to a specific account. Furthermore, authorization conditions can also be implemented via *roles*: 
 
 * ``Account roles`` are often used for authorization. They are extensible: hosts and custom services can define their own roles. In the core FlexMeasures codebase, the ``Consultancy`` account role currently has built-in authorization behavior: together with the user role ``consultant``, it allows consultancy accounts to create client accounts and access consultancy-related data.
-* ``User roles`` give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\ s who can read everything. Other roles have only an effect within the user's account, e.g. there could be an "HR" role which allows to edit user data like surnames within the account.
+* ``User roles`` grant named permissions. ``admin`` can perform all actions and ``admin-reader`` can read everything. Home roles apply within the user's own account. The ``consultant`` role applies through consultancy access to client accounts.
 
 We look into supported user roles in more detail below.
 
@@ -85,24 +77,17 @@ Roles are not a closed built-in list. Some are hardcoded in the core authorizati
 Supported User Roles
 ^^^^^^^^^^^^^^^^^^^^^
 
-A user without any roles can, by and large, inspect and edit data in their own account, add beliefs and work on their own user account.
+These roles are natively supported:
 
-.. note::
+- ``admin``: Site-wide access to all actions.
+- ``admin-reader``: Site-wide read access.
+- ``member``: Regular work with resources in their home account, including posting data and triggering jobs. It does not grant user management or deletion of data.
+- ``account-admin``: Management of the home account and its users, including deletion of data.
+- ``read-only``: Reading resources in the home account, plus resetting their own password.
+- ``integration``: Reading and posting data in the home account, plus resetting its own password.
+- ``consultant``: Access to client accounts linked to the user's consultancy account. More on this below.
 
-   **Copy / delete asymmetry for assets.**
-   Because ``create-children`` on a :class:`GenericAsset` is open to all account members,
-   a plain user can copy an asset (and all its children) indefinitely.
-   However, deleting assets requires the ``account-admin`` role.
-   Account admins are therefore responsible for pruning unwanted copies.
-   This is intentional: members are free to contribute data, while admins retain
-   control over structural cleanup.
-
-These roles are natively supported and give users more rights:
-
-- ``admin``: A super-user who can do anything.
-- ``admin-reader``: A user who can read anything, but not do modifications.
-- ``account-admin``: Can update and delete data in their account (e.g. assets, sensors, users, beliefs).
-- ``consultant``: Can view data in other (client) accounts. More on this concept below.
+Roles grant additional permissions; assigning ``read-only`` or ``integration`` does not take away permissions from other roles. To convert an existing user to either role, remove ``member`` and other broader roles from that user. The database upgrade assigns ``member`` to all existing users so that their previous implicit account access is preserved. New users receive ``member`` by default unless a different set of roles is specified.
 
 
 Consultancy

@@ -223,7 +223,7 @@ class AssetCrudUI(FlaskView):
     def create_sensor(self, id: str):
         """GET to /assets/<id>/sensors/new"""
         asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "create-children")
+        check_access(asset, "edit-sensors")
 
         return render_flexmeasures_template(
             "sensors/sensor_new.html",
@@ -279,7 +279,7 @@ class AssetCrudUI(FlaskView):
             account, account_error = asset_form.set_account()
             asset_type, asset_type_error = asset_form.set_asset_type()
 
-            check_access(account, "create-children")
+            check_access(account, "edit-assets")
 
             form_valid = asset_form.validate_on_submit()
 
@@ -323,7 +323,7 @@ class AssetCrudUI(FlaskView):
 
         else:
             asset = get_asset_by_id_or_raise_notfound(id)
-            check_access(asset, "update")
+            check_access(asset, "edit-assets")
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():

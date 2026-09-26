@@ -15,7 +15,7 @@ from flexmeasures.data.services.automations import (
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures import Sensor
 from flexmeasures.ui.utils.auth_utils import (
-    user_can_create_children,
+    user_can_access,
     user_can_delete,
     user_can_read,
     user_can_update,
@@ -29,6 +29,7 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
+from flexmeasures.auth.policy import check_access
 
 
 class SensorUI(FlaskView):
@@ -55,7 +56,9 @@ class SensorUI(FlaskView):
         sensor = db.session.get(Sensor, id)
         if sensor is None:
             raise NotFound
-        can_create_children = user_can_create_children(sensor)
+        check_access(sensor, "read")
+        can_create_children = user_can_access(sensor, "post-data")
+        can_trigger_forecasts = user_can_access(sensor, "trigger-forecasts")
         has_enough_data = False
         planning_horizon: timedelta = current_app.config.get(
             "FLEXMEASURES_PLANNING_HORIZON", timedelta(days=2)
@@ -63,7 +66,7 @@ class SensorUI(FlaskView):
         forecast_default_duration_days = max(
             1, min(7, int(planning_horizon.total_seconds() / 86400))
         )
-        if can_create_children:
+        if can_trigger_forecasts:
             earliest, latest = get_timerange([sensor.id])
             has_enough_data = (latest - earliest) >= timedelta(days=2)
         return render_flexmeasures_template(
@@ -71,7 +74,9 @@ class SensorUI(FlaskView):
             sensor=sensor,
             user_can_update_sensor=user_can_update(sensor),
             user_can_delete_sensor=user_can_delete(sensor),
+            user_can_delete_sensor_data=user_can_access(sensor, "delete-data"),
             user_can_create_children_sensor=can_create_children,
+            user_can_trigger_forecasts=can_trigger_forecasts,
             sensor_has_enough_data_for_forecast=has_enough_data,
             forecast_default_duration_days=forecast_default_duration_days,
             available_units=available_units(),

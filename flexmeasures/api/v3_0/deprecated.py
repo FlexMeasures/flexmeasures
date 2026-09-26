@@ -60,7 +60,7 @@ class SensorEntityAddressAPI(FlaskView):
         location="json",
     )
     @permission_required_for_context(
-        "create-children",
+        "post-data",
         ctx_arg_pos=1,
         ctx_arg_name="bdf",
         ctx_loader=lambda bdf: bdf.sensor,
