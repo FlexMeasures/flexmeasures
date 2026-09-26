@@ -302,6 +302,7 @@ def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
         eq("rewiring creates exactly one stable pair", container.querySelectorAll(
             "[data-annotation-label]"
         ).length, 2);
+        """)
 
 
 def test_bar_interval_of_a_daily_sensor_with_one_data_point(assert_js):
