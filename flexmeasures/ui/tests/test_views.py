@@ -60,5 +60,8 @@ def test_logged_in_user_page_logs_out_by_post(client, as_prosumer_user1):
     )
     assert page.status_code == 200
     logout_url = url_for("security.logout").encode()
-    assert b'<form method="post" action="' + logout_url + b'">' in page.data
+    assert (
+        b'<form method="post" action="' + logout_url + b'" class="action-button-form">'
+        in page.data
+    )
     assert b'<a href="' + logout_url + b'"' not in page.data

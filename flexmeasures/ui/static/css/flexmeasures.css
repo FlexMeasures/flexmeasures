@@ -1409,6 +1409,14 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     border-right: 1px solid var(--primary-border-color) !important;
     text-decoration: none;
 }
+/* A form around an action button (e.g. to log out by POST) should not change the button's layout:
+   the button then fills its column as a link would, without the top margin of submit buttons elsewhere. */
+.header-action-button>div form.action-button-form {
+    display: contents;
+}
+.header-action-button>div form.action-button-form button {
+    margin-top: 0;
+}
 .rq-style.header-action-button>div button,
 .rq-style.header-action-button>div label {
     padding: 15px 25px;
