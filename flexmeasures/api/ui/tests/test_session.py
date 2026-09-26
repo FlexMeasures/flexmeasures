@@ -2,6 +2,12 @@
 
 import pytest
 from flask import url_for
+from sqlalchemy import select
+
+from flexmeasures.api.ui.session import ASSET_VIEWS
+from flexmeasures.data import db
+from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 
 
 @pytest.mark.parametrize(
@@ -87,6 +93,58 @@ def test_update_default_asset_view(client, setup_api_test_data, requesting_user)
     assert response.status_code == 200
     with client.session_transaction() as session:
         assert "default_asset_view" not in session
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("view", ASSET_VIEWS)
+def test_update_default_asset_view_accepts_every_view(
+    client, setup_api_test_data, requesting_user, view
+):
+    """Every asset view the UI offers can be stored as the default, Automations included."""
+    response = client.post(
+        url_for("SessionAPI:update_default_asset_view"),
+        json={"default-asset-view": view},
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as session:
+        assert session["default_asset_view"] == view
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_update_default_asset_view_rejects_unknown_view(
+    client, setup_api_test_data, requesting_user
+):
+    """A name without an asset view behind it is refused, rather than stored to break every later asset page."""
+    response = client.post(
+        url_for("SessionAPI:update_default_asset_view"),
+        json={"default-asset-view": "Sensors"},
+    )
+    assert response.status_code == 422
+    with client.session_transaction() as session:
+        assert "default_asset_view" not in session
+
+
+def test_asset_views_are_the_ones_the_breadcrumb_offers(app, setup_api_test_data):
+    """Every view the breadcrumb offers can be stored as the default, and resolves to a route.
+
+    The breadcrumb is what renders the "Set as default view" checkbox,
+    so a view it offers that `ASSET_VIEWS` omits is a checkbox that silently does nothing.
+    """
+    asset = db.session.scalars(select(GenericAsset)).first()
+    with app.test_request_context():
+        views = get_breadcrumb_info(asset, current_page="Context")["views"]
+        assert views, "the breadcrumb offers no asset views to check"
+        assert sorted(view["name"] for view in views) == sorted(ASSET_VIEWS)
+        for view in views:
+            # The stored name addresses a route this way, so one without a route would 500 on every later asset page.
+            url_for(
+                "AssetCrudUI:{}".format(view["name"].replace(" ", "").lower()),
+                id=asset.id,
+            )
 
 
 @pytest.mark.parametrize(

@@ -11,6 +11,7 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.utils import get_by_id
 
 
 class EntityAddressValidationError(FMValidationError):
@@ -71,9 +72,7 @@ class SensorEntityAddressField(fields.Str):
             if self.fm_scheme == "fm0":
                 raise EntityAddressException("The fm0 scheme is no longer supported.")
             else:
-                sensor = db.session.execute(
-                    select(Sensor).filter_by(id=ea["sensor_id"])
-                ).scalar_one_or_none()
+                sensor = get_by_id(Sensor, ea["sensor_id"])
             if sensor is not None:
                 return sensor
             else:

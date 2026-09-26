@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
@@ -625,6 +626,11 @@ def test_add_account(
             select(Account).filter_by(name=cli_input["name"])
         ).scalar_one_or_none()
         assert account.consultancy_account_id == consultancy_account_id
+        audit_log = fresh_db.session.execute(
+            select(AuditLog).filter_by(affected_account_id=account.id)
+        ).scalar_one()
+        assert audit_log.event == f"Created organisation '{name}': {account.id} via CLI"
+        assert audit_log.active_user_id is None
 
     else:
         # fail because "Test ConsultancyClient Account" already exists
