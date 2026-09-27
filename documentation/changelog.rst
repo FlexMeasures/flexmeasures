@@ -67,6 +67,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* With the ``highspy`` solver, a site where any device has an operation mode could no longer run a converter coupling several commodities (such as a CHP) above one unit of its normalised flow, which made a must-run converter infeasible and silently capped a flexible one [see `PR #2606 <https://www.github.com/FlexMeasures/flexmeasures/pull/2606>`_]
 * Creating an organisation now records the action in its audit log, whether it is created in the UI, through the API or from the CLI [see `PR #2580 <https://www.github.com/FlexMeasures/flexmeasures/pull/2580>`_]
 * A ``PandasReporter`` with ``droplevels`` failed with ``BeliefDataframe has more than one row per event`` wherever several data sources reported the same input event, as happens for a while when a job reporting on a rolling window gets a new data source; it now keeps one belief per event, chosen as in any other search asking for that, while an input can still ask for all beliefs by setting ``one_deterministic_belief_per_event`` to ``false`` [see `PR #2595 <https://www.github.com/FlexMeasures/flexmeasures/pull/2595>`_]
 * A forecaster given more than one regressor of the same kind trained on each of them several times over, because every regressor's data was collected once per regressor [see `PR #2560 <https://www.github.com/FlexMeasures/flexmeasures/pull/2560>`_]
