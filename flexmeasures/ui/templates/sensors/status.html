@@ -100,6 +100,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     }[c]));
   }
 
+  // escape, as these cells are rendered as HTML and may contain user-defined names
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function SensorStatusRow(sensor) {
     const lastCallTime = Date.now();
     const timeAgo = getTimeAgo(lastCallTime);
@@ -108,7 +115,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
 
     return {
       sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
-        <span class="fa fa-info" title="Resolution: ${escapeHtml(sensor.resolution)}, Reason: ${escapeHtml(sensor.relation)}" style="margin-left: 10px;"></span>`,
+        <span class="fa fa-info" title="Resolution: ${escapeHtml(sensor.resolution)}, Relation: ${escapeHtml(sensor.relation)}" style="margin-left: 10px;"></span>`,
       asset: `${escapeHtml(sensor.asset_name)} (<a href="/assets/${sensor.asset_id}">${sensor.asset_id}</a>)`,
       source_type: escapeHtml(sensor.source_type || "None"),
       staleness_since: `
@@ -120,7 +127,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           }
         </span>
       `,
-      status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
+      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span><br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };
@@ -183,7 +190,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         import("{{ url_for('flexmeasures_ui.static', filename='js/sensor-status-utils.js') }}?v={{ flexmeasures_version }}")
           .then(({ fetchSensorStatuses }) => fetchSensorStatuses(
             sensors.map(sensor => sensor.id),
-            sensorId => $.ajax({ url: `/api/v3_0/sensors/${sensorId}/status`, method: "GET" }),
+            sensorId => $.ajax({ url: `/api/v3_0/sensors/${sensorId}/status?asset_id=${assetId}`, method: "GET" }),
             (sensorId, error) => console.error("Error fetching status for sensor:", sensorId, error)
           ))
           .then(sensorsData => callback({ data: sensorsData.map(SensorStatusRow) }));
@@ -298,7 +305,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       console.log("Refreshing sensor:", sensorId);
 
       $.ajax({
-        url: `/api/v3_0/sensors/${sensorId}/status`,
+        url: `/api/v3_0/sensors/${sensorId}/status?asset_id=${assetId}`,
         method: "GET",
         success: function (res) {
           if (!res.sensors_data || !res.sensors_data.length) return;

@@ -5,12 +5,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from croniter.croniter import CroniterBadDateError
-from marshmallow import fields, validate, validates, Schema, ValidationError
+from marshmallow import fields, validate, validates, Schema
 from pytz import all_timezones_set
 
-from flexmeasures.data import ma, db
+from flexmeasures.data import ma
+from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
@@ -57,7 +59,7 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value, attr, obj, **kwargs) -> Automation:
         """Turn an automation id into an Automation."""
         value = super()._deserialize(value, attr, obj, **kwargs)
-        automation = db.session.get(Automation, value)
+        automation = get_by_id(Automation, value)
         if automation is None:
             raise FMValidationError(f"No automation found with id {value}.")
         return automation
@@ -77,7 +79,10 @@ class AutomationCreationSchema(Schema):
     automation_type = fields.Str(
         data_key="type",
         load_default="forecasting",
-        validate=validate.OneOf(Automation.SUPPORTED_TYPES),
+        validate=validate_automation_type,
+        metadata={
+            "description": "Registered automation type: forecasting, scheduling, reporting, or a type provided by an installed plugin."
+        },
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
     cronstr = CronField(required=True, data_key="cron")
@@ -97,7 +102,7 @@ class AutomationCreationSchema(Schema):
         metadata={
             "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`."
             " A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter),"
-            " and a schedule automation's generator follows from the asset and the flex config.",
+            " a plugin type declares its generator, and a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline",
         },
     )
@@ -105,7 +110,7 @@ class AutomationCreationSchema(Schema):
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by a forecast or report automation.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
             "example": {},
         },
     )
@@ -163,6 +168,14 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "2026-08-05T08:00:00+02:00",
         },
     )
+    schedule_revision = ma.auto_field(
+        data_key="schedule-revision",
+        dump_only=True,
+        metadata={
+            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "example": 2,
+        },
+    )
     active = ma.auto_field()
 
     @staticmethod
@@ -192,7 +205,4 @@ class AutomationSchema(ma.SQLAlchemySchema):
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):
-        if type not in Automation.SUPPORTED_TYPES:
-            raise ValidationError(
-                f"Automation type '{type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
-            )
+        validate_automation_type(type)
