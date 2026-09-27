@@ -1,4 +1,4 @@
-"""Regression checks for the member-role data migration."""
+"""Regression checks for the built-in role data migration."""
 
 import importlib
 
@@ -28,18 +28,21 @@ def test_migration_repairs_stale_role_id_sequence(fresh_db, monkeypatch):
         ).scalar_one()
         == 8
     )
+    assert connection.execute(
+        text("SELECT name FROM role WHERE id IN (8, 9, 10) ORDER BY id")
+    ).scalars().all() == ["member", "read-only", "integration"]
     assert (
         connection.execute(
             text("INSERT INTO role (name) VALUES ('next-role') RETURNING id")
         ).scalar_one()
-        == 9
+        == 11
     )
 
 
-def test_restricted_role_migration_seeds_missing_roles_idempotently(
+def test_role_migration_preserves_existing_roles_and_is_idempotent(
     fresh_db, monkeypatch
 ):
-    """Existing roles and imported IDs survive restricted-role provisioning."""
+    """Existing roles and imported IDs survive the combined migration."""
     connection = fresh_db.session.connection()
     connection.execute(
         text(
@@ -53,7 +56,7 @@ def test_restricted_role_migration_seeds_missing_roles_idempotently(
     )
     migration = importlib.import_module(
         "flexmeasures.data.migrations.versions."
-        "8a61f4d973bc_seed_restricted_user_roles"
+        "df847c1a72b0_grandfather_existing_members"
     )
     monkeypatch.setattr(migration.op, "get_bind", lambda: connection)
 
@@ -67,6 +70,7 @@ def test_restricted_role_migration_seeds_missing_roles_idempotently(
         "admin",
         "consultant",
         "read-only",
+        "member",
         "integration",
     ]
     assert rows[2].description == "Custom description"
@@ -74,5 +78,5 @@ def test_restricted_role_migration_seeds_missing_roles_idempotently(
         connection.execute(
             text("INSERT INTO role (name) VALUES ('next-role') RETURNING id")
         ).scalar_one()
-        == 10
+        == 11
     )
