@@ -49,7 +49,9 @@ def render_user(user: User | None, msg: str | None = None):
         can_reset_password = False
 
     roles = {}
+    role_descriptions = {}
     for role in db.session.scalars(select(Role)).all():
+        role_descriptions[role.name] = role.description or ""
         if role.name != ADMIN_ROLE:
             roles[role.name] = role.id
 
@@ -66,6 +68,7 @@ def render_user(user: User | None, msg: str | None = None):
         user=user,
         user_roles=user_roles,
         roles=roles,
+        role_descriptions=role_descriptions,
         asset_count=user.account.number_of_assets,
         msg=msg,
         breadcrumb_info=get_breadcrumb_info(user),

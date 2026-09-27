@@ -86,19 +86,22 @@ def add_default_user_roles(db: SQLAlchemy):
     from flexmeasures.auth import policy as auth_policy
 
     for role_name, role_description in (
-        (auth_policy.ADMIN_ROLE, "Super user"),
-        (auth_policy.ADMIN_READER_ROLE, "Can read everything"),
-        (auth_policy.MEMBER_ROLE, "Operate resources in the home organisation"),
-        (auth_policy.READ_ONLY_ROLE, "Read resources in the home organisation"),
-        (auth_policy.INTEGRATION_ROLE, "Read and post data in the home organisation"),
-        (
-            auth_policy.ACCOUNT_ADMIN_ROLE,
-            "Can update and delete data in their account (e.g. assets, sensors, users, beliefs)",
-        ),
+        (auth_policy.ADMIN_ROLE, "Full access across all organisations"),
+        (auth_policy.ADMIN_READER_ROLE, "Read across all organisations"),
+        (auth_policy.ACCOUNT_ADMIN_ROLE, "Manage home organisation, users, and data"),
         (
             auth_policy.CONSULTANT_ROLE,
-            "Work in consultancy client organisations",
+            "Manage client organisations through consultancy access",
         ),
+        (
+            auth_policy.MEMBER_ROLE,
+            "Work with home organisation resources; cannot delete data",
+        ),
+        (
+            auth_policy.READ_ONLY_ROLE,
+            "Read home organisation resources; no self-service password reset",
+        ),
+        (auth_policy.INTEGRATION_ROLE, "Read and post home organisation data"),
     ):
         role = db.session.execute(
             select(Role).filter_by(name=role_name)

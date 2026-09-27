@@ -33,6 +33,20 @@ def test_user_page(client, as_admin, setup_accounts):
     assert user2.email.encode() in user_page.data
 
 
+def test_user_role_editor_shows_role_descriptions(client, as_admin):
+    user = find_user_by_email("test_prosumer_user_2@seita.nl")
+    response = client.get(url_for("UserCrudUI:get", id=user.id))
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert (
+        '<option value="account-admin">account-admin — Admin for this account</option>'
+        in html
+    )
+    assert '"account-admin": "Admin for this account"' in html
+    assert "Roles add permissions. Remove member" in html
+
+
 def test_user_page_breadcrumb(client, as_admin, setup_accounts):
     """User page should show account name and username in a breadcrumb."""
     user2 = find_user_by_email("test_prosumer_user_2@seita.nl")

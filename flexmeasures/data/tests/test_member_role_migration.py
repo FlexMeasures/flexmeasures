@@ -33,6 +33,18 @@ def test_migration_repairs_stale_role_id_sequence(fresh_db, monkeypatch):
     ).scalars().all() == ["member", "read-only", "integration"]
     assert (
         connection.execute(
+            text("SELECT description FROM role WHERE name = 'admin'")
+        ).scalar_one()
+        == "Full access across all organisations"
+    )
+    assert (
+        connection.execute(
+            text("SELECT description FROM role WHERE name = 'consultant'")
+        ).scalar_one()
+        == "Manage client organisations through consultancy access"
+    )
+    assert (
+        connection.execute(
             text("INSERT INTO role (name) VALUES ('next-role') RETURNING id")
         ).scalar_one()
         == 11
@@ -47,8 +59,9 @@ def test_role_migration_preserves_existing_roles_and_is_idempotent(
     connection.execute(
         text(
             "INSERT INTO role (id, name, description) VALUES "
-            "(1, 'admin', NULL), (7, 'consultant', NULL), "
-            "(8, 'read-only', 'Custom description')"
+            "(1, 'admin', NULL), (2, 'Prosumer', 'Custom role'), "
+            "(7, 'consultant', 'User can see client accounts'), "
+            "(8, 'read-only', 'Old built-in description')"
         )
     )
     connection.execute(
@@ -68,12 +81,20 @@ def test_role_migration_preserves_existing_roles_and_is_idempotent(
     ).all()
     assert [name for name, _ in rows] == [
         "admin",
+        "Prosumer",
         "consultant",
         "read-only",
         "member",
         "integration",
     ]
-    assert rows[2].description == "Custom description"
+    descriptions = {name: description for name, description in rows}
+    assert descriptions["Prosumer"] == "Custom role"
+    assert descriptions["consultant"] == (
+        "Manage client organisations through consultancy access"
+    )
+    assert descriptions["read-only"] == (
+        "Read home organisation resources; no self-service password reset"
+    )
     assert (
         connection.execute(
             text("INSERT INTO role (name) VALUES ('next-role') RETURNING id")

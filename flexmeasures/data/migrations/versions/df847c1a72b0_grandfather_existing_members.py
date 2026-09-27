@@ -15,21 +15,36 @@ depends_on = None
 
 def upgrade():
     connection = op.get_bind()
+    # Keep these descriptions in sync with add_default_user_roles. The migration
+    # is self-contained so it also works after the application code changes.
     roles = (
-        ("member", "Operate resources in the home organisation"),
-        ("read-only", "Read resources in the home organisation"),
-        ("integration", "Read and post data in the home organisation"),
+        ("admin", "Full access across all organisations"),
+        ("admin-reader", "Read across all organisations"),
+        ("account-admin", "Manage home organisation, users, and data"),
+        ("consultant", "Manage client organisations through consultancy access"),
+        ("member", "Work with home organisation resources; cannot delete data"),
+        (
+            "read-only",
+            "Read home organisation resources; no self-service password reset",
+        ),
+        ("integration", "Read and post home organisation data"),
     )
+    roles_to_seed = {"member", "read-only", "integration"}
     connection.execute(sa.text("LOCK TABLE role IN SHARE ROW EXCLUSIVE MODE"))
     existing_roles = dict(
         connection.execute(
             sa.text(
-                "SELECT name, id FROM role "
-                "WHERE name IN ('member', 'read-only', 'integration')"
+                "SELECT name, id FROM role WHERE name IN "
+                "('admin', 'admin-reader', 'account-admin', 'consultant', "
+                "'member', 'read-only', 'integration')"
             )
         ).all()
     )
-    missing_roles = [role for role in roles if role[0] not in existing_roles]
+    missing_roles = [
+        role
+        for role in roles
+        if role[0] in roles_to_seed and role[0] not in existing_roles
+    ]
     if missing_roles:
         # Imported roles can have explicit IDs while the serial sequence remains at 1.
         # Reconcile it before inserting. Keep an already-ahead sequence ahead.
@@ -54,6 +69,17 @@ def upgrade():
                 ),
                 {"name": name, "description": description},
             ).scalar_one()
+    # Built-in role meanings changed with named permissions. Replace their old
+    # descriptions, including non-empty legacy text; leave plugin roles alone.
+    for name, description in roles:
+        if name in existing_roles:
+            connection.execute(
+                sa.text(
+                    "UPDATE role SET description = :description "
+                    "WHERE id = :id AND description IS DISTINCT FROM :description"
+                ),
+                {"id": existing_roles[name], "description": description},
+            )
     member_role_id = existing_roles["member"]
     # Existing users had implicit home-account rights, even with other roles.
     connection.execute(
