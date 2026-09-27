@@ -64,6 +64,7 @@ Infrastructure / Support
 * Support SQLAlchemy 2.1 and upgrade dependencies, including timely-beliefs 4.4 and Flask-Security-Too 5.9, and connect to the database through psycopg 3 when ``SQLALCHEMY_DATABASE_URI`` names no driver (``postgresql://``), where to keep using psycopg2 you can name it (``postgresql+psycopg2://``), while ``flexmeasures db-ops dump`` and ``restore`` now also work with a URI that names a driver [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_ and `PR #2601 <https://www.github.com/FlexMeasures/flexmeasures/pull/2601>`_]
 * Durations for Flask-Security, such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``, can now also be given as an ISO 8601 duration (e.g. ``"P1W"``), and in weeks (e.g. ``"1 week"``) on any version of Flask-Security [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 * Logging out now takes a POST request, so that another site cannot log users out by linking to ``/logout``; the UI's *Log out* button submits a form, and plugins that link to ``/logout`` should do the same [see `PR #2604 <https://www.github.com/FlexMeasures/flexmeasures/pull/2604>`_]
+* ``uv run poe clean-db`` now hands the database it creates to the ``--db-user``, so that setting up a development database also works on PostgreSQL 15 and newer, where only a database's owner may create tables in its ``public`` schema [see `PR #2590 <https://www.github.com/FlexMeasures/flexmeasures/pull/2590>`_]
 
 Bugfixes
 -----------
