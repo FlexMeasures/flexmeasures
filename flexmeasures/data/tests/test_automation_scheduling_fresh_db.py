@@ -11,7 +11,7 @@ from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.services.automations import (
-    claim_due_automation,
+    claim_due_automation_run,
     get_due_automations,
 )
 
@@ -77,7 +77,7 @@ def test_automations_use_independent_timezones(fresh_db, automation_factory):
     assert [(item.automation.id, item.scheduled_at) for item in due] == [
         (amsterdam.id, datetime(2026, 1, 15, 6, 0, tzinfo=timezone.utc))
     ]
-    assert claim_due_automation(due[0]) is True
+    assert claim_due_automation_run(due[0]) is not None
 
     due = get_due_automations(datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc))
 
@@ -133,7 +133,7 @@ def test_spring_forward_run_happens_at_transition_boundary(
     assert [(item.automation.id, item.scheduled_at) for item in due] == [
         (automation.id, datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc))
     ]
-    assert claim_due_automation(due[0]) is True
+    assert claim_due_automation_run(due[0]) is not None
     assert get_due_automations(datetime(2026, 3, 29, 1, 1, tzinfo=timezone.utc)) == []
 
 
@@ -151,7 +151,7 @@ def test_fall_back_wall_time_runs_only_once(fresh_db, automation_factory):
     assert [(item.automation.id, item.scheduled_at) for item in first_fold_due] == [
         (automation.id, datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc))
     ]
-    assert claim_due_automation(first_fold_due[0]) is True
+    assert claim_due_automation_run(first_fold_due[0]) is not None
 
     fresh_db.session.remove()
     second_fold_due = get_due_automations(
@@ -187,7 +187,7 @@ def test_persisted_cursor_survives_restart(fresh_db, automation_factory):
     )
     now = datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc)
     due = get_due_automations(now)
-    assert claim_due_automation(due[0]) is True
+    assert claim_due_automation_run(due[0]) is not None
     automation_id = automation.id
 
     fresh_db.session.remove()
@@ -254,7 +254,7 @@ def test_claim_rejects_automation_deactivated_after_discovery(
     automation.active = False
     fresh_db.session.commit()
 
-    assert claim_due_automation(due) is False
+    assert claim_due_automation_run(due) is None
     assert automation.cursor == cursor
 
 
@@ -277,7 +277,7 @@ def test_claim_rejects_recurrence_edited_after_discovery(
     setattr(automation, field, new_value)
     fresh_db.session.commit()
 
-    assert claim_due_automation(due) is False
+    assert claim_due_automation_run(due) is None
     assert automation.cursor == cursor
 
 
@@ -295,7 +295,7 @@ def test_claim_rejects_cursor_changed_after_discovery(fresh_db, automation_facto
     automation.cursor = newer_cursor
     fresh_db.session.commit()
 
-    assert claim_due_automation(due) is False
+    assert claim_due_automation_run(due) is None
     assert automation.cursor == newer_cursor
 
 
@@ -311,7 +311,7 @@ def test_claim_allows_name_edit_after_discovery(fresh_db, automation_factory):
     automation.name = "New display name"
     fresh_db.session.commit()
 
-    assert claim_due_automation(due) is True
+    assert claim_due_automation_run(due) is not None
 
 
 def test_claim_rejects_automation_deleted_after_discovery(fresh_db, automation_factory):
@@ -326,4 +326,4 @@ def test_claim_rejects_automation_deleted_after_discovery(fresh_db, automation_f
     fresh_db.session.delete(automation)
     fresh_db.session.commit()
 
-    assert claim_due_automation(due) is False
+    assert claim_due_automation_run(due) is None

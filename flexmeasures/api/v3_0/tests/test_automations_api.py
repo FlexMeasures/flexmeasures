@@ -2,16 +2,31 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from flask import url_for
-from sqlalchemy import select
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from sqlalchemy import func, select
 
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import (
+    Automation,
+    AutomationRun,
+    AutomationRunAttempt,
+    AutomationRunJob,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+
+
+def _with_sensor(parameters: dict, sensor_id: int) -> dict:
+    """Fill in the sensor id that a parametrised payload leaves as "SENSOR".
+
+    The id only exists once the fixtures have run, which is after the parameters are written.
+    """
+    return json.loads(json.dumps(parameters).replace('"SENSOR"', str(sensor_id)))
 
 
 @pytest.fixture(scope="function")
@@ -48,6 +63,129 @@ def add_automations(fresh_db, add_battery_assets_fresh_db):
     ]
     fresh_db.session.add_all(automations)
     fresh_db.session.flush()
+    run = AutomationRun(
+        automation=automations[0],
+        scheduled_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
+        schedule_revision=automations[0].schedule_revision,
+        automation_type="forecasting",
+        generator_id=generator.id,
+        dispatch_state="partially_queued",
+        execution_state="pending",
+        attempt_count=2,
+        first_enqueued_at=datetime(2026, 7, 11, 4, 1, tzinfo=timezone.utc),
+        parameters=dict(automations[0].parameters),
+        plan={"cronstr": automations[0].cronstr, "timezone": automations[0].timezone},
+        last_error_type="ConnectionError",
+        last_error_message="lost Redis connection",
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.flush()
+    fresh_db.session.add_all(
+        [
+            AutomationRunJob(
+                run=run,
+                logical_job_key="cycle-001",
+                rq_job_id=f"automation-run-{run.id}-cycle-001",
+                queue="forecasting",
+                kind="forecast-cycle",
+                status="queued",
+                depends_on=[],
+                payload={},
+            ),
+            AutomationRunJob(
+                run=run,
+                logical_job_key="wrap-up",
+                rq_job_id=f"automation-run-{run.id}-wrap-up",
+                queue="forecasting",
+                kind="forecast-wrap-up",
+                status="pending",
+                depends_on=["cycle-001"],
+                payload={},
+            ),
+        ]
+    )
+    # The second automation shows the other two outcomes an operator needs to tell apart:
+    # an occurrence which failed before queueing anything, and one which queued and then ran to completion.
+    failed_before_queueing = AutomationRun(
+        automation=automations[1],
+        scheduled_at=datetime(2026, 7, 11, 5, 0, tzinfo=timezone.utc),
+        schedule_revision=automations[1].schedule_revision,
+        automation_type="forecasting",
+        generator_id=generator.id,
+        dispatch_state="failed",
+        execution_state="pending",
+        attempt_count=1,
+        parameters=dict(automations[1].parameters),
+        plan={"cronstr": automations[1].cronstr, "timezone": automations[1].timezone},
+        last_error_type="ValidationError",
+        last_error_message="forecast output sensor no longer exists",
+    )
+    fully_queued_and_succeeded = AutomationRun(
+        automation=automations[1],
+        scheduled_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
+        schedule_revision=automations[1].schedule_revision,
+        automation_type="forecasting",
+        generator_id=generator.id,
+        dispatch_state="queued",
+        execution_state="succeeded",
+        attempt_count=2,
+        first_enqueued_at=datetime(2026, 7, 11, 4, 1, tzinfo=timezone.utc),
+        dispatch_completed_at=datetime(2026, 7, 11, 4, 2, tzinfo=timezone.utc),
+        execution_started_at=datetime(2026, 7, 11, 4, 3, tzinfo=timezone.utc),
+        execution_completed_at=datetime(2026, 7, 11, 4, 9, tzinfo=timezone.utc),
+        parameters=dict(automations[1].parameters),
+        plan={"cronstr": automations[1].cronstr, "timezone": automations[1].timezone},
+    )
+    fresh_db.session.add_all([failed_before_queueing, fully_queued_and_succeeded])
+    fresh_db.session.flush()
+    fresh_db.session.add_all(
+        [
+            AutomationRunAttempt(
+                run=failed_before_queueing,
+                attempt_no=1,
+                owner="runner-a:1",
+                started_at=datetime(2026, 7, 11, 5, 0, tzinfo=timezone.utc),
+                finished_at=datetime(2026, 7, 11, 5, 0, tzinfo=timezone.utc),
+                outcome="failed",
+                queued_job_count=0,
+                error_type="ValidationError",
+                error_message="forecast output sensor no longer exists",
+            ),
+            AutomationRunAttempt(
+                run=fully_queued_and_succeeded,
+                attempt_no=1,
+                owner="runner-a:1",
+                started_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
+                finished_at=datetime(2026, 7, 11, 4, 0, tzinfo=timezone.utc),
+                outcome="failed",
+                queued_job_count=0,
+                error_type="ConnectionError",
+                error_message="lost Redis connection",
+            ),
+            AutomationRunAttempt(
+                run=fully_queued_and_succeeded,
+                attempt_no=2,
+                owner="runner-b:2",
+                started_at=datetime(2026, 7, 11, 4, 1, tzinfo=timezone.utc),
+                finished_at=datetime(2026, 7, 11, 4, 2, tzinfo=timezone.utc),
+                outcome="queued",
+                queued_job_count=1,
+            ),
+            AutomationRunJob(
+                run=fully_queued_and_succeeded,
+                logical_job_key="cycle-001",
+                rq_job_id=f"automation-run-{fully_queued_and_succeeded.id}-cycle-001",
+                queue="forecasting",
+                kind="forecast-cycle",
+                status="succeeded",
+                depends_on=[],
+                payload={},
+                enqueued_at=datetime(2026, 7, 11, 4, 1, tzinfo=timezone.utc),
+                started_at=datetime(2026, 7, 11, 4, 3, tzinfo=timezone.utc),
+                finished_at=datetime(2026, 7, 11, 4, 9, tzinfo=timezone.utc),
+            ),
+        ]
+    )
     return automations
 
 
@@ -104,14 +242,51 @@ def test_get_automations(
     assert day_ahead["cursor"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["next-run"] == "2026-07-11T06:00:00+02:00"
     assert day_ahead["recurrence-description"] == "At 06:00"
+    assert day_ahead["schedule-revision"] == 1
     assert day_ahead["active"] is True
     assert day_ahead["created-at"] is not None
     intraday = next(a for a in automations if a["name"] == "Intraday forecasts")
     assert intraday["next-run"] is None
+    assert day_ahead["job-stats"] == {}  # this automation has not queued any jobs
     # generator and parameters are not listed
     assert "generator_id" not in day_ahead
     assert "source" not in day_ahead
     assert "parameters" not in day_ahead
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_automations_when_redis_times_out(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+    monkeypatch,
+):
+    """The automation list remains available when Redis times out."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+
+    def raise_redis_timeout(asset):
+        raise RedisTimeoutError("Redis timed out at private-host.example")
+
+    monkeypatch.setattr(
+        "flexmeasures.api.v3_0.assets.get_asset_automations_job_stats",
+        raise_redis_timeout,
+    )
+
+    with app.test_client() as client:
+        response = client.get(url_for("AssetAPI:get_automations", id=battery.id))
+
+    assert response.status_code == 200
+    assert len(response.json["automations"]) == 2
+    assert all(
+        automation["job-stats"] == {} for automation in response.json["automations"]
+    )
+    assert response.json["redis-connection-err"] == (
+        "Redis is unavailable; job statistics could not be loaded."
+    )
+    assert "private-host.example" not in response.text
 
 
 @pytest.mark.parametrize(
@@ -143,12 +318,83 @@ def test_get_automation_details(
     assert response.json["timezone"] == "Europe/Amsterdam"
     assert response.json["cursor"] == "2026-07-11T06:00:00+02:00"
     assert response.json["next-run"] == "2026-07-11T06:00:00+02:00"
+    assert response.json["schedule-revision"] == 1
     assert response.json["parameters"] == {"sensor": battery.sensors[0].id}
+    run_stats = response.json["run-stats"]
+    assert run_stats["total"] == 1
+    assert run_stats["dispatch"] == {"partially_queued": 1}
+    assert run_stats["execution"] == {"pending": 1}
+    assert run_stats["latest-run"]["dispatch-state"] == "partially_queued"
+    assert run_stats["latest-run"]["attempt-count"] == 2
+    assert run_stats["latest-run"]["queued-job-count"] == 1
+    assert run_stats["latest-run"]["last-error"] == {
+        "type": "ConnectionError",
+        "message": "lost Redis connection",
+    }
+    assert [job["logical-job-key"] for job in run_stats["latest-run"]["jobs"]] == [
+        "cycle-001",
+        "wrap-up",
+    ]
     assert response.json["job-stats"] == {}  # this automation has not queued any jobs
     # the sensor to forecast is both read from (its history) and written to
     sensor = {"id": battery.sensors[0].id, "name": battery.sensors[0].name}
     assert response.json["input-sensors"] == [sensor]
     assert response.json["output-sensors"] == [sensor]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_automation_details_distinguishes_run_outcomes(
+    app,
+    add_battery_assets_fresh_db,
+    add_automations,
+    requesting_user,
+):
+    """An operator can tell a pre-queue failure, a completed dispatch and its execution outcome apart."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    automation = add_automations[1]
+    with app.test_client() as client:
+        response = client.get(
+            url_for(
+                "AssetAPI:get_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+    assert response.status_code == 200
+    run_stats = response.json["run-stats"]
+    assert run_stats["total"] == 2
+    assert run_stats["dispatch"] == {"failed": 1, "queued": 1}
+    assert run_stats["execution"] == {"pending": 1, "succeeded": 1}
+
+    # The most recent occurrence failed before it queued anything, so it can be retried in full.
+    latest_run = run_stats["latest-run"]
+    assert latest_run["scheduled-at"] == "2026-07-11T05:00:00+00:00"
+    assert latest_run["dispatch-state"] == "failed"
+    assert latest_run["intended-job-count"] == 0
+    assert latest_run["queued-job-count"] == 0
+    assert latest_run["first-enqueued-at"] is None
+    assert latest_run["last-error"] == {
+        "type": "ValidationError",
+        "message": "forecast output sensor no longer exists",
+    }
+    assert latest_run["latest-attempt"]["attempt-no"] == 1
+    assert latest_run["latest-attempt"]["outcome"] == "failed"
+
+    # The earlier occurrence needed a retry, finished queueing, and its jobs then succeeded.
+    retried_run = run_stats["recent-runs"][1]
+    assert retried_run["scheduled-at"] == "2026-07-11T04:00:00+00:00"
+    assert retried_run["dispatch-state"] == "queued"
+    assert retried_run["execution-state"] == "succeeded"
+    assert retried_run["attempt-count"] == 2
+    assert retried_run["dispatch-completed-at"] == "2026-07-11T04:02:00+00:00"
+    assert retried_run["execution-completed-at"] == "2026-07-11T04:09:00+00:00"
+    assert retried_run["latest-attempt"]["attempt-no"] == 2
+    assert retried_run["latest-attempt"]["owner"] == "runner-b:2"
+    assert retried_run["latest-attempt"]["outcome"] == "queued"
+    assert retried_run["latest-attempt"]["error"] is None
+    assert [job["status"] for job in retried_run["jobs"]] == ["succeeded"]
 
 
 @pytest.mark.parametrize(
@@ -931,6 +1177,247 @@ def test_a_forecast_automation_names_the_data_generator_it_runs(
 
     fresh_db.session.delete(automation)
     fresh_db.session.flush()
+
+
+@pytest.mark.parametrize(
+    "automation_type, data_generator, config, parameters",
+    [
+        (
+            "forecasting",
+            "TrainPredictPipeline",
+            {"not-a-config-field": 1},
+            {"sensor": "SENSOR"},
+        ),
+        (
+            "reporting",
+            "PandasReporter",
+            {
+                "required_input": [{"name": "flow"}],
+                "required_output": [{"name": "flow"}],
+                "transformations": [],
+                "not-a-config-field": 1,
+            },
+            {
+                "input": [{"name": "flow", "sensor": "SENSOR"}],
+                "output": [{"name": "flow", "sensor": "SENSOR"}],
+            },
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_reports_a_config_error_against_the_config(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    automation_type,
+    data_generator,
+    config,
+    parameters,
+):
+    """A fault in the data generator's config is reported against `config`, not against `parameters`.
+
+    Both are validated by schemas of the data generator's choosing, so naming the wrong one
+    sends the caller looking for a mistake in a part of the request that is fine.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor_id = battery.sensors[0].id
+    parameters = _with_sensor(parameters, sensor_id)
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Bad config",
+                "cron": "0 6 * * *",
+                "type": automation_type,
+                "data-generator": data_generator,
+                "config": config,
+                "parameters": parameters,
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    messages = response.json["message"]["json"]
+    assert "not-a-config-field" in str(messages["config"])
+    assert "parameters" not in messages
+
+
+@pytest.mark.parametrize(
+    "automation_type, data_generator, config, parameters",
+    [
+        (
+            "forecasting",
+            "TrainPredictPipeline",
+            {},
+            {"sensor": "SENSOR", "not-a-parameter": 1},
+        ),
+        (
+            "reporting",
+            "PandasReporter",
+            {
+                "required_input": [{"name": "flow"}],
+                "required_output": [{"name": "flow"}],
+                "transformations": [],
+            },
+            {
+                "input": [{"name": "flow", "sensor": "SENSOR"}],
+                "output": [{"name": "flow", "sensor": "SENSOR"}],
+                "not-a-parameter": 1,
+            },
+        ),
+        ("scheduling", None, {}, {"duration": "PT12H", "not-a-parameter": 1}),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_reports_a_parameter_error_against_the_parameters(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    automation_type,
+    data_generator,
+    config,
+    parameters,
+):
+    """A fault in the parameters is reported against `parameters`, for every automation type."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    parameters = _with_sensor(parameters, battery.sensors[0].id)
+    payload = {
+        "name": "Bad parameters",
+        "cron": "0 6 * * *",
+        "type": automation_type,
+        "parameters": parameters,
+    }
+    if data_generator is not None:
+        payload["data-generator"] = data_generator
+        payload["config"] = config
+
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id), json=payload
+        )
+
+    assert response.status_code == 422, response.json
+    messages = response.json["message"]["json"]
+    assert "not-a-parameter" in str(messages["parameters"])
+    assert "config" not in messages
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("config", {"model": "CustomLGBM"}),
+        ("data-generator", "TrainPredictPipeline"),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_schedule_automation_rejects_a_data_generator_and_its_config(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user, field, value
+):
+    """A schedule automation resolves its own scheduler and flex config from the asset.
+
+    Taking either field here would record a choice that nothing goes on to read,
+    so each is refused by name rather than silently ignored.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Schedules with an unusable field",
+                "cron": "0 6 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+                field: value,
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    assert field in response.json["message"]["json"]
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Schedules with an unusable field")
+        ).scalar_one_or_none()
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_report_automation_without_a_reporter_names_the_field_to_fill_in(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user
+):
+    """A report automation has to name its reporter, and the error says which field is missing."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Reporter-less report",
+                "cron": "0 1 * * *",
+                "type": "reporting",
+                "parameters": {"input": [{"sensor": battery.sensors[0].id}]},
+            },
+        )
+
+    assert response.status_code == 422, response.json
+    assert "A reporter is required" in str(
+        response.json["message"]["json"]["data-generator"]
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_a_refused_automation_leaves_nothing_behind(
+    app, fresh_db, add_battery_assets_fresh_db, requesting_user
+):
+    """A rejected request records neither the automation, nor a data source for its generator, nor an audit log entry."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor_id = battery.sensors[0].id
+    before = {
+        model: fresh_db.session.scalar(select(func.count()).select_from(model))
+        for model in (Automation, DataSource, AssetAuditLog)
+    }
+    refused = [
+        {
+            "type": "forecasting",
+            "config": {"not-a-config-field": 1},
+            "parameters": {"sensor": sensor_id},
+        },
+        {
+            "type": "forecasting",
+            "parameters": {"sensor": sensor_id, "not-a-parameter": 1},
+        },
+        {
+            "type": "scheduling",
+            "data-generator": "TrainPredictPipeline",
+            "parameters": {"duration": "PT12H"},
+        },
+    ]
+    with app.test_client() as client:
+        for index, payload in enumerate(refused):
+            response = client.post(
+                url_for("AssetAPI:post_automation", id=battery.id),
+                json={"name": f"Refused {index}", "cron": "0 6 * * *", **payload},
+            )
+            assert response.status_code == 422, response.json
+
+    after = {
+        model: fresh_db.session.scalar(select(func.count()).select_from(model))
+        for model in (Automation, DataSource, AssetAuditLog)
+    }
+    assert after == before
 
 
 @pytest.fixture(scope="function")

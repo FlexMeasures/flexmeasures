@@ -305,9 +305,18 @@
                   <tr>
                     <td>Plan</td>
                     <td>
-                      {% if account.plan %} {{ account.plan.name }}{% if
-                      account.plan.legacy %} (legacy){% endif %} {% else %} No
-                      plan (server defaults apply) {% endif %}
+                      <span
+                        rel="tooltip"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="right"
+                        data-bs-html="true"
+                        tabindex="0"
+                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}<br>Trigger rate-limit scope: {{ effective_rate_limit_key }}"
+                      >
+                        {% if account.plan %}{{ account.plan.name }}{% if
+                        account.plan.legacy %} (legacy){% endif %}{% else %}No
+                        plan (server defaults apply){% endif %}
+                      </span>
                     </td>
                   </tr>
                   <tr>
