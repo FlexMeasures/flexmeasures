@@ -332,14 +332,17 @@ function getHumanFriendlyDateString(iso8601_date_string) {
 }
 
 /** Given an ISO 8601 date string, render a human-friendly description
- *  of how long ago it was, if recent.
+ *  of how far off it is, if it is near.
  *
  *  Examples:
  *  - "just now"
  *  - "10 seconds ago"
  *  - "20 minutes ago"
+ *  - "in 6 minutes"
+ *  - "tomorrow"
  * 
- * If longer ago than 24 hours, let getHumanFriendlyDateString take over.
+ * If further off than 7 days, let getHumanFriendlyDateString take over,
+ * or use options.fallback, for a caller that knows a better absolute rendering than the viewer's own clock.
  */
 function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
     const dateOnlyForOlder = options.dateOnlyForOlder === true;
@@ -351,7 +354,8 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
 
   // Determine if the date is in the future or past (negative means future and positive means past)
   const isFuture = deltaMilliseconds < 0;
-  let suffix = isFuture ? " from now" : " ago"; // Use " from now" for future, " ago" for past
+  // A future moment reads as "in 6 minutes", the way people say it, while a past one keeps the "6 minutes ago" form.
+  const relative = (amount, unit) => isFuture ? `in ${amount} ${unit}` : `${amount} ${unit} ago`;
 
   // Use the absolute value for all time unit calculations
   const absDeltaMilliseconds = Math.abs(deltaMilliseconds);
@@ -366,18 +370,18 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
   if (deltaSeconds < 5) {
     return "just now";
   } else if (deltaSeconds < 60) {
-    return deltaSeconds + " seconds" + suffix;
+    return relative(deltaSeconds, "seconds");
   } else if (deltaMinutes === 1) {
-    return "1 minute" + suffix;
+    return relative(1, "minute");
   } else if (deltaMinutes < 60) {
-    return deltaMinutes + " minutes" + suffix;
+    return relative(deltaMinutes, "minutes");
   }
 
   // --- Logic for Hours ---
   else if (deltaHours === 1) {
-    return "1 hour" + suffix;
+    return relative(1, "hour");
   } else if (deltaHours < 24) {
-    return deltaHours + " hours" + suffix;
+    return relative(deltaHours, "hours");
   }
 
   // --- Logic for Days (24+ hours) ---
@@ -402,6 +406,11 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
 
   // 3. Fallback: Too far in the past or future
   else {
+        // A caller whose moment belongs to another clock than the viewer's can render it itself.
+        if (options.fallback !== undefined) {
+            return options.fallback;
+        }
+
         // For table views, optionally hide time for older moments.
         if (dateOnlyForOlder) {
             return shortDateFormatter.format(date);

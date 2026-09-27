@@ -150,8 +150,8 @@ class SensorChartAnnotationsKwargsSchema(EventWindowSchema, BeliefTimeFilterSche
 
 class SensorAPI(FlaskView):
     """
-    This view exposes sensor attributes through API endpoints under development.
-    These endpoints are not yet part of our official API, but support the FlexMeasures UI.
+    This view exposes sensor charts and chart attributes to the FlexMeasures UI.
+    These endpoints are not part of the official API, and not meant for external UIs.
     """
 
     route_base = "/sensor"
@@ -176,7 +176,7 @@ class SensorAPI(FlaskView):
         - "end" (legacy alias: "event_ends_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). May be given alone, or paired with "duration" to derive "start".
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
-        - "include-data" (legacy alias: "include_data"; if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
+        - "include-data" (legacy alias: "include_data"; if true, chart specs include the data; if false, use the `GET /api/ui/sensor/(id)/chart_data <../api/ui.html#get--api-ui-sensor-(id)-chart_data>`_ endpoint to fetch data)
         - "chart-type" (legacy alias: "chart_type"; currently 'bar_chart' and 'daily_heatmap' are supported types)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
@@ -272,8 +272,8 @@ class SensorAPI(FlaskView):
 
 class AssetAPI(FlaskView):
     """
-    This view exposes asset attributes through API endpoints under development.
-    These endpoints are not yet part of our official API, but support the FlexMeasures UI.
+    This view exposes asset attributes for charts to the FlexMeasures UI.
+    These endpoints are not part of the official API, and not meant for external UIs.
     """
 
     route_base = "/asset"
@@ -292,6 +292,14 @@ class AssetAPI(FlaskView):
         """
         attributes = ["name", "timezone", "timerange_of_sensors_to_show"]
         return {attr: getattr(asset, attr) for attr in attributes}
+
+
+class LegacyDevSensorAPI(SensorAPI):
+    """The endpoints of `SensorAPI`, also served under their former /api/dev prefix, until FlexMeasures v2 (see `flexmeasures.api.ui`)."""
+
+
+class LegacyDevAssetAPI(AssetAPI):
+    """The endpoint of `AssetAPI`, also served under its former /api/dev prefix, until FlexMeasures v2 (see `flexmeasures.api.ui`)."""
 
 
 def get_sensor_or_abort(id: int) -> Sensor:

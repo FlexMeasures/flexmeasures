@@ -322,7 +322,10 @@ def create_annotation_layers(
                     "type": "point",
                     "fields": ["event_start"],
                     "on": "mouseover",
-                    "clear": "mouseout",
+                    # Mouseout fires for each belief hit area. Keep the hover
+                    # while moving between beliefs in this row, and clear it
+                    # when the pointer moves to another row or leaves the view.
+                    "clear": "view:mousemove[!item() || !inScope(item())],view:mouseleave",
                 },
             },
             {

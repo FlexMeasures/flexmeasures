@@ -23,13 +23,13 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+    import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, getFastChartVisibleTimeRange, refreshFastChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -56,7 +56,7 @@
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
     let combineLegend = 'true';
     let dataPath;
-    let dataDevPath;
+    let chartAttributesPath;
     let datasetName;
     let elementId = 'sensorchart';
     let chartSpecsPath;
@@ -69,6 +69,8 @@
     let toggle;
     let stepTriggered = false;
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
+    let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
+    let syncFullBeliefInfoToggle = () => {};
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
     // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can
@@ -87,7 +89,7 @@
     // Initialize Jinja variables
     {% if active_page == "assets" %}
     dataPath = '/api/v3_0/assets/' + {{ asset.id }};
-    dataDevPath = '/api/dev/asset/' + {{ asset.id }};
+    chartAttributesPath = '/api/ui/asset/' + {{ asset.id }};
     datasetName = 'asset_' + {{ asset.id }};
     // Mirror the Vega-Lite chart's subplot structure (one entry per subplot, in order).
     // Entries from validate_sensors_to_show() hold their sensors in a "plots" list,
@@ -142,8 +144,8 @@
     {% endif %}
     {% endif %}
     {% elif active_page == "sensors" %}
-    dataPath = '/api/dev/sensor/' + {{ sensor.id }};
-    dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+    dataPath = '/api/ui/sensor/' + {{ sensor.id }};
+    chartAttributesPath = '/api/ui/sensor/' + {{ sensor.id }};
     datasetName = 'sensor_' + {{ sensor.id }};
     fastChartGroupSpec = [
         {
@@ -251,6 +253,27 @@
 
         // Set up the fast chart (canvas-based) toggle
         const fastChartToggle = document.getElementById('fastChartToggle');
+        const fullBeliefInfoToggle = document.getElementById('fullBeliefInfoToggle');
+        const fullBeliefInfoToggleContainer = document.getElementById('fullBeliefInfoToggleContainer');
+        const beliefTooltipSupported = () => {
+            if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
+            if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
+            return (fastChartGroupSpec || []).some((group) =>
+                ['Power flow by type', 'Prices'].includes(group.title)
+            );
+        };
+        syncFullBeliefInfoToggle = () => {
+            if (!fullBeliefInfoToggleContainer) { return; }
+            fullBeliefInfoToggleContainer.classList.toggle('d-none', !fastMode || !beliefTooltipSupported());
+        };
+        if (fullBeliefInfoToggle) {
+            fullBeliefInfoToggle.checked = fullBeliefInfo;
+            fullBeliefInfoToggle.addEventListener('change', function () {
+                fullBeliefInfo = this.checked;
+                localStorage.setItem('fm-full-belief-info', fullBeliefInfo ? '1' : '0');
+                setFastChartFullBeliefInfo(fastChartElementId, fullBeliefInfo);
+            });
+        }
         if (fastChartToggle) {
             fastChartToggle.checked = fastMode;
             if (fastMode) {
@@ -259,6 +282,7 @@
             fastChartToggle.addEventListener('change', async function () {
                 fastMode = this.checked;
                 localStorage.setItem('fm-fast-charts', fastMode ? '1' : '0');
+                syncFullBeliefInfoToggle();
                 if (fastMode) {
                     stopReplay();
                 }
@@ -267,6 +291,7 @@
         } else {
             fastMode = false;  // no toggle on this page, so always use Vega-Lite
         }
+        syncFullBeliefInfoToggle();
 
         // Set up play/pause button for replay, incl. the complete replay logic
         toggle = document.querySelector('#replay');
@@ -306,6 +331,7 @@
             dropdownItems[i].addEventListener('click', function (e) {
                 e.preventDefault();
                 chartType = this.getAttribute('data-chart-type');
+                syncFullBeliefInfoToggle();
                 // Update the active state of the dropdown items
                 var dropdownItems = document.querySelectorAll('.dropdown-item');
                 dropdownItems.forEach(item => {
@@ -533,6 +559,7 @@
             // Rebuild the fast chart's groupSpec so the just-saved titles, groupings
             // and per-sub-chart y-axis modes take effect without a page reload.
             fastChartGroupSpec = rebuildFastChartGroupSpec(event.detail.sensorsToShow);
+            syncFullBeliefInfoToggle();
         }
         {% endif %}
         $("#spinner").show();
@@ -634,7 +661,7 @@
     {% else %}
     var timerangeNotSetYet = true;
     {% endif %}
-    fetch(dataDevPath, {
+    fetch(chartAttributesPath, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
     })
@@ -884,6 +911,7 @@
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
             // sensor page always shows legend below (single sensor, sources are the legend entries)
             isSensorPage: ('{{ active_page }}' === 'sensors'),
+            fullBeliefInfo: fullBeliefInfo,
             datasetName: datasetName,
             annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
             // The requested query window, so the x-axis spans the whole selected
@@ -1171,10 +1199,10 @@
                     const label = labelMap[kpi.downsample_function];
                     card.innerHTML = `
                   <div class="card-body d-flex flex-column justify-content-between">
-                      <h5 class="card-title">${kpi.title}</h5>
+                      <h5 class="card-title">${escapeHtml(kpi.title)}</h5>
                       <h5 class="card-text">
                           <strong>
-                              ${label}: ${kpi.downsample_value} ${kpi.unit}
+                              ${label}: ${escapeHtml(kpi.downsample_value)} ${escapeHtml(kpi.unit)}
                           </strong>
                       </h5>
                   </div>

@@ -1044,7 +1044,7 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
     db.session.flush()
 
     # 1. Neither given → sibling copy (same account, same parent)
-    copy1 = copy_asset(battery)
+    copy1 = copy_asset(battery).asset
     assert copy1.name == f"{battery.name} (Copy)"
     assert copy1.account_id == battery.account_id
     assert copy1.parent_asset_id == battery.parent_asset_id  # None
@@ -1061,19 +1061,19 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
 
     # 2. Only account given → top-level in target account
     # Use the turbine so the name doesn't clash with copy1 (parent_asset_id is None for both).
-    copy2 = copy_asset(turbine, account=prosumer_account)
+    copy2 = copy_asset(turbine, account=prosumer_account).asset
     assert copy2.name == f"{turbine.name} (Copy)"
     assert copy2.account_id == prosumer_account.id
     assert copy2.parent_asset_id is None
 
     # 3. Only parent given → under parent, inherits parent's account
-    copy3 = copy_asset(battery, parent_asset=parent)
+    copy3 = copy_asset(battery, parent_asset=parent).asset
     assert copy3.name == f"{battery.name} (Copy)"
     assert copy3.account_id == parent.account_id  # Supplier account
     assert copy3.parent_asset_id == parent.id
 
     # 4. Both given → under parent, in explicitly given account (cross-account)
-    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent)
+    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent).asset
     assert copy4.name == f"{turbine.name} (Copy)"
     assert copy4.account_id == prosumer_account.id
     assert copy4.parent_asset_id == parent.id
@@ -1109,16 +1109,16 @@ def test_copy_asset_increments_name_under_same_parent(
     db.session.flush()
 
     # First copy under the parent.
-    first_copy = copy_asset(battery, parent_asset=parent)
+    first_copy = copy_asset(battery, parent_asset=parent).asset
     assert first_copy.parent_asset_id == parent.id
     assert first_copy.name == f"{battery.name} (Copy)"
 
     # Second and third copies increment the suffix.
-    second_copy = copy_asset(battery, parent_asset=parent)
+    second_copy = copy_asset(battery, parent_asset=parent).asset
     assert second_copy.parent_asset_id == parent.id
     assert second_copy.name == f"{battery.name} (Copy 2)"
 
-    third_copy = copy_asset(battery, parent_asset=parent)
+    third_copy = copy_asset(battery, parent_asset=parent).asset
     assert third_copy.parent_asset_id == parent.id
     assert third_copy.name == f"{battery.name} (Copy 3)"
 
@@ -1162,7 +1162,7 @@ def test_copy_template_asset_drops_template_metadata(
     assert template_asset.attributes["template"]["key"] == "battery-template"
     assert "Copy this" in template_asset.description
 
-    copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_asset = copy_asset(template_asset, account=prosumer_account).asset
     copied_sensor = db.session.scalars(
         select(Sensor).filter_by(generic_asset_id=copied_asset.id)
     ).one()
@@ -1270,7 +1270,7 @@ def test_copy_asset_to_another_account_preserves_config(
     original_flex_context = house.flex_context.copy()
 
     # --- Act ---
-    house_copy = copy_asset(house, account=supplier_account)
+    house_copy = copy_asset(house, account=supplier_account).asset
 
     # 1. Correct account and name.
     assert house_copy.account_id == supplier_account.id
@@ -1431,7 +1431,7 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     db.session.flush()
 
     # --- Act ---
-    battery_copy = copy_asset(battery, account=prosumer_account)
+    battery_copy = copy_asset(battery, account=prosumer_account).asset
 
     # Locate the new copied sensor.
     copied_sensors = db.session.scalars(
@@ -2362,37 +2362,6 @@ def test_kpi_counts_each_event_under_one_day_only(
     ), "each event counts once across neighbouring days, not twice"
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-@pytest.mark.parametrize("tab", ["jobs", "sensors"])
-def test_update_status_page_tab(client, setup_api_test_data, requesting_user, tab):
-    """Posting a status page tab records it in the session, for the next status page the user opens."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_tab"),
-        json={"status_page_tab": tab},
-    )
-    assert response.status_code == 200
-    with client.session_transaction() as session:
-        assert session["status_page_tab"] == tab
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_update_status_page_tab_rejects_unknown_tab(
-    client, setup_api_test_data, requesting_user
-):
-    """Only the two tabs the status page actually has are accepted."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_tab"),
-        json={"status_page_tab": "automations"},
-    )
-    assert response.status_code == 422
-    with client.session_transaction() as session:
-        assert "status_page_tab" not in session
-
-
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_jobs_of_child_assets(
     client, app, add_asset_with_children, clean_redis, requesting_user
@@ -2424,26 +2393,9 @@ def test_get_jobs_of_child_assets(
 
     response = client.get(
         url_for("AssetAPI:get_jobs", id=parent.id),
-        query_string={"include_child_assets": "false"},
+        query_string={"include-child-assets": "false"},
     )
     assert response.status_code == 200
     assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
 
     app.queues["scheduling"].empty()
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-@pytest.mark.parametrize("include_child_assets", [True, False])
-def test_update_status_page_child_jobs(
-    client, setup_api_test_data, requesting_user, include_child_assets
-):
-    """Posting the job scope of the status page records it in the session, for the next status page the user opens."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_child_jobs"),
-        json={"include_child_assets": include_child_assets},
-    )
-    assert response.status_code == 200
-    with client.session_transaction() as session:
-        assert session["status_page_include_child_assets"] == include_child_assets
