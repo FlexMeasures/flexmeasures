@@ -83,11 +83,11 @@ These roles are natively supported:
 - ``admin-reader``: Site-wide read access.
 - ``member``: Regular work with resources in their home account, including posting data and triggering jobs. It does not grant user management or deletion of data.
 - ``account-admin``: Management of the home account and its users, including deletion of data.
-- ``read-only``: Reading resources in the home account, plus resetting their own password.
+- ``read-only``: Reading resources in the home account. It cannot initiate its own password reset; an account administrator or consultant can initiate one.
 - ``integration``: Reading and posting data in the home account, plus resetting its own password.
 - ``consultant``: Access to client accounts linked to the user's consultancy account. More on this below.
 
-Roles grant additional permissions; assigning ``read-only`` or ``integration`` does not take away permissions from other roles. To convert an existing user to either role, remove ``member`` and other broader roles from that user. The database upgrade assigns ``member`` to all existing users so that their previous implicit account access is preserved. New users receive ``member`` by default unless a different set of roles is specified.
+Roles grant additional permissions; assigning ``read-only`` or ``integration`` does not take away permissions from other roles. To convert an existing user to either role, remove ``member`` and other broader roles from that user. The database upgrade assigns ``member`` to all existing users so that their previous implicit account access is preserved, and creates the ``read-only`` and ``integration`` role rows. New users receive ``member`` by default unless a different set of roles is specified.
 
 
 Consultancy

@@ -327,7 +327,7 @@ class Role(db.Model, RoleMixin):
             "delete",
         }
         grants = {
-            READ_ONLY_ROLE: frozenset({"read", "reset-password"}),
+            READ_ONLY_ROLE: frozenset({"read"}),
             INTEGRATION_ROLE: frozenset({"read", "post-data", "reset-password"}),
             MEMBER_ROLE: member_permissions,
             ACCOUNT_ADMIN_ROLE: all_permissions,

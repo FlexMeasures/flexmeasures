@@ -1,11 +1,13 @@
 import pytest
 from flask import url_for, request
+from flask_security import url_for_security
 from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User, Role
+from flexmeasures.auth.policy import READ_ONLY_ROLE
 
 
 @pytest.mark.parametrize(
@@ -59,6 +61,51 @@ def test_user_reset_password(
             "reset your password:\n\n%sreset/" % request.host_url
             in pwd_reset_instructions.body
         )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_read_only_user_cannot_initiate_password_reset(
+    fresh_db, app, client, setup_roles_users_fresh_db, requesting_user
+):
+    """Read-only users cannot reset themselves through API or public recovery."""
+    role = Role(name=READ_ONLY_ROLE)
+    fresh_db.session.add(role)
+    requesting_user.flexmeasures_roles = [role]
+    fresh_db.session.flush()
+
+    with app.mail.record_messages() as outbox:
+        api_response = client.patch(
+            url_for("UserAPI:reset_user_password", id=requesting_user.id)
+        )
+        recovery_response = client.post(
+            url_for_security("forgot_password"), data={"email": requesting_user.email}
+        )
+
+    assert api_response.status_code == 403
+    assert recovery_response.status_code == 200
+    assert not outbox
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_account_admin_can_reset_read_only_user_password(
+    fresh_db, app, client, setup_roles_users_fresh_db, requesting_user
+):
+    """An account admin can still initiate recovery for a read-only user."""
+    target = find_user_by_email("test_prosumer_user@seita.nl")
+    role = Role(name=READ_ONLY_ROLE)
+    fresh_db.session.add(role)
+    target.flexmeasures_roles = [role]
+    fresh_db.session.flush()
+
+    with app.mail.record_messages() as outbox:
+        response = client.patch(url_for("UserAPI:reset_user_password", id=target.id))
+
+    assert response.status_code == 200
+    assert len(outbox) == 2
 
 
 #  This test can also be found in test_api_v3_0_users.py, the difference is

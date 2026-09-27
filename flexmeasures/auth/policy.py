@@ -36,7 +36,7 @@ ADMIN_READER_ROLE = "admin-reader"  # Site-wide read access.
 ACCOUNT_ADMIN_ROLE = "account-admin"  # Manage one home organisation and its users.
 CONSULTANT_ROLE = "consultant"  # Work in client organisations of a consultancy.
 MEMBER_ROLE = "member"  # Operate resources in the home organisation.
-READ_ONLY_ROLE = "read-only"  # Read home resources and reset own password.
+READ_ONLY_ROLE = "read-only"  # Read home resources only.
 INTEGRATION_ROLE = "integration"  # Read and post data in the home organisation.
 
 # Account Roles
@@ -165,6 +165,11 @@ def check_access(context: AuthModelMixin, permission: str):
         raise Forbidden(
             f"Authorization failure (accessing {context} to {permission}) ― cannot match {current_user} against {principals}!"
         )
+
+
+def user_can_reset_own_password(user) -> bool:
+    """Allow self-service password recovery only with an eligible role grant."""
+    return any("reset-password" in role.permissions for role in user.roles)
 
 
 def user_has_admin_access(user, permission: str) -> bool:

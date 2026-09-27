@@ -85,3 +85,4 @@ def test_read_only_role_can_match_read_acl_but_not_mutation_acl():
     assert user_has_scoped_permission(user, "read", "account:10")
     assert not user_has_scoped_permission(user, "edit-assets", "account:10")
     assert not user_has_scoped_permission(user, "post-data", "account:10")
+    assert "reset-password" not in Role(name=READ_ONLY_ROLE).permissions

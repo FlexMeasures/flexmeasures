@@ -12,11 +12,13 @@
         <div>
           <a href="/logout" class="btn btn-sm btn-responsive btn-info nav-button">Log out</a>
         </div>
+        {% if can_reset_own_password %}
         <div>
           <a href="/users/reset_password_for/{{ logged_in_user.id }}"
              class="btn btn-sm btn-info delete-button"
              title="Reset the password and send instructions how to choose a new one.">Reset password</a>
         </div>
+        {% endif %}
       </div>
     </div>
     <div class="col-md-8">
