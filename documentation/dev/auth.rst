@@ -38,7 +38,7 @@ An endpoint must check both requirements with ``@permission_required_for_context
 
 Home roles (``member``, ``account-admin``, ``read-only`` and ``integration``) provide grants only when the matching ACL principal refers to the user's own account. The ``consultant`` role provides grants only through a matching consultancy principal on a client resource. The site-wide ``admin`` and ``admin-reader`` roles are exceptions. Grant and ACL scope must match in the same ACL alternative; having ``member`` in a home account does not supply permissions while acting as a consultant for a client account. Unknown user roles grant no built-in named permissions. Custom services can still define their own authorization behavior for their endpoints.
 
-Existing users receive the ``member`` role in a data migration so their previous implicit home-account access persists. Newly created users receive it by default unless explicit roles are supplied. Roles only add grants, so remove ``member`` when converting a user to ``read-only`` or ``integration``.
+Existing users receive the ``member`` role in a data migration so their previous implicit home-account access persists; a following migration creates the ``read-only`` and ``integration`` role rows. Newly created users receive it by default unless explicit roles are supplied. Roles only add grants, so remove ``member`` when converting a user to ``read-only`` or ``integration``.
 
 
 Account roles

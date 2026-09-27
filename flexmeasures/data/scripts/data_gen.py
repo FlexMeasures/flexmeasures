@@ -88,13 +88,16 @@ def add_default_user_roles(db: SQLAlchemy):
     for role_name, role_description in (
         (auth_policy.ADMIN_ROLE, "Super user"),
         (auth_policy.ADMIN_READER_ROLE, "Can read everything"),
+        (auth_policy.MEMBER_ROLE, "Operate resources in the home organisation"),
+        (auth_policy.READ_ONLY_ROLE, "Read resources in the home organisation"),
+        (auth_policy.INTEGRATION_ROLE, "Read and post data in the home organisation"),
         (
             auth_policy.ACCOUNT_ADMIN_ROLE,
             "Can update and delete data in their account (e.g. assets, sensors, users, beliefs)",
         ),
         (
             auth_policy.CONSULTANT_ROLE,
-            "Can read everything in consultancy client accounts",
+            "Work in consultancy client organisations",
         ),
     ):
         role = db.session.execute(
