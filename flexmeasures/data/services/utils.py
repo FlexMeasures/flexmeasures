@@ -320,14 +320,17 @@ def job_cache(queue: str):
                     f"Timed out waiting for another call to {func.__name__} with the same arguments; creating a job without the lock."
                 )
             try:
-                # check the redis connection for whether the key hash exists
-                if connection.exists(args_hash) and not force_new_job_creation:
+                # check the redis connection for a cached job ID (a single read, as the key can expire in between two)
+                cached_job_id = (
+                    None if force_new_job_creation else connection.get(args_hash)
+                )
+                if cached_job_id is not None:
                     current_app.logger.info(
                         f"The function {func.__name__} has been called already with the same arguments. Skipping..."
                     )
 
                     # get job id
-                    job_id = connection.get(args_hash).decode()
+                    job_id = cached_job_id.decode()
 
                     # check if the job exists and, if it doesn't, skip fetching and generate new job
                     if Job.exists(job_id, connection=connection):
