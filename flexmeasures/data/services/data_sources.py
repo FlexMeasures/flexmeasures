@@ -4,6 +4,7 @@ import logging
 
 from flask import current_app
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from typing import Type, TypeVar
 
 from flexmeasures import Account, Source, User
@@ -43,14 +44,7 @@ def get_or_create_source(
         query = query.filter(DataSource.name == source)
     else:
         raise TypeError("source should be of type User or str")
-    # Concurrent calls can each insert the same source, because the unique constraint treats NULL user and account IDs as distinct.
-    # Rather than failing on such duplicates, reuse the oldest one, so that later calls consistently pick the same source.
-    matches = db.session.scalars(query.order_by(DataSource.id).limit(2)).all()
-    _source = matches[0] if matches else None
-    if len(matches) > 1:
-        current_app.logger.warning(
-            f"Found duplicate data sources matching {_source} (IDs {[match.id for match in matches]}, and possibly more); using the oldest one (ID {_source.id})."
-        )
+    _source = db.session.execute(query).scalar_one_or_none()
     if not _source:
         if is_user(source):
             _source = DataSource(user=source, model=model, version=version)
@@ -66,11 +60,26 @@ def get_or_create_source(
                 account=account,
             )
         current_app.logger.info(f"Setting up {_source} as new data source...")
-        db.session.add(_source)
         if flush:
+            _source = _add_and_flush_source(_source, query)
+        else:
+            db.session.add(_source)
+    return _source
+
+
+def _add_and_flush_source(source: DataSource, query) -> DataSource:
+    """Add and flush a new source, or return the identical source another transaction inserted since `query` looked for it."""
+    # Flush anything else pending first, so that the savepoint below only concerns the new source.
+    db.session.flush()
+    try:
+        with db.session.begin_nested():
+            db.session.add(source)
             # assigns id so that we can reference the new object in the current db session
             db.session.flush()
-    return _source
+    except IntegrityError:
+        # Another transaction inserted the same source since we looked it up, so use that one.
+        return db.session.execute(query).scalar_one()
+    return source
 
 
 def get_source_or_none(

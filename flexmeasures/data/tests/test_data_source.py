@@ -8,7 +8,7 @@ from pytz import UTC
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
-from sqlalchemy import insert
+from sqlalchemy import false, insert, select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
@@ -361,6 +361,40 @@ def test_duplicate_script_sources_are_refused(db, app):
     with pytest.raises(IntegrityError, match="data_source_name_key"):
         with db.session.begin_nested():
             db.session.add(DataSource(**identity))
+
+
+def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch):
+    """get_or_create_source must use the source another transaction inserted since it looked one up, rather than fail.
+
+    The first lookup is made to miss an existing source, as it would when another transaction inserts it concurrently.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    identity = dict(name="test-racing-source", **SCHEDULER_SOURCE_FIELDS)
+    existing = DataSource(**identity)
+    db.session.add(existing)
+    db.session.flush()
+
+    execute = db.session.execute
+    lookups = []
+
+    def miss_first_lookup(statement, *args, **kwargs):
+        if not lookups:
+            lookups.append(statement)
+            return execute(select(DataSource).where(false()))
+        return execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db.session, "execute", miss_first_lookup)
+    source = get_or_create_source(
+        identity["name"],
+        source_type=identity["type"],
+        model=identity["model"],
+        version=identity["version"],
+        attributes=identity["attributes"],
+    )
+
+    assert lookups, "the lookup was not made to miss"
+    assert source.id == existing.id
 
 
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
