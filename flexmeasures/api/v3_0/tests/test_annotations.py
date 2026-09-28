@@ -9,6 +9,7 @@ These tests validate the three POST endpoints for creating annotations:
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 from flask import url_for
 from sqlalchemy import select, func
@@ -17,6 +18,7 @@ from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.users import find_user_by_email
 
 
@@ -755,3 +757,91 @@ def test_post_annotation_response_schema(client, setup_api_test_data):
     # prior may be None if not explicitly set
     if response.json["prior"] is not None:
         assert "T" in response.json["prior"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_sensor_annotations(client, setup_api_test_data, requesting_user, db):
+    """Deleting a sensor's annotations respects the source and time filters, and spares what is registered elsewhere.
+
+    Only annotations lying entirely between start and until are deleted.
+    An annotation that is also registered on the sensor's asset is only removed from the sensor.
+    """
+    sensor = setup_api_test_data["some gas sensor"]
+    asset = sensor.generic_asset
+    source = get_or_create_source("annotation deleter", source_type="script")
+    other_source = get_or_create_source("annotation keeper", source_type="script")
+
+    def annotate(content, start, end, annotation_source=source):
+        annotation = Annotation(
+            content=content,
+            start=pd.Timestamp(start),
+            end=pd.Timestamp(end),
+            source=annotation_source,
+            type="label",
+        )
+        db.session.add(annotation)
+        sensor.annotations.append(annotation)
+        return annotation
+
+    inside = annotate("inside", "2031-01-01T01:00+00:00", "2031-01-01T02:00+00:00")
+    shared = annotate("shared", "2031-01-01T01:00+00:00", "2031-01-01T01:30+00:00")
+    asset.annotations.append(shared)
+    ends_too_late = annotate(
+        "ends too late", "2031-01-01T03:00+00:00", "2031-01-01T05:00+00:00"
+    )
+    other = annotate(
+        "other source",
+        "2031-01-01T01:00+00:00",
+        "2031-01-01T02:00+00:00",
+        annotation_source=other_source,
+    )
+    db.session.commit()
+    inside_id, shared_id = inside.id, shared.id
+
+    response = client.delete(
+        url_for("SensorAPI:delete_annotations", id=sensor.id),
+        json={
+            "source": source.id,
+            "start": "2031-01-01T00:00:00+00:00",
+            "until": "2031-01-01T04:00:00+00:00",
+        },
+    )
+    assert response.status_code == 200, response.json
+    assert response.json["deleted"] == 2
+
+    db.session.expire_all()
+    assert db.session.get(Annotation, inside_id) is None
+    shared = db.session.get(Annotation, shared_id)
+    assert shared is not None, "an annotation still registered on the asset is kept"
+    assert shared in asset.annotations
+    assert shared not in sensor.annotations
+    assert ends_too_late in sensor.annotations
+    assert other in sensor.annotations
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_dummy_user_3@seita.nl"], indirect=True
+)
+def test_delete_sensor_annotations_of_another_organisation(
+    client, setup_api_test_data, requesting_user
+):
+    sensor = setup_api_test_data["some gas sensor"]
+    response = client.delete(
+        url_for("SensorAPI:delete_annotations", id=sensor.id), json={}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_sensor_annotations_until_before_start(
+    client, setup_api_test_data, requesting_user
+):
+    sensor = setup_api_test_data["some gas sensor"]
+    response = client.delete(
+        url_for("SensorAPI:delete_annotations", id=sensor.id),
+        json={
+            "start": "2031-01-02T00:00:00+00:00",
+            "until": "2031-01-01T00:00:00+00:00",
+        },
+    )
+    assert response.status_code == 422
