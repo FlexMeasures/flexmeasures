@@ -81,9 +81,9 @@ These roles are natively supported, in the order used by the user role editor (w
 
 - ``read-only``: Read resources in the home account. This is the smallest built-in grant and, by itself, cannot initiate a password reset. An account administrator or consultant can initiate one for the user.
 - ``integration``: Adds posting data and resetting one's own password to home-account reading.
-- ``member``: Adds regular work with home-account resources, including editing assets and triggering jobs. It still does not grant user management or deletion of recorded data.
+- ``member``: Adds regular work with home-account resources, including editing assets and triggering jobs.
 - ``account-admin``: Adds management of users and deletion of data in the home account.
-- ``consultant``: Adds access to linked client accounts through the consultancy relationship, including management actions there. On its own, it grants no home-account access. More on this below.
+- ``consultant``: Adds access to linked client accounts through the consultancy relationship (of the home account), including management actions there. On its own, it grants no home-account access. More on this below.
 - ``admin-reader``: Extends reading to every account on the site. On its own, it grants read access only.
 - ``admin``: Extends all actions to every account on the site.
 
