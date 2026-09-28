@@ -72,7 +72,7 @@ dependencies = [
     "timely-beliefs>=4.4.1",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
-    "sqlalchemy>=2.0",
+    "sqlalchemy>=2.0.16",  # for postgresql_nulls_not_distinct
     "flask-sslify>=0.1.5",
     "flask-json>=0.4.0",
     "flask-migrate>=4.1.0",

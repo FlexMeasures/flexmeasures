@@ -26,7 +26,7 @@ Notes:
 Install
 ^^^^^^^^^^^^^
 
-We believe FlexMeasures works with Postgres above version 9 and we ourselves have run it with versions up to 17.
+FlexMeasures requires Postgres 15 or newer, and we ourselves have run it with versions up to 17.
 
 On Linux:
 

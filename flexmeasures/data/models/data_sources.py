@@ -372,8 +372,17 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     __tablename__ = "data_source"
     __table_args__ = (
+        # NULLS NOT DISTINCT, so that script sources, which have no user or account, are unique, too
         db.UniqueConstraint(
-            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+            "name",
+            "type",
+            "user_id",
+            "account_id",
+            "model",
+            "version",
+            "attributes_hash",
+            name="data_source_name_key",
+            postgresql_nulls_not_distinct=True,
         ),
     )
 

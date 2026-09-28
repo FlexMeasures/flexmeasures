@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 from sqlalchemy import insert
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -338,37 +339,28 @@ def test_get_or_create_source_stable_under_key_order(db, app):
     )
 
 
-def test_get_or_create_source_reuses_oldest_duplicate(db, app):
-    """get_or_create_source must tolerate duplicate sources, and consistently reuse the oldest one.
+SCHEDULER_SOURCE_FIELDS = dict(
+    type="scheduler",
+    model="StorageScheduler",
+    version="1",
+    attributes={"data_generator": {"config": {}}},
+)
 
-    Two concurrent calls can each insert the same source, because the unique constraint on data sources treats NULL user and account IDs as distinct.
-    Every later call then found two matching rows, and failed with MultipleResultsFound (#2611).
+
+def test_duplicate_script_sources_are_refused(db, app):
+    """The database must refuse a second identical script source, although script sources have no user or account.
+
+    The unique constraint on data sources used to treat those NULL IDs as distinct,
+    so concurrent calls to get_or_create_source could each insert the same source,
+    after which every lookup failed with MultipleResultsFound (#2611).
     """
-    from flexmeasures.data.services.data_sources import get_or_create_source
-
-    identity = dict(
-        name="test-duplicate-source",
-        type="scheduler",
-        model="StorageScheduler",
-        version="1",
-        attributes={"data_generator": {"config": {}}},
-    )
-    older, newer = DataSource(**identity), DataSource(**identity)
-    db.session.add(older)
+    identity = dict(name="test-refused-duplicate-source", **SCHEDULER_SOURCE_FIELDS)
+    db.session.add(DataSource(**identity))
     db.session.flush()
-    db.session.add(newer)
-    db.session.flush()
-    assert older.id < newer.id
 
-    source = get_or_create_source(
-        identity["name"],
-        source_type=identity["type"],
-        model=identity["model"],
-        version=identity["version"],
-        attributes=identity["attributes"],
-    )
-
-    assert source.id == older.id
+    with pytest.raises(IntegrityError, match="data_source_name_key"):
+        with db.session.begin_nested():
+            db.session.add(DataSource(**identity))
 
 
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
