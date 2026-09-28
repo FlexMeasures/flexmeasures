@@ -155,3 +155,50 @@ export function checkStrictYAxisRanges(data, sensorsToShow) {
     showToast(message, "warning");
   }
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Widen a time range to whole events of a sensor, so that an annotation covers the events it was drawn over.
+ *
+ * The start is rounded down and the end up, to the event grid through the anchor (e.g. the first event shown).
+ * Daily events are rounded on the local calendar, so that their grid survives a DST transition.
+ * A range narrower than one event, even an empty one, becomes the event it lies in.
+ * Instantaneous sensors (zero resolution) keep the range as it is.
+ *
+ * @param {{start: Date, end: Date}|null} range - The range to widen.
+ * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
+ * @param {number} anchorMs - Any event start, in milliseconds since the epoch.
+ * @returns {{start: Date, end: Date}|null} The widened range.
+ */
+export function snapRangeToEvents(range, resolutionMs, anchorMs) {
+  if (!range) return null;
+  const start = range.start.getTime();
+  const end = range.end.getTime();
+  if (!(resolutionMs > 0) || !isFinite(anchorMs)) {
+    return { start: new Date(start), end: new Date(end) };
+  }
+  let snappedStart;
+  let snappedEnd;
+  if (resolutionMs === DAY_MS) {
+    const anchor = new Date(anchorMs);
+    const atAnchorTimeOfDay = (t) => {
+      const d = new Date(t);
+      d.setHours(anchor.getHours(), anchor.getMinutes(), anchor.getSeconds(), anchor.getMilliseconds());
+      return d;
+    };
+    snappedStart = atAnchorTimeOfDay(start);
+    if (snappedStart.getTime() > start) snappedStart.setDate(snappedStart.getDate() - 1);
+    snappedEnd = atAnchorTimeOfDay(end);
+    if (snappedEnd.getTime() < end) snappedEnd.setDate(snappedEnd.getDate() + 1);
+    if (snappedEnd <= snappedStart) {
+      snappedEnd = new Date(snappedStart);
+      snappedEnd.setDate(snappedEnd.getDate() + 1);
+    }
+  } else {
+    snappedStart = new Date(anchorMs + Math.floor((start - anchorMs) / resolutionMs) * resolutionMs);
+    snappedEnd = new Date(anchorMs + Math.ceil((end - anchorMs) / resolutionMs) * resolutionMs);
+    if (snappedEnd <= snappedStart) snappedEnd = new Date(snappedStart.getTime() + resolutionMs);
+  }
+  return { start: snappedStart, end: snappedEnd };
+}

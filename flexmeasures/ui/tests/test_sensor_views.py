@@ -129,7 +129,9 @@ def test_forecast_and_annotate_panels_visible_for_account_member(
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
     assert b'id="annotateForm"' in response.data
-    assert b"select them with the mouse to zoom in" in response.data
+    assert b"pick the select tool above the chart" in response.data
+    assert b'id="annotationStart"' in response.data
+    assert b'id="annotationEnd"' in response.data
     assert b"firstAvailableEventStartForForecastTraining" in response.data
     assert (
         b"firstAvailableEventStartForForecastTraining = e.detail.firstEventStart"

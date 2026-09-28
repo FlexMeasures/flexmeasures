@@ -26,10 +26,10 @@
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapRangeToEvents } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -229,6 +229,86 @@
         }
         return { start: storeStartDate, end: storeEndDate };
     }
+
+    // The Annotate panel's From/Until fields follow the range shown in the chart,
+    // until a range is selected on the chart or typed in.
+    const annotationStartInput = document.getElementById('annotationStart');
+    const annotationEndInput = document.getElementById('annotationEnd');
+    const annotationRangeInfo = document.getElementById('annotationRangeInfo');
+    const annotationClearSelection = document.getElementById('annotationClearSelection');
+    const sensorResolutionMs = {{ (sensor.event_resolution.total_seconds() * 1000) | int }};
+    let annotationRangeFollowsView = true;
+
+    function toDatetimeLocalValue(date) {
+        const pad = n => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    // Round a range out to whole events, on the grid of the first event shown.
+    function snapToSensorEvents(range) {
+        const data = previousResult && previousResult.data;
+        const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
+        return snapRangeToEvents(range, sensorResolutionMs, anchor);
+    }
+
+    function showAnnotationRange(range, info, isSelection) {
+        annotationStartInput.value = toDatetimeLocalValue(range.start);
+        annotationEndInput.value = toDatetimeLocalValue(range.end);
+        annotationRangeInfo.textContent = info;
+        annotationClearSelection.classList.toggle('d-none', !isSelection);
+    }
+
+    function syncAnnotationRangeWithView() {
+        if (!annotationRangeFollowsView) return;
+        const range = visibleRange();
+        if (range) {
+            showAnnotationRange(snapToSensorEvents(range), 'The range shown in the chart.', false);
+        }
+    }
+
+    function clearAnnotationSelection() {
+        annotationRangeFollowsView = true;
+        setFastChartSelection(fastChartElementId, null);
+        syncAnnotationRangeWithView();
+    }
+
+    document.addEventListener('chartvisiblerangechanged', syncAnnotationRangeWithView);
+    // The Vega-Lite chart reports no zoom, so pick up its visible range when the user starts labelling.
+    document.getElementById('annotationLabel').addEventListener('focus', syncAnnotationRangeWithView);
+
+    document.addEventListener('chartrangeselected', function (event) {
+        if (!event.detail) {
+            clearAnnotationSelection();
+            return;
+        }
+        const range = snapToSensorEvents(event.detail);
+        annotationRangeFollowsView = false;
+        setFastChartSelection(fastChartElementId, range);
+        showAnnotationRange(range, 'Selected on the chart.', true);
+    });
+
+    function annotationRangeFromInputs() {
+        const start = new Date(annotationStartInput.value);
+        const end = new Date(annotationEndInput.value);
+        if (!isFinite(start.getTime()) || !isFinite(end.getTime()) || start >= end) return null;
+        return { start: start, end: end };
+    }
+
+    [annotationStartInput, annotationEndInput].forEach(function (input) {
+        input.addEventListener('change', function () {
+            const range = annotationRangeFromInputs();
+            if (!range) return;
+            annotationRangeFollowsView = false;
+            setFastChartSelection(fastChartElementId, range);
+            annotationRangeInfo.textContent = 'Entered by hand.';
+            annotationClearSelection.classList.remove('d-none');
+        });
+    });
+
+    annotationClearSelection.addEventListener('click', function (event) {
+        event.preventDefault();
+        clearAnnotationSelection();
+    });
     {% endif %}
 
     {% if event_starts_after and event_ends_before %}
@@ -463,9 +543,9 @@
             input.reportValidity();
             return;
         }
-        const range = visibleRange();
+        const range = annotationRangeFromInputs();
         if (!range) {
-            showToast('Select dates on the chart before annotating.', 'error');
+            showToast("Choose a 'From' time before the 'Until' time.", 'error');
             return;
         }
         button.disabled = true;
@@ -485,6 +565,7 @@
                 throw new Error(message);
             }
             input.value = '';
+            clearAnnotationSelection();
             showToast('Annotation saved.', 'success');
             try {
                 await refreshChartAnnotations();
@@ -592,6 +673,9 @@
         if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(annotations)).resize().run();
         }
+        {% if active_page == "sensors" and user_can_create_children_sensor %}
+        syncAnnotationRangeWithView();
+        {% endif %}
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(newData, sensorsToShowForYAxisCheck);
         {% endif %}
@@ -615,6 +699,11 @@
     document.addEventListener('dataDeleted', function() {
         reloadChartData();
         reloadSensorStats();
+    });
+    document.addEventListener('annotationsDeleted', function() {
+        refreshChartAnnotations().catch(function (error) {
+            showToast('The chart could not refresh its annotations: ' + error.message, 'error');
+        });
     });
     {% endif %}
 
@@ -652,6 +741,9 @@
         if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(initialAnnotations)).resize().run();
         }
+        {% if active_page == "sensors" and user_can_create_children_sensor %}
+        syncAnnotationRangeWithView();
+        {% endif %}
         checkSourceMasking(previousResult.data);
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
@@ -917,6 +1009,8 @@
             // The requested query window, so the x-axis spans the whole selected
             // range even when data only covers part of it (matches Vega-Lite).
             timeWindow: fastChartWindow,
+            // The sensor page lets users who can annotate select a time range on the chart.
+            selectable: {{ 'true' if active_page == "sensors" and user_can_create_children_sensor else 'false' }},
         };
     }
 

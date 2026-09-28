@@ -405,3 +405,15 @@ def test_a_bar_reports_the_event_it_covers(assert_js):
         const line = {points: [[midnight, 1, 0]]};
         eq("a series drawn on its event starts is looked up as it is", nearestRealPoint(line, [midnight, 1])[0], midnight);
         """)
+
+
+def test_selected_range_from_brush_areas(assert_js):
+    """A range drawn with the select tool is read from the brush, in either drawing direction."""
+    assert_js("""
+        import { selectedRangeFromBrushAreas } from "/js/fast-chart.js";
+        const range = selectedRangeFromBrushAreas([{brushType: "lineX", coordRange: [300000, 100000]}]);
+        eq("the start is the earlier edge", range.start.getTime(), 100000);
+        eq("the end is the later edge", range.end.getTime(), 300000);
+        eq("a removed brush selects nothing", selectedRangeFromBrushAreas([]), null);
+        eq("no areas select nothing", selectedRangeFromBrushAreas(undefined), null);
+        """)

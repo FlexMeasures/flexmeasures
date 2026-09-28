@@ -49,4 +49,16 @@ Annotating sensor data
 
 Users with permission to record data on a sensor can add a label from the **Annotate** panel on its page. Enter a label and click **Annotate**. FlexMeasures records the annotation with the signed-in user as its data source and shows it on the time chart.
 
-The label applies to the time interval currently visible in the chart. To annotate one event or a small range, select that part of the time chart with the mouse to zoom in, then enter the label. Without a zoom selection, the label covers the date range selected on the left. Histogram and heatmap charts use that selected date range because they do not have a time axis to zoom into.
+The **From** and **Until** fields show the time range the label will cover. They follow the range visible in the chart, until you choose one yourself:
+
+- Pick the select tool (the double arrow above the chart), then drag across the events you want to annotate. You can drag or resize the selection afterwards, and a click on the chart clears it. Hold Ctrl to pan while the select tool is active.
+- Or type the times into the **From** and **Until** fields.
+
+A range selected on the chart, or followed from the visible chart, is widened to whole events, so the label covers every event it touches. Times you type are used as they are.
+
+Histogram and heatmap charts have no time axis to select on, so there the fields follow the date range selected on the left.
+
+Deleting annotations
+--------------------
+
+Users who may delete a sensor can delete its annotations from the **Delete data** panel, by choosing **Annotations** under **What**. Annotations lying entirely between the **From** and **Until** times are deleted; leave both empty to delete all of the sensor's annotations. Annotations of the sensor's asset are not affected, and an annotation that is also registered elsewhere, such as on another sensor, is only removed from this sensor.

@@ -213,7 +213,15 @@ For the data, note the following:
                                   <label for="annotationLabel" class="form-label fw-bold">Label</label>
                                   <input id="annotationLabel" class="form-control" type="text" maxlength="1024" required aria-describedby="annotationHelp" />
                                   <div id="annotationHelp" class="form-text text-white">
-                                      To annotate one event or a small range, select them with the mouse to zoom in, then enter the label.
+                                      To annotate some events, pick the select tool above the chart and drag across them, or edit the times below.
+                                  </div>
+                                  <label for="annotationStart" class="form-label fw-bold mt-3">From</label>
+                                  <input id="annotationStart" class="form-control" type="datetime-local" required />
+                                  <label for="annotationEnd" class="form-label fw-bold mt-3">Until</label>
+                                  <input id="annotationEnd" class="form-control" type="datetime-local" required />
+                                  <div class="form-text text-white">
+                                      <span id="annotationRangeInfo">The range shown in the chart.</span>
+                                      <a href="#" id="annotationClearSelection" class="d-none">Clear selection</a>
                                   </div>
                                   <button id="annotateButton" class="btn btn-sm btn-responsive btn-success create-button mt-3" type="submit"
                                       style="border: 1px solid var(--light-gray);">Annotate</button>
@@ -228,6 +236,13 @@ For the data, note the following:
                       <div class="sidepanel-content" style="text-align: left;">
                           <fieldset>
                               <div class="mb-3">
+                                  <label for="deleteDataKind" class="form-label fw-bold">What</label>
+                                  <select class="form-select" id="deleteDataKind">
+                                      <option value="data" selected>Sensor data</option>
+                                      <option value="annotations">Annotations</option>
+                                  </select>
+                              </div>
+                              <div class="mb-3" id="deleteDataSourceRow">
                                   <label for="deleteDataSource" class="form-label fw-bold">Source</label>
                                   <select class="form-select" id="deleteDataSource">
                                       <option value="">All sources</option>
@@ -733,6 +748,8 @@ For the data, note the following:
     const button = document.getElementById('deleteDataButton');
     const spinner = document.getElementById('spinner-delete-data');
 
+    const kindSelect = document.getElementById('deleteDataKind');
+    const sourceRow = document.getElementById('deleteDataSourceRow');
     const sourceSelect = document.getElementById('deleteDataSource');
     const startInputEl = document.getElementById('deleteDataStart');
     const untilInputEl = document.getElementById('deleteDataUntil');
@@ -772,11 +789,56 @@ For the data, note the following:
     const selectAllDataLink = document.getElementById('selectAllDataLink');
     let allDataStart = null;
     let allDataEnd   = null;
+    let allDataRangeAvailable = false;
     document.addEventListener('sensorDataRangeAvailable', function(e) {
         allDataStart = e.detail.firstEventStart;
         allDataEnd   = e.detail.lastEventEnd;
-        selectAllDataLink.classList.remove('d-none');
+        allDataRangeAvailable = true;
+        selectAllDataLink.classList.toggle('d-none', kindSelect.value !== 'data');
     });
+
+    // Annotations are deleted from all their sources, within the From/Until times (all of them, if left empty).
+    kindSelect.addEventListener('change', function () {
+        const deletingData = kindSelect.value === 'data';
+        sourceRow.classList.toggle('d-none', !deletingData);
+        selectAllDataLink.classList.toggle('d-none', !deletingData || !allDataRangeAvailable);
+    });
+
+    async function deleteAnnotations(startValue, untilValue) {
+        const params = {};
+        if (startValue) {
+            params.start = new Date(startValue).toISOString();
+        }
+        if (untilValue) {
+            params.until = new Date(untilValue).toISOString();
+        }
+
+        button.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}/annotations", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(params),
+            });
+            const responseData = await response.json().catch(() => ({}));
+            if (response.ok) {
+                showToast(responseData.message || "Annotations deleted.", "success");
+                document.dispatchEvent(new CustomEvent('annotationsDeleted'));
+            } else {
+                const errorMessage = responseData?.message || responseData?.error || response.statusText;
+                showToast("Error deleting annotations: " + (typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)), "error");
+            }
+        } catch (error) {
+            showToast("Error: " + error.message, "error");
+        } finally {
+            button.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
     if (selectAllDataLink) {
         selectAllDataLink.addEventListener('click', function(e) {
             e.preventDefault();
@@ -826,6 +888,22 @@ For the data, note the following:
     }
 
     document.getElementById('deleteDataButton').addEventListener('click', function () {
+        if (kindSelect.value === 'annotations') {
+            const startValue = startInputEl.value;
+            const untilValue = untilInputEl.value;
+            let confirmMessage = "Are you sure you want to delete the annotations on this sensor";
+            if (startValue) {
+                confirmMessage += " starting from " + startValue;
+            }
+            if (untilValue) {
+                confirmMessage += " until " + untilValue;
+            }
+            confirmMessage += "? Annotations of its asset are not affected, and an annotation that is also registered elsewhere is only removed from this sensor.";
+            if (confirm(confirmMessage)) {
+                deleteAnnotations(startValue, untilValue);
+            }
+            return;
+        }
         const sourceValue = sourceSelect.value;
         const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
         const startValue = startInputEl.value;

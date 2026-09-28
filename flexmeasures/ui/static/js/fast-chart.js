@@ -730,16 +730,30 @@ const ZOOM_ICON =
   "path://M551.7,526.3l-155-155c26.1-34.6,41.6-77.7,41.6-124.4C438.3,132.5,349.8,44,244.1,44S49.9,132.5,49.9,246.9s88.5,202.9,194.2,202.9c46.7,0,89.8-15.5,124.4-41.6l155,155c3.5,3.5,8,5.2,12.6,5.2s9.1-1.7,12.6-5.2C558.7,544.5,558.7,533.3,551.7,526.3z M91.9,246.9c0-83.9,68.3-152.2,152.2-152.2s152.2,68.3,152.2,152.2s-68.3,152.2-152.2,152.2S91.9,330.8,91.9,246.9z";
 const PAN_ICON =
   "path://M512,150 L432,230 L482,230 L482,482 L230,482 L230,432 L150,512 L230,592 L230,542 L482,542 L482,794 L432,794 L512,874 L592,794 L542,794 L542,542 L794,542 L794,592 L874,512 L794,432 L794,482 L542,482 L542,230 L592,230 Z";
+// Two brackets joined by a bar: select a time range (for annotating it).
+const SELECT_ICON = "path://M3 5 L3 19 M21 5 L21 19 M3 12 L21 12 M7 8 L3 12 L7 16 M17 8 L21 12 L17 16";
 const RESET_ICON =
   "path://M868 545C868 736 713 891 522 891C331 891 176 736 176 545C176 354 331 199 522 199L522 95L722 255L522 415L522 311C393 311 289 415 289 544C289 672 393 776 522 776C650 776 754 672 754 544L868 545Z";
 // Selected (active) vs idle toolbox icon colours — blue mimics ECharts' own active zoom.
 const TOOL_BLUE = "#4e91fc";
 const TOOL_GRAY = "#666";
 
+// Whether the range selection is *effectively* active right now: the chosen mode, unless Ctrl is held to pan.
+function effectiveSelect(instance) {
+  return !!instance._selectable && !!instance._selectMode && !instance._ctrlHeld;
+}
+
 // Whether the marquee zoom (vs pan) is *effectively* active right now: the chosen mode,
 // inverted while Ctrl is held. Drives both the marquee and the blue button highlight.
+// In select mode, Ctrl pans, as it does in zoom mode.
 function effectiveZoom(instance) {
+  if (instance._selectMode && instance._selectable) return false;
   return (instance._zoomMode !== false) !== !!instance._ctrlHeld;
+}
+
+// The button colour of the Pan tool: blue when neither zooming nor selecting.
+function panColor(instance) {
+  return effectiveZoom(instance) || effectiveSelect(instance) ? TOOL_GRAY : TOOL_BLUE;
 }
 
 function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
@@ -787,9 +801,20 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
       show: true,
       title: "Pan",
       icon: PAN_ICON,
-      iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE },
+      iconStyle: { borderColor: panColor(instance) },
       onclick: () => setChartMode(elementId, false),
     };
+    if (instance._selectable) {
+      feature.mySelect = {
+        show: true,
+        title: "Select a time range",
+        icon: SELECT_ICON,
+        iconStyle: { borderColor: effectiveSelect(instance) ? TOOL_BLUE : TOOL_GRAY },
+        onclick: () => setSelectMode(elementId),
+      };
+      // ECharts gives a brush component its own toolbox buttons (box, lasso, keep, clear) unless told otherwise.
+      feature.brush = { show: false };
+    }
   } else if (!zoomable) {
     // histogram/heatmap keep the plain built-in dataZoom (zoom + reset), as before.
     feature.dataZoom = { yAxisIndex: false };
@@ -821,16 +846,23 @@ function applyChartMode(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
   const zoomActive = effectiveZoom(instance);
+  const selectActive = effectiveSelect(instance);
+  const feature = {
+    myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+    myPan: { iconStyle: { borderColor: panColor(instance) } },
+  };
+  if (instance._selectable) {
+    feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+  }
   // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({
-    toolbox: {
-      feature: {
-        myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
-        myPan: { iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE } },
-      },
-    },
-  });
-  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+  chart.setOption({ toolbox: { feature: feature } });
+  // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
+  if (selectActive && instance.lastOption && instance.lastOption.brush) {
+    chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
+  } else {
+    chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+  }
+  drawSelection(instance);
 }
 
 // The Zoom / Pan buttons pick the mode (persists across re-renders); Ctrl inverts it.
@@ -838,6 +870,15 @@ function setChartMode(elementId, zoom) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
   instance._zoomMode = zoom;
+  instance._selectMode = false;
+  applyChartMode(instance);
+}
+
+// The Select button makes a drag select a time range instead of zooming into it.
+function setSelectMode(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._selectMode = true;
   applyChartMode(instance);
 }
 
@@ -2369,6 +2410,8 @@ export function renderFastChart(elementId, data, options) {
   instance.lastArgs = { data: data, options: options };
   instance.isSensorPage = !!opts.isSensorPage;
   instance.fullBeliefInfo = !!opts.fullBeliefInfo;
+  // Range selection (for annotating) is a desktop tool on the time-axis charts; read by toolboxFeatures.
+  instance._selectable = !!opts.selectable && !IS_TOUCH && isZoomableChartType(opts.chartType);
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
@@ -2393,6 +2436,9 @@ export function renderFastChart(elementId, data, options) {
   if (!option) {
     option = noDataOption();
   }
+  if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
+    option.brush = selectionBrush(option);
+  }
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
@@ -2402,7 +2448,94 @@ export function renderFastChart(elementId, data, options) {
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
+  wireSelection(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+}
+
+/* ============================== range selection ============================== */
+
+// The brush that draws the selected time range across the whole plot height.
+// It selects no series, so the data keeps its colours inside and outside the selection.
+function selectionBrush(option) {
+  return {
+    xAxisIndex: (option.xAxis || []).map((_, i) => i),
+    brushType: "lineX",
+    brushMode: "single",
+    seriesIndex: "none",
+    transformable: true,
+    removeOnClick: true,
+    throttleType: "debounce",
+    brushStyle: { borderWidth: 1, color: "rgba(78, 145, 252, 0.15)", borderColor: TOOL_BLUE },
+    outOfBrush: { colorAlpha: 1 },
+  };
+}
+
+// The time range a lineX brush covers, from the areas of a brushEnd event.
+export function selectedRangeFromBrushAreas(areas) {
+  const area = Array.isArray(areas) && areas.length > 0 ? areas[0] : null;
+  const range = area && area.coordRange;
+  if (!Array.isArray(range) || range.length !== 2) return null;
+  const start = Math.min(range[0], range[1]);
+  const end = Math.max(range[0], range[1]);
+  if (!isFinite(start) || !isFinite(end)) return null;
+  return { start: new Date(start), end: new Date(end) };
+}
+
+// Draw the selected range (kept on the instance, so it survives re-renders), or clear it.
+// It can be dragged and resized only with the select tool, so that zooming or panning never moves it.
+function drawSelection(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed() || !instance.lastOption || !instance.lastOption.brush) return;
+  const selection = instance._selection;
+  chart.dispatchAction({
+    type: "brush",
+    areas: selection
+      ? [{
+          brushType: "lineX",
+          xAxisIndex: 0,
+          coordRange: [selection.start.getTime(), selection.end.getTime()],
+          transformable: effectiveSelect(instance),
+        }]
+      : [],
+  });
+}
+
+// Report a drawn selection (or its removal) and zooming to the page,
+// as DOM events on the chart container: "chartrangeselected" and "chartvisiblerangechanged".
+function wireSelection(instance, elementId) {
+  const chart = instance.chart;
+  if (instance.onBrushEnd) {
+    chart.off("brushEnd", instance.onBrushEnd);
+    instance.onBrushEnd = null;
+  }
+  if (instance.onVisibleRangeChange) {
+    chart.off("dataZoom", instance.onVisibleRangeChange);
+    instance.onVisibleRangeChange = null;
+  }
+  const container = document.getElementById(elementId);
+  if (!container || !instance.lastOption || !Array.isArray(instance.lastOption.dataZoom)) return;
+  instance.onVisibleRangeChange = () => {
+    container.dispatchEvent(new CustomEvent("chartvisiblerangechanged", {
+      bubbles: true,
+      detail: visibleTimeRangeFromOption(chart.getOption()),
+    }));
+  };
+  chart.on("dataZoom", instance.onVisibleRangeChange);
+  if (!instance.lastOption.brush) return;
+  instance.onBrushEnd = (params) => {
+    instance._selection = selectedRangeFromBrushAreas(params && params.areas);
+    container.dispatchEvent(new CustomEvent("chartrangeselected", { bubbles: true, detail: instance._selection }));
+  };
+  chart.on("brushEnd", instance.onBrushEnd);
+  drawSelection(instance);
+}
+
+// Show a selected time range on the chart (e.g. after rounding it to whole events), or clear it with null.
+export function setFastChartSelection(elementId, range) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._selection = range ? { start: new Date(range.start), end: new Date(range.end) } : null;
+  drawSelection(instance);
 }
 
 // The sensor annotation form uses the time interval currently visible after
