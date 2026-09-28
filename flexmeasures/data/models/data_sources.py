@@ -367,12 +367,16 @@ class SensorDataSource(db.Model):
         return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
 
 
+# The unique constraint that refuses identical data sources.
+DATA_SOURCE_UNIQUE_CONSTRAINT = "data_source_name_key"
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        # NULLS NOT DISTINCT, so that script sources, which have no user or account, are unique, too
+        # NULLS NOT DISTINCT, so that sources without a user or account are unique, too.
         db.UniqueConstraint(
             "name",
             "type",
@@ -381,7 +385,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             "model",
             "version",
             "attributes_hash",
-            name="data_source_name_key",
+            name=DATA_SOURCE_UNIQUE_CONSTRAINT,
             postgresql_nulls_not_distinct=True,
         ),
     )

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 import time
+from contextlib import contextmanager
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from pytz import UTC
 
@@ -347,8 +349,8 @@ SCHEDULER_SOURCE_FIELDS = dict(
 )
 
 
-def test_duplicate_script_sources_are_refused(db, app):
-    """The database must refuse a second identical script source, although script sources have no user or account.
+def test_duplicate_sources_without_user_or_account_are_refused(db, app):
+    """The database must refuse a second identical source, also when the source has no user or account.
 
     The unique constraint on data sources used to treat those NULL IDs as distinct,
     so concurrent calls to get_or_create_source could each insert the same source,
@@ -395,6 +397,28 @@ def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch
 
     assert lookups, "the lookup was not made to miss"
     assert source.id == existing.id
+
+
+def test_add_and_flush_source_reraises_other_integrity_errors(db, app, monkeypatch):
+    """Only a lost race to insert the same source is recovered from, so that other integrity errors surface as they are."""
+    from flexmeasures.data.services.data_sources import _add_and_flush_source
+
+    class OtherConstraintViolation(Exception):
+        diag = SimpleNamespace(constraint_name="some_other_key")
+
+    @contextmanager
+    def violate_other_constraint():
+        raise IntegrityError("INSERT ...", {}, OtherConstraintViolation())
+        yield
+
+    monkeypatch.setattr(db.session, "begin_nested", violate_other_constraint)
+    with pytest.raises(IntegrityError, match="OtherConstraintViolation"):
+        _add_and_flush_source(
+            DataSource(
+                name="test-source-violating-another-constraint", type="scheduler"
+            ),
+            select(DataSource).where(false()),
+        )
 
 
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):

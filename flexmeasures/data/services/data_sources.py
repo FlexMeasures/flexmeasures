@@ -9,7 +9,11 @@ from typing import Type, TypeVar
 
 from flexmeasures import Account, Source, User
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource, DataGenerator
+from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_UNIQUE_CONSTRAINT,
+    DataSource,
+    DataGenerator,
+)
 from flexmeasures.data.models.user import is_user
 from flask import current_app as app
 
@@ -74,9 +78,14 @@ def _add_and_flush_source(source: DataSource, query) -> DataSource:
     try:
         with db.session.begin_nested():
             db.session.add(source)
-            # assigns id so that we can reference the new object in the current db session
+            # Assigns an id, so that we can reference the new object in the current db session.
             db.session.flush()
-    except IntegrityError:
+    except IntegrityError as exc:
+        if (
+            getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            != DATA_SOURCE_UNIQUE_CONSTRAINT
+        ):
+            raise
         # Another transaction inserted the same source since we looked it up, so use that one.
         return db.session.execute(query).scalar_one()
     return source
