@@ -128,7 +128,7 @@ def test_drop_unchanged_compares_against_latest_prior_belief(
 
     sensor = get_test_sensor(db)
     assert sensor is not None, "Expected a test sensor to exist in the test database"
-    # one source per parametrization, as identical sources are refused
+    # One source per parametrization, as identical sources are refused.
     source = DataSource(
         name=f"Drop unchanged repro source ({'descending' if sort_descending else 'ascending'})",
         type="demo script",

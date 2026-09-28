@@ -350,7 +350,7 @@ def test_get_source_auth(
 ):
     """A data source of another account cannot be looked up."""
     supplier_user = find_user_by_email("test_supplier_user_4@seita.nl")
-    # an earlier test may have set up this source already
+    # An earlier test may have set up this source already.
     source = get_or_create_source(
         "PrivateSupplierSource",
         source_type="demo script",
