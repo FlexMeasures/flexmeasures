@@ -51,10 +51,13 @@ Users with permission to record data on a sensor can add a label from the **Anno
 
 The **From** and **Until** fields show the time range the label will cover. They follow the range visible in the chart, until you choose one yourself:
 
-- Pick the select tool (the double arrow above the chart), then drag across the events you want to annotate. You can drag or resize the selection afterwards, and a click on the chart clears it. Hold Ctrl to pan while the select tool is active.
+- Pick the select tool (the double arrow above the chart), then drag across the events you want to annotate. You can drag or resize the selection afterwards. Hold Ctrl to pan while the select tool is active.
+- Or, with the select tool, click at a single moment to annotate an instant, shown as a blue rule. An instantaneous annotation has the same **From** and **Until** time.
 - Or type the times into the **From** and **Until** fields.
 
-A range selected on the chart, or followed from the visible chart, is widened to whole events, so the label covers every event it touches. Times you type are used as they are.
+A click outside the chart's plot area clears the selection, as it releases any pinned annotations.
+
+A range selected on the chart, or followed from the visible chart, is widened to whole events, so the label covers every event it touches. An instant, and any selection on a sensor that records instantaneous values, is rounded to the nearest minute instead, so a selection within a minute can become an instant. Times you type are used as they are.
 
 Histogram and heatmap charts have no time axis to select on, so there the fields follow the date range selected on the left.
 

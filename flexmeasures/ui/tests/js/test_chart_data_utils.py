@@ -169,3 +169,22 @@ def test_snap_range_to_daily_events_across_dst(assert_js):
         """,
         timezone="Europe/Amsterdam",
     )
+
+
+def test_snap_selection_rounds_instants_and_instantaneous_ranges(assert_js):
+    """An instant, or a range on an instantaneous sensor, is rounded to the nearest minute, and may become an instant."""
+    assert_js("""
+        import { snapSelection } from "/js/chart-data-utils.js";
+        const at = (s) => new Date(`2030-01-15T${s}Z`);
+        const iso = (r) => [r.start.toISOString().slice(11, 19), r.end.toISOString().slice(11, 19)];
+        eq("a range within one minute becomes a minute",
+           iso(snapSelection({start: at("09:03:25"), end: at("09:03:51")}, 0, 0)), ["09:03:00", "09:04:00"]);
+        eq("a range around a whole minute becomes an instant",
+           iso(snapSelection({start: at("09:02:59"), end: at("09:03:02")}, 0, 0)), ["09:03:00", "09:03:00"]);
+        eq("an instant on a sensor with a resolution is rounded to the nearest minute",
+           iso(snapSelection({start: at("09:07:31"), end: at("09:07:31")}, 900000, 0)), ["09:08:00", "09:08:00"]);
+        eq("a range on a sensor with a resolution covers whole events",
+           iso(snapSelection({start: at("09:07:31"), end: at("09:20:00")}, 900000, 0)), ["09:00:00", "09:30:00"]);
+        eq("a finer step keeps seconds",
+           iso(snapSelection({start: at("09:03:25.4"), end: at("09:03:51.6")}, 0, 0, 1000)), ["09:03:25", "09:03:52"]);
+        """)

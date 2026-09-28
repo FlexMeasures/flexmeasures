@@ -2480,7 +2480,8 @@ function selectionBrush(option) {
     brushMode: "single",
     seriesIndex: "none",
     transformable: true,
-    removeOnClick: true,
+    // A click selects an instant instead (see wireSelection), and a click outside the plot clears the selection
+    removeOnClick: false,
     throttleType: "debounce",
     brushStyle: { borderWidth: 1, color: "rgba(78, 145, 252, 0.15)", borderColor: TOOL_BLUE },
     outOfBrush: { colorAlpha: 1 },
@@ -2498,15 +2499,45 @@ export function selectedRangeFromBrushAreas(areas) {
   return { start: new Date(start), end: new Date(end) };
 }
 
-// Draw the selected range (kept on the instance, so it survives re-renders), or clear it.
-// It can be dragged and resized only with the select tool, so that zooming or panning never moves it.
+// Draw a selected instant as a blue rule with a triangle at its top, shaped like an instant annotation.
+// These are plain zrender elements, kept out of the chart option, and redrawn on every render and zoom.
+function drawSelectedInstant(instance, time) {
+  const chart = instance.chart;
+  const zr = chart.getZr();
+  if (instance._instantMarker) {
+    zr.remove(instance._instantMarker);
+    instance._instantMarker = null;
+  }
+  if (time === null) return;
+  const gridModel = chart.getModel().getComponent("grid", 0);
+  const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
+  const x = chart.convertToPixel({ xAxisIndex: 0 }, time);
+  if (!rect || !isFinite(x) || x < rect.x || x > rect.x + rect.width) return;
+  const group = new echarts.graphic.Group({ silent: true, z: 100 });
+  group.add(new echarts.graphic.Line({
+    shape: { x1: x, y1: rect.y, x2: x, y2: rect.y + rect.height },
+    style: { stroke: TOOL_BLUE, lineWidth: 2 },
+    silent: true,
+  }));
+  group.add(new echarts.graphic.Polygon({
+    shape: { points: [[x - 6.5, rect.y - 5.5], [x + 6.5, rect.y - 5.5], [x, rect.y + 5.5]] },
+    style: { fill: TOOL_BLUE },
+    silent: true,
+  }));
+  zr.add(group);
+  instance._instantMarker = group;
+}
+
+// Draw the selected range or instant (kept on the instance, so it survives re-renders), or clear it.
+// A range can be dragged and resized only with the select tool, so that zooming or panning never moves it.
 function drawSelection(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !instance.lastOption || !instance.lastOption.brush) return;
   const selection = instance._selection;
+  const isInstant = !!selection && selection.start.getTime() === selection.end.getTime();
   chart.dispatchAction({
     type: "brush",
-    areas: selection
+    areas: selection && !isInstant
       ? [{
           brushType: "lineX",
           xAxisIndex: 0,
@@ -2515,12 +2546,16 @@ function drawSelection(instance) {
         }]
       : [],
   });
+  drawSelectedInstant(instance, isInstant ? selection.start.getTime() : null);
 }
 
 // Report a drawn selection (or its removal) and zooming to the page,
 // as DOM events on the chart container: "chartrangeselected" and "chartvisiblerangechanged".
+// With the select tool, a drag selects a range and a click in a plot selects an instant.
+// With any tool, a click outside the plots clears the selection, as it releases pinned annotations.
 function wireSelection(instance, elementId) {
   const chart = instance.chart;
+  const zr = chart.getZr();
   if (instance.onBrushEnd) {
     chart.off("brushEnd", instance.onBrushEnd);
     instance.onBrushEnd = null;
@@ -2529,9 +2564,20 @@ function wireSelection(instance, elementId) {
     chart.off("dataZoom", instance.onVisibleRangeChange);
     instance.onVisibleRangeChange = null;
   }
+  if (instance.onSelectClick) {
+    zr.off("mousedown", instance.onSelectMouseDown);
+    zr.off("click", instance.onSelectClick);
+    instance.onSelectMouseDown = null;
+    instance.onSelectClick = null;
+  }
   const container = document.getElementById(elementId);
   if (!container || !instance.lastOption || !Array.isArray(instance.lastOption.dataZoom)) return;
+  const report = () => {
+    container.dispatchEvent(new CustomEvent("chartrangeselected", { bubbles: true, detail: instance._selection }));
+  };
   instance.onVisibleRangeChange = () => {
+    drawSelectedInstant(instance, instance._selection && instance._selection.start.getTime() === instance._selection.end.getTime()
+      ? instance._selection.start.getTime() : null);
     container.dispatchEvent(new CustomEvent("chartvisiblerangechanged", {
       bubbles: true,
       detail: visibleTimeRangeFromOption(chart.getOption()),
@@ -2540,14 +2586,42 @@ function wireSelection(instance, elementId) {
   chart.on("dataZoom", instance.onVisibleRangeChange);
   if (!instance.lastOption.brush) return;
   instance.onBrushEnd = (params) => {
-    instance._selection = selectedRangeFromBrushAreas(params && params.areas);
-    container.dispatchEvent(new CustomEvent("chartrangeselected", { bubbles: true, detail: instance._selection }));
+    const range = selectedRangeFromBrushAreas(params && params.areas);
+    if (!range) return; // clearing is done by a click outside the plots
+    instance._selection = range;
+    report();
   };
   chart.on("brushEnd", instance.onBrushEnd);
+  // The browser also fires a click at the end of a drag, so only a pointer that barely moved counts as a click.
+  instance.onSelectMouseDown = (e) => {
+    instance._selectPressedAt = [e.offsetX, e.offsetY];
+  };
+  instance.onSelectClick = (e) => {
+    const pressedAt = instance._selectPressedAt;
+    instance._selectPressedAt = null;
+    if (pressedAt && Math.hypot(e.offsetX - pressedAt[0], e.offsetY - pressedAt[1]) > 3) return;
+    const xAxes = instance.lastOption.xAxis || [];
+    const grid = xAxes.findIndex((_, g) => chart.containPixel({ gridIndex: g }, [e.offsetX, e.offsetY]));
+    if (grid < 0) {
+      if (instance._selection) {
+        instance._selection = null;
+        drawSelection(instance);
+        report();
+      }
+      return;
+    }
+    if (!effectiveSelect(instance)) return;
+    const time = new Date(chart.convertFromPixel({ xAxisIndex: grid }, e.offsetX));
+    instance._selection = { start: time, end: new Date(time) };
+    report();
+  };
+  zr.on("mousedown", instance.onSelectMouseDown);
+  zr.on("click", instance.onSelectClick);
   drawSelection(instance);
 }
 
 // Show a selected time range on the chart (e.g. after rounding it to whole events), or clear it with null.
+// A range whose start equals its end is an instant.
 export function setFastChartSelection(elementId, range) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;

@@ -26,7 +26,7 @@
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapRangeToEvents } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
@@ -244,11 +244,12 @@
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
     }
 
-    // Round a range out to whole events, on the grid of the first event shown.
+    // Round a range to what the annotation will cover: whole events on the grid of the first event shown,
+    // or, for an instant or an instantaneous sensor, whole minutes.
     function snapToSensorEvents(range) {
         const data = previousResult && previousResult.data;
         const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
-        return snapRangeToEvents(range, sensorResolutionMs, anchor);
+        return snapSelection(range, sensorResolutionMs, anchor);
     }
 
     function showAnnotationRange(range, info, isSelection) {
@@ -284,13 +285,15 @@
         const range = snapToSensorEvents(event.detail);
         annotationRangeFollowsView = false;
         setFastChartSelection(fastChartElementId, range);
-        showAnnotationRange(range, 'Selected on the chart.', true);
+        const isInstant = range.start.getTime() === range.end.getTime();
+        showAnnotationRange(range, isInstant ? 'An instant, selected on the chart.' : 'Selected on the chart.', true);
     });
 
     function annotationRangeFromInputs() {
         const start = new Date(annotationStartInput.value);
         const end = new Date(annotationEndInput.value);
-        if (!isFinite(start.getTime()) || !isFinite(end.getTime()) || start >= end) return null;
+        // An equal start and end make an instantaneous annotation
+        if (!isFinite(start.getTime()) || !isFinite(end.getTime()) || start > end) return null;
         return { start: start, end: end };
     }
 
@@ -545,7 +548,7 @@
         }
         const range = annotationRangeFromInputs();
         if (!range) {
-            showToast("Choose a 'From' time before the 'Until' time.", 'error');
+            showToast("Choose a 'From' time no later than the 'Until' time.", 'error');
             return;
         }
         button.disabled = true;

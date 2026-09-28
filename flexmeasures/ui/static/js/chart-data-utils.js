@@ -202,3 +202,26 @@ export function snapRangeToEvents(range, resolutionMs, anchorMs) {
   }
   return { start: snappedStart, end: snappedEnd };
 }
+
+/**
+ * Round a time range selected for an annotation to what the annotation will cover.
+ *
+ * A range over events with a duration is widened to the whole events it touches (see snapRangeToEvents).
+ * An instant (a range whose start equals its end), and any range on an instantaneous sensor,
+ * has both of its ends rounded to the nearest step (a minute by default),
+ * so that a narrow range may become an instant.
+ *
+ * @param {{start: Date, end: Date}|null} range - The selected range.
+ * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
+ * @param {number} anchorMs - Any event start, in milliseconds since the epoch.
+ * @param {number} [stepMs=60000] - The step to round instants and instantaneous ranges to, in milliseconds.
+ * @returns {{start: Date, end: Date}|null} The range the annotation will cover.
+ */
+export function snapSelection(range, resolutionMs, anchorMs, stepMs = 60 * 1000) {
+  if (!range) return null;
+  const start = range.start.getTime();
+  const end = range.end.getTime();
+  if (resolutionMs > 0 && end > start) return snapRangeToEvents(range, resolutionMs, anchorMs);
+  const round = (t) => new Date(Math.round(t / stepMs) * stepMs);
+  return { start: round(start), end: round(end) };
+}
