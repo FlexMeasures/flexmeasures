@@ -239,10 +239,29 @@
     const sensorResolutionMs = {{ (sensor.event_resolution.total_seconds() * 1000) | int }};
     let annotationRangeFollowsView = true;
 
-    function toDatetimeLocalValue(date) {
+    function toDatetimeLocalValue(date, withSeconds) {
         const pad = n => String(n).padStart(2, '0');
-        const seconds = date.getSeconds() !== 0 ? `:${pad(date.getSeconds())}` : '';
+        const seconds = withSeconds ? `:${pad(date.getSeconds())}` : '';
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}${seconds}`;
+    }
+
+    function visibleSelectionStepMs() {
+        const view = visibleRange();
+        return selectionStepMs(view ? view.end.getTime() - view.start.getTime() : NaN);
+    }
+
+    // The From and Until fields offer seconds only when zoomed in far enough to select them,
+    // or when they already hold seconds, which a whole-minute step would make invalid.
+    function annotationFieldsShowSeconds(range) {
+        return visibleSelectionStepMs() < 60 * 1000 || (!!range && (range.start.getSeconds() !== 0 || range.end.getSeconds() !== 0));
+    }
+
+    function setAnnotationFieldPrecision(withSeconds) {
+        [annotationStartInput, annotationEndInput].forEach(function (input) {
+            const date = input.value ? new Date(input.value) : null;
+            input.step = withSeconds ? 1 : 60;
+            if (date && isFinite(date.getTime())) input.value = toDatetimeLocalValue(date, withSeconds);
+        });
     }
 
     // Round a range to what the annotation will cover: whole events on the grid of the first event shown,
@@ -250,14 +269,14 @@
     function snapToSensorEvents(range) {
         const data = previousResult && previousResult.data;
         const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
-        const view = visibleRange();
-        const stepMs = selectionStepMs(view ? view.end.getTime() - view.start.getTime() : NaN);
-        return snapSelection(range, sensorResolutionMs, anchor, stepMs);
+        return snapSelection(range, sensorResolutionMs, anchor, visibleSelectionStepMs());
     }
 
     function showAnnotationRange(range, info, isSelection) {
-        annotationStartInput.value = toDatetimeLocalValue(range.start);
-        annotationEndInput.value = toDatetimeLocalValue(range.end);
+        const withSeconds = annotationFieldsShowSeconds(range);
+        annotationStartInput.step = annotationEndInput.step = withSeconds ? 1 : 60;
+        annotationStartInput.value = toDatetimeLocalValue(range.start, withSeconds);
+        annotationEndInput.value = toDatetimeLocalValue(range.end, withSeconds);
         annotationRangeInfo.textContent = info;
         annotationClearSelection.classList.toggle('d-none', !isSelection);
     }
@@ -276,7 +295,11 @@
         syncAnnotationRangeWithView();
     }
 
-    document.addEventListener('chartvisiblerangechanged', syncAnnotationRangeWithView);
+    document.addEventListener('chartvisiblerangechanged', function () {
+        syncAnnotationRangeWithView();
+        // A selection or typed range stays put, but zooming in or out still changes whether seconds are offered
+        if (!annotationRangeFollowsView) setAnnotationFieldPrecision(annotationFieldsShowSeconds(annotationRangeFromInputs()));
+    });
     // The Vega-Lite chart reports no zoom, so pick up its visible range when the user starts labelling.
     document.getElementById('annotationLabel').addEventListener('focus', syncAnnotationRangeWithView);
 
