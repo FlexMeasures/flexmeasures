@@ -26,7 +26,7 @@
     import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
@@ -241,15 +241,18 @@
 
     function toDatetimeLocalValue(date) {
         const pad = n => String(n).padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        const seconds = date.getSeconds() !== 0 ? `:${pad(date.getSeconds())}` : '';
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}${seconds}`;
     }
 
     // Round a range to what the annotation will cover: whole events on the grid of the first event shown,
-    // or, for an instant or an instantaneous sensor, whole minutes.
+    // or, for an instant or an instantaneous sensor, whole minutes (whole seconds when zoomed in to 10 minutes or less).
     function snapToSensorEvents(range) {
         const data = previousResult && previousResult.data;
         const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
-        return snapSelection(range, sensorResolutionMs, anchor);
+        const view = visibleRange();
+        const stepMs = selectionStepMs(view ? view.end.getTime() - view.start.getTime() : NaN);
+        return snapSelection(range, sensorResolutionMs, anchor, stepMs);
     }
 
     function showAnnotationRange(range, info, isSelection) {

@@ -188,3 +188,15 @@ def test_snap_selection_rounds_instants_and_instantaneous_ranges(assert_js):
         eq("a finer step keeps seconds",
            iso(snapSelection({start: at("09:03:25.4"), end: at("09:03:51.6")}, 0, 0, 1000)), ["09:03:25", "09:03:52"]);
         """)
+
+
+def test_selection_step_follows_the_zoom(assert_js):
+    """Selections round to a minute, unless the chart is zoomed in to 10 minutes or less."""
+    assert_js("""
+        import { selectionStepMs } from "/js/chart-data-utils.js";
+        const minute = 60 * 1000;
+        eq("a day in view rounds to minutes", selectionStepMs(24 * 60 * minute), minute);
+        eq("just over 10 minutes in view still rounds to minutes", selectionStepMs(10 * minute + 1), minute);
+        eq("10 minutes in view rounds to seconds", selectionStepMs(10 * minute), 1000);
+        eq("an unknown span rounds to minutes", selectionStepMs(NaN), minute);
+        """)

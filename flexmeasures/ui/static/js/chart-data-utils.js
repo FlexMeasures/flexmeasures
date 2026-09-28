@@ -225,3 +225,19 @@ export function snapSelection(range, resolutionMs, anchorMs, stepMs = 60 * 1000)
   const round = (t) => new Date(Math.round(t / stepMs) * stepMs);
   return { start: round(start), end: round(end) };
 }
+
+// Zoomed in to this span or less, a selection is presumably meant to the second.
+const SECOND_PRECISION_SPAN_MS = 10 * 60 * 1000;
+
+/**
+ * The step to round instants and instantaneous selections to (see snapSelection), given the visible time span.
+ *
+ * A minute by default, but a second once zoomed in to 10 minutes or less,
+ * where a user is presumably picking a moment within a minute.
+ *
+ * @param {number} visibleSpanMs - The time span visible in the chart, in milliseconds.
+ * @returns {number} The step, in milliseconds.
+ */
+export function selectionStepMs(visibleSpanMs) {
+  return visibleSpanMs > 0 && visibleSpanMs <= SECOND_PRECISION_SPAN_MS ? 1000 : 60 * 1000;
+}

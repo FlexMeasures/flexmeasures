@@ -57,7 +57,7 @@ The **From** and **Until** fields show the time range the label will cover. They
 
 A click outside the chart's plot area clears the selection, as it releases any pinned annotations.
 
-A range selected on the chart, or followed from the visible chart, is widened to whole events, so the label covers every event it touches. An instant, and any selection on a sensor that records instantaneous values, is rounded to the nearest minute instead, so a selection within a minute can become an instant. Times you type are used as they are.
+A range selected on the chart, or followed from the visible chart, is widened to whole events, so the label covers every event it touches. An instant, and any selection on a sensor that records instantaneous values, is rounded to the nearest minute instead, so a selection within a minute can become an instant. Zoomed in to 10 minutes or less, these are rounded to the nearest second. Times you type are used as they are.
 
 Histogram and heatmap charts have no time axis to select on, so there the fields follow the date range selected on the left.
 
