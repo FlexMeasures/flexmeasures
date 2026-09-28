@@ -355,7 +355,9 @@ def test_concurrent_identical_calls_share_one_job(db, app):
         for thread in threads:
             thread.start()
         for thread in threads:
-            thread.join()
+            # a stalled call should fail this test, rather than hang the test run
+            thread.join(timeout=30)
+            assert not thread.is_alive()
 
         assert len(jobs) == 2
         assert jobs[0].id == jobs[1].id
