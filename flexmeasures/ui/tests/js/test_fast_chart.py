@@ -417,3 +417,21 @@ def test_selected_range_from_brush_areas(assert_js):
         eq("a removed brush selects nothing", selectedRangeFromBrushAreas([]), null);
         eq("no areas select nothing", selectedRangeFromBrushAreas(undefined), null);
         """)
+
+
+def test_hovered_and_pinned_annotations_take_the_highlight_colour(assert_js):
+    """As in the Vega-Lite charts, a pinned annotation takes the secondary colour and a hovered one its hover shade."""
+    assert_js("""
+        import { annotationColor } from "/js/fast-chart.js";
+        const root = document.documentElement.style;
+        root.setProperty("--gray", "#bbb");
+        root.setProperty("--secondary-color", "#f1a122");
+        root.setProperty("--secondary-hover-color", "#f5bd63");
+        const label = {type: "label"};
+        const alert = {type: "alert"};
+        eq("a resting label is grey", annotationColor(label, null), "#bbb");
+        eq("a resting alert keeps its warning hue", annotationColor(alert, null), "#d9822b");
+        eq("a hovered label takes the hover shade", annotationColor(label, "hovered"), "#f5bd63");
+        eq("a pinned label takes the secondary colour", annotationColor(label, "pinned"), "#f1a122");
+        eq("a pinned alert takes the secondary colour, too", annotationColor(alert, "pinned"), "#f1a122");
+        """)

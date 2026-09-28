@@ -117,6 +117,22 @@ ANNOTATION_COLOR_ENCODING = {
     ],
     "value": ANNOTATION_DEFAULT_COLOR,
 }
+ANNOTATION_PINNED_COLOR = "var(--secondary-color)"
+ANNOTATION_HOVERED_COLOR = "var(--secondary-hover-color)"
+
+
+def _highlighted_annotation_color_encoding(pin_test: str, hover_test: str) -> dict:
+    """Colour a pinned or hovered annotation of any type in the secondary (highlight) colour, and others as usual."""
+    return {
+        "condition": [
+            {"test": pin_test, "value": ANNOTATION_PINNED_COLOR},
+            {"test": hover_test, "value": ANNOTATION_HOVERED_COLOR},
+            *ANNOTATION_COLOR_ENCODING["condition"],
+        ],
+        "value": ANNOTATION_COLOR_ENCODING["value"],
+    }
+
+
 ANNOTATION_SHARED_TRANSFORMS = [
     # Alias the event_start field, so that x-encoded selections defined in
     # sibling layers can compute their tuples from annotation datums, too
@@ -210,7 +226,9 @@ def create_annotation_layers(
         "encoding": {
             "x": start_field_definition,
             "x2": dict(field="end", title=None),
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": _highlighted_annotation_color_encoding(
+                _band_hover_test(pin_param), _band_hover_test(hover_param)
+            ),
             "opacity": {
                 "condition": [
                     {
@@ -255,7 +273,10 @@ def create_annotation_layers(
         "mark": {"type": "rule", "clip": True, "strokeWidth": 2},
         "encoding": {
             "x": start_field_definition,
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": _highlighted_annotation_color_encoding(
+                _instant_hover_test(pin_param, resolution_ms),
+                _instant_hover_test(hover_param, resolution_ms),
+            ),
             "opacity": {
                 "condition": [
                     {
@@ -288,7 +309,10 @@ def create_annotation_layers(
         "encoding": {
             "x": start_field_definition,
             "y": {"value": 7},
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": _highlighted_annotation_color_encoding(
+                _instant_hover_test(pin_param, resolution_ms),
+                _instant_hover_test(hover_param, resolution_ms),
+            ),
             "opacity": {
                 "condition": [
                     {

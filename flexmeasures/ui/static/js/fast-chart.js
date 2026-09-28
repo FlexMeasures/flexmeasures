@@ -1203,6 +1203,7 @@ function seriesTooltipFormatter(seriesMeta, instance) {
 
 // Warm warning hue for 'alert' annotations, matching the Vega-Lite charts'
 // ANNOTATION_ALERT_COLOR; other types use the neutral --gray.
+// A hovered or pinned annotation of any type takes the secondary (highlight) colour, as in the Vega-Lite charts.
 const ANNOTATION_ALERT_COLOR = "#d9822b";
 const ANNOTATION_RESTING_OPACITY = 0.2;
 const ANNOTATION_HOVER_OPACITY = 0.55;
@@ -1232,10 +1233,17 @@ export function normalizeAnnotations(raw) {
     .sort((a, b) => a.start - b.start);
 }
 
-function annotationColor(a) {
-  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
+// The colour of an annotation, given whether it is "pinned", "hovered" or neither.
+export function annotationColor(a, highlight) {
   const cs = getComputedStyle(document.documentElement);
+  if (highlight === "pinned") return cs.getPropertyValue("--secondary-color").trim() || "#f1a122";
+  if (highlight === "hovered") return cs.getPropertyValue("--secondary-hover-color").trim() || "#f1a122";
+  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
   return cs.getPropertyValue("--gray").trim() || "#bbb";
+}
+
+function annotationHighlight(idx, hoverIdx, pinIdx) {
+  return idx === pinIdx ? "pinned" : idx === hoverIdx ? "hovered" : null;
 }
 
 // Build the markArea config for one subplot's annotation bands (annotations
@@ -1250,7 +1258,7 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
       .map((a, idx) => {
         if (a.end <= a.start) return null; // instants are drawn by buildAnnotationMarkLine
         const itemStyle = {
-          color: annotationColor(a),
+          color: annotationColor(a, annotationHighlight(idx, hoverIdx, pinIdx)),
           opacity:
             idx === pinIdx
               ? ANNOTATION_SELECT_OPACITY
@@ -1287,7 +1295,7 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
   const data = annotations
     .map((a, idx) => {
       if (a.end > a.start) return null;
-      const color = annotationColor(a);
+      const color = annotationColor(a, annotationHighlight(idx, hoverIdx, pinIdx));
       const opacity = idx === pinIdx ? 1 : idx === hoverIdx ? 0.9 : 0.5;
       const lineStyle = { color: color, width: 2, type: "solid", opacity: opacity };
       const itemStyle = { color: color, opacity: opacity }; // the triangle marker
