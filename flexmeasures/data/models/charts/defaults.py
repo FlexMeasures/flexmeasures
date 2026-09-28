@@ -101,96 +101,6 @@ REPLAY_RULER = {
         },
     },
 }
-SHADE_LAYER = {
-    "mark": {
-        "type": "bar",
-        "size": HEIGHT,
-    },
-    "encoding": {
-        "x": dict(
-            field="start",
-            type="temporal",
-            title=None,
-        ),
-        "x2": dict(
-            field="end",
-            type="temporal",
-            title=None,
-        ),
-        "color": {
-            "condition": [
-                {
-                    "param": "select",
-                    "empty": False,
-                    "value": "var(--secondary-color)",  # highlight color on select
-                },
-                {
-                    "param": "highlight",
-                    "empty": False,
-                    "value": "var(--secondary-hover-color)",  # highlight color on hover
-                },
-            ],
-            "value": "var(--gray)",  # default color
-        },
-        "opacity": {
-            "condition": [
-                {
-                    "param": "select",
-                    "empty": False,
-                    "value": 0.8,
-                },
-                {
-                    "param": "highlight",
-                    "empty": False,
-                    "value": 0.7,
-                },
-            ],
-            "value": 0.3,
-        },
-    },
-    "params": [
-        {
-            "name": "highlight",
-            "select": {"type": "point", "on": "mouseover"},
-        },
-        {"name": "select", "select": "point"},
-    ],
-}
-TEXT_LAYER = {
-    "mark": {
-        "type": "text",
-        "clip": False,
-        "y": HEIGHT,
-        "dy": FONT_SIZE + ANNOTATION_MARGIN,
-        "baseline": "top",
-        "align": "left",
-        "fontSize": FONT_SIZE,
-        "fontStyle": "italic",
-    },
-    "encoding": {
-        "x": dict(
-            field="start",
-            type="temporal",
-            title=None,
-        ),
-        "text": {"type": "nominal", "field": "content"},
-        "opacity": {
-            "condition": [
-                {
-                    "param": "select",
-                    "empty": False,
-                    "value": 1,
-                },
-                {
-                    "param": "highlight",
-                    "empty": False,
-                    "value": 1,
-                },
-            ],
-            "value": 0,
-        },
-    },
-}
 # Warm warning hue for 'alert' annotations, legible in both light and dark themes
 ANNOTATION_ALERT_COLOR = "#d9822b"
 ANNOTATION_DEFAULT_COLOR = "var(--gray)"
@@ -330,7 +240,8 @@ def create_annotation_layers(
             },
             {
                 "name": pin_param,
-                "select": {"type": "point", "fields": ["event_start"]},
+                # A click pins one annotation, as in the fast chart; shift-click does not keep earlier pins
+                "select": {"type": "point", "fields": ["event_start"], "toggle": False},
             },
         ],
     }
@@ -527,17 +438,17 @@ def apply_chart_defaults(fn):
                     chart_specs, dataset_name + "_annotations"
                 )
             elif include_annotations:
-                annotation_shades_layer = SHADE_LAYER
-                annotation_text_layer = TEXT_LAYER
-                annotation_shades_layer["data"] = {
-                    "name": dataset_name + "_annotations"
-                }
-                annotation_text_layer["data"] = {"name": dataset_name + "_annotations"}
+                # A single chart gets the same annotation layers as one subchart of a vconcat chart
+                background_layers, foreground_layers = create_annotation_layers(
+                    dataset_name + "_annotations",
+                    0,
+                    resolution_ms=_row_resolution_ms(chart_specs),
+                )
                 chart_specs = {
                     "layer": [
-                        annotation_shades_layer,
+                        *background_layers,
                         chart_specs,
-                        annotation_text_layer,
+                        *foreground_layers,
                     ]
                 }
 
