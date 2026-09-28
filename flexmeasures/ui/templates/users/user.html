@@ -315,7 +315,7 @@
         tagSpan.appendChild(removeBtn);
         rolesContainer.appendChild(tagSpan);
         if (description) {
-          new bootstrap.Tooltip(tagSpan, { container: 'body' });
+          new bootstrap.Tooltip(tagSpan, { container: 'body', customClass: 'user-role-tooltip' });
         }
       });
 
