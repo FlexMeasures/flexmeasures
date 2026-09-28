@@ -9,18 +9,10 @@ v1.1.0 | September XX, 2026
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-             If you maintain indexes of your own on the ``timed_belief`` table, read `PR #2378 <https://www.github.com/FlexMeasures/flexmeasures/pull/2378>`_ first, as this release's migration reorders that table's primary key and names the indexes it thereby makes redundant, leaving you to decide which of them to drop.
+             If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
 
-.. warning:: A scheduler's data source now also records the flex config it computed under, where previously one data source per scheduler version recorded every schedule that scheduler made.
-             Schedules computed under different flex configs are therefore recorded by different data sources, and a sensor can carry schedules from several of them, as it already could for forecasts.
-             Values describing a single moment stay out of that config, so a ``soc-at-start``, or a ``soc-targets`` entry at a given datetime, does not make every run a new data source.
-             What does is a change to what the site and its devices can do, such as a device's ``power-capacity``.
-             After such a change, a sensor holds the schedule computed under each configuration, where the newer schedule used to supersede the older one, so a chart of that sensor draws both, and the asset's KPIs total both, as they report what the chart draws.
-             Select a data source to see the schedule computed under one configuration.
-             One scheduling request still records under a single data source, including the per-device jobs of a sequential schedule.
-
-.. warning:: FlexMeasures no longer depends on ``inflect``.
-             Use the ``pluralize``, ``join_words_into_a_list`` and ``indefinite_article`` helpers in ``flexmeasures.utils.flexmeasures_inflection`` instead, or require ``inflect`` yourself if your plugin relied on FlexMeasures importing it for you.
+.. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
+          Select a data source on the sensor page to see the schedule computed under one configuration.
 
 New features
 -------------
@@ -70,6 +62,7 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Charts now highlight a hovered or pinned annotation in the secondary colour, in the fast chart as well as in Vega-Lite, where the sensor page's Vega-Lite chart was the only one to do so; annotation text is shown in near-black again, as the light grey was hard to read on white; shift-click pins several annotations at once in every chart, as it already did in the sensor page's Vega-Lite chart; and instantaneous annotations can now be hovered and pinned in Vega-Lite charts, too [see `PR #2570 <https://www.github.com/FlexMeasures/flexmeasures/pull/2570>`_]
+* Two identical scheduling requests arriving at the same moment no longer create two data sources for one scheduler configuration, which made every later schedule under that configuration fail; such requests now share one job, and a deployment that already has such duplicates schedules again [see `PR #2612 <https://www.github.com/FlexMeasures/flexmeasures/pull/2612>`_]
 * With the ``highspy`` solver, a site where any device has an operation mode could no longer run a converter coupling several commodities (such as a CHP) above one unit of its normalised flow, which made a must-run converter infeasible and silently capped a flexible one [see `PR #2606 <https://www.github.com/FlexMeasures/flexmeasures/pull/2606>`_]
 * Creating an organisation now records the action in its audit log, whether it is created in the UI, through the API or from the CLI [see `PR #2580 <https://www.github.com/FlexMeasures/flexmeasures/pull/2580>`_]
 * A ``PandasReporter`` with ``droplevels`` failed with ``BeliefDataframe has more than one row per event`` wherever several data sources reported the same input event, as happens for a while when a job reporting on a rolling window gets a new data source; it now keeps one belief per event, chosen as in any other search asking for that, while an input can still ask for all beliefs by setting ``one_deterministic_belief_per_event`` to ``false`` [see `PR #2595 <https://www.github.com/FlexMeasures/flexmeasures/pull/2595>`_]
