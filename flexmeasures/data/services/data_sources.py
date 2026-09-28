@@ -43,7 +43,14 @@ def get_or_create_source(
         query = query.filter(DataSource.name == source)
     else:
         raise TypeError("source should be of type User or str")
-    _source = db.session.execute(query).scalar_one_or_none()
+    # Concurrent calls can each insert the same source, because the unique constraint treats NULL user and account IDs as distinct.
+    # Rather than failing on such duplicates, reuse the oldest one, so that later calls consistently pick the same source.
+    matches = db.session.scalars(query.order_by(DataSource.id).limit(2)).all()
+    _source = matches[0] if matches else None
+    if len(matches) > 1:
+        current_app.logger.warning(
+            f"Found duplicate data sources matching {_source}; using the oldest one (ID {_source.id})."
+        )
     if not _source:
         if is_user(source):
             _source = DataSource(user=source, model=model, version=version)
