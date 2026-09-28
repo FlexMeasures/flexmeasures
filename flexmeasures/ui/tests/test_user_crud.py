@@ -45,6 +45,11 @@ def test_user_role_editor_shows_role_descriptions(client, as_admin):
     )
     assert '"account-admin": "Admin for this account"' in html
     assert "Roles add permissions. Remove member" in html
+    option_positions = [
+        html.index(f'<option value="{role}">')
+        for role in ("member", "account-admin", "consultant", "admin-reader")
+    ]
+    assert option_positions == sorted(option_positions)
 
 
 def test_user_page_breadcrumb(client, as_admin, setup_accounts):

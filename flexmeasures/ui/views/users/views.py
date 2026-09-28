@@ -6,7 +6,7 @@ from flask_security import login_required, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import check_access, ADMIN_ROLE
+from flexmeasures.auth.policy import check_access, ADMIN_ROLE, ROLE_DISPLAY_ORDER
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
@@ -50,14 +50,25 @@ def render_user(user: User | None, msg: str | None = None):
 
     roles = {}
     role_descriptions = {}
-    for role in db.session.scalars(select(Role)).all():
+    role_rank = {name: rank for rank, name in enumerate(ROLE_DISPLAY_ORDER)}
+
+    def role_sort_key(name: str) -> tuple[int, str]:
+        return role_rank.get(name, len(role_rank)), name.casefold()
+
+    available_roles = sorted(
+        db.session.scalars(select(Role)).all(),
+        key=lambda role: role_sort_key(role.name),
+    )
+    for role in available_roles:
         role_descriptions[role.name] = role.description or ""
         if role.name != ADMIN_ROLE:
             roles[role.name] = role.id
 
     user_roles = []
     if user is not None:
-        user_roles = [role.name for role in user.flexmeasures_roles]
+        user_roles = sorted(
+            (role.name for role in user.flexmeasures_roles), key=role_sort_key
+        )
 
     return render_flexmeasures_template(
         "users/user.html",
@@ -69,6 +80,7 @@ def render_user(user: User | None, msg: str | None = None):
         user_roles=user_roles,
         roles=roles,
         role_descriptions=role_descriptions,
+        role_display_order=ROLE_DISPLAY_ORDER,
         asset_count=user.account.number_of_assets,
         msg=msg,
         breadcrumb_info=get_breadcrumb_info(user),

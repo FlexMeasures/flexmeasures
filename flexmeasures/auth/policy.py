@@ -39,6 +39,18 @@ MEMBER_ROLE = "member"  # Operate resources in the home organisation.
 READ_ONLY_ROLE = "read-only"  # Read home resources only.
 INTEGRATION_ROLE = "integration"  # Read and post data in the home organisation.
 
+# From home-account reading to site-wide administration. The later roles can
+# change resource scope, so this is a display order rather than an inheritance chain.
+ROLE_DISPLAY_ORDER = (
+    READ_ONLY_ROLE,
+    INTEGRATION_ROLE,
+    MEMBER_ROLE,
+    ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
+    ADMIN_READER_ROLE,
+    ADMIN_ROLE,
+)
+
 # Account Roles
 CONSULTANCY_ACCOUNT_ROLE = "Consultancy"
 

@@ -77,15 +77,15 @@ Roles are not a closed built-in list. Some are hardcoded in the core authorizati
 Supported User Roles
 ^^^^^^^^^^^^^^^^^^^^^
 
-These roles are natively supported:
+These roles are natively supported, in the order used by the user role editor (which does not offer ``admin``). Each comparison describes what the next role adds **when assigned alongside the earlier roles**. Roles do not inherit from the preceding role: ``consultant`` acts on linked client accounts, and ``admin-reader`` adds site-wide reading rather than client-account write access.
 
-- ``admin``: Site-wide access to all actions.
-- ``admin-reader``: Site-wide read access.
-- ``member``: Regular work with resources in their home account, including posting data and triggering jobs. It does not grant user management or deletion of data.
-- ``account-admin``: Management of the home account and its users, including deletion of data.
-- ``read-only``: Reading resources in the home account. It cannot initiate its own password reset; an account administrator or consultant can initiate one.
-- ``integration``: Reading and posting data in the home account, plus resetting its own password.
-- ``consultant``: Access to client accounts linked to the user's consultancy account. More on this below.
+- ``read-only``: Read resources in the home account. This is the smallest built-in grant and, by itself, cannot initiate a password reset. An account administrator or consultant can initiate one for the user.
+- ``integration``: Adds posting data and resetting one's own password to home-account reading.
+- ``member``: Adds regular work with home-account resources, including editing assets and triggering jobs. It still does not grant user management or deletion of recorded data.
+- ``account-admin``: Adds management of users and deletion of data in the home account.
+- ``consultant``: Adds access to linked client accounts through the consultancy relationship, including management actions there. On its own, it grants no home-account access. More on this below.
+- ``admin-reader``: Extends reading to every account on the site. On its own, it grants read access only.
+- ``admin``: Extends all actions to every account on the site.
 
 Roles grant additional permissions; assigning ``read-only`` or ``integration`` does not take away permissions from other roles. To convert an existing user to either role, remove ``member`` and other broader roles from that user. The database upgrade assigns ``member`` to all existing users so that their previous implicit account access is preserved, and creates the ``read-only`` and ``integration`` role rows. New users receive ``member`` by default unless a different set of roles is specified.
 
