@@ -135,9 +135,10 @@ class Automation(db.Model, AuthModelMixin):
         asset_acl = self.asset.__acl__()
         return {
             "read": asset_acl["read"],
-            "update": asset_acl["create-children"],
-            "delete": asset_acl["create-children"],
             "manage-automations": asset_acl["manage-automations"],
+            # Compatibility for callers still checking broad CRUD permissions.
+            "update": asset_acl["manage-automations"],
+            "delete": asset_acl["manage-automations"],
         }
 
     def __repr__(self):

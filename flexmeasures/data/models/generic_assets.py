@@ -347,59 +347,48 @@ class GenericAsset(db.Model, AuthModelMixin):
         Members may remove an empty asset; deleting recorded data requires
         account-admin or consultant rights at the endpoint.
         """
-        acl = {
-            "create-children": [
-                f"account:{self.account_id}",
+        operate_access = [
+            f"account:{self.account_id}",
+            (
                 (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-            "read": (
-                self.owner.__acl__()["read"]
-                if self.account_id is not None
-                else EVERY_LOGGED_IN_USER
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.owner is not None
+                else ()
             ),
-            "update": [
-                f"account:{self.account_id}",
-                (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-            "delete": [
-                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-        }
-        acl.update(
-            {
-                "edit-assets": acl["update"],
-                "edit-flex-config": acl["update"],
-                "edit-sensors": acl["create-children"],
-                "annotate": acl["create-children"],
-                "manage-automations": acl["create-children"],
-                "trigger-schedules": acl["create-children"],
-                "trigger-reports": acl["create-children"],
-                "delete-data": acl["delete"],
-            }
+        ]
+        read_access = (
+            self.owner.__acl__()["read"]
+            if self.account_id is not None
+            else EVERY_LOGGED_IN_USER
         )
-        return acl
+        delete_data_access = [
+            (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
+                (
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.owner is not None
+                else ()
+            ),
+        ]
+        return {
+            "read": read_access,
+            "edit-assets": operate_access,
+            "edit-flex-config": operate_access,
+            "edit-sensors": operate_access,
+            "annotate": operate_access,
+            "manage-automations": operate_access,
+            "trigger-schedules": operate_access,
+            "trigger-reports": operate_access,
+            "delete-data": delete_data_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": operate_access,
+            "update": operate_access,
+            "delete": delete_data_access,
+        }
 
     def __repr__(self):
         return "<GenericAsset %s: %r (%s)>" % (

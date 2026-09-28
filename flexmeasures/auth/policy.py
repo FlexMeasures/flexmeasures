@@ -8,6 +8,8 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
+EDIT_ACCOUNT_PERMISSION = "edit-account"
+
 PERMISSIONS = (
     "read",
     "post-data",
@@ -23,7 +25,7 @@ PERMISSIONS = (
     "manage-users",
     "edit-profile",
     "reset-password",
-    "edit-account",
+    EDIT_ACCOUNT_PERMISSION,
     # Keep legacy names for plugin ACLs during the transition.
     "create-children",
     "update",
@@ -50,6 +52,40 @@ ROLE_DISPLAY_ORDER = (
     ADMIN_READER_ROLE,
     ADMIN_ROLE,
 )
+
+# List each built-in grant explicitly: registering a new permission must not
+# silently grant it to existing roles. Legacy CRUD names remain for plugins.
+_FULL_ROLE_PERMISSIONS = frozenset(
+    {
+        "read",
+        "post-data",
+        "annotate",
+        "trigger-schedules",
+        "trigger-forecasts",
+        "trigger-reports",
+        "manage-automations",
+        "edit-flex-config",
+        "edit-assets",
+        "edit-sensors",
+        "delete-data",
+        "manage-users",
+        "edit-profile",
+        "reset-password",
+        EDIT_ACCOUNT_PERMISSION,
+        "create-children",
+        "update",
+        "delete",
+    }
+)
+ROLE_PERMISSION_GRANTS = {
+    READ_ONLY_ROLE: frozenset({"read"}),
+    INTEGRATION_ROLE: frozenset({"read", "post-data", "reset-password"}),
+    MEMBER_ROLE: _FULL_ROLE_PERMISSIONS - {"delete-data", "manage-users", "delete"},
+    ACCOUNT_ADMIN_ROLE: _FULL_ROLE_PERMISSIONS,
+    CONSULTANT_ROLE: _FULL_ROLE_PERMISSIONS,
+    ADMIN_READER_ROLE: frozenset({"read"}),
+    ADMIN_ROLE: _FULL_ROLE_PERMISSIONS,
+}
 
 # Account Roles
 CONSULTANCY_ACCOUNT_ROLE = "Consultancy"
@@ -137,7 +173,11 @@ class FlexMeasuresPlatform(AuthModelMixin):
                 f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
             ),
         ]
-        return {"create-children": create_accounts, "edit-account": create_accounts}
+        return {
+            EDIT_ACCOUNT_PERMISSION: create_accounts,
+            # Compatibility for callers still checking the broad CRUD permission.
+            "create-children": create_accounts,
+        }
 
 
 def check_access(context: AuthModelMixin, permission: str):

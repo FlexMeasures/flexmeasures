@@ -24,14 +24,9 @@ from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.auth.policy import (
     AuthModelMixin,
-    PERMISSIONS,
-    ADMIN_ROLE,
-    ADMIN_READER_ROLE,
+    ROLE_PERMISSION_GRANTS,
     CONSULTANT_ROLE,
     ACCOUNT_ADMIN_ROLE,
-    MEMBER_ROLE,
-    READ_ONLY_ROLE,
-    INTEGRATION_ROLE,
 )
 from flexmeasures.utils.time_utils import server_now
 
@@ -181,13 +176,14 @@ class Account(db.Model, AuthModelMixin):
             ),
         ]
         return {
-            "create-children": create_access,
             "read": read_access,
-            "update": update_access,
             "edit-account": update_access,
             "manage-users": create_access,
             "edit-assets": create_access,
             "annotate": read_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": create_access,
+            "update": update_access,
         }
 
     def get_path(self, separator: str = ">"):
@@ -320,22 +316,7 @@ class Role(db.Model, RoleMixin):
     @property
     def permissions(self) -> frozenset[str]:
         """Return this role's grants. Unknown roles grant no named permissions."""
-        all_permissions = frozenset(PERMISSIONS)
-        member_permissions = all_permissions - {
-            "delete-data",
-            "manage-users",
-            "delete",
-        }
-        grants = {
-            READ_ONLY_ROLE: frozenset({"read"}),
-            INTEGRATION_ROLE: frozenset({"read", "post-data", "reset-password"}),
-            MEMBER_ROLE: member_permissions,
-            ACCOUNT_ADMIN_ROLE: all_permissions,
-            CONSULTANT_ROLE: all_permissions,
-            ADMIN_READER_ROLE: frozenset({"read"}),
-            ADMIN_ROLE: all_permissions,
-        }
-        return grants.get(self.name, frozenset())
+        return ROLE_PERMISSION_GRANTS.get(self.name, frozenset())
 
     def __repr__(self):
         return "<Role:%s (ID:%s)>" % (self.name, self.id)
@@ -404,10 +385,11 @@ class User(db.Model, UserMixin, AuthModelMixin):
                     f"role:{CONSULTANT_ROLE}",
                 ),
             ],
-            "update": [f"user:{self.id}", *admin_access],
             "edit-profile": f"user:{self.id}",
             "manage-users": admin_access,
             "reset-password": [f"user:{self.id}", *admin_access],
+            # Compatibility for callers still checking broad CRUD permissions.
+            "update": [f"user:{self.id}", *admin_access],
         }
 
     @property

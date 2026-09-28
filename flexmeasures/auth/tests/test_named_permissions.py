@@ -8,6 +8,8 @@ import pytest
 
 from flexmeasures.auth.policy import (
     ACCOUNT_ADMIN_ROLE,
+    ADMIN_READER_ROLE,
+    ADMIN_ROLE,
     CONSULTANT_ROLE,
     INTEGRATION_ROLE,
     MEMBER_ROLE,
@@ -15,6 +17,8 @@ from flexmeasures.auth.policy import (
     user_has_scoped_permission,
 )
 from flexmeasures.data.models.user import Role
+from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 
 
 @pytest.mark.parametrize(
@@ -86,3 +90,42 @@ def test_read_only_role_can_match_read_acl_but_not_mutation_acl():
     assert not user_has_scoped_permission(user, "edit-assets", "account:10")
     assert not user_has_scoped_permission(user, "post-data", "account:10")
     assert "reset-password" not in Role(name=READ_ONLY_ROLE).permissions
+
+
+def test_new_permission_is_not_granted_to_existing_roles(monkeypatch):
+    from flexmeasures.auth import policy
+
+    monkeypatch.setattr(policy, "PERMISSIONS", (*policy.PERMISSIONS, "future-action"))
+    for name in (
+        READ_ONLY_ROLE,
+        INTEGRATION_ROLE,
+        MEMBER_ROLE,
+        ACCOUNT_ADMIN_ROLE,
+        CONSULTANT_ROLE,
+        ADMIN_READER_ROLE,
+        ADMIN_ROLE,
+    ):
+        assert "future-action" not in Role(name=name).permissions
+
+
+def test_named_asset_and_sensor_acls_keep_existing_scopes():
+    owner = SimpleNamespace(
+        consultancy_account_id=20,
+        __acl__=lambda: {"read": ["account:10"]},
+    )
+    asset = SimpleNamespace(account_id=10, owner=owner)
+    asset_acl = GenericAsset.__acl__(asset)
+
+    assert asset_acl["edit-assets"] == asset_acl["update"]
+    assert asset_acl["edit-sensors"] == asset_acl["create-children"]
+    assert asset_acl["delete-data"] == asset_acl["delete"]
+    assert asset_acl["delete-data"] == [
+        ("account:10", f"role:{ACCOUNT_ADMIN_ROLE}"),
+        ("account:20", f"role:{CONSULTANT_ROLE}"),
+    ]
+
+    asset.__acl__ = lambda: asset_acl
+    sensor_acl = Sensor.__acl__(SimpleNamespace(generic_asset=asset))
+    assert sensor_acl["post-data"] == sensor_acl["create-children"]
+    assert sensor_acl["edit-sensors"] == sensor_acl["update"]
+    assert sensor_acl["delete-data"] == sensor_acl["delete"]
