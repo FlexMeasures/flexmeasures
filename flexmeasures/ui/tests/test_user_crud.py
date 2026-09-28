@@ -44,6 +44,10 @@ def test_user_role_editor_shows_role_descriptions(client, as_admin):
         in html
     )
     assert '"account-admin": "Admin for this account"' in html
+    assert (
+        '<span data-bs-toggle="tooltip" title="Admin for this account" '
+        'tabindex="0">account-admin</span>' in html
+    )
     assert "Roles add permissions. Remove member" in html
     option_positions = [
         html.index(f'<option value="{role}">')

@@ -93,9 +93,9 @@
                 <td>
                   Roles
                 </td>
-                <td>
-                  {% for role in user.flexmeasures_roles %}
-                  {{ role.name }}{{ "," if not loop.last }}
+                <td id="userRolesList">
+                  {% for role in user_roles %}
+                  <span data-bs-toggle="tooltip" title="{{ role_descriptions[role] or 'No description available.' }}" tabindex="0">{{ role }}</span>{{ "," if not loop.last }}
                   {% endfor %}
                 </td>
               </tr>
@@ -265,6 +265,10 @@
   });
 
   document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#userRolesList [data-bs-toggle="tooltip"]').forEach(el => {
+      new bootstrap.Tooltip(el, { container: 'body' });
+    });
+
     const tagsInput = document.getElementById('tagsInput');
     const addRoleBtn = document.getElementById('addRoleBtn');
     const rolesContainer = document.getElementById('rolesContainer');
