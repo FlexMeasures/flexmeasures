@@ -8,8 +8,6 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
-EDIT_ACCOUNT_PERMISSION = "edit-account"
-
 PERMISSIONS = (
     "read",
     "post-data",
@@ -25,7 +23,7 @@ PERMISSIONS = (
     "manage-users",
     "edit-profile",
     "reset-password",
-    EDIT_ACCOUNT_PERMISSION,
+    "edit-account",
     # Keep legacy names for plugin ACLs during the transition.
     "create-children",
     "update",
@@ -71,7 +69,7 @@ _FULL_ROLE_PERMISSIONS = frozenset(
         "manage-users",
         "edit-profile",
         "reset-password",
-        EDIT_ACCOUNT_PERMISSION,
+        "edit-account",
         "create-children",
         "update",
         "delete",
@@ -174,7 +172,7 @@ class FlexMeasuresPlatform(AuthModelMixin):
             ),
         ]
         return {
-            EDIT_ACCOUNT_PERMISSION: create_accounts,
+            "edit-account": create_accounts,
             # Compatibility for callers still checking the broad CRUD permission.
             "create-children": create_accounts,
         }
