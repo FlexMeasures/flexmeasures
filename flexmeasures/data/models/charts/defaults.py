@@ -207,6 +207,7 @@ def create_annotation_layers(
     - background layers (drawn behind the data):
       - a full-height rect band for annotations with a non-zero duration
       - a rule for instant annotations
+      - an invisible, wider rule for pointing at instant annotations
       - a triangle marker at the top of each instant-annotation rule
     - foreground layers (drawn on top of the data):
       - a text mark showing the annotation content below the subchart
@@ -302,6 +303,22 @@ def create_annotation_layers(
             },
         },
     }
+    # Vega-Lite only makes a mark interactive when its layer has a selection or a tooltip,
+    # so an empty tooltip lets the hover and pin params capture the time of an instant annotation.
+    # The visible rule is too thin to point at, so an invisible, wider rule catches the pointer instead.
+    hit_layer = {
+        "name": f"annotation_rule_hit_{row_index}",
+        "data": {"name": annotations_dataset_name},
+        "transform": [
+            {"filter": "datum.start == datum.end"},
+            *ANNOTATION_SHARED_TRANSFORMS,
+        ],
+        "mark": {"type": "rule", "clip": True, "strokeWidth": 16, "opacity": 0},
+        "encoding": {
+            "x": start_field_definition,
+            "tooltip": {"value": None},
+        },
+    }
     marker_layer = {
         "name": f"annotation_marker_{row_index}",
         "data": {"name": annotations_dataset_name},
@@ -318,6 +335,7 @@ def create_annotation_layers(
         },
         "encoding": {
             "x": start_field_definition,
+            "tooltip": {"value": None},
             "y": {"value": 7},
             "color": _highlighted_annotation_color_encoding(
                 _instant_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS),
@@ -370,18 +388,24 @@ def create_annotation_layers(
             },
         },
     }
-    return [band_layer, rule_layer, marker_layer], [text_layer]
+    return [band_layer, rule_layer, hit_layer, marker_layer], [text_layer]
 
 
 def _row_resolution_ms(row_specs: dict, default_ms: int = 3600 * 1000) -> int:
-    """Find the time resolution (in ms) of a subchart row from its x-encoding time unit."""
+    """Find the time resolution (in ms) of a subchart row from its x-encoding time unit.
+
+    An instantaneous sensor has a zero step, which would leave no hover tolerance for instant annotations,
+    so it gets the default, as in the fast chart.
+    """
     for layer in row_specs.get("layer", []):
         time_unit = layer.get("encoding", {}).get("x", {}).get("timeUnit")
         if isinstance(time_unit, dict) and "step" in time_unit:
             try:
-                return int(float(time_unit["step"]) * 1000)
+                resolution_ms = int(float(time_unit["step"]) * 1000)
             except (TypeError, ValueError):
                 continue
+            if resolution_ms > 0:
+                return resolution_ms
     return default_ms
 
 

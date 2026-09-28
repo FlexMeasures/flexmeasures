@@ -14,14 +14,14 @@ def test_default_encodings():
         assert alt.PositionFieldDef(**field_definition)
 
 
-def _single_chart_with_annotations() -> dict:
+def _single_chart_with_annotations(step: float = 900) -> dict:
     """A single (not vertically concatenated) chart, as on the sensor page, with annotations."""
     specs = {
         "layer": [
             {
                 "mark": "bar",
                 "encoding": {
-                    "x": {"field": "event_start", "timeUnit": {"step": 900}},
+                    "x": {"field": "event_start", "timeUnit": {"step": step}},
                 },
             }
         ]
@@ -36,6 +36,7 @@ def test_single_chart_annotations_match_the_subchart_annotations():
     assert names == [
         "annotation_band_0",
         "annotation_rule_0",
+        "annotation_rule_hit_0",
         "annotation_marker_0",
         None,  # the chart itself
         "annotation_text_0",
@@ -48,7 +49,7 @@ def test_single_chart_annotations_match_the_subchart_annotations():
 def test_hovered_and_pinned_annotations_take_the_highlight_colour():
     """A pinned annotation takes the secondary colour and a hovered one its hover shade, while others keep their own colour."""
     specs = _single_chart_with_annotations()
-    for layer in specs["layer"][:3]:  # band, rule and marker
+    for layer in [specs["layer"][i] for i in (0, 1, 3)]:  # band, rule and marker
         color = layer["encoding"]["color"]
         pinned, hovered, alert = color["condition"]
         assert "annotation_pin_time_0" in pinned["test"]
@@ -57,7 +58,7 @@ def test_hovered_and_pinned_annotations_take_the_highlight_colour():
         assert hovered["value"] == "var(--secondary-hover-color)"
         assert alert["test"] == "datum.type == 'alert'"
         assert color["value"] == "var(--gray)"
-    text = specs["layer"][4]
+    text = specs["layer"][5]
     assert text["encoding"]["color"] == {
         "value": "#333"
     }, "annotation text stays legible on white"
@@ -74,3 +75,11 @@ def test_shift_click_keeps_earlier_pinned_annotations():
     assert "annotation_pin_time_0['event_start'][1]" in pinned_test
     hovered_test = band["encoding"]["color"]["condition"][1]["test"]
     assert "annotation_hover_time_0['event_start'][1]" not in hovered_test
+
+
+def test_instant_annotations_can_be_hovered_on_an_instantaneous_sensor():
+    """An instantaneous sensor's chart still gives instant annotations a hover tolerance (one hour, as in the fast chart)."""
+    specs = _single_chart_with_annotations(step=0)
+    rule_opacity = json.dumps(specs["layer"][1]["encoding"]["opacity"])
+    assert "<= 0)" not in rule_opacity and "<= 0 " not in rule_opacity
+    assert "<= 3600000" in rule_opacity
