@@ -435,3 +435,70 @@ def test_hovered_and_pinned_annotations_take_the_highlight_colour(assert_js):
         eq("a pinned label takes the secondary colour", annotationColor(label, "pinned"), "#f1a122");
         eq("a pinned alert takes the secondary colour, too", annotationColor(alert, "pinned"), "#f1a122");
         """)
+
+
+def test_shift_click_pins_several_annotations(assert_js):
+    """Shift-click keeps earlier pins, as in the Vega-Lite charts, and a plain click pins only the clicked annotation."""
+    assert_js("""
+        import { normalizeAnnotations, wireAnnotationHover } from "/js/fast-chart.js";
+
+        const canvasHandlers = {};
+        const patches = [];
+        const container = document.createElement("div");
+        const canvas = document.createElement("canvas");
+        container.appendChild(canvas);
+        document.body.appendChild(container);
+        container.getBoundingClientRect = () => ({left: 0, top: 0});
+        canvas.getBoundingClientRect = () => ({left: 0, top: 0});
+        const zr = {
+            on: (name, handler) => { canvasHandlers[name] = handler; },
+            off: (name) => { delete canvasHandlers[name]; },
+        };
+        const chart = {
+            getZr: () => zr,
+            getDom: () => container,
+            containPixel: (_grid, [x, y]) => x >= 0 && x < 200 && y >= 0 && y < 100,
+            convertFromPixel: (_axis, x) => x,
+            convertToPixel: (_axis, x) => x,
+            setOption: (patch) => patches.push(patch),
+            on: () => {},
+            off: () => {},
+        };
+        const instance = {
+            chart,
+            replayTime: null,
+            _annotCtx: {
+                annotations: normalizeAnnotations([
+                    {start: 0, end: 10, content: "First", type: "label"},
+                    {start: 100, end: 120, content: "Second", type: "label"},
+                    {start: 150, end: 170, content: "Third", type: "label"},
+                ]),
+                grids: [{seriesIndex: 0, toleranceMs: 1, labelTop: 100, labelLeft: 0, labelRight: 200}],
+            },
+        };
+        const click = (x, shiftKey) => canvasHandlers.click({offsetX: x, offsetY: 10, event: {shiftKey}});
+        const pinnedTexts = () => [...container.querySelectorAll('[data-annotation-label="pin"]')]
+            .filter((label) => label.style.display === "inline-block")
+            .map((label) => label.textContent);
+        const pinnedOpacities = () => patches.at(-1).series[0].markArea.data.map((band) => band[0].itemStyle.opacity);
+
+        wireAnnotationHover(instance);
+        click(5, false);
+        click(110, true);
+        eq("shift-click keeps the earlier pin", pinnedTexts(), ["First", "Second"]);
+        eq("pinned text is near-black, legible on white",
+           container.querySelector('[data-annotation-label="pin"]').style.color, "rgb(51, 51, 51)");
+        eq("both pinned bands are highlighted", pinnedOpacities(), [0.65, 0.65, 0.2]);
+
+        click(5, true);
+        eq("shift-clicking a pinned annotation releases only that one", pinnedTexts(), ["Second"]);
+
+        click(5, true);
+        click(160, false);
+        eq("a plain click pins only the clicked annotation", pinnedTexts(), ["Third"]);
+
+        click(250, true);
+        eq("shift-clicking outside any annotation keeps the pins", pinnedTexts(), ["Third"]);
+        click(250, false);
+        eq("a plain click outside releases all pins", pinnedTexts(), []);
+        """)

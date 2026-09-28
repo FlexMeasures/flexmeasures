@@ -1205,6 +1205,8 @@ function seriesTooltipFormatter(seriesMeta, instance) {
 // ANNOTATION_ALERT_COLOR; other types use the neutral --gray.
 // A hovered or pinned annotation of any type takes the secondary (highlight) colour, as in the Vega-Lite charts.
 const ANNOTATION_ALERT_COLOR = "#d9822b";
+// Near-black annotation text, legible on the white chart background, as in the Vega-Lite charts
+const ANNOTATION_TEXT_COLOR = "#333";
 const ANNOTATION_RESTING_OPACITY = 0.2;
 const ANNOTATION_HOVER_OPACITY = 0.55;
 const ANNOTATION_SELECT_OPACITY = 0.65;
@@ -1242,8 +1244,13 @@ export function annotationColor(a, highlight) {
   return cs.getPropertyValue("--gray").trim() || "#bbb";
 }
 
-function annotationHighlight(idx, hoverIdx, pinIdx) {
-  return idx === pinIdx ? "pinned" : idx === hoverIdx ? "hovered" : null;
+// The pinned annotations of a subplot: a set of indices, or a single index (-1 for none).
+function pinnedSet(pinned) {
+  return pinned instanceof Set ? pinned : new Set(pinned >= 0 ? [pinned] : []);
+}
+
+function annotationHighlight(idx, hoverIdx, pinned) {
+  return pinned.has(idx) ? "pinned" : idx === hoverIdx ? "hovered" : null;
 }
 
 // Build the markArea config for one subplot's annotation bands (annotations
@@ -1251,6 +1258,7 @@ function annotationHighlight(idx, hoverIdx, pinIdx) {
 // shows below the subplot; the rest stay lightly shaded. Indices refer to the
 // full annotations array (instants are skipped but keep their index).
 function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
+  const pinned = pinnedSet(pinIdx);
   return {
     silent: true, // hover is handled via the zrender mouse listeners instead (wireAnnotationHover)
     animation: false,
@@ -1258,9 +1266,9 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
       .map((a, idx) => {
         if (a.end <= a.start) return null; // instants are drawn by buildAnnotationMarkLine
         const itemStyle = {
-          color: annotationColor(a, annotationHighlight(idx, hoverIdx, pinIdx)),
+          color: annotationColor(a, annotationHighlight(idx, hoverIdx, pinned)),
           opacity:
-            idx === pinIdx
+            pinned.has(idx)
               ? ANNOTATION_SELECT_OPACITY
               : idx === hoverIdx
               ? ANNOTATION_HOVER_OPACITY
@@ -1292,11 +1300,12 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
 // replay ruler at the current belief time (when replaying). Returns null when
 // there is nothing to draw.
 function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+  const pinned = pinnedSet(pinIdx);
   const data = annotations
     .map((a, idx) => {
       if (a.end > a.start) return null;
-      const color = annotationColor(a, annotationHighlight(idx, hoverIdx, pinIdx));
-      const opacity = idx === pinIdx ? 1 : idx === hoverIdx ? 0.9 : 0.5;
+      const color = annotationColor(a, annotationHighlight(idx, hoverIdx, pinned));
+      const opacity = pinned.has(idx) ? 1 : idx === hoverIdx ? 0.9 : 0.5;
       const lineStyle = { color: color, width: 2, type: "solid", opacity: opacity };
       const itemStyle = { color: color, opacity: opacity }; // the triangle marker
       return {
@@ -2783,7 +2792,8 @@ function wireSessionTooltipRedirect(instance, opts) {
 // Highlight the annotation band/rule under the cursor and show its text below the
 // hovered subplot ONLY (the other subplots keep the light shading), matching the
 // Vega-Lite annotation layers. Clicking (or tapping, on touch) pins the highlight;
-// clicking it again, or clicking outside any annotation, releases it. markArea
+// clicking it again, or clicking outside any annotation, releases it.
+// Shift-click pins another annotation, or releases a pinned one, keeping the other pins. markArea
 // emphasis does not fire because the axisPointer intercepts mouse events. Track
 // hover on the chart container, rather than the canvas: crossing belief hit areas
 // or the HTML data tooltip must not briefly clear the annotation. ZRender still
@@ -2812,7 +2822,7 @@ export function wireAnnotationHover(instance) {
     instance.onAnnotZoom = null;
   }
   if (instance._annotLabels) {
-    Object.values(instance._annotLabels).forEach((label) => label.remove());
+    instance._annotLabels.forEach((label) => label.remove());
     instance._annotLabels = null;
   }
   const ctx = instance._annotCtx;
@@ -2844,11 +2854,15 @@ export function wireAnnotationHover(instance) {
     container.appendChild(label);
     return label;
   };
-  const labels = { pin: makeLabel("pin"), hover: makeLabel("hover") };
-  instance._annotLabels = labels;
+  // One label per pinned annotation (added as needed), and one for the hovered annotation.
+  const pinLabels = [makeLabel("pin")];
+  const hoverLabel = makeLabel("hover");
+  instance._annotLabels = [pinLabels[0], hoverLabel];
 
-  let hover = { grid: -1, idx: -1 };
-  let pin = { grid: -1, idx: -1 };
+  const NONE = { grid: -1, idx: -1 };
+  const key = (state) => state.grid + ":" + state.idx;
+  let hover = NONE;
+  let pins = [];
 
   // Which annotation is at the given pixel position, and in which subplot?
   // Bands match when the time under the cursor falls inside their window;
@@ -2867,10 +2881,11 @@ export function wireAnnotationHover(instance) {
     return { grid: -1, idx: -1 };
   };
 
-  const stateFor = (g, hv, pn) => ({
+  const stateFor = (g, hv, pns) => ({
     h: hv.grid === g ? hv.idx : -1,
-    p: pn.grid === g ? pn.idx : -1,
+    p: new Set(pns.filter((pn) => pn.grid === g).map((pn) => pn.idx)),
   });
+  const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
   const renderLabel = (label, state, row) => {
     if (state.grid < 0 || state.idx < 0) {
@@ -2900,7 +2915,7 @@ export function wireAnnotationHover(instance) {
       "Start: " + formatFullDate(annotation.start),
       "End: " + formatFullDate(annotation.end),
     ].join("\n");
-    label.style.color = annotationColor(annotation);
+    label.style.color = ANNOTATION_TEXT_COLOR;
     label.style.maxWidth = plotWidth + "px";
     label.style.display = "inline-block";
     // Measure after showing it, then shift a right-edge label left instead of
@@ -2910,6 +2925,7 @@ export function wireAnnotationHover(instance) {
     label.style.left = Math.round(canvasLeft + x) + "px";
     label.style.top =
       Math.round(canvasTop + grid.labelTop + row * ANNOTATION_LABEL_ROW_HEIGHT) + "px";
+    label.dataset.grid = state.grid;
   };
 
   const labelsOverlap = (first, second) => {
@@ -2921,36 +2937,61 @@ export function wireAnnotationHover(instance) {
     );
   };
 
-  const renderHoverLabel = (newHover, newPin) => {
-    const hoverDuplicatesPin =
-      newHover.grid === newPin.grid && newHover.idx === newPin.idx && newHover.idx >= 0;
+  // Show a label in the first row where it overlaps none of the labels already shown in its subplot.
+  // The strip below a subplot has two rows, so a third overlapping label shares the second row.
+  const placeLabel = (label, state, shown) => {
+    renderLabel(label, state, 0);
+    const clashes = shown.some(
+      (other) => other.dataset.grid === label.dataset.grid && other.style.top === label.style.top && labelsOverlap(other, label)
+    );
+    if (clashes) renderLabel(label, state, 1);
+  };
+
+  const shownPinLabels = () => pinLabels.filter((label) => label.style.display !== "none");
+
+  const renderPinLabels = (newPins) => {
+    while (pinLabels.length < newPins.length) {
+      const label = makeLabel("pin");
+      pinLabels.push(label);
+      instance._annotLabels.push(label);
+    }
+    const shown = [];
+    pinLabels.forEach((label, i) => {
+      if (i >= newPins.length) {
+        renderLabel(label, NONE, 0);
+        return;
+      }
+      placeLabel(label, newPins[i], shown);
+      shown.push(label);
+    });
+  };
+
+  const renderHoverLabel = (newHover, newPins) => {
+    const hoverDuplicatesPin = newHover.idx >= 0 && newPins.some((pn) => key(pn) === key(newHover));
     if (hoverDuplicatesPin) {
-      renderLabel(labels.hover, { grid: -1, idx: -1 }, 0);
+      renderLabel(hoverLabel, NONE, 0);
       return;
     }
-    renderLabel(labels.hover, newHover, 0);
-    if (
-      newHover.grid >= 0 &&
-      newHover.grid === newPin.grid &&
-      labelsOverlap(labels.pin, labels.hover)
-    ) {
-      renderLabel(labels.hover, newHover, 1);
+    if (newHover.grid < 0) {
+      renderLabel(hoverLabel, newHover, 0);
+      return;
     }
+    placeLabel(hoverLabel, newHover, shownPinLabels());
   };
 
   // Re-shade the subplots whose highlight state changed. setOption merges series
   // by position, so build a patch array up to the last changed annotation-bearing
   // series; only those carry new marks, the rest pass through untouched.
-  const apply = (newHover, newPin) => {
-    const hoverChanged = newHover.grid !== hover.grid || newHover.idx !== hover.idx;
-    const pinChanged = newPin.grid !== pin.grid || newPin.idx !== pin.idx;
+  const apply = (newHover, newPins) => {
+    const hoverChanged = key(newHover) !== key(hover);
+    const pinChanged = newPins.map(key).join() !== pins.map(key).join();
     if (!hoverChanged && !pinChanged) return;
     const patches = new Map();
     let maxSeriesIdx = -1;
     ctx.grids.forEach((info, g) => {
-      const before = stateFor(g, hover, pin);
-      const after = stateFor(g, newHover, newPin);
-      if (before.h === after.h && before.p === after.p) return;
+      const before = stateFor(g, hover, pins);
+      const after = stateFor(g, newHover, newPins);
+      if (before.h === after.h && sameSet(before.p, after.p)) return;
       const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
       const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
       if (markLine) marks.markLine = markLine;
@@ -2964,10 +3005,10 @@ export function wireAnnotationHover(instance) {
       }
       chart.setOption({ series: seriesPatch });
     }
-    if (pinChanged) renderLabel(labels.pin, newPin, 0);
-    if (hoverChanged || pinChanged) renderHoverLabel(newHover, newPin);
+    if (pinChanged) renderPinLabels(newPins);
+    renderHoverLabel(newHover, newPins);
     hover = newHover;
-    pin = newPin;
+    pins = newPins;
   };
 
   instance.onAnnotMove = (e) => {
@@ -2977,17 +3018,23 @@ export function wireAnnotationHover(instance) {
     // offsetX/offsetY would be relative to the tooltip when it covers the
     // canvas, so convert viewport coordinates to chart coordinates instead.
     const rect = canvas.getBoundingClientRect();
-    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pin);
+    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pins);
   };
-  instance.onAnnotOut = () => apply({ grid: -1, idx: -1 }, pin);
+  instance.onAnnotOut = () => apply(NONE, pins);
   instance.onAnnotClick = (e) => {
     const at = locate([e.offsetX, e.offsetY]);
-    const samePin = at.grid === pin.grid && at.idx === pin.idx;
-    apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
+    const isPinned = at.idx >= 0 && pins.some((pn) => key(pn) === key(at));
+    if (e.event && e.event.shiftKey) {
+      // Shift-click adds the annotation to the pins, or releases it, keeping the other pins
+      if (at.idx < 0) return;
+      apply(hover, isPinned ? pins.filter((pn) => key(pn) !== key(at)) : [...pins, at]);
+      return;
+    }
+    apply(hover, at.idx < 0 || (isPinned && pins.length === 1) ? [] : [at]);
   };
   instance.onAnnotZoom = () => {
-    renderLabel(labels.pin, pin, 0);
-    renderHoverLabel(hover, pin);
+    renderPinLabels(pins);
+    renderHoverLabel(hover, pins);
   };
   container.addEventListener("mousemove", instance.onAnnotMove);
   container.addEventListener("mouseleave", instance.onAnnotOut);

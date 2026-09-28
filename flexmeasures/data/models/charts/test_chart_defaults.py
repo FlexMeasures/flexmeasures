@@ -57,12 +57,20 @@ def test_hovered_and_pinned_annotations_take_the_highlight_colour():
         assert hovered["value"] == "var(--secondary-hover-color)"
         assert alert["test"] == "datum.type == 'alert'"
         assert color["value"] == "var(--gray)"
+    text = specs["layer"][4]
+    assert text["encoding"]["color"] == {
+        "value": "#333"
+    }, "annotation text stays legible on white"
 
 
-def test_pinning_an_annotation_replaces_the_previous_pin():
-    """Shift-click does not keep an earlier pinned annotation, as in the fast chart."""
+def test_shift_click_keeps_earlier_pinned_annotations():
+    """Shift-click pins another annotation, keeping the earlier pins, as in the fast chart."""
     specs = _single_chart_with_annotations()
-    pin = next(
-        p for p in specs["layer"][0]["params"] if p["name"] == "annotation_pin_time_0"
-    )
-    assert pin["select"]["toggle"] is False
+    band = specs["layer"][0]
+    pin = next(p for p in band["params"] if p["name"] == "annotation_pin_time_0")
+    assert "toggle" not in pin["select"], "Vega-Lite's default toggle is shift-click"
+    # Every pinned time is tested, not only the first
+    pinned_test = band["encoding"]["color"]["condition"][0]["test"]
+    assert "annotation_pin_time_0['event_start'][1]" in pinned_test
+    hovered_test = band["encoding"]["color"]["condition"][1]["test"]
+    assert "annotation_hover_time_0['event_start'][1]" not in hovered_test

@@ -117,6 +117,8 @@ ANNOTATION_COLOR_ENCODING = {
     ],
     "value": ANNOTATION_DEFAULT_COLOR,
 }
+# Near-black annotation text, legible on the white chart background whatever the annotation's colour
+ANNOTATION_TEXT_COLOR = "#333"
 ANNOTATION_PINNED_COLOR = "var(--secondary-color)"
 ANNOTATION_HOVERED_COLOR = "var(--secondary-hover-color)"
 
@@ -140,13 +142,18 @@ ANNOTATION_SHARED_TRANSFORMS = [
 ]
 
 
-def _hovered_time_expr(param: str) -> str:
-    """Expression yielding the event_start value captured by a point selection param.
+# How many shift-click pins per subchart are highlighted; Vega expressions cannot loop over the pinned times.
+MAX_PINNED_ANNOTATIONS = 10
+
+
+def _captured_time_exprs(param: str, captures: int = 1) -> list[str]:
+    """Expressions yielding the event_start values captured by a point selection param.
 
     Handles both scalar and array-valued selection signals.
+    An array holds one value per selected point, e.g. one per shift-click, and only its first ``captures`` values are read.
     """
     value = f"{param}['event_start']"
-    return f"(isArray({value}) ? {value}[0] : {value})"
+    return [f"(isArray({value}) ? {value}[{i}] : {value})" for i in range(captures)]
 
 
 def _time_captured_test(param: str) -> str:
@@ -154,29 +161,29 @@ def _time_captured_test(param: str) -> str:
     return f"isValid({param}) && isValid({param}['event_start'])"
 
 
-def _band_hover_test(param: str) -> str:
-    """Expression testing whether the captured time falls within the annotation band."""
-    time_expr = _hovered_time_expr(param)
-    return (
-        f"{_time_captured_test(param)}"
-        f" && {time_expr} >= datum.start && {time_expr} < datum.end"
+def _band_hover_test(param: str, captures: int = 1) -> str:
+    """Expression testing whether a captured time falls within the annotation band."""
+    inside = " || ".join(
+        f"({t} >= datum.start && {t} < datum.end)"
+        for t in _captured_time_exprs(param, captures)
     )
+    return f"{_time_captured_test(param)} && ({inside})"
 
 
-def _instant_hover_test(param: str, tolerance_ms: int) -> str:
-    """Expression testing whether the captured time is close to the instant annotation."""
-    time_expr = _hovered_time_expr(param)
-    return (
-        f"{_time_captured_test(param)}"
-        f" && abs({time_expr} - datum.start) <= {tolerance_ms}"
+def _instant_hover_test(param: str, tolerance_ms: int, captures: int = 1) -> str:
+    """Expression testing whether a captured time is close to the instant annotation."""
+    near = " || ".join(
+        f"abs({t} - datum.start) <= {tolerance_ms}"
+        for t in _captured_time_exprs(param, captures)
     )
+    return f"{_time_captured_test(param)} && ({near})"
 
 
-def _annotation_hover_test(param: str, tolerance_ms: int) -> str:
-    """Expression testing whether the captured time matches the annotation (band or instant)."""
+def _annotation_hover_test(param: str, tolerance_ms: int, captures: int = 1) -> str:
+    """Expression testing whether a captured time matches the annotation (band or instant)."""
     return (
-        f"(datum.start != datum.end && {_band_hover_test(param)})"
-        f" || (datum.start == datum.end && {_instant_hover_test(param, tolerance_ms)})"
+        f"(datum.start != datum.end && {_band_hover_test(param, captures)})"
+        f" || (datum.start == datum.end && {_instant_hover_test(param, tolerance_ms, captures)})"
     )
 
 
@@ -209,7 +216,7 @@ def create_annotation_layers(
     hover_param = f"annotation_hover_time_{row_index}"
     pin_param = f"annotation_pin_time_{row_index}"
     hover_test = _annotation_hover_test(hover_param, resolution_ms)
-    pin_test = _annotation_hover_test(pin_param, resolution_ms)
+    pin_test = _annotation_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS)
     start_field_definition = dict(
         field="start",
         type="temporal",
@@ -227,12 +234,13 @@ def create_annotation_layers(
             "x": start_field_definition,
             "x2": dict(field="end", title=None),
             "color": _highlighted_annotation_color_encoding(
-                _band_hover_test(pin_param), _band_hover_test(hover_param)
+                _band_hover_test(pin_param, MAX_PINNED_ANNOTATIONS),
+                _band_hover_test(hover_param),
             ),
             "opacity": {
                 "condition": [
                     {
-                        "test": _band_hover_test(pin_param),
+                        "test": _band_hover_test(pin_param, MAX_PINNED_ANNOTATIONS),
                         "value": ANNOTATION_SELECT_OPACITY,
                     },
                     {
@@ -258,8 +266,8 @@ def create_annotation_layers(
             },
             {
                 "name": pin_param,
-                # A click pins one annotation, as in the fast chart; shift-click does not keep earlier pins
-                "select": {"type": "point", "fields": ["event_start"], "toggle": False},
+                # A click pins one annotation, and shift-click pins another, keeping the earlier pins (Vega-Lite's default toggle)
+                "select": {"type": "point", "fields": ["event_start"]},
             },
         ],
     }
@@ -274,13 +282,15 @@ def create_annotation_layers(
         "encoding": {
             "x": start_field_definition,
             "color": _highlighted_annotation_color_encoding(
-                _instant_hover_test(pin_param, resolution_ms),
+                _instant_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS),
                 _instant_hover_test(hover_param, resolution_ms),
             ),
             "opacity": {
                 "condition": [
                     {
-                        "test": _instant_hover_test(pin_param, resolution_ms),
+                        "test": _instant_hover_test(
+                            pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS
+                        ),
                         "value": 1,
                     },
                     {
@@ -310,13 +320,15 @@ def create_annotation_layers(
             "x": start_field_definition,
             "y": {"value": 7},
             "color": _highlighted_annotation_color_encoding(
-                _instant_hover_test(pin_param, resolution_ms),
+                _instant_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS),
                 _instant_hover_test(hover_param, resolution_ms),
             ),
             "opacity": {
                 "condition": [
                     {
-                        "test": _instant_hover_test(pin_param, resolution_ms),
+                        "test": _instant_hover_test(
+                            pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS
+                        ),
                         "value": 1,
                     },
                     {
@@ -348,7 +360,7 @@ def create_annotation_layers(
         "encoding": {
             "x": start_field_definition,
             "text": {"type": "nominal", "field": "content"},
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": {"value": ANNOTATION_TEXT_COLOR},
             "opacity": {
                 "condition": [
                     {"test": pin_test, "value": 1},
