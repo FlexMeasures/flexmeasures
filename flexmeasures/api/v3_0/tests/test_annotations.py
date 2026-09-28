@@ -366,7 +366,7 @@ def test_post_annotation_content_too_long(client, setup_api_test_data):
 def test_post_annotation_end_before_start(client, setup_api_test_data):
     """Test that end time before start time is rejected.
 
-    The schema validates that end must be after start.
+    The schema validates that end must not be before start.
     """
     from flexmeasures.api.tests.utils import get_auth_token
 
@@ -394,10 +394,7 @@ def test_post_annotation_end_before_start(client, setup_api_test_data):
 
 
 def test_post_annotation_end_equal_to_start(client, setup_api_test_data):
-    """Test that end time equal to start time is rejected.
-
-    The schema validates that end must be after start (not equal).
-    """
+    """Test that an end time equal to the start time makes an instantaneous annotation."""
     from flexmeasures.api.tests.utils import get_auth_token
 
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
@@ -419,8 +416,9 @@ def test_post_annotation_end_equal_to_start(client, setup_api_test_data):
     )
 
     assert (
-        response.status_code == 422
-    ), f"Expected 422, but got {response.status_code} with {response.json}"
+        response.status_code == 201
+    ), f"Expected 201, but got {response.status_code} with {response.json}"
+    assert response.json["start"] == response.json["end"]
 
 
 def test_post_annotation_not_found(client, setup_api_test_data):
