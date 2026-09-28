@@ -351,10 +351,14 @@ def test_concurrent_identical_calls_share_one_job(db, app):
             jobs.append(create_slow_job(1, kwarg1=1))
 
     threads = [threading.Thread(target=call) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
 
-    assert len(jobs) == 2
-    assert jobs[0].id == jobs[1].id
+        assert len(jobs) == 2
+        assert jobs[0].id == jobs[1].id
+    finally:
+        # keep the enqueued job(s) from leaking into later tests
+        app.queues["scheduling"].empty()

@@ -49,7 +49,7 @@ def get_or_create_source(
     _source = matches[0] if matches else None
     if len(matches) > 1:
         current_app.logger.warning(
-            f"Found duplicate data sources matching {_source}; using the oldest one (ID {_source.id})."
+            f"Found duplicate data sources matching {_source} (IDs {[source.id for source in matches]}, and possibly more); using the oldest one (ID {_source.id})."
         )
     if not _source:
         if is_user(source):
