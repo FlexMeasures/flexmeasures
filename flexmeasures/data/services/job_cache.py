@@ -67,6 +67,7 @@ class JobCache:
         if cache_for_seconds:
             cached = self._cached_jobs.get(cache_key)
             if cached is not None and cached[0] > monotonic():
+                # Keep recently used entries when the cache reaches its size limit.
                 self._cached_jobs.move_to_end(cache_key)
                 return cached[1]
 

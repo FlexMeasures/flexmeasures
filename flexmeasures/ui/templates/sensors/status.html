@@ -211,14 +211,14 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   function initJobsTable() {
     if (jobsTable) return;
     jobsTable = $("#jobsTable").DataTable({
-      ordering: false,
+      order: [[0, "desc"]],
       searching: false,
       serverSide: true,
       pageLength: 25,
       columns: [
         { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
-        { data: "created_at", title: "Created At", orderable: false },
-        { data: "queue", title: "Queue", orderable: false},
+        { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
+        { data: "queue", title: "Queue", orderable: true},
         { data: "asset", title: "Asset", orderable: false},
         { data: "entity", title: "Entity", orderable: false},
         { data: "created_via", title: "Created Via", orderable: false},
@@ -228,8 +228,11 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       ],
       ajax: function (data, callback) {
         const page = Math.floor(data.start / data.length) + 1;
+        const orderedColumn = data.columns[data.order[0].column].data;
+        const sortBy = orderedColumn === "queue" ? "queue" : "enqueued_at";
+        const sortDir = data.order[0].dir;
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}&sort-by=${sortBy}&sort-dir=${sortDir}`,
           method: "GET",
           success: function (res) {
             if (res["redis-connection-err"]) {

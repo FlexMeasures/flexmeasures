@@ -324,14 +324,24 @@ class AssetAuditLogPaginationSchema(PaginationSchema):
     )
 
 
-class AssetJobsQuerySchema(PaginationSchema):
-    class Meta:
-        unknown = "raise"
-
-    filter = None
-    sort_by = None
-    sort_dir = None
-
+class AssetJobsQuerySchema(Schema):
+    page = fields.Int(required=False, validate=validate.Range(min=1))
+    per_page = fields.Int(
+        data_key="per-page",
+        required=False,
+        validate=validate.Range(min=1),
+        load_default=10,
+    )
+    sort_by = fields.Str(
+        data_key="sort-by",
+        validate=validate.OneOf(["enqueued_at", "queue"]),
+        load_default="enqueued_at",
+    )
+    sort_dir = fields.Str(
+        data_key="sort-dir",
+        validate=validate.OneOf(["asc", "desc"]),
+        load_default="desc",
+    )
     include_child_assets = fields.Bool(
         data_key="include-child-assets",
         required=False,
@@ -2099,6 +2109,8 @@ class AssetAPI(FlaskView):
         include_child_assets: bool = True,
         page: int | None = None,
         per_page: int = 10,
+        sort_by: str = "enqueued_at",
+        sort_dir: str = "desc",
     ):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
@@ -2106,7 +2118,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all background jobs related to an asset.
           description: |
-            The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10, legacy alias `per_page`) to paginate the list, newest first. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.
+            The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
             Job lists are cached for up to one minute, so new jobs and status changes may take that long to appear.
 
@@ -2139,10 +2151,24 @@ class AssetAPI(FlaskView):
             - in: query
               name: per-page
               required: false
-              description: Jobs per page when page is provided (default 10; legacy alias per_page).
+              description: Jobs per page when page is provided (default 10).
               schema:
                 type: integer
                 minimum: 1
+            - in: query
+              name: sort-by
+              required: false
+              description: Sort paginated jobs by enqueue time or queue (default enqueued_at).
+              schema:
+                type: string
+                enum: [enqueued_at, queue]
+            - in: query
+              name: sort-dir
+              required: false
+              description: Sort direction for paginated jobs (default desc).
+              schema:
+                type: string
+                enum: [asc, desc]
           responses:
             200:
               description: PROCESSED
@@ -2184,6 +2210,8 @@ class AssetAPI(FlaskView):
                 include_child_assets=include_child_assets,
                 page=page,
                 per_page=per_page,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
             )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]

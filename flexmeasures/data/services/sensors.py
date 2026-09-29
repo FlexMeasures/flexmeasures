@@ -881,6 +881,8 @@ def build_asset_jobs_data(
     include_child_assets: bool = True,
     page: int | None = None,
     per_page: int = 10,
+    sort_by: str = "enqueued_at",
+    sort_dir: str = "desc",
 ) -> list[dict] | tuple[list[dict], int]:
     """Get all jobs data for an asset
 
@@ -889,6 +891,8 @@ def build_asset_jobs_data(
                                  Only the assets the current user may read are included, as a child asset can belong to another account than its parent.
     :param page:                 One-based page number, or None for the complete list.
     :param per_page:             Number of jobs per page when page is set.
+    :param sort_by:              Field used to sort pages (enqueued_at or queue).
+    :param sort_dir:             Sort direction (asc or desc).
     :returns:                    A list of dictionaries, each containing the following keys:
                                  - job_id: id of a job
                                  - queue: job queue (scheduling or forecasting)
@@ -935,6 +939,11 @@ def build_asset_jobs_data(
             ),
             reverse=True,
         )
+        if sort_by == "queue":
+            # Keep the newest jobs first within each queue.
+            flattened_jobs.sort(key=lambda item: item[1], reverse=sort_dir == "desc")
+        elif sort_dir == "asc":
+            flattened_jobs.reverse()
         total_jobs = len(flattened_jobs)
         start = (page - 1) * per_page
         jobs = [
