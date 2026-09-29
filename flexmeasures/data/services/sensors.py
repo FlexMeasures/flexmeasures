@@ -14,6 +14,7 @@ from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from humanize.time import precisedelta
+from rq.job import JobStatus
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -953,6 +954,7 @@ def build_asset_jobs_data(
         jobs,
     ) in jobs:
         for job in jobs:
+            status = job.get_status(refresh=False)
             e = job.meta.get(
                 "exception",
                 Exception(
@@ -963,7 +965,7 @@ def build_asset_jobs_data(
             )
             job_err = (
                 f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
-                if job.is_failed
+                if status == JobStatus.FAILED
                 else None
             )
 
@@ -990,7 +992,7 @@ def build_asset_jobs_data(
                     "asset_id": job_asset.id,
                     "asset_name": job_asset.name,
                     "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
-                    "status": job.get_status(),
+                    "status": status,
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
                     "created_via": created_via,
