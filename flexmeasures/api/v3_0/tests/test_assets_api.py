@@ -2399,3 +2399,47 @@ def test_get_jobs_of_child_assets(
     assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
 
     app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Paged jobs are newest first, while requests without a page stay compatible."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    jobs = [app.queues["scheduling"].enqueue(sum, [n]) for n in range(4)]
+    for job in jobs:
+        app.job_cache.add(
+            child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
+        )
+
+    url = url_for("AssetAPI:get_jobs", id=parent.id)
+    legacy = client.get(url)
+    assert legacy.status_code == 200
+    assert set(legacy.json) == {"jobs", "redis-connection-err", "status"}
+    assert {job["job_id"] for job in legacy.json["jobs"]} == {job.id for job in jobs}
+
+    first = client.get(url, query_string={"page": 1, "per-page": 2})
+    second = client.get(url, query_string={"page": 2, "per_page": 2})
+    empty = client.get(url, query_string={"page": 3, "per-page": 2})
+    for response in (first, second, empty):
+        assert response.status_code == 200
+        assert response.json["num-records"] == 4
+        assert response.json["filtered-records"] == 4
+    assert [job["job_id"] for job in first.json["jobs"]] == [
+        job.id for job in reversed(jobs[2:])
+    ]
+    assert [job["job_id"] for job in second.json["jobs"]] == [
+        job.id for job in reversed(jobs[:2])
+    ]
+    assert empty.json["jobs"] == []
+
+    excluded = client.get(
+        url, query_string={"page": 1, "include-child-assets": "false"}
+    )
+    assert excluded.json["num-records"] == 0
+    assert excluded.json["jobs"] == []
+    assert client.get(url, query_string={"page": 0}).status_code == 422
+
+    app.queues["scheduling"].empty()

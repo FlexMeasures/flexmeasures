@@ -8,7 +8,6 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 from redis.exceptions import ConnectionError
-from rq.job import NoSuchJobError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
@@ -64,7 +63,7 @@ class TestJobCache(unittest.TestCase):
         self.connection = MagicMock(spec_set=["sadd", "smembers", "srem", "ping"])
         self.job_cache = JobCache(self.connection)
         self.cache_key = "forecasting:sensor:sensor_id"
-        self.mock_redis_job = MagicMock(spec_set=["fetch"])
+        self.mock_redis_job = MagicMock(spec_set=["fetch_many"])
 
     def test_no_redis_configured(self):
         """Test raising NoRedisConfigured"""
@@ -96,9 +95,12 @@ class TestJobCache(unittest.TestCase):
         )
         self.connection.smembers.return_value = [b"job_id"]
 
-        self.mock_redis_job.fetch.side_effect = NoSuchJobError
+        self.mock_redis_job.fetch_many.return_value = [None]
         with patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job):
             assert self.job_cache.get("sensor_id", "forecasting", "sensor") == []
+            self.mock_redis_job.fetch_many.assert_called_once_with(
+                ["job_id"], connection=self.connection
+            )
             assert self.connection.srem.call_count == 1
 
     def test_get_non_empty_queue(self):
@@ -109,9 +111,40 @@ class TestJobCache(unittest.TestCase):
         forecasting_job = MagicMock()
         self.connection.smembers.return_value = [b"job_id"]
 
-        self.mock_redis_job.fetch.return_value = forecasting_job
+        self.mock_redis_job.fetch_many.return_value = [forecasting_job]
         with patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job):
             assert self.job_cache.get("sensor_id", "forecasting", "sensor") == [
                 forecasting_job
             ]
             assert self.connection.srem.call_count == 0
+
+    def test_status_page_cache_expires_and_is_invalidated_by_new_jobs(self):
+        """Paging can reuse one Redis read, but a new job refreshes the cache."""
+        self.connection.smembers.return_value = [b"job_id"]
+        forecasting_job = MagicMock()
+        self.mock_redis_job.fetch_many.return_value = [forecasting_job]
+        with (
+            patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job),
+            patch("flexmeasures.data.services.job_cache.monotonic") as clock,
+        ):
+            clock.return_value = 100
+            assert self.job_cache.get(
+                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
+            ) == [forecasting_job]
+            clock.return_value = 110
+            assert self.job_cache.get(
+                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
+            ) == [forecasting_job]
+            assert self.mock_redis_job.fetch_many.call_count == 1
+
+            self.job_cache.add("sensor_id", "new_job", "forecasting", "sensor")
+            self.job_cache.get(
+                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
+            )
+            assert self.mock_redis_job.fetch_many.call_count == 2
+
+            clock.return_value = 171
+            self.job_cache.get(
+                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
+            )
+            assert self.mock_redis_job.fetch_many.call_count == 3
