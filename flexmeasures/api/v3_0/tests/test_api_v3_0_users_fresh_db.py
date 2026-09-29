@@ -7,7 +7,7 @@ from flexmeasures.api.tests.utils import UserContext
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User, Role
-from flexmeasures.auth.policy import READ_ONLY_ROLE
+from flexmeasures.auth.policy import ACCOUNT_READER_ROLE
 
 
 @pytest.mark.parametrize(
@@ -66,11 +66,11 @@ def test_user_reset_password(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_read_only_user_cannot_initiate_password_reset(
+def test_account_reader_cannot_initiate_password_reset(
     fresh_db, app, client, setup_roles_users_fresh_db, requesting_user
 ):
-    """Read-only users cannot reset themselves through API or public recovery."""
-    role = Role(name=READ_ONLY_ROLE)
+    """Account readers cannot reset themselves through API or public recovery."""
+    role = Role(name=ACCOUNT_READER_ROLE)
     fresh_db.session.add(role)
     requesting_user.flexmeasures_roles = [role]
     fresh_db.session.flush()
@@ -91,12 +91,12 @@ def test_read_only_user_cannot_initiate_password_reset(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
-def test_account_admin_can_reset_read_only_user_password(
+def test_account_admin_can_reset_account_reader_password(
     fresh_db, app, client, setup_roles_users_fresh_db, requesting_user
 ):
-    """An account admin can still initiate recovery for a read-only user."""
+    """An account admin can still initiate recovery for an account reader."""
     target = find_user_by_email("test_prosumer_user@seita.nl")
-    role = Role(name=READ_ONLY_ROLE)
+    role = Role(name=ACCOUNT_READER_ROLE)
     fresh_db.session.add(role)
     target.flexmeasures_roles = [role]
     fresh_db.session.flush()

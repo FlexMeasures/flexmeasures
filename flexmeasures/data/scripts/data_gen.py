@@ -94,14 +94,17 @@ def add_default_user_roles(db: SQLAlchemy):
             "Manage client organisations through consultancy access",
         ),
         (
-            auth_policy.MEMBER_ROLE,
-            "Work with home organisation resources; cannot delete data",
+            auth_policy.ACCOUNT_MEMBER_ROLE,
+            "Read and operate home organisation resources",
         ),
         (
-            auth_policy.READ_ONLY_ROLE,
-            "Read home organisation resources; no self-service password reset",
+            auth_policy.ACCOUNT_READER_ROLE,
+            "Read home organisation resources",
         ),
-        (auth_policy.INTEGRATION_ROLE, "Read and post home organisation data"),
+        (
+            auth_policy.ACCOUNT_DATA_INTEGRATOR_ROLE,
+            "Read and post home organisation data; reset own password",
+        ),
     ):
         role = db.session.execute(
             select(Role).filter_by(name=role_name)

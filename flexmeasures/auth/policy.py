@@ -35,16 +35,17 @@ ADMIN_ROLE = "admin"  # Site-wide full access.
 ADMIN_READER_ROLE = "admin-reader"  # Site-wide read access.
 ACCOUNT_ADMIN_ROLE = "account-admin"  # Manage one home organisation and its users.
 CONSULTANT_ROLE = "consultant"  # Work in client organisations of a consultancy.
-MEMBER_ROLE = "member"  # Operate resources in the home organisation.
-READ_ONLY_ROLE = "read-only"  # Read home resources only.
-INTEGRATION_ROLE = "integration"  # Read and post data in the home organisation.
+ACCOUNT_MEMBER_ROLE = "account-member"  # Operate resources in the home organisation.
+ACCOUNT_READER_ROLE = "account-reader"  # Read home organisation resources.
+# Post home organisation data and reset one's own password.
+ACCOUNT_DATA_INTEGRATOR_ROLE = "account-data-integrator"
 
 # From home-account reading to site-wide administration. The later roles can
 # change resource scope, so this is a display order rather than an inheritance chain.
 ROLE_DISPLAY_ORDER = (
-    READ_ONLY_ROLE,
-    INTEGRATION_ROLE,
-    MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
     ACCOUNT_ADMIN_ROLE,
     CONSULTANT_ROLE,
     ADMIN_READER_ROLE,
@@ -76,9 +77,10 @@ _FULL_ROLE_PERMISSIONS = frozenset(
     }
 )
 ROLE_PERMISSION_GRANTS = {
-    READ_ONLY_ROLE: frozenset({"read"}),
-    INTEGRATION_ROLE: frozenset({"read", "post-data", "reset-password"}),
-    MEMBER_ROLE: _FULL_ROLE_PERMISSIONS - {"delete-data", "manage-users", "delete"},
+    ACCOUNT_READER_ROLE: frozenset({"read"}),
+    ACCOUNT_DATA_INTEGRATOR_ROLE: frozenset({"read", "post-data", "reset-password"}),
+    ACCOUNT_MEMBER_ROLE: _FULL_ROLE_PERMISSIONS
+    - {"delete-data", "manage-users", "delete"},
     ACCOUNT_ADMIN_ROLE: _FULL_ROLE_PERMISSIONS,
     CONSULTANT_ROLE: _FULL_ROLE_PERMISSIONS,
     ADMIN_READER_ROLE: frozenset({"read"}),
@@ -346,7 +348,7 @@ def can_modify_role(  # noqa: C901
     - admin-reader: can be added and removed by admins
     - account-admin: can be added and removed by admins and consultants (in consultancy account)
     - consultant: can be added and removed by admins and account-admins (in same account)
-    - member, read-only, integration: can be changed by admins, account-admins
+    - account-member, account-reader, account-data-integrator: can be changed by admins, account-admins
       of the user's account, and consultants of its consultancy account
 
     """
@@ -394,7 +396,11 @@ def can_modify_role(  # noqa: C901
             ):
                 continue
             return False
-        if role.name in (MEMBER_ROLE, READ_ONLY_ROLE, INTEGRATION_ROLE):
+        if role.name in (
+            ACCOUNT_MEMBER_ROLE,
+            ACCOUNT_READER_ROLE,
+            ACCOUNT_DATA_INTEGRATOR_ROLE,
+        ):
             if user.has_role(ADMIN_ROLE):
                 continue
             if (

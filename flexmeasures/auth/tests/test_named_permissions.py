@@ -11,9 +11,9 @@ from flexmeasures.auth.policy import (
     ADMIN_READER_ROLE,
     ADMIN_ROLE,
     CONSULTANT_ROLE,
-    INTEGRATION_ROLE,
-    MEMBER_ROLE,
-    READ_ONLY_ROLE,
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
     user_has_scoped_permission,
 )
 from flexmeasures.data.models.user import Role
@@ -24,9 +24,9 @@ from flexmeasures.data.models.time_series import Sensor
 @pytest.mark.parametrize(
     "role_name, allowed, denied",
     [
-        (READ_ONLY_ROLE, "read", "post-data"),
-        (INTEGRATION_ROLE, "post-data", "edit-assets"),
-        (MEMBER_ROLE, "edit-assets", "delete-data"),
+        (ACCOUNT_READER_ROLE, "read", "post-data"),
+        (ACCOUNT_DATA_INTEGRATOR_ROLE, "post-data", "edit-assets"),
+        (ACCOUNT_MEMBER_ROLE, "edit-assets", "delete-data"),
         (ACCOUNT_ADMIN_ROLE, "delete-data", None),
         (CONSULTANT_ROLE, "delete-data", None),
         ("unrecognized-role", None, "read"),
@@ -58,7 +58,7 @@ class ScopedUser:
 def test_consultant_grant_does_not_apply_to_home_account():
     user = ScopedUser(
         [
-            (MEMBER_ROLE, frozenset({"read"})),
+            (ACCOUNT_MEMBER_ROLE, frozenset({"read"})),
             (CONSULTANT_ROLE, frozenset({"edit-account"})),
         ]
     )
@@ -72,7 +72,7 @@ def test_consultant_grant_does_not_apply_to_home_account():
 def test_home_member_grant_does_not_apply_to_client_account():
     user = ScopedUser(
         [
-            (MEMBER_ROLE, frozenset({"annotate"})),
+            (ACCOUNT_MEMBER_ROLE, frozenset({"annotate"})),
             (CONSULTANT_ROLE, frozenset({"read"})),
         ]
     )
@@ -84,12 +84,14 @@ def test_home_member_grant_does_not_apply_to_client_account():
 
 
 def test_read_only_role_can_match_read_acl_but_not_mutation_acl():
-    user = ScopedUser([(READ_ONLY_ROLE, Role(name=READ_ONLY_ROLE).permissions)])
+    user = ScopedUser(
+        [(ACCOUNT_READER_ROLE, Role(name=ACCOUNT_READER_ROLE).permissions)]
+    )
 
     assert user_has_scoped_permission(user, "read", "account:10")
     assert not user_has_scoped_permission(user, "edit-assets", "account:10")
     assert not user_has_scoped_permission(user, "post-data", "account:10")
-    assert "reset-password" not in Role(name=READ_ONLY_ROLE).permissions
+    assert "reset-password" not in Role(name=ACCOUNT_READER_ROLE).permissions
 
 
 def test_new_permission_is_not_granted_to_existing_roles(monkeypatch):
@@ -97,9 +99,9 @@ def test_new_permission_is_not_granted_to_existing_roles(monkeypatch):
 
     monkeypatch.setattr(policy, "PERMISSIONS", (*policy.PERMISSIONS, "future-action"))
     for name in (
-        READ_ONLY_ROLE,
-        INTEGRATION_ROLE,
-        MEMBER_ROLE,
+        ACCOUNT_READER_ROLE,
+        ACCOUNT_DATA_INTEGRATOR_ROLE,
+        ACCOUNT_MEMBER_ROLE,
         ACCOUNT_ADMIN_ROLE,
         CONSULTANT_ROLE,
         ADMIN_READER_ROLE,

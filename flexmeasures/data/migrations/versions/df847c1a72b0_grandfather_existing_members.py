@@ -22,21 +22,24 @@ def upgrade():
         ("admin-reader", "Read across all organisations"),
         ("account-admin", "Manage home organisation, users, and data"),
         ("consultant", "Manage client organisations through consultancy access"),
-        ("member", "Work with home organisation resources; cannot delete data"),
+        ("account-member", "Read and operate home organisation resources"),
         (
-            "read-only",
-            "Read home organisation resources; no self-service password reset",
+            "account-reader",
+            "Read home organisation resources",
         ),
-        ("integration", "Read and post home organisation data"),
+        (
+            "account-data-integrator",
+            "Read and post home organisation data; reset own password",
+        ),
     )
-    roles_to_seed = {"member", "read-only", "integration"}
+    roles_to_seed = {"account-member", "account-reader", "account-data-integrator"}
     connection.execute(sa.text("LOCK TABLE role IN SHARE ROW EXCLUSIVE MODE"))
     existing_roles = dict(
         connection.execute(
             sa.text(
                 "SELECT name, id FROM role WHERE name IN "
                 "('admin', 'admin-reader', 'account-admin', 'consultant', "
-                "'member', 'read-only', 'integration')"
+                "'account-member', 'account-reader', 'account-data-integrator')"
             )
         ).all()
     )
@@ -80,7 +83,7 @@ def upgrade():
                 ),
                 {"id": existing_roles[name], "description": description},
             )
-    member_role_id = existing_roles["member"]
+    member_role_id = existing_roles["account-member"]
     # Existing users had implicit home-account rights, even with other roles.
     connection.execute(
         sa.text(
