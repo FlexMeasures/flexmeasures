@@ -2421,7 +2421,7 @@ def test_get_jobs_pagination(
     assert {job["job_id"] for job in legacy.json["jobs"]} == {job.id for job in jobs}
 
     first = client.get(url, query_string={"page": 1, "per-page": 2})
-    second = client.get(url, query_string={"page": 2, "per_page": 2})
+    second = client.get(url, query_string={"page": 2, "per-page": 2})
     empty = client.get(url, query_string={"page": 3, "per-page": 2})
     for response in (first, second, empty):
         assert response.status_code == 200
@@ -2443,3 +2443,67 @@ def test_get_jobs_pagination(
     assert client.get(url, query_string={"page": 0}).status_code == 422
 
     app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination_sorts_across_pages(
+    client, app, add_battery_assets, clean_redis, requesting_user
+):
+    """Queue and time ordering apply to all jobs before selecting a page."""
+    asset = add_battery_assets["Test battery"]
+    sensor = asset.sensors[0]
+    jobs_by_queue = {}
+    for queue in ("scheduling", "forecasting"):
+        jobs_by_queue[queue] = [
+            app.queues[queue].enqueue(sum, [number]) for number in range(2)
+        ]
+        for job in jobs_by_queue[queue]:
+            app.job_cache.add(sensor.id, job.id, queue, "sensor")
+
+    url = url_for("AssetAPI:get_jobs", id=asset.id)
+    ascending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "asc",
+        },
+    )
+    descending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "desc",
+        },
+    )
+    oldest_jobs = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "enqueued_at",
+            "sort-dir": "asc",
+        },
+    )
+
+    assert [job["queue"] for job in ascending_queues.json["jobs"]] == [
+        "forecasting",
+        "forecasting",
+    ]
+    assert [job["queue"] for job in descending_queues.json["jobs"]] == [
+        "scheduling",
+        "scheduling",
+    ]
+    assert [job["job_id"] for job in oldest_jobs.json["jobs"]] == [
+        job.id for job in jobs_by_queue["scheduling"]
+    ]
+    assert (
+        client.get(url, query_string={"page": 1, "sort-by": "status"}).status_code
+        == 422
+    )
+
+    app.queues["scheduling"].empty()
+    app.queues["forecasting"].empty()
