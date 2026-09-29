@@ -36,7 +36,10 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
+from werkzeug.exceptions import Forbidden
+
 from flexmeasures.data.services.automations import (
+    AutomationSensorsUnknown,
     AutomationRunClaimLost,
     dispatch_automation_run,
     floor_to_minute,
@@ -149,7 +152,13 @@ def run_one_automation(automation: Automation):
     """
     try:
         returns = run_automation(automation)
-    except (NotImplementedError, ValueError, ValidationError) as e:
+    except (
+        NotImplementedError,
+        ValueError,
+        ValidationError,
+        AutomationSensorsUnknown,
+        Forbidden,
+    ) as e:
         db.session.rollback()
         click.secho(
             f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
@@ -171,7 +180,7 @@ def run_one_automation(automation: Automation):
     )
     db.session.commit()
     click.secho(
-        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+        f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}.",
         **MsgStyle.SUCCESS,
     )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import current_app, request
 from sqlalchemy import or_, select
-from werkzeug.exceptions import Forbidden, Unauthorized, NotFound
+from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
 from flask_security import login_required
 from flask_security.core import current_user
@@ -18,7 +18,11 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, AccountRole, Plan
-from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.data.services.accounts import (
+    get_account_by_id_or_raise_notfound,
+    get_accounts,
+    get_audit_log_records,
+)
 from flexmeasures.data import db
 from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
@@ -88,9 +92,7 @@ class AccountCrudUI(FlaskView):
     @login_required
     def get(self, account_id: str):
         """/accounts/<account_id>"""
-        account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
-        if account is None:
-            raise NotFound(f"Account with id {account_id} not found.")
+        account = get_account_by_id_or_raise_notfound(account_id)
         check_access(account, "read")
         if account.consultancy_account_id:
             consultancy_account = db.session.execute(
@@ -184,7 +186,7 @@ class AccountCrudUI(FlaskView):
     @login_required
     def auditlog(self, account_id: str):
         """/accounts/auditlog/<account_id>"""
-        account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
+        account = get_account_by_id_or_raise_notfound(account_id)
         check_access(account, "read")
 
         audit_logs = get_audit_log_records(account)

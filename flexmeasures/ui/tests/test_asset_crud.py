@@ -76,6 +76,9 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         follow_redirects=True,
     )
     assert asset_page.status_code == 200
+    if view == "graphs":
+        assert b'id="fullBeliefInfoToggle"' in asset_page.data
+        assert b"Full belief info" in asset_page.data
     if view == "automations":
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
@@ -85,7 +88,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b'id="automationsTable-scheduling"' in asset_page.data
         assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
-        assert b"No ${automationType} automations" in asset_page.data
+        assert b"No automations of type" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
         assert b"Could not load automations:" in asset_page.data
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
