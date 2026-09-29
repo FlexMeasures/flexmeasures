@@ -16,7 +16,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
