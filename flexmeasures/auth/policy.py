@@ -52,39 +52,21 @@ ROLE_DISPLAY_ORDER = (
     ADMIN_ROLE,
 )
 
-# List each built-in grant explicitly: registering a new permission must not
-# silently grant it to existing roles. Legacy CRUD names remain for plugins.
-_FULL_ROLE_PERMISSIONS = frozenset(
-    {
-        "read",
-        "post-data",
-        "annotate",
-        "trigger-schedules",
-        "trigger-forecasts",
-        "trigger-reports",
-        "manage-automations",
-        "edit-flex-config",
-        "edit-assets",
-        "edit-sensors",
-        "delete-data",
-        "manage-users",
-        "edit-profile",
-        "reset-password",
-        "edit-account",
-        "create-children",
-        "update",
-        "delete",
-    }
-)
+# How roles map to named permissions. This is the main source of truth for our auth policy.
+# However, the ACL system allows for more fine-grained control of permissions on a per-resource basis,
+# and logic in API endpoints and schemas can further restrict access to certain resources or actions.
+# Examples: an account-admin can manage users in their own account, but not in other accounts;
+#           a consultant can manage users in their client accounts, but not in other accounts;
+#           a consultant can not change the plans for client accounts, nor assign the admin-reader
+#           role or the consultant role to client users (see can_modify_role() below).
 ROLE_PERMISSION_GRANTS = {
     ACCOUNT_READER_ROLE: frozenset({"read"}),
     ACCOUNT_DATA_INTEGRATOR_ROLE: frozenset({"read", "post-data", "reset-password"}),
-    ACCOUNT_MEMBER_ROLE: _FULL_ROLE_PERMISSIONS
-    - {"delete-data", "manage-users", "delete"},
-    ACCOUNT_ADMIN_ROLE: _FULL_ROLE_PERMISSIONS,
-    CONSULTANT_ROLE: _FULL_ROLE_PERMISSIONS,
+    ACCOUNT_MEMBER_ROLE: PERMISSIONS - {"delete-data", "manage-users", "delete"},
+    ACCOUNT_ADMIN_ROLE: PERMISSIONS,
+    CONSULTANT_ROLE: PERMISSIONS,
     ADMIN_READER_ROLE: frozenset({"read"}),
-    ADMIN_ROLE: _FULL_ROLE_PERMISSIONS,
+    ADMIN_ROLE: PERMISSIONS,
 }
 
 # Account Roles
