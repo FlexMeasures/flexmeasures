@@ -311,17 +311,16 @@ def normalize_trusted_hosts(app: Flask) -> None:
 
 
 def pin_database_driver(app: Flask) -> None:
-    """Connect through psycopg2 if the database URI names no driver.
+    """Connect through psycopg 3 if the database URI names no driver.
 
-    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, but SQLAlchemy 2.1 through psycopg 3.
-    Unlike psycopg2, psycopg 3 binds parameters on the server,
-    which rejects comparisons FlexMeasures still makes, such as an integer id with an id string from a URL.
-    An explicitly chosen driver (e.g. postgresql+psycopg://) is left alone.
+    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, and SQLAlchemy 2.1 through psycopg 3,
+    so without naming the driver, which one we get would depend on the SQLAlchemy version installed.
+    An explicitly chosen driver (e.g. postgresql+psycopg2://) is left alone.
     """
     uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     if isinstance(uri, str) and uri.startswith("postgresql://"):
         app.config["SQLALCHEMY_DATABASE_URI"] = (
-            "postgresql+psycopg2://" + uri.removeprefix("postgresql://")
+            "postgresql+psycopg://" + uri.removeprefix("postgresql://")
         )
 
 

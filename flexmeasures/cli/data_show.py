@@ -423,23 +423,69 @@ def _format_sensor_plot(plot: dict) -> str:
     type=AutomationIdField(),
     help="ID of a single automation, to show that automation in more detail.",
 )
-def list_automations(automation: Automation | None = None):
+@click.option(
+    "--asset", type=GenericAssetIdField(), help="Only show automations on this asset."
+)
+@click.option(
+    "--as-json",
+    is_flag=True,
+    help="Include stored configuration and parameters as JSON.",
+)
+def list_automations(
+    automation: Automation | None = None,
+    asset: GenericAsset | None = None,
+    as_json: bool = False,
+):
     """
     Show automations, or one automation in detail.
 
     Without --id, all automations are listed, including inactive ones.
     Their IDs are the ones to pass to `flexmeasures edit automation`, `flexmeasures delete automation` and `flexmeasures jobs run-automation`.
     """
-    if automation is not None:
+    from flexmeasures.data.automations import get_automation_types
+    from flexmeasures.data.schemas.automations import AutomationSchema
+
+    if automation is not None and asset is not None:
+        raise click.UsageError("--id and --asset cannot be combined.")
+    handlers = get_automation_types()
+    if automation is not None and not as_json:
         _show_automation(automation)
         return
 
-    automations = db.session.scalars(
-        # the listing names each automation's asset, which would otherwise be a query per asset
+    query = (
         select(Automation)
         .options(selectinload(Automation.asset))
         .order_by(Automation.asset_id, Automation.id)
-    ).all()
+    )
+    if automation is not None:
+        query = query.filter_by(id=automation.id)
+    elif asset is not None:
+        query = query.filter_by(asset_id=asset.id)
+    automations = db.session.scalars(query).all()
+    if as_json:
+        records = []
+        for item in automations:
+            record = AutomationSchema().dump(item)
+            record["available"] = item.type in handlers
+            record["parameters"] = item.parameters
+            generator = item.generator
+            record["source"] = (
+                {
+                    "id": item.generator_id,
+                    "model": generator.model,
+                    "version": generator.version,
+                    "config": generator.attributes.get("data_generator", {}).get(
+                        "config", {}
+                    ),
+                }
+                if generator is not None
+                else None
+            )
+            records.append(record)
+        click.echo(
+            json.dumps(records[0] if automation is not None else records, indent=2)
+        )
+        return
     if not automations:
         click.secho(
             "No automations created yet. Create one with `flexmeasures add automation`.",
@@ -455,14 +501,26 @@ def list_automations(automation: Automation | None = None):
                     automation.id,
                     f"{automation.asset.name} (ID: {automation.asset_id})",
                     automation.name,
-                    automation.type,
+                    (
+                        automation.type
+                        if automation.type in handlers
+                        else f"{automation.type} (plugin unavailable)"
+                    ),
                     "yes" if automation.active else "no",
                     automation.cronstr,
                     automation.timezone,
                 )
                 for automation in automations
             ],
-            headers=["ID", "Asset", "Name", "Type", "Active", "Cron", "Timezone"],
+            headers=[
+                "ID",
+                "Asset",
+                "Name",
+                "Type",
+                "Active",
+                "Cron",
+                "Timezone",
+            ],
         )
     )
 

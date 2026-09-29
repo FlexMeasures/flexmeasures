@@ -14,7 +14,7 @@
  * - line/bar charts with centered subplot titles and "Sensor-type (unit)" y-axis titles
  * - histogram (binned values per source) and daily/weekly heatmaps
  *   (most prevalent source, diverging color scale centered at 0)
- * - per-point tooltips listing sensor, value, time, horizon and source details
+ * - compact per-point tooltips, with full belief provenance available on demand
  * - replay support (belief-time ruler), legends beside or below each subplot,
  *   and CSV/SVG/PNG export from the toolbox
  *
@@ -1029,22 +1029,28 @@ function noDataOption(message) {
   };
 }
 
-// Tooltip matching the Vega-Lite charts: a two-column table per data point
-// Render the rich single-point table for one series' data point.
-function singlePointTooltip(meta, value) {
+// Render one series' data point. Compact tooltips keep the exact value and time,
+// plus the sensor on asset charts. The remaining belief provenance is opt-in.
+export function singlePointTooltip(meta, value, options) {
   if (!meta || !value) {
     return "";
   }
-  return tooltipTable([
-    ["Sensor", meta.sensorDescription],
+  const opts = options || {};
+  const rows = [
     [capFirst(meta.sensorType), formatQuantity(value[1], meta.unit)],
     ["Time and date", formatFullDate(value[0])],
-    ["Horizon", formatTimedelta(value[2])],
-    ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
-    ["Type", meta.source.display_type || ""],
-    ["Model", meta.source.model || ""],
-    ["Version", meta.source.version || ""],
-  ]);
+  ];
+  if (opts.showSensor) rows.unshift(["Sensor", meta.sensorDescription]);
+  if (opts.fullBeliefInfo) {
+    rows.push(
+      ["Horizon", formatTimedelta(value[2])],
+      ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
+      ["Type", meta.source.display_type || ""],
+      ["Model", meta.source.model || ""],
+      ["Version", meta.source.version || ""]
+    );
+  }
+  return tooltipTable(rows);
 }
 
 // Choose, among the axis-trigger params (one point per series at the ruler), the
@@ -1127,6 +1133,10 @@ function syncEmphasis(instance, seriesIndex, dataIndex) {
 }
 
 function seriesTooltipFormatter(seriesMeta, instance) {
+  const tooltipOptions = () => ({
+    showSensor: !(instance && instance.isSensorPage),
+    fullBeliefInfo: !!(instance && instance.fullBeliefInfo),
+  });
   return function (params) {
     // Axis trigger passes an array of the series' points near the ruler; item
     // trigger passes a single point. In both cases we show just the nearest one,
@@ -1138,13 +1148,13 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       const best = pickNearestParam(params, instance);
       const meta = seriesMeta[best.seriesIndex];
       if (instance) syncEmphasis(instance, best.seriesIndex, best.dataIndex);
-      return singlePointTooltip(meta, nearestRealPoint(meta, best.value));
+      return singlePointTooltip(meta, nearestRealPoint(meta, best.value), tooltipOptions());
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
     const meta = seriesMeta[params.seriesIndex];
-    return singlePointTooltip(meta, nearestRealPoint(meta, params.value));
+    return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
   };
 }
 
@@ -1156,21 +1166,25 @@ const ANNOTATION_ALERT_COLOR = "#d9822b";
 const ANNOTATION_RESTING_OPACITY = 0.2;
 const ANNOTATION_HOVER_OPACITY = 0.55;
 const ANNOTATION_SELECT_OPACITY = 0.65;
-// Extra strip below each subplot's x-axis labels where the hovered annotation's
-// text appears, so revealing it never changes the chart layout.
-const ANNOTATION_STRIP = 28;
+// Extra strip below each subplot's x-axis labels where annotation text appears.
+// It fits a pinned label and a second, hovered label without either moving.
+const ANNOTATION_STRIP = 48;
 const ANNOTATION_LABEL_OFFSET = 34; // text sits this far below the subplot, clear of the two-line x-axis labels
+const ANNOTATION_LABEL_ROW_HEIGHT = FONT_SIZE + 4;
 
-// Parse the annotation records (start, end, content, type) into sorted
-// {start, end, label, type} entries with epoch-ms bounds. Zero-duration
+// Parse the annotation records into sorted entries with epoch-ms bounds.
+// Preserve their provenance for the annotation label's hover tooltip. Zero-duration
 // entries (start == end) are "instant" annotations, drawn as a rule.
-function normalizeAnnotations(raw) {
+export function normalizeAnnotations(raw) {
   if (!Array.isArray(raw) || raw.length === 0) return [];
   return raw
     .map((a) => ({
       start: new Date(a.start).getTime(),
       end: new Date(a.end).getTime(),
+      beliefTime: a.belief_time == null ? null : new Date(a.belief_time).getTime(),
       label: Array.isArray(a.content) ? a.content.join("\n") : (a.content || ""),
+      source:
+        typeof a.source === "object" ? sourceLabel(a.source || {}) : (a.source || ""),
       type: a.type,
     }))
     .filter((a) => isFinite(a.start) && isFinite(a.end))
@@ -1181,18 +1195,6 @@ function annotationColor(a) {
   if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
   const cs = getComputedStyle(document.documentElement);
   return cs.getPropertyValue("--gray").trim() || "#bbb";
-}
-
-// The annotation text below the hovered/pinned subplot, colored like its
-// annotation, mirroring the Vega-Lite text layer.
-function annotationLabelConfig(a, show) {
-  return {
-    show: show,
-    fontSize: FONT_SIZE,
-    fontStyle: "italic",
-    color: annotationColor(a),
-    formatter: () => a.label,
-  };
 }
 
 // Build the markArea config for one subplot's annotation bands (annotations
@@ -1224,12 +1226,10 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
             // carrier — into the blur state, which would dim the marks to near
             // invisibility. Pin the blur state to the normal style instead.
             blur: { itemStyle: itemStyle },
-            label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
-              position: ["0%", "100%"], // at the band's left edge, at the bottom of the subplot
-              offset: [0, ANNOTATION_LABEL_OFFSET],
-              align: "left",
-              verticalAlign: "top",
-            }),
+            // Text is a DOM overlay managed by wireAnnotationHover. Keeping it
+            // outside markArea prevents every hover update from recreating all
+            // visible labels on the canvas.
+            label: { show: false },
           },
           { xAxis: a.end },
         ];
@@ -1256,10 +1256,8 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
         itemStyle: itemStyle,
         // Immune to the blur state, like the markArea items (see there)
         blur: { lineStyle: lineStyle, itemStyle: itemStyle },
-        label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
-          position: "start", // at the bottom end of the rule, below the subplot
-          distance: ANNOTATION_LABEL_OFFSET,
-        }),
+        // Text is a DOM overlay managed by wireAnnotationHover (see markArea).
+        label: { show: false },
       };
     })
     .filter(Boolean);
@@ -1514,6 +1512,9 @@ function buildLineBarOption(elementId, groups, opts) {
       annotGrids.push({
         seriesIndex: series.length,
         toleranceMs: groupResolutionsMs.length > 0 ? Math.min(...groupResolutionsMs) : 3600 * 1000,
+        labelTop: top + GRID_HEIGHT + ANNOTATION_LABEL_OFFSET,
+        labelLeft: GRID_LEFT,
+        labelRight: containerWidth - gridRight,
       });
       const carrier = {
         type: "line",
@@ -2097,7 +2098,7 @@ const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
 // sessions chart type shows them; the default multi-sensor view hides this group.
 const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
 
-function buildChargePointSessionsOption(elementId, data, opts) {
+export function buildChargePointSessionsOption(elementId, data, opts) {
   const sessions = pivotChargePointSessions(data);
   if (sessions.length === 0) {
     return null;
@@ -2300,7 +2301,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       triggerOn: IS_TOUCH ? "click" : "mousemove|click", // tap-only on touch (see line chart)
       enterable: IS_TOUCH,
       extraCssText: IS_TOUCH ? "pointer-events: auto;" : undefined,
-      formatter: seriesTooltipFormatter(seriesMeta),
+      formatter: seriesTooltipFormatter(seriesMeta, sessionsInstance),
     },
     toolbox: toolbox,
     dataZoom: [
@@ -2329,7 +2330,8 @@ function buildChargePointSessionsOption(elementId, data, opts) {
  *
  * @param {string} elementId - The id of the container div.
  * @param {Object[]} data - Decompressed chart data rows.
- * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName }.
+ * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName,
+ *   fullBeliefInfo }.
  *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap",
  *   "weekly_heatmap" or "chart_for_chargepoint_sessions".
  */
@@ -2365,6 +2367,8 @@ export function renderFastChart(elementId, data, options) {
     instances[elementId] = instance;
   }
   instance.lastArgs = { data: data, options: options };
+  instance.isSensorPage = !!opts.isSensorPage;
+  instance.fullBeliefInfo = !!opts.fullBeliefInfo;
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
@@ -2567,6 +2571,7 @@ function wirePointerTracking(instance) {
     zr.off("globalout", instance.onPointerOut);
   }
   instance.onPointerOut = () => {
+    instance._pointerPixel = null;
     instance._emphKey = null;
     if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
   };
@@ -2602,27 +2607,68 @@ function wireSessionTooltipRedirect(instance, opts) {
 // hovered subplot ONLY (the other subplots keep the light shading), matching the
 // Vega-Lite annotation layers. Clicking (or tapping, on touch) pins the highlight;
 // clicking it again, or clicking outside any annotation, releases it. markArea
-// emphasis does not fire because the axisPointer intercepts mouse events, so we
-// react to zrender mouse events directly: the pointer's pixel position tells us
-// which subplot (grid) is hovered, and converting it to the time domain tells us
-// which annotation it is on. The regular data tooltip is untouched throughout
-// (the annotation marks are silent and sit behind the data).
-function wireAnnotationHover(instance) {
+// emphasis does not fire because the axisPointer intercepts mouse events. Track
+// hover on the chart container, rather than the canvas: crossing belief hit areas
+// or the HTML data tooltip must not briefly clear the annotation. ZRender still
+// handles clicks, including touch taps. The regular data tooltip is untouched
+// throughout (the annotation marks are silent and sit behind the data).
+export function wireAnnotationHover(instance) {
   const chart = instance.chart;
   const zr = chart.getZr();
+  const container = chart.getDom();
+  // The chart container has card padding, while containPixel/convertFromPixel
+  // use canvas coordinates. Keep the canvas as the coordinate reference even
+  // when the mouse event bubbles from the HTML tooltip.
+  const canvas = container.querySelector("canvas") || container;
 
   // Drop any handlers from a previous render before deciding whether to add new ones.
   if (instance.onAnnotMove) {
-    zr.off("mousemove", instance.onAnnotMove);
-    zr.off("globalout", instance.onAnnotOut);
+    container.removeEventListener("mousemove", instance.onAnnotMove);
+    container.removeEventListener("mouseleave", instance.onAnnotOut);
     zr.off("click", instance.onAnnotClick);
     instance.onAnnotMove = null;
     instance.onAnnotOut = null;
     instance.onAnnotClick = null;
   }
+  if (instance.onAnnotZoom) {
+    chart.off("datazoom", instance.onAnnotZoom);
+    instance.onAnnotZoom = null;
+  }
+  if (instance._annotLabels) {
+    Object.values(instance._annotLabels).forEach((label) => label.remove());
+    instance._annotLabels = null;
+  }
   const ctx = instance._annotCtx;
   if (!ctx) return;
   const annotations = ctx.annotations;
+
+  // Keep text outside the ECharts canvas. Updating markArea/markLine rebuilds
+  // those canvas elements, which made both the hovered label and an existing
+  // pinned label blink. These two stable DOM nodes are independent of that
+  // redraw. A simultaneous hover uses the second row below the pinned label.
+  if (getComputedStyle(container).position === "static") container.style.position = "relative";
+  const makeLabel = (kind) => {
+    const label = document.createElement("div");
+    label.dataset.annotationLabel = kind;
+    Object.assign(label.style, {
+      position: "absolute",
+      display: "none",
+      pointerEvents: "auto",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      width: "max-content",
+      fontFamily: CHART_FONT,
+      fontSize: FONT_SIZE + "px",
+      fontStyle: "italic",
+      lineHeight: ANNOTATION_LABEL_ROW_HEIGHT + "px",
+      zIndex: "10",
+    });
+    container.appendChild(label);
+    return label;
+  };
+  const labels = { pin: makeLabel("pin"), hover: makeLabel("hover") };
+  instance._annotLabels = labels;
 
   let hover = { grid: -1, idx: -1 };
   let pin = { grid: -1, idx: -1 };
@@ -2649,10 +2695,79 @@ function wireAnnotationHover(instance) {
     p: pn.grid === g ? pn.idx : -1,
   });
 
+  const renderLabel = (label, state, row) => {
+    if (state.grid < 0 || state.idx < 0) {
+      label.style.display = "none";
+      return;
+    }
+    const annotation = annotations[state.idx];
+    const grid = ctx.grids[state.grid];
+    const annotationX = chart.convertToPixel({ xAxisIndex: state.grid }, annotation.start);
+    const containerRect = container.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const canvasLeft = canvasRect.left - containerRect.left - container.clientLeft;
+    const canvasTop = canvasRect.top - containerRect.top - container.clientTop;
+    const plotWidth = grid.labelRight - grid.labelLeft;
+    // A label is one row even when annotation content has several lines. The
+    // full content and annotation context remain available through the native
+    // title on hover.
+    label.textContent = annotation.label.replace(/\n+/g, " · ");
+    label.title = [
+      annotation.label,
+      "Source: " + (annotation.source || "Unknown"),
+      "Belief time: " + (
+        annotation.beliefTime == null || !isFinite(annotation.beliefTime)
+          ? "Unknown"
+          : formatFullDate(annotation.beliefTime)
+      ),
+      "Start: " + formatFullDate(annotation.start),
+      "End: " + formatFullDate(annotation.end),
+    ].join("\n");
+    label.style.color = annotationColor(annotation);
+    label.style.maxWidth = plotWidth + "px";
+    label.style.display = "inline-block";
+    // Measure after showing it, then shift a right-edge label left instead of
+    // squeezing it into a narrow column. Long labels use the whole plot width.
+    const labelWidth = Math.min(label.offsetWidth, plotWidth);
+    const x = Math.max(grid.labelLeft, Math.min(annotationX, grid.labelRight - labelWidth));
+    label.style.left = Math.round(canvasLeft + x) + "px";
+    label.style.top =
+      Math.round(canvasTop + grid.labelTop + row * ANNOTATION_LABEL_ROW_HEIGHT) + "px";
+  };
+
+  const labelsOverlap = (first, second) => {
+    const firstLeft = parseFloat(first.style.left);
+    const secondLeft = parseFloat(second.style.left);
+    return (
+      firstLeft < secondLeft + second.offsetWidth &&
+      secondLeft < firstLeft + first.offsetWidth
+    );
+  };
+
+  const renderHoverLabel = (newHover, newPin) => {
+    const hoverDuplicatesPin =
+      newHover.grid === newPin.grid && newHover.idx === newPin.idx && newHover.idx >= 0;
+    if (hoverDuplicatesPin) {
+      renderLabel(labels.hover, { grid: -1, idx: -1 }, 0);
+      return;
+    }
+    renderLabel(labels.hover, newHover, 0);
+    if (
+      newHover.grid >= 0 &&
+      newHover.grid === newPin.grid &&
+      labelsOverlap(labels.pin, labels.hover)
+    ) {
+      renderLabel(labels.hover, newHover, 1);
+    }
+  };
+
   // Re-shade the subplots whose highlight state changed. setOption merges series
   // by position, so build a patch array up to the last changed annotation-bearing
   // series; only those carry new marks, the rest pass through untouched.
   const apply = (newHover, newPin) => {
+    const hoverChanged = newHover.grid !== hover.grid || newHover.idx !== hover.idx;
+    const pinChanged = newPin.grid !== pin.grid || newPin.idx !== pin.idx;
+    if (!hoverChanged && !pinChanged) return;
     const patches = new Map();
     let maxSeriesIdx = -1;
     ctx.grids.forEach((info, g) => {
@@ -2665,26 +2780,42 @@ function wireAnnotationHover(instance) {
       patches.set(info.seriesIndex, marks);
       if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
     });
+    if (maxSeriesIdx >= 0) {
+      const seriesPatch = [];
+      for (let i = 0; i <= maxSeriesIdx; i++) {
+        seriesPatch.push(patches.get(i) || {});
+      }
+      chart.setOption({ series: seriesPatch });
+    }
+    if (pinChanged) renderLabel(labels.pin, newPin, 0);
+    if (hoverChanged || pinChanged) renderHoverLabel(newHover, newPin);
     hover = newHover;
     pin = newPin;
-    if (maxSeriesIdx < 0) return;
-    const seriesPatch = [];
-    for (let i = 0; i <= maxSeriesIdx; i++) {
-      seriesPatch.push(patches.get(i) || {});
-    }
-    chart.setOption({ series: seriesPatch });
   };
 
-  instance.onAnnotMove = (e) => apply(locate([e.offsetX, e.offsetY]), pin);
+  instance.onAnnotMove = (e) => {
+    // Let a user reach an ellipsized label's native title without clearing the
+    // hover that made the label visible.
+    if (e.target && e.target.closest && e.target.closest("[data-annotation-label]")) return;
+    // offsetX/offsetY would be relative to the tooltip when it covers the
+    // canvas, so convert viewport coordinates to chart coordinates instead.
+    const rect = canvas.getBoundingClientRect();
+    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pin);
+  };
   instance.onAnnotOut = () => apply({ grid: -1, idx: -1 }, pin);
   instance.onAnnotClick = (e) => {
     const at = locate([e.offsetX, e.offsetY]);
     const samePin = at.grid === pin.grid && at.idx === pin.idx;
     apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
   };
-  zr.on("mousemove", instance.onAnnotMove);
-  zr.on("globalout", instance.onAnnotOut);
+  instance.onAnnotZoom = () => {
+    renderLabel(labels.pin, pin, 0);
+    renderHoverLabel(hover, pin);
+  };
+  container.addEventListener("mousemove", instance.onAnnotMove);
+  container.addEventListener("mouseleave", instance.onAnnotOut);
   zr.on("click", instance.onAnnotClick);
+  chart.on("datazoom", instance.onAnnotZoom);
 }
 
 /**
@@ -2699,6 +2830,24 @@ export function setFastChartReplayTime(elementId, beliefTimeMs) {
 }
 
 /**
+ * Show or hide belief provenance fields without rebuilding or fetching chart data.
+ * Refresh an open tooltip at its last known pointer position when possible.
+ */
+export function setFastChartFullBeliefInfo(elementId, showFullBeliefInfo) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance.fullBeliefInfo = !!showFullBeliefInfo;
+  if (instance._pointerPixel) {
+    instance.chart.dispatchAction({ type: "hideTip" });
+    instance.chart.dispatchAction({
+      type: "showTip",
+      x: instance._pointerPixel[0],
+      y: instance._pointerPixel[1],
+    });
+  }
+}
+
+/**
  * Dispose the fast chart instance for the given container, freeing its canvas.
  *
  * @param {string} elementId - The id of the container div.
@@ -2706,6 +2855,18 @@ export function setFastChartReplayTime(elementId, beliefTimeMs) {
 export function disposeFastChart(elementId) {
   const instance = instances[elementId];
   if (instance) {
+    if (instance.onAnnotMove && !instance.chart.isDisposed()) {
+      const container = instance.chart.getDom();
+      container.removeEventListener("mousemove", instance.onAnnotMove);
+      container.removeEventListener("mouseleave", instance.onAnnotOut);
+    }
+    if (instance._annotLabels) {
+      Object.values(instance._annotLabels).forEach((label) => label.remove());
+      instance._annotLabels = null;
+    }
+    if (instance.onAnnotZoom && !instance.chart.isDisposed()) {
+      instance.chart.off("datazoom", instance.onAnnotZoom);
+    }
     window.removeEventListener("resize", instance.onResize);
     // These are document-level listeners, so chart.dispose() won't remove them.
     if (instance.onCtrlDown) {

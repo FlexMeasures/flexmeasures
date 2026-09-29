@@ -13,6 +13,7 @@ from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
 from marshmallow import fields, post_load, ValidationError, Schema, validate
+from redis.exceptions import RedisError
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_, Select
@@ -60,6 +61,7 @@ from flexmeasures.data.services.automations import (
     create_automation,
     delete_automation as remove_automation,
     describe_cronstr,
+    get_asset_automations_job_stats,
     get_automation_job_stats,
     get_automation_run_stats,
     resolve_automation_sensors,
@@ -1454,7 +1456,7 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring forecasting or scheduling tasks
+            The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
             its type, name, activation status, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
@@ -1503,6 +1505,9 @@ class AssetAPI(FlaskView):
                             recurrence-description: "At 06:00"
                             schedule-revision: 1
                             active: true
+                            job-stats:
+                              finished: 3
+                        redis-connection-err: null
             401:
               description: UNAUTHORIZED
             403:
@@ -1517,6 +1522,25 @@ class AssetAPI(FlaskView):
             get_readable_offspring(asset) if include_child_assets else []
         )
 
+        # Each asset's job counts are collected in one pass over the job cache, rather than one request per automation.
+        redis_connection_err = None
+        job_stats: dict[int, dict[str, int]] = {}
+        try:
+            for asset_to_report_on in assets:
+                job_stats.update(get_asset_automations_job_stats(asset_to_report_on))
+        except NoRedisConfigured as e:
+            job_stats = {}
+            redis_connection_err = e.args[0]
+        except RedisError:
+            current_app.logger.warning(
+                "Could not load automation job statistics because Redis is unavailable.",
+                exc_info=True,
+            )
+            job_stats = {}
+            redis_connection_err = (
+                "Redis is unavailable; job statistics could not be loaded."
+            )
+
         automations_data = []
         for asset_to_report_on in assets:
             for automation in asset_to_report_on.automations:
@@ -1526,8 +1550,12 @@ class AssetAPI(FlaskView):
                 )
                 # Name the asset here, so that a listing spanning several of them stays readable.
                 automation_data["asset-name"] = asset_to_report_on.name
+                automation_data["job-stats"] = job_stats.get(automation.id, {})
                 automations_data.append(automation_data)
-        return {"automations": automations_data}, 200
+        return {
+            "automations": automations_data,
+            "redis-connection-err": redis_connection_err,
+        }, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
     @use_kwargs(
@@ -1685,6 +1713,15 @@ class AssetAPI(FlaskView):
         except NoRedisConfigured as e:
             automation_data["job-stats"] = {}
             redis_connection_err = e.args[0]
+        except RedisError:
+            current_app.logger.warning(
+                "Could not load automation job statistics because Redis is unavailable.",
+                exc_info=True,
+            )
+            automation_data["job-stats"] = {}
+            redis_connection_err = (
+                "Redis is unavailable; job statistics could not be loaded."
+            )
         automation_data["run-stats"] = get_automation_run_stats(automation)
         automation_data["redis-connection-err"] = redis_connection_err
         return automation_data, 200
@@ -1708,11 +1745,11 @@ class AssetAPI(FlaskView):
         post:
           summary: Create an automation on an asset.
           description: |
-            Create a recurring task (computing forecasts, schedules or reports) on the asset.
+            Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.
             The parameters are validated by the schema matching the automation type:
             forecast parameters for type `forecasting`,
             a schedule trigger message (without the asset id) for type `scheduling`,
-            or report parameters for type `reporting`.
+            report parameters for type `reporting`, or the registered plugin schema.
             Requires permission to add data under the asset.
 
             An automation runs again and again, so its parameters cannot fix a moment in time:
@@ -2014,7 +2051,12 @@ class AssetAPI(FlaskView):
             }, 404
         try:
             returns = run_automation(automation)
-        except (NotImplementedError, ValueError, ValidationError) as e:
+        except (
+            NotImplementedError,
+            ValueError,
+            ValidationError,
+            AutomationSensorsUnknown,
+        ) as e:
             db.session.rollback()
             return unprocessable_entity(
                 e.messages if isinstance(e, ValidationError) else str(e)

@@ -1,5 +1,7 @@
 import json
 
+import pandas as pd
+
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -38,7 +40,7 @@ def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
         select(Annotation)
         .filter(
             Annotation.content == cli_input["content"],
-            Annotation.start == cli_input["at"],
+            Annotation.start == pd.Timestamp(cli_input["at"]),
         )
         .join(AccountAnnotationRelationship)
         .filter(

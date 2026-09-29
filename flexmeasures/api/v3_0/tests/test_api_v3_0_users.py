@@ -286,15 +286,23 @@ def test_login(client, setup_api_test_data, email, status_code):
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_logout(client, setup_api_test_data, requesting_user):
-    """Tries to log out, which should succeed as a url direction."""
+    """Logs out by POST, which redirects."""
 
     assert not current_user.is_anonymous
 
     # log out
-    logout_response = client.get(url_for("security.logout"))
+    logout_response = client.post(url_for("security.logout"))
     assert logout_response.status_code == 302
 
     assert current_user.is_anonymous
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_logout_needs_a_post(client, setup_api_test_data, requesting_user):
+    """A GET request does not log out, so that another site cannot log users out by linking to the logout URL."""
+    logout_response = client.get(url_for("security.logout"))
+    assert logout_response.status_code == 405
+    assert not current_user.is_anonymous
 
 
 @pytest.mark.parametrize(
