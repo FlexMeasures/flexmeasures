@@ -7,7 +7,7 @@ API change log
 
 v3.0-40 | September XX, 2026
 """"""""""""""""""""""""""""
-- ``GET /api/v3_0/assets/<id>/jobs`` now accepts ``page`` and ``per-page`` (or ``per_page``) to return jobs newest first, with ``num-records`` and ``filtered-records`` counts. Requests without ``page`` retain the full list and previous response shape. Job lists may be cached for up to one minute.
+- ``GET /api/v3_0/assets/<id>/jobs`` now accepts ``page`` and ``per-page`` to return jobs newest first, with ``num-records`` and ``filtered-records`` counts. Paginated results can be sorted by enqueue time or queue with ``sort-by`` and ``sort-dir``. Requests without ``page`` retain the full list and previous response shape. Job lists may be cached for up to one minute.
 
 v3.0-39 | September 22, 2026
 """"""""""""""""""""""""""""
