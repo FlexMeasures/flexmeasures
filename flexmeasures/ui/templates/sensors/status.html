@@ -29,7 +29,7 @@
           <div class="tab-pane fade {{ 'show active' if status_page_tab == 'jobs' }}" id="jobs" role="tabpanel" aria-labelledby="jobs-tab">
             <h4 class="">
               Latest jobs of {{ asset.name }}
-              <span class="fa fa-info-circle " title="This table shows forecasting or scheduling jobs for this asset."></span>
+              <span class="fa fa-info-circle " title="This table shows forecasting or scheduling jobs for this asset. Job updates may take up to one minute to appear."></span>
               <span class="jobs-time-ago" data-timestamp="Loading">
                 <small>
                   <i class="fa fa-refresh" id="refresh_jobs" title="Refresh status"></i>
@@ -211,14 +211,14 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   function initJobsTable() {
     if (jobsTable) return;
     jobsTable = $("#jobsTable").DataTable({
-      order: [[0, "desc"]],
+      ordering: false,
       searching: false,
-      paging: false,
-      info: false,
+      serverSide: true,
+      pageLength: 25,
       columns: [
         { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
-        { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
-        { data: "queue", title: "Queue", orderable: true},
+        { data: "created_at", title: "Created At", orderable: false },
+        { data: "queue", title: "Queue", orderable: false},
         { data: "asset", title: "Asset", orderable: false},
         { data: "entity", title: "Entity", orderable: false},
         { data: "created_via", title: "Created Via", orderable: false},
@@ -227,8 +227,9 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         { data: "url", title: "URL", className: "d-none", orderable: false},
       ],
       ajax: function (data, callback) {
+        const page = Math.floor(data.start / data.length) + 1;
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}`,
           method: "GET",
           success: function (res) {
             if (res["redis-connection-err"]) {
@@ -237,7 +238,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
               $("#redis_connection_err").addClass("d-none").text("");
             }
             const jobs = res.jobs.length ? res.jobs.map(JobRow) : [];
-            callback({ data: jobs });
+            callback({ data: jobs, recordsTotal: res["num-records"], recordsFiltered: res["filtered-records"] });
 
             const lastCallTime = Date.now();
             $("#jobs_time_ago").html(`(${getTimeAgo(lastCallTime)})`);
@@ -245,7 +246,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           },
           error: function (xhr) {
             console.error("Error fetching jobs:", xhr);
-            callback({ data: [] });
+            callback({ data: [], recordsTotal: 0, recordsFiltered: 0 });
           },
         });
       },
@@ -295,7 +296,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       includeChildAssets = this.checked;
       rememberIncludeChildAssets(includeChildAssets);
       // Only reload the jobs table if it has been built, which it has not while the sensor data tab is open.
-      if (jobsTable) jobsTable.ajax.reload();
+      if (jobsTable) jobsTable.ajax.reload(null, true);
     });
 
     $(document).on("click", ".sensor_refresh", function () {

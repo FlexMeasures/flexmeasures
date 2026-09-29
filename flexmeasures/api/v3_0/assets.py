@@ -324,7 +324,14 @@ class AssetAuditLogPaginationSchema(PaginationSchema):
     )
 
 
-class AssetJobsQuerySchema(Schema):
+class AssetJobsQuerySchema(PaginationSchema):
+    class Meta:
+        unknown = "raise"
+
+    filter = None
+    sort_by = None
+    sort_dir = None
+
     include_child_assets = fields.Bool(
         data_key="include-child-assets",
         required=False,
@@ -2085,15 +2092,23 @@ class AssetAPI(FlaskView):
     @use_kwargs(AssetJobsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_jobs(self, id: int, asset: GenericAsset, include_child_assets: bool = True):
+    def get_jobs(
+        self,
+        id: int,
+        asset: GenericAsset,
+        include_child_assets: bool = True,
+        page: int | None = None,
+        per_page: int = 10,
+    ):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
         ---
         get:
           summary: Get all background jobs related to an asset.
           description: |
-            The response will be a list of jobs.
+            The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10, legacy alias `per_page`) to paginate the list, newest first. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
+            Job lists are cached for up to one minute, so new jobs and status changes may take that long to appear.
 
             By default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.
             Pass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.
@@ -2114,6 +2129,20 @@ class AssetAPI(FlaskView):
               description: Whether to also list the jobs of the assets below it, at any depth (default true).
               schema:
                 type: boolean
+            - in: query
+              name: page
+              required: false
+              description: One-based page number. Omit to return all jobs.
+              schema:
+                type: integer
+                minimum: 1
+            - in: query
+              name: per-page
+              required: false
+              description: Jobs per page when page is provided (default 10; legacy alias per_page).
+              schema:
+                type: integer
+                minimum: 1
           responses:
             200:
               description: PROCESSED
@@ -2151,17 +2180,28 @@ class AssetAPI(FlaskView):
         all_jobs_data = list()
         try:
             jobs_data = build_asset_jobs_data(
-                asset, include_child_assets=include_child_assets
+                asset,
+                include_child_assets=include_child_assets,
+                page=page,
+                per_page=per_page,
             )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
-            all_jobs_data = jobs_data
+            if page is None:
+                all_jobs_data = jobs_data
+            else:
+                all_jobs_data, total_jobs = jobs_data
 
-        return {
+        response = {
             "jobs": all_jobs_data,
             "redis-connection-err": redis_connection_err,
-        }, 200
+        }
+        if page is not None:
+            response["num-records"] = response["filtered-records"] = (
+                total_jobs if redis_connection_err is None else 0
+            )
+        return response, 200
 
     @route("/<id>/reports/trigger", methods=["POST"])
     @limit_triggers()

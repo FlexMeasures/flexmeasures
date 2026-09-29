@@ -852,7 +852,9 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
             "asset",
             asset.id,
             asset.name,
-            current_app.job_cache.get(asset.id, "scheduling", "asset"),
+            current_app.job_cache.get(
+                asset.id, "scheduling", "asset", cache_for_seconds=60
+            ),
         )
     )
 
@@ -864,7 +866,9 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
                     "sensor",
                     sensor.id,
                     sensor.name,
-                    current_app.job_cache.get(sensor.id, queue, "sensor"),
+                    current_app.job_cache.get(
+                        sensor.id, queue, "sensor", cache_for_seconds=60
+                    ),
                 )
             )
 
@@ -874,12 +878,16 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
 def build_asset_jobs_data(
     asset: Asset,
     include_child_assets: bool = True,
-) -> list[dict]:
+    page: int | None = None,
+    per_page: int = 10,
+) -> list[dict] | tuple[list[dict], int]:
     """Get all jobs data for an asset
 
     :param asset:                Asset to get the jobs for.
     :param include_child_assets: Whether to also include the jobs of the assets below this one, at any depth, so that a site asset shows what happened anywhere below it.
                                  Only the assets the current user may read are included, as a child asset can belong to another account than its parent.
+    :param page:                 One-based page number, or None for the complete list.
+    :param per_page:             Number of jobs per page when page is set.
     :returns:                    A list of dictionaries, each containing the following keys:
                                  - job_id: id of a job
                                  - queue: job queue (scheduling or forecasting)
@@ -891,6 +899,7 @@ def build_asset_jobs_data(
                                  - err: job error (equals to None when there was no error for a job)
                                  - enqueued_at: time when the job was enqueued
                                  - metadata_hash: hash of job metadata (internal field)
+                                 When page is set, return that list together with the total job count.
     """
 
     from flexmeasures.data.services.generic_assets import get_readable_offspring
@@ -904,6 +913,35 @@ def build_asset_jobs_data(
             (asset_to_report_on, entry)
             for entry in _collect_asset_jobs(asset_to_report_on)
         )
+
+    if page is not None:
+        # Sort before building metadata, which is expensive for large job histories.
+        flattened_jobs = [
+            (job_asset, queue, asset_or_sensor_type, entity_id, entity_name, job)
+            for job_asset, (
+                queue,
+                asset_or_sensor_type,
+                entity_id,
+                entity_name,
+                cached_jobs,
+            ) in jobs
+            for job in cached_jobs
+        ]
+        flattened_jobs.sort(
+            key=lambda item: (
+                item[5].enqueued_at.timestamp() if item[5].enqueued_at else 0,
+                item[5].id,
+            ),
+            reverse=True,
+        )
+        total_jobs = len(flattened_jobs)
+        start = (page - 1) * per_page
+        jobs = [
+            (job_asset, (queue, asset_or_sensor_type, entity_id, entity_name, [job]))
+            for job_asset, queue, asset_or_sensor_type, entity_id, entity_name, job in flattened_jobs[
+                start : start + per_page
+            ]
+        ]
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
@@ -960,6 +998,8 @@ def build_asset_jobs_data(
                 }
             )
 
+    if page is not None:
+        return jobs_data, total_jobs
     return jobs_data
 
 

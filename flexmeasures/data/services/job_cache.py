@@ -4,10 +4,13 @@ Logic around storing and retrieving jobs from redis cache.
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from time import monotonic
+
 import redis
 
 from redis.exceptions import ConnectionError
-from rq.job import Job, NoSuchJobError
+from rq.job import Job
 
 
 class NoRedisConfigured(Exception):
@@ -28,6 +31,7 @@ class JobCache:
 
     def __init__(self, connection: redis.Redis):
         self.connection = connection
+        self._cached_jobs: OrderedDict[str, tuple[float, list[Job]]] = OrderedDict()
 
     def _get_cache_key(
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
@@ -50,24 +54,31 @@ class JobCache:
         self._check_redis_connection()
         cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
         self.connection.sadd(cache_key, job_id)
-
-    def _get_job(self, job_id: str) -> Job:
-        try:
-            job = Job.fetch(job_id, connection=self.connection)
-        except NoSuchJobError:
-            return None
-        return job
+        self._cached_jobs.pop(cache_key, None)
 
     def get(
-        self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
+        self,
+        asset_or_sensor_id: int,
+        queue: str,
+        asset_or_sensor_type: str,
+        cache_for_seconds: int = 0,
     ) -> list[Job]:
+        cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
+        if cache_for_seconds:
+            cached = self._cached_jobs.get(cache_key)
+            if cached is not None and cached[0] > monotonic():
+                self._cached_jobs.move_to_end(cache_key)
+                return cached[1]
+
         self._check_redis_connection()
 
         job_ids_to_remove, jobs = list(), list()
-        cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
-        for job_id in self.connection.smembers(cache_key):
-            job_id = job_id.decode("utf-8")
-            job = self._get_job(job_id)
+        job_ids = [
+            job_id.decode("utf-8") for job_id in self.connection.smembers(cache_key)
+        ]
+        for job_id, job in zip(
+            job_ids, Job.fetch_many(job_ids, connection=self.connection)
+        ):
             # remove job from cache if cant be found - was removed by TTL
             if job is None:
                 job_ids_to_remove.append(job_id)
@@ -75,4 +86,9 @@ class JobCache:
             jobs.append(job)
         if job_ids_to_remove:
             self.connection.srem(cache_key, *job_ids_to_remove)
+        if cache_for_seconds:
+            self._cached_jobs[cache_key] = (monotonic() + cache_for_seconds, jobs)
+            self._cached_jobs.move_to_end(cache_key)
+            if len(self._cached_jobs) > 2048:
+                self._cached_jobs.popitem(last=False)
         return jobs
