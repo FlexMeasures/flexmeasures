@@ -60,7 +60,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* An unknown URL under ``/api`` is now answered with a JSON ``404``, also for requests without a JSON content type, instead of the HTML error page [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* An unknown URL under ``/api`` is now answered with a JSON ``404``, also for requests without a JSON content type, instead of the HTML error page [see `PR #2618 <https://www.github.com/FlexMeasures/flexmeasures/pull/2618>`_]
 * Two identical scheduling requests arriving at the same moment no longer create two data sources for one scheduler configuration, which made every later schedule under that configuration fail; such requests now share one job, and a deployment that already has such duplicates schedules again [see `PR #2612 <https://www.github.com/FlexMeasures/flexmeasures/pull/2612>`_]
 * With the ``highspy`` solver, a site where any device has an operation mode could no longer run a converter coupling several commodities (such as a CHP) above one unit of its normalised flow, which made a must-run converter infeasible and silently capped a flexible one [see `PR #2606 <https://www.github.com/FlexMeasures/flexmeasures/pull/2606>`_]
 * Creating an organisation now records the action in its audit log, whether it is created in the UI, through the API or from the CLI [see `PR #2580 <https://www.github.com/FlexMeasures/flexmeasures/pull/2580>`_]
