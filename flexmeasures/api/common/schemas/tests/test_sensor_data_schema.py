@@ -618,3 +618,23 @@ def test_build_asset_jobs_data_includes_child_assets(
     # Clean up queues
     app.queues["scheduling"].empty()
     assert app.queues["scheduling"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_build_asset_jobs_data_uses_cached_status_after_redis_flush(
+    db, app, add_battery_assets, clean_redis, requesting_user
+):
+    """A cached job remains readable until its one-minute cache entry expires."""
+    asset = add_battery_assets["Test battery"]
+    job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_cache.add(asset.id, job.id, "scheduling", "asset")
+
+    first = build_asset_jobs_data(asset)
+    assert first[0]["status"] == "queued"
+
+    app.job_cache.connection.flushdb()
+    second = build_asset_jobs_data(asset)
+    assert second[0]["job_id"] == job.id
+    assert second[0]["status"] == first[0]["status"]
