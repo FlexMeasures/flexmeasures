@@ -421,20 +421,18 @@ class ForecasterParametersSchema(Schema):
         required=True,
         metadata={
             "description": (
-                "ID of the sensor to forecast, or a sensor reference."
-                " Use a reference to say which of the sources recording on that sensor hold the truth to train on,"
-                " and to carry lower, upper and snap bounds that clean the target's readings before they become training labels."
-                " Those bounds clean what the model learns from; the forecaster's own lower, upper and snap config shapes what it writes back out."
-                " Without one, every source on the sensor is trained on, except forecasters,"
+                "ID of the sensor to forecast."
+                " Which of the sources recording on it hold the truth to train on, and how to clean its readings, is said in the forecaster's config,"
+                " by an entry naming 'auto' among the regressors."
+                " Without such an entry, every source on the sensor is trained on, except forecasters,"
                 " which are left out so that the forecaster does not learn from its own forecasts."
-                " A reference replaces that default entirely, so pass exclude-source-types yourself to keep forecasters out alongside another filter."
                 " When a reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
             ),
             "example": {"sensor": 2092, "sources": [12, 13]},
             "cli": {
                 "option": "--sensor",
-                "extra_help": "Pass a bare sensor ID, or a JSON sensor reference to filter by source or to clean the target's readings.",
+                "extra_help": "Pass the ID of the sensor to forecast.",
             },
         },
     )

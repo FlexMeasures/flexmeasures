@@ -7,11 +7,15 @@ so a config that wants to say the same about that sensor writes ``"auto"`` in pl
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.forecasting.references import AutoSensorReference
-from flexmeasures.data.schemas.sensors import SensorReference
+from flexmeasures.data.schemas.forecasting.references import (
+    AUTO_SENSOR,
+    AutoSensorReference,
+)
+from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 
 #: The regressor lists a config entry for the sensor being forecast may appear in.
 REGRESSOR_FIELDS = ("past_regressors", "future_regressors")
@@ -56,3 +60,45 @@ def resolve_forecast_inputs(
             kept.append(entry)
         resolved[field_name] = kept
     return resolved, target
+
+
+def _target_qualifiers(target: Sensor | SensorReference) -> dict[str, Any]:
+    """The source filters and cleaning bounds a target reference carries, as a config entry would write them."""
+    if not isinstance(target, SensorReference):
+        return {}
+    dumped = SensorReferenceSchema().dump(target)
+    # A dumped reference spells out the filters it does not set, which a config entry would leave out.
+    return {
+        key: value
+        for key, value in dumped.items()
+        if key != "sensor" and value not in (None, {}, [])
+    }
+
+
+def fold_target_qualifiers_into_config(
+    config: dict[str, Any], parameters: dict[str, Any]
+) -> bool:
+    """Move source filters and cleaning bounds off the target in the parameters, into the config.
+
+    Both were briefly settable on the target in the forecast parameters, where they never reached the data source's data-generator attributes.
+    A payload that still carries them keeps working: the qualifiers move to a config entry naming ``"auto"``, and the parameters name the sensor alone.
+
+    :param config:     The forecaster's config, mutated in place where the parameters carry qualifiers.
+    :param parameters: The forecast parameters, whose target is replaced by the sensor it wraps.
+    :returns:          Whether anything was moved.
+    """
+    target = parameters.get("sensor")
+    qualifiers = _target_qualifiers(target)
+    if not qualifiers:
+        return False
+
+    config["past_regressors"] = list(config.get("past_regressors") or []) + [
+        AutoSensorReference(qualifiers)
+    ]
+    parameters["sensor"] = target.sensor
+    logging.warning(
+        f"The forecast parameters qualify their target sensor with {', '.join(sorted(qualifiers))}."
+        f" These belong in the forecaster's config, as an entry naming '{AUTO_SENSOR}', and have been moved there."
+        " Configured there, they describe the forecaster itself, and are recorded on its data source."
+    )
+    return True

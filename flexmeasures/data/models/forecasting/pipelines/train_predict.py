@@ -25,7 +25,10 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
-from flexmeasures.data.models.forecasting.inputs import resolve_forecast_inputs
+from flexmeasures.data.models.forecasting.inputs import (
+    fold_target_qualifiers_into_config,
+    resolve_forecast_inputs,
+)
 
 
 def _sensor_id(sensor: Sensor | int | None) -> int | None:
@@ -274,6 +277,9 @@ class TrainPredictPipeline(Forecaster):
         The config keeps naming ``"auto"`` where it means that sensor, because it is what the data source records.
         Running needs concrete sensors, and needs the target to carry whatever its config entry says about reading it.
         """
+        if fold_target_qualifiers_into_config(self._config, self._parameters):
+            for key, value in self._config.items():
+                setattr(self, key, value)
         resolved_config, target = resolve_forecast_inputs(
             self._config, self._target_sensor
         )

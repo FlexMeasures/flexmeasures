@@ -2931,6 +2931,25 @@ def test_naming_the_target_by_id_describes_it_as_auto_would(
     assert pipeline._parameters["sensor"].upper == "20 kW"
 
 
+def test_target_qualifiers_in_the_parameters_move_into_the_config(
+    app, setup_fresh_test_forecast_data, fresh_db, caplog
+):
+    """Qualifiers that a payload still puts on the target move to the config, where the data source records them."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._parameters = {
+        "sensor": SensorReference(sensor=target_sensor, lower="0 kW")
+    }
+
+    with caplog.at_level(logging.WARNING):
+        pipeline._resolve_inputs()
+
+    assert any("have been moved" in message for message in caplog.messages)
+    recorded = TrainPredictPipelineConfigSchema().dump(pipeline._config)
+    assert recorded["past-regressors"] == [{"sensor": "auto", "lower": "0 kW"}]
+    assert pipeline._parameters["sensor"].lower == "0 kW"
+
+
 def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
     app, setup_fresh_test_forecast_data, fresh_db
 ):
