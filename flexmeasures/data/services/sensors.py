@@ -853,9 +853,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
             "asset",
             asset.id,
             asset.name,
-            current_app.job_cache.get(
-                asset.id, "scheduling", "asset", cache_for_seconds=60
-            ),
+            current_app.job_cache.get(asset.id, "scheduling", "asset", use_cache=True),
         )
     )
 
@@ -868,7 +866,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
                     sensor.id,
                     sensor.name,
                     current_app.job_cache.get(
-                        sensor.id, queue, "sensor", cache_for_seconds=60
+                        sensor.id, queue, "sensor", use_cache=True
                     ),
                 )
             )

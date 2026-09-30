@@ -29,6 +29,9 @@ class JobCache:
         - scheduling:asset:3
     """
 
+    STATUS_CACHE_TTL_SECONDS = 60
+    STATUS_CACHE_MAX_ENTRIES = 2048
+
     def __init__(self, connection: redis.Redis):
         self.connection = connection
         self._cached_jobs: OrderedDict[str, tuple[float, list[Job]]] = OrderedDict()
@@ -61,10 +64,10 @@ class JobCache:
         asset_or_sensor_id: int,
         queue: str,
         asset_or_sensor_type: str,
-        cache_for_seconds: int = 0,
+        use_cache: bool = False,
     ) -> list[Job]:
         cache_key = self._get_cache_key(asset_or_sensor_id, queue, asset_or_sensor_type)
-        if cache_for_seconds:
+        if use_cache:
             cached = self._cached_jobs.get(cache_key)
             if cached is not None and cached[0] > monotonic():
                 # Keep recently used entries when the cache reaches its size limit.
@@ -87,9 +90,12 @@ class JobCache:
             jobs.append(job)
         if job_ids_to_remove:
             self.connection.srem(cache_key, *job_ids_to_remove)
-        if cache_for_seconds:
-            self._cached_jobs[cache_key] = (monotonic() + cache_for_seconds, jobs)
+        if use_cache:
+            self._cached_jobs[cache_key] = (
+                monotonic() + self.STATUS_CACHE_TTL_SECONDS,
+                jobs,
+            )
             self._cached_jobs.move_to_end(cache_key)
-            if len(self._cached_jobs) > 2048:
+            if len(self._cached_jobs) > self.STATUS_CACHE_MAX_ENTRIES:
                 self._cached_jobs.popitem(last=False)
         return jobs
