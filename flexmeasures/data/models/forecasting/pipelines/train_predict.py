@@ -200,8 +200,8 @@ def run_train_predict_cycle_job(
     pipeline._config = _load_job_config_payload(config)
     for key, value in pipeline._config.items():
         setattr(pipeline, key, value)
-    # The config was resolved against the target before this job was queued, and the
-    # parameters name the target as that resolution left it, so this job resolves nothing.
+    # The config was resolved against the target before this job was queued,
+    # and the parameters name the target as that resolution left it, so this job resolves nothing.
     pipeline._resolved_config = pipeline._config
     pipeline._parameters = _load_job_parameters_payload(parameters)
     pipeline._data_source = _get_attached_data_source(data_source_id)

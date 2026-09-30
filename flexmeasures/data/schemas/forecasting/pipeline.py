@@ -426,10 +426,8 @@ class ForecasterParametersSchema(Schema):
                 " by an entry naming 'auto' among the regressors."
                 " Without such an entry, every source on the sensor is trained on, except forecasters,"
                 " which are left out so that the forecaster does not learn from its own forecasts."
-                " When a reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
             ),
-            "example": {"sensor": 2092, "sources": [12, 13]},
+            "example": 2092,
             "cli": {
                 "option": "--sensor",
                 "extra_help": "Pass the ID of the sensor to forecast.",
