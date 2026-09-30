@@ -562,10 +562,8 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     ) -> Sensor | SensorReference:
         """Deserialize a sensor reference to a Sensor or SensorReference.
 
-        Returns a plain :class:`Sensor` when no source filter or default keys are
-        present (backward compatible), and a :class:`SensorReference` when any of
-        ``source-types``, ``exclude-source-types``, ``sources``, ``source-account``,
-        ``default``, ``lower``, ``upper`` or ``snap`` are provided.
+        Returns a plain :class:`Sensor` when no source filter, fallback or bound keys are present (backward compatible),
+        and a :class:`SensorReference` when any of ``source-types``, ``exclude-source-types``, ``sources``, ``source-account``, ``default``, ``lower``, ``upper`` or ``snap`` are provided.
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
