@@ -129,22 +129,18 @@ class TestJobCache(unittest.TestCase):
         ):
             clock.return_value = 100
             assert self.job_cache.get(
-                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
+                "sensor_id", "forecasting", "sensor", use_cache=True
             ) == [forecasting_job]
             clock.return_value = 110
             assert self.job_cache.get(
-                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
+                "sensor_id", "forecasting", "sensor", use_cache=True
             ) == [forecasting_job]
             assert self.mock_redis_job.fetch_many.call_count == 1
 
             self.job_cache.add("sensor_id", "new_job", "forecasting", "sensor")
-            self.job_cache.get(
-                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
-            )
+            self.job_cache.get("sensor_id", "forecasting", "sensor", use_cache=True)
             assert self.mock_redis_job.fetch_many.call_count == 2
 
-            clock.return_value = 171
-            self.job_cache.get(
-                "sensor_id", "forecasting", "sensor", cache_for_seconds=60
-            )
+            clock.return_value = 110 + self.job_cache.STATUS_CACHE_TTL_SECONDS + 1
+            self.job_cache.get("sensor_id", "forecasting", "sensor", use_cache=True)
             assert self.mock_redis_job.fetch_many.call_count == 3
