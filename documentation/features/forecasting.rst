@@ -96,30 +96,23 @@ Pass the same object as the API ``config`` payload, or place it in a JSON or YAM
 Cleaning the data a forecaster trains on
 -----------------------------------------
 
-The bounds above shape the forecast on its way out. The same ``lower``, ``upper`` and ``snap`` fields can also be set on an individual regressor or on the target, where they clean that sensor's readings on the way *in*, before the model trains on them.
+The bounds above shape the forecast on its way out. The same ``lower``, ``upper`` and ``snap`` fields can also be set on a sensor the forecaster reads, whether a regressor or the sensor being forecast, where they clean that sensor's readings on the way *in*, before the model trains on them.
 This is for a sensor whose recorded data is not trustworthy as it stands — an occasional implausible spike, or an error sentinel such as ``-9999`` — that you would rather not have to correct upstream.
 
-Put the bounds on the sensor reference itself. A bare sensor ID keeps working, and so does a reference that only filters by source. In the forecaster config, alongside the regressors:
+Put the bounds on the sensor reference itself, in the forecaster config, alongside the regressors. A bare sensor ID keeps working, and so does a reference that only filters by source:
 
 .. code-block:: json
 
     {
       "past-regressors": [
         2094,
-        {"sensor": 2095, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.5 kW"]}}
+        {"sensor": 2095, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.5 kW"]}},
+        {"sensor": "auto", "upper": "20 kW"}
       ]
     }
 
-The target sensor is named in the forecast parameters rather than in the config, so its bounds go there, on the reference that names it:
-
-.. code-block:: json
-
-    {
-      "sensor": {"sensor": 2092, "upper": "20 kW"},
-      "start": "2024-02-02T00:00+01:00"
-    }
-
-The outer ``sensor`` is the parameter naming what to forecast; the inner one is the sensor the reference points at.
+Here sensor 2095 is cleaned as a regressor, and ``"auto"`` cleans the sensor being forecast, which the model learns from.
+An entry naming that sensor, whether as ``"auto"`` or by its ID, says how to read it rather than handing it to the model a second time.
 
 Each sensor's bounds are read in that sensor's own unit, not the unit of the sensor being forecast, so a regressor recording watts takes its bounds in watts unless you say otherwise.
 Snapping and clipping behave exactly as they do on the output, including the ``[first, second)`` interval rule described above.
@@ -215,7 +208,8 @@ Choosing which data sources to train on
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Where several data sources record on the same sensor, you can say which of them the forecaster should read.
-Anywhere a sensor ID is accepted — the three regressor options, and the target sensor itself — you can pass a *sensor reference* instead: a small object naming the sensor plus the source filters to apply to it.
+Anywhere a sensor ID is accepted in the forecaster's config, you can pass a *sensor reference* instead: a small object naming the sensor plus the source filters to apply to it.
+The sensor being forecast is read as well — it is what the model learns from — so it takes filters too, named as ``"auto"`` because the config does not know which sensor a forecast will name.
 
 - ``sources``: only use beliefs from these data source IDs.
 - ``source-types``: only use beliefs from sources of these types, e.g. ``"user"``, ``"script"``, ``"forecaster"`` or ``"scheduler"``.
@@ -224,21 +218,24 @@ Anywhere a sensor ID is accepted — the three regressor options, and the target
 
 When a reference lists multiple sources, the first listed source wins if two of them hold beliefs about the same event, recorded at the same time.
 
-.. code-block:: bash
+.. code-block:: json
 
-    flexmeasures add forecasts \
-      --sensor '{"sensor": 42, "sources": [12]}' \
-      --regressors '{"sensor": 43, "exclude-source-types": ["forecaster"]}'
+    {
+      "past-regressors": [
+        {"sensor": "auto", "sources": [12]},
+        {"sensor": 43, "exclude-source-types": ["forecaster"]}
+      ]
+    }
 
-Here the model is trained on the readings that source 12 recorded on sensor 42, and ignores whatever else was recorded there.
+Given this config, the model is trained on the readings that source 12 recorded on the sensor being forecast, and ignores whatever else was recorded there.
 
 .. note::
 
-   A target given as a bare sensor ID is trained on every source recording on it, except forecasters, which are left out so that the forecaster does not learn from its own forecasts.
-   A reference replaces that default entirely, so add ``"exclude-source-types": ["forecaster"]`` yourself if you want forecasters kept out alongside another filter.
+   Without an ``"auto"`` entry, the sensor being forecast is trained on every source recording on it, except forecasters, which are left out so that the forecaster does not learn from its own forecasts.
+   Such an entry replaces that default entirely, so add ``"exclude-source-types": ["forecaster"]`` yourself if you want forecasters kept out alongside another filter.
 
-Forecasts are always recorded on the sensor itself, never on a source-filtered view of it, so the source filters on a target only say what to train on.
-Over the API, the target sensor is named by the URL of the trigger endpoint, so references there apply to regressors only.
+Forecasts are always recorded on the sensor itself, never on a source-filtered view of it, so these filters only say what to train on.
+Because they live in the config, they say the same thing however a forecast is triggered, including over the API, where the sensor to forecast is named by the URL of the trigger endpoint.
 
 Annotation regressors
 ~~~~~~~~~~~~~~~~~~~~~
