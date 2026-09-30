@@ -325,6 +325,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
 <script>
   const assetId = "{{ asset.id }}";
+  // Jobs are counted from Redis, which keeps them for FLEXMEASURES_JOB_TTL and no longer.
+  const jobRetention = "{{ config.FLEXMEASURES_JOB_TTL | naturalized_timedelta }}";
+  // Phrased to read for either form the value takes, "a day" as much as "7 days".
+  const jobsAreKeptFor = `Jobs are only kept for ${jobRetention}, so an automation older than that has run more often than this shows.`;
   const userCanManage = {{ user_can_manage_automations | tojson }};
   // Running an automation writes data under the asset, so the same permission gates the button and the endpoint.
   const userCanRunAutomations = {{ user_can_create_children | tojson }};
@@ -581,7 +585,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: esc(automation.timezone),
       "next-run": nextRun(automation),
       // The listing counts the jobs of every automation it holds, so a row says so without a request of its own.
-      jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">${esc(jobStatsText(automation["job-stats"]))}</span>`,
+      jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status. ${esc(jobsAreKeptFor)}">${esc(jobStatsText(automation["job-stats"]))}</span>`,
       info: `<button type="button" class="btn btn-sm btn-success automation-info" data-bs-target="#AutomationInfoModal-${automation.id}" data-bs-toggle="modal">Info</button>
         <div class="modal fade automation-info-modal" id="AutomationInfoModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
@@ -667,9 +671,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Durable runs</h6>
           <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
-          <h6>Recently created jobs</h6>
+          <h6>Recently created jobs
+            <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+               title="${esc(jobsAreKeptFor)}" style="font-size: 16px"></i>
+          </h6>
           <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
+        // This panel is built after the page loaded, so its own tooltip is initialised here,
+        // anchored to the modal for the same reason the creation form's are.
+        const infoModal = document.getElementById(`AutomationInfoModal-${automationId}`);
+        infoModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+          new bootstrap.Tooltip(el, { container: infoModal });
+        });
       },
       error: function (xhr) {
         $(`#automation-jobs-${automationId}`).text("unknown");
