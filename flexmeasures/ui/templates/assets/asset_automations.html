@@ -168,37 +168,42 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <input type="text" class="form-control" id="automationName" maxlength="80" required>
                 </div>
                 <div class="mb-3">
-                  <label for="automationType" class="form-label">Type</label>
+                  <label for="automationType" class="form-label">Type
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Create plugin-defined automation types with the CLI. They can be viewed and managed here." style="font-size: 16px"></i>
+                  </label>
                   <select class="form-select" id="automationType">
                     <option value="forecasting" selected>forecasting</option>
                     <option value="scheduling">scheduling</option>
                     <option value="reporting">reporting</option>
                   </select>
-                  <div class="form-text">Create plugin-defined automation types with the CLI. They can be viewed and managed here.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="automationCron" class="form-label">Schedule (cron expression)</label>
+                  <label for="automationCron" class="form-label">Schedule (cron expression)
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Use five fields: minute, hour, day of month, month, day of week. 0 6 * * * runs daily at 06:00; */15 * * * * runs every 15 minutes. Times use the timezone below." style="font-size: 16px"></i>
+                  </label>
                   <input type="text" class="form-control" id="automationCron" placeholder="0 6 * * *" required>
-                  <div class="form-text">Use five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00; <code>*/15 * * * *</code> runs every 15 minutes. Times use the timezone below.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="automationTimezone" class="form-label">Recurrence timezone</label>
+                  <label for="automationTimezone" class="form-label">Recurrence timezone
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="The local clock the recurrence is read in. For example, Europe/Amsterdam keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone." style="font-size: 16px"></i>
+                  </label>
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
-                  <div class="form-text">The local clock the recurrence is read in. For example, <code>Europe/Amsterdam</code> keeps 06:00 at 06:00 locally when daylight saving changes. Defaults to this asset's timezone.</div>
                 </div>
                 <!-- A schedule automation's generator follows from the asset and its flex config, so it is not chosen here. -->
                 <div class="mb-3 chooses-generator">
-                  <label for="automationSourceSearch" class="form-label">Existing data source</label>
+                  <label for="automationSourceSearch" class="form-label">Existing data source
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Optional. Pick a data source to take its data generator and configuration from, instead of setting the two fields below. The automation then records what it computes under that same source, alongside the data it already holds." style="font-size: 16px"></i>
+                  </label>
                   <div class="input-group">
                     <input type="text" class="form-control" id="automationSourceSearch" autocomplete="off"
                            placeholder="Search by id, name or data generator class ...">
                     <button type="button" class="btn btn-outline-secondary d-none" id="automationSourceClear">Clear</button>
                   </div>
                   <div class="list-group automation-source-results d-none" id="automationSourceResults"></div>
-                  <div class="form-text">
-                    Optional. Pick a data source to take its data generator and configuration from, instead of setting the two fields below.
-                    The automation then records what it computes under that same source, alongside the data it already holds.
-                  </div>
                   <div class="card mt-2 d-none" id="automationSourcePreview">
                     <div class="card-body py-2">
                       <h6 class="mb-1">Selected data source</h6>
@@ -209,30 +214,29 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   </div>
                 </div>
                 <div class="mb-3 chooses-generator">
-                  <label for="automationGenerator" class="form-label">Data generator</label>
+                  <label for="automationGenerator" class="form-label">Data generator
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter)." style="font-size: 16px"></i>
+                  </label>
                   <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
-                  <div class="form-text">
-                    Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reporting, e.g. PandasReporter).
-                  </div>
                 </div>
                 <div class="mb-3 chooses-generator">
-                  <label for="automationConfig" class="form-label">Data generator config (JSON)</label>
+                  <label for="automationConfig" class="form-label">Data generator config (JSON)
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="How the generator is set up: for a forecaster, its model, training period and regressors. These settings are what distinguish one data source from another, so the results record under a data source of their own. They cannot be changed afterwards." style="font-size: 16px"></i>
+                  </label>
                   <textarea class="form-control" id="automationConfig" rows="3" placeholder='{"model": "CustomLGBM", "train-period": "P30D", "future-regressors": [{"sensor": 2093}]}'></textarea>
-                  <div class="form-text">
-                    How the generator is set up: for a forecaster, its model, training period and regressors. Leave empty for its defaults.
-                    These settings are what distinguish one data source from another, so the results record under a data source of their own.
-                    They cannot be changed afterwards.
-                  </div>
+                  <div class="form-text">Leave empty for the generator's defaults.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="automationParameters" class="form-label">Parameters (JSON)</label>
+                  <label for="automationParameters" class="form-label">Parameters (JSON)
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting). A fixed start, end or prior is refused, as every run would share that moment. Leave the timing out to start a forecast or schedule at the run time, and to continue a report from the last successful one." style="font-size: 16px"></i>
+                  </label>
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
                   <div class="form-text">
-                    Forecast parameters (for type forecasting), a schedule trigger message (for type scheduling), or report parameters (for type reporting).
-                    A fixed "start", "end" or "prior" is refused, as every run would share that moment.
-                    Say how the period each run covers relates to that run with two of "start-offset", "end-offset" and "duration",
-                    such as <code>{"start-offset": "1D,DB", "duration": "P1D"}</code> for the whole of the next day,
-                    or leave the timing out, so that a forecast or schedule starts at the run time, and a report continues from the last successful one.
+                    Say the period each run covers with two of "start-offset", "end-offset" and "duration",
+                    such as <code>{"start-offset": "1D,DB", "duration": "P1D"}</code> for the whole of the next day.
                   </div>
                 </div>
                 <div class="form-check mb-3">
@@ -264,14 +268,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <input type="text" class="form-control" id="editAutomationName" maxlength="80" required>
                 </div>
                 <div class="mb-3">
-                  <label for="editAutomationCron" class="form-label">Schedule (cron expression)</label>
+                  <label for="editAutomationCron" class="form-label">Schedule (cron expression)
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Five fields: minute, hour, day of month, month, day of week. 0 6 * * * runs daily at 06:00 in the timezone below. Changing the schedule recalculates the next eligible run." style="font-size: 16px"></i>
+                  </label>
                   <input type="text" class="form-control" id="editAutomationCron" required>
-                  <div class="form-text">Five fields: minute, hour, day of month, month, day of week. <code>0 6 * * *</code> runs daily at 06:00 in the timezone below. Changing the schedule recalculates the next eligible run.</div>
                 </div>
                 <div class="mb-3">
-                  <label for="editAutomationTimezone" class="form-label">Recurrence timezone</label>
+                  <label for="editAutomationTimezone" class="form-label">Recurrence timezone
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="The cron time follows this local clock, including daylight-saving changes. For example, choose Europe/Amsterdam to run at 06:00 Amsterdam time year-round." style="font-size: 16px"></i>
+                  </label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
-                  <div class="form-text">The cron time follows this local clock, including daylight-saving changes. For example, choose <code>Europe/Amsterdam</code> to run at 06:00 Amsterdam time year-round.</div>
                 </div>
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
@@ -826,6 +834,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
+    // The field labels carry their reference text on an info icon, which Bootstrap only turns into a tooltip once asked.
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
     $('button[data-bs-toggle="tab"]').on("shown.bs.tab", function () {
       const table = $($(this).attr("data-bs-target")).find("table");
       if ($.fn.dataTable.isDataTable(table)) {
