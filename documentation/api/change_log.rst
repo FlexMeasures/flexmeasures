@@ -8,6 +8,8 @@ API change log
 v3.0-40 | September 29, 2026
 """"""""""""""""""""""""""""
 - A request for a URL under ``/api`` that matches no route (such as a typo in the URL, or an API version that does not exist) is now answered with a JSON error (``404``, with ``message`` and ``status`` fields), like any other API error. Previously it got the HTML error page, unless the request carried a JSON content type.
+- Added ``DELETE /api/v3_0/sensors/<id>/annotations``, which deletes a sensor's annotations, optionally only those of one ``source`` or lying entirely between ``start`` and ``until``. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor. It requires permission to delete the sensor, like ``DELETE /api/v3_0/sensors/<id>/data``, and reports how many annotations it removed from the sensor as ``deleted``.
+- ``POST /api/v3_0/accounts/<id>/annotations``, ``POST /api/v3_0/assets/<id>/annotations`` and ``POST /api/v3_0/sensors/<id>/annotations`` now accept an ``end`` equal to the ``start``, which makes an instantaneous annotation, where they used to reply with a ``422``. An ``end`` before the ``start`` is still refused.
 
 v3.0-39 | September 22, 2026
 """"""""""""""""""""""""""""

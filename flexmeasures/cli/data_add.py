@@ -1003,8 +1003,8 @@ def add_annotation(
         if end_str is not None
         else start + pd.offsets.DateOffset(days=1)
     )
-    if end <= start:
-        click.secho("End date must be after start date.", **MsgStyle.ERROR)
+    if end < start:
+        click.secho("End date must not be before start date.", **MsgStyle.ERROR)
         raise click.Abort()
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
