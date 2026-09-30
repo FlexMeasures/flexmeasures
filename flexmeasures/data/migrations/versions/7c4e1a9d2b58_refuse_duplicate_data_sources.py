@@ -8,11 +8,17 @@ and replaces the constraint with a unique index on expressions that replace NULL
 The index now also includes the source type, which every lookup of a source already filters on,
 so that sources differing only in type are not merged.
 
+Where source IDs are stored in JSON (such as the sources a sensor reference in a flex-context filters on),
+references to a merged source are pointed at the source it was merged into.
+
 Revision ID: 7c4e1a9d2b58
 Revises: b63a02d5e184
 """
 
 from __future__ import annotations
+
+import hashlib
+import json
 
 from alembic import op
 import sqlalchemy as sa
@@ -57,9 +63,26 @@ ANNOTATION_LINK_TABLES = {
     "annotations_sensors": "sensor_id",
 }
 
+# JSON columns that can store source IDs, with a condition selecting the rows that still describe work to be done.
+# Records of what already happened, such as automation runs, keep the IDs they were made with.
+JSON_REFERENCE_COLUMNS = [
+    ("generic_asset", "flex_context", None),
+    ("generic_asset", "flex_model", None),
+    ("generic_asset", "attributes", None),
+    ("sensor", "attributes", None),
+    ("automation", "parameters", None),
+    ("automation_run_job", "payload", "status = 'pending'"),
+    ("data_source", "attributes", None),
+]
+
+# Keys holding a list of source IDs, and the key holding a single source ID next to a "sensor" key (in reporter inputs).
+SOURCE_LIST_KEYS = ("sources", "user_source_ids")
+SOURCE_KEY = "source"
+
 
 def upgrade():
     bind = op.get_bind()
+    # Drop the previous constraint first, so that recomputing an attributes hash below cannot trip over it.
     op.drop_constraint(PREVIOUS_CONSTRAINT_NAME, "data_source", type_="unique")
     merged = merge_duplicate_sources(bind)
     op.execute(
@@ -76,7 +99,7 @@ def upgrade():
 
 
 def downgrade():
-    # Sources merged by the upgrade stay merged.
+    # Sources merged by the upgrade stay merged, and references to them stay pointed at the sources they were merged into.
     op.drop_index(INDEX_NAME, table_name="data_source")
     op.create_unique_constraint(
         PREVIOUS_CONSTRAINT_NAME, "data_source", PREVIOUS_IDENTITY_COLUMNS
@@ -85,6 +108,9 @@ def downgrade():
 
 def merge_duplicate_sources(bind) -> dict[int, int]:
     """Merge each group of identical data sources into the oldest one, moving over whatever references the newer ones.
+
+    Pointing stored references at the oldest source can change the attributes of a data source that records such references,
+    making it identical to another data source, so this repeats until no duplicates remain.
 
     :returns: the ID of each merged data source, mapped to the ID of the data source it was merged into
     """
@@ -102,7 +128,12 @@ def merge_duplicate_sources(bind) -> dict[int, int]:
         if not duplicates:
             return merged
         mapping = {duplicate: keep for keep, duplicate in duplicates}
+        # A source merged in an earlier round may itself be referred to by the ID of a source merged before it.
+        merged = {
+            duplicate: mapping.get(keep, keep) for duplicate, keep in merged.items()
+        }
         merged.update(mapping)
+        remap_json_references(bind, mapping)
         for keep, duplicate in duplicates:
             merge_source(bind, keep, duplicate, other_references)
 
@@ -228,3 +259,75 @@ def merge_annotations(bind, keep: int, duplicate: int):
         sa.text("UPDATE annotation SET source_id = :keep WHERE source_id = :duplicate"),
         ids,
     )
+
+
+def remap_json_references(bind, mapping: dict[int, int]):
+    """Point source IDs stored in JSON columns at the sources their sources are merged into.
+
+    When the attributes of a data source change, its attributes hash is recomputed,
+    unless the hash did not match its attributes to begin with (attributes set after its creation are not hashed).
+    """
+    for table, column, condition in JSON_REFERENCE_COLUMNS:
+        hash_column = ", attributes_hash" if table == "data_source" else ""
+        where = f"({column}::text LIKE '%\"source%' OR {column}::text LIKE '%\"user_source_ids\"%')"
+        if condition:
+            where += f" AND {condition}"
+        rows = bind.execute(
+            sa.text(f"SELECT id, {column}{hash_column} FROM {table} WHERE {where}")
+        ).all()
+        remapped = 0
+        for row in rows:
+            value = row[1]
+            new_value = remap_source_ids(value, mapping)
+            if new_value == value:
+                continue
+            params = dict(id=row[0], value=json.dumps(new_value))
+            assignments = f"{column} = CAST(:value AS jsonb)"
+            if table == "data_source":
+                old_hash = bytes(row[2]) if row[2] is not None else None
+                if old_hash == hash_attributes(value):
+                    params["hash"] = hash_attributes(new_value)
+                    assignments += ", attributes_hash = :hash"
+            bind.execute(
+                sa.text(f"UPDATE {table} SET {assignments} WHERE id = :id"), params
+            )
+            remapped += 1
+        if remapped:
+            print(
+                f"Pointed source IDs in {table}.{column} at the data sources they were merged into, in {remapped} row(s)."
+            )
+
+
+def remap_source_ids(value, mapping: dict[int, int]):
+    """Return a copy of a JSON value, with the source IDs it holds mapped."""
+    if isinstance(value, list):
+        return [remap_source_ids(item, mapping) for item in value]
+    if not isinstance(value, dict):
+        return value
+    remapped = {}
+    for key, item in value.items():
+        if key in SOURCE_LIST_KEYS and isinstance(item, list):
+            ids = [
+                mapping.get(i, i) if is_id(i) else remap_source_ids(i, mapping)
+                for i in item
+            ]
+            # Two sources merged into one leave one reference.
+            remapped[key] = [
+                i for n, i in enumerate(ids) if not is_id(i) or i not in ids[:n]
+            ]
+        elif key == SOURCE_KEY and "sensor" in value and is_id(item):
+            remapped[key] = mapping.get(item, item)
+        else:
+            remapped[key] = remap_source_ids(item, mapping)
+    return remapped
+
+
+def is_id(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def hash_attributes(attributes: dict) -> bytes:
+    """A frozen copy of DataSource.hash_attributes."""
+    return hashlib.sha256(
+        json.dumps(attributes, sort_keys=True).encode("utf-8")
+    ).digest()
