@@ -782,7 +782,8 @@ def check_source_references(queue: str | None):
     q_list = parse_queue_list(queue) if queue else list(app.queues.values())
     configure_mappers()
     duplicates = find_duplicate_sources()
-    rows = []
+    # First collect what each waiting job refers to, so that the data sources are looked up in one query.
+    references = []
     for the_queue in q_list:
         registries = dict(
             queued=the_queue,
@@ -796,27 +797,30 @@ def check_source_references(queue: str | None):
                 if job is None:
                     continue
                 source_ids = find_referenced_source_ids([job.args, job.kwargs])
-                existing_ids = (
-                    set(
-                        db.session.scalars(
-                            select(DataSource.id).where(DataSource.id.in_(source_ids))
-                        )
+                if source_ids:
+                    references.append(
+                        (job.id, the_queue.name, registry_name, source_ids)
                     )
-                    if source_ids
-                    else set()
-                )
-                for source_id in sorted(source_ids):
-                    if source_id not in existing_ids:
-                        problem = "does not exist"
-                    elif source_id in duplicates:
-                        problem = (
-                            f"will be merged into data source {duplicates[source_id]}"
-                        )
-                    else:
-                        continue
-                    rows.append(
-                        (job.id, the_queue.name, registry_name, source_id, problem)
-                    )
+    referenced_ids = set().union(*(ids for *_, ids in references))
+    existing_ids = (
+        set(
+            db.session.scalars(
+                select(DataSource.id).where(DataSource.id.in_(referenced_ids))
+            )
+        )
+        if referenced_ids
+        else set()
+    )
+    rows = []
+    for job_id, queue_name, registry_name, source_ids in references:
+        for source_id in sorted(source_ids):
+            if source_id not in existing_ids:
+                problem = "does not exist"
+            elif source_id in duplicates:
+                problem = f"will be merged into data source {duplicates[source_id]}"
+            else:
+                continue
+            rows.append((job_id, queue_name, registry_name, source_id, problem))
     if not rows:
         click.secho(
             "No waiting job refers to a data source that no longer exists, or that a database upgrade will merge.",
