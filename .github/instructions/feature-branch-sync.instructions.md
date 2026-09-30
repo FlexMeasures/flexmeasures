@@ -50,27 +50,44 @@ A merge commit is the cost of keeping that history, and it is worth it.
 
 ## A stacked branch, after its base was squash-merged
 
-### Before the squash: merge A into B, and what that does and does not buy
+### Before the squash: merge `main` into A, then A into B
 
-If you control the order, merge A into B -- and into anything stacked on B -- *before* A is merged.
-B then contains A's tip exactly, which is worth two things.
-The reconstruction below becomes unnecessary, because the lineage steps 1 to 3 rebuild is already in B,
-so you go straight to step 4.
-And the conflicts shrink to the files where both branches appended to the same place,
-typically one or two rather than A's whole diff.
+If you control the order, do both before A is merged:
 
-**It does not prevent the duplication.**
-Neither does merging `origin/main` into the stack first, which is the natural guess and is wrong:
-the squash commit shares no ancestry with A's commits,
-so B's merge-base with `main` stays behind A however recently B merged `main`,
-and A's content still arrives twice.
-Merging `main` in early removes *unrelated* changes from the conflict surface, nothing more.
+```bash
+git switch A && git merge origin/main   # main then contributes nothing beyond A's own diff
+git switch B && git merge A             # B then holds A's tip exactly
+```
 
-**What prevents it is not squash-merging a branch that has something stacked on it.**
-A merge commit keeps A's commits on `main`, so B's merge-base becomes A's tip
-and B's next `git merge origin/main` is uneventful.
-Where a repository squashes by default, this is a per-pull-request choice worth making for the base of a stack,
-and the cost is one merge commit in `main`'s history.
+Neither prevents the conflicts.
+Both make them cheap to settle, and the first makes the settlement provably lossless.
+
+**What "duplication" means here.**
+After A is squash-merged, `main` holds A's whole diff as a single commit sharing no history with A's own commits,
+while B still holds those commits.
+Git's three-way merge therefore sees *both* sides adding A's content relative to the merge base,
+and where the two additions land next to each other it cannot tell they are the same change, so it conflicts.
+Nothing ends up duplicated in the result; the duplication is in what the merge has to reconcile.
+
+**Why merging `main` into A first matters.**
+Not because it avoids the conflict -- it does not.
+Because afterwards, everything `main` has gained since B's merge base *is* A's diff and nothing else,
+so settling every conflict in B's favour cannot discard anything:
+
+```bash
+git switch B && git merge origin/main -X ours
+```
+
+B already contains every line that resolution passes over.
+Do this promptly.
+If other work lands on `main` between the squash and this merge,
+`-X ours` would take B's side over that work too,
+and the staged recipe below is then the safe form.
+
+**Why merging A into B first matters.**
+B then holds A's tip exactly, so steps 1 to 3 below, which exist only to reconstruct that lineage, can be skipped.
+It also confines the conflicts to the files both branches appended to:
+on one stack of four branches it was the difference between one conflicted file and four.
 
 ### After the squash
 
