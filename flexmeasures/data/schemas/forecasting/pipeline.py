@@ -18,6 +18,7 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
+from flexmeasures.data.schemas.forecasting.references import ForecastInputField
 from flexmeasures.data.schemas.sensors import (
     SensorIdOrReferenceField,
     SensorReference,
@@ -104,13 +105,15 @@ class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
             "description": (
                 "Sensor IDs or sensor references to be treated only as future regressors."
                 " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, which a config cannot name by ID without being tied to one target."
+                " Qualifying it, as in {'sensor': 'auto', 'lower': '0 kW'}, says which of its sources to train on and how to clean its readings."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -125,13 +128,15 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     past_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
             "description": (
                 "Sensor IDs or sensor references to be treated only as past regressors."
                 " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, which a config cannot name by ID without being tied to one target."
+                " Qualifying it, as in {'sensor': 'auto', 'lower': '0 kW'}, says which of its sources to train on and how to clean its readings."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -143,13 +148,15 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="regressors",
         load_default=[],
         metadata={
             "description": (
                 "Sensor IDs or sensor references used as both past and future regressors."
                 " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, which a config cannot name by ID without being tied to one target."
+                " Qualifying it, as in {'sensor': 'auto', 'lower': '0 kW'}, says which of its sources to train on and how to clean its readings."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
