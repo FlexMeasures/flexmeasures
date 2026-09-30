@@ -50,6 +50,30 @@ A merge commit is the cost of keeping that history, and it is worth it.
 
 ## A stacked branch, after its base was squash-merged
 
+### Before the squash: merge A into B, and what that does and does not buy
+
+If you control the order, merge A into B -- and into anything stacked on B -- *before* A is merged.
+B then contains A's tip exactly, which is worth two things.
+The reconstruction below becomes unnecessary, because the lineage steps 1 to 3 rebuild is already in B,
+so you go straight to step 4.
+And the conflicts shrink to the files where both branches appended to the same place,
+typically one or two rather than A's whole diff.
+
+**It does not prevent the duplication.**
+Neither does merging `origin/main` into the stack first, which is the natural guess and is wrong:
+the squash commit shares no ancestry with A's commits,
+so B's merge-base with `main` stays behind A however recently B merged `main`,
+and A's content still arrives twice.
+Merging `main` in early removes *unrelated* changes from the conflict surface, nothing more.
+
+**What prevents it is not squash-merging a branch that has something stacked on it.**
+A merge commit keeps A's commits on `main`, so B's merge-base becomes A's tip
+and B's next `git merge origin/main` is uneventful.
+Where a repository squashes by default, this is a per-pull-request choice worth making for the base of a stack,
+and the cost is one merge commit in `main`'s history.
+
+### After the squash
+
 When branch B is stacked on branch A and A is **squash-merged**, B conflicts almost everywhere:
 `main` now holds A's whole diff as a single commit with no shared history,
 while B still carries A's original commits.
@@ -57,6 +81,9 @@ Resolving those conflicts by hand means adjudicating A's entire diff a second ti
 which is how a regression slips in.
 
 Do this instead, which needs no force-push:
+
+If B already contains A's tip, because it was merged down before the squash,
+skip to step 4: steps 1 to 3 only reconstruct a lineage that is in that case already there.
 
 ```bash
 # 1. Restore A's branch from a tip you still have (a worktree keeps it after the remote ref goes;
