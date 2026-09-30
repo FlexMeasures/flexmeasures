@@ -154,26 +154,30 @@ def get_data_source(
     Meant for scripts that may run for the first time.
     """
 
-    data_source = db.session.execute(
-        select(DataSource).filter_by(
-            name=data_source_name,
-            model=data_source_model,
-            version=data_source_version,
-            type=data_source_type,
-        )
-    ).scalar_one_or_none()
+    # Imported here to avoid a circular import at module load time.
+    from flexmeasures.data.services.data_sources import add_and_flush_source
+
+    query = select(DataSource).filter_by(
+        name=data_source_name,
+        model=data_source_model,
+        version=data_source_version,
+        type=data_source_type,
+    )
+    data_source = db.session.execute(query).scalar_one_or_none()
     if data_source is None:
-        data_source = DataSource(
+        new_source = DataSource(
             name=data_source_name,
             model=data_source_model,
             version=data_source_version,
             type=data_source_type,
         )
-        db.session.add(data_source)
-        db.session.flush()  # populate the primary key attributes (like id) without committing the transaction
-        current_app.logger.info(
-            f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
-        )
+        # This populates the primary key attributes (like id) without committing the transaction,
+        # or uses the source another transaction inserted concurrently.
+        data_source = add_and_flush_source(new_source, query)
+        if data_source is new_source:
+            current_app.logger.info(
+                f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
+            )
     return data_source
 
 

@@ -10,7 +10,7 @@ from typing import Type, TypeVar
 from flexmeasures import Account, Source, User
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import (
-    DATA_SOURCE_UNIQUE_CONSTRAINT,
+    DATA_SOURCE_UNIQUE_INDEX,
     DataSource,
     DataGenerator,
 )
@@ -65,14 +65,18 @@ def get_or_create_source(
             )
         current_app.logger.info(f"Setting up {_source} as new data source...")
         if flush:
-            _source = _add_and_flush_source(_source, query)
+            _source = add_and_flush_source(_source, query)
         else:
             db.session.add(_source)
     return _source
 
 
-def _add_and_flush_source(source: DataSource, query) -> DataSource:
-    """Add and flush a new source, or return the identical source another transaction inserted since `query` looked for it."""
+def add_and_flush_source(source: DataSource, query) -> DataSource:
+    """Add and flush a new source, or return the identical source another transaction inserted since `query` looked for it.
+
+    :param source:  the new data source, not yet added to the session
+    :param query:   the lookup that found no such source, to fetch the one another transaction inserted in the meantime
+    """
     # Flush anything else pending first, so that the savepoint below only concerns the new source.
     db.session.flush()
     try:
@@ -83,11 +87,15 @@ def _add_and_flush_source(source: DataSource, query) -> DataSource:
     except IntegrityError as exc:
         if (
             getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
-            != DATA_SOURCE_UNIQUE_CONSTRAINT
+            != DATA_SOURCE_UNIQUE_INDEX
         ):
             raise
         # Another transaction inserted the same source since we looked it up, so use that one.
-        return db.session.execute(query).scalar_one()
+        winner = db.session.execute(query).scalar_one_or_none()
+        if winner is None:
+            # The index also counts NULL as equal to an empty string, which the lookup does not.
+            raise
+        return winner
     return source
 
 

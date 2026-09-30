@@ -5,7 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -367,8 +367,22 @@ class SensorDataSource(db.Model):
         return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
 
 
-# The unique constraint that refuses identical data sources.
-DATA_SOURCE_UNIQUE_CONSTRAINT = "data_source_name_key"
+# The unique index that refuses identical data sources.
+DATA_SOURCE_UNIQUE_INDEX = "data_source_identity_idx"
+# What identifies a data source.
+# A unique constraint on these columns would treat NULLs as distinct (unless NULLS NOT DISTINCT, from PostgreSQL 15),
+# and so never refuse a second identical source without a user or account.
+# Indexing expressions that replace NULLs makes NULLs count as equal, on any PostgreSQL version;
+# they also count as equal to an empty string (or to -1, or to an empty hash).
+DATA_SOURCE_IDENTITY_EXPRESSIONS = (
+    "name",
+    "coalesce(type, '')",
+    "coalesce(user_id, -1)",
+    "coalesce(account_id, -1)",
+    "coalesce(model, '')",
+    "coalesce(version, '')",
+    "coalesce(attributes_hash, '\\x'::bytea)",
+)
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -376,17 +390,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     __tablename__ = "data_source"
     __table_args__ = (
-        # NULLS NOT DISTINCT, so that sources without a user or account are unique, too.
-        db.UniqueConstraint(
-            "name",
-            "type",
-            "user_id",
-            "account_id",
-            "model",
-            "version",
-            "attributes_hash",
-            name=DATA_SOURCE_UNIQUE_CONSTRAINT,
-            postgresql_nulls_not_distinct=True,
+        db.Index(
+            DATA_SOURCE_UNIQUE_INDEX,
+            *(text(expression) for expression in DATA_SOURCE_IDENTITY_EXPRESSIONS),
+            unique=True,
         ),
     )
 

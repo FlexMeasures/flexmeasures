@@ -13,7 +13,11 @@ import timely_beliefs as tb
 from sqlalchemy import false, insert, select
 from sqlalchemy.exc import IntegrityError
 
-from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
+from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_UNIQUE_INDEX,
+    keep_latest_version,
+    DataSource,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -360,7 +364,7 @@ def test_duplicate_sources_without_user_or_account_are_refused(db, app):
     db.session.add(DataSource(**identity))
     db.session.flush()
 
-    with pytest.raises(IntegrityError, match="data_source_name_key"):
+    with pytest.raises(IntegrityError, match="data_source_identity_idx"):
         with db.session.begin_nested():
             db.session.add(DataSource(**identity))
 
@@ -401,7 +405,7 @@ def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch
 
 def test_add_and_flush_source_reraises_other_integrity_errors(db, app, monkeypatch):
     """Only a lost race to insert the same source is recovered from, so that other integrity errors surface as they are."""
-    from flexmeasures.data.services.data_sources import _add_and_flush_source
+    from flexmeasures.data.services.data_sources import add_and_flush_source
 
     class OtherConstraintViolation(Exception):
         diag = SimpleNamespace(constraint_name="some_other_key")
@@ -413,12 +417,61 @@ def test_add_and_flush_source_reraises_other_integrity_errors(db, app, monkeypat
 
     monkeypatch.setattr(db.session, "begin_nested", violate_other_constraint)
     with pytest.raises(IntegrityError, match="OtherConstraintViolation"):
-        _add_and_flush_source(
+        add_and_flush_source(
             DataSource(
                 name="test-source-violating-another-constraint", type="scheduler"
             ),
             select(DataSource).where(false()),
         )
+
+
+def test_add_and_flush_source_reraises_when_no_source_was_inserted(
+    db, app, monkeypatch
+):
+    """A violation of the unique index that the lookup cannot resolve must surface, rather than return nothing.
+
+    The index counts NULL as equal to an empty string, which the lookup does not.
+    """
+    from flexmeasures.data.services.data_sources import add_and_flush_source
+
+    class IdentityIndexViolation(Exception):
+        diag = SimpleNamespace(constraint_name=DATA_SOURCE_UNIQUE_INDEX)
+
+    @contextmanager
+    def violate_identity_index():
+        raise IntegrityError("INSERT ...", {}, IdentityIndexViolation())
+        yield
+
+    monkeypatch.setattr(db.session, "begin_nested", violate_identity_index)
+    with pytest.raises(IntegrityError, match="IdentityIndexViolation"):
+        add_and_flush_source(
+            DataSource(name="test-unresolvable-source", type="scheduler"),
+            select(DataSource).where(false()),
+        )
+
+
+def test_get_data_source_recovers_from_losing_the_race(db, app, monkeypatch):
+    """get_data_source must use the source another transaction inserted since it looked one up, rather than fail."""
+    from flexmeasures.data.utils import get_data_source
+
+    existing = DataSource(name="test-racing-script", type="script", model="M")
+    db.session.add(existing)
+    db.session.flush()
+
+    execute = db.session.execute
+    lookups = []
+
+    def miss_first_lookup(statement, *args, **kwargs):
+        if not lookups:
+            lookups.append(statement)
+            return execute(select(DataSource).where(false()))
+        return execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db.session, "execute", miss_first_lookup)
+    source = get_data_source("test-racing-script", data_source_model="M")
+
+    assert lookups, "the lookup was not made to miss"
+    assert source.id == existing.id
 
 
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
