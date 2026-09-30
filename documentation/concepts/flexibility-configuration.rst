@@ -127,7 +127,7 @@ A source filter keeps the reference pointing at the right data even when multipl
 The supported filter keys are:
 
 - ``source-types`` / ``exclude-source-types``: include or exclude sources by type (e.g. ``"forecaster"``, ``"scheduler"``, ``"user"``). **Recommended** over a specific ``source`` or ``sources`` ID, because forecasters and schedulers are versioned — a version bump gives new data a new source ID, but the source-type stays the same, so filters based on it don't need updating.
-- ``source-account``: a list of account IDs, to filter by the account(s) linked to data sources. Useful in multi-tenant setups where several accounts run their own forecasters or schedulers.
+- ``source-account``: a list of organisation IDs, to filter by the organisation(s) linked to data sources. Useful in multi-tenant setups where several organisations run their own forecasters or schedulers.
 - ``sources``: a list of specific data source IDs.
 - ``source``: a single specific data source ID.
 

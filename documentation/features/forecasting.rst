@@ -116,7 +116,7 @@ The target sensor is named in the forecast parameters rather than in the config,
 
     {
       "sensor": {"sensor": 2092, "upper": "20 kW"},
-      "start": "2026-10-01T00:00+02:00"
+      "start": "2024-02-02T00:00+01:00"
     }
 
 The outer ``sensor`` is the parameter naming what to forecast; the inner one is the sensor the reference points at.
