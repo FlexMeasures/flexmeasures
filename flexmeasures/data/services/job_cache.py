@@ -20,16 +20,30 @@ class NoRedisConfigured(Exception):
 
 class JobCache:
     """
-    Class is used for storing jobs and retrieving them from redis cache.
-    Need it to be able to get jobs for particular asset (and display them on status page).
-    Redis sets index job IDs by asset or sensor and queue; RQ stores the job records separately.
-    get() reads the current jobs from Redis and removes IDs whose jobs expired.
-    get_for_status_page() keeps fetched job lists in process for one minute, so
-    paging does not fetch the same jobs repeatedly.
+    This class is used for storing jobs and retrieving them from redis cache.
+    This happens in two ways: asset/sensor <> job mapping, and actual job lists.
+    Both are heavily used in the status page, but could be used by other places.
+
+    1. asset/sensor <> job mapping
+
+    JobCache creates a lookup layer in Redis, by which each job can be found by its assorted asset or sensor,
+    for as long as the job itself lives (the job itself is not in this layer). Places that create jobs use JobCache so that the status page
+    can make us of it later.
     The Redis index key includes asset or sensor ID, queue, and entity type:
         - forecasting:sensor:1 (forecasting jobs can be stored by sensor only)
         - scheduling:sensor:2
         - scheduling:asset:3
+
+    2. actual job lists
+
+    The status page (and the /asset/ID/jobs endpoint it uses) is paginated.
+    We also want to lower the amount of Redis work when looking up jobs.
+    So we store lists of actual job objects for a minute, to ease browsing the pages.
+
+    In particular:
+    - get() reads the current jobs from Redis and removes IDs whose jobs expired.
+    - get_for_status_page() keeps fetched job lists in process for one minute, so
+    paging does not fetch the same jobs repeatedly.
     """
 
     STATUS_SNAPSHOT_TTL_SECONDS = 60
