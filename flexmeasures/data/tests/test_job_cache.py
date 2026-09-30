@@ -128,19 +128,29 @@ class TestJobCache(unittest.TestCase):
             patch("flexmeasures.data.services.job_cache.monotonic") as clock,
         ):
             clock.return_value = 100
-            assert self.job_cache.get(
-                "sensor_id", "forecasting", "sensor", use_cache=True
+            assert self.job_cache.get_for_status_page(
+                "sensor_id", "forecasting", "sensor"
             ) == [forecasting_job]
             clock.return_value = 110
-            assert self.job_cache.get(
-                "sensor_id", "forecasting", "sensor", use_cache=True
+            assert self.job_cache.get_for_status_page(
+                "sensor_id", "forecasting", "sensor"
             ) == [forecasting_job]
             assert self.mock_redis_job.fetch_many.call_count == 1
 
             self.job_cache.add("sensor_id", "new_job", "forecasting", "sensor")
-            self.job_cache.get("sensor_id", "forecasting", "sensor", use_cache=True)
+            self.job_cache.get_for_status_page("sensor_id", "forecasting", "sensor")
             assert self.mock_redis_job.fetch_many.call_count == 2
 
-            clock.return_value = 110 + self.job_cache.STATUS_CACHE_TTL_SECONDS + 1
-            self.job_cache.get("sensor_id", "forecasting", "sensor", use_cache=True)
+            clock.return_value = 110 + self.job_cache.STATUS_SNAPSHOT_TTL_SECONDS + 1
+            self.job_cache.get_for_status_page("sensor_id", "forecasting", "sensor")
             assert self.mock_redis_job.fetch_many.call_count == 3
+
+    def test_get_reads_redis_even_with_status_page_snapshot(self):
+        """The normal read bypasses the status page's in-process snapshot."""
+        self.connection.smembers.return_value = [b"job_id"]
+        self.mock_redis_job.fetch_many.return_value = [MagicMock()]
+        with patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job):
+            self.job_cache.get_for_status_page("sensor_id", "forecasting", "sensor")
+            self.job_cache.get("sensor_id", "forecasting", "sensor")
+
+        assert self.mock_redis_job.fetch_many.call_count == 2
