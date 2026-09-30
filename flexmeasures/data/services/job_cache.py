@@ -1,5 +1,5 @@
 """
-Logic around storing and retrieving jobs from redis cache.
+Index RQ jobs by asset or sensor and cache fetched job lists.
 """
 
 from __future__ import annotations
@@ -42,16 +42,16 @@ class JobCache:
 
     In particular:
     - get() reads the current jobs from Redis and removes IDs whose jobs expired.
-    - get_for_status_page() keeps fetched job lists in process for one minute, so
+    - get_snapshot() reuses fetched job lists in process for one minute.
     paging does not fetch the same jobs repeatedly.
     """
 
-    STATUS_SNAPSHOT_TTL_SECONDS = 60
-    STATUS_SNAPSHOT_MAX_ENTRIES = 2048
+    SNAPSHOT_TTL_SECONDS = 60
+    SNAPSHOT_MAX_ENTRIES = 2048
 
     def __init__(self, connection: redis.Redis):
         self.connection = connection
-        self._status_page_job_lists: OrderedDict[str, tuple[float, list[Job]]] = (
+        self._job_list_snapshots: OrderedDict[str, tuple[float, list[Job]]] = (
             OrderedDict()
         )
 
@@ -79,7 +79,7 @@ class JobCache:
         )
         self.connection.sadd(index_key, job_id)
         # The Redis index changed, so this worker's fetched list is stale.
-        self._status_page_job_lists.pop(index_key, None)
+        self._job_list_snapshots.pop(index_key, None)
 
     def get(
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
@@ -87,10 +87,10 @@ class JobCache:
         """Fetch current jobs from the Redis ID index."""
         return self._get_jobs(asset_or_sensor_id, queue, asset_or_sensor_type, False)
 
-    def get_for_status_page(
+    def get_snapshot(
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
     ) -> list[Job]:
-        """Reuse a short-lived in-process list for status-page paging."""
+        """Reuse a short-lived in-process job list snapshot."""
         return self._get_jobs(asset_or_sensor_id, queue, asset_or_sensor_type, True)
 
     def _get_jobs(
@@ -98,16 +98,16 @@ class JobCache:
         asset_or_sensor_id: int,
         queue: str,
         asset_or_sensor_type: str,
-        use_status_snapshot: bool,
+        use_snapshot: bool,
     ) -> list[Job]:
         index_key = self._redis_index_key(
             asset_or_sensor_id, queue, asset_or_sensor_type
         )
-        if use_status_snapshot:
-            cached = self._status_page_job_lists.get(index_key)
+        if use_snapshot:
+            cached = self._job_list_snapshots.get(index_key)
             if cached is not None and cached[0] > monotonic():
                 # Keep recently used entries when the cache reaches its size limit.
-                self._status_page_job_lists.move_to_end(index_key)
+                self._job_list_snapshots.move_to_end(index_key)
                 return cached[1]
 
         self._check_redis_connection()
@@ -119,19 +119,19 @@ class JobCache:
         for job_id, job in zip(
             job_ids, Job.fetch_many(job_ids, connection=self.connection)
         ):
-            # remove job from cache if cant be found - was removed by TTL
+            # Remove the ID from the Redis index when its RQ job has expired.
             if job is None:
                 job_ids_to_remove.append(job_id)
                 continue
             jobs.append(job)
         if job_ids_to_remove:
             self.connection.srem(index_key, *job_ids_to_remove)
-        if use_status_snapshot:
-            self._status_page_job_lists[index_key] = (
-                monotonic() + self.STATUS_SNAPSHOT_TTL_SECONDS,
+        if use_snapshot:
+            self._job_list_snapshots[index_key] = (
+                monotonic() + self.SNAPSHOT_TTL_SECONDS,
                 jobs,
             )
-            self._status_page_job_lists.move_to_end(index_key)
-            if len(self._status_page_job_lists) > self.STATUS_SNAPSHOT_MAX_ENTRIES:
-                self._status_page_job_lists.popitem(last=False)
+            self._job_list_snapshots.move_to_end(index_key)
+            if len(self._job_list_snapshots) > self.SNAPSHOT_MAX_ENTRIES:
+                self._job_list_snapshots.popitem(last=False)
         return jobs
