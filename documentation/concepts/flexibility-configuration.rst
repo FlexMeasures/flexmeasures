@@ -89,39 +89,7 @@ Unless stated otherwise, values of such fields can take one of the following for
          "site-consumption-capacity": {"sensor": 55}
      }
 
-  The unit of the data is specified on the sensor.
-
-  A sensor reference can optionally include a source filter, so it keeps pointing at the right data even when multiple sources (e.g. a forecast and a schedule) record beliefs on the same sensor:
-
-  .. code-block:: json
-
-     {
-         "site-consumption-capacity": {"sensor": 55, "source-types": ["forecaster"]}
-     }
-
-  The supported filter keys are:
-
-  - ``source-types`` / ``exclude-source-types``: include or exclude sources by type (e.g. ``"forecaster"``, ``"scheduler"``, ``"user"``). **Recommended** over a specific ``source`` or ``sources`` ID, because forecasters and schedulers are versioned — a version bump gives new data a new source ID, but the source-type stays the same, so filters based on it don't need updating.
-  - ``source-account``: a list of account IDs, to filter by the account(s) linked to data sources. Useful in multi-tenant setups where several accounts run their own forecasters or schedulers.
-  - ``sources``: a list of specific data source IDs.
-  - ``source``: a single specific data source ID.
-
-  This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
-
-  A sensor reference can also clean the readings it points at before the scheduler uses them, with the same ``lower``, ``upper`` and ``snap`` fields a forecaster uses to shape its forecasts.
-  This helps when a sensor records the occasional implausible value, such as a negative reading from a meter that can only measure consumption:
-
-  .. code-block:: json
-
-     {
-         "inflexible-consumption": [{"sensor": 58, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.1 kW"]}}]
-     }
-
-  - ``lower`` / ``upper``: readings below or above these values are clipped to them.
-  - ``snap``: a mapping from a target value to an interval; readings inside the interval are replaced by the target. The first bound of the interval is inclusive and the second exclusive.
-
-  Snapping runs before clipping. Bounds without a unit are read in the unit of the referenced sensor, and bounds with a unit must be convertible to it, which is checked when the flex-model or flex-context is loaded.
-  Values missing from the sensor are left missing, so a ``default`` still fills them.
+  The unit of the data is specified on the sensor. A sensor reference can say more than which sensor to read: see :ref:`sensor_references` below.
 
 A few fields don't hold a single variable quantity, but a *list* of them, whose values add up.
 The ``soc-gain`` and ``soc-usage`` fields of the flex-model work this way, so that separate components (say, two loads draining the same buffer) can be described independently.
@@ -139,6 +107,64 @@ Each component takes any of the forms listed above, so a component defined for s
            ]
        ]
    }
+
+
+.. _sensor_references:
+
+Sensor references
+~~~~~~~~~~~~~~~~~
+
+Besides naming the sensor, a reference can say *which* of its data to read, and what to do when there is none.
+
+A source filter keeps the reference pointing at the right data even when multiple sources (e.g. a forecast and a schedule) record beliefs on the same sensor:
+
+.. code-block:: json
+
+   {
+       "site-consumption-capacity": {"sensor": 55, "source-types": ["forecaster"]}
+   }
+
+The supported filter keys are:
+
+- ``source-types`` / ``exclude-source-types``: include or exclude sources by type (e.g. ``"forecaster"``, ``"scheduler"``, ``"user"``). **Recommended** over a specific ``source`` or ``sources`` ID, because forecasters and schedulers are versioned — a version bump gives new data a new source ID, but the source-type stays the same, so filters based on it don't need updating.
+- ``source-account``: a list of account IDs, to filter by the account(s) linked to data sources. Useful in multi-tenant setups where several accounts run their own forecasters or schedulers.
+- ``sources``: a list of specific data source IDs.
+- ``source``: a single specific data source ID.
+
+This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
+
+A reference can also name a ``default``: a fallback quantity to use for the moments where the sensor holds no value.
+
+.. code-block:: json
+
+   {
+       "site-consumption-capacity": {"sensor": 55, "default": "15 kW"}
+   }
+
+Every time slot the sensor leaves empty is filled with this value, so a sparse sensor becomes densely constrained.
+Take particular care with a fallback of ``0`` on a consumption or production capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device, and enforced strictly.
+
+.. _cleaning_referenced_data:
+
+Cleaning a referenced sensor's readings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A sensor reference can clean the readings it points at before the scheduler uses them.
+This helps when a sensor records the occasional implausible value, such as a negative reading from a meter that can only measure consumption:
+
+.. code-block:: json
+
+   {
+       "inflexible-consumption": [{"sensor": 58, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.1 kW"]}}]
+   }
+
+- ``lower`` / ``upper``: readings below or above these values are clipped to them.
+- ``snap``: a mapping from a target value to an interval; readings inside the interval are replaced by the target. The first bound of the interval is inclusive and the second exclusive.
+
+Snapping runs before clipping. Bounds without a unit are read in the unit of the referenced sensor, and bounds with a unit must be convertible to it, which is checked when the flex-model or flex-context is loaded.
+Values missing from the sensor are left missing, so a ``default`` still fills them.
+
+These are the same three fields a forecaster uses to clean the data it trains on, and to shape the forecasts it writes: see :ref:`cleaning_forecaster_inputs`.
 
 
 .. _flex_context:

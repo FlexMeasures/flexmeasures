@@ -91,6 +91,8 @@ Snapping runs first and clipping runs afterwards, so ``lower``/``upper`` always 
 
 Pass the same object as the API ``config`` payload, or place it in a JSON or YAML file and pass it to ``flexmeasures add forecasts`` with ``--config``.
 
+.. _cleaning_forecaster_inputs:
+
 Cleaning the data a forecaster trains on
 -----------------------------------------
 
@@ -108,22 +110,25 @@ Put the bounds on the sensor reference itself. A bare sensor ID keeps working, a
       ]
     }
 
-The target is named in the forecast parameters rather than the config, so its bounds go there:
+The target sensor is named in the forecast parameters rather than in the config, so its bounds go there, on the reference that names it:
 
 .. code-block:: json
 
     {
-      "sensor": {"sensor": 2092, "upper": "20 kW"}
+      "sensor": {"sensor": 2092, "upper": "20 kW"},
+      "start": "2026-10-01T00:00+02:00"
     }
+
+The outer ``sensor`` is the parameter naming what to forecast; the inner one is the sensor the reference points at.
 
 Each sensor's bounds are read in that sensor's own unit, not the unit of the sensor being forecast, so a regressor recording watts takes its bounds in watts unless you say otherwise.
 Snapping and clipping behave exactly as they do on the output, including the ``[first, second)`` interval rule described above.
 
-Three things are worth knowing before relying on this:
+Bounding runs after missing values are filled, so a value interpolated across a gap is bounded too. [#interpolation]_
 
-- Input bounds and output bounds are configured separately and may disagree. Cleaning the target's training data does not bound the forecast that comes out of it, and vice versa.
-- The bounds are part of the general sensor reference, so a flex-model or flex-context reference takes them too, and the scheduler cleans the readings it takes from that sensor in the same way.
-- Bounding runs **after** missing values are filled, so a value interpolated across a gap is bounded too. It also means an out-of-range reading is still used to interpolate its neighbours before it is itself corrected: given readings of ``10``, ``-9999``, a gap, and ``14`` with ``lower: 0``, the gap interpolates from ``-9999`` and is then clipped to ``0``, rather than filling to roughly ``12``. Where readings are wrong rather than merely out of range, correcting them at the source is still the better fix.
+These three fields belong to the sensor reference itself, rather than to forecasting, so a flex-model or flex-context reference takes them too, and the scheduler cleans what it reads in the same way: see :ref:`cleaning_referenced_data`.
+
+.. [#interpolation] Filling first also means that an out-of-range reading is used to interpolate its neighbours before it is itself corrected. Given readings of ``10``, ``-9999``, a gap, and ``14`` with ``lower: 0``, the gap interpolates from ``-9999`` and is then clipped to ``0``, rather than filling to roughly ``12``. Where readings are wrong rather than merely out of range, correcting them at the source is still the better fix.
 
 Forecasting via the UI
 -----------------------
