@@ -835,7 +835,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   $(document).ready(function () {
     $.fn.dataTable.ext.errMode = 'none';
     // The field labels carry their reference text on an info icon, which Bootstrap only turns into a tooltip once asked.
-    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+    // A tooltip is appended to the body by default, at a z-index far below the one the theme gives a modal,
+    // so one raised from inside a modal is painted behind it. Anchor it to the modal to put it in the same stacking context.
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+      new bootstrap.Tooltip(el, { container: el.closest(".modal") || "body" });
+    });
     $('button[data-bs-toggle="tab"]').on("shown.bs.tab", function () {
       const table = $($(this).attr("data-bs-target")).find("table");
       if ($.fn.dataTable.isDataTable(table)) {
