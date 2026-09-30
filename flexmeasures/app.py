@@ -5,7 +5,6 @@ Starting point of the Flask application.
 from __future__ import annotations
 
 import time
-from copy import copy
 import os
 from pathlib import Path
 from datetime import date
@@ -166,19 +165,15 @@ def create(  # noqa C901
     register_db_at(app)
 
     # Register Forecasters, Reporters and Schedulers
-    from flexmeasures.utils.coding_utils import get_classes_module
+    from flexmeasures.data.models.registry import BUILTIN_DATA_GENERATORS
+    from flexmeasures.utils.coding_utils import load_classes
     from flexmeasures import Forecaster, Reporter, Scheduler
 
-    forecasters = get_classes_module("flexmeasures.data.models", Forecaster)
-    reporters = get_classes_module("flexmeasures.data.models", Reporter)
-    schedulers = get_classes_module("flexmeasures.data.models", Scheduler)
-
-    app.data_generators = dict()
-    app.data_generators["forecaster"] = forecasters
-    app.data_generators["reporter"] = copy(
-        reporters
-    )  # use copy to avoid mutating app.reporters
-    app.data_generators["scheduler"] = schedulers
+    app.data_generators = {
+        "forecaster": load_classes(BUILTIN_DATA_GENERATORS["forecaster"], Forecaster),
+        "reporter": load_classes(BUILTIN_DATA_GENERATORS["reporter"], Reporter),
+        "scheduler": load_classes(BUILTIN_DATA_GENERATORS["scheduler"], Scheduler),
+    }
 
     # add auth policy
 
@@ -210,6 +205,9 @@ def create(  # noqa C901
     from flexmeasures.utils.plugin_utils import register_plugins
 
     app.add_url_rule("/", view_func=root_dispatcher)
+    from flexmeasures.data.automations import initialize_automation_handlers
+
+    initialize_automation_handlers(app)
     register_plugins(app)
 
     # Register the UI

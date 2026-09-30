@@ -16,7 +16,7 @@ from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete, select, or_
+from sqlalchemy import delete, exists, select, or_
 
 from flexmeasures.api.common.responses import (
     request_accepted_for_processing,
@@ -51,7 +51,13 @@ from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.annotations import (
+    AccountAnnotationRelationship,
+    Annotation,
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+    get_or_create_annotation,
+)
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -186,6 +192,37 @@ forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerS
     exclude=EXCLUDED_FORECASTING_FIELDS
     + ["sensor"],
 )
+
+
+class DeleteSensorAnnotationsSchema(Schema):
+    """Schema for the request body of the DELETE /sensors/<id>/annotations endpoint."""
+
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="ID of the data source whose annotations to delete. If not provided, annotations from all sources are deleted.",
+        ),
+    )
+    start = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete annotations starting at or after this datetime (ISO 8601).",
+        ),
+    )
+    until = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete annotations ending at or before this datetime (ISO 8601).",
+        ),
+    )
+
+    @validates_schema
+    def validate_time_window(self, data, **kwargs):
+        """Validate that ``until`` is not before ``start``."""
+        start = data.get("start")
+        until = data.get("until")
+        if start is not None and until is not None and until < start:
+            raise ValidationError({"until": ["'until' must not be before 'start'."]})
 
 
 class DeleteSensorDataSchema(Schema):
@@ -1782,6 +1819,131 @@ class SensorAPI(FlaskView):
 
         return {}, 204
 
+    @route("/<id>/annotations", methods=["DELETE"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @as_json
+    def delete_annotations(
+        self,
+        id: int,
+        sensor: Sensor,
+    ):
+        """
+        .. :quickref: Sensors; Delete sensor annotations
+        ---
+        delete:
+          summary: Delete sensor annotations
+          description: >
+            This endpoint deletes the annotations of a sensor.
+            Optionally, filter by source, start time and/or until time.
+            Only annotations that lie entirely between the start and until times are deleted.
+            An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: ID of the sensor to delete annotations for.
+              required: true
+              schema: SensorId
+          requestBody:
+            required: false
+            content:
+              application/json:
+                schema: DeleteSensorAnnotationsSchema
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      deleted:
+                        type: integer
+                        description: The number of annotations removed from the sensor.
+                  example:
+                    message: Deleted 2 annotations.
+                    deleted: 2
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Sensors
+            - Annotations
+        """
+        try:
+            body = DeleteSensorAnnotationsSchema().load(
+                request.get_json(silent=True) or {}
+            )
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
+        source = body.get("source")
+        start = body.get("start")
+        until = body.get("until")
+
+        query = select(Annotation.id).join(
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        query = query.where(SensorAnnotationRelationship.sensor_id == sensor.id)
+        if source is not None:
+            query = query.where(Annotation.source_id == source.id)
+        if start is not None:
+            query = query.where(Annotation.start >= start)
+        if until is not None:
+            query = query.where(Annotation.end <= until)
+        annotation_ids = db.session.scalars(query).all()
+
+        if annotation_ids:
+            # Unlink the annotations from this sensor, then delete those no longer registered anywhere.
+            db.session.execute(
+                delete(SensorAnnotationRelationship).where(
+                    SensorAnnotationRelationship.sensor_id == sensor.id,
+                    SensorAnnotationRelationship.annotation_id.in_(annotation_ids),
+                )
+            )
+            db.session.execute(
+                delete(Annotation).where(
+                    Annotation.id.in_(annotation_ids),
+                    ~exists().where(
+                        SensorAnnotationRelationship.annotation_id == Annotation.id
+                    ),
+                    ~exists().where(
+                        GenericAssetAnnotationRelationship.annotation_id
+                        == Annotation.id
+                    ),
+                    ~exists().where(
+                        AccountAnnotationRelationship.annotation_id == Annotation.id
+                    ),
+                )
+            )
+            db.session.expire(sensor, ["annotations"])
+
+            audit_message = f"Deleted {len(annotation_ids)} annotation(s) for sensor '{sensor.name}': {sensor.id}"
+            if source is not None:
+                audit_message += f", source: {source.id}"
+            if start is not None:
+                audit_message += f", from: {start}"
+            if until is not None:
+                audit_message += f", until: {until}"
+            AssetAuditLog.add_record(sensor.generic_asset, audit_message)
+        db.session.commit()
+
+        n = len(annotation_ids)
+        return {
+            "message": f"Deleted {n} annotation{'' if n == 1 else 's'}.",
+            "deleted": n,
+        }, 200
+
     @route("/<id>/stats", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_kwargs(
@@ -1903,9 +2065,13 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/status", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="asset_id", required=False, load_default=None)},
+        location="query",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
-    def get_status(self, id, sensor):
+    def get_status(self, id, sensor, asset=None):
         """
         .. :quickref: Data; Get status of sensor data
         ---
@@ -1921,6 +2087,16 @@ class SensorAPI(FlaskView):
               name: id
               description: ID of the sensor to fetch status for.
               schema: SensorId
+            - in: query
+              name: asset_id
+              required: false
+              description: |
+                ID of the asset whose status page the sensor is reported on.
+                This asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.
+                It only affects the reported relation between the sensor and the asset.
+                Defaults to the asset that the sensor belongs to.
+              schema:
+                type: integer
           responses:
             200:
               description: PROCESSED
@@ -1956,7 +2132,9 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
-        status_data = serialize_sensor_status_data(sensor=sensor)
+        if asset is not None:
+            check_access(asset, "read")
+        status_data = serialize_sensor_status_data(sensor=sensor, asset=asset)
 
         return {"sensors_data": status_data}, 200
 

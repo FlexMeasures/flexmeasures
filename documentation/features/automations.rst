@@ -5,6 +5,8 @@ Automations
 
 An **automation** is a recurring task defined on an asset.
 An automation computes forecasts, schedules or reports.
+Plugins can register additional types, such as data ingestion, with their own data generators, validation schemas and worker queues.
+See :ref:`plugin_automation_types` for the plugin contract.
 
 On each run, the automation queues jobs (so make sure a worker is processing the ``forecasting``, ``scheduling`` or ``reporting`` queue, whichever the automation needs, see :ref:`redis-queue`).
 The parameters of the task were stored when the automation was created, and validated with the same schema that the CLI and API use.
@@ -20,7 +22,8 @@ Here is how you create an automation in the CLI, asking for daily (at 6 AM) fore
     flexmeasures add automation --asset 3 --name "Daily PV forecasts" --type forecasting \
         --cron "0 6 * * *" --timezone Europe/Amsterdam --sensor 12
 
-``--type`` says which task to automate (``forecasting``, ``scheduling`` or ``reporting``, matching the queue the jobs go to), and defaults to ``forecasting``.
+``--type`` says which registered task to automate and defaults to ``forecasting``.
+Built-in types are ``forecasting``, ``scheduling`` and ``reporting``; plugin types use the identifiers registered by the plugin.
 The remaining options are the ones the task itself needs: a forecast automation accepts everything `flexmeasures add forecast` accepts, such as ``--forecaster`` to pick the forecaster and ``--config`` to configure it (see :ref:`forecasting`).
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
@@ -139,6 +142,32 @@ And this one schedules the whole of the next day, every day at noon, as for a da
     flexmeasures add automation --asset 3 --name "Day-ahead schedules" --cron "0 12 * * *" --timezone Europe/Amsterdam \
         --type scheduling --start-offset 1D,DB --duration P1D
 
+Plugin-defined automations
+--------------------------
+
+Create a plugin-defined automation with its registered type identifier and JSON or YAML files:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Import site measurements" \
+        --type site-ingestion --cron "*/15 * * * *" --timezone Europe/Amsterdam \
+        --config ingestion-config.yml --parameters ingestion-parameters.yml
+
+The registered handler determines the data generator and worker queue.
+``--data-generator`` can explicitly name the registered generator; ``--source`` reuses an existing generator configuration and cannot be combined with ``--data-generator`` or ``--config``.
+Forecast-specific command-line options do not apply to plugin types.
+Plugin schemas validate configuration and parameters, and unknown fields are rejected.
+Run a worker for the queue declared by the handler, in addition to the automation dispatcher.
+
+The UI lists registered plugin types in their own tabs and shows their parameters, data source, input sensors, output sensors and recent jobs.
+Existing actions, including editing recurrence, activation, deletion and *Run now*, also apply to these automations.
+Creation forms for plugin types are a follow-up: use the CLI or API to create them for now.
+
+API-created automations remember the user who created them.
+The dispatcher and worker recheck that the user is active and can write to the output sensors.
+CLI-created automations run as trusted deployment operations.
+Every output sensor must still belong to the automation's asset or one of its descendants.
+
 .. _automation_reports:
 
 Automating reports
@@ -185,10 +214,43 @@ Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
 Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast, schedule or report.
 
-Each scheduled run receives at most one automatic queueing attempt.
-If the process crashes, or queueing fails after creating some jobs, that run is not retried automatically, because a retry could duplicate partial work.
+Each scheduled run a runner picks up is recorded durably, so a queueing attempt which fails can be retried without duplicating the jobs it already created.
+See :ref:`automation_runs`.
 
 The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
+
+.. _automation_runs:
+
+Runs and retries
+----------------
+
+Every scheduled run a runner picks up gets a record in the database, which outlives the jobs it creates (jobs in Redis expire).
+The runner claims the run before doing any work, and the database allows only one record per automation, scheduled time and schedule revision, so two runners started in the same minute cannot both execute it.
+A claim comes with a lease: while one runner holds a live lease on a run, no other runner touches it, and once that lease expires the run is up for grabs again, which is how a runner that died mid-queueing hands its work over.
+
+Before queueing anything, the runner writes down the plan for the run: the parameters it will use and the individual jobs it intends to create, each with its own logical name and a job ID derived from the run.
+This is what makes a retry safe.
+A run which failed before queueing anything is dispatched again in full.
+A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
+Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
+Timings the automation left to the run time are not part of those parameters, so they are resolved afresh on each attempt: a resumed run's jobs can therefore cover a later window than the ones its first attempt queued.
+
+A dispatch which fails is attempted again, each time after a longer wait, and stops being attempted after five attempts.
+A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
+and the run's record says what went wrong on each attempt.
+
+Retrying a failed dispatch this way is what a forecast run does.
+A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
+
+A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
+A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs are not recorded individually yet.
+
+A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
+Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
+This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
+
+Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
+Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
 
 Running one automation on demand
 --------------------------------
@@ -200,7 +262,7 @@ This is useful to try out a new automation, to re-run one after fixing what made
 
     flexmeasures jobs run-automation --automation 4
 
-The same is available in the API, as `[POST] /assets/(id)/automations/(automation_id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation_id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
 
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
@@ -212,8 +274,18 @@ Viewing automations
 -------------------
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html#get--api-v3_0-assets-id-automations>`_.
-The page shows the next scheduled run for each automation (excluding any pending catch-up run).
-An automation's details show the sensors it reads from and writes to, linking to each sensor's page.
+Automations are usually defined on a sub-asset, so the page lists what runs anywhere below the asset as well, naming the asset each automation belongs to.
+Turn *Include automations of sub-assets* off to see only the automations defined on the asset itself; the choice is remembered for your next visit.
+The API endpoint does the same, and takes ``include-child-assets=false`` to narrow the listing.
+Either way, only the assets you may read are included.
+
+The page shows how far off each automation's next scheduled run is, such as "in 6 minutes" or "tomorrow" (excluding any pending catch-up run).
+Hovering it gives the exact time, read on the automation's own timezone, together with the recurrence it follows.
+Created At reads on that same clock.
+The page brings itself up to date once a minute, so runs and job counts appear without reloading; it holds off while the tab is in the background, or while a panel or menu is open.
+
+An automation's *Info* panel shows the sensors it reads from and writes to, linking to each sensor's page, and the data source it records under, together with the configuration that data source was created with.
+It also summarizes the automation's recent runs and their outcomes (see :ref:`automation_runs`).
 Conversely, a sensor's page lists the automations that write data to it.
 
 .. _automation_cursor:
@@ -230,7 +302,9 @@ Runs at or before the cursor are never queued again.
 Before queueing any jobs, the runner advances the cursor to the run it is about to queue, and saves it.
 The cursor therefore records that a run was claimed, not that queueing or the task itself succeeded.
 
-Keeping a single moving timestamp, rather than a record per run, is what makes the behaviour above fall out: a runner that has been down catches up by moving the cursor straight to the latest due run, and two runners started in the same minute cannot queue the same run twice, because the cursor is advanced with a conditional update that only one of them can win.
+Keeping a single moving timestamp is what makes the catch-up behaviour above fall out: a runner that has been down catches up by moving the cursor straight to the latest due run, rather than replaying every run it missed.
+The cursor also decides who may claim a newly due run, because it is advanced with a conditional update which only one of two runners started in the same minute can win.
+What happened to a run once it is claimed is kept in its own record instead (see :ref:`automation_runs`), which is why the cursor alone says nothing about whether queueing or the task succeeded.
 
 A new automation starts from its creation minute and does not replay runs from before it existed.
 Changing its cron expression or timezone, or reactivating it, restarts from the time of that change.
