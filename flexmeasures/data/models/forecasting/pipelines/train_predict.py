@@ -25,6 +25,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
+from flexmeasures.data.models.forecasting.inputs import resolve_forecast_inputs
 
 
 def _sensor_id(sensor: Sensor | int | None) -> int | None:
@@ -196,6 +197,9 @@ def run_train_predict_cycle_job(
     pipeline._config = _load_job_config_payload(config)
     for key, value in pipeline._config.items():
         setattr(pipeline, key, value)
+    # The config was resolved against the target before this job was queued, and the
+    # parameters name the target as that resolution left it, so this job resolves nothing.
+    pipeline._resolved_config = pipeline._config
     pipeline._parameters = _load_job_parameters_payload(parameters)
     pipeline._data_source = _get_attached_data_source(data_source_id)
     try:
@@ -255,6 +259,26 @@ class TrainPredictPipeline(Forecaster):
             setattr(self, k, v)
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
+        self._resolved_config: dict[str, Any] | None = None
+
+    @property
+    def _run_config(self) -> dict[str, Any]:
+        """The config to run with, as opposed to the one the data source records."""
+        if self._resolved_config is None:
+            self._resolved_config = self._resolve_inputs()
+        return self._resolved_config
+
+    def _resolve_inputs(self) -> dict[str, Any]:
+        """Resolve the config against the sensor being forecast, and hold on to what to run with.
+
+        The config keeps naming ``"auto"`` where it means that sensor, because it is what the data source records.
+        Running needs concrete sensors, and needs the target to carry whatever its config entry says about reading it.
+        """
+        resolved_config, target = resolve_forecast_inputs(
+            self._config, self._target_sensor
+        )
+        self._parameters["sensor"] = target
+        return resolved_config
 
     @property
     def _target_sensor(self) -> Sensor:
@@ -289,8 +313,8 @@ class TrainPredictPipeline(Forecaster):
 
         # Train model
         train_pipeline = TrainPipeline(
-            future_regressors=self._config["future_regressors"],
-            past_regressors=self._config["past_regressors"],
+            future_regressors=self._run_config["future_regressors"],
+            past_regressors=self._run_config["past_regressors"],
             target_sensor=self._parameters["sensor"],
             model_save_dir=self._parameters["model_save_dir"],
             n_steps_to_predict=(predict_start - train_start)
@@ -317,8 +341,8 @@ class TrainPredictPipeline(Forecaster):
         )
         # Make predictions
         predict_pipeline = PredictPipeline(
-            future_regressors=self._config["future_regressors"],
-            past_regressors=self._config["past_regressors"],
+            future_regressors=self._run_config["future_regressors"],
+            past_regressors=self._run_config["past_regressors"],
             target_sensor=self._parameters["sensor"],
             model_path=os.path.join(
                 self._parameters["model_save_dir"],
@@ -428,6 +452,9 @@ class TrainPredictPipeline(Forecaster):
         log_start(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
+        # Resolve before anything reads the target or the regressors, so that the cycles,
+        # the queued payloads and the data source all see the same inputs.
+        self._resolved_config = self._resolve_inputs()
         connection = current_app.queues[queue].connection
         # How much to move forward to the next cycle one prediction period later
         cycle_frequency = max(
@@ -541,7 +568,7 @@ class TrainPredictPipeline(Forecaster):
         so that a retry recognises the jobs it already queued instead of queueing them a second time.
         Outside an automation run there is nothing to retry, so RQ is left to make up the job IDs.
         """
-        job_config = _make_job_config_payload(self._config)
+        job_config = _make_job_config_payload(self._run_config)
         job_parameters = _make_job_parameters_payload(self._parameters)
 
         def rq_job_id_for(logical_job_key: str) -> str | None:

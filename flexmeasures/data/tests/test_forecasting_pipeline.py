@@ -2872,3 +2872,81 @@ def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
     assert len(predictions[0]) == n_horizons
     assert list(predictions[0].time_index) == list(predictions[1].time_index)
     assert np.array_equal(predictions[0].values(), predictions[1].values())
+
+
+def _forecast_pipeline(config: dict, target_sensor) -> TrainPredictPipeline:
+    """A pipeline holding just what resolving its inputs needs."""
+    pipeline = TrainPredictPipeline(config=config)
+    pipeline._parameters = {"sensor": target_sensor}
+    return pipeline
+
+
+def test_an_auto_entry_describes_the_target_instead_of_adding_a_regressor(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """A config entry naming "auto" says how to read the sensor being forecast.
+
+    The model already learns from that sensor, as its labels and its own lags,
+    so the entry says how to read it rather than handing it to the model a second time.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    pipeline = _forecast_pipeline(
+        {
+            "past-regressors": [
+                {
+                    "sensor": "auto",
+                    "lower": "0 kW",
+                    "exclude-source-types": ["scheduler"],
+                },
+                regressor_sensor.id,
+            ]
+        },
+        target_sensor,
+    )
+
+    resolved = pipeline._resolve_inputs()
+
+    assert resolved["past_regressors"] == [regressor_sensor]
+    target = pipeline._parameters["sensor"]
+    assert isinstance(target, SensorReference)
+    assert target.sensor == target_sensor
+    assert target.lower == "0 kW"
+    assert target.exclude_source_types == ["scheduler"]
+
+
+def test_naming_the_target_by_id_describes_it_as_auto_would(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """The entry for the sensor being forecast is the same entry, however it names that sensor."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = _forecast_pipeline(
+        {"past-regressors": [{"sensor": target_sensor.id, "upper": "20 kW"}]},
+        target_sensor,
+    )
+
+    resolved = pipeline._resolve_inputs()
+
+    assert resolved["past_regressors"] == []
+    assert pipeline._parameters["sensor"].upper == "20 kW"
+
+
+def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """Resolving must not write anything into the config of a forecaster that qualifies nothing.
+
+    The config is what identifies a forecaster's data source, so a forecaster that configures no
+    cleaning has to keep recording what it recorded before, and keep its source with it.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    pipeline = _forecast_pipeline(
+        {"past-regressors": [regressor_sensor.id]}, target_sensor
+    )
+    recorded_before = TrainPredictPipelineConfigSchema().dump(pipeline._config)
+
+    pipeline._resolve_inputs()
+
+    assert TrainPredictPipelineConfigSchema().dump(pipeline._config) == recorded_before
+    assert pipeline._parameters["sensor"] == target_sensor
