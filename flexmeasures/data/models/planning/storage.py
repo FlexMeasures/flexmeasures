@@ -2355,6 +2355,10 @@ class MetaStorageScheduler(Scheduler):
             )
 
         beliefs_df = beliefs.reset_index()
+        if isinstance(state_of_charge_sensor, SensorReference):
+            beliefs_df["event_value"] = state_of_charge_sensor.apply_bounds(
+                beliefs_df["event_value"].to_numpy()
+            )
         beliefs_df["time_distance"] = (
             beliefs_df["event_start"] - pd.Timestamp(self.start)
         ).abs()

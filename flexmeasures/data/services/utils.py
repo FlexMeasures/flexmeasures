@@ -11,6 +11,7 @@ import click
 from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
 from rq import Queue
+from redis.exceptions import LockError
 from rq.job import Job, JobStatus, NoSuchJobError
 from sqlalchemy import select
 
@@ -268,6 +269,12 @@ def hash_function_arguments(args, kwags):
     )  # concat two hashes
 
 
+# Seconds after which a job cache lock expires, in case the process holding it dies.
+JOB_CACHE_LOCK_TIMEOUT = 60
+# Seconds to wait for another call with the same arguments to finish creating its job.
+JOB_CACHE_LOCK_BLOCKING_TIMEOUT = 30
+
+
 def job_cache(queue: str):
     """
     To avoid recomputing the same task multiple times, this decorator checks if the function has already been called with the
@@ -300,34 +307,60 @@ def job_cache(queue: str):
             # creating a hash from args and kwargs_for_hash
             args_hash = f"{queue}:{func.__name__}:{hash_function_arguments(args, kwargs_for_hash)}"
 
-            # check the redis connection for whether the key hash exists
-            if connection.exists(args_hash) and not force_new_job_creation:
-                current_app.logger.info(
-                    f"The function {func.__name__} has been called already with the same arguments. Skipping..."
+            # Hold a lock on this hash while checking the cache and creating the job,
+            # so that concurrent calls with the same arguments share one job, rather than each missing the cache and creating their own.
+            lock = connection.lock(
+                f"{args_hash}:lock",
+                timeout=JOB_CACHE_LOCK_TIMEOUT,
+                blocking_timeout=JOB_CACHE_LOCK_BLOCKING_TIMEOUT,
+            )
+            locked = lock.acquire()
+            if not locked:
+                current_app.logger.warning(
+                    f"Timed out waiting for another call to {func.__name__} with the same arguments; creating a job without the lock."
+                )
+            try:
+                # check the redis connection for a cached job ID (a single read, as the key can expire in between two)
+                cached_job_id = (
+                    None if force_new_job_creation else connection.get(args_hash)
+                )
+                if cached_job_id is not None:
+                    current_app.logger.info(
+                        f"The function {func.__name__} has been called already with the same arguments. Skipping..."
+                    )
+
+                    # get job id
+                    job_id = cached_job_id.decode()
+
+                    # check if the job exists and, if it doesn't, skip fetching and generate new job
+                    if Job.exists(job_id, connection=connection):
+                        job = Job.fetch(
+                            job_id, connection=connection
+                        )  # get job object from job id
+
+                        # requeue if failed and requeue flag is true
+                        if job.is_failed and requeue:
+                            job.requeue()
+
+                        return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
+
+                # if the job description is new -> create job
+                job = func(*args, **kwargs)  # create a new job
+
+                # store function call in redis by mapping the hash of the function arguments to its job id
+                connection.set(
+                    args_hash,
+                    job.id,
+                    ex=current_app.config["FLEXMEASURES_JOB_CACHE_TTL"],
                 )
 
-                # get job id
-                job_id = connection.get(args_hash).decode()
-
-                # check if the job exists and, if it doesn't, skip fetching and generate new job
-                if Job.exists(job_id, connection=connection):
-                    job = Job.fetch(
-                        job_id, connection=connection
-                    )  # get job object from job id
-
-                    # requeue if failed and requeue flag is true
-                    if job.is_failed and requeue:
-                        job.requeue()
-
-                    return job  # returning the same job regardless of the status (SUCCESS, FAILED, ...)
-
-            # if the job description is new -> create job
-            job = func(*args, **kwargs)  # create a new job
-
-            # store function call in redis by mapping the hash of the function arguments to its job id
-            connection.set(
-                args_hash, job.id, ex=current_app.config["FLEXMEASURES_JOB_CACHE_TTL"]
-            )
+            finally:
+                if locked:
+                    try:
+                        lock.release()
+                    except LockError:
+                        # The lock expired while creating the job, so it is no longer ours to release.
+                        pass
 
             return job
 
