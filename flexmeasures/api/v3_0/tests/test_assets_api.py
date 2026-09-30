@@ -1860,14 +1860,20 @@ def test_get_asset_chart_with_annotation_layers(
     annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
     subcharts = chart_specs["vconcat"]
     assert len(subcharts) > 0
-    for subchart in subcharts:
+    for row_index, subchart in enumerate(subcharts):
         annotation_layers = [
             layer
             for layer in subchart["layer"]
             if layer.get("data", {}).get("name") == annotations_dataset_name
         ]
-        # band + rule + marker + text layers
-        assert len(annotation_layers) == 4
+        # band, rule, invisible hit area for pointing at the rule, marker and text layers
+        assert [layer["name"] for layer in annotation_layers] == [
+            f"annotation_band_{row_index}",
+            f"annotation_rule_{row_index}",
+            f"annotation_rule_hit_{row_index}",
+            f"annotation_marker_{row_index}",
+            f"annotation_text_{row_index}",
+        ]
     # hover params are unique per subchart, so that hovering one subchart
     # does not darken the annotation bands in the other subcharts
     all_param_names = [

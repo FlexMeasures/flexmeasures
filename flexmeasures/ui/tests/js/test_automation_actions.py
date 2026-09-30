@@ -2,9 +2,11 @@
 
 import json
 import re
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from humanize import naturaldelta
 from jinja2 import Environment, StrictUndefined
 
 TEMPLATE = (
@@ -27,20 +29,20 @@ def automation_script(
     template = TEMPLATE.read_text()
     match = re.search(r"<script>(.*?)</script>", template, re.DOTALL)
     assert match is not None
-    script = (
-        Environment(autoescape=True, undefined=StrictUndefined)
-        .from_string(match.group(1))
-        .render(
-            asset={"id": 3, "child_assets": [object()] if has_children else []},
-            include_child_assets=include_children,
-            user_can_manage_automations=can_manage,
-            user_can_create_children=can_run,
-            automation_types={
-                "forecasting": "Forecasts",
-                "scheduling": "Schedules",
-                "mock-ingestion": "Mock ingestion",
-            },
-        )
+    environment = Environment(autoescape=True, undefined=StrictUndefined)
+    # The page reads a configured value through a filter the app registers, so both are supplied here.
+    environment.filters["naturalized_timedelta"] = naturaldelta
+    script = environment.from_string(match.group(1)).render(
+        asset={"id": 3, "child_assets": [object()] if has_children else []},
+        include_child_assets=include_children,
+        user_can_manage_automations=can_manage,
+        user_can_create_children=can_run,
+        automation_types={
+            "forecasting": "Forecasts",
+            "scheduling": "Schedules",
+            "mock-ingestion": "Mock ingestion",
+        },
+        config={"FLEXMEASURES_JOB_TTL": timedelta(days=7)},
     )
     # An unrendered value would reach the browser as a syntax error, which reads as every check failing at once.
     assert (

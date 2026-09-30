@@ -379,8 +379,8 @@ def device_scheduler_highspy(  # noqa C901
         lower[col_csign : col_csign + C] = 0
         upper[col_csign : col_csign + C] = 1
     if band_pairs:
-        lower[col_band:ncol] = 0
-        upper[col_band:ncol] = 1
+        lower[col_band:col_alpha] = 0
+        upper[col_band:col_alpha] = 1
 
     # Per-subcommitment data: prices (objective), quantities and bounds
     def _price_of(df: pd.DataFrame, column: str) -> float:
@@ -682,7 +682,7 @@ def device_scheduler_highspy(  # noqa C901
     if col_csign is not None:
         integer_cols.append(np.arange(col_csign, col_csign + C, dtype=np.int32))
     if band_pairs:
-        integer_cols.append(np.arange(col_band, ncol, dtype=np.int32))
+        integer_cols.append(np.arange(col_band, col_alpha, dtype=np.int32))
     integer_cols = np.concatenate(integer_cols)
     if len(integer_cols) > 0:
         h.changeColsIntegrality(
