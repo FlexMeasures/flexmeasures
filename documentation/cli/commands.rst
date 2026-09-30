@@ -121,6 +121,7 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
 ``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
+``flexmeasures jobs check-source-references``     List waiting jobs that refer to a data source which no longer exists, or which a database upgrade will merge.
 ``flexmeasures jobs run-automations``             Handle due and missed forecast automation runs (invoke once per minute, e.g. via cron).
 ================================================= =======================================
 

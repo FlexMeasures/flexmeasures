@@ -474,6 +474,23 @@ def test_get_data_source_recovers_from_losing_the_race(db, app, monkeypatch):
     assert source.id == existing.id
 
 
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ({"consumption-price": {"sensor": 1, "sources": [3, 4]}}, {3, 4}),
+        ([{"sensor": 1, "source": 5}, {"sensor": 2, "user_source_ids": [6]}], {5, 6}),
+        # a "source" key only holds a source ID next to a "sensor" key
+        ({"source": 7}, set()),
+        ({"sensor": 1, "sources": [True, "8"]}, set()),
+        ({"nested": [{"deeper": {"sensor": 1, "sources": [9]}}]}, {9}),
+    ],
+)
+def test_find_referenced_source_ids(value, expected):
+    from flexmeasures.data.services.data_sources import find_referenced_source_ids
+
+    assert find_referenced_source_ids(value) == expected
+
+
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
     """Both Sensor.data_sources and DataSource.sensors must stay fast on large tables.
 

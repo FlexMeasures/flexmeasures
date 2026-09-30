@@ -160,3 +160,45 @@ def test_run_job_errors_on_a_missing_job(app, clean_job_redis):
     )
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_check_source_references(app, db, clean_job_redis, monkeypatch):
+    """Waiting jobs referring to a data source that does not exist, or that a database upgrade will merge, are listed; other jobs are not."""
+    from datetime import timedelta
+
+    from flexmeasures.cli import jobs as jobs_cli
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    runner = app.test_cli_runner()
+
+    with app.app_context():
+        existing_id = get_or_create_source(
+            "test-referenced-source", source_type="scheduler"
+        ).id
+        db.session.commit()
+        missing_id = existing_id + 1000
+
+        def flex_context(source_ids: list[int]) -> dict:
+            return {"consumption-price": {"sensor": 1, "sources": source_ids}}
+
+        queue = app.queues["scheduling"]
+        job_missing = queue.enqueue(print, flex_context=flex_context([missing_id]))
+        job_existing = queue.enqueue_in(
+            timedelta(hours=1), print, flex_context=flex_context([existing_id])
+        )
+        job_without_sources = queue.enqueue(print, flex_context={})
+
+    result = runner.invoke(jobs_cli.fm_jobs, ["check-source-references"])
+    assert result.exit_code == 0, result.output
+    assert job_missing.id in result.output
+    assert "does not exist" in result.output
+    assert job_existing.id not in result.output
+    assert job_without_sources.id not in result.output
+
+    # Before a database upgrade merges duplicates, a reference to a duplicate is listed, too.
+    monkeypatch.setattr(jobs_cli, "find_duplicate_sources", lambda: {existing_id: 1})
+    result = runner.invoke(jobs_cli.fm_jobs, ["check-source-references"])
+    assert result.exit_code == 0, result.output
+    assert job_existing.id in result.output
+    assert "will be merged into data source 1" in result.output
+    assert job_without_sources.id not in result.output

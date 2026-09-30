@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 
 from flask import current_app
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from typing import Type, TypeVar
 
 from flexmeasures import Account, Source, User
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_IDENTITY_EXPRESSIONS,
     DATA_SOURCE_UNIQUE_INDEX,
     DataSource,
     DataGenerator,
@@ -97,6 +98,53 @@ def add_and_flush_source(source: DataSource, query) -> DataSource:
             raise
         return winner
     return source
+
+
+# Keys holding a list of source IDs, such as the sources a sensor reference filters on.
+SOURCE_ID_LIST_KEYS = ("sources", "user_source_ids")
+# The key holding a single source ID, next to a "sensor" key (as in reporter inputs).
+SOURCE_ID_KEY = "source"
+
+
+def find_referenced_source_ids(value) -> set[int]:
+    """Find the data source IDs referred to in a JSON-like value, such as the arguments of a job.
+
+    Source IDs are recognised under the keys that hold them in sensor references and reporter inputs.
+    """
+    found: set[int] = set()
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            found |= find_referenced_source_ids(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if key in SOURCE_ID_LIST_KEYS and isinstance(item, list):
+                found |= {i for i in item if _is_id(i)}
+            elif key == SOURCE_ID_KEY and "sensor" in value and _is_id(item):
+                found.add(item)
+            else:
+                found |= find_referenced_source_ids(item)
+    return found
+
+
+def _is_id(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def find_duplicate_sources() -> dict[int, int]:
+    """Find data sources identical to an older one, as the unique index on data sources defines them.
+
+    Such duplicates can only exist in a database that predates that index, whose migration merges each one into the oldest.
+
+    :returns: the ID of each duplicate data source, mapped to the ID of the oldest data source identical to it
+    """
+    duplicates = db.session.execute(text(f"""
+            SELECT duplicate, keep FROM (
+                SELECT id AS duplicate, min(id) OVER (PARTITION BY {', '.join(DATA_SOURCE_IDENTITY_EXPRESSIONS)}) AS keep
+                FROM data_source
+            ) AS grouped
+            WHERE duplicate <> keep
+            """)).all()
+    return dict(duplicates)
 
 
 def get_source_or_none(

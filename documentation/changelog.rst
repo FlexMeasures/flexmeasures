@@ -14,9 +14,12 @@ v1.1.0 | September XX, 2026
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
 
-.. warning:: FlexMeasures now requires PostgreSQL 15 or newer, because the database refuses duplicate data sources using PostgreSQL's ``NULLS NOT DISTINCT``.
-             Before that, the migration merges any identical data sources into the oldest one, moving over their beliefs, annotations and other references.
-             Where both hold the same belief, the oldest source's belief is kept, and the migration reports how many beliefs it dropped per merged source [see `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_].
+.. warning:: This version's database upgrade merges identical data sources into the oldest one, as the database now refuses duplicate data sources.
+             Data sources used to be duplicated when identical scheduling requests arrived at the same moment, or when several workers computed their first schedules at once.
+             A merge moves over the beliefs, annotations and other references of each duplicate, and where both hold the same belief, keeps the oldest source's one.
+             Stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, are pointed at the source they were merged into, too.
+             Jobs waiting in Redis cannot be updated this way, and fail if they refer to a merged data source, so run ``flexmeasures jobs check-source-references`` *before* upgrading, to let the jobs it lists finish, or to cancel them.
+             The upgrade prints which data sources it merged, so users referring to one by ID (for instance in API calls) can switch to the ID it was merged into [see `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_]
 
 New features
 -------------

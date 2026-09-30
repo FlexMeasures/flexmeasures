@@ -10,6 +10,7 @@ so that sources differing only in type are not merged.
 
 Where source IDs are stored in JSON (such as the sources a sensor reference in a flex-context filters on),
 references to a merged source are pointed at the source it was merged into.
+Jobs waiting in Redis cannot be updated this way; ``flexmeasures jobs check-source-references`` lists them.
 
 Revision ID: 7c4e1a9d2b58
 Revises: b63a02d5e184
@@ -94,7 +95,9 @@ def upgrade():
             + ", ".join(
                 f"{duplicate} into {keep}" for duplicate, keep in sorted(merged.items())
             )
-            + ". Users referring to a merged data source by ID (for instance in API calls) should use the ID it was merged into."
+            + ". Jobs waiting in Redis may still refer to the merged data sources by ID, and would then fail. "
+            "List them with `flexmeasures jobs check-source-references`. "
+            "Users referring to a merged data source by ID (for instance in API calls) should use the ID it was merged into."
         )
 
 
