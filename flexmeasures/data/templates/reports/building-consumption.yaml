@@ -1,0 +1,34 @@
+# Prepared report template: building consumption.
+#
+# Adds up the power (or energy) recorded by several sensors into one site total,
+# using the AggregatorReporter.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: building-consumption
+description: Total consumption of a site, summed from several power or energy sensors.
+reporter: AggregatorReporter
+config:
+  # Combine the input sensors event by event, by summing them.
+  method: sum
+  # Optionally, weigh an input by its name, for example to subtract on-site production:
+  # weights:
+  #   solar: -1.0
+parameters:
+  input:
+    # The sensors to add up, all recording the same unit.
+    # Name them as you like (a weight in the config refers to a sensor by its name here),
+    # and add or remove entries to match your site.
+    - name: part-1
+      sensor: FILL_IN
+    - name: part-2
+      sensor: FILL_IN
+  output:
+    # The sensor to store the report; it should record the same unit as the input sensors.
+    - sensor: FILL_IN
+  # The inputs are summed event by event, so they are all read at this resolution,
+  # which should be the event resolution of the output sensor.
+  resolution: PT15M
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: -1D,DB
+  end-offset: DB
