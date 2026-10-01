@@ -552,3 +552,90 @@ def test_keep_latest_version_equivalence():
             pd.testing.assert_frame_equal(
                 pd.DataFrame(result), pd.DataFrame(expected), check_like=False
             )
+
+
+def test_two_organisations_running_the_same_generator_get_their_own_source(
+    db, setup_accounts
+):
+    """The organisation is part of what identifies a source, so an identical configuration does not put two organisations on one row."""
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    prosumer = setup_accounts["Prosumer"]
+    supplier = setup_accounts["Supplier"]
+    identical = dict(
+        source="Seita",
+        source_type="forecaster",
+        model="TrainPredictPipeline",
+        version="1",
+        attributes={"data_generator": {"config": {"model": "CustomLGBM"}}},
+    )
+
+    for_prosumer = get_or_create_source(**identical, account=prosumer)
+    for_supplier = get_or_create_source(**identical, account=supplier)
+    for_nobody = get_or_create_source(**identical)
+
+    assert for_prosumer.id != for_supplier.id
+    assert for_prosumer.account_id == prosumer.id
+    assert for_supplier.account_id == supplier.id
+    # Naming no organisation asks for the host's own source, rather than for whichever source happens to match otherwise.
+    assert for_nobody.id not in (for_prosumer.id, for_supplier.id)
+    assert for_nobody.account_id is None
+    # Asking again finds the same ones back.
+    assert get_or_create_source(**identical, account=prosumer).id == for_prosumer.id
+    assert get_or_create_source(**identical).id == for_nobody.id
+
+
+def test_a_generator_records_under_the_organisation_it_is_told_it_computes_for(
+    db, app, setup_accounts, test_reporter
+):
+    """A data generator told which organisation it computes for records under that organisation's own source."""
+    prosumer = setup_accounts["Prosumer"]
+    reporter = app.data_generators["reporter"]["TestReporter"](config=dict(a="told"))
+
+    assert reporter.source_account is None, "nothing to go by before it is told or run"
+    reporter.set_source_account(prosumer)
+
+    assert reporter.data_source.account_id == prosumer.id
+
+
+def test_a_public_output_sensor_does_not_dilute_which_organisation_a_generator_records_for(
+    db, app, setup_accounts, setup_generic_asset_types, test_reporter, monkeypatch
+):
+    """Writing to a public asset does not make a generator the host's, so it does not make the organisation ambiguous either.
+
+    The migration fills such a source with the single organisation it wrote for, and the running code has to agree,
+    or the next run would create an unowned source beside the one the migration just coupled.
+    """
+    prosumer = setup_accounts["Prosumer"]
+    owned_asset = GenericAsset(
+        name="owned site for dilution check",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        account_id=prosumer.id,
+    )
+    public_asset = GenericAsset(
+        name="public site for dilution check",
+        generic_asset_type=setup_generic_asset_types["battery"],
+    )
+    db.session.add_all([owned_asset, public_asset])
+    db.session.flush()
+    sensors = []
+    for asset in (owned_asset, public_asset):
+        sensor = Sensor(
+            name=f"{asset.name} output",
+            generic_asset=asset,
+            event_resolution=timedelta(hours=1),
+        )
+        db.session.add(sensor)
+        sensors.append(sensor)
+    db.session.flush()
+
+    reporter_class = app.data_generators["reporter"]["TestReporter"]
+    reporter = reporter_class(config=dict(a="dilution"))
+    monkeypatch.setattr(
+        reporter_class, "output_sensors", property(lambda self: sensors)
+    )
+
+    assert (
+        reporter.source_account == prosumer
+    ), "the public sensor is passed over, not counted"
+    assert reporter.data_source.account_id == prosumer.id

@@ -36,12 +36,22 @@ def get_or_create_source(
         query = query.filter(
             DataSource.attributes_hash == DataSource.hash_attributes(attributes)
         )
-    if account is not None:
-        query = query.filter(DataSource.account == account)
     if is_user(source):
+        # A user's source takes its organisation from the user, so the user alone identifies it.
         query = query.filter(DataSource.user == source)
     elif isinstance(source, str):
-        query = query.filter(DataSource.name == source)
+        # The organisation is part of what identifies a source, including when there is none:
+        # two organisations running the same data generator under the same configuration each record under their own source,
+        # rather than sharing one because their configurations happen to hash alike.
+        # Naming no organisation therefore looks for a source that belongs to none, which is what the host's own sources look like.
+        query = query.filter(
+            DataSource.name == source,
+            (
+                DataSource.account_id.is_(None)
+                if account is None
+                else DataSource.account == account
+            ),
+        )
     else:
         raise TypeError("source should be of type User or str")
     # Concurrent calls can each insert the same source, because the unique constraint treats NULL user and account IDs as distinct.
