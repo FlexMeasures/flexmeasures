@@ -29,9 +29,12 @@ The forecaster and its configuration are stored on a data source, so you can als
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
 
 The API takes the same choice as the ``source`` field of `[POST] /assets/(id)/automations <../api/v3_0.html#post--api-v3_0-assets-id-automations>`_, which cannot be combined with ``data-generator`` or ``config``.
-In the UI, the asset's *Automations* page searches the data sources you may read, by id, by name and by data generator class, and shows the configuration the picked one stores before you create the automation.
-A data source is only yours to name if it is yours to read.
-Reusing one means the results of both automations are recorded under the same source, so they share one lineage of data.
+In the UI, the asset's *Automations* page searches the data sources you may work with, by id, by name and by data generator class, and shows the configuration the picked one stores before you create the automation.
+A data source is yours to work with when it belongs to your organisation, or when an automation you may read already computes under it, which is how a source becomes yours before it has recorded anything.
+Those are the sources you may name, and the only ones whose stored configuration you are shown.
+Reading a data source is allowed more widely: one that has recorded data on a sensor you may read answers the question of what computed a number you can see.
+A source you reach only that way hands over no configuration, because a data generator's configuration names the sensors it runs on, which may be sensors you cannot see at all.
+Reusing a source means the results of both automations are recorded under it, so they share one lineage of data.
 A schedule automation cannot name a data source, because it works its own out on every run, as described under `Automating schedules`_.
 
 The recurrence is defined by a standard five-field cron string (minute, hour, day of month, month, and day of week), which defaults to ``"0 0 * * *"`` (daily at midnight).
