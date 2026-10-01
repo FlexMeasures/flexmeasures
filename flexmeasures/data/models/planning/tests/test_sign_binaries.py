@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pandas as pd
+import pytest
 
 from flexmeasures.data.models.planning import FlowCommitment
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
@@ -131,7 +132,14 @@ def test_another_commitments_prices_do_not_mask_a_non_convex_commitment(
         monkeypatch,
     )
     assert results.solver.termination_condition == "optimal"
-    assert hasattr(model, "commitment_up_derivative_sign_con")
+    # These two constrain the solver identically, so one carries the pair on their summed prices,
+    # and the pair needs no sign variables: the problem stays a linear program.
+    # What this test guards is the termination condition: before the per-commitment check it was infeasibleOrUnbounded.
+    assert not hasattr(model, "commitment_up_derivative_sign_con")
+    n_steps = len(initialize_df(COLUMNS, START, END, RESOLUTION).index)
+    assert (
+        len(model.c) == n_steps
+    ), "the duplicate sub-commitments are gone, one per time step remains"
 
 
 def test_commitments_that_are_each_convex_need_no_sign_constraints(app, monkeypatch):
@@ -183,3 +191,123 @@ def test_a_commitment_penalising_any_deviation_is_checked_on_its_split_halves(
     results, model = solve_against([rewarded], app, monkeypatch)
     assert results.solver.termination_condition == "optimal"
     assert hasattr(model, "commitment_up_derivative_sign_con")
+
+
+def test_commitments_with_different_baselines_are_not_interchangeable(app, monkeypatch):
+    """Two commitments constrain the solver identically only if they also agree on the position they deviate from.
+
+    Give them different baselines and they are no longer interchangeable, so neither can be carried by the other's prices,
+    and the one that is not convex on its own needs the sign variables to stay bounded.
+    """
+    index = initialize_df(COLUMNS, START, END, RESOLUTION).index
+    rewarded = make_commitment("rewarded downwards", index, upwards=0, downwards=50)
+    expensive = FlowCommitment(
+        name="expensive upwards, elsewhere",
+        quantity=0.1,
+        upwards_deviation_price=100,
+        downwards_deviation_price=0,
+        index=index,
+    )
+    results, model = solve_against([rewarded, expensive], app, monkeypatch)
+
+    assert results.solver.termination_condition == "optimal"
+    assert not hasattr(
+        model, "commitment_upwards_tie"
+    ), "different baselines are not interchangeable, so nothing is merged"
+    assert hasattr(model, "commitment_up_derivative_sign_con")
+
+
+def test_an_already_convex_pair_is_left_unmerged(app, monkeypatch):
+    """Merging buys nothing where every member is convex on its own, so the model is left exactly as it was.
+
+    This is what keeps the change confined to the problems that would otherwise need sign variables.
+    """
+    index = initialize_df(COLUMNS, START, END, RESOLUTION).index
+    results, model = solve_against(
+        [
+            make_commitment("penalised both ways", index, upwards=10, downwards=-10),
+            make_commitment("penalised upwards", index, upwards=20, downwards=0),
+        ],
+        app,
+        monkeypatch,
+    )
+
+    n_steps = len(initialize_df(COLUMNS, START, END, RESOLUTION).index)
+    assert results.solver.termination_condition == "optimal"
+    assert len(model.c) == 2 * n_steps, "an already convex pair is left alone"
+    assert not hasattr(model, "commitment_up_derivative_sign_con")
+
+
+def test_merging_changes_the_model_but_not_the_answer(app, monkeypatch):
+    """The merged linear program and the sign-variable mixed-integer program agree, per commitment and per device.
+
+    This is what makes merging safe to do silently. The merged sub-commitment is priced on the group's summed prices,
+    and each member's share of the realised cost is worked out again from its own prices against the deviation they share,
+    which is exact rather than apportioned, because that deviation is one and the same for all of them.
+    Costs are reported alongside the commitments themselves, so a member losing its line would mis-label every line after it.
+    """
+    from flexmeasures.data.models.planning import scheduling_problem
+
+    index = initialize_df(COLUMNS, START, END, RESOLUTION).index
+
+    def solve():
+        return solve_against(
+            [
+                make_commitment("rewarded downwards", index, upwards=0, downwards=50),
+                make_commitment("expensive upwards", index, upwards=100, downwards=0),
+            ],
+            app,
+            monkeypatch,
+        )
+
+    merged_results, merged_model = solve()
+    merged_power, merged_costs = device_scheduler(
+        device_constraints=[make_device_constraints(one_way=False)],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            make_commitment("rewarded downwards", index, upwards=0, downwards=50),
+            make_commitment("expensive upwards", index, upwards=100, downwards=0),
+        ],
+    )[:2]
+
+    # Now leave the duplicates in place, which leaves the sign variables to keep the pair bounded.
+    monkeypatch.setattr(
+        scheduling_problem, "interchangeable_subcommitments", lambda *a, **k: []
+    )
+    unmerged_results, unmerged_model = solve()
+    unmerged_power, unmerged_costs = device_scheduler(
+        device_constraints=[make_device_constraints(one_way=False)],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            make_commitment("rewarded downwards", index, upwards=0, downwards=50),
+            make_commitment("expensive upwards", index, upwards=100, downwards=0),
+        ],
+    )[:2]
+
+    assert merged_results.solver.termination_condition == "optimal"
+    assert unmerged_results.solver.termination_condition == "optimal"
+    assert not hasattr(
+        merged_model, "commitment_up_derivative_sign_con"
+    ), "merged: a linear program"
+    assert hasattr(
+        unmerged_model, "commitment_up_derivative_sign_con"
+    ), "untied: a mixed-integer program"
+
+    # Every commitment keeps its own cost line, in order, whatever was merged into what:
+    # costs are read off alongside the commitments themselves, so a lost line would mis-label every line after it.
+    assert list(merged_model.commitment_costs.keys()) == list(
+        unmerged_model.commitment_costs.keys()
+    )
+    assert merged_model.commitment_costs == pytest.approx(
+        unmerged_model.commitment_costs
+    )
+    for merged_device, unmerged_device in zip(merged_power, unmerged_power):
+        assert list(merged_device) == pytest.approx(list(unmerged_device))
+    assert _sum_costs(merged_costs) == pytest.approx(_sum_costs(unmerged_costs))
+
+
+def _sum_costs(costs) -> float:
+    """Total of whatever shape the scheduler reports its costs in."""
+    if isinstance(costs, dict):
+        return float(sum(float(pd.Series(v).sum()) for v in costs.values()))
+    return float(pd.Series(costs).sum())

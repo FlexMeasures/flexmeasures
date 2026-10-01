@@ -272,6 +272,7 @@ def device_scheduler_highspy(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
+    merged_constituents = problem.merged_constituents
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     coupling_device_specs = problem.coupling_device_specs
@@ -739,8 +740,14 @@ def device_scheduler_highspy(  # noqa C901
 
     planned_power = planned_power_per_device(ems_values, start, end, resolution)
 
+    # A merged sub-commitment stands for several commitments, so its cost is shared out
+    # by their own prices against the deviation they share.
+    deviations = {
+        c: (float(col_value[col_cup + c]), float(col_value[col_cdown + c]))
+        for c in range(C)
+    }
     model.commitment_costs = aggregate_subcommitment_costs(
-        subcommitment_costs, commitment_mapping
+        subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
     model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
     model.costs = planned_costs

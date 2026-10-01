@@ -273,6 +273,7 @@ def device_scheduler(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
+    merged_constituents = problem.merged_constituents
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     _initial_stock_of = problem.initial_stock_of
@@ -822,8 +823,17 @@ def device_scheduler(  # noqa C901
         resolution,
     )
 
+    # A merged sub-commitment stands for several commitments, so its cost is shared out
+    # by their own prices against the deviation they share.
+    deviations = {
+        c: (
+            value(model.commitment_upwards_deviation[c]),
+            value(model.commitment_downwards_deviation[c]),
+        )
+        for c in model.c
+    }
     model.commitment_costs = aggregate_subcommitment_costs(
-        subcommitment_costs, commitment_mapping
+        subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
     model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
 
