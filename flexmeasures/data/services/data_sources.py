@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 
 from flask import current_app
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.sql import ColumnElement
 from typing import Type, TypeVar
 
 from flexmeasures import Account, Source, User
@@ -158,15 +159,113 @@ def get_readable_source_account_ids() -> list[int] | None:
     return readable_ids
 
 
-def user_may_read_source(source: DataSource) -> bool:
-    """Whether the current user may read the given data source.
+def _readable_asset_condition(readable_account_ids: list[int]) -> ColumnElement[bool]:
+    """The assets the current user may read, as the asset's own access rules spell it out:
+    those of an organisation they may read, and public ones, which every logged-in user may read.
+    """
+    from flexmeasures.data.models.generic_assets import GenericAsset
 
-    A source belonging to one of the user's own accounts is readable, and so is a system source,
-    which is one that names neither an account nor a user.
+    return or_(
+        GenericAsset.account_id.in_(readable_account_ids),
+        GenericAsset.account_id.is_(None),
+    )
+
+
+def _usable_source_conditions(
+    readable_account_ids: list[int],
+) -> list[ColumnElement[bool]]:
+    """The two conditions under which a data source is the current user's to work with.
+
+    A source is theirs when it belongs to an organisation they may read,
+    and theirs by proxy when an automation they may read computes under it,
+    which is how a source they set up becomes theirs before it has recorded anything.
+    """
+    from flexmeasures.data.models.automations import Automation
+    from flexmeasures.data.models.generic_assets import GenericAsset
+
+    return [
+        DataSource.account_id.in_(readable_account_ids),
+        select(1)
+        .select_from(Automation)
+        .join(GenericAsset, Automation.asset_id == GenericAsset.id)
+        .where(
+            Automation.generator_id == DataSource.id,
+            _readable_asset_condition(readable_account_ids),
+        )
+        .exists(),
+    ]
+
+
+def usable_source_filter() -> ColumnElement[bool] | None:
+    """A condition selecting the data sources which are the current user's to work with.
+
+    These are the sources they may reuse for an automation of their own, and the ones whose stored configuration they may read,
+    which is a stronger thing to be allowed than reading what a source has computed: see `readable_source_filter`.
+
+    Returns None to say that every source qualifies, which is what admin access amounts to.
     """
     readable_account_ids = get_readable_source_account_ids()
     if readable_account_ids is None:
+        return None
+    return or_(*_usable_source_conditions(readable_account_ids))
+
+
+def readable_source_filter() -> ColumnElement[bool] | None:
+    """A condition selecting the data sources the current user may read.
+
+    On top of the sources which are theirs to work with (see `usable_source_filter`),
+    this covers the sources which have recorded data on a sensor they may read,
+    because "what computed this number?" is a fair question about data one is allowed to see.
+
+    Returns None to say that every source is readable, which is what admin access amounts to.
+    """
+    from flexmeasures.data.models.data_sources import SensorDataSource
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.models.time_series import Sensor
+
+    readable_account_ids = get_readable_source_account_ids()
+    if readable_account_ids is None:
+        return None
+    return or_(
+        *_usable_source_conditions(readable_account_ids),
+        select(1)
+        .select_from(SensorDataSource)
+        .join(Sensor, SensorDataSource.sensor_id == Sensor.id)
+        .join(GenericAsset, Sensor.generic_asset_id == GenericAsset.id)
+        .where(
+            SensorDataSource.source_id == DataSource.id,
+            _readable_asset_condition(readable_account_ids),
+        )
+        .exists(),
+    )
+
+
+def _source_matches(source: DataSource, condition: ColumnElement[bool] | None) -> bool:
+    """Whether the given source is one of those the condition selects."""
+    if condition is None:
         return True
-    if source.account_id in readable_account_ids:
-        return True
-    return source.account_id is None and source.user_id is None
+    return bool(
+        db.session.scalar(
+            select(
+                select(DataSource.id)
+                .where(DataSource.id == source.id, condition)
+                .exists()
+            )
+        )
+    )
+
+
+def user_may_read_source(source: DataSource) -> bool:
+    """Whether the current user may read the given data source.
+
+    See `readable_source_filter` for what makes a source readable.
+    """
+    return _source_matches(source, readable_source_filter())
+
+
+def user_may_use_source(source: DataSource) -> bool:
+    """Whether the given data source is the current user's to work with.
+
+    See `usable_source_filter` for what that means, and why it is a stronger thing to be allowed than reading the source.
+    """
+    return _source_matches(source, usable_source_filter())

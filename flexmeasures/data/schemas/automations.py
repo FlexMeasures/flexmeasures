@@ -124,6 +124,9 @@ class AutomationCreationSchema(Schema):
     )
     source = DataSourceIdField(
         required=False,
+        # Leaving the source out and sending a null one both mean that the automation sets up its own data generator,
+        # which is what a client sends when it fills in the rest of the form and leaves the source field empty.
+        allow_none=True,
         metadata={
             "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
             "example": 6,

@@ -414,6 +414,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     if (searchTerm) {
       parameters.append("filter", searchTerm);
     }
+    // One more source than the list shows, which is what tells the list that there are more to narrow down to,
+    // and which keeps a search on an instance with many sources from sending all of them to the browser.
+    parameters.append("limit", String(MAX_SOURCE_RESULTS + 1));
     return `/api/v3_0/sources?${parameters.toString()}`;
   }
 
@@ -431,8 +434,9 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       </button>`
     );
     if (sources.length > MAX_SOURCE_RESULTS) {
+      // The search asks for one source more than it shows, so this says that there are more, not how many.
       items.push(
-        `<div class="list-group-item text-muted">${sources.length - MAX_SOURCE_RESULTS} more match; narrow the search to see them.</div>`
+        '<div class="list-group-item text-muted">More data sources match; narrow the search to see them.</div>'
       );
     }
     return items.join("");
@@ -1143,6 +1147,10 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
     $("#automationSourceClear").on("click", () => clearSelectedSource());
 
+    // A source picked and then left behind by closing the form would still disable the generator fields when the form is opened again,
+    // with nothing on screen to say why, so the form opens on a clean slate.
+    $("#newAutomationModal").on("hidden.bs.modal", () => clearSelectedSource());
+
     // Read a JSON textarea, reporting where it is malformed rather than failing silently.
     function readJsonField(selector, label) {
       const text = $(selector).val().trim();
@@ -1182,8 +1190,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       if (reusesSource) {
         automationData.source = selectedAutomationSource.id;
       } else {
-        // Read from the gated values, so a schedule automation sends no generator
-        // left behind in the hidden fields by an earlier choice of type.
+        // Read from the gated values, so a schedule automation sends no generator left behind in the hidden fields by an earlier choice of type.
         automationData["data-generator"] = generator || null;
         automationData.config = config;
       }
