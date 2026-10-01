@@ -57,7 +57,7 @@ Infrastructure / Support
 * Durations for Flask-Security, such as ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``, can now also be given as an ISO 8601 duration (e.g. ``"P1W"``), and in weeks (e.g. ``"1 week"``) on any version of Flask-Security [see `PR #2596 <https://www.github.com/FlexMeasures/flexmeasures/pull/2596>`_]
 * Logging out now takes a POST request, so that another site cannot log users out by linking to ``/logout``; the UI's *Log out* button submits a form, and plugins that link to ``/logout`` should do the same [see `PR #2604 <https://www.github.com/FlexMeasures/flexmeasures/pull/2604>`_]
 * ``uv run poe clean-db`` now hands the database it creates to the ``--db-user``, so that setting up a development database also works on PostgreSQL 15 and newer, where only a database's owner may create tables in its ``public`` schema [see `PR #2590 <https://www.github.com/FlexMeasures/flexmeasures/pull/2590>`_]
-* Speed up forecasting jobs by filling the gaps in each sensor's data with pandas, instead of converting to a Darts ``TimeSeries`` for every simulated forecast step, which was most of the time spent preparing a forecast's inputs; the results are unchanged [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Speed up forecasting jobs by filling the gaps in each sensor's data with pandas, instead of converting to a Darts ``TimeSeries`` for every simulated forecast step, which was most of the time spent preparing a forecast's inputs; the results are unchanged [see `PR #2640 <https://www.github.com/FlexMeasures/flexmeasures/pull/2640>`_]
 
 Bugfixes
 -----------
