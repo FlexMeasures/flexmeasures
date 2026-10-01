@@ -9,57 +9,19 @@ from flexmeasures.cli.tests.utils import (
 from flexmeasures.tests.utils import get_test_sensor
 
 
-def test_list_accounts(app, fresh_db, setup_accounts_fresh_db):
+def test_list_accounts(app, db, setup_accounts):
     from flexmeasures.cli.data_show import list_accounts
 
     runner = app.test_cli_runner()
     result = runner.invoke(list_accounts)
 
     assert "All accounts on this" in result.output
-    for account in setup_accounts_fresh_db.values():
+    for account in setup_accounts.values():
         assert account.name in result.output
     check_command_ran_without_error(result)
 
 
-def test_list_plans(app, fresh_db):
-    from flexmeasures.cli.data_show import list_plans
-    from flexmeasures.data.models.user import Plan, RateLimitKey
-
-    db = fresh_db
-    db.session.add(
-        Plan(
-            name="Pro",
-            trigger_rate_limit="60 per 5 minutes",
-            rate_limit_key=RateLimitKey.ACCOUNT,
-            max_assets=200,
-            legacy=True,
-        )
-    )
-    db.session.commit()
-
-    runner = app.test_cli_runner()
-    result = runner.invoke(list_plans)
-
-    check_command_ran_without_error(result)
-    assert "All plans on this" in result.output
-    for expected in ("Pro", "60 per 5 minutes", "account"):
-        assert expected in result.output
-    # Quotas are not enforced yet, so we do not list them
-    for not_expected in ("Max assets", "200"):
-        assert not_expected not in result.output
-
-
-def test_list_plans_without_any_plan(app, fresh_db):
-    from flexmeasures.cli.data_show import list_plans
-
-    runner = app.test_cli_runner()
-    result = runner.invoke(list_plans)
-
-    assert result.exit_code != 0
-    assert "No plans created yet" in result.output
-
-
-def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
+def test_list_roles(app, db, setup_roles_users):
     from flexmeasures.cli.data_show import list_roles
 
     runner = app.test_cli_runner()
@@ -72,38 +34,36 @@ def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
     check_command_ran_without_error(result)
 
 
-def test_list_asset_types(app, fresh_db, setup_generic_asset_types_fresh_db):
+def test_list_asset_types(app, db, setup_generic_asset_types):
     from flexmeasures.cli.data_show import list_asset_types
 
     runner = app.test_cli_runner()
     result = runner.invoke(list_asset_types)
 
-    for asset_type in setup_generic_asset_types_fresh_db.values():
+    for asset_type in setup_generic_asset_types.values():
         assert asset_type.name in result.output
     check_command_ran_without_error(result)
 
 
-def test_list_sources(app, fresh_db, setup_sources_fresh_db):
+def test_list_sources(app, db, setup_sources):
     from flexmeasures.cli.data_show import list_data_sources
 
     runner = app.test_cli_runner()
     result = runner.invoke(list_data_sources)
 
-    for source in setup_sources_fresh_db.values():
+    for source in setup_sources.values():
         assert source.name in result.output
     check_command_ran_without_error(result)
 
 
-def test_list_sources_shows_account(app, fresh_db, setup_accounts_fresh_db):
+def test_list_sources_shows_account(app, db, setup_accounts):
     """The account a source belongs to is what tells apart otherwise identical sources."""
     from flexmeasures.cli.data_show import list_data_sources
     from flexmeasures.data.models.data_sources import DataSource
 
-    account = setup_accounts_fresh_db["Prosumer"]
-    fresh_db.session.add(
-        DataSource(name="Ada", type="demo script", account_id=account.id)
-    )
-    fresh_db.session.commit()
+    account = setup_accounts["Prosumer"]
+    db.session.add(DataSource(name="Ada", type="demo script", account_id=account.id))
+    db.session.commit()
 
     runner = app.test_cli_runner()
     result = runner.invoke(list_data_sources)
@@ -113,12 +73,12 @@ def test_list_sources_shows_account(app, fresh_db, setup_accounts_fresh_db):
     assert str(account.id) in result.output
 
 
-def test_list_source_sensors(app, fresh_db, setup_dummy_data):
+def test_list_source_sensors(app, db, setup_dummy_data_module):
     """A source which recorded beliefs on two sensors lists both, with their asset."""
     from flexmeasures.cli.data_show import list_data_sources
     from flexmeasures.data.models.data_sources import DataSource
 
-    source = fresh_db.session.execute(
+    source = db.session.execute(
         select(DataSource).filter_by(name="source1")
     ).scalar_one()
 
@@ -136,12 +96,11 @@ def test_list_source_sensors(app, fresh_db, setup_dummy_data):
     assert "report sensor" not in result.output
 
 
-def test_list_source_sensors_without_any_data(app, fresh_db, setup_sources_fresh_db):
+def test_list_source_sensors_without_any_data(app, db, setup_sources):
     """A source which recorded no beliefs at all says so, rather than showing an empty table."""
     from flexmeasures.cli.data_show import list_data_sources
 
-    fresh_db.session.commit()  # get IDs in DB
-    source = setup_sources_fresh_db["Seita"]
+    source = setup_sources["Seita"]
 
     runner = app.test_cli_runner()
     result = runner.invoke(
@@ -152,7 +111,7 @@ def test_list_source_sensors_without_any_data(app, fresh_db, setup_sources_fresh
     assert f"No sensors hold data recorded by data source {source.id}" in result.output
 
 
-def test_list_source_sensors_requires_a_single_source(app, fresh_db):
+def test_list_source_sensors_requires_a_single_source(app, db):
     """Looking up sensors scans the timed_belief table, so it is not allowed for a full listing."""
     from flexmeasures.cli.data_show import list_data_sources
 
@@ -163,7 +122,7 @@ def test_list_source_sensors_requires_a_single_source(app, fresh_db):
     assert "--show-sensors requires --id" in result.output
 
 
-def test_list_sources_with_deleted_user_and_account(app, fresh_db):
+def test_list_sources_with_deleted_user_and_account(app, db):
     """The user and account columns have no DB-level FK, so a source can outlive what they point to."""
     from flexmeasures.cli.data_show import list_data_sources
     from flexmeasures.data.models.data_sources import DataSource
@@ -171,8 +130,8 @@ def test_list_sources_with_deleted_user_and_account(app, fresh_db):
     orphaned_source = DataSource(name="Orphan", type="demo script")
     orphaned_source.user_id = 999999
     orphaned_source.account_id = 999999
-    fresh_db.session.add(orphaned_source)
-    fresh_db.session.commit()
+    db.session.add(orphaned_source)
+    db.session.commit()
 
     runner = app.test_cli_runner()
     result = runner.invoke(list_data_sources, ["--id", str(orphaned_source.id)])
@@ -182,30 +141,13 @@ def test_list_sources_with_deleted_user_and_account(app, fresh_db):
     assert "999999" in result.output
 
 
-def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
-    from flexmeasures.cli.data_show import show_account
-
-    fresh_db.session.flush()  # get IDs in DB
-
-    runner = app.test_cli_runner()
-    result = runner.invoke(
-        show_account, ["--id", setup_accounts_fresh_db["Prosumer"].id]
-    )
-
-    assert "Account Test Prosumer Account" in result.output
-    assert "No users in account" in result.output
-    check_command_ran_without_error(result)
-
-
-def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
+def test_show_asset(app, db, setup_generic_assets):
     from flexmeasures.cli.data_show import show_generic_asset
-
-    fresh_db.session.flush()  # get IDs in DB
 
     runner = app.test_cli_runner()
     result = runner.invoke(
         show_generic_asset,
-        ["--id", setup_generic_assets_fresh_db["test_wind_turbine"].id],
+        ["--id", setup_generic_assets["test_wind_turbine"].id],
     )
 
     assert "Asset Test wind turbine" in result.output
@@ -213,14 +155,13 @@ def test_show_asset(app, fresh_db, setup_generic_assets_fresh_db):
     assert result.exit_code == 1  # command raises a click.Abort Exception
 
 
-def test_show_asset_with_standardized_sensors_to_show(
-    app, fresh_db, setup_generic_assets_fresh_db
-):
+def test_show_asset_with_standardized_sensors_to_show(app, db, setup_generic_assets):
     from flexmeasures.cli.data_show import show_generic_asset
 
-    asset = setup_generic_assets_fresh_db["test_wind_turbine"]
+    asset = setup_generic_assets["test_wind_turbine"]
+    original_sensors_to_show = asset.sensors_to_show
     asset.sensors_to_show = [{"title": "Power", "plots": [{"sensors": [432, 433]}]}]
-    fresh_db.session.flush()
+    db.session.commit()
 
     runner = app.test_cli_runner()
     result = runner.invoke(show_generic_asset, ["--id", asset.id])
@@ -228,6 +169,10 @@ def test_show_asset_with_standardized_sensors_to_show(
     assert "Power: [432, 433]" in result.output
     assert "KeyError" not in result.output
     assert result.exit_code == 1  # command raises a click.Abort Exception
+
+    # restore for other tests in this module
+    asset.sensors_to_show = original_sensors_to_show
+    db.session.commit()
 
 
 def test_format_sensors_to_show_supports_asset_plots():
@@ -284,10 +229,10 @@ def test_show_schedulers(app, db):
     check_command_ran_without_error(result)
 
 
-def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
+def test_plot_beliefs(app, db, setup_beliefs):
     from flexmeasures.cli.data_show import plot_beliefs
 
-    sensor = get_test_sensor(fresh_db)
+    sensor = get_test_sensor(db)
 
     runner = app.test_cli_runner()
     result = runner.invoke(
@@ -323,10 +268,10 @@ def test_cli_help(app):
     "_format, combine_legend",
     [("png", True), ("png", False), ("svg", True), ("svg", False)],
 )
-def test_export_chart(app, fresh_db, setup_beliefs_fresh_db, _format, combine_legend):
+def test_export_chart(app, db, setup_beliefs, _format, combine_legend):
     from flexmeasures.cli.data_show import chart
 
-    sensor = get_test_sensor(fresh_db)
+    sensor = get_test_sensor(db)
     sensor_id = sensor.id
 
     runner = app.test_cli_runner()

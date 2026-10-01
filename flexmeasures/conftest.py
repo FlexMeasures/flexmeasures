@@ -158,7 +158,9 @@ def truncate_test_db(_db: SQLAlchemy) -> SQLAlchemy:
 
 @pytest.fixture(scope="module")
 def setup_accounts(db) -> dict[str, Account]:
-    return create_test_accounts(db)
+    accounts = create_test_accounts(db)
+    db.session.commit()
+    return accounts
 
 
 @pytest.fixture(scope="function")
@@ -236,7 +238,9 @@ def create_test_accounts(db) -> dict[str, Account]:
 
 @pytest.fixture(scope="module")
 def setup_roles_users(db, setup_accounts) -> dict[str, User]:
-    return create_roles_users(db, setup_accounts)
+    users = create_roles_users(db, setup_accounts)
+    db.session.commit()
+    return users
 
 
 @pytest.fixture(scope="function")
@@ -400,7 +404,9 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
 
 @pytest.fixture(scope="module")
 def setup_markets(db) -> dict[str, Sensor]:
-    return create_test_markets(db)
+    markets = create_test_markets(db)
+    db.session.commit()
+    return markets
 
 
 @pytest.fixture(scope="function")
@@ -443,7 +449,9 @@ def create_test_markets(db) -> dict[str, Sensor]:
 
 @pytest.fixture(scope="module")
 def setup_sources(db) -> dict[str, DataSource]:
-    return create_sources(db)
+    sources = create_sources(db)
+    db.session.commit()
+    return sources
 
 
 @pytest.fixture(scope="function")
@@ -476,7 +484,11 @@ def setup_generic_assets(
     db, setup_generic_asset_types, setup_accounts
 ) -> dict[str, GenericAsset]:
     """Make some generic assets used throughout."""
-    return create_generic_assets(db, setup_generic_asset_types, setup_accounts)
+    generic_assets = create_generic_assets(
+        db, setup_generic_asset_types, setup_accounts
+    )
+    db.session.commit()
+    return generic_assets
 
 
 @pytest.fixture(scope="function")
@@ -527,7 +539,9 @@ def create_generic_assets(
 @pytest.fixture(scope="module")
 def setup_generic_asset_types(db) -> dict[str, GenericAssetType]:
     """Make some generic asset types used throughout."""
-    return create_generic_asset_types(db)
+    generic_asset_types = create_generic_asset_types(db)
+    db.session.commit()
+    return generic_asset_types
 
 
 @pytest.fixture(scope="function")
@@ -715,7 +729,9 @@ def setup_beliefs(db, setup_markets, setup_sources) -> int:
 
     :returns: the number of beliefs set up
     """
-    return create_beliefs(db, setup_markets, setup_sources)
+    n_beliefs = create_beliefs(db, setup_markets, setup_sources)
+    db.session.commit()
+    return n_beliefs
 
 
 @pytest.fixture(scope="function")

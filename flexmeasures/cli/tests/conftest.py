@@ -14,12 +14,19 @@ def setup_dummy_asset(fresh_db, app):
     """
     Create an Asset to add sensors to and return the id.
     """
+    return create_dummy_asset(fresh_db)
 
-    db = fresh_db
 
+@pytest.fixture(scope="module")
+def setup_dummy_asset_module(db, app):
+    """Like setup_dummy_asset, but built once per module on the module-scoped db."""
+    return create_dummy_asset(db)
+
+
+def create_dummy_asset(db) -> int:
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
 
-    fresh_db.session.add(dummy_asset_type)
+    db.session.add(dummy_asset_type)
 
     dummy_asset = GenericAsset(
         name="DummyGenericAsset", generic_asset_type=dummy_asset_type
@@ -36,9 +43,16 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
     Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
     Return the two sensors and a result sensor (which has no data).
     """
+    return create_dummy_data(fresh_db, setup_dummy_asset)
 
-    db = fresh_db
 
+@pytest.fixture(scope="module")
+def setup_dummy_data_module(db, app, setup_dummy_asset_module):
+    """Like setup_dummy_data, but built once per module on the module-scoped db."""
+    return create_dummy_data(db, setup_dummy_asset_module)
+
+
+def create_dummy_data(db, dummy_asset_id: int) -> tuple[int, int, int, int]:
     report_asset_type = GenericAssetType(name="ReportAssetType")
 
     db.session.add(report_asset_type)
@@ -47,25 +61,25 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
         name="PandasReport", generic_asset_type=report_asset_type
     )
 
-    fresh_db.session.add(pandas_report)
+    db.session.add(pandas_report)
 
-    dummy_asset = db.session.get(GenericAsset, setup_dummy_asset)
+    dummy_asset = db.session.get(GenericAsset, dummy_asset_id)
 
     sensor1 = Sensor(
         "sensor 1", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
     )
 
-    fresh_db.session.add(sensor1)
+    db.session.add(sensor1)
     sensor2 = Sensor(
         "sensor 2", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
     )
-    fresh_db.session.add(sensor2)
+    db.session.add(sensor2)
     report_sensor = Sensor(
         "report sensor",
         generic_asset=pandas_report,
         event_resolution=timedelta(hours=2),
     )
-    fresh_db.session.add(report_sensor)
+    db.session.add(report_sensor)
 
     report_sensor_2 = Sensor(
         "report sensor 2",
@@ -91,10 +105,10 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
                 )
             )
 
-    fresh_db.session.add_all(beliefs)
-    fresh_db.session.commit()
+    db.session.add_all(beliefs)
+    db.session.commit()
 
-    yield sensor1.id, sensor2.id, report_sensor.id, report_sensor_2.id
+    return sensor1.id, sensor2.id, report_sensor.id, report_sensor_2.id
 
 
 @pytest.fixture(scope="function")
