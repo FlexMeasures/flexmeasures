@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import operator
 import re
-import copy
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -4158,26 +4157,6 @@ def get_pattern_match_word(word: str) -> str:
     return regex + re.escape(word) + regex
 
 
-def sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
-    """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
-
-    :param expression:  Expression to sanitize.
-    :param columns:     List with the name of the columns of the input data for the expression.
-    :returns:           Sanitized expression and columns (variables) used in the expression.
-    """
-
-    _expression = copy.copy(expression)
-    columns_involved = []
-
-    for column in columns:
-        if re.search(get_pattern_match_word(column), _expression):
-            columns_involved.append(column)
-
-        _expression = re.sub(get_pattern_match_word(column), f"`{column}`", _expression)
-
-    return _expression, columns_involved
-
-
 INEQUALITIES = {
     "<=": operator.le,
     "<": operator.lt,
@@ -4212,8 +4191,7 @@ def validate_constraints(
 ) -> list[dict]:
     """Validate the feasibility of several constraints on the same dataframe.
 
-    Gives the same result as calling validate_constraint for each constraint in turn,
-    without the pd.eval calls that make that slow on large dataframes.
+    Evaluates the constraints on numpy arrays rather than with pd.eval, which is slow on large dataframes.
     Missing values are treated as 0 when comparing, but time steps where any involved column is missing are not reported.
 
     :param constraints_df:      DataFrame with the constraints.
@@ -4265,99 +4243,6 @@ def validate_constraints(
                     violation=value_replaced,
                 )
             )
-
-    return constraint_violations
-
-
-def validate_constraint(
-    constraints_df: pd.DataFrame,
-    lhs_expression: str,
-    inequality: str,
-    rhs_expression: str,
-    round_to_decimals: int | None = 6,
-) -> list[dict]:
-    """Validate the feasibility of a given set of constraints.
-
-    :param constraints_df:      DataFrame with the constraints
-    :param lhs_expression:      left-hand side of the inequality expression following pd.eval format.
-                                No need to use the syntax `column` to reference
-                                column, just use the column name.
-    :param inequality:          inequality operator, one of ('<=', '<', '>=', '>', '==', '!=').
-    :param rhs_expression:      right-hand side of the inequality expression following pd.eval format.
-                                No need to use the syntax `column` to reference
-                                column, just use the column name.
-    :param round_to_decimals:   Number of decimals to round off to before validating constraints.
-    :returns:                   List of constraint violations, specifying their time, constraint and violation.
-    """
-
-    constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
-
-    constraints_df_columns = list(constraints_df.columns)
-
-    lhs_expression, columns_lhs = sanitize_expression(
-        lhs_expression, constraints_df_columns
-    )
-    rhs_expression, columns_rhs = sanitize_expression(
-        rhs_expression, constraints_df_columns
-    )
-
-    columns_involved = columns_lhs + columns_rhs
-
-    lhs = (
-        constraints_df.astype(float)
-        .fillna(0)
-        .eval(lhs_expression)
-        .round(round_to_decimals)
-    )
-    rhs = (
-        constraints_df.astype(float)
-        .fillna(0)
-        .eval(rhs_expression)
-        .round(round_to_decimals)
-    )
-
-    condition = None
-
-    inequality = inequality.strip()
-
-    if inequality == "<=":
-        condition = lhs <= rhs
-    elif inequality == "<":
-        condition = lhs < rhs
-    elif inequality == ">=":
-        condition = lhs >= rhs
-    elif inequality == ">":
-        condition = lhs > rhs
-    elif inequality == "==":
-        condition = lhs == rhs
-    elif inequality == "!=":
-        condition = lhs != rhs
-    else:
-        raise ValueError(f"Inequality `{inequality} not supported.")
-
-    time_condition_fails = constraints_df.index[
-        ~condition & ~constraints_df[columns_involved].isna().any(axis=1)
-    ]
-
-    constraint_violations = []
-
-    for dt in time_condition_fails:
-        value_replaced = copy.copy(constraint_expression)
-
-        for column in constraints_df.columns:
-            value_replaced = re.sub(
-                get_pattern_match_word(column),
-                f"{column} [{constraints_df.loc[dt, column]}] ",
-                value_replaced,
-            )
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition=constraint_expression,
-                violation=value_replaced,
-            )
-        )
 
     return constraint_violations
 

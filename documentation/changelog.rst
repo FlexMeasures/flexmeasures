@@ -32,7 +32,7 @@ New features
 
 Infrastructure / Support
 -------------------------
-* Speed up preparing a storage schedule by validating each device's constraints with vectorised comparisons instead of one ``DataFrame.eval`` per check (from ~25 ms to ~3 ms per device) [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Speed up preparing a storage schedule by validating each device's constraints with vectorised comparisons instead of one ``DataFrame.eval`` per check (from ~25 ms to ~3 ms per device); the helpers ``validate_constraint`` and ``sanitize_expression`` in ``flexmeasures.data.models.planning.storage``, which nothing in FlexMeasures called any more, are removed, with ``validate_constraints`` replacing them [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
 * Find the built-in schedulers, reporters and forecasters from an explicit list, instead of importing every module under ``flexmeasures.data.models`` at start-up to look for them. Shortens boot time for every process and keeps an unrelated broken module from stopping the app; plugins keep being discovered as before [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
 * ``MetaStorageScheduler``, an internal base class that was never meant to be selected, is no longer registered and can no longer be named as a custom scheduler; name ``StorageScheduler`` instead [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]

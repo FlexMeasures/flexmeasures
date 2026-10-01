@@ -6,6 +6,8 @@ which is kept below as a reference implementation.
 
 from __future__ import annotations
 
+import copy
+import re
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -15,8 +17,8 @@ import pytz
 
 from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
+    get_pattern_match_word,
     prepend_series,
-    validate_constraint,
     validate_constraints,
     validate_power_constraints,
     validate_storage_constraints,
@@ -27,6 +29,119 @@ TZ = pytz.timezone("Europe/Amsterdam")
 START = TZ.localize(datetime(2015, 1, 1))
 
 
+def reference_sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
+    """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
+
+    :param expression:  Expression to sanitize.
+    :param columns:     List with the name of the columns of the input data for the expression.
+    :returns:           Sanitized expression and columns (variables) used in the expression.
+    """
+
+    _expression = copy.copy(expression)
+    columns_involved = []
+
+    for column in columns:
+        if re.search(get_pattern_match_word(column), _expression):
+            columns_involved.append(column)
+
+        _expression = re.sub(get_pattern_match_word(column), f"`{column}`", _expression)
+
+    return _expression, columns_involved
+
+
+def reference_validate_constraint(
+    constraints_df: pd.DataFrame,
+    lhs_expression: str,
+    inequality: str,
+    rhs_expression: str,
+    round_to_decimals: int | None = 6,
+) -> list[dict]:
+    """Validate the feasibility of a given set of constraints.
+
+    :param constraints_df:      DataFrame with the constraints
+    :param lhs_expression:      left-hand side of the inequality expression following pd.eval format.
+                                No need to use the syntax `column` to reference
+                                column, just use the column name.
+    :param inequality:          inequality operator, one of ('<=', '<', '>=', '>', '==', '!=').
+    :param rhs_expression:      right-hand side of the inequality expression following pd.eval format.
+                                No need to use the syntax `column` to reference
+                                column, just use the column name.
+    :param round_to_decimals:   Number of decimals to round off to before validating constraints.
+    :returns:                   List of constraint violations, specifying their time, constraint and violation.
+    """
+
+    constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
+
+    constraints_df_columns = list(constraints_df.columns)
+
+    lhs_expression, columns_lhs = reference_sanitize_expression(
+        lhs_expression, constraints_df_columns
+    )
+    rhs_expression, columns_rhs = reference_sanitize_expression(
+        rhs_expression, constraints_df_columns
+    )
+
+    columns_involved = columns_lhs + columns_rhs
+
+    lhs = (
+        constraints_df.astype(float)
+        .fillna(0)
+        .eval(lhs_expression)
+        .round(round_to_decimals)
+    )
+    rhs = (
+        constraints_df.astype(float)
+        .fillna(0)
+        .eval(rhs_expression)
+        .round(round_to_decimals)
+    )
+
+    condition = None
+
+    inequality = inequality.strip()
+
+    if inequality == "<=":
+        condition = lhs <= rhs
+    elif inequality == "<":
+        condition = lhs < rhs
+    elif inequality == ">=":
+        condition = lhs >= rhs
+    elif inequality == ">":
+        condition = lhs > rhs
+    elif inequality == "==":
+        condition = lhs == rhs
+    elif inequality == "!=":
+        condition = lhs != rhs
+    else:
+        raise ValueError(f"Inequality `{inequality} not supported.")
+
+    time_condition_fails = constraints_df.index[
+        ~condition & ~constraints_df[columns_involved].isna().any(axis=1)
+    ]
+
+    constraint_violations = []
+
+    for dt in time_condition_fails:
+        value_replaced = copy.copy(constraint_expression)
+
+        for column in constraints_df.columns:
+            value_replaced = re.sub(
+                get_pattern_match_word(column),
+                f"{column} [{constraints_df.loc[dt, column]}] ",
+                value_replaced,
+            )
+
+        constraint_violations.append(
+            dict(
+                dt=dt.to_pydatetime(),
+                condition=constraint_expression,
+                violation=value_replaced,
+            )
+        )
+
+    return constraint_violations
+
+
 def reference_validate_power_constraints(constraints: pd.DataFrame) -> list[dict]:
     """The pd.eval-based validate_power_constraints as it was before vectorisation."""
     _constraints = constraints.copy()
@@ -34,13 +149,13 @@ def reference_validate_power_constraints(constraints: pd.DataFrame) -> list[dict
         columns={c: c.replace(" ", "_") + "(t)" for c in _constraints.columns}
     )
     violations = []
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, "derivative_min(t)", "<=", "derivative_max(t)"
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, "derivative_min(t)", "<=", "derivative_equals(t)"
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, "derivative_equals(t)", "<=", "derivative_max(t)"
     )
     return violations
@@ -59,20 +174,28 @@ def reference_validate_storage_constraints(
     if soc_min is not None:
         soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
         _constraints["soc_min(t)"] = soc_min
-        violations += validate_constraint(_constraints, "soc_min(t)", "<=", "min(t)")
+        violations += reference_validate_constraint(
+            _constraints, "soc_min(t)", "<=", "min(t)"
+        )
     else:
         soc_min = np.nan
 
     if soc_max is not None:
         soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
         _constraints["soc_max(t)"] = soc_max
-        violations += validate_constraint(_constraints, "max(t)", "<=", "soc_max(t)")
+        violations += reference_validate_constraint(
+            _constraints, "max(t)", "<=", "soc_max(t)"
+        )
     else:
         soc_max = np.nan
 
-    violations += validate_constraint(_constraints, "min(t)", "<=", "max(t)")
-    violations += validate_constraint(_constraints, "min(t)", "<=", "equals(t)")
-    violations += validate_constraint(_constraints, "equals(t)", "<=", "max(t)")
+    violations += reference_validate_constraint(_constraints, "min(t)", "<=", "max(t)")
+    violations += reference_validate_constraint(
+        _constraints, "min(t)", "<=", "equals(t)"
+    )
+    violations += reference_validate_constraint(
+        _constraints, "equals(t)", "<=", "max(t)"
+    )
 
     _constraints["factor_w_wh(t)"] = resolution / timedelta(hours=1)
     _constraints["min(t-1)"] = prepend_series(_constraints["min(t)"], soc_min)
@@ -83,22 +206,22 @@ def reference_validate_storage_constraints(
 
     derivative_max = "derivative_max(t) * factor_w_wh(t)"
     derivative_min = "derivative_min(t) * factor_w_wh(t)"
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, "equals(t) - equals(t-1)", "<=", derivative_max
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, derivative_min, "<=", "equals(t) - equals(t-1)"
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, "min(t) - max(t-1)", "<=", derivative_max
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, derivative_min, "<=", "max(t) - min(t-1)"
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, "equals(t) - max(t-1)", "<=", derivative_max
     )
-    violations += validate_constraint(
+    violations += reference_validate_constraint(
         _constraints, derivative_min, "<=", "equals(t) - min(t-1)"
     )
     return violations
