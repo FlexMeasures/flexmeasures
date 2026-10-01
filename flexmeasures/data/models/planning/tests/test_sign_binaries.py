@@ -132,11 +132,14 @@ def test_another_commitments_prices_do_not_mask_a_non_convex_commitment(
         monkeypatch,
     )
     assert results.solver.termination_condition == "optimal"
-    # These two constrain the solver identically, so their deviations are tied to each other
-    # and the pair needs no sign variables; the problem stays a linear program.
+    # These two constrain the solver identically, so one carries the pair on their summed prices,
+    # and the pair needs no sign variables: the problem stays a linear program.
     # What this test guards is the termination condition: before the per-commitment check it was infeasibleOrUnbounded.
     assert not hasattr(model, "commitment_up_derivative_sign_con")
-    assert len(model.commitment_upwards_tie) > 0
+    n_steps = len(initialize_df(COLUMNS, START, END, RESOLUTION).index)
+    assert (
+        len(model.c) == n_steps
+    ), "the duplicate sub-commitments are gone, one per time step remains"
 
 
 def test_commitments_that_are_each_convex_need_no_sign_constraints(app, monkeypatch):
@@ -210,12 +213,12 @@ def test_commitments_with_different_baselines_are_not_interchangeable(app, monke
     assert results.solver.termination_condition == "optimal"
     assert not hasattr(
         model, "commitment_upwards_tie"
-    ), "different baselines are not tied"
+    ), "different baselines are not interchangeable, so nothing is merged"
     assert hasattr(model, "commitment_up_derivative_sign_con")
 
 
-def test_an_already_convex_pair_is_left_untied(app, monkeypatch):
-    """Tying buys nothing where every member is convex on its own, so the model is left exactly as it was.
+def test_an_already_convex_pair_is_left_unmerged(app, monkeypatch):
+    """Merging buys nothing where every member is convex on its own, so the model is left exactly as it was.
 
     This is what keeps the change confined to the problems that would otherwise need sign variables.
     """
@@ -229,16 +232,19 @@ def test_an_already_convex_pair_is_left_untied(app, monkeypatch):
         monkeypatch,
     )
 
+    n_steps = len(initialize_df(COLUMNS, START, END, RESOLUTION).index)
     assert results.solver.termination_condition == "optimal"
-    assert not hasattr(model, "commitment_upwards_tie")
+    assert len(model.c) == 2 * n_steps, "an already convex pair is left alone"
     assert not hasattr(model, "commitment_up_derivative_sign_con")
 
 
-def test_tying_changes_the_model_but_not_the_answer(app, monkeypatch):
-    """The tied linear program and the sign-variable mixed-integer program agree, per commitment and per device.
+def test_merging_changes_the_model_but_not_the_answer(app, monkeypatch):
+    """The merged linear program and the sign-variable mixed-integer program agree, per commitment and per device.
 
-    This is what makes tying safe to do silently: each commitment keeps its own deviation variables and so its own cost line,
-    priced on its own prices rather than on the group's, so nothing has to be taken apart again afterwards.
+    This is what makes merging safe to do silently. The merged sub-commitment is priced on the group's summed prices,
+    and each member's share of the realised cost is worked out again from its own prices against the deviation they share,
+    which is exact rather than apportioned, because that deviation is one and the same for all of them.
+    Costs are reported alongside the commitments themselves, so a member losing its line would mis-label every line after it.
     """
     from flexmeasures.data.models.planning import scheduling_problem
 
@@ -254,8 +260,8 @@ def test_tying_changes_the_model_but_not_the_answer(app, monkeypatch):
             monkeypatch,
         )
 
-    tied_results, tied_model = solve()
-    tied_power, tied_costs = device_scheduler(
+    merged_results, merged_model = solve()
+    merged_power, merged_costs = device_scheduler(
         device_constraints=[make_device_constraints(one_way=False)],
         ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
         commitments=[
@@ -264,12 +270,12 @@ def test_tying_changes_the_model_but_not_the_answer(app, monkeypatch):
         ],
     )[:2]
 
-    # Now take the tie away, which leaves the sign variables to keep the pair bounded.
+    # Now leave the duplicates in place, which leaves the sign variables to keep the pair bounded.
     monkeypatch.setattr(
         scheduling_problem, "interchangeable_subcommitments", lambda *a, **k: []
     )
-    untied_results, untied_model = solve()
-    untied_power, untied_costs = device_scheduler(
+    unmerged_results, unmerged_model = solve()
+    unmerged_power, unmerged_costs = device_scheduler(
         device_constraints=[make_device_constraints(one_way=False)],
         ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
         commitments=[
@@ -278,19 +284,26 @@ def test_tying_changes_the_model_but_not_the_answer(app, monkeypatch):
         ],
     )[:2]
 
-    assert tied_results.solver.termination_condition == "optimal"
-    assert untied_results.solver.termination_condition == "optimal"
+    assert merged_results.solver.termination_condition == "optimal"
+    assert unmerged_results.solver.termination_condition == "optimal"
     assert not hasattr(
-        tied_model, "commitment_up_derivative_sign_con"
-    ), "tied: a linear program"
+        merged_model, "commitment_up_derivative_sign_con"
+    ), "merged: a linear program"
     assert hasattr(
-        untied_model, "commitment_up_derivative_sign_con"
+        unmerged_model, "commitment_up_derivative_sign_con"
     ), "untied: a mixed-integer program"
 
-    assert tied_model.commitment_costs == pytest.approx(untied_model.commitment_costs)
-    for tied_device, untied_device in zip(tied_power, untied_power):
-        assert list(tied_device) == pytest.approx(list(untied_device))
-    assert _sum_costs(tied_costs) == pytest.approx(_sum_costs(untied_costs))
+    # Every commitment keeps its own cost line, in order, whatever was merged into what:
+    # costs are read off alongside the commitments themselves, so a lost line would mis-label every line after it.
+    assert list(merged_model.commitment_costs.keys()) == list(
+        unmerged_model.commitment_costs.keys()
+    )
+    assert merged_model.commitment_costs == pytest.approx(
+        unmerged_model.commitment_costs
+    )
+    for merged_device, unmerged_device in zip(merged_power, unmerged_power):
+        assert list(merged_device) == pytest.approx(list(unmerged_device))
+    assert _sum_costs(merged_costs) == pytest.approx(_sum_costs(unmerged_costs))
 
 
 def _sum_costs(costs) -> float:

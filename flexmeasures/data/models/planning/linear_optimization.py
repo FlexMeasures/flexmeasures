@@ -273,7 +273,7 @@ def device_scheduler(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
-    tied_subcommitments = problem.tied_subcommitments
+    merged_constituents = problem.merged_constituents
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     _initial_stock_of = problem.initial_stock_of
@@ -664,38 +664,6 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_down_derivative_sign
     )
     model.ems_power_bounds = Constraint(model.eg, model.j, rule=ems_derivative_bounds)
-    # Sub-commitments whose constraints are interchangeable share one deviation, rather than one each.
-    # Their constraints pin the same deviation in any case, so this takes nothing away,
-    # and it leaves one slack to price instead of one per member, which is what lets a member that is not convex on its own be carried by a partner that compensates.
-    tie_pairs = [
-        (members[0], member)
-        for members in tied_subcommitments
-        for member in members[1:]
-    ]
-    if tie_pairs:
-        model.tied_subcommitment_pairs = Set(dimen=2, initialize=tie_pairs)
-
-        def tie_upwards_deviation(m, leader, follower):
-            """The follower deviates upwards exactly as much as the leader does."""
-            return (
-                m.commitment_upwards_deviation[follower]
-                == m.commitment_upwards_deviation[leader]
-            )
-
-        def tie_downwards_deviation(m, leader, follower):
-            """The follower deviates downwards exactly as much as the leader does."""
-            return (
-                m.commitment_downwards_deviation[follower]
-                == m.commitment_downwards_deviation[leader]
-            )
-
-        model.commitment_upwards_tie = Constraint(
-            model.tied_subcommitment_pairs, rule=tie_upwards_deviation
-        )
-        model.commitment_downwards_tie = Constraint(
-            model.tied_subcommitment_pairs, rule=tie_downwards_deviation
-        )
-
     if not convex_cost_curve:
         model.commitment_up_derivative_sign_con = Constraint(
             model.c, rule=commitment_up_derivative_sign
@@ -855,8 +823,17 @@ def device_scheduler(  # noqa C901
         resolution,
     )
 
+    # A merged sub-commitment stands for several commitments, so its cost is shared out
+    # by their own prices against the deviation they share.
+    deviations = {
+        c: (
+            value(model.commitment_upwards_deviation[c]),
+            value(model.commitment_downwards_deviation[c]),
+        )
+        for c in model.c
+    }
     model.commitment_costs = aggregate_subcommitment_costs(
-        subcommitment_costs, commitment_mapping
+        subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
     model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
 

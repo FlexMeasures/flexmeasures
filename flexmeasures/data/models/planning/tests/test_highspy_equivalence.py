@@ -427,8 +427,8 @@ def scenario_internal_commodity_balance():
 def scenario_tied_commitments():
     """Two commitments that constrain the solver identically, one of them not convex on its own.
 
-    Their deviation variables are tied to each other, so the pair needs no sign variables and the problem stays a linear program.
-    Both backends have to emit those ties: a backend that skipped them while still reading ``convex_cost_curve`` as true would leave the pair unbounded,
+    One of them carries the pair on their summed prices, so the pair needs no sign variables and the problem stays a linear program.
+    Both backends have to share the merged sub-commitment's cost out by each member's own prices, so that both report the same cost per commitment,
     which is why this belongs in the equivalence set rather than in one backend's own tests.
     """
     index = make_index()

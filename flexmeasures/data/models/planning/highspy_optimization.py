@@ -272,7 +272,7 @@ def device_scheduler_highspy(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
-    tied_subcommitments = problem.tied_subcommitments
+    merged_constituents = problem.merged_constituents
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     coupling_device_specs = problem.coupling_device_specs
@@ -512,28 +512,6 @@ def device_scheduler_highspy(  # noqa C901
             np.tile([-1.0, Mc], (C, 1)),
         )
 
-    # Sub-commitments whose constraints are interchangeable share one deviation, rather than one each:
-    #   up_dev[follower] - up_dev[leader] == 0, and the same downwards.
-    # Their constraints pin the same deviation in any case, so this takes nothing away,
-    # and it leaves one slack to price instead of one per member, which is what lets a member that is not convex
-    # on its own be carried by a partner that compensates, without the sign variables above (GH#2534).
-    tie_pairs = [
-        (members[0], follower)
-        for members in tied_subcommitments
-        for follower in members[1:]
-    ]
-    if tie_pairs:
-        leaders = np.array([leader for leader, _ in tie_pairs])
-        followers = np.array([follower for _, follower in tie_pairs])
-        n_ties = len(tie_pairs)
-        for base in (col_cup, col_cdown):
-            rows.add_uniform_rows(
-                np.zeros(n_ties),
-                np.zeros(n_ties),
-                np.column_stack([base + followers, base + leaders]),
-                np.tile([1.0, -1.0], (n_ties, 1)),
-            )
-
     # grouped_commitment_equalities:
     # couple each commitment's baseline (plus deviation variables)
     # to the summed flow (FlowCommitment) or stock (StockCommitment) of each of its device groups:
@@ -762,8 +740,14 @@ def device_scheduler_highspy(  # noqa C901
 
     planned_power = planned_power_per_device(ems_values, start, end, resolution)
 
+    # A merged sub-commitment stands for several commitments, so its cost is shared out
+    # by their own prices against the deviation they share.
+    deviations = {
+        c: (float(col_value[col_cup + c]), float(col_value[col_cdown + c]))
+        for c in range(C)
+    }
     model.commitment_costs = aggregate_subcommitment_costs(
-        subcommitment_costs, commitment_mapping
+        subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
     model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
     model.costs = planned_costs
