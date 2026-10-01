@@ -3,16 +3,15 @@ from __future__ import annotations
 import sys
 import builtins
 import warnings
-from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, Flask, g
+from flask import request, jsonify, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
@@ -51,7 +50,7 @@ One application is made per test session.
 
 # Database
 
-Database recreation and cleanup can happen per test (use fresh_db) or per module (use db).
+The schema is created once per session (db_schema); the tables are emptied per test (use fresh_db) or per module (use db).
 Having tests inside a module share a database makes those tests faster.
 Tests that use fresh_db should be put in a separate module to avoid clashing with the module scoped test db.
 For example:
@@ -107,25 +106,11 @@ def clear_flask_login_cache(app):
         g.pop(key, None)
 
 
-@pytest.fixture(scope="module")
-def db(app):
-    """Fresh test db per module."""
-    with create_test_db(app) as test_db:
-        yield test_db
+@pytest.fixture(scope="session")
+def db_schema(app):
+    """Create the database schema once per test session, and drop it at the end.
 
-
-@pytest.fixture(scope="function")
-def fresh_db(app):
-    """Fresh test db per function."""
-    with create_test_db(app) as test_db:
-        yield test_db
-
-
-@contextmanager
-def create_test_db(app: Flask):
-    """
-    Provide a db object with the structure freshly created.
-    It cleans up before it starts and after it's done (drops everything).
+    `db` and `fresh_db` empty its tables, which is cheaper than recreating the schema per module or per test.
     """
     print("DB FIXTURE")
     # _db is a SQLAlchemy DB instance
@@ -143,6 +128,31 @@ def create_test_db(app: Flask):
     _db.session.close()
 
     _db.drop_all()
+
+
+@pytest.fixture(scope="module")
+def db(app, db_schema):
+    """Empty test db per module."""
+    return truncate_test_db(db_schema)
+
+
+@pytest.fixture(scope="function")
+def fresh_db(app, db_schema):
+    """Empty test db per function."""
+    return truncate_test_db(db_schema)
+
+
+def truncate_test_db(_db: SQLAlchemy) -> SQLAlchemy:
+    """Empty all tables, restart their sequences and clear the session, so that the next test starts from a blank database."""
+    _db.session.rollback()
+    tables = ", ".join(
+        _db.engine.dialect.identifier_preparer.format_table(table)
+        for table in _db.metadata.sorted_tables
+    )
+    _db.session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+    _db.session.commit()
+    _db.session.expunge_all()
+    return _db
 
 
 @pytest.fixture(scope="module")
