@@ -50,16 +50,17 @@ A merge commit is the cost of keeping that history, and it is worth it.
 
 ## Before deleting a merged branch, check who depends on it
 
-Deleting a branch closes every open pull request that targets that branch as its base.
-That closure is immediate and easy to miss when deletion is bundled into merge commands.
-Before deleting a merged branch, check whether open pull requests target it:
+Merging a pull request retargets open pull requests that were based on its head branch.
+Deleting that head branch in the same command can race ahead of that retarget and close those pull requests.
+Never pass `--delete-branch` in the merge command for a branch that may have dependents.
+Merge first, then confirm no open pull requests still target the branch:
 
 ```bash
 gh pr list --base <branch> --state open
 ```
 
-If this lists any pull requests, do not pass `--delete-branch` when merging.
-Retarget or restack those pull requests first, then delete the branch.
+If this lists any pull requests, retarget or restack them first.
+Delete the branch only after this command is empty, or let repository auto-delete run after retargeting has happened.
 
 ## A stacked branch, after its base was squash-merged
 
