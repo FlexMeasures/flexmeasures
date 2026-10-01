@@ -6,7 +6,7 @@ from flask_json import as_json
 from flask_security import auth_required
 from marshmallow import fields, Schema, validate
 from packaging.version import Version, InvalidVersion
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures.api.common.schemas.search import SearchFilterField
@@ -14,8 +14,9 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.services.data_sources import (
-    get_readable_source_account_ids,
+    usable_source_filter,
     user_may_read_source,
+    user_may_use_source,
 )
 
 """
@@ -139,19 +140,20 @@ class SourceAPI(FlaskView):
             the ``type`` parameter narrows the list to one source type, such as ``forecaster``,
             and the ``limit`` parameter returns only the most recently created ones.
 
-            The ``types`` in the response are those of every source the user may read,
+            The ``types`` in the response are those of every source this listing can hold,
             rather than only those of the sources this call returns,
             so that one call can both search the sources and offer the types to search by.
 
             **Access rules:**
 
+            This lists the sources which are the user's to work with, which is what a source has to be to be reused.
+            That is a stricter rule than the one for reading one source with ``GET /api/v3_0/sources/<id>``,
+            which also covers a source that recorded data on a sensor the user may read.
+
             - Admins see all data sources.
-            - Users with the ``consultant`` role see sources belonging to their
-              own account and to any consultancy-client accounts for which their
-              account is the consultancy.
-            - All other authenticated users see only sources belonging to their
-              own account, plus sources that have neither a ``user_id`` nor an
-              ``account_id`` (i.e. system/public sources).
+            - Everyone else sees the sources of their own organisation, of any organisation they consult for,
+              and the sources an automation they may read computes under.
+            - A source which belongs to no organisation is not listed for that reason alone.
 
           security:
             - ApiKeyAuth: []
@@ -187,23 +189,13 @@ class SourceAPI(FlaskView):
           tags:
             - Sources
         """
-        accessible_account_ids = get_readable_source_account_ids()
-
-        readable_sources = None
-        if accessible_account_ids is not None:
-            # Sources owned by one of the accessible accounts, OR sources
-            # with no account_id AND no user_id (system / public sources).
-            readable_sources = or_(
-                DataSource.account_id.in_(accessible_account_ids),
-                and_(
-                    DataSource.account_id.is_(None),
-                    DataSource.user_id.is_(None),
-                ),
-            )
+        # The listing holds the sources which are the user's to work with, rather than every source they may read:
+        # it is what a client picks a source to reuse from, and reusing one is a stronger thing to be allowed than reading what it computed.
+        usable_sources = usable_source_filter()
 
         query = select(DataSource)
-        if readable_sources is not None:
-            query = query.where(readable_sources)
+        if usable_sources is not None:
+            query = query.where(usable_sources)
         if type is not None:
             query = query.where(DataSource.type == type)
         if filter is not None:
@@ -227,8 +219,8 @@ class SourceAPI(FlaskView):
         # These are read from every source the user may read, rather than from the sources returned above,
         # so that narrowing the listing does not also narrow the types a client can offer to narrow it by.
         type_query = select(DataSource.type).distinct()
-        if readable_sources is not None:
-            type_query = type_query.where(readable_sources)
+        if usable_sources is not None:
+            type_query = type_query.where(usable_sources)
         db_types = {
             source_type
             for source_type in db.session.scalars(type_query).all()
@@ -255,7 +247,12 @@ class SourceAPI(FlaskView):
             data generators (such as forecasters, schedulers and reporters) store their
             configuration.
 
-            The access rules are the same as for listing data sources.
+            A source is readable when it belongs to an organisation the user may read,
+            when an automation they may read computes under it,
+            or when it has recorded data on a sensor they may read, so that they can ask what computed a number they see.
+
+            The ``attributes``, which hold the configuration a data generator was set up with, are only included for the first two:
+            a configuration names the sensors it runs on, which can be sensors the user cannot see at all.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -295,9 +292,13 @@ class SourceAPI(FlaskView):
         source = db.session.get(DataSource, id)
         if source is None:
             return {"message": f"No data source found with id {id}."}, 404
-        if not user_may_read_source(source):
+        # A source which recorded on one of the user's sensors is theirs to read, so that they can ask what computed a number they see.
+        # Its attributes are another matter: a data generator's configuration names the sensors it runs on,
+        # which can be sensors of an organisation whose data the user cannot see at all, so those are kept for the sources which are theirs to work with.
+        may_use = user_may_use_source(source)
+        if not may_use and not user_may_read_source(source):
             return {"message": "You cannot read this data source."}, 403
-        return _serialize_source(source, with_attributes=True), 200
+        return _serialize_source(source, with_attributes=may_use), 200
 
 
 def _serialize_source(source: DataSource, with_attributes: bool = False) -> dict:

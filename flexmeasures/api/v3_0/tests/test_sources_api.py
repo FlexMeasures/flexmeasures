@@ -153,18 +153,20 @@ def test_get_sources_consultant_sees_client_sources(
 )
 def test_get_sources_only_latest(client, setup_api_test_data, requesting_user, db):
     """The endpoint should default to latest-only and allow opting out via only_latest=false."""
-    # Create two versioned sources in the same group, both public (no account_id / user_id)
+    # Create two versioned sources in the same group, both of the organisation whose sources the user may read
     source_v1 = DataSource(
         name="VersionedScheduler",
         type="scheduler",
         model="TestModel",
         version="1.0",
+        account_id=requesting_user.account_id,
     )
     source_v2 = DataSource(
         name="VersionedScheduler",
         type="scheduler",
         model="TestModel",
         version="2.0",
+        account_id=requesting_user.account_id,
     )
     db.session.add_all([source_v1, source_v2])
     db.session.flush()
@@ -278,12 +280,14 @@ def test_get_sources_only_latest_tie_break_by_id(
         type="scheduler",
         model="TieModel",
         version="1.0",
+        account_id=requesting_user.account_id,
     )
     source_higher_id = DataSource(
         name="TieBreakScheduler",
         type="scheduler",
         model="TieModel",
         version="1.0",
+        account_id=requesting_user.account_id,
     )
     db.session.add(source_lower_id)
     db.session.flush()
@@ -429,7 +433,12 @@ def test_get_sources_limit_returns_the_newest_ones(
 ):
     """A limited listing holds that many sources, the most recently created ones, in a stable order."""
     sources = [
-        DataSource(name=f"LimitedSeita{index}", type="forecaster", model="Pipeline")
+        DataSource(
+            name=f"LimitedSeita{index}",
+            type="forecaster",
+            model="Pipeline",
+            account_id=requesting_user.account_id,
+        )
         for index in range(4)
     ]
     db.session.add_all(sources)
@@ -480,3 +489,121 @@ def test_get_sources_types_are_not_narrowed_by_the_filters(
     assert filtered.status_code == 200
     assert "soothsayer" not in {source["type"] for source in filtered.json["sources"]}
     assert "soothsayer" in filtered.json["types"]
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_belonging_to_no_organisation_does_not_make_a_source_readable(
+    client, setup_api_test_data, requesting_user, db
+):
+    """A data generator's source used to belong to no organisation, which made every one of them readable by everybody."""
+    orphan = DataSource(
+        name="OrphanForecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={"data_generator": {"config": {"model": "CustomLGBM"}}},
+    )
+    db.session.add(orphan)
+    db.session.flush()
+
+    listing = client.get(
+        url_for("SourceAPI:index"), query_string={"filter": "OrphanForecaster"}
+    )
+    assert listing.status_code == 200
+    assert listing.json["sources"] == []
+
+    detail = client.get(url_for("SourceAPI:get", id=orphan.id))
+    assert detail.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_supplier_user_4@seita.nl"],
+    indirect=True,
+)
+def test_a_source_recorded_on_a_readable_sensor_hands_over_no_configuration(
+    client, setup_api_test_data, requesting_user, db
+):
+    """What computed a number one may see is a fair question, but the answer must not name another organisation's sensors."""
+    from flexmeasures.data.models.data_sources import SensorDataSource
+
+    gas_sensor = setup_api_test_data["some gas sensor"]
+    prosumer_user = find_user_by_email("test_prosumer_user@seita.nl")
+    foreign = DataSource(
+        name="ForeignForecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        account=prosumer_user.account,
+        attributes={"data_generator": {"config": {"sensor": 404}}},
+    )
+    db.session.add(foreign)
+    db.session.flush()
+    db.session.add(SensorDataSource(sensor_id=gas_sensor.id, source_id=foreign.id))
+    db.session.flush()
+
+    detail = client.get(url_for("SourceAPI:get", id=foreign.id))
+    assert detail.status_code == 200
+    assert detail.json["id"] == foreign.id
+    assert "attributes" not in detail.json
+
+    # Recording on a sensor is not what makes a source one to reuse, so it stays out of the listing.
+    listing = client.get(
+        url_for("SourceAPI:index"), query_string={"filter": "ForeignForecaster"}
+    )
+    assert listing.status_code == 200
+    assert listing.json["sources"] == []
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_an_automation_of_ones_own_makes_its_source_readable(
+    client, setup_api_test_data, requesting_user, db
+):
+    """A source one's own automation computes under is one's own to work with, before it has recorded anything."""
+    from flexmeasures.data.models.automations import Automation
+    from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+
+    asset = GenericAsset(
+        name="automated site",
+        generic_asset_type=db.session.scalars(select(GenericAssetType)).first(),
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    source = DataSource(
+        name="AutomatedForecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={"data_generator": {"config": {"model": "CustomLGBM"}}},
+    )
+    db.session.add(source)
+    db.session.flush()
+    db.session.add(
+        Automation(
+            asset_id=asset.id,
+            type="forecasting",
+            name="Hourly forecasts",
+            cronstr="0 * * * *",
+            timezone="Europe/Amsterdam",
+            generator_id=source.id,
+        )
+    )
+    db.session.flush()
+
+    listing = client.get(
+        url_for("SourceAPI:index"), query_string={"filter": "AutomatedForecaster"}
+    )
+    assert listing.status_code == 200
+    assert [s["id"] for s in listing.json["sources"]] == [source.id]
+
+    detail = client.get(url_for("SourceAPI:get", id=source.id))
+    assert detail.status_code == 200
+    assert detail.json["attributes"] == {
+        "data_generator": {"config": {"model": "CustomLGBM"}}
+    }
