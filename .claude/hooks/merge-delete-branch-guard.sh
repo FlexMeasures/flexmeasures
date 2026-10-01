@@ -16,7 +16,9 @@ command="$(echo "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null ||
 
 # Self-filter: not every Claude Code version honours the settings-level matcher.
 echo "$command" | grep -qE '\bgh[[:space:]]+pr[[:space:]]+merge\b' || exit 0
-echo "$command" | grep -q -- '--delete-branch' || exit 0
+# `--delete-branch` has a documented short form, `-d`, and pflag bundles short booleans,
+# so `-sd` and `-ds` mean the same thing. Matching only the long spelling let every short one through.
+echo "$command" | grep -qE -- '(--delete-branch|(^|[[:space:]])-[a-zA-Z]*d[a-zA-Z]*([[:space:]]|$))' || exit 0
 
 cat >&2 <<'EOF'
 Blocked: do not merge and delete a branch in one `gh pr merge` command.
