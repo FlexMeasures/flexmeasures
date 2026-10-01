@@ -40,6 +40,19 @@ def test_source_search_asks_for_the_sources_of_the_automations_own_type(assert_j
     """)
 
 
+def test_source_search_asks_for_no_more_sources_than_it_shows(assert_js):
+    """A search on an instance with many sources is bounded by the server, rather than sent to the browser in full."""
+    assert_js(f"""
+        window.$ = () => ({{ready: () => {{}}}});
+        const page = new Function({json.dumps(picker_script())}
+            + "\\nreturn {{ sourceSearchUrl, MAX_SOURCE_RESULTS }};")();
+
+        const url = new URL(page.sourceSearchUrl("forecasting", "pipeline"), "http://x");
+        eq("the search asks for one source more than the list shows",
+           url.searchParams.get("limit"), String(page.MAX_SOURCE_RESULTS + 1));
+    """)
+
+
 def test_search_results_name_each_source_and_cap_a_broad_search(assert_js):
     """Each result carries the id the picker reads the source by, and a long list says how much it leaves out."""
     assert_js(f"""
@@ -64,7 +77,8 @@ def test_search_results_name_each_source_and_cap_a_broad_search(assert_js):
         const capped = page.sourceResultsHtml(many);
         eq("a broad search shows at most the cap",
            (capped.match(/automation-source-option/g) || []).length, page.MAX_SOURCE_RESULTS);
-        check("and says how many it leaves out", capped.includes("3 more match"), capped);
+        check("and says that it leaves some out, which the count behind the limit cannot say",
+              capped.includes("More data sources match"), capped);
 
         const hostile = page.sourceResultsHtml([{{id: 1, name: "<img src=x onerror=alert(1)>"}}]);
         check("a source name is escaped rather than rendered", !hostile.includes("<img"), hostile);
