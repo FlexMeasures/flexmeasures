@@ -216,7 +216,7 @@ class SourceAPI(FlaskView):
         serialized = [_serialize_source(s) for s in sources]
 
         # Collect any extra types present in the DB but not in the defaults.
-        # These are read from every source the user may read, rather than from the sources returned above,
+        # These are read from every source this listing can hold, rather than from the sources returned above,
         # so that narrowing the listing does not also narrow the types a client can offer to narrow it by.
         type_query = select(DataSource.type).distinct()
         if usable_sources is not None:

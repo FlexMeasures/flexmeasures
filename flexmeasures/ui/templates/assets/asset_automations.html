@@ -1073,8 +1073,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       if (reusesSource) {
         automationData.source = selectedAutomationSource.id;
       } else {
-        // Read from the gated values, so a schedule automation sends no generator
-        // left behind in the hidden fields by an earlier choice of type.
+        // Read from the gated values, so a schedule automation sends no generator left behind in the hidden fields by an earlier choice of type.
         automationData["data-generator"] = generator || null;
         automationData.config = config;
       }
