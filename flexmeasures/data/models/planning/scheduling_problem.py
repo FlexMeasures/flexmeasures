@@ -168,6 +168,51 @@ def deviation_price(commitment: pd.DataFrame, column: str) -> float:
     return float(price)
 
 
+PRICE_COLUMNS = ("upwards deviation price", "downwards deviation price")
+
+
+def _subcommitment_shape(commitment: pd.DataFrame, scope: dict) -> tuple:
+    """What makes two sub-commitments impose the identical constraint.
+
+    A sub-commitment contributes ``quantity[j] + downwards + upwards - (the scoped flow at j)``, bounded below by zero where it carries an upwards price and above by zero where it carries a downwards price.
+    So two sub-commitments constrain the solver identically when they agree on all of: which prices they carry (that is what sets the bounds), what they bind (flow or stock, and for a stock which stock), the devices they are scoped to, and their quantity at every time step they cover.
+    They may still differ in the *level* of those prices, which is the whole point: that is what distinguishes the commitments while leaving their constraints interchangeable.
+    """
+    quantities = tuple(
+        (int(j), None if pd.isna(q) else float(q))
+        for j, q in zip(commitment["j"], commitment["quantity"])
+    )
+    stock = None
+    if "stock" in commitment.columns and pd.notna(commitment["stock"].iloc[0]):
+        stock = int(commitment["stock"].iloc[0])
+    return (
+        commitment["class"].iloc[0],
+        tuple(column for column in PRICE_COLUMNS if column in commitment.columns),
+        stock,
+        quantities,
+        frozenset(
+            (label, frozenset(devices))
+            for label, devices in sorted(scope.items(), key=repr)
+        ),
+    )
+
+
+def interchangeable_subcommitments(
+    commitments: list[pd.DataFrame], device_group_lookup: dict[int, dict]
+) -> list[list[int]]:
+    """Sub-commitments that impose the identical constraint, grouped, singletons dropped.
+
+    Such sub-commitments pin the same deviation in any bounded solution, because their constraints say the same thing,
+    so their deviation variables may be tied to each other without changing what the solver may do.
+    Tying them is what lets a commitment that is not convex on its own be priced against a partner that more than compensates (GH#2534).
+    """
+    groups: dict[tuple, list[int]] = {}
+    for c, commitment in enumerate(commitments):
+        shape = _subcommitment_shape(commitment, device_group_lookup.get(c, {}))
+        groups.setdefault(shape, []).append(c)
+    return [members for members in groups.values() if len(members) > 1]
+
+
 def _is_missing(value) -> bool:
     """Whether ``value`` is missing, in the sense ``DataFrame.dropna`` uses.
 
@@ -224,8 +269,13 @@ class SchedulingProblem:
     #: sub-commitment index -> {device group label -> member device indices}
     device_group_lookup: dict[int, dict]
 
+    #: Groups of sub-commitment indices whose deviation variables are tied to each other,
+    #: because their constraints are interchangeable and their summed prices are convex.
+    tied_subcommitments: list[list[int]]
+
     #: Whether every commitment's deviation prices describe a convex cost curve
     #: (a non-convex curve needs binary commitment-sign variables).
+    #: A tied group counts as convex when its summed prices are, however its members are priced on their own.
     convex_cost_curve: bool
 
     #: Big-Ms bounding the search space for device power (Md) and commitment deviations (Mc)
@@ -506,11 +556,35 @@ def prepare_scheduling_problem(  # noqa C901
     # deviating upwards has to cost at least what deviating downwards pays.
     # Summing the prices of every commitment per time step instead would let one commitment's prices mask another's non-convexity,
     # which leaves out the commitment-sign variables that keep such a commitment bounded (GH#2534).
+    def _is_convex(index: int) -> bool:
+        return deviation_price(
+            commitments[index], "upwards deviation price"
+        ) >= deviation_price(commitments[index], "downwards deviation price")
+
+    # Sub-commitments whose constraints are interchangeable pin the same deviation anyway,
+    # so tying their deviation variables together costs nothing and leaves one shared slack rather than one each.
+    # Where the group's summed prices are convex, that shared slack is not worth inflating, and the group needs no sign variables:
+    # the problem stays a linear program, which is worth more the longer the horizon, since the sign variables are counted per sub-commitment.
+    # A group that is already convex throughout has nothing to gain and is left alone, which keeps every other problem's model exactly as it was.
+    tied_subcommitments = []
+    for members in interchangeable_subcommitments(commitments, device_group_lookup):
+        if all(_is_convex(member) for member in members):
+            continue
+        summed_up = sum(
+            deviation_price(commitments[member], "upwards deviation price")
+            for member in members
+        )
+        summed_down = sum(
+            deviation_price(commitments[member], "downwards deviation price")
+            for member in members
+        )
+        if summed_up >= summed_down:
+            tied_subcommitments.append(members)
+
     # With no commitments at all, there is nothing to make the curve non-convex.
+    tied = {member for members in tied_subcommitments for member in members}
     convex_cost_curve = all(
-        deviation_price(commitment, "upwards deviation price")
-        >= deviation_price(commitment, "downwards deviation price")
-        for commitment in commitments
+        _is_convex(c) for c in range(len(commitments)) if c not in tied
     )
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
@@ -565,6 +639,7 @@ def prepare_scheduling_problem(  # noqa C901
         commitments=commitments,
         commitment_mapping=commitment_mapping,
         device_group_lookup=device_group_lookup,
+        tied_subcommitments=tied_subcommitments,
         convex_cost_curve=convex_cost_curve,
         Md=Md,
         Mc=Mc,

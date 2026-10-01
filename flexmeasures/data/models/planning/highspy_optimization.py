@@ -272,6 +272,7 @@ def device_scheduler_highspy(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
+    tied_subcommitments = problem.tied_subcommitments
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     coupling_device_specs = problem.coupling_device_specs
@@ -510,6 +511,28 @@ def device_scheduler_highspy(  # noqa C901
             np.column_stack([col_cdown + cs, col_csign + cs]),
             np.tile([-1.0, Mc], (C, 1)),
         )
+
+    # Sub-commitments whose constraints are interchangeable share one deviation, rather than one each:
+    #   up_dev[follower] - up_dev[leader] == 0, and the same downwards.
+    # Their constraints pin the same deviation in any case, so this takes nothing away,
+    # and it leaves one slack to price instead of one per member, which is what lets a member that is not convex
+    # on its own be carried by a partner that compensates, without the sign variables above (GH#2534).
+    tie_pairs = [
+        (members[0], follower)
+        for members in tied_subcommitments
+        for follower in members[1:]
+    ]
+    if tie_pairs:
+        leaders = np.array([leader for leader, _ in tie_pairs])
+        followers = np.array([follower for _, follower in tie_pairs])
+        n_ties = len(tie_pairs)
+        for base in (col_cup, col_cdown):
+            rows.add_uniform_rows(
+                np.zeros(n_ties),
+                np.zeros(n_ties),
+                np.column_stack([base + followers, base + leaders]),
+                np.tile([1.0, -1.0], (n_ties, 1)),
+            )
 
     # grouped_commitment_equalities:
     # couple each commitment's baseline (plus deviation variables)
