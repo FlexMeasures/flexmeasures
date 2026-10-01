@@ -1832,3 +1832,56 @@ def test_post_automation_accepts_an_empty_source(
         select(Automation).filter_by(name="Forecasts without a source")
     ).scalar_one()
     assert automation.generator_id is not None
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_automation_refuses_a_source_one_may_only_read(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    setup_accounts_fresh_db,
+    requesting_user,
+):
+    """Having seen what a source computed on one's own sensor does not make it a source to record under."""
+    from flexmeasures.data.models.data_sources import SensorDataSource
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    sensor = battery.sensors[0]
+    foreign_source = DataSource(
+        name="foreign forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        attributes={"data_generator": {"config": {}}},
+        account=setup_accounts_fresh_db["Dummy"],
+    )
+    fresh_db.session.add(foreign_source)
+    fresh_db.session.flush()
+    # The source has recorded on a sensor of the user's own asset, which makes it readable, but not theirs to work with.
+    fresh_db.session.add(
+        SensorDataSource(sensor_id=sensor.id, source_id=foreign_source.id)
+    )
+    fresh_db.session.flush()
+
+    with app.test_client() as client:
+        readable = client.get(url_for("SourceAPI:get", id=foreign_source.id))
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts under a source only seen",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "source": foreign_source.id,
+                "parameters": {"sensor": sensor.id},
+            },
+        )
+    assert readable.status_code == 200
+    assert response.status_code == 403
+    assert "not yours to work with" in str(response.json)
+    assert (
+        fresh_db.session.execute(
+            select(Automation).filter_by(name="Forecasts under a source only seen")
+        ).scalar_one_or_none()
+        is None
+    )

@@ -1887,13 +1887,13 @@ def _create_builtin_automation(
     from werkzeug.exceptions import Forbidden
 
     from flexmeasures.data.models.audit_log import AssetAuditLog
-    from flexmeasures.data.services.data_sources import user_may_read_source
+    from flexmeasures.data.services.data_sources import user_may_use_source
 
     # A named source hands over whatever configuration it stores, and the automation's results are recorded under it,
-    # so it is only the user's to name if it is theirs to read.
-    if check_permissions and source is not None and not user_may_read_source(source):
+    # so naming one takes more than being allowed to read what it computed: it has to be a source the user may work with.
+    if check_permissions and source is not None and not user_may_use_source(source):
         exception = Forbidden()
-        exception.api_message = f"You cannot define an automation on data source {source.id}, which you cannot read yourself."
+        exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
         raise exception
 
     parameters = parameters or {}
