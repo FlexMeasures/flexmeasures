@@ -385,7 +385,7 @@ def check_execution_access(automation, sensors):
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.utils import save_to_db
+    from flexmeasures.data.utils import save_to_db_and_count
 
     automation = db.session.get(Automation, automation_id, populate_existing=True)
     if automation is None:
@@ -411,7 +411,7 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
             )
     saved = []
     for result in results:
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": len(result["data"])})
+        _, n_saved = save_to_db_and_count(result["data"])
+        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
     db.session.commit()
     return saved

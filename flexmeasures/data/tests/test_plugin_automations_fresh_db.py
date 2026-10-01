@@ -205,6 +205,27 @@ def test_plugin_job_keeps_its_result_by_its_queue(
     assert job.result_ttl == app.config[ttl_setting].total_seconds()
 
 
+def test_plugin_job_reports_rows_saved(
+    fresh_db, app, ingestion_plugin, ingestion_assets
+):
+    """A rerun whose beliefs are unchanged reports that it saved nothing."""
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3.0})
+    n_rows = []
+    for _ in range(2):
+        job = Job.fetch(
+            run_automation(automation)["job_id"], connection=app.redis_connection
+        )
+        work_on_rq(app.queues["ingestion"], job=job)
+        job.refresh()
+        assert job.is_finished, job.exc_info
+        n_rows.append(job.return_value())
+    assert n_rows == [
+        [{"sensor_id": sensors[0].id, "n_rows": 1}],
+        [{"sensor_id": sensors[0].id, "n_rows": 0}],
+    ]
+
+
 def test_plugin_rejects_outputs_outside_asset_tree(
     fresh_db, ingestion_plugin, ingestion_assets
 ):
