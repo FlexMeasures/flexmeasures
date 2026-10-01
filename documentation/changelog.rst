@@ -36,7 +36,7 @@ New features
 
 Infrastructure / Support
 -------------------------
-* ``asset.sensors`` now lists an asset's sensors in order of creation (by sensor id), where it used to return them in whatever order the database did, so that code which takes a sensor by position gets the same sensor on every database (see the warning above) [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* ``asset.sensors`` now lists an asset's sensors in order of creation (by sensor id), where it used to return them in whatever order the database did, so that code which takes a sensor by position gets the same sensor on every database (see the warning above) [see `PR #2637 <https://www.github.com/FlexMeasures/flexmeasures/pull/2637>`_]
 * The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
 * Find the built-in schedulers, reporters and forecasters from an explicit list, instead of importing every module under ``flexmeasures.data.models`` at start-up to look for them. Shortens boot time for every process and keeps an unrelated broken module from stopping the app; plugins keep being discovered as before [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
 * ``MetaStorageScheduler``, an internal base class that was never meant to be selected, is no longer registered and can no longer be named as a custom scheduler; name ``StorageScheduler`` instead [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
