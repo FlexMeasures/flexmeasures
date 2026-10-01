@@ -5539,7 +5539,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nand the <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nthe <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>,\nand the <code>limit</code> parameter returns only the most recently created ones.\n\nThe <code>types</code> in the response are those of every source the user may read,\nrather than only those of the sources this call returns,\nso that one call can both search the sources and offer the types to search by.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5573,6 +5573,17 @@
             "schema": {
               "type": "string",
               "example": "forecaster"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "description": "Maximum number of sources to return, the most recently created ones first. Without it, every accessible source is returned. Note that `only_latest` collapses the sources which this limit let through, so the response can hold fewer sources than the limit allows.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 25
             },
             "required": false
           }

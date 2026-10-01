@@ -417,3 +417,66 @@ def test_get_sources_filtered_by_type_and_search_term(
     )
     assert by_id.status_code == 200
     assert forecaster.id in {source["id"] for source in by_id.json["sources"]}
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_limit_returns_the_newest_ones(
+    client, setup_api_test_data, requesting_user, db
+):
+    """A limited listing holds that many sources, the most recently created ones, in a stable order."""
+    sources = [
+        DataSource(name=f"LimitedSeita{index}", type="forecaster", model="Pipeline")
+        for index in range(4)
+    ]
+    db.session.add_all(sources)
+    db.session.flush()
+    newest_two = [source.id for source in sorted(sources, key=lambda s: -s.id)][:2]
+
+    limited = client.get(
+        url_for("SourceAPI:index"),
+        query_string={"filter": "LimitedSeita", "only_latest": "false", "limit": 2},
+    )
+    assert limited.status_code == 200
+    assert [source["id"] for source in limited.json["sources"]] == newest_two
+
+    unlimited = client.get(
+        url_for("SourceAPI:index"),
+        query_string={"filter": "LimitedSeita", "only_latest": "false"},
+    )
+    assert unlimited.status_code == 200
+    assert len(unlimited.json["sources"]) == 4
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_types_are_not_narrowed_by_the_filters(
+    client, setup_api_test_data, requesting_user, db
+):
+    """The types cover every source the user may read, so that one call can both search and offer the types to search by."""
+    db.session.add(
+        DataSource(
+            name="TypedSeita",
+            type="soothsayer",
+            model="CrystalBall",
+            account_id=requesting_user.account_id,
+        )
+    )
+    db.session.flush()
+
+    unfiltered = client.get(url_for("SourceAPI:index"))
+    assert unfiltered.status_code == 200
+    assert "soothsayer" in unfiltered.json["types"]
+
+    filtered = client.get(
+        url_for("SourceAPI:index"), query_string={"type": "scheduler"}
+    )
+    assert filtered.status_code == 200
+    assert "soothsayer" not in {source["type"] for source in filtered.json["sources"]}
+    assert "soothsayer" in filtered.json["types"]

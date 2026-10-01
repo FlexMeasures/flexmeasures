@@ -4,7 +4,7 @@ from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
-from marshmallow import fields, Schema
+from marshmallow import fields, Schema, validate
 from packaging.version import Version, InvalidVersion
 from sqlalchemy import select, or_, and_
 from webargs.flaskparser import use_kwargs
@@ -49,10 +49,20 @@ class SourceQuerySchema(Schema):
             "example": "forecaster",
         },
     )
+    limit = fields.Int(
+        required=False,
+        validate=validate.Range(min=1),
+        metadata={
+            "description": "Maximum number of sources to return, the most recently created ones first."
+            " Without it, every accessible source is returned."
+            " Note that `only_latest` collapses the sources which this limit let through, so the response can hold fewer sources than the limit allows.",
+            "example": 25,
+        },
+    )
 
 
 def source_search_term_filter(term: str):
-    """Match a search term against what identifies a source: its name, its model, its description and its id."""
+    """Match a search term against what identifies a source: its name, its model and its id."""
     filters = [
         DataSource.name.ilike(f"%{term}%"),
         DataSource.model.ilike(f"%{term}%"),
@@ -112,6 +122,7 @@ class SourceAPI(FlaskView):
         only_latest: bool = True,
         filter: list[str] | None = None,
         type: str | None = None,
+        limit: int | None = None,
     ):
         """List accessible data sources and defined source types.
 
@@ -125,7 +136,12 @@ class SourceAPI(FlaskView):
             the defined source types.
 
             The ``filter`` parameter searches the sources by name, by model and by id prefix,
-            and the ``type`` parameter narrows the list to one source type, such as ``forecaster``.
+            the ``type`` parameter narrows the list to one source type, such as ``forecaster``,
+            and the ``limit`` parameter returns only the most recently created ones.
+
+            The ``types`` in the response are those of every source the user may read,
+            rather than only those of the sources this call returns,
+            so that one call can both search the sources and offer the types to search by.
 
             **Access rules:**
 
@@ -173,25 +189,32 @@ class SourceAPI(FlaskView):
         """
         accessible_account_ids = get_readable_source_account_ids()
 
-        query = select(DataSource)
+        readable_sources = None
         if accessible_account_ids is not None:
             # Sources owned by one of the accessible accounts, OR sources
             # with no account_id AND no user_id (system / public sources).
-            query = query.where(
-                or_(
-                    DataSource.account_id.in_(accessible_account_ids),
-                    and_(
-                        DataSource.account_id.is_(None),
-                        DataSource.user_id.is_(None),
-                    ),
-                )
+            readable_sources = or_(
+                DataSource.account_id.in_(accessible_account_ids),
+                and_(
+                    DataSource.account_id.is_(None),
+                    DataSource.user_id.is_(None),
+                ),
             )
+
+        query = select(DataSource)
+        if readable_sources is not None:
+            query = query.where(readable_sources)
         if type is not None:
             query = query.where(DataSource.type == type)
         if filter is not None:
             query = query.where(
                 or_(*(source_search_term_filter(term) for term in filter))
             )
+        # The listing is ordered so that a limited one holds the same sources each time it is asked for,
+        # and so that a source which was just created is in it rather than behind the limit.
+        query = query.order_by(DataSource.id.desc())
+        if limit is not None:
+            query = query.limit(limit)
 
         sources: list[DataSource] = list(db.session.scalars(query).all())
 
@@ -200,8 +223,17 @@ class SourceAPI(FlaskView):
 
         serialized = [_serialize_source(s) for s in sources]
 
-        # Collect any extra types present in the DB but not in the defaults
-        db_types = {s.type for s in sources if s.type}
+        # Collect any extra types present in the DB but not in the defaults.
+        # These are read from every source the user may read, rather than from the sources returned above,
+        # so that narrowing the listing does not also narrow the types a client can offer to narrow it by.
+        type_query = select(DataSource.type).distinct()
+        if readable_sources is not None:
+            type_query = type_query.where(readable_sources)
+        db_types = {
+            source_type
+            for source_type in db.session.scalars(type_query).all()
+            if source_type
+        }
         all_types = list(DEFAULT_DATASOURCE_TYPES) + sorted(
             db_types - set(DEFAULT_DATASOURCE_TYPES)
         )
