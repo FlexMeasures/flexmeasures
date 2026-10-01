@@ -1884,7 +1884,6 @@ def _create_builtin_automation(
     :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
     :returns: the automation and a list of warnings.
     """
-    from marshmallow import ValidationError
     from werkzeug.exceptions import Forbidden
 
     from flexmeasures.data.models.audit_log import AssetAuditLog
