@@ -152,6 +152,22 @@ def convert_commitments_to_subcommitments(
     return sub_commitments, commitment_mapping
 
 
+def deviation_price(commitment: pd.DataFrame, column: str) -> float:
+    """The single deviation price that the optimizers apply to a commitment, for the given price column.
+
+    A commitment carries one pair of deviation variables, priced by one pair of prices,
+    so the price in its first row stands for the whole commitment.
+    ``convert_commitments_to_subcommitments`` guarantees that is well defined, by rejecting a group whose prices differ per row.
+    A missing column, or a missing price, means no price at all.
+    """
+    if column not in commitment.columns:
+        return 0.0
+    price = commitment[column].iloc[0]
+    if pd.isna(price):
+        return 0.0
+    return float(price)
+
+
 def _is_missing(value) -> bool:
     """Whether ``value`` is missing, in the sense ``DataFrame.dropna`` uses.
 
@@ -208,7 +224,7 @@ class SchedulingProblem:
     #: sub-commitment index -> {device group label -> member device indices}
     device_group_lookup: dict[int, dict]
 
-    #: Whether the summed deviation prices describe a convex cost curve
+    #: Whether every commitment's deviation prices describe a convex cost curve
     #: (a non-convex curve needs binary commitment-sign variables).
     convex_cost_curve: bool
 
@@ -485,20 +501,17 @@ def prepare_scheduling_problem(  # noqa C901
 
         device_group_lookup[c] = groups
 
-    # Oversimplified check for a convex cost curve
-    if commitments:
-        df = pd.concat(commitments)[
-            ["upwards deviation price", "downwards deviation price"]
-        ]
-        df = df.groupby(level=0).sum()
-        convex_cost_curve = (
-            len(df[df["upwards deviation price"] < df["downwards deviation price"]])
-            == 0
-        )
-    else:
-        # No commitments at all: nothing can make the cost curve non-convex.
-        # The Pyomo path used to raise on the empty pd.concat here.
-        convex_cost_curve = True
+    # Each commitment carries its own pair of deviation variables, priced by its own pair of prices,
+    # so a convex cost curve is a property of one commitment at a time:
+    # deviating upwards has to cost at least what deviating downwards pays.
+    # Summing the prices of every commitment per time step instead would let one commitment's prices mask another's non-convexity,
+    # which leaves out the commitment-sign variables that keep such a commitment bounded (GH#2534).
+    # With no commitments at all, there is nothing to make the curve non-convex.
+    convex_cost_curve = all(
+        deviation_price(commitment, "upwards deviation price")
+        >= deviation_price(commitment, "downwards deviation price")
+        for commitment in commitments
+    )
 
     bigM_columns = ["derivative max", "derivative min", "derivative equals"]
     # Compute a good value for our Big-Ms

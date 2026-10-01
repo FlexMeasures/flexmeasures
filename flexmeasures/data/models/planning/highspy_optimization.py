@@ -37,6 +37,7 @@ from flexmeasures.data.models.planning import (
 from flexmeasures.data.models.planning.scheduling_problem import (
     aggregate_commodity_costs,
     aggregate_subcommitment_costs,
+    deviation_price,
     planned_power_per_device,
     prepare_scheduling_problem,
     solver_options,
@@ -383,20 +384,11 @@ def device_scheduler_highspy(  # noqa C901
         upper[col_band:col_alpha] = 1
 
     # Per-subcommitment data: prices (objective), quantities and bounds
-    def _price_of(df: pd.DataFrame, column: str) -> float:
-        """Mirrors price_down_select / price_up_select."""
-        if column not in df.columns:
-            return 0
-        price = df[column].iloc[0]
-        if pd.isna(price):
-            return 0
-        return float(price)
-
     down_price = np.zeros(C)
     up_price = np.zeros(C)
     for c, df in enumerate(commitments):
-        down_price[c] = _price_of(df, "downwards deviation price")
-        up_price[c] = _price_of(df, "upwards deviation price")
+        down_price[c] = deviation_price(df, "downwards deviation price")
+        up_price[c] = deviation_price(df, "upwards deviation price")
     cost[col_cdown : col_cdown + C] = down_price
     cost[col_cup : col_cup + C] = up_price
 

@@ -18,6 +18,7 @@ from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
     aggregate_commodity_costs,
     aggregate_subcommitment_costs,
     convert_commitments_to_subcommitments,
+    deviation_price,
     loss_coefficients,
     planned_power_per_device,
     prepare_scheduling_problem,
@@ -305,20 +306,10 @@ def device_scheduler(  # noqa C901
 
     # Add parameters
     def price_down_select(m, c):
-        if "downwards deviation price" not in commitments[c].columns:
-            return 0
-        price = commitments[c]["downwards deviation price"].iloc[0]
-        if np.isnan(price):
-            return 0
-        return price
+        return deviation_price(commitments[c], "downwards deviation price")
 
     def price_up_select(m, c):
-        if "upwards deviation price" not in commitments[c].columns:
-            return 0
-        price = commitments[c]["upwards deviation price"].iloc[0]
-        if np.isnan(price):
-            return 0
-        return price
+        return deviation_price(commitments[c], "upwards deviation price")
 
     def commitment_quantity_select(m, c, j):
         quantity = commitments[c][commitments[c]["j"] == j]["quantity"].values[0]
