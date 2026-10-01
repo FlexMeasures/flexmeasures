@@ -945,7 +945,7 @@ def test_trigger_unknown_automation(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_creating_an_automation_whose_sensors_are_unknown_is_the_callers_fault(
-    app, db, add_battery_assets, requesting_user, mocker
+    app, add_battery_assets, requesting_user, mocker
 ):
     """A scheduler that cannot work out its config answers 422, not 500.
 
@@ -1043,7 +1043,6 @@ def test_a_forecast_automation_names_the_data_generator_it_runs(
 )
 def test_post_automation_reports_a_config_error_against_the_config(
     app,
-    db,
     add_battery_assets,
     requesting_user,
     automation_type,
@@ -1110,7 +1109,6 @@ def test_post_automation_reports_a_config_error_against_the_config(
 )
 def test_post_automation_reports_a_parameter_error_against_the_parameters(
     app,
-    db,
     add_battery_assets,
     requesting_user,
     automation_type,
@@ -1187,7 +1185,7 @@ def test_post_schedule_automation_rejects_a_data_generator_and_its_config(
     "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_post_report_automation_without_a_reporter_names_the_field_to_fill_in(
-    app, db, add_battery_assets, requesting_user
+    app, add_battery_assets, requesting_user
 ):
     """A report automation has to name its reporter, and the error says which field is missing."""
     battery = add_battery_assets["Test battery"]

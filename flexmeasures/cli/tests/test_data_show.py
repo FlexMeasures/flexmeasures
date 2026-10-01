@@ -9,7 +9,7 @@ from flexmeasures.cli.tests.utils import (
 from flexmeasures.tests.utils import get_test_sensor
 
 
-def test_list_accounts(app, db, setup_accounts):
+def test_list_accounts(app, setup_accounts):
     from flexmeasures.cli.data_show import list_accounts
 
     runner = app.test_cli_runner()
@@ -21,7 +21,7 @@ def test_list_accounts(app, db, setup_accounts):
     check_command_ran_without_error(result)
 
 
-def test_list_roles(app, db, setup_roles_users):
+def test_list_roles(app, setup_roles_users):
     from flexmeasures.cli.data_show import list_roles
 
     runner = app.test_cli_runner()
@@ -34,7 +34,7 @@ def test_list_roles(app, db, setup_roles_users):
     check_command_ran_without_error(result)
 
 
-def test_list_asset_types(app, db, setup_generic_asset_types):
+def test_list_asset_types(app, setup_generic_asset_types):
     from flexmeasures.cli.data_show import list_asset_types
 
     runner = app.test_cli_runner()
@@ -45,7 +45,7 @@ def test_list_asset_types(app, db, setup_generic_asset_types):
     check_command_ran_without_error(result)
 
 
-def test_list_sources(app, db, setup_sources):
+def test_list_sources(app, setup_sources):
     from flexmeasures.cli.data_show import list_data_sources
 
     runner = app.test_cli_runner()
@@ -96,7 +96,7 @@ def test_list_source_sensors(app, db, setup_dummy_data):
     assert "report sensor" not in result.output
 
 
-def test_list_source_sensors_without_any_data(app, db, setup_sources):
+def test_list_source_sensors_without_any_data(app, setup_sources):
     """A source which recorded no beliefs at all says so, rather than showing an empty table."""
     from flexmeasures.cli.data_show import list_data_sources
 
@@ -141,7 +141,7 @@ def test_list_sources_with_deleted_user_and_account(app, db):
     assert "999999" in result.output
 
 
-def test_show_asset(app, db, setup_generic_assets):
+def test_show_asset(app, setup_generic_assets):
     from flexmeasures.cli.data_show import show_generic_asset
 
     runner = app.test_cli_runner()

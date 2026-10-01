@@ -409,7 +409,7 @@ def test_automation_sensors_are_unknown_rather_than_empty(
 
 
 @pytest.mark.parametrize("cronstr", ["not a cron string", "0 0 31 2 *"])
-def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data_fresh_db, cronstr):
+def test_add_automation_invalid_cron(app, setup_dummy_data_fresh_db, cronstr):
     from flexmeasures.cli.data_add import add_automation
 
     sensor_id = setup_dummy_data_fresh_db[0]
@@ -715,7 +715,7 @@ def test_automation_option_files_normalize_yaml_dates(
 
 @pytest.mark.parametrize("option_name", ("--config", "--parameters"))
 def test_add_automation_accepts_empty_yaml_file(
-    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, option_name
+    app, setup_dummy_data_fresh_db, tmp_path, option_name
 ):
     from flexmeasures.cli.data_add import add_automation
 
@@ -742,7 +742,7 @@ def test_add_automation_accepts_empty_yaml_file(
 
 @pytest.mark.parametrize("option_name", ("--config", "--parameters"))
 def test_add_automation_rejects_non_object_yaml_file(
-    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, option_name
+    app, setup_dummy_data_fresh_db, tmp_path, option_name
 ):
     from flexmeasures.cli.data_add import add_automation
 
@@ -771,7 +771,7 @@ def test_add_automation_rejects_non_object_yaml_file(
 
 @pytest.mark.parametrize("option_name", ("--config", "--parameters"))
 def test_add_automation_rejects_malformed_yaml_file(
-    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, option_name
+    app, setup_dummy_data_fresh_db, tmp_path, option_name
 ):
     from flexmeasures.cli.data_add import add_automation
 
@@ -1012,7 +1012,7 @@ def test_add_schedule_automation(app, fresh_db, setup_dummy_data_fresh_db, tmp_p
     ),
 )
 def test_add_schedule_automation_rejects_unsupported_durations(
-    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, parameters_yaml
+    app, setup_dummy_data_fresh_db, tmp_path, parameters_yaml
 ):
     from flexmeasures.cli.data_add import add_automation
 
@@ -1040,7 +1040,7 @@ def test_add_schedule_automation_rejects_unsupported_durations(
 
 
 def test_add_schedule_automation_rejects_forecast_config(
-    app, fresh_db, setup_dummy_data_fresh_db
+    app, setup_dummy_data_fresh_db
 ):
     from flexmeasures.cli.data_add import add_automation
 
@@ -1101,9 +1101,7 @@ def test_add_schedule_automation_rejects_the_default_forecaster_when_given(
     )
 
 
-def test_add_forecast_automation_still_requires_sensor(
-    app, fresh_db, setup_dummy_data_fresh_db
-):
+def test_add_forecast_automation_still_requires_sensor(app, setup_dummy_data_fresh_db):
     from flexmeasures.cli.data_add import add_automation
 
     result = app.test_cli_runner().invoke(
@@ -2330,9 +2328,7 @@ def test_show_automations_are_listed_by_asset_and_id(
     assert printed_ids == expected_ids
 
 
-def test_show_automations_includes_inactive_ones(
-    app, fresh_db, setup_dummy_data_fresh_db
-):
+def test_show_automations_includes_inactive_ones(app, setup_dummy_data_fresh_db):
     """An automation which is not running is exactly the one an operator is looking for, so it is listed, too."""
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.data_show import list_automations
@@ -2357,9 +2353,7 @@ def test_show_automations_includes_inactive_ones(
     assert automation_row_cell(result.output, "Paused forecasts", "Active") == "no"
 
 
-def test_show_automations_without_any_automations(
-    app, fresh_db, setup_dummy_data_fresh_db
-):
+def test_show_automations_without_any_automations(app, setup_dummy_data_fresh_db):
     """Without automations, the command says so rather than printing an empty table."""
     from flexmeasures.cli.data_show import list_automations
 
@@ -2369,9 +2363,7 @@ def test_show_automations_without_any_automations(
     assert "No automations created yet" in result.output
 
 
-def test_show_automations_reports_unknown_automation(
-    app, fresh_db, setup_dummy_data_fresh_db
-):
+def test_show_automations_reports_unknown_automation(app, setup_dummy_data_fresh_db):
     """An ID which does not exist is reported as such."""
     from flexmeasures.cli.data_show import list_automations
 

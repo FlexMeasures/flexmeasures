@@ -13,7 +13,7 @@ from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_add_forecast(app, db, setup_dummy_data):
+def test_add_forecast(app, setup_dummy_data):
     from flexmeasures.cli.data_add import add_forecast
 
     sensor_id, *_ = setup_dummy_data
