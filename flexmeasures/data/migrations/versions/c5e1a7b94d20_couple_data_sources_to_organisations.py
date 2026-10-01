@@ -82,6 +82,20 @@ def _organisations_per_source(connection) -> dict[int, set[int]]:
     return per_source
 
 
+def _sensors_of(connection, account_id: int) -> list[int]:
+    return [
+        row[0]
+        for row in connection.execute(
+            sa.text("""
+                SELECT s.id FROM sensor s
+                  JOIN generic_asset ga ON ga.id = s.generic_asset_id
+                 WHERE ga.account_id = :account_id
+                """),
+            {"account_id": account_id},
+        ).fetchall()
+    ]
+
+
 def _still_recorded_for(connection, source_id: int, account_id: int) -> bool:
     """Whether a source's claim on an organisation rests on anything that still exists.
 
@@ -110,13 +124,18 @@ def _still_recorded_for(connection, source_id: int, account_id: int) -> bool:
                 )
                 OR EXISTS (
                     SELECT 1 FROM timed_belief tb
-                      JOIN sensor s ON s.id = tb.sensor_id
-                      JOIN generic_asset ga ON ga.id = s.generic_asset_id
-                     WHERE tb.source_id = :source_id AND ga.account_id = :account_id
+                     WHERE tb.source_id = :source_id AND tb.sensor_id = ANY(:sensor_ids)
                      LIMIT 1
                 )
                 """),
-            {"source_id": source_id, "account_id": account_id},
+            {
+                "source_id": source_id,
+                "account_id": account_id,
+                # Naming the sensors keeps this on the `timed_belief` primary key, which leads with `sensor_id`.
+                # Nothing on that table leads with `source_id`, so asking by source alone would scan it,
+                # and it would scan hardest for an organisation whose claim is stale, which is the case this asks about.
+                "sensor_ids": _sensors_of(connection, account_id),
+            },
         ).scalar_one()
     )
 
@@ -165,37 +184,27 @@ def _most_recently_recording_organisations(
     A generator mostly records beliefs about the future, so the furthest event start would rank a forecaster that last ran a month ago
     over one that ran this morning, whenever the first looks further ahead.
     """
-    rows = connection.execute(
-        sa.text("""
-            SELECT ga.account_id, MAX(tb.event_start - tb.belief_horizon) AS latest
-              FROM timed_belief tb
-              JOIN sensor s ON s.id = tb.sensor_id
-              JOIN generic_asset ga ON ga.id = s.generic_asset_id
-             WHERE tb.source_id = :source_id
-               AND ga.account_id = ANY(:account_ids)
-             GROUP BY ga.account_id
-             ORDER BY latest DESC
-            """),
-        {"source_id": source_id, "account_ids": list(account_ids)},
-    ).fetchall()
-    ranked = [row[0] for row in rows]
+    # Asked per organisation, naming its sensors, so that each statement rides the `timed_belief` primary key,
+    # which leads with `sensor_id`. Nothing on that table leads with `source_id`, so one grouped query over the source alone
+    # would scan what is usually the largest table in the database. A source is shared by a handful of organisations at most.
+    recorded_at: dict[int, object] = {}
+    for account_id in sorted(account_ids):
+        latest = connection.execute(
+            sa.text("""
+                SELECT MAX(tb.event_start - tb.belief_horizon)
+                  FROM timed_belief tb
+                 WHERE tb.source_id = :source_id AND tb.sensor_id = ANY(:sensor_ids)
+                """),
+            {"source_id": source_id, "sensor_ids": _sensors_of(connection, account_id)},
+        ).scalar_one()
+        if latest is not None:
+            recorded_at[account_id] = latest
+    ranked = sorted(
+        recorded_at, key=lambda account_id: recorded_at[account_id], reverse=True
+    )
     # An organisation with no beliefs under the source at all still has a claim through an automation or an annotation,
     # but no claim to the id, so it goes last.
     return ranked + sorted(account_ids - set(ranked))
-
-
-def _sensors_of(connection, account_id: int) -> list[int]:
-    return [
-        row[0]
-        for row in connection.execute(
-            sa.text("""
-                SELECT s.id FROM sensor s
-                  JOIN generic_asset ga ON ga.id = s.generic_asset_id
-                 WHERE ga.account_id = :account_id
-                """),
-            {"account_id": account_id},
-        ).fetchall()
-    ]
 
 
 def _split_source(connection, source_id: int, account_id: int) -> int:
@@ -326,11 +335,13 @@ def couple_sources_to_organisations(
     per_source = _organisations_per_source(connection)
     # A source which looks shared is asked a second time, with its claims checked against data that is still there,
     # so that an upgrade is not stopped by a sensor link left behind by beliefs which have since been deleted.
+    # A source whose every claim is stale has no beliefs, no annotations and no automations anywhere,
+    # and is left belonging to no organisation rather than split into sources that would receive nothing.
     per_source = {
         source_id: (
             accounts
             if len(accounts) < 2
-            else _verified_organisations(connection, source_id, accounts) or accounts
+            else _verified_organisations(connection, source_id, accounts)
         )
         for source_id, accounts in per_source.items()
     }

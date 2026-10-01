@@ -456,3 +456,37 @@ def test_a_sensor_link_left_behind_by_deleted_beliefs_does_not_stop_the_upgrade(
     assert (
         fresh_db.session.get(DataSource, source_id).account_id == prosumer.id
     ), "the source is coupled to the organisation it still records for"
+
+
+def test_a_source_whose_every_claim_is_stale_is_left_alone(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+    unowned_forecaster,
+):
+    """Only the sensor-link summary is left of such a source, so splitting it would make sources that receive nothing."""
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    for account, name in ((prosumer, "prosumer site"), (supplier, "supplier site")):
+        sensor = _asset_with_sensor(
+            fresh_db, account, setup_generic_asset_types_fresh_db["battery"], name
+        )
+        _record(fresh_db, sensor, unowned_forecaster, datetime(2026, 1, 1, tzinfo=utc))
+    fresh_db.session.query(TimedBelief).filter_by(
+        source_id=unowned_forecaster.id
+    ).delete()
+    fresh_db.session.flush()
+    source_id = unowned_forecaster.id
+
+    # No refusal: there is nothing left for a host to look at.
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(), splitting=False
+    )
+    fresh_db.session.expire_all()
+
+    assert fresh_db.session.get(DataSource, source_id).account_id is None
+    assert fresh_db.session.scalars(
+        select(DataSource).filter(DataSource.name == "Seita")
+    ).all() == [
+        fresh_db.session.get(DataSource, source_id)
+    ], "and no sources were made for organisations that would receive nothing"
