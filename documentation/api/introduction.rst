@@ -244,6 +244,22 @@ This returns the current execution status and a human-readable result message. F
 
     Both of these endpoints will also return `202 Accepted` if the job is still being computed, so clients can continue to poll them directly if they prefer.
 
+**Retrying after a failed job:**
+
+Schedule trigger requests are de-duplicated: a request whose arguments match one that was sent before is answered with the id of the job that was already created for it, rather than with a new job.
+That holds for as long as the job cache remembers the request (see the ``FLEXMEASURES_JOB_CACHE_TTL`` config setting, one hour by default), and regardless of how that job ended.
+Re-sending a request whose job failed therefore hands back that same failed job, rather than starting a new attempt.
+
+To have FlexMeasures compute a new schedule within that hour, either change something about the request, or set ``force-new-job-creation``:
+
+.. code-block:: json
+
+    {
+        "start": "2015-06-02T10:00:00+00:00",
+        "duration": "PT12H",
+        "force-new-job-creation": true
+    }
+
 .. _api_deprecation:
 
 Deprecation and sunset
