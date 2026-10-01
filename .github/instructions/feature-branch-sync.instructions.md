@@ -48,6 +48,19 @@ A pull request's review history is anchored to its commits,
 so rewriting them discards the conversation and asks every reviewer to start again.
 A merge commit is the cost of keeping that history, and it is worth it.
 
+## Before deleting a merged branch, check who depends on it
+
+Deleting a branch closes every open pull request that targets that branch as its base.
+That closure is immediate and easy to miss when deletion is bundled into merge commands.
+Before deleting a merged branch, check whether open pull requests target it:
+
+```bash
+gh pr list --base <branch> --state open
+```
+
+If this lists any pull requests, do not pass `--delete-branch` when merging.
+Retarget or restack those pull requests first, then delete the branch.
+
 ## A stacked branch, after its base was squash-merged
 
 ### Before the squash: merge `main` into A, then A into B
@@ -96,6 +109,14 @@ When branch B is stacked on branch A and A is **squash-merged**, B conflicts alm
 while B still carries A's original commits.
 Resolving those conflicts by hand means adjudicating A's entire diff a second time,
 which is how a regression slips in.
+
+If deleting A closed B because B targeted A as its base, recover in this order:
+
+1. Restore branch A.
+2. Reopen pull request B.
+
+Reopening alone is insufficient, because it leaves B based on a branch that still does not exist.
+Restoring the base branch is also what makes the restack flow below possible.
 
 Do this instead, which needs no force-push:
 
