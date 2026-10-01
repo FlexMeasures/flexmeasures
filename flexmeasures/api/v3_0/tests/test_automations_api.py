@@ -1803,3 +1803,32 @@ def test_post_automation_with_a_source_of_another_account(
         ).scalar_one_or_none()
         is None
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_post_automation_accepts_an_empty_source(
+    app,
+    fresh_db,
+    add_battery_assets_fresh_db,
+    requesting_user,
+):
+    """Leaving the source field empty means the automation sets up its own data generator, as leaving it out does."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Forecasts without a source",
+                "cron": "0 6 * * *",
+                "type": "forecasting",
+                "source": None,
+                "parameters": {"sensor": battery.sensors[0].id},
+            },
+        )
+    assert response.status_code == 201, response.json
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Forecasts without a source")
+    ).scalar_one()
+    assert automation.generator_id is not None
