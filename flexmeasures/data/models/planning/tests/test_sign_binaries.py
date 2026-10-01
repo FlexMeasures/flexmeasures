@@ -147,3 +147,39 @@ def test_commitments_that_are_each_convex_need_no_sign_constraints(app, monkeypa
     )
     assert results.solver.termination_condition == "optimal"
     assert not hasattr(model, "commitment_up_derivative_sign_con")
+
+
+def test_a_commitment_penalising_any_deviation_is_checked_on_its_split_halves(
+    app, monkeypatch
+):
+    """An ``any``-type commitment puts every time slot in one group, and such a group is split into an upwards and a downwards half.
+
+    Each half keeps one price column, so each is checked on the price it has and on a zero for the one it lacks,
+    which is what the optimizers themselves do with a missing price column.
+    A commitment that penalises both directions stays a linear program,
+    and one that pays for deviating downwards needs its sign constraints, just as the per-slot form does.
+    """
+    index = initialize_df(COLUMNS, START, END, RESOLUTION).index
+    penalised = FlowCommitment(
+        name="any deviation, penalised",
+        quantity=0,
+        upwards_deviation_price=10,
+        downwards_deviation_price=-10,
+        index=index,
+        _type="any",
+    )
+    results, model = solve_against([penalised], app, monkeypatch)
+    assert results.solver.termination_condition == "optimal"
+    assert not hasattr(model, "commitment_up_derivative_sign_con")
+
+    rewarded = FlowCommitment(
+        name="any deviation, rewarded downwards",
+        quantity=0,
+        upwards_deviation_price=0,
+        downwards_deviation_price=50,
+        index=index,
+        _type="any",
+    )
+    results, model = solve_against([rewarded], app, monkeypatch)
+    assert results.solver.termination_condition == "optimal"
+    assert hasattr(model, "commitment_up_derivative_sign_con")
