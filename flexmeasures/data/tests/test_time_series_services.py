@@ -1,4 +1,8 @@
+from datetime import timedelta
+
+import numpy as np
 import pandas as pd
+import timely_beliefs as tb
 from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -329,6 +333,195 @@ def test_drop_unchanged_beliefs_preserves_index_names_with_mixed_groups(
         len(result) == 1
     ), f"Expected only the new belief to survive, got {len(result)} rows"
     assert result.event_starts[0] == event_start_new
+
+
+CANONICAL_ORDER = ["event_start", "belief_time", "source", "cumulative_probability"]
+
+
+class _FakeSource(tb.BeliefSource):
+    """A belief source with an ID, which needs no database."""
+
+    def __init__(self, name: str, id: int | None):
+        super().__init__(name)
+        self.id = id
+
+
+_SENSOR = tb.Sensor("fake", event_resolution=timedelta(hours=1))
+_T0 = pd.Timestamp("2021-03-28 00:00", tz="UTC")
+A = _FakeSource("A", 1)
+B = _FakeSource("B", 2)
+
+
+def _beliefs(rows: list[tuple]) -> BeliefsDataFrame:
+    """Build beliefs from (event_start hour, belief_time hour, source, cumulative_probability, event_value) rows."""
+    return BeliefsDataFrame(
+        pd.DataFrame(
+            {
+                "event_start": [_T0 + pd.Timedelta(hours=r[0]) for r in rows],
+                "belief_time": [_T0 + pd.Timedelta(hours=r[1]) for r in rows],
+                "source": [r[2] for r in rows],
+                "cumulative_probability": [r[3] for r in rows],
+                "event_value": [r[4] for r in rows],
+            }
+        ),
+        sensor=_SENSOR,
+    )
+
+
+def _drop_unchanged_beliefs_compared_to_db_reference(
+    bdf: BeliefsDataFrame, bdf_db: BeliefsDataFrame
+) -> BeliefsDataFrame:
+    """Straightforward (slow) reference: compare each candidate belief to the latest earlier stored belief, group by group."""
+
+    def per_group(group: BeliefsDataFrame) -> BeliefsDataFrame:
+        source = group.lineage.sources[0]
+        event_start = group.event_starts[0]
+        belief_time = group.lineage.belief_times[0]
+        stored = bdf_db[
+            (bdf_db.sources.map(lambda s: s.id) == source.id)
+            & (bdf_db.event_starts == event_start)
+        ]
+        if stored.empty:
+            return group
+        latest = stored.belief_times[stored.belief_times <= belief_time].max()
+        if pd.isna(latest):
+            return group
+        previous = stored[stored.belief_times == latest].reset_index()
+
+        def pairs_of(frame: BeliefsDataFrame) -> list[tuple]:
+            # NaN compares equal to NaN here, as pandas does when matching index labels
+            return [
+                (cp, None if pd.isna(value) else value)
+                for cp, value in zip(
+                    frame.index.get_level_values("cumulative_probability"),
+                    frame["event_value"],
+                )
+            ]
+
+        previous_pairs = set(pairs_of(previous.set_index(CANONICAL_ORDER)))
+        if all(pair in previous_pairs for pair in pairs_of(group)):
+            return group.iloc[0:0]
+        return group
+
+    result = (
+        bdf.reorder_levels(CANONICAL_ORDER)
+        .groupby(level=["event_start", "belief_time", "source"], group_keys=False)
+        .apply(per_group)
+    )
+    result.index.names = CANONICAL_ORDER
+    return result.sort_index()
+
+
+def _rows(bdf: BeliefsDataFrame) -> list[tuple]:
+    """(event_start, belief_time, source, cumulative_probability, event_value) per belief, sorted."""
+    bdf = bdf.sort_index()
+    return [(*index, value) for index, value in zip(bdf.index, bdf["event_value"])]
+
+
+def test_drop_unchanged_compared_to_db_per_source_and_probabilistic():
+    """Unchanged beliefs are dropped per source; a changed probabilistic belief is kept whole; NaN equals NaN; a source without ID matches nothing."""
+    stored = _beliefs(
+        [
+            (0, 0, A, 0.5, 1.0),
+            (0, 0, B, 0.5, 7.0),
+            (1, 0, A, 0.2, 1.0),
+            (1, 0, A, 0.8, 3.0),
+            (2, 0, A, 0.5, np.nan),
+            (3, 0, A, 0.5, 5.0),
+        ]
+    )
+    candidates = _beliefs(
+        [
+            (0, 1, A, 0.5, 1.0),  # unchanged for A: dropped
+            (0, 1, B, 0.5, 8.0),  # changed for B: kept
+            (0, 1, _FakeSource("new", None), 0.5, 1.0),  # not stored yet: kept
+            (1, 1, A, 0.2, 1.0),  # probabilistic, only 0.8 changed: kept whole
+            (1, 1, A, 0.8, 4.0),
+            (2, 1, A, 0.5, np.nan),  # NaN unchanged: dropped
+            (3, 1, A, 0.5, 6.0),  # changed: kept
+            (4, 1, A, 0.5, 9.0),  # nothing stored for this event: kept
+        ]
+    )
+    result = _drop_unchanged_beliefs_compared_to_db(candidates, bdf_db=stored)
+    assert result.index.names == CANONICAL_ORDER
+    assert [(r[0] - _T0, r[2].name, r[3]) for r in _rows(result)] == [
+        (pd.Timedelta(hours=0), "B", 0.5),
+        (pd.Timedelta(hours=0), "new", 0.5),
+        (pd.Timedelta(hours=1), "A", 0.2),
+        (pd.Timedelta(hours=1), "A", 0.8),
+        (pd.Timedelta(hours=3), "A", 0.5),
+        (pd.Timedelta(hours=4), "A", 0.5),
+    ]
+
+
+def test_drop_unchanged_compared_to_db_compares_with_the_latest_prior_belief_only():
+    """A candidate is compared with the latest stored belief up to and including its belief time; older and later stored beliefs are ignored."""
+    stored = _beliefs(
+        [
+            (0, 0, A, 0.5, 2.0),
+            (0, 1, A, 0.5, 1.0),
+            (1, 1, A, 0.5, 4.0),
+            (2, 5, A, 0.5, 3.0),
+        ]
+    )
+    candidates = _beliefs(
+        [
+            (0, 2, A, 0.5, 2.0),  # equals an older belief, not the latest prior: kept
+            (1, 1, A, 0.5, 4.0),  # exact duplicate (same belief time): dropped
+            (2, 1, A, 0.5, 3.0),  # older than every stored belief: kept
+        ]
+    )
+    result = _drop_unchanged_beliefs_compared_to_db(candidates, bdf_db=stored)
+    assert [(r[0] - _T0, r[4]) for r in _rows(result)] == [
+        (pd.Timedelta(hours=0), 2.0),
+        (pd.Timedelta(hours=2), 3.0),
+    ]
+
+
+def test_drop_unchanged_compared_to_db_mixed_timezone_and_resolution():
+    """Candidates and stored beliefs may use other time zones and datetime resolutions."""
+    stored = _beliefs([(0, 0, A, 0.5, 1.0), (1, 0, A, 0.5, 2.0)])
+    candidates = _beliefs([(0, 1, A, 0.5, 1.0), (1, 1, A, 0.5, 3.0)])
+    stored = tb_utils.replace_multi_index_level(
+        stored,
+        "event_start",
+        stored.event_starts.tz_convert("Europe/Amsterdam").as_unit("us"),
+    )
+    stored = tb_utils.replace_multi_index_level(
+        stored, "belief_time", stored.belief_times.as_unit("us")
+    )
+    result = _drop_unchanged_beliefs_compared_to_db(candidates, bdf_db=stored)
+    assert [r[4] for r in _rows(result)] == [3.0]
+
+
+def test_drop_unchanged_compared_to_db_matches_reference():
+    """The vectorised comparison agrees with the straightforward reference on random cases."""
+    rng = np.random.default_rng(0)
+
+    def random_beliefs(sources: list, cps: list) -> BeliefsDataFrame:
+        rows = []
+        for event in range(rng.integers(1, 6)):
+            for source in sources:
+                for bt in rng.choice(8, size=rng.integers(1, 4), replace=False):
+                    for cp in cps:
+                        value = (
+                            float(rng.integers(0, 3)) if rng.random() > 0.1 else np.nan
+                        )
+                        rows.append((event, int(bt), source, cp, value))
+        return _beliefs(rows)
+
+    for _ in range(8):
+        sources = [A, B, _FakeSource("C", 3)][: rng.integers(1, 4)]
+        cps = [[0.5], [0.2, 0.5, 0.8]][rng.integers(0, 2)]
+        stored = random_beliefs(sources, cps)
+        candidates = random_beliefs(sources, cps)
+        expected = _drop_unchanged_beliefs_compared_to_db_reference(candidates, stored)
+        result = _drop_unchanged_beliefs_compared_to_db(candidates, bdf_db=stored)
+        assert result.index.names == expected.index.names
+        assert list(result.index) == list(expected.index)
+        np.testing.assert_array_equal(
+            result["event_value"].to_numpy(), expected["event_value"].to_numpy()
+        )
 
 
 def test_save_exact_duplicate_deterministic_belief(setup_beliefs, db):
