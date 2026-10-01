@@ -2453,11 +2453,26 @@ def test_get_jobs_pagination(
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_jobs_pagination_sorts_across_pages(
-    client, app, add_battery_assets, clean_redis, requesting_user
+    client, app, add_asset_with_children, clean_redis, requesting_user
 ):
     """Queue and time ordering apply to all jobs before selecting a page."""
-    asset = add_battery_assets["Test battery"]
-    sensor = asset.sensors[0]
+    # Use a new cache key without reattaching module-scoped ORM objects.
+    existing_asset = add_asset_with_children["child_1"]
+    asset = GenericAsset(
+        name="job sorting asset",
+        account_id=existing_asset.account_id,
+        generic_asset_type_id=existing_asset.generic_asset_type_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="job sorting sensor",
+        generic_asset_id=asset.id,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
     jobs_by_queue = {}
     for queue in ("scheduling", "forecasting"):
         jobs_by_queue[queue] = [
