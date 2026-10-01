@@ -104,18 +104,16 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
-    ordered_bdf = (
-        bdf.reorder_levels(canonical_order)
-        .groupby(
-            level=["event_start", "belief_time", "source"],
-            group_keys=False,
-        )
-        .apply(_drop_unchanged_beliefs_compared_to_db, bdf_db=bdf_db)
-    )
-    # pandas 2.x groupby/apply can lose level names when some groups return empty DataFrames
+    ordered_bdf = _drop_unchanged_beliefs_compared_to_db(bdf, bdf_db=bdf_db)
+    # Keep the canonical level order, also when the result is empty
     if ordered_bdf.index.names != canonical_order:
         ordered_bdf.index.names = canonical_order
     return ordered_bdf
+
+
+def _utc_ns(values: pd.Series) -> pd.Series:
+    """Express datetimes as UTC with nanosecond resolution, so that merge keys have identical dtypes."""
+    return pd.to_datetime(values, utc=True).astype("datetime64[ns, UTC]")
 
 
 def _drop_unchanged_beliefs_compared_to_db(
@@ -124,74 +122,80 @@ def _drop_unchanged_beliefs_compared_to_db(
 ) -> tb.BeliefsDataFrame:
     """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
-    Assumes a BeliefsDataFrame with a unique belief time and unique source,
-    and either all ex-ante beliefs or all ex-post beliefs.
+    Assumes all beliefs in ``bdf`` are either all ex-ante or all ex-post.
+    A candidate belief is the set of rows (one per cumulative probability) that share an event start, belief time and source.
+    It is compared with the stored belief of the same source and event start that has the latest belief time up to and including the candidate's.
+    The candidate is dropped if all its (cumulative probability, event value) pairs occur in that stored belief,
+    which covers both unchanged beliefs and exact duplicates (preventing duplicate key violations).
+    Otherwise, the candidate is kept whole, including the pairs that did not change.
+    A candidate without such a stored belief is kept.
 
-    Handles two cases:
-
-    1. **Unchanged belief** — the candidate value matches the most recent prior belief in the DB
-       (belief_time strictly earlier than the candidate): the candidate is dropped to avoid
-       cluttering the database with redundant history.
-    2. **Exact duplicate** — a belief with the exact same belief_time already exists in the DB
-       with the same value: the candidate is dropped to prevent duplicate key violations, which
-       is particularly useful when re-running forecasters or reporters with identical data.
-
+    The whole frame is compared at once, which keeps this fast for many beliefs.
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
-    source = bdf.lineage.sources[0]  # unique source
-    event_start = bdf.event_starts[0]  # unique event_start
-    belief_time = bdf.lineage.belief_times[0]  # unique belief time
-    # Compare by ID rather than object identity: the candidate bdf may have been
+    canonical_order = ["event_start", "belief_time", "source", "cumulative_probability"]
+    ordered = bdf.reorder_levels(canonical_order)
+    cand = ordered.reset_index()
+    stored = bdf_db.reset_index()
+
+    # Compare sources by ID rather than object identity: the candidate bdf may have been
     # deserialized from an RQ job queue (pickled in a different process), so its
     # DataSource objects are detached and won't be identical to the freshly-loaded
     # ones in bdf_db even when they represent the same DB row.
-    # Also filter by event_start: bdf_db may contain beliefs for multiple event_starts,
-    # and we must not let a newer belief_time from a different event_start contaminate
-    # the most-recent-belief-time lookup for this candidate's event_start.
-    bdf_db_from_source = bdf_db[
-        (bdf_db.sources.map(lambda s: s.id) == source.id)
-        & (bdf_db.event_starts == event_start)
-    ]
-    if bdf_db_from_source.empty:
-        return bdf
-    # Use .max() rather than searchsorted: the result is correct regardless of
-    # whether bdf_db happens to be sorted ascending or descending by belief_time.
-    most_recent_bt = bdf_db_from_source.belief_times[
-        bdf_db_from_source.belief_times <= belief_time
-    ].max()
-    if pd.isna(most_recent_bt):
-        # No earlier belief time in db
-        return bdf
-    previous_most_recent_beliefs = bdf_db_from_source[
-        bdf_db_from_source.belief_times == most_recent_bt
-    ]
-    # Use source_id (integer) instead of source (object) for robust cross-session
-    # comparison. Detached ORM instances (for example after serialization boundaries
-    # or different session lifecycles) may represent the same DB row but still fail
-    # object-identity based comparison in pandas indices.
-    a_df = bdf.reset_index()
-    a_df["source_id"] = a_df["source"].map(lambda s: s.id)
-    b_df = previous_most_recent_beliefs.reset_index()
-    b_df["source_id"] = b_df["source"].map(lambda s: s.id)
+    # A source without ID (not yet flushed) becomes NaN, which matches no stored belief.
+    def source_ids(sources: pd.Series) -> pd.Series:
+        ids = {s: s.id for s in sources.unique()}
+        return pd.to_numeric(sources.map(ids), errors="coerce").astype("float64")
 
-    compare_fields = [
-        "event_start",
-        "source_id",
-        "cumulative_probability",
-        "event_value",
-    ]
-    a = a_df.set_index(compare_fields)
-    b = b_df.set_index(compare_fields)
-    dropped = a.drop(b.index, errors="ignore", axis=0)
-
-    # Keep whole probabilistic beliefs, not just the parts that changed
-    c = dropped.reset_index().set_index(["event_start", "source_id"])
-    d = a_df.set_index(["event_start", "source_id"])
-    bdf = d[d.index.isin(c.index)]
-
-    bdf = (
-        bdf.reset_index()
-        .drop(columns=["source_id"], errors="ignore")
-        .set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    cand_keys = pd.DataFrame(
+        {
+            "event_start": _utc_ns(cand["event_start"]),
+            "source_id": source_ids(cand["source"]),
+            "belief_time": _utc_ns(cand["belief_time"]),
+            "cumulative_probability": cand["cumulative_probability"],
+            "event_value": cand["event_value"],
+            "_pos": range(len(cand)),
+            "_candidate": cand.groupby(
+                ["event_start", "belief_time", "source"], sort=False
+            ).ngroup(),
+        }
     )
-    return bdf
+    stored_keys = pd.DataFrame(
+        {
+            "event_start": _utc_ns(stored["event_start"]),
+            "source_id": source_ids(stored["source"]),
+            "stored_belief_time": _utc_ns(stored["belief_time"]),
+            "cumulative_probability": stored["cumulative_probability"],
+            "event_value": stored["event_value"],
+        }
+    )
+
+    # Find the latest stored belief time not later than the candidate's, per event start and source
+    by = ["event_start", "source_id"]
+    stored_belief_times = (
+        stored_keys[by + ["stored_belief_time"]]
+        .drop_duplicates()
+        .sort_values("stored_belief_time", kind="stable")
+    )
+    cand_keys = pd.merge_asof(
+        cand_keys.sort_values("belief_time", kind="stable"),
+        stored_belief_times,
+        left_on="belief_time",
+        right_on="stored_belief_time",
+        by=by,
+        direction="backward",
+    )
+
+    # A row is unchanged if that stored belief holds the same cumulative probability and event value
+    compare = by + ["cumulative_probability", "event_value", "stored_belief_time"]
+    cand_keys = cand_keys.merge(
+        stored_keys[compare].drop_duplicates().assign(_unchanged=True),
+        on=compare,
+        how="left",
+    )
+    cand_keys["_unchanged"] = cand_keys["_unchanged"].notna()
+
+    # Keep a candidate belief if it has no earlier stored belief, or if any of its rows changed
+    all_unchanged = cand_keys.groupby("_candidate")["_unchanged"].transform("all")
+    keep = cand_keys["stored_belief_time"].isna() | ~all_unchanged
+    return ordered.iloc[cand_keys.loc[keep, "_pos"].to_numpy()].sort_index()
