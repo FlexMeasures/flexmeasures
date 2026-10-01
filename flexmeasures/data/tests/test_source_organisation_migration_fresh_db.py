@@ -219,13 +219,17 @@ def test_a_shared_source_stops_the_upgrade_and_names_what_to_look_at(
     )
 
 
-def test_splitting_a_shared_source_keeps_its_id_with_the_freshest_organisation(
+def test_splitting_moves_what_the_other_organisation_recorded_and_keeps_the_id(
     fresh_db,
     setup_accounts_fresh_db,
     setup_generic_asset_types_fresh_db,
     unowned_forecaster,
 ):
-    """The source id is something installations pin, so it stays with the organisation most likely to still be using it."""
+    """What a split moves, and what keeps the id it moved away from.
+
+    Which organisation wins is pinned by `test_recency_is_when_a_belief_was_recorded_not_what_it_is_about`:
+    these beliefs carry no horizon, so belief time and event start coincide here and this test cannot tell the two rules apart.
+    """
     prosumer = setup_accounts_fresh_db["Prosumer"]
     supplier = setup_accounts_fresh_db["Supplier"]
     stale_sensor = _asset_with_sensor(
@@ -254,7 +258,9 @@ def test_splitting_a_shared_source_keeps_its_id_with_the_freshest_organisation(
     fresh_db.session.expire_all()
 
     kept = fresh_db.session.get(DataSource, source_id)
-    assert kept.account_id == supplier.id, "the freshest beliefs keep the id"
+    assert (
+        kept.account_id == supplier.id
+    ), "one organisation keeps the id it was shared under"
 
     moved = fresh_db.session.scalars(
         select(DataSource).filter(
