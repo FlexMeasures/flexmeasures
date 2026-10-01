@@ -63,6 +63,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-guard.sh\"",
             "if": "Bash(git:*)",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/merge-delete-branch-guard.sh\"",
+            "if": "Bash(gh pr merge:*)",
+            "timeout": 10
           }
         ]
       }
