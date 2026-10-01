@@ -297,9 +297,8 @@ class DataGenerator:
     def source_account(self) -> Account | None:
         """The organisation this data generator's source belongs to.
 
-        It is whatever `set_source_account` was told, and otherwise the organisation of the sensors this generator writes to,
-        which is the same answer the migration derives for the sources that already exist.
-        Sensors of several organisations, or none to go by, leave the source belonging to no organisation.
+        It is whatever `set_source_account` was told, and otherwise the organisation of the sensors this generator writes to.
+        Sensors of several organisations, or none to go by, leave the source belonging to no organisation in particular.
         """
         if self._source_account is not None:
             return self._source_account
@@ -314,8 +313,9 @@ class DataGenerator:
         if len(accounts) == 1:
             return accounts.pop()
         if len(accounts) > 1:
-            # Recording unowned is the lesser evil here, since refusing would fail the run over a question of provenance,
-            # but it is the one way new data can still land on a source belonging to no organisation, so it is said out loud.
+            # Refusing here would fail a schedule or a report over a question of provenance, so the source is left without an organisation.
+            # It is said out loud because this is the only path on which newly computed data lands on a source belonging to none.
+            # Migration c5e1a7b94d20 applies the same rule to the sources that predate it.
             current_app.logger.warning(
                 "%s writes to sensors of %d organisations (%s), so its data source belongs to none of them."
                 " Tell it which organisation it computes for, with `set_source_account`, to record under that organisation's own source.",
