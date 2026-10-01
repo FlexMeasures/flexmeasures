@@ -5,11 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-
 v3.0-40 | September XX, 2026
 """"""""""""""""""""""""""""
 - Added ``DELETE /api/v3_0/sensors/<id>/annotations``, which deletes a sensor's annotations, optionally only those of one ``source`` or lying entirely between ``start`` and ``until``. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor. It requires permission to delete the sensor, like ``DELETE /api/v3_0/sensors/<id>/data``, and reports how many annotations it removed from the sensor as ``deleted``.
 - ``POST /api/v3_0/accounts/<id>/annotations``, ``POST /api/v3_0/assets/<id>/annotations`` and ``POST /api/v3_0/sensors/<id>/annotations`` now accept an ``end`` equal to the ``start``, which makes an instantaneous annotation, where they used to reply with a ``422``. An ``end`` before the ``start`` is still refused.
+- ``POST /api/v3_0/assets/<id>/automations`` now accepts ``source``, the ID of an existing data source to reuse, instead of a ``data-generator`` and its ``config``. The source hands over the data generator it stores, and the automation records its results under that same source, so naming one is refused with a ``403`` unless the caller may read it, and with a ``422`` where it is combined with ``data-generator`` or ``config``, where it stores no data generator of the automation's type, or where the automation schedules (a schedule automation's source follows from the asset and the flex config).
+- ``GET /api/v3_0/sources`` now accepts ``filter``, matching search terms against a source's name, its model and its id prefix, ``type``, narrowing the list to one source type, and ``limit``, returning only that many sources, the most recently created ones first. The ``types`` in the response still cover every source the caller may read, so that one call can both search the sources and offer the types to search by.
 
 v3.0-39 | September 22, 2026
 """"""""""""""""""""""""""""
