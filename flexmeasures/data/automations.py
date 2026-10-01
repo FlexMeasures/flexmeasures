@@ -202,11 +202,7 @@ class AutomationHandler:
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
                 ).total_seconds()
             ),
-            result_ttl=int(
-                current_app.config.get(
-                    "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                ).total_seconds()
-            ),
+            result_ttl=job_result_ttl(self.queue),
             meta={
                 "trigger": {"origin": "automation", "automation_id": automation.id},
                 "data_source_info": {"id": source_id},
@@ -222,6 +218,21 @@ class AutomationHandler:
             asset_or_sensor_type="asset",
         )
         return {"job_id": job.id, "n_jobs": 1}
+
+
+def job_result_ttl(queue_name: str) -> int:
+    """Return how long, in seconds, to keep the result of a job on the given queue.
+
+    Ingestion results are kept for FLEXMEASURES_JOB_TTL, as for ingestion jobs queued by the API;
+    results on the forecasting, scheduling and reporting queues are kept for FLEXMEASURES_PLANNING_TTL.
+    NB job.cleanup docs say that a negative number of seconds means persisting forever.
+    """
+    setting = (
+        "FLEXMEASURES_JOB_TTL"
+        if queue_name == "ingestion"
+        else "FLEXMEASURES_PLANNING_TTL"
+    )
+    return int(current_app.config.get(setting, timedelta(-1)).total_seconds())
 
 
 def initialize_automation_handlers(app):
