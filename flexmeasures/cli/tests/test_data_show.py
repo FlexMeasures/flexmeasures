@@ -73,7 +73,7 @@ def test_list_sources_shows_account(app, db, setup_accounts):
     assert str(account.id) in result.output
 
 
-def test_list_source_sensors(app, db, setup_dummy_data_module):
+def test_list_source_sensors(app, db, setup_dummy_data):
     """A source which recorded beliefs on two sensors lists both, with their asset."""
     from flexmeasures.cli.data_show import list_data_sources
     from flexmeasures.data.models.data_sources import DataSource

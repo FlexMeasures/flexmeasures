@@ -10,7 +10,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 @pytest.fixture(scope="function")
-def setup_dummy_asset(fresh_db, app):
+def setup_dummy_asset_fresh_db(fresh_db, app):
     """
     Create an Asset to add sensors to and return the id.
     """
@@ -18,8 +18,8 @@ def setup_dummy_asset(fresh_db, app):
 
 
 @pytest.fixture(scope="module")
-def setup_dummy_asset_module(db, app):
-    """Like setup_dummy_asset, but built once per module on the module-scoped db."""
+def setup_dummy_asset(db, app):
+    """Build the dummy asset once per module, on the module-scoped db."""
     return create_dummy_asset(db)
 
 
@@ -38,18 +38,18 @@ def create_dummy_asset(db) -> int:
 
 
 @pytest.fixture(scope="function")
-def setup_dummy_data(fresh_db, app, setup_dummy_asset):
+def setup_dummy_data_fresh_db(fresh_db, app, setup_dummy_asset_fresh_db):
     """
     Create an asset with two sensors (1 and 2), and add the same set of 200 beliefs with an hourly resolution to each of them.
     Return the two sensors and a result sensor (which has no data).
     """
-    return create_dummy_data(fresh_db, setup_dummy_asset)
+    return create_dummy_data(fresh_db, setup_dummy_asset_fresh_db)
 
 
 @pytest.fixture(scope="module")
-def setup_dummy_data_module(db, app, setup_dummy_asset_module):
-    """Like setup_dummy_data, but built once per module on the module-scoped db."""
-    return create_dummy_data(db, setup_dummy_asset_module)
+def setup_dummy_data(db, app, setup_dummy_asset):
+    """Build the dummy data once per module, on the module-scoped db."""
+    return create_dummy_data(db, setup_dummy_asset)
 
 
 def create_dummy_data(db, dummy_asset_id: int) -> tuple[int, int, int, int]:

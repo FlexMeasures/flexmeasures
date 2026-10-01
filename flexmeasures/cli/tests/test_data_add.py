@@ -212,11 +212,13 @@ def test_cli_help(app):
         assert "Usage" in result.output
 
 
-def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+def test_add_report_as_job(
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis, tmp_path
+):
     """The report CLI can persist its reporter and queue work for a worker."""
     from flexmeasures.cli.data_add import add_report
 
-    input_1, input_2, output, _ = setup_dummy_data
+    input_1, input_2, output, _ = setup_dummy_data_fresh_db
     reporter_config = {
         "required_input": [{"name": "one"}, {"name": "two"}],
         "required_output": [{"name": "sum"}],
@@ -273,12 +275,12 @@ def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_pat
 
 
 def test_add_profit_report_as_job_requires_input(
-    app, fresh_db, setup_dummy_data, clean_redis, tmp_path
+    app, fresh_db, setup_dummy_data_fresh_db, clean_redis, tmp_path
 ):
     """The CLI must not queue a profit report without its flow sensor."""
     from flexmeasures.cli.data_add import add_report
 
-    _, _, report_sensor_id, _ = setup_dummy_data
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
     price_sensor = Sensor(
         "price sensor",

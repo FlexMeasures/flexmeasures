@@ -17,7 +17,7 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
-def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
+def test_add_reporter(app, fresh_db, setup_dummy_data_fresh_db, caplog):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -34,7 +34,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
 
     from flexmeasures.cli.data_add import add_report
 
-    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
 
     reporter_config = dict(
         required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
@@ -160,12 +160,14 @@ def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
         assert len(stored_report) == 95
 
 
-def test_add_multiple_output(app, fresh_db, setup_dummy_data, caplog):
+def test_add_multiple_output(app, fresh_db, setup_dummy_data_fresh_db, caplog):
     """ """
 
     from flexmeasures.cli.data_add import add_report
 
-    sensor_1_id, sensor_2_id, report_sensor_id, report_sensor_2_id = setup_dummy_data
+    sensor_1_id, sensor_2_id, report_sensor_id, report_sensor_2_id = (
+        setup_dummy_data_fresh_db
+    )
 
     reporter_config = dict(
         required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],

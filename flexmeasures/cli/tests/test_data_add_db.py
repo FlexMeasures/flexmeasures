@@ -13,10 +13,10 @@ from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_add_forecast(app, db, setup_dummy_data_module):
+def test_add_forecast(app, db, setup_dummy_data):
     from flexmeasures.cli.data_add import add_forecast
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     cli_input = {
         "sensor": sensor_id,
     }
@@ -37,11 +37,11 @@ def _count_sources(db) -> int:
     return db.session.scalar(select(func.count()).select_from(DataSource))
 
 
-def test_add_forecast_dry_run_saves_no_beliefs(app, db, setup_dummy_data_module):
+def test_add_forecast_dry_run_saves_no_beliefs(app, db, setup_dummy_data):
     """A dry run reports the forecast it computed, without recording any belief."""
     from flexmeasures.cli.data_add import add_forecast
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     runner = app.test_cli_runner()
 
     # Earlier dry runs in this module may have flushed a data source without committing it, and the rollback below would discard that too.
@@ -87,7 +87,7 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, db, setup_dummy_data_module)
 
 
 def test_add_forecast_dry_run_reports_an_empty_forecast(
-    app, db, setup_dummy_data_module, monkeypatch
+    app, db, setup_dummy_data, monkeypatch
 ):
     """A dry run that computes no beliefs at all still reports, rather than crashing on an empty frame."""
     import timely_beliefs as tb
@@ -95,7 +95,7 @@ def test_add_forecast_dry_run_reports_an_empty_forecast(
     from flexmeasures.cli.data_add import add_forecast
     from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     sensor = db.session.get(Sensor, sensor_id)
 
     def compute_nothing(self, *args, **kwargs):
@@ -114,11 +114,11 @@ def test_add_forecast_dry_run_reports_an_empty_forecast(
     assert "covering events from" not in result.output
 
 
-def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data_module):
+def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data):
     """A dry run cannot be queued, because its results would never reach the user."""
     from flexmeasures.cli.data_add import add_forecast
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     runner = app.test_cli_runner()
     result = runner.invoke(
         add_forecast, to_flags({"sensor": sensor_id}) + ["--dry-run", "--as-job"]
@@ -129,12 +129,12 @@ def test_add_forecast_rejects_dry_run_as_job(app, setup_dummy_data_module):
 
 
 def test_add_forecast_rejects_dry_run_as_job_from_parameters_file(
-    app, setup_dummy_data_module, tmp_path
+    app, setup_dummy_data, tmp_path
 ):
     """A dry run set in a parameters file is rejected in combination with --as-job, too."""
     from flexmeasures.cli.data_add import add_forecast
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     parameters_file = tmp_path / "parameters.yml"
     parameters_file.write_text(yaml.safe_dump({"dry-run": True}))
     runner = app.test_cli_runner()
@@ -148,12 +148,10 @@ def test_add_forecast_rejects_dry_run_as_job_from_parameters_file(
     assert "The --as-job flag cannot be combined with --dry-run" in result.output
 
 
-def test_add_forecast_reports_invalid_annotation_regressor(
-    app, setup_dummy_data_module
-):
+def test_add_forecast_reports_invalid_annotation_regressor(app, setup_dummy_data):
     from flexmeasures.cli.data_add import add_forecast
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     runner = app.test_cli_runner()
     result = runner.invoke(
         add_forecast,
@@ -171,12 +169,10 @@ def test_add_forecast_reports_invalid_annotation_regressor(
     assert "Traceback" not in result.output
 
 
-def test_add_forecast_rejects_config_with_existing_source(
-    app, db, setup_dummy_data_module
-):
+def test_add_forecast_rejects_config_with_existing_source(app, db, setup_dummy_data):
     from flexmeasures.cli.data_add import add_forecast
 
-    sensor_id, *_ = setup_dummy_data_module
+    sensor_id, *_ = setup_dummy_data
     source = DataSource(
         name="stored forecaster",
         type="forecaster",
@@ -208,10 +204,10 @@ def test_add_forecast_rejects_config_with_existing_source(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
 )
-def test_add_sensor(app, db, setup_dummy_asset_module, event_resolution, name, success):
+def test_add_sensor(app, db, setup_dummy_asset, event_resolution, name, success):
     from flexmeasures.cli.data_add import add_sensor
 
-    asset = setup_dummy_asset_module
+    asset = setup_dummy_asset
 
     runner = app.test_cli_runner()
 
