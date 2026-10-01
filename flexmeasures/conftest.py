@@ -14,7 +14,7 @@ import numpy as np
 from flask import request, jsonify, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
-from flask_security import roles_accepted
+from flask_security import roles_accepted, SQLAlchemySessionUserDatastore, hash_password
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 from werkzeug.exceptions import (
     InternalServerError,
@@ -30,14 +30,15 @@ from flexmeasures.auth.policy import (
     ADMIN_READER_ROLE,
     CONSULTANCY_ACCOUNT_ROLE,
 )
-from flexmeasures.data.services.users import create_user
+from passlib.totp import TOTP
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import User, Account, AccountRole
+from flexmeasures.data.models.user import User, Role, Account, AccountRole
 
-from flexmeasures.utils.time_utils import as_server_time
+from flexmeasures.utils.time_utils import as_server_time, server_now
 
 from flexmeasures import Asset
 
@@ -245,10 +246,37 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, U
 
 def create_roles_users(db, test_accounts) -> dict[str, User]:
     """Create a minimal set of roles and users"""
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    roles: dict[str, Role] = {}
     new_users: list[User] = []
+
+    def add_user(
+        username: str,
+        email: str,
+        account_name: str,
+        password: str,
+        user_roles: dict | None = None,
+    ) -> User:
+        """Like `flexmeasures.data.services.users.create_user`, without the flush and lookups per user that take most of the time; the audit log entries are added after one flush for all users."""
+        user_role = []
+        if user_roles:
+            if user_roles["name"] not in roles:
+                roles[user_roles["name"]] = user_datastore.create_role(**user_roles)
+            user_role = [roles[user_roles["name"]]]
+        user = user_datastore.create_user(
+            username=username,
+            email=email,
+            password=hash_password(password),
+            roles=user_role,
+            account=next(a for a in test_accounts.values() if a.name == account_name),
+            tf_totp_secret=TOTP.new().to_json(),
+        )
+        db.session.add(DataSource(user=user))
+        return user
+
     # 3 Prosumer users: 2 plain ones, 1 account admin
     new_users.append(
-        create_user(
+        add_user(
             username="Test Prosumer User",
             email="test_prosumer_user@seita.nl",
             account_name=test_accounts["Prosumer"].name,
@@ -258,7 +286,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Prosumer User 2",
             email="test_prosumer_user_2@seita.nl",
             account_name=test_accounts["Prosumer"].name,
@@ -267,7 +295,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Another Plain Prosumer User",
             email="test_prosumer_user_3@seita.nl",
             account_name=test_accounts["Prosumer"].name,
@@ -276,7 +304,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # A user on an account without any special rights
     new_users.append(
-        create_user(
+        add_user(
             username="Test Dummy User",
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
@@ -285,7 +313,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # Account admin on dummy account
     new_users.append(
-        create_user(
+        add_user(
             username="Test Dummy Account Admin",
             email="test_dummy_account_admin@seita.nl",
             account_name=test_accounts["Dummy"].name,
@@ -295,7 +323,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # A supplier user
     new_users.append(
-        create_user(
+        add_user(
             username="Test Supplier User",
             email="test_supplier_user_4@seita.nl",
             account_name=test_accounts["Supplier"].name,
@@ -304,7 +332,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # One platform admin
     new_users.append(
-        create_user(
+        add_user(
             username="Test Admin User",
             email="test_admin_user@seita.nl",
             account_name=test_accounts[
@@ -318,7 +346,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # One platform admin reader
     new_users.append(
-        create_user(
+        add_user(
             username="Test Admin Reader User",
             email="test_admin_reader_user@seita.nl",
             account_name=test_accounts[
@@ -331,7 +359,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Consultant User",
             email="test_consultant@seita.nl",
             account_name=test_accounts["Consultancy"].name,
@@ -340,7 +368,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Consultant User without consultant role",
             email="test_consultancy_user_without_consultant_access@seita.nl",
             account_name=test_accounts["Consultancy"].name,
@@ -349,13 +377,24 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # Consultancy client account user
     new_users.append(
-        create_user(
+        add_user(
             username="Test Consultancy Client User",
             email="test_consultant_client@seita.nl",
             account_name=test_accounts["ConsultancyClient"].name,
             password="testtest",
         )
     )
+    # one flush gives the users and accounts their ids for the audit log entries
+    db.session.flush()
+    for user in new_users:
+        db.session.add(
+            AuditLog(
+                event_datetime=server_now(),
+                event=f"User {user.username} created",
+                affected_user_id=user.id,
+                affected_account_id=user.account_id,
+            )
+        )
     return {user.username: user.id for user in new_users}
 
 
