@@ -50,13 +50,19 @@ def _asset_with_sensor(db, account, asset_type, name: str) -> Sensor:
     return sensor
 
 
-def _record(db, sensor: Sensor, source: DataSource, event_start: datetime) -> None:
+def _record(
+    db,
+    sensor: Sensor,
+    source: DataSource,
+    event_start: datetime,
+    belief_horizon: timedelta = timedelta(hours=0),
+) -> None:
     db.session.add(
         TimedBelief(
             sensor=sensor,
             source=source,
             event_start=event_start,
-            belief_horizon=timedelta(hours=0),
+            belief_horizon=belief_horizon,
             event_value=1.0,
         )
     )
@@ -360,3 +366,93 @@ def test_the_x_argument_for_keeping_a_source_is_read_as_a_pair():
     ) == {42: 3, 7: 1}
     with pytest.raises(RuntimeError, match="keep-source"):
         migration._keepers_from_x_arguments(["keep-source=42"])
+
+
+def test_recency_is_when_a_belief_was_recorded_not_what_it_is_about(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+    unowned_forecaster,
+):
+    """A generator records beliefs about the future, so the furthest event start is a horizon, not a recent run."""
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    long_horizon = _asset_with_sensor(
+        fresh_db,
+        prosumer,
+        setup_generic_asset_types_fresh_db["battery"],
+        "prosumer site",
+    )
+    recent_run = _asset_with_sensor(
+        fresh_db,
+        supplier,
+        setup_generic_asset_types_fresh_db["battery"],
+        "supplier site",
+    )
+    # Ran on 1 September looking 60 days ahead: the furthest event start of the two, and the older run by a month.
+    _record(
+        fresh_db,
+        long_horizon,
+        unowned_forecaster,
+        datetime(2026, 10, 31, tzinfo=utc),
+        belief_horizon=timedelta(days=60),
+    )
+    # Ran on 1 October looking an hour ahead: the nearer event start, and the more recent run.
+    _record(
+        fresh_db,
+        recent_run,
+        unowned_forecaster,
+        datetime(2026, 10, 1, 1, tzinfo=utc),
+        belief_horizon=timedelta(hours=1),
+    )
+    source_id = unowned_forecaster.id
+
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(), splitting=True
+    )
+    fresh_db.session.expire_all()
+
+    assert (
+        fresh_db.session.get(DataSource, source_id).account_id == supplier.id
+    ), "the organisation whose run is most recent keeps the id, not the one forecasting furthest ahead"
+
+
+def test_a_sensor_link_left_behind_by_deleted_beliefs_does_not_stop_the_upgrade(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+    unowned_forecaster,
+):
+    """`sensor_data_source` keeps a pair after its beliefs are deleted, so it alone cannot say a source is still shared."""
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    current = _asset_with_sensor(
+        fresh_db,
+        prosumer,
+        setup_generic_asset_types_fresh_db["battery"],
+        "prosumer site",
+    )
+    former = _asset_with_sensor(
+        fresh_db,
+        supplier,
+        setup_generic_asset_types_fresh_db["battery"],
+        "supplier site",
+    )
+    _record(fresh_db, current, unowned_forecaster, datetime(2026, 10, 1, tzinfo=utc))
+    _record(fresh_db, former, unowned_forecaster, datetime(2026, 1, 1, tzinfo=utc))
+    # The supplier's beliefs are deleted, as data is; the summary row stays behind, as it does.
+    fresh_db.session.query(TimedBelief).filter_by(sensor_id=former.id).delete()
+    fresh_db.session.flush()
+    assert fresh_db.session.scalars(
+        select(SensorDataSource).filter_by(sensor_id=former.id)
+    ).all(), "the sensor link outlives the beliefs"
+    source_id = unowned_forecaster.id
+
+    _migration().couple_sources_to_organisations(
+        fresh_db.session.connection(), splitting=False
+    )
+    fresh_db.session.expire_all()
+
+    assert (
+        fresh_db.session.get(DataSource, source_id).account_id == prosumer.id
+    ), "the source is coupled to the organisation it still records for"

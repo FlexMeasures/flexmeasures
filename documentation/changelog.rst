@@ -13,7 +13,7 @@ v1.1.0 | September XX, 2026
              Run the upgrade **before** deploying the new code, with your workers stopped:
              this version couples each data source to the organisation it records for, and a worker still running the previous version records under a source belonging to no organisation, beside the one the upgrade has just coupled.
              Where a data source turns out to have recorded for several organisations, the upgrade stops and names those sources rather than picking one.
-             ``flexmeasures db upgrade -x split-shared-sources=true`` then gives each of those organisations its own data source, keeping each source's id for the organisation whose beliefs under it are the freshest, since a source id is something installations refer to.
+             ``flexmeasures db upgrade -x split-shared-sources=true`` then gives each of those organisations its own data source, keeping each source's id for the organisation which recorded under it most recently, since a source id is something installations refer to.
 
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.

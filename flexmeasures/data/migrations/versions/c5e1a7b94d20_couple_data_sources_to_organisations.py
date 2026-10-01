@@ -21,7 +21,7 @@ It stops and names the sources and the organisations sharing them, and the same 
 
     flexmeasures db upgrade -x split-shared-sources=true
 
-A split keeps the source id for the organisation whose beliefs under it are the freshest, since a source id is something installations pin,
+A split keeps the source id for the organisation which recorded under it most recently, since a source id is something installations pin,
 and moves the other organisations' beliefs, annotations, sensor links and automations onto newly created sources of their own.
 """
 
@@ -82,6 +82,58 @@ def _organisations_per_source(connection) -> dict[int, set[int]]:
     return per_source
 
 
+def _still_recorded_for(connection, source_id: int, account_id: int) -> bool:
+    """Whether a source's claim on an organisation rests on anything that still exists.
+
+    `sensor_data_source` is a superset: a pair is added when beliefs are saved and is not removed when they are deleted,
+    so a source that wrote to another organisation's sensor years ago still looks shared with it long after that data went.
+    An automation or an annotation is a claim in itself; a belief is checked for rather than taken from that summary.
+    """
+    return bool(
+        connection.execute(
+            sa.text("""
+                SELECT EXISTS (
+                    SELECT 1 FROM automation a
+                      JOIN generic_asset ga ON ga.id = a.asset_id
+                     WHERE a.generator_id = :source_id AND ga.account_id = :account_id
+                )
+                OR EXISTS (
+                    SELECT 1 FROM annotation an
+                      LEFT JOIN annotations_accounts aa ON aa.annotation_id = an.id
+                      LEFT JOIN annotations_assets aga ON aga.annotation_id = an.id
+                      LEFT JOIN generic_asset aga_ga ON aga_ga.id = aga.generic_asset_id
+                      LEFT JOIN annotations_sensors ans ON ans.annotation_id = an.id
+                      LEFT JOIN sensor ans_s ON ans_s.id = ans.sensor_id
+                      LEFT JOIN generic_asset ans_ga ON ans_ga.id = ans_s.generic_asset_id
+                     WHERE an.source_id = :source_id
+                       AND :account_id IN (aa.account_id, aga_ga.account_id, ans_ga.account_id)
+                )
+                OR EXISTS (
+                    SELECT 1 FROM timed_belief tb
+                      JOIN sensor s ON s.id = tb.sensor_id
+                      JOIN generic_asset ga ON ga.id = s.generic_asset_id
+                     WHERE tb.source_id = :source_id AND ga.account_id = :account_id
+                     LIMIT 1
+                )
+                """),
+            {"source_id": source_id, "account_id": account_id},
+        ).scalar_one()
+    )
+
+
+def _verified_organisations(connection, source_id: int, accounts: set[int]) -> set[int]:
+    """The organisations a source still records for, out of those its signals name.
+
+    Only asked about the sources which look shared, since that is where the answer is worth a second query:
+    a source naming one organisation is coupled to it whether or not its oldest data is still there.
+    """
+    return {
+        account_id
+        for account_id in accounts
+        if _still_recorded_for(connection, source_id, account_id)
+    }
+
+
 def _describe(connection, source_ids: list[int]) -> dict[int, str]:
     """A readable name per source, for the message a host has to act on."""
     if not source_ids:
@@ -101,17 +153,21 @@ def _describe(connection, source_ids: list[int]) -> dict[int, str]:
     }
 
 
-def _freshest_belief_per_organisation(
+def _most_recently_recording_organisations(
     connection, source_id: int, account_ids: set[int]
 ) -> list[int]:
-    """The organisations sharing a source, the one whose beliefs under it are freshest first.
+    """The organisations sharing a source, the one which recorded under it most recently first.
 
     The source keeps its id for that one, because a source id is something installations pin:
     it turns up in `sources` filters inside flex-model and flex-context references, and in automation parameters.
+
+    Recency is the belief time, not the event a belief is about.
+    A generator mostly records beliefs about the future, so the furthest event start would rank a forecaster that last ran a month ago
+    over one that ran this morning, whenever the first looks further ahead.
     """
     rows = connection.execute(
         sa.text("""
-            SELECT ga.account_id, MAX(tb.event_start) AS latest
+            SELECT ga.account_id, MAX(tb.event_start - tb.belief_horizon) AS latest
               FROM timed_belief tb
               JOIN sensor s ON s.id = tb.sensor_id
               JOIN generic_asset ga ON ga.id = s.generic_asset_id
@@ -268,6 +324,16 @@ def couple_sources_to_organisations(
     which is worth doing for a migration that moves beliefs between sources.
     """
     per_source = _organisations_per_source(connection)
+    # A source which looks shared is asked a second time, with its claims checked against data that is still there,
+    # so that an upgrade is not stopped by a sensor link left behind by beliefs which have since been deleted.
+    per_source = {
+        source_id: (
+            accounts
+            if len(accounts) < 2
+            else _verified_organisations(connection, source_id, accounts) or accounts
+        )
+        for source_id, accounts in per_source.items()
+    }
     single = {
         source_id: next(iter(accounts))
         for source_id, accounts in per_source.items()
@@ -304,7 +370,7 @@ def couple_sources_to_organisations(
         raise RuntimeError(
             "These data sources recorded for more than one organisation, so they cannot be coupled to one:\n"
             + "\n".join(lines)
-            + "\n\nSplitting them keeps each source id for the organisation whose beliefs under it are the freshest,"
+            + "\n\nSplitting them keeps each source id for the organisation which recorded under it most recently,"
             "\nand moves what the other organisations recorded onto new sources of their own."
             "\nRun the same upgrade with:\n\n"
             "    flexmeasures db upgrade -x split-shared-sources=true\n"
@@ -320,7 +386,7 @@ def couple_sources_to_organisations(
             f"Asked to keep data source(s) {sorted(unknown)} with a named organisation, but they are not shared by several organisations."
         )
     for source_id, accounts in sorted(shared.items()):
-        ranked = _freshest_belief_per_organisation(connection, source_id, accounts)
+        ranked = _most_recently_recording_organisations(connection, source_id, accounts)
         named = keepers.get(source_id)
         if named is not None and named not in accounts:
             raise RuntimeError(
@@ -336,9 +402,7 @@ def couple_sources_to_organisations(
             {"account_id": keeps_id, "source_id": source_id},
         )
         reason = (
-            "as asked"
-            if named is not None
-            else "which has the freshest beliefs under it"
+            "as asked" if named is not None else "which recorded under it most recently"
         )
         print(
             f"Data source {source_id} ({names.get(source_id, 'unknown')}) was shared by organisations {sorted(accounts)}."
@@ -372,11 +436,17 @@ def _report_unowned(connection) -> None:
 
 
 def downgrade():
-    """Uncouple every data source that names no user, which is what the generator sources looked like before.
+    """Leave the organisations on the data sources, because clearing them would lose more than this migration added.
 
-    A source that was split keeps existing, because its beliefs now point at it;
-    downgrading leaves both rows in place, uncoupled, which is the state the old code reads.
+    The previous release reads a source's organisation only when one is passed to `get_or_create_source`,
+    so a coupled source costs it nothing: it looks a source up by what it is, and finds the same row.
+
+    Clearing the column cannot tell this migration's couplings from the ones that were always there:
+    `flexmeasures add source --account` sets one on the host's say-so, and a copied automation's generator has had one since #2531.
+    Those would be lost rather than rolled back.
+    It would also leave a source that was split and its siblings identical but for an organisation that is now NULL on each,
+    which is the duplicate-source state #2611 was about.
+
+    A split cannot be undone here in any case: the beliefs that moved now point at the new sources,
+    and this migration keeps no record of the rows it made, since a source's attributes are part of what identifies it.
     """
-    op.execute(
-        "UPDATE data_source SET account_id = NULL WHERE user_id IS NULL AND type <> 'user'"
-    )
