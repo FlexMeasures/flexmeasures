@@ -76,6 +76,9 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         follow_redirects=True,
     )
     assert asset_page.status_code == 200
+    if view == "graphs":
+        assert b'id="fullBeliefInfoToggle"' in asset_page.data
+        assert b"Full belief info" in asset_page.data
     if view == "automations":
         assert "Automations of".encode() in asset_page.data
         assert "Forecasts".encode() in asset_page.data
@@ -85,7 +88,7 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert b'id="automationsTable-scheduling"' in asset_page.data
         assert b'id="automationsTable-reporting"' in asset_page.data
         assert b"automation.type === automationType" in asset_page.data
-        assert b"No ${automationType} automations" in asset_page.data
+        assert b"No automations of type" in asset_page.data
         assert b'id="automations_err"' in asset_page.data
         assert b"Could not load automations:" in asset_page.data
         # NB the automations listing is now one table per automation type, so there is no single #automationsTable to hide.
@@ -118,8 +121,14 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
             in asset_page.data
         )
         # It is the sending that matters, so pin the payload lines, not just the parsing.
-        assert b'"data-generator": generator || null' in asset_page.data
-        assert b"config: config," in asset_page.data
+        # The payload is assembled before it is sent, because a reused data source replaces both of these.
+        assert (
+            b'automationData["data-generator"] = generator || null;' in asset_page.data
+        )
+        assert b"automationData.config = config;" in asset_page.data
+        assert (
+            b"automationData.source = selectedAutomationSource.id;" in asset_page.data
+        )
         # A schedule automation's generator follows from the asset, so it is not offered one.
         assert (
             b'$(".chooses-generator").toggle(typeChoosesGenerator())' in asset_page.data
@@ -134,6 +143,25 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         assert "Edit flex-context".encode() in asset_page.data
         assert "Structure".encode() in asset_page.data
         assert "Location".encode() in asset_page.data
+
+
+@pytest.mark.parametrize("default_view", ["Automations", "Graphs"])
+def test_asset_page_opens_the_view_set_as_default(
+    db, client, setup_assets, as_prosumer_user1, default_view
+):
+    """Clicking an asset opens the view the user set as their default, rather than Context."""
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset = user.account.generic_assets[0]
+    db.session.expunge(user)
+
+    with client.session_transaction() as session:
+        session["default_asset_view"] = default_view
+
+    asset_page = client.get(url_for("AssetCrudUI:get", id=asset.id))
+    assert asset_page.status_code == 302
+    assert asset_page.headers["Location"].endswith(
+        "/assets/{}/{}".format(asset.id, default_view.lower())
+    )
 
 
 def test_automations_page_manager_can_set_timezones(client, setup_assets, as_admin):
