@@ -16,6 +16,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* The ``AggregatorReporter`` can report the measured aggregate of a device group, taking the devices, their sign convention and the sensor to record on from the flex-config that scheduling already uses, optionally narrowed to a category of members, so a site's aggregate needs no second description that could drift from the first [see `PR #2579 <https://www.github.com/FlexMeasures/flexmeasures/pull/2579>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, the full record of the data source selected on a sensor page can be inspected, backed by a new API endpoint (``[GET] /sources/(id)``) [see `PR #2290 <https://www.github.com/FlexMeasures/flexmeasures/pull/2290>`_]
 * A forecaster can now be told which data sources hold the truth about the sensor it forecasts, the way its regressors already could, so that a sensor several sources report on is trained on the ones you trust [see `PR #2542 <https://www.github.com/FlexMeasures/flexmeasures/pull/2542>`_]
@@ -60,6 +61,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* The ``AggregatorReporter`` converted a sensor's values to the output sensor's unit as though the data were already at the output's resolution, so a sensor recording energy more finely than the report was reported too low (1 kWh per quarter of an hour came out as 0.001 MW rather than 0.004 MW); each sensor is now converted at its own resolution, before being resampled [see `PR #2579 <https://www.github.com/FlexMeasures/flexmeasures/pull/2579>`_]
 * Two identical scheduling requests arriving at the same moment no longer create two data sources for one scheduler configuration, which made every later schedule under that configuration fail; such requests now share one job, and a deployment that already has such duplicates schedules again [see `PR #2612 <https://www.github.com/FlexMeasures/flexmeasures/pull/2612>`_]
 * With the ``highspy`` solver, a site where any device has an operation mode could no longer run a converter coupling several commodities (such as a CHP) above one unit of its normalised flow, which made a must-run converter infeasible and silently capped a flexible one [see `PR #2606 <https://www.github.com/FlexMeasures/flexmeasures/pull/2606>`_]
 * Creating an organisation now records the action in its audit log, whether it is created in the UI, through the API or from the CLI [see `PR #2580 <https://www.github.com/FlexMeasures/flexmeasures/pull/2580>`_]
