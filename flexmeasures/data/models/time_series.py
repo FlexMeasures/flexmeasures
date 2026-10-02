@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Type
 from datetime import datetime as datetime_type, timedelta
 from functools import cached_property
@@ -9,7 +10,7 @@ from flask import current_app
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import exists, select
+from sqlalchemy import event, exists, select, text as sa_text
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -23,7 +24,10 @@ from flexmeasures.auth.policy import AuthModelMixin, ACCOUNT_ADMIN_ROLE, CONSULT
 from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import upgrade_value
 from flexmeasures.data.models.data_sources import keep_latest_version
-from flexmeasures.data.models.parsing_utils import parse_source_arg
+from flexmeasures.data.models.parsing_utils import (
+    parse_source_arg,
+    parse_source_arg_per_entry,
+)
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures.data.queries.utils import get_source_criteria
@@ -44,7 +48,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.data.queries.annotations import filter_by_belief_time
@@ -302,7 +306,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     ) -> tb.BeliefsDataFrame:
         """Search the most recent event for this sensor, and return the most recent ex-post belief.
 
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Where a list is given, its order says which source to prefer for an event that several of them report.
         """
         return self.search_beliefs(
             horizons_at_most=timedelta(0),
@@ -431,7 +435,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source.
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source. Where a list is given, its order says which source to prefer for an event that several of them report, which matters when asking for one deterministic belief per event.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
@@ -440,7 +444,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one. Defaults to False. Setting this to True will turn off usage of most_recent_beliefs_only and most_recent_events_only. Use with care when data uses cumulative probability (more than one belief per event_start and horizon).
-        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
+        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source). Where several sources report an event, the one to keep is chosen by version within a family of sources sharing a name, type and model, and between families by the order the sources were passed in, then by the most recent belief, then by the highest source id.
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
@@ -628,13 +632,6 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         start, end = get_timerange([self.id])
         return dict(start=start, end=end)
 
-    @property
-    def _ui_unit(self) -> str:
-        """Used to customize how the sensor unit is shown in the UI."""
-        if self.unit == "":
-            return '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>'
-        return self.unit
-
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit if self.unit != '' else 'dimensionless'} res.: {self.event_resolution}>"
 
@@ -717,7 +714,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         exclude_source_types: list[str] | None = None,
         check_exists: bool = False,
     ) -> list[DataSource] | bool:
-        """
+        """Find the data sources that have recorded beliefs for this sensor.
+
+        Where the answer comes from depends on whether time filters are given.
+        With them, the beliefs table is consulted, so the answer is exact for that window.
+        Without them, the ``sensor_data_source`` summary is read instead,
+        which avoids scanning the beliefs table but is a superset:
+        a source stays listed after its beliefs for this sensor are deleted.
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource`.
+
         :returns: list of Data Source objects, or, if check_exists, True if any such sources exist, False if none do.
         """
 
@@ -774,17 +779,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             q = select(DataSource).where(DataSource.id.in_(belief_q.distinct()))
         else:
-            # No time filters: retrieve distinct source IDs for this sensor via a
-            # lightweight index-only scan, then fetch those DataSource rows. This
-            # avoids a full join across potentially hundreds of millions of belief
-            # rows just to enumerate a handful of sources.
-            source_id_subq = (
-                select(TimedBelief.source_id)
-                .where(TimedBelief.sensor_id == self.id)
-                .distinct()
-                .subquery()
+            # No time filters: read the sensor_data_source summary instead of the beliefs table,
+            # which turns a scan over very many rows into a lookup of a handful.
+            # See SensorDataSource for the superset semantics this accepts.
+            q = select(DataSource).where(
+                DataSource.id.in_(
+                    select(SensorDataSource.source_id).where(
+                        SensorDataSource.sensor_id == self.id
+                    )
+                )
             )
-            q = select(DataSource).where(DataSource.id.in_(select(source_id_subq)))
 
         if source_types:
             q = q.where(DataSource.type.in_(source_types))
@@ -800,9 +804,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def data_sources(self) -> list[DataSource]:
         """Return all DataSource objects that have recorded beliefs for this sensor.
 
-        Uses a two-step subquery (distinct source IDs → DataSource rows) so that
-        it scales to very large timed_belief tables without fetching every belief row.
-        Equivalent to ``search_data_sources()`` with no filters.
+        Equivalent to ``search_data_sources()`` with no filters,
+        which reads the ``sensor_data_source`` summary rather than the beliefs table.
+
+        See :class:`~flexmeasures.data.models.data_sources.SensorDataSource` for the superset semantics that implies:
+        a source stays listed after its beliefs for this sensor are deleted.
         """
         return self.search_data_sources()
 
@@ -887,35 +893,118 @@ def compress_belief_records(df: pd.DataFrame, sensor_id: int) -> tuple[list, dic
     return all_records, sources_metadata
 
 
+def _first_of_each_group(order: np.ndarray, keys: tuple[np.ndarray, ...]) -> np.ndarray:
+    """The positions, within `order`, of the first row of each group.
+
+    The rows are already sorted by `order`, so a group ends wherever one of its keys changes.
+    """
+    is_first = np.empty(len(order), dtype=bool)
+    is_first[:1] = True
+    if len(order) > 1:
+        changed = np.zeros(len(order) - 1, dtype=bool)
+        for key in keys:
+            sorted_key = key[order]
+            changed |= sorted_key[1:] != sorted_key[:-1]
+        is_first[1:] = changed
+    return order[is_first]
+
+
+def _belief_recency(bdf: tb.BeliefsDataFrame) -> np.ndarray:
+    """How recently each belief was formed, as a number that grows with recency."""
+    if "belief_time" in bdf.index.names:
+        return bdf.index.get_level_values("belief_time").asi8
+    # A shorter horizon means the belief was formed closer to the event, so later.
+    return -bdf.index.get_level_values("belief_horizon").asi8
+
+
 def _select_latest_version_and_belief_per_event(
     bdf: tb.BeliefsDataFrame,
+    preferred_sources: Sequence[DataSource | Sequence[DataSource]] | None = None,
 ) -> tb.BeliefsDataFrame:
-    """Keep, per event, the single belief with the latest source version,
-    breaking version ties by most recent belief time.
+    """Keep one belief per event, choosing between the sources that reported it.
 
-    Assumes deterministic beliefs (probabilistic depth 1) and a belief_time index level.
+    The choice is made in two steps, because a version number orders the releases of one source,
+    and says nothing about a different source.
+    Sources are therefore grouped into families sharing a name, type and model,
+    and versions are only ever compared inside a family.
+
+    Within a family, the latest version wins, then the most recent belief, then the highest source id.
+
+    Between families, the order the caller named its sources in wins, for a caller that named any,
+    then the most recent belief, then the highest source id.
+    One entry of `preferred_sources` is one preference, so a group of sources given together,
+    as a name that matched several of them does, shares a rank rather than being ordered among itself.
+    That order is how a caller says which source it prefers where two of them report one event,
+    which is what `AggregatorReporter` offers through its `sources` field.
+
+    The highest source id is a last resort, so that a tie no one else broke is answered the same way every time,
+    and does not move when a source is renamed.
+
+    Assumes deterministic beliefs (probabilistic depth 1).
     """
+    if len(bdf) < 2:
+        return bdf
+
     source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))
-    versions = [
-        Version(source.version if source.version else "0.0.0")
-        for source in unique_sources
-    ]
-    version_ranks = {
+
+    families: dict = {}
+    family_per_source = np.array(
+        [
+            families.setdefault((source.name, source.type, source.model), len(families))
+            for source in unique_sources
+        ]
+    )
+    versions = [Version(source.version or "0.0.0") for source in unique_sources]
+    version_order = {
         version: rank for rank, version in enumerate(sorted(set(versions)))
     }
-    rank_per_row = np.array([version_ranks[version] for version in versions])[
-        source_codes
-    ]
-    event_values = bdf.index.get_level_values("event_start").asi8
-    belief_values = bdf.index.get_level_values("belief_time").asi8
-    # Sort by event (ascending), then version rank and belief time (both descending)
-    order = np.lexsort((-belief_values, -rank_per_row, event_values))
-    sorted_events = event_values[order]
-    is_first_of_event = np.empty(len(order), dtype=bool)
-    is_first_of_event[:1] = True
-    is_first_of_event[1:] = sorted_events[1:] != sorted_events[:-1]
-    mask = np.zeros(len(order), dtype=bool)
-    mask[order[is_first_of_event]] = True
+    version_per_source = np.array([version_order[version] for version in versions])
+    id_per_source = np.array(
+        [source.id if source.id is not None else -1 for source in unique_sources]
+    )
+    # Sources the caller did not name rank behind the ones it did, in the order it gave them.
+    # An entry that named nothing this database knows still holds its place,
+    # so the rank for the unnamed has to clear every entry, not merely the ones that matched.
+    entries = preferred_sources or []
+    positions: dict = {}
+    for position, entry in enumerate(entries):
+        # One source, or any sequence of them: test for the single case,
+        # so that the check cannot fall behind what the annotation allows.
+        group = [entry] if isinstance(entry, DataSource) else list(entry)
+        for source in group:
+            positions.setdefault(source.id, position)
+    unnamed_rank = len(entries)
+    position_per_source = np.array(
+        [positions.get(source.id, unnamed_rank) for source in unique_sources]
+    )
+
+    events = bdf.index.get_level_values("event_start").asi8
+    recency = _belief_recency(bdf)
+    family = family_per_source[source_codes]
+    version = version_per_source[source_codes]
+    source_id = id_per_source[source_codes]
+    position = position_per_source[source_codes]
+
+    # np.lexsort takes its keys least significant first.
+    within_family = _first_of_each_group(
+        np.lexsort((-source_id, -recency, -version, family, events)),
+        (events, family),
+    )
+    between_families = _first_of_each_group(
+        within_family[
+            np.lexsort(
+                (
+                    -source_id[within_family],
+                    -recency[within_family],
+                    position[within_family],
+                    events[within_family],
+                )
+            )
+        ],
+        (events,),
+    )
+    mask = np.zeros(len(bdf), dtype=bool)
+    mask[between_families] = True
     return bdf[mask]
 
 
@@ -924,6 +1013,43 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
     It also records the source of the belief, and the sensor that the event pertains to.
     """
+
+    @declared_attr
+    def __table_args__(cls):
+        """Keep timely_beliefs' indexes, but pin the primary key's column order.
+
+        Without an explicit constraint,
+        the order of the primary key's columns is whatever order SQLAlchemy happened to collect the columns in:
+        attributes declared on this class come first, then the mixin's.
+        That makes the key's shape an accident of which columns a subclass redeclares,
+        and it is why a schema built by ``create_all()`` could disagree with a migrated one.
+
+        The order below is deliberate, and it is not the order the columns are declared in:
+
+        - ``sensor_id`` first, because virtually every query filters on a single sensor.
+          A key that does not lead with it cannot serve those queries at all.
+        - ``source_id`` second,
+          so that ``(sensor_id, source_id, event_start, belief_horizon)`` is a prefix of this key.
+          A separate composite index on exactly those columns is therefore redundant, and can be dropped.
+        - ``cumulative_probability`` last,
+          because it is very nearly a constant (0.5 for every deterministic belief),
+          and so contributes no selectivity.
+        - ``sensor_id`` and ``source_id`` adjacent, which is worth ~15% of the index's size:
+          both are 4-byte integers,
+          so keeping them together avoids the alignment padding that separating them forces into every index tuple.
+
+        Changing this order requires a migration; see ``d4a7c1e93b52``.
+        """
+        return tb.TimedBeliefDBMixin.__dict__["__table_args__"].fget(cls) + (
+            db.PrimaryKeyConstraint(
+                "sensor_id",
+                "source_id",
+                "event_start",
+                "belief_horizon",
+                "cumulative_probability",
+                name="timed_belief_pkey",
+            ),
+        )
 
     @declared_attr
     def source_id(cls):
@@ -1002,7 +1128,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Where a list is given, its order says which source to prefer for an event that several of them report.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
@@ -1011,7 +1137,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param most_recent_only: only return a single belief, the most recent from the most recent event. Fastest method if you only need one.
-        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
+        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source). Where several sources report an event, the one to keep is chosen by version within a family of sources sharing a name, type and model, and between families by the order the sources were passed in, then by the most recent belief, then by the highest source id.
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param resolution: Optional timedelta or pandas freqstr used to resample the results **
         :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensors as key, each holding a BeliefsDataFrame as its value
@@ -1043,7 +1169,16 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             ).all()
             sensors.extend(sensors_from_names)
 
-        parsed_sources = parse_source_arg(source)
+        parsed_source_entries = parse_source_arg_per_entry(source)
+        parsed_sources = (
+            None
+            if parsed_source_entries is None
+            else [
+                parsed_source
+                for entry in parsed_source_entries
+                for parsed_source in entry
+            ]
+        )
         source_criteria = get_source_criteria(
             cls=cls,
             user_source_ids=user_source_ids,
@@ -1079,11 +1214,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )
-            if use_latest_version_per_event:
-                bdf = keep_latest_version(
-                    bdf=bdf,
-                    one_deterministic_belief_per_event=one_deterministic_belief_per_event,
-                )
+            if use_latest_version_per_event and not one_deterministic_belief_per_event:
+                # Asking for one belief per event settles the versions itself, family by family,
+                # so it does not need this pass first.
+                bdf = keep_latest_version(bdf=bdf)
             if one_deterministic_belief_per_event:
                 if (
                     bdf.lineage.number_of_sources <= 1
@@ -1091,34 +1225,13 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 ):
                     # Fast track, no need to loop over beliefs
                     pass
-                elif (
-                    bdf.lineage.probabilistic_depth == 1
-                    and "belief_time" in bdf.index.names
-                ):
-                    # Deterministic beliefs: no need to take the median,
-                    # just pick the winning belief per event directly
-                    bdf = _select_latest_version_and_belief_per_event(bdf)
                 else:
-                    # First make deterministic
-                    bdf = bdf.for_each_belief(get_median_belief)
-                    # Then sort each event by latest source version and most recent belief_time
-                    version_per_source = {
-                        source: Version(source.version if source.version else "0.0.0")
-                        for source in bdf.lineage.sources
-                    }
-                    bdf = bdf.sort_values(
-                        by=["event_start", "source", "belief_time"],
-                        ascending=[True, False, False],
-                        key=lambda col: (
-                            col.map(version_per_source) if col.name == "source" else col
-                        ),
+                    if bdf.lineage.probabilistic_depth != 1:
+                        # Make the beliefs deterministic, so that one of them can be chosen.
+                        bdf = bdf.for_each_belief(get_median_belief)
+                    bdf = _select_latest_version_and_belief_per_event(
+                        bdf, preferred_sources=parsed_source_entries
                     )
-                    # Finally, take the first belief for each event, thus preference latest version first, most recent belief_time second
-                    bdf = bdf[
-                        ~bdf.index.get_level_values("event_start").duplicated(
-                            keep="first"
-                        )
-                    ]
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
                     # Fast track, no need to loop over beliefs
@@ -1179,3 +1292,90 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
+
+
+# How the sensor_data_source summary is kept up to date.
+#
+# A database trigger does it, rather than FlexMeasures code.
+# The reason is that beliefs reach timed_belief by several routes:
+# save_to_db, bulk inserts, plugins, and raw SQL.
+# Code added to one of those routes would only ever see the beliefs that took it,
+# leaving the summary quietly incomplete for all the others.
+# A trigger sits on the table itself, so it sees every insert whatever the route.
+#
+# The trigger runs once per INSERT *statement* rather than once per row.
+# It reads that statement's new rows in one go, through what PostgreSQL calls a
+# transition table (named inserted_beliefs below).
+# So saving a million beliefs in one statement adds one small insert, not a million.
+#
+# Migration f1c8a3d75e29 imports these two constants and installs the same
+# function and trigger for databases built by Alembic rather than by create_all().
+# There is only one such trigger, not a history of versions to preserve,
+# so the migration installs the current definition instead of a frozen copy of its own.
+#
+# Sharing the text does not, on its own, make a later change to it reach an existing
+# database: like any other schema change, that needs a new migration,
+# because a migration that has already run will not run again.
+RECORD_SENSOR_DATA_SOURCES_FUNCTION = """
+CREATE OR REPLACE FUNCTION record_sensor_data_sources() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO sensor_data_source (sensor_id, source_id)
+    SELECT DISTINCT sensor_id, source_id FROM inserted_beliefs
+    ON CONFLICT DO NOTHING;
+    RETURN NULL;
+END;
+$$
+"""
+
+RECORD_SENSOR_DATA_SOURCES_TRIGGER = """
+CREATE TRIGGER timed_belief_record_sensor_data_sources
+AFTER INSERT ON timed_belief
+REFERENCING NEW TABLE AS inserted_beliefs
+FOR EACH STATEMENT
+EXECUTE FUNCTION record_sensor_data_sources()
+"""
+
+
+def create_sensor_data_source_trigger(target, connection, **kwargs) -> None:
+    """Install the trigger, for databases whose schema is built by create_all().
+
+    A FlexMeasures database gets its schema in one of two ways,
+    and each needs its own route to the trigger:
+
+    - built by Alembic migrations, as in production:
+      migration f1c8a3d75e29 installs it there.
+    - built by ``db.create_all()``, as in the test suite and some development setups:
+      this function installs it there.
+
+    SQLAlchemy fires "after_create" whenever it has created something.
+    This listens for that on the whole metadata rather than on the timed_belief table,
+    so that it runs after *all* tables exist.
+    Listening on timed_belief alone would be a bet on creation order,
+    because the trigger's function reads sensor_data_source,
+    and nothing guarantees that table gets created first.
+    PostgreSQL would in fact tolerate the wrong order today,
+    since a function written in its procedural language does not look up the tables it names until it first runs,
+    but depending on that is fragile.
+
+    Does nothing unless the database is PostgreSQL and both tables are present,
+    so another backend, or a create_all() that made only some tables, is left alone.
+    """
+    if connection.dialect.name != "postgresql":
+        return
+    inspector = inspect(connection)
+    if not inspector.has_table("timed_belief") or not inspector.has_table(
+        "sensor_data_source"
+    ):
+        return
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_FUNCTION))
+    connection.execute(
+        sa_text(
+            "DROP TRIGGER IF EXISTS timed_belief_record_sensor_data_sources"
+            " ON timed_belief"
+        )
+    )
+    connection.execute(sa_text(RECORD_SENSOR_DATA_SOURCES_TRIGGER))
+
+
+event.listen(db.metadata, "after_create", create_sensor_data_source_trigger)

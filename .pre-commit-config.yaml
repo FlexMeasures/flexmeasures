@@ -28,7 +28,7 @@ repos:
         files: '^flexmeasures/api|^flexmeasures/data/schemas'
         pass_filenames: false
         language: system
-        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (uv run poe generate-open-api-specs)'
+        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (uv sync --reinstall-package flexmeasures --quiet && uv run poe generate-open-api-specs)'
   - repo: local
     hooks:
       - id: no-image-files

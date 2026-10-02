@@ -7,6 +7,8 @@ import time
 import logging
 from datetime import datetime, timedelta
 
+import inflection
+
 from rq.job import Job
 from sqlalchemy import inspect as sa_inspect
 
@@ -23,7 +25,6 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
-from flexmeasures.utils.flexmeasures_inflection import p
 
 
 def _sensor_id(sensor: Sensor | int | None) -> int | None:
@@ -67,19 +68,19 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
     return attached_source
 
 
-def _make_regressor_payload(
-    regressor: Sensor | SensorReference,
+def _make_sensor_payload(
+    sensor_or_reference: Sensor | SensorReference,
 ) -> int | dict[str, Any]:
-    """Serialize a regressor and its optional source filters to database IDs."""
-    if isinstance(regressor, SensorReference):
-        return SensorReferenceSchema().dump(regressor)
-    return regressor.id
+    """Serialize a sensor, and any source filters and cleaning bounds it carries, to database IDs."""
+    if isinstance(sensor_or_reference, SensorReference):
+        return SensorReferenceSchema().dump(sensor_or_reference)
+    return sensor_or_reference.id
 
 
-def _load_regressor_payload(
+def _load_sensor_payload(
     payload: int | dict[str, Any],
 ) -> Sensor | SensorReference:
-    """Restore a worker-local regressor from a primitive queued-job payload."""
+    """Restore a worker-local sensor from a primitive queued-job payload."""
     if isinstance(payload, dict):
         return SensorReference(**SensorReferenceSchema().load(payload))
     sensor = _get_attached_sensor(payload)
@@ -114,10 +115,10 @@ def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
     future_regressors = payload.pop("future_regressors", [])
     past_regressors = payload.pop("past_regressors", [])
     payload["future_regressor_ids"] = [
-        _make_regressor_payload(regressor) for regressor in future_regressors
+        _make_sensor_payload(regressor) for regressor in future_regressors
     ]
     payload["past_regressor_ids"] = [
-        _make_regressor_payload(regressor) for regressor in past_regressors
+        _make_sensor_payload(regressor) for regressor in past_regressors
     ]
     payload["annotation_regressors"] = [
         _make_annotation_regressor_payload(spec)
@@ -131,11 +132,11 @@ def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Restore worker config and reload regressors in the worker session."""
     config = dict(payload)
     config["future_regressors"] = [
-        _load_regressor_payload(regressor)
+        _load_sensor_payload(regressor)
         for regressor in config.pop("future_regressor_ids", [])
     ]
     config["past_regressors"] = [
-        _load_regressor_payload(regressor)
+        _load_sensor_payload(regressor)
         for regressor in config.pop("past_regressor_ids", [])
     ]
     return config
@@ -148,12 +149,14 @@ def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
     """
     # Preserve plain parameters, but replace ORM-backed sensors by IDs.
     payload = dict(parameters)
-    sensor_id = _sensor_id(payload.pop("sensor"))
+    target = payload.pop("sensor")
     sensor_to_save_id = _sensor_id(payload.pop("sensor_to_save", None))
-    if sensor_id is None:
+    if target is None:
         raise ValueError("Cannot enqueue a forecasting job without a target sensor.")
-    payload["sensor_id"] = sensor_id
-    payload["sensor_to_save_id"] = sensor_to_save_id or sensor_id
+    # The target may carry source filters, in which case it is serialized as a sensor reference.
+    payload["sensor_id"] = _make_sensor_payload(target)
+    # Forecasts are recorded on a sensor, so a referenced target falls back to the sensor it wraps.
+    payload["sensor_to_save_id"] = sensor_to_save_id or target.id
     _assert_no_orm_objects(payload)
     return payload
 
@@ -161,11 +164,15 @@ def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
 def _load_job_parameters_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Restore worker parameters and reload sensors in the worker session."""
     parameters = dict(payload)
-    parameters["sensor"] = _get_attached_sensor(parameters.pop("sensor_id"))
+    parameters["sensor"] = _load_sensor_payload(parameters.pop("sensor_id"))
     parameters["sensor_to_save"] = _get_attached_sensor(
         parameters.pop("sensor_to_save_id")
     )
     return parameters
+
+
+# Logical name of the job which reports on all cycle jobs of one pipeline run.
+WRAP_UP_LOGICAL_JOB_KEY = "wrap-up"
 
 
 def run_train_predict_cycle_job(
@@ -173,25 +180,57 @@ def run_train_predict_cycle_job(
     parameters: dict,
     data_source_id: int,
     delete_model: bool,
+    automation_run_id: int | None = None,
+    logical_job_key: str | None = None,
     **cycle_params,
 ):
     """Run one train-predict cycle after reconstructing worker-local ORM state."""
+    from flexmeasures.data.services.automations import (
+        record_automation_job_failed,
+        record_automation_job_started,
+        record_automation_job_succeeded,
+    )
+
+    record_automation_job_started(automation_run_id, logical_job_key)
     pipeline = TrainPredictPipeline(delete_model=delete_model)
     pipeline._config = _load_job_config_payload(config)
     for key, value in pipeline._config.items():
         setattr(pipeline, key, value)
     pipeline._parameters = _load_job_parameters_payload(parameters)
     pipeline._data_source = _get_attached_data_source(data_source_id)
-    return pipeline.run_cycle(**cycle_params)
+    try:
+        result = pipeline.run_cycle(**cycle_params)
+    except Exception as exc:
+        record_automation_job_failed(automation_run_id, logical_job_key, exc)
+        raise
+    record_automation_job_succeeded(automation_run_id, logical_job_key)
+    return result
 
 
-def run_train_predict_wrap_up_job(cycle_job_ids: list[str], queue: str = "forecasting"):
+def run_train_predict_wrap_up_job(
+    cycle_job_ids: list[str],
+    queue: str = "forecasting",
+    automation_run_id: int | None = None,
+    logical_job_key: str | None = None,
+):
     """Log the status of all cycle jobs after completion."""
+    from flexmeasures.data.services.automations import (
+        record_automation_job_failed,
+        record_automation_job_started,
+        record_automation_job_succeeded,
+    )
+
+    record_automation_job_started(automation_run_id, logical_job_key)
     connection = current_app.queues[queue].connection
 
-    for index, job_id in enumerate(cycle_job_ids):
-        status = Job.fetch(job_id, connection=connection).get_status()
-        logging.info(f"{queue} job-{index}: {job_id} status: {status}")
+    try:
+        for index, job_id in enumerate(cycle_job_ids):
+            status = Job.fetch(job_id, connection=connection).get_status()
+            logging.info(f"{queue} job-{index}: {job_id} status: {status}")
+    except Exception as exc:
+        record_automation_job_failed(automation_run_id, logical_job_key, exc)
+        raise
+    record_automation_job_succeeded(automation_run_id, logical_job_key)
 
 
 class TrainPredictPipeline(Forecaster):
@@ -217,6 +256,15 @@ class TrainPredictPipeline(Forecaster):
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
 
+    @property
+    def _target_sensor(self) -> Sensor:
+        """The sensor being forecast, without the source filters it may have been given with.
+
+        The filters say which beliefs to train on, so anything that needs the sensor itself, such as the frame a forecast is returned in, reads it from here.
+        """
+        target = self._parameters["sensor"]
+        return target.sensor if isinstance(target, SensorReference) else target
+
     def run_wrap_up(self, cycle_job_ids: list[str], queue: str = "forecasting"):
         """Log the status of all cycle jobs after completion."""
         run_train_predict_wrap_up_job(cycle_job_ids, queue)
@@ -234,8 +282,9 @@ class TrainPredictPipeline(Forecaster):
         """
         Runs a single training and prediction cycle.
         """
+        # State the training span, because it decides how much work the cycle is, and it is derived rather than configured.
         logging.info(
-            f"Starting Train-Predict cycle from {train_start} to {predict_end}"
+            f"Starting Train-Predict cycle from {train_start} to {predict_end}, training on {train_end - train_start} of data"
         )
 
         # Train model
@@ -264,7 +313,7 @@ class TrainPredictPipeline(Forecaster):
         train_pipeline.run(counter=counter)
         train_runtime = time.time() - train_start_time
         logging.info(
-            f"{p.ordinal(counter)} Training cycle completed in {train_runtime:.2f} seconds."
+            f"{inflection.ordinalize(counter)} Training cycle completed in {train_runtime:.2f} seconds."
         )
         # Make predictions
         predict_pipeline = PredictPipeline(
@@ -304,6 +353,7 @@ class TrainPredictPipeline(Forecaster):
                 "upper": self._config.get("upper"),
                 "snap": self._config.get("snap"),
             },
+            dry_run=self._parameters.get("dry_run", False),
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
@@ -312,18 +362,16 @@ class TrainPredictPipeline(Forecaster):
         forecasts = predict_pipeline.run(delete_model=self.delete_model)
         predict_runtime = time.time() - predict_start_time
         logging.info(
-            f"{p.ordinal(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
+            f"{inflection.ordinalize(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
         )
 
         total_runtime = (
             train_runtime + predict_runtime
         )  # To track the cumulative runtime of PredictPipeline and TrainPipeline for this cycle
         logging.info(
-            f"{p.ordinal(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
+            f"{inflection.ordinalize(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-        self.return_values.append(
-            {"data": forecasts, "sensor": self._parameters["sensor"]}
-        )
+        self.return_values.append({"data": forecasts, "sensor": self._target_sensor})
         return total_runtime
 
     def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
@@ -333,47 +381,40 @@ class TrainPredictPipeline(Forecaster):
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
 
-        Priority (most restrictive start date wins):
+        Training ends at ``predict_start``. Two settings say how far back it may reach:
+        ``train-start`` names the earliest moment to train from, and ``train-period`` says how much history to use.
+        Both are limits, so the window is the shorter of what they allow, which is the later of the two starting points.
 
-        1. ``train_start`` (if explicitly configured via ``--train-start``).
-        2. ``predict_start - train_period`` (if ``--train-period`` was explicitly set).
-        3. ``predict_start - max_training_period`` (always enforced as the outer bound).
-
-        When ``--train-start`` is set the ``--train-period`` is ignored – the
-        effective period is simply ``predict_start - train_start``, capped to
-        ``max_training_period``.  This prevents the old 30-day default from
-        silently overriding an explicit start date.
-
-        Additionally, the resulting training window is guaranteed to span
-        at least two days.
+        Additionally, the resulting training window is guaranteed to span at least two days.
 
         :return:    A tuple ``(train_start, train_end)`` defining the training window.
         """
         train_end = self._parameters["predict_start"]
 
         configured_start: datetime | None = self._config.get("train_start")
-        period_hours: int | None = self._config.get("train_period_in_hours")
+        period_hours: int = self._config["train_period_in_hours"]
 
-        # Outer bound: never go further back than max_training_period.
-        max_period_start = train_end - self._config["max_training_period"]
-
+        candidates = {"train-period": train_end - timedelta(hours=period_hours)}
         if configured_start is not None:
-            # Explicit train_start takes full precedence; period is ignored.
-            train_start = max(configured_start, max_period_start)
-        elif period_hours is not None:
-            # Explicit train_period without train_start.
-            train_start = max(
-                train_end - timedelta(hours=period_hours), max_period_start
-            )
-        else:
-            # Neither set: use the full max_training_period window.
-            train_start = max_period_start
+            candidates["train-start"] = configured_start
 
-        # Enforce minimum training period of 2 days
+        decisive, train_start = max(candidates.items(), key=lambda item: item[1])
+
+        # Enforce a minimum training period of 2 days.
         min_training_period = timedelta(days=2)
         if train_end - train_start < min_training_period:
-            train_start = train_end - min_training_period
+            decisive, train_start = (
+                "minimum training period",
+                train_end - min_training_period,
+            )
 
+        logging.debug(
+            "Training window spans %s, from %s to %s, as asked for by %s.",
+            train_end - train_start,
+            train_start,
+            train_end,
+            decisive,
+        )
         return train_start, train_end
 
     def run(
@@ -381,7 +422,10 @@ class TrainPredictPipeline(Forecaster):
         as_job: bool = False,
         queue: str = "forecasting",
     ):
-        logging.info(
+        # Only announce a pipeline run when actually running it here: with as_job, this
+        # method merely queues the cycles, and the workers running them log their own start.
+        log_start = logging.debug if as_job else logging.info
+        log_start(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
         connection = current_app.queues[queue].connection
@@ -441,98 +485,250 @@ class TrainPredictPipeline(Forecaster):
             )
 
         if as_job:
-            cycle_job_ids = []
-
-            job_config = _make_job_config_payload(self._config)
-            job_parameters = _make_job_parameters_payload(self._parameters)
-            sensor_id = job_parameters["sensor_id"]
-            sensor_to_save_id = job_parameters["sensor_to_save_id"]
-
-            # Ensure the data source ID is available in the database when the job runs.
-            self._data_source = db.session.merge(self.data_source)
-            db.session.flush()
-            data_source_id = self._data_source.id
-            db.session.commit()
-
-            # job metadata for tracking
-            # Serialize start and end to ISO format strings
-            # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
-            job_metadata = {
-                "data_source_info": {"id": data_source_id},
-                "start": self._parameters["predict_start"].isoformat(),
-                "end": self._parameters["end_date"].isoformat(),
-                "sensor_id": sensor_to_save_id,
-            }
-            for cycle_params in cycles_job_params:
-                job_kwargs = {
-                    "config": job_config,
-                    "parameters": job_parameters,
-                    "data_source_id": data_source_id,
-                    "delete_model": self.delete_model,
-                    **cycle_params,
-                }
-                _assert_no_orm_objects(job_kwargs)
-
-                job = Job.create(
-                    run_train_predict_cycle_job,
-                    kwargs=job_kwargs,
-                    connection=connection,
-                    ttl=int(
-                        current_app.config.get(
-                            "FLEXMEASURES_JOB_TTL", timedelta(-1)
-                        ).total_seconds()
-                    ),
-                    result_ttl=int(
-                        current_app.config.get(
-                            "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                        ).total_seconds()
-                    ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
-                    meta=job_metadata,
-                )
-
-                # Store the job ID for this cycle
-                cycle_job_ids.append(job.id)
-
-                current_app.queues[queue].enqueue_job(job)
-                current_app.job_cache.add(
-                    sensor_id,
-                    job_id=job.id,
-                    queue=queue,
-                    asset_or_sensor_type="sensor",
-                )
-
-            wrap_up_job = Job.create(
-                run_train_predict_wrap_up_job,
-                kwargs={
-                    "cycle_job_ids": cycle_job_ids,
-                    "queue": queue,
-                },  # cycles jobs IDs to wait for
-                connection=connection,
-                depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
-                ttl=int(
-                    current_app.config.get(
-                        "FLEXMEASURES_JOB_TTL", timedelta(-1)
-                    ).total_seconds()
-                ),
-                result_ttl=int(
-                    current_app.config.get(
-                        "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                    ).total_seconds()
-                ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
-                meta=job_metadata,
-            )
-            current_app.queues[queue].enqueue_job(wrap_up_job)
-
-            if len(cycle_job_ids) > 1:
-                # Return the wrap-up job ID if multiple cycle jobs are queued
-                return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
-            else:
-                # Return the single cycle job ID if only one job is queued
-                return {
-                    "job_id": (
-                        cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
-                    ),
-                    "n_jobs": 1,
-                }
+            return self._queue_cycle_jobs(cycles_job_params, queue, connection)
 
         return self.return_values
+
+    def _persist_data_source_id(self) -> int:
+        """Make sure this pipeline's data source is in the database, so that the workers can look it up."""
+        self._data_source = db.session.merge(self.data_source)
+        db.session.commit()
+        data_source_id = self._data_source.id
+        return data_source_id
+
+    def _job_ttls(self) -> tuple[int, int]:
+        """Return the time-to-live of a job and of its result, in seconds.
+
+        NB job.cleanup docs say that a negative number of seconds means persisting forever.
+        """
+        return (
+            int(
+                current_app.config.get(
+                    "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                ).total_seconds()
+            ),
+            int(
+                current_app.config.get(
+                    "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+                ).total_seconds()
+            ),
+        )
+
+    def _job_meta(
+        self,
+        job_metadata: dict,
+        job_spec: dict,
+        automation_run_id: int | None,
+    ) -> dict:
+        """Return the metadata to store on one job, identifying its automation run where there is one."""
+        meta = dict(job_metadata)
+        if automation_run_id is not None:
+            meta["automation_run_id"] = automation_run_id
+            meta["logical_job_key"] = job_spec["logical_job_key"]
+        return meta
+
+    def _plan_cycle_jobs(
+        self,
+        cycles_job_params: list[dict],
+        queue: str,
+        data_source_id: int,
+        job_metadata: dict,
+        automation_run_id: int | None,
+    ) -> list[dict]:
+        """Describe every job this run intends to create, before any of them is queued.
+
+        Each job gets a logical key which stays the same across retries of an automation run, and a job ID derived from it,
+        so that a retry recognises the jobs it already queued instead of queueing them a second time.
+        Outside an automation run there is nothing to retry, so RQ is left to make up the job IDs.
+        """
+        job_config = _make_job_config_payload(self._config)
+        job_parameters = _make_job_parameters_payload(self._parameters)
+
+        def rq_job_id_for(logical_job_key: str) -> str | None:
+            if automation_run_id is None:
+                return None
+            return f"automation-run-{automation_run_id}-{logical_job_key}"
+
+        cycle_specs = []
+        for cycle_params in cycles_job_params:
+            logical_job_key = f"cycle-{cycle_params['counter']:03d}"
+            job_kwargs = {
+                "config": job_config,
+                "parameters": job_parameters,
+                "data_source_id": data_source_id,
+                "delete_model": self.delete_model,
+                "automation_run_id": automation_run_id,
+                "logical_job_key": logical_job_key,
+                **cycle_params,
+            }
+            _assert_no_orm_objects(job_kwargs)
+            cycle_specs.append(
+                {
+                    "logical_job_key": logical_job_key,
+                    "rq_job_id": rq_job_id_for(logical_job_key),
+                    "queue": queue,
+                    "kind": "forecast-cycle",
+                    "depends_on": [],
+                    "payload": {"kwargs": job_kwargs, "meta": job_metadata},
+                }
+            )
+        wrap_up_spec = {
+            "logical_job_key": WRAP_UP_LOGICAL_JOB_KEY,
+            "rq_job_id": rq_job_id_for(WRAP_UP_LOGICAL_JOB_KEY),
+            "queue": queue,
+            "kind": "forecast-wrap-up",
+            "depends_on": [spec["logical_job_key"] for spec in cycle_specs],
+            "payload": {
+                "kwargs": {
+                    "cycle_job_ids": [spec["rq_job_id"] for spec in cycle_specs],
+                    "queue": queue,
+                    "automation_run_id": automation_run_id,
+                    "logical_job_key": WRAP_UP_LOGICAL_JOB_KEY,
+                },
+                "meta": job_metadata,
+            },
+        }
+        return cycle_specs + [wrap_up_spec]
+
+    def _queue_cycle_jobs(
+        self, cycles_job_params: list[dict], queue: str, connection
+    ) -> dict:
+        """Queue one job per training cycle, plus a wrap-up job which waits for all of them.
+
+        When this pipeline runs for an automation, the jobs it intends to create are written down first,
+        so that an attempt which fails halfway can be resumed without queueing the same work twice.
+        """
+        automation_run_id = (self._job_trigger or {}).get("automation_run_id")
+        data_source_id = self._persist_data_source_id()
+        job_parameters = _make_job_parameters_payload(self._parameters)
+        sensor_id = job_parameters["sensor_id"]
+
+        # job metadata for tracking
+        # Serialize start and end to ISO format strings
+        # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
+        job_metadata = {
+            "data_source_info": {"id": data_source_id},
+            "start": self._parameters["predict_start"].isoformat(),
+            "end": self._parameters["end_date"].isoformat(),
+            "sensor_id": job_parameters["sensor_to_save_id"],
+        }
+        if self._job_trigger:
+            job_metadata["trigger"] = self._job_trigger
+
+        job_specs = self._plan_cycle_jobs(
+            cycles_job_params, queue, data_source_id, job_metadata, automation_run_id
+        )
+        intents = {}
+        if automation_run_id is not None:
+            from flexmeasures.data.services.automations import (
+                ensure_automation_run_job_intents,
+            )
+
+            intents = {
+                intent.logical_job_key: intent
+                for intent in ensure_automation_run_job_intents(
+                    automation_run_id, job_specs
+                )
+            }
+
+        cycle_job_ids = []
+        for job_spec in job_specs:
+            if job_spec["kind"] != "forecast-cycle":
+                continue
+            cycle_job_ids.append(
+                self._queue_planned_job(
+                    run_train_predict_cycle_job,
+                    job_spec,
+                    intents,
+                    queue,
+                    connection,
+                    job_metadata,
+                    automation_run_id,
+                    cache_for_sensor_id=sensor_id,
+                )
+            )
+
+        wrap_up_spec = job_specs[-1]
+        # The wrap-up job reports on the cycle jobs, whose IDs are only known now when this is not an automation run.
+        wrap_up_spec["payload"]["kwargs"]["cycle_job_ids"] = cycle_job_ids
+        wrap_up_job_id = self._queue_planned_job(
+            run_train_predict_wrap_up_job,
+            wrap_up_spec,
+            intents,
+            queue,
+            connection,
+            job_metadata,
+            automation_run_id,
+            depends_on=cycle_job_ids,
+        )
+
+        if len(cycle_job_ids) > 1:
+            # Point at the wrap-up job, as it is the one that completes last.
+            job_id = wrap_up_job_id
+        else:
+            job_id = cycle_job_ids[0] if cycle_job_ids else wrap_up_job_id
+        if automation_run_id is not None:
+            # An automation run is accounted for in full, wrap-up job included.
+            n_jobs = len(cycle_job_ids) + 1
+        else:
+            n_jobs = len(cycle_job_ids) if len(cycle_job_ids) > 1 else 1
+        return {"job_id": job_id, "n_jobs": n_jobs}
+
+    def _queue_planned_job(
+        self,
+        func,
+        job_spec: dict,
+        intents: dict,
+        queue: str,
+        connection,
+        job_metadata: dict,
+        automation_run_id: int | None,
+        cache_for_sensor_id: int | None = None,
+        depends_on: list[str] | None = None,
+    ) -> str:
+        """Queue one planned job, unless an earlier attempt already put it in Redis."""
+        intent = intents.get(job_spec["logical_job_key"])
+        if intent is not None:
+            from flexmeasures.data.services.automations import (
+                reconcile_automation_job_intent,
+            )
+
+            if reconcile_automation_job_intent(intent):
+                # This job survived an earlier attempt at this run, so leave it be.
+                if cache_for_sensor_id is not None:
+                    current_app.job_cache.add(
+                        cache_for_sensor_id,
+                        job_id=intent.rq_job_id,
+                        queue=queue,
+                        asset_or_sensor_type="sensor",
+                    )
+                return intent.rq_job_id
+
+        ttl, result_ttl = self._job_ttls()
+        job = Job.create(
+            func,
+            kwargs=job_spec["payload"]["kwargs"],
+            connection=connection,
+            id=job_spec["rq_job_id"],
+            depends_on=depends_on,
+            ttl=ttl,
+            result_ttl=result_ttl,
+            meta=self._job_meta(job_metadata, job_spec, automation_run_id),
+        )
+        current_app.queues[queue].enqueue_job(job)
+        if automation_run_id is not None:
+            from flexmeasures.data.services.automations import (
+                mark_automation_job_queued,
+            )
+
+            mark_automation_job_queued(
+                automation_run_id, job_spec["logical_job_key"], job.id
+            )
+        if cache_for_sensor_id is not None:
+            current_app.job_cache.add(
+                cache_for_sensor_id,
+                job_id=job.id,
+                queue=queue,
+                asset_or_sensor_type="sensor",
+            )
+        return job.id

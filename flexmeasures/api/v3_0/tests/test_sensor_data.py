@@ -45,6 +45,40 @@ def test_get_no_sensor_data(
     assert all(a == b for a, b in zip(values, [None, None, None, None]))
 
 
+@pytest.mark.parametrize("resolution", ["PT0S", "PT0M", "P0D", "-PT20M"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_with_non_positive_resolution(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    resolution,
+    requesting_user,
+):
+    """Check that the /sensors/data endpoint rejects a resolution that spans no positive time.
+
+    A zero resolution used to result in an uncaught ZeroDivisionError (a 500 response).
+    """
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "resolution": resolution,
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 422
+    assert (
+        "FlexMeasures only supports a positive resolution"
+        in response.json["message"]["combined_sensor_data_description"]["resolution"][0]
+    )
+
+
 @pytest.mark.parametrize("use_oldstyle_endpoint", [True, False])
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
@@ -603,35 +637,39 @@ def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db
         # If the assert failed, we would get a 500 status code
         assert error_info.__class__.__name__ == "IntegrityError"
 
-    # Check that 1st time posting the data succeeds
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
-    print(response.json)
-    assert response.status_code == 200
+    try:
+        # Check that 1st time posting the data succeeds
+        response = client.post(
+            url_for("SensorAPI:post_data", id=sensor.id),
+            json=post_data,
+        )
+        print(response.json)
+        assert response.status_code == 200
 
-    # Check that 2nd time posting the same data succeeds informatively
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
-    print(response.json)
-    assert response.status_code == 200
-    assert "data has already been received" in response.json["message"]
+        # Check that 2nd time posting the same data succeeds informatively
+        response = client.post(
+            url_for("SensorAPI:post_data", id=sensor.id),
+            json=post_data,
+        )
+        print(response.json)
+        assert response.status_code == 200
+        assert "data has already been received" in response.json["message"]
 
-    # Check that replacing data fails informatively
-    post_data["values"][0] = 100
-    response = client.post(
-        url_for("SensorAPI:post_data", id=sensor.id),
-        json=post_data,
-    )
-    print(response.json)
-    assert response.status_code == 403
-    assert "data represents a replacement" in response.json["message"]
+        # Check that replacing data fails informatively
+        post_data["values"][0] = 100
+        response = client.post(
+            url_for("SensorAPI:post_data", id=sensor.id),
+            json=post_data,
+        )
+        print(response.json)
+        assert response.status_code == 403
+        assert "data represents a replacement" in response.json["message"]
 
-    # at this point, the transaction has failed and needs to be rolled back.
-    db.session.rollback()
+        # at this point, the transaction has failed and needs to be rolled back.
+        db.session.rollback()
+    finally:
+        # Without this, the listener would outlive the test and assert on every later database error in the process.
+        event.remove(Engine, "handle_error", receive_handle_error)
 
 
 @pytest.mark.parametrize(

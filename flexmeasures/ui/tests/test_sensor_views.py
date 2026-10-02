@@ -1,11 +1,11 @@
 """
 Tests for the Sensor UI view (SensorUI).
 
-The sensor page at /sensors/<id> renders sensor details and optionally
-a "Trigger forecast" side panel.  These tests verify:
+The sensor page at /sensors/<id> renders sensor details and optional
+Forecast and Annotate side panels. These tests verify:
 
 - Basic access and 404 behaviour
-- "Trigger forecast" panel visibility gated on ``create-children`` permission
+- Forecast and Annotate panel visibility gated on ``create-children`` permission
 - Forecast button enabled/disabled state based on available data range
 - Guard that ``get_timerange`` is NOT called for users without permission
 """
@@ -52,6 +52,51 @@ def test_sensor_page_loads(db, client, setup_assets, as_prosumer_user1):
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert sensor.name.encode() in response.data
+    assert b'id="fullBeliefInfoToggle"' in response.data
+    assert b"Full belief info" in response.data
+
+
+def test_sensor_page_preselects_source(db, client, setup_assets, as_prosumer_user1):
+    """The source query parameter is passed on to the page, for the statistics panel."""
+    sensor = _get_prosumer_sensor(db)
+    response = client.get(
+        url_for("SensorUI:get", id=sensor.id, source=42), follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b'data-preselected-source-id="42"' in response.data
+
+
+def test_sensor_page_lists_feeding_automations(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """Automations that write data to the sensor are listed on its page."""
+    from flexmeasures.data.models.automations import Automation
+
+    sensor = _get_prosumer_sensor(db)
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
+    assert b"Bihourly forecasts" not in response.data
+
+    with (
+        patch(
+            "flexmeasures.ui.views.sensors.get_automations_feeding_sensor",
+            return_value=[
+                Automation(
+                    id=1,
+                    asset_id=sensor.generic_asset_id,
+                    name="Bihourly forecasts",
+                    cronstr="0 */2 * * *",
+                    active=True,
+                )
+            ],
+        ),
+        patch("flexmeasures.ui.views.sensors.user_can_read", return_value=True),
+    ):
+        response = client.get(
+            url_for("SensorUI:get", id=sensor.id), follow_redirects=True
+        )
+    assert response.status_code == 200
+    assert b"Bihourly forecasts" in response.data
+    assert b"Every 2 hours" in response.data
 
 
 def test_sensor_page_requires_login(client, setup_assets):
@@ -67,22 +112,26 @@ def test_sensor_page_404_for_nonexistent_sensor(db, client, as_prosumer_user1):
 
 
 # ---------------------------------------------------------------------------
-# "Trigger forecast" panel – visibility based on permissions
+# Forecast and Annotate panels – visibility based on permissions
 # ---------------------------------------------------------------------------
 
 
-def test_trigger_forecast_panel_visible_for_account_member(
+def test_forecast_and_annotate_panels_visible_for_account_member(
     db, client, setup_assets, as_prosumer_user1
 ):
     """
-    The "Trigger forecast" panel is rendered for a user who belongs to the
-    account that owns the sensor (Sensor ACL grants ``create-children`` to
-    every member of the owning account).
+    The Forecast and Annotate panels are rendered for a user who belongs to
+    the account that owns the sensor (Sensor ACL grants ``create-children``
+    to every member of the owning account).
     """
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
+    assert b'id="annotateForm"' in response.data
+    assert b"pick the select tool above the chart" in response.data
+    assert b'id="annotationStart"' in response.data
+    assert b'id="annotationEnd"' in response.data
     assert b"firstAvailableEventStartForForecastTraining" in response.data
     assert (
         b"firstAvailableEventStartForForecastTraining = e.detail.firstEventStart"
@@ -91,25 +140,29 @@ def test_trigger_forecast_panel_visible_for_account_member(
     assert b'"train-start"' in response.data
 
 
-def test_trigger_forecast_panel_visible_for_admin(db, client, setup_assets, as_admin):
-    """Admin users bypass ACL and also see the "Trigger forecast" panel."""
+def test_forecast_and_annotate_panels_visible_for_admin(
+    db, client, setup_assets, as_admin
+):
+    """Admin users bypass ACL and see both the Forecast and Annotate panels."""
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
+    assert b'id="annotateForm"' in response.data
 
 
-def test_trigger_forecast_panel_hidden_for_other_account(
+def test_forecast_and_annotate_panels_hidden_for_other_account(
     db, client, setup_assets, as_supplier_user
 ):
     """
     A user from a different account (no ``create-children`` permission on the
-    sensor) does not see the "Trigger forecast" panel at all.
+    sensor) sees neither the Forecast nor the Annotate panel.
     """
     sensor = _get_prosumer_sensor(db)
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" not in response.data
+    assert b'id="annotateForm"' not in response.data
     assert b"firstAvailableEventStartForForecastTraining" not in response.data
 
 

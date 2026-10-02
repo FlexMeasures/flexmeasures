@@ -8,11 +8,16 @@ from webargs.flaskparser import use_kwargs
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas import StartEndTimeSchema
+from flexmeasures.data.services.automations import (
+    describe_cronstr,
+    get_automations_feeding_sensor,
+)
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures import Sensor
 from flexmeasures.ui.utils.auth_utils import (
     user_can_create_children,
     user_can_delete,
+    user_can_read,
     user_can_update,
 )
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
@@ -43,6 +48,9 @@ class SensorUI(FlaskView):
         The following query parameters are supported (should be used only together):
          - start_time: minimum time of the events to be shown
          - end_time: maximum time of the events to be shown
+
+        In addition, the source query parameter can be used to pre-select a data source
+        in the statistics panel (e.g. when linking here from an automation).
         """
         sensor = db.session.get(Sensor, id)
         if sensor is None:
@@ -73,4 +81,16 @@ class SensorUI(FlaskView):
             event_ends_before=request.args.get("end_time"),
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
+            preselected_source_id=request.args.get("source"),
+            feeding_automations=[
+                dict(
+                    id=automation.id,
+                    name=automation.name,
+                    asset_id=automation.asset_id,
+                    active=automation.active,
+                    recurrence_description=describe_cronstr(automation.cronstr),
+                )
+                for automation in get_automations_feeding_sensor(sensor)
+                if user_can_read(automation)
+            ],
         )

@@ -4,9 +4,10 @@ import json
 import time
 import hashlib
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 from flask import current_app
 from sqlalchemy import delete
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
@@ -18,16 +19,23 @@ from flexmeasures.data.models.time_series import TimedBelief
 
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
+from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
+
+# Source types from which we expect data about future events.
+FUTURE_DATA_SOURCE_TYPES = ("scheduler", "forecaster")
 
 _REMOVE = object()
 
@@ -311,7 +319,7 @@ def cleanup_sensor_references_in_assets(
             sa.or_(
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_model,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 # Also matches {"sensor": id} entries nested in lists, e.g. of the
@@ -319,32 +327,32 @@ def cleanup_sensor_references_in_assets(
                 # jsonpath auto-unwraps arrays at every level of the $.** wildcard).
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_context,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.flex_context,
-                    '$."inflexible-device-sensors"[*] ? (@ == $sid)',
+                    sa.cast('$."inflexible-device-sensors"[*] ? (@ == $sid)', JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.sensors[*] ? (@ == $sid)",
+                    sa.cast("$.**.sensors[*] ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$[*] ? (@ == $sid)",
+                    sa.cast("$[*] ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show_as_kpis,
-                    "$.**.sensor ? (@ == $sid)",
+                    sa.cast("$.**.sensor ? (@ == $sid)", JSONPATH),
                     vars_json,
                 ),
             )
@@ -446,19 +454,74 @@ def get_sensors(
     return db.session.scalars(sensor_query).all()
 
 
+def _sensor_sources_by_type(
+    sensor: Sensor, staleness_search: dict
+) -> dict[str, list[DataSource]]:
+    """Group the sensor's data sources by source type, honouring the source filters of the staleness search.
+
+    Reading which sources ever recorded for this sensor is a lookup in the ``sensor_data_source`` summary,
+    so it costs a handful of rows rather than a scan of the beliefs table.
+    Every source type that recorded here is considered, not just the default ones, since a status is reported for each of them.
+
+    The summary is a superset (see :class:`~flexmeasures.data.models.data_sources.SensorDataSource`),
+    so a source may be listed whose beliefs have since been deleted.
+    That only costs a belief query returning nothing; no source that has data can be missing.
+    """
+    sources = sensor.search_data_sources(
+        exclude_source_types=staleness_search.get("exclude_source_types"),
+    )
+    requested_sources = parse_source_arg(staleness_search.get("source"))
+    if requested_sources is not None:
+        requested_source_ids = {source.id for source in requested_sources}
+        sources = [source for source in sources if source.id in requested_source_ids]
+
+    sources_by_type: dict[str, list[DataSource]] = {}
+    for source in sources:
+        sources_by_type.setdefault(source.type, []).append(source)
+    return sources_by_type
+
+
 def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
-    We only look for the default data source types!
+    We look for the source types that recorded on this sensor, so that a sensor recorded by a source type we do not know about,
+    such as data added from the CLI or by a plugin, is still reported on.
+
+    Each type is searched for by naming its sources explicitly, rather than by filtering on the type of the source.
+    A type filter cannot be served by an index on the beliefs table,
+    so the "most recent belief" query would walk the sensor's events from the newest backwards,
+    rechecking the type of each belief's source until it found a match;
+    it would read every belief the sensor has whenever this type recorded none of them.
+    Naming the sources instead lets the primary key answer the query directly,
+    and lets a type with no sources at all be skipped without a query.
     """
+    sources_by_type = _sensor_sources_by_type(sensor, staleness_search)
+
+    # Report the default types in their usual order, and any other type that recorded here after them.
+    source_types = [
+        source_type
+        for source_type in DEFAULT_DATASOURCE_TYPES
+        if source_type in sources_by_type
+    ]
+    source_types += sorted(set(sources_by_type) - set(DEFAULT_DATASOURCE_TYPES))
+
+    # The source filters are already applied by the source lookup above,
+    # so passing them on as well would only re-apply them.
+    belief_search = {
+        key: value
+        for key, value in staleness_search.items()
+        if key not in ("source", "exclude_source_types")
+    }
+
     bdfs_by_source = dict()
-    for source_type in DEFAULT_DATASOURCE_TYPES:
+    for source_type in source_types:
+        sources = sources_by_type[source_type]
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,
-            source_types=[source_type],
-            **staleness_search,
+            source=sources,
+            **belief_search,
         )
         if not bdf.empty:
             bdfs_by_source[source_type] = bdf
@@ -487,7 +550,7 @@ def get_staleness_start_times(
         time_column = "knowledge_times"
         source_type = str(source_type)
         has_relevant_data = True
-        if source_type in ("scheduler", "forecaster"):
+        if source_type in FUTURE_DATA_SOURCE_TYPES:
             # filter to get only future events
             bdf_filtered = bdf[bdf.event_starts > now]
             time_column = "event_starts"
@@ -597,6 +660,15 @@ def get_statuses(
                 else "Found no future data which this source should have"
             )
             staleness = None
+        elif staleness <= timedelta(0) and source_type not in FUTURE_DATA_SOURCE_TYPES:
+            # The most recent data is about an event we could not even know about yet,
+            # so this source is ahead of schedule rather than stale.
+            # Only sources that are expected to deliver future data, such as forecasters and schedulers,
+            # are held to a minimum lead time (see max_future_staleness).
+            staleness_since = now - staleness
+            stale = False
+            staleness = -staleness
+            reason = f"most recent data is {precisedelta(staleness)} in the future, which is more recent than we could expect"
         else:
             max_source_staleness = (
                 max_staleness if staleness > timedelta(0) else max_future_staleness
@@ -633,10 +705,15 @@ def _get_sensor_asset_relation(
     inflexible_device_sensors: list[Sensor],
     context_sensors: dict[str, Sensor],
 ) -> str:
-    """Get the relation of a sensor to an asset."""
+    """Get the relation of a sensor to an asset.
+
+    The asset is the one whose status is being reported on, which is not necessarily the asset that the sensor belongs to.
+    """
     relations = list()
     if sensor.generic_asset_id == asset.id:
         relations.append("sensor belongs to this asset")
+    else:
+        relations.append(f"sensor belongs to asset '{sensor.generic_asset.name}'")
     inflexible_device_sensors_ids = {sensor.id for sensor in inflexible_device_sensors}
     if sensor.id in inflexible_device_sensors_ids:
         relations.append("flex context (inflexible device)")
@@ -687,6 +764,10 @@ def get_asset_sensors_metadata(
     for sensor in sensors_list:
         if sensor is None or sensor.id in sensor_ids:
             continue
+        if sensor.id is not None and sensor.id < 0:
+            # Skip fixed-value sensors, the synthetic stand-ins for flex-config quantities.
+            # They carry negative IDs, have no row in the database, and therefore no data connectivity to report on.
+            continue
         sensor_status = {}
         sensor_status["id"] = sensor.id
         sensor_status["name"] = sensor.name
@@ -699,14 +780,20 @@ def get_asset_sensors_metadata(
 
 def serialize_sensor_status_data(
     sensor: Sensor,
+    asset: Asset | None = None,
 ) -> list[dict]:
     """
-    Serialize the status of a sensor belonging to an asset.
+    Serialize the status of a sensor, in the context of an asset.
 
-    :param sensor: Sensor to get the status of
-    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor
+    :param sensor: Sensor to get the status of.
+    :param asset: Asset whose status page the sensor is reported on, which need not be the asset that the sensor belongs to.
+                  It decides the relation that is reported, and defaults to the asset that the sensor belongs to.
+    :return: A list of dictionaries, each representing the statuses of the sensor - one status per data source type that stored data on that sensor.
+             Each status names the asset the sensor belongs to, in asset_id and asset_name, as that need not be the asset whose status page is being looked at.
     """
-    asset = sensor.generic_asset
+    sensor_asset = sensor.generic_asset
+    if asset is None:
+        asset = sensor_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
     context_sensors = {
@@ -730,7 +817,8 @@ def serialize_sensor_status_data(
             if sensor_status["staleness_since"] is not None
             else None
         )
-        sensor_status["asset_name"] = asset.name
+        sensor_status["asset_id"] = sensor_asset.id
+        sensor_status["asset_name"] = sensor_asset.name
         sensor_status["relation"] = _get_sensor_asset_relation(
             asset, sensor, inflexible_device_sensors, context_sensors
         )
@@ -739,21 +827,22 @@ def serialize_sensor_status_data(
     return sensors
 
 
-def build_asset_jobs_data(
-    asset: Asset,
-) -> list[dict]:
-    """Get all jobs data for an asset
-    Returns a list of dictionaries, each containing the following keys:
-    - job_id: id of a job
-    - queue: job queue (scheduling or forecasting)
-    - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
-    - asset_id: id of sensor or asset
-    - status: job status (e.g finished, failed, etc)
-    - err: job error (equals to None when there was no error for a job)
-    - enqueued_at: time when the job was enqueued
-    - metadata_hash: hash of job metadata (internal field)
-    """
+def _can_read_automation(automation: Automation | None) -> bool:
+    """Whether the current user may see an automation's identifying details."""
+    if automation is None:
+        return False
+    try:
+        check_access(automation, "read")
+    except (Forbidden, Unauthorized):
+        return False
+    return True
 
+
+def _collect_asset_jobs(asset: Asset) -> list[tuple]:
+    """List the cached jobs of one asset and of its own sensors.
+
+    Each tuple is (queue, entity type, entity id, entity name, jobs), and the asset the jobs happened on is the one passed in.
+    """
     jobs = list()
 
     # try to get scheduling jobs for asset first (only scheduling jobs can be stored by asset id)
@@ -768,28 +857,63 @@ def build_asset_jobs_data(
     )
 
     for sensor in asset.sensors:
-        jobs.append(
-            (
-                "scheduling",
-                "sensor",
-                sensor.id,
-                sensor.name,
-                current_app.job_cache.get(sensor.id, "scheduling", "sensor"),
+        for queue in ("scheduling", "forecasting", "reporting"):
+            jobs.append(
+                (
+                    queue,
+                    "sensor",
+                    sensor.id,
+                    sensor.name,
+                    current_app.job_cache.get(sensor.id, queue, "sensor"),
+                )
             )
-        )
-        jobs.append(
-            (
-                "forecasting",
-                "sensor",
-                sensor.id,
-                sensor.name,
-                current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
-            )
+
+    return jobs
+
+
+def build_asset_jobs_data(
+    asset: Asset,
+    include_child_assets: bool = True,
+) -> list[dict]:
+    """Get all jobs data for an asset
+
+    :param asset:                Asset to get the jobs for.
+    :param include_child_assets: Whether to also include the jobs of the assets below this one, at any depth, so that a site asset shows what happened anywhere below it.
+                                 Only the assets the current user may read are included, as a child asset can belong to another account than its parent.
+    :returns:                    A list of dictionaries, each containing the following keys:
+                                 - job_id: id of a job
+                                 - queue: job queue (scheduling or forecasting)
+                                 - asset_or_sensor_type: type of an asset that is linked to the job (asset or sensor)
+                                 - asset_id: id of the asset the job happened on
+                                 - asset_name: name of the asset the job happened on
+                                 - entity: the asset or sensor the job was triggered on
+                                 - status: job status (e.g finished, failed, etc)
+                                 - err: job error (equals to None when there was no error for a job)
+                                 - enqueued_at: time when the job was enqueued
+                                 - metadata_hash: hash of job metadata (internal field)
+    """
+
+    from flexmeasures.data.services.generic_assets import get_readable_offspring
+
+    assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
+
+    jobs = list()
+    for asset_to_report_on in assets:
+        # Pair each entry with the asset it came from, so that every job can name the asset it happened on.
+        jobs.extend(
+            (asset_to_report_on, entry)
+            for entry in _collect_asset_jobs(asset_to_report_on)
         )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
-    for queue, asset_or_sensor_type, entity_id, entity_name, jobs in jobs:
+    for job_asset, (
+        queue,
+        asset_or_sensor_type,
+        entity_id,
+        entity_name,
+        jobs,
+    ) in jobs:
         for job in jobs:
             e = job.meta.get(
                 "exception",
@@ -800,27 +924,48 @@ def build_asset_jobs_data(
                 ),
             )
             job_err = (
-                f"Scheduling job failed with {type(e).__name__}: {e}"
+                f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
                 if job.is_failed
                 else None
             )
 
-            metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
+            # Show how the job was created (e.g. via the CLI, the API or an automation)
+            metadata_dict = {**job.meta, "job_id": job.id}
+            trigger = dict(job.meta.get("trigger", {}))
+            created_via = trigger.get("origin", "")
+            if trigger.get("automation_id") is not None:
+                automation = db.session.get(Automation, trigger["automation_id"])
+                if _can_read_automation(automation):
+                    created_via = f"automation '{automation.name}' ({automation.id})"
+                else:
+                    created_via = "automation"
+                    trigger.pop("automation_id")
+                    metadata_dict["trigger"] = trigger
+
+            metadata = json.dumps(metadata_dict, default=str, indent=4)
             jobs_data.append(
                 {
                     "job_id": job.id,
                     "metadata": metadata,
                     "queue": queue,
                     "asset_or_sensor_type": asset_or_sensor_type,
+                    "asset_id": job_asset.id,
+                    "asset_name": job_asset.name,
                     "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
+                    "created_via": created_via,
                     "metadata_hash": hashlib.sha256(metadata.encode()).hexdigest(),
                 }
             )
 
     return jobs_data
+
+
+# The key under which the statistics covering every source are reported.
+# Keys for individual sources always end in " (ID: <id>)", so this one cannot collide with them.
+ALL_SOURCES_KEY = "All sources"
 
 
 def _get_sensor_stats(
@@ -855,6 +1000,8 @@ def _get_sensor_stats(
             filtered_agg(sa.func.avg).label("avg_event_value"),
             filtered_agg(sa.func.sum).label("sum_event_value"),
             sa.func.count(TimedBelief.event_value).label("count_event_value"),
+            # Not reported, but needed to combine the per-source means; see _combine_stats.
+            filtered_agg(sa.func.count).label("count_non_nan_event_value"),
         )
         .select_from(TimedBelief)
         .join(DataSource, DataSource.id == TimedBelief.source_id)
@@ -866,14 +1013,14 @@ def _get_sensor_stats(
     if end_dt:
         q = q.filter(TimedBelief.event_start < end_dt)
 
+    # Group on DataSource, and keep the join in front of the aggregate rather than grouping on TimedBelief.source_id and joining afterwards.
+    # This lets the planner use the (sensor_id, source_id, event_start) index as one range per source, instead of scanning the sensor's whole history and filtering on event_start.
     raw_stats = db.session.execute(q.group_by(DataSource.id)).fetchall()
 
     def to_local_iso(ts):
         return pd.Timestamp(ts).tz_convert(sensor.timezone).isoformat()
 
-    stats = dict()
-    for (
-        data_source_obj,
+    def record(
         min_event_start,
         max_event_start,
         max_belief_time,
@@ -882,12 +1029,10 @@ def _get_sensor_stats(
         mean_value,
         sum_values,
         count_values,
-    ) in raw_stats:
-        data_source = f"{data_source_obj.description} (ID: {data_source_obj.id})"
-        last_event_end = max_event_start + sensor.event_resolution
-        stats[data_source] = {
+    ) -> dict:
+        return {
             "First event start": to_local_iso(min_event_start),
-            "Last event end": to_local_iso(last_event_end),
+            "Last event end": to_local_iso(max_event_start + sensor.event_resolution),
             "Last recorded": to_local_iso(max_belief_time),
             "Min value": min_value,
             "Max value": max_value,
@@ -895,9 +1040,66 @@ def _get_sensor_stats(
             "Sum over values": sum_values,
             "Number of values": count_values,
         }
-        if not sort_keys:
-            stats[data_source] = stats[data_source].items()
+
+    stats = dict()
+    if len(raw_stats) > 1:
+        # Report the combined statistics first, and only when more than one source recorded,
+        # because with a single source they would just repeat that source's own record.
+        stats[ALL_SOURCES_KEY] = _combine_stats(raw_stats, record)
+    for row in raw_stats:
+        data_source = f"{row[0].description} (ID: {row[0].id})"
+        stats[data_source] = record(
+            row.min_event_start,
+            row.max_event_start,
+            row.max_belief_time,
+            row.min_event_value,
+            row.max_event_value,
+            row.avg_event_value,
+            row.sum_event_value,
+            row.count_event_value,
+        )
+    if not sort_keys:
+        stats = {source: values.items() for source, values in stats.items()}
     return stats
+
+
+def _combine_stats(raw_stats: list, record: Callable[..., dict]) -> dict:
+    """Fold the per-source statistics into one record covering every source.
+
+    Every field is derived from aggregates the query already returned, so summarising costs no extra database work.
+    Doing it in SQL instead, as a GROUP BY GROUPING SETS rollup, is free while the query is time-filtered but not otherwise:
+    a rollup cannot be aggregated in parallel, which over a sensor's whole history is markedly slower than the plain grouping.
+
+    The mean is the one field that cannot be derived from what the record reports.
+    "Number of values" counts every row, NaN ones included, while the sum leaves NaN rows out,
+    so weighting each source's mean by that count would understate the combined mean.
+    The query selects a NaN-excluded count for this purpose, which is not itself reported.
+
+    Counts are summed, so an event that two sources both recorded counts once per source,
+    just as a single source's count already counts an event once per belief held about it.
+    """
+    # A source whose rows are all NaN contributes a row count but no value aggregates.
+    min_values = [
+        row.min_event_value for row in raw_stats if row.min_event_value is not None
+    ]
+    max_values = [
+        row.max_event_value for row in raw_stats if row.max_event_value is not None
+    ]
+    sum_values = [
+        row.sum_event_value for row in raw_stats if row.sum_event_value is not None
+    ]
+    total = sum(sum_values) if sum_values else None
+    count_non_nan = sum(row.count_non_nan_event_value for row in raw_stats)
+    return record(
+        min_event_start=min(row.min_event_start for row in raw_stats),
+        max_event_start=max(row.max_event_start for row in raw_stats),
+        max_belief_time=max(row.max_belief_time for row in raw_stats),
+        min_value=min(min_values) if min_values else None,
+        max_value=max(max_values) if max_values else None,
+        mean_value=total / count_non_nan if count_non_nan else None,
+        sum_values=total,
+        count_values=sum(row.count_event_value for row in raw_stats),
+    )
 
 
 # Per-key TTL cache for sensor stats.

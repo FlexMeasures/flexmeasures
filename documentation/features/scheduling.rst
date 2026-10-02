@@ -368,3 +368,12 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
+
+
+.. _automating_schedules:
+
+Automating schedules
+--------------------
+
+Instead of triggering schedules one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues scheduling jobs on a cron schedule.
+See :ref:`automations`.

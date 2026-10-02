@@ -25,10 +25,10 @@ from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.api.common.schemas.users import UserIdField
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
 
-@click.group("monitor")
+@click.group("monitor", cls=LoggedClickExceptionGroup)
 def fm_monitor():
     """FlexMeasures: Monitor tasks."""
 

@@ -1,13 +1,19 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask import url_for
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import select, func, event
 
+from pytz import utc
+
+from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.generic_assets import GenericAssetType
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
@@ -272,6 +278,69 @@ def test_get_assets_filtered_by_asset_type(
     )
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_does_not_scale_query_count_with_catalog_size(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """The assets-list endpoint dumps each asset's owner, generic_asset_type, sensors and child_assets.
+
+    Those relations must be eager-loaded, so the SQL statement count stays constant as the
+    catalog grows, rather than scaling with it (an N+1 query per asset per relation).
+    """
+
+    def seed_assets(num_assets: int, tag: str) -> GenericAssetType:
+        """Create num_assets assets, each with its own owner (so the identity map can't mask
+        an N+1 by reusing an already-loaded owner) and a sensor, under a shared, tagged type.
+        """
+        asset_type = GenericAssetType(name=f"n1-bench-type-{tag}")
+        db.session.add(asset_type)
+        db.session.flush()
+        for i in range(num_assets):
+            asset = GenericAsset(
+                name=f"n1-bench-asset-{tag}-{i}",
+                generic_asset_type=asset_type,
+                owner=Account(name=f"n1-bench-account-{tag}-{i}"),
+            )
+            db.session.add(asset)
+            db.session.flush()
+            db.session.add(
+                Sensor(
+                    name=f"n1-bench-sensor-{tag}-{i}",
+                    generic_asset=asset,
+                    event_resolution="PT15M",
+                    unit="MW",
+                )
+            )
+        db.session.commit()
+        return asset_type
+
+    def count_queries_for_index_request(asset_type: GenericAssetType) -> int:
+        count = {"n": 0}
+
+        def _count(*args, **kwargs):
+            count["n"] += 1
+
+        event.listen(db.engine, "before_cursor_execute", _count)
+        try:
+            response = client.get(
+                url_for("AssetAPI:index"),
+                query_string={"all_accessible": "true", "asset_type": asset_type.id},
+            )
+        finally:
+            event.remove(db.engine, "before_cursor_execute", _count)
+        assert response.status_code == 200
+        return count["n"]
+
+    small_count = count_queries_for_index_request(seed_assets(2, tag="small"))
+    large_count = count_queries_for_index_request(seed_assets(20, tag="large"))
+
+    # A few extra statements (auth, account lookups) are fine, but the count must not grow with catalog size.
+    assert large_count <= small_count + 5, (
+        f"SQL statement count grew with catalog size ({small_count} for 2 assets vs "
+        f"{large_count} for 20), which points to a reintroduced N+1 query pattern."
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
     [
@@ -371,6 +440,82 @@ def test_get_asset_with_children(client, add_asset_with_children, requesting_use
     print("Server responded with:\n%s" % get_assets_response.json)
     assert get_assets_response.status_code == 200
     assert len(get_assets_response.json["child_assets"]) == 2
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only(client, add_asset_with_children, requesting_user):
+    """
+    Listing assets with `depth=0` returns only assets without a parent asset.
+    The unfiltered listing is checked as well, to show that the children would otherwise be included.
+    """
+    parent = add_asset_with_children["parent"]
+    child_ids = {add_asset_with_children[f"child_{i}"].id for i in (1, 2)}
+
+    full_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert full_response.status_code == 200
+    full_asset_ids = {asset["id"] for asset in full_response.json}
+    assert parent.id in full_asset_ids
+    assert child_ids <= full_asset_ids
+
+    top_level_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "depth": 0},
+    )
+    print("Server responded with:\n%s" % top_level_response.json)
+    assert top_level_response.status_code == 200
+    top_level_asset_ids = {asset["id"] for asset in top_level_response.json}
+    assert parent.id in top_level_asset_ids
+    assert not child_ids & top_level_asset_ids
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only_record_counts(
+    client, add_asset_with_children, requesting_user
+):
+    """
+    `num-records` reports the size of the scope that the search filter is applied to, so it respects `depth` just like the paginated query does.
+    Without that, a client showing the listing would report the descendants as having been filtered out by the search.
+    """
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "all_accessible": "true",
+            "depth": 0,
+            "page": 1,
+            "per_page": 100,
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert response.json["num-records"] == len(response.json["data"])
+    assert response.json["num-records"] == response.json["filtered-records"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_can_exclude_public(client, setup_api_test_data, requesting_user):
+    """An explicit include_public=false leaves public assets out of a listing across accounts, where they come along per default.
+
+    The default listing is checked as well, to show that the public asset would otherwise be included.
+    """
+    default_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert default_response.status_code == 200
+    assert "troposphere" in {asset["name"] for asset in default_response.json}
+
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "include_public": "false"},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    names = {asset["name"] for asset in response.json}
+    assert "troposphere" not in names
+    assert names, "excluding public assets should not empty the listing"
 
 
 @pytest.mark.parametrize("requesting_user", [None], indirect=True)
@@ -899,7 +1044,7 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
     db.session.flush()
 
     # 1. Neither given → sibling copy (same account, same parent)
-    copy1 = copy_asset(battery)
+    copy1 = copy_asset(battery).asset
     assert copy1.name == f"{battery.name} (Copy)"
     assert copy1.account_id == battery.account_id
     assert copy1.parent_asset_id == battery.parent_asset_id  # None
@@ -916,19 +1061,19 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
 
     # 2. Only account given → top-level in target account
     # Use the turbine so the name doesn't clash with copy1 (parent_asset_id is None for both).
-    copy2 = copy_asset(turbine, account=prosumer_account)
+    copy2 = copy_asset(turbine, account=prosumer_account).asset
     assert copy2.name == f"{turbine.name} (Copy)"
     assert copy2.account_id == prosumer_account.id
     assert copy2.parent_asset_id is None
 
     # 3. Only parent given → under parent, inherits parent's account
-    copy3 = copy_asset(battery, parent_asset=parent)
+    copy3 = copy_asset(battery, parent_asset=parent).asset
     assert copy3.name == f"{battery.name} (Copy)"
     assert copy3.account_id == parent.account_id  # Supplier account
     assert copy3.parent_asset_id == parent.id
 
     # 4. Both given → under parent, in explicitly given account (cross-account)
-    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent)
+    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent).asset
     assert copy4.name == f"{turbine.name} (Copy)"
     assert copy4.account_id == prosumer_account.id
     assert copy4.parent_asset_id == parent.id
@@ -964,16 +1109,16 @@ def test_copy_asset_increments_name_under_same_parent(
     db.session.flush()
 
     # First copy under the parent.
-    first_copy = copy_asset(battery, parent_asset=parent)
+    first_copy = copy_asset(battery, parent_asset=parent).asset
     assert first_copy.parent_asset_id == parent.id
     assert first_copy.name == f"{battery.name} (Copy)"
 
     # Second and third copies increment the suffix.
-    second_copy = copy_asset(battery, parent_asset=parent)
+    second_copy = copy_asset(battery, parent_asset=parent).asset
     assert second_copy.parent_asset_id == parent.id
     assert second_copy.name == f"{battery.name} (Copy 2)"
 
-    third_copy = copy_asset(battery, parent_asset=parent)
+    third_copy = copy_asset(battery, parent_asset=parent).asset
     assert third_copy.parent_asset_id == parent.id
     assert third_copy.name == f"{battery.name} (Copy 3)"
 
@@ -1017,7 +1162,7 @@ def test_copy_template_asset_drops_template_metadata(
     assert template_asset.attributes["template"]["key"] == "battery-template"
     assert "Copy this" in template_asset.description
 
-    copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_asset = copy_asset(template_asset, account=prosumer_account).asset
     copied_sensor = db.session.scalars(
         select(Sensor).filter_by(generic_asset_id=copied_asset.id)
     ).one()
@@ -1125,7 +1270,7 @@ def test_copy_asset_to_another_account_preserves_config(
     original_flex_context = house.flex_context.copy()
 
     # --- Act ---
-    house_copy = copy_asset(house, account=supplier_account)
+    house_copy = copy_asset(house, account=supplier_account).asset
 
     # 1. Correct account and name.
     assert house_copy.account_id == supplier_account.id
@@ -1286,7 +1431,7 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     db.session.flush()
 
     # --- Act ---
-    battery_copy = copy_asset(battery, account=prosumer_account)
+    battery_copy = copy_asset(battery, account=prosumer_account).asset
 
     # Locate the new copied sensor.
     copied_sensors = db.session.scalars(
@@ -1715,14 +1860,20 @@ def test_get_asset_chart_with_annotation_layers(
     annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
     subcharts = chart_specs["vconcat"]
     assert len(subcharts) > 0
-    for subchart in subcharts:
+    for row_index, subchart in enumerate(subcharts):
         annotation_layers = [
             layer
             for layer in subchart["layer"]
             if layer.get("data", {}).get("name") == annotations_dataset_name
         ]
-        # band + rule + marker + text layers
-        assert len(annotation_layers) == 4
+        # band, rule, invisible hit area for pointing at the rule, marker and text layers
+        assert [layer["name"] for layer in annotation_layers] == [
+            f"annotation_band_{row_index}",
+            f"annotation_rule_{row_index}",
+            f"annotation_rule_hit_{row_index}",
+            f"annotation_marker_{row_index}",
+            f"annotation_text_{row_index}",
+        ]
     # hover params are unique per subchart, so that hovering one subchart
     # does not darken the annotation bands in the other subcharts
     all_param_names = [
@@ -1782,3 +1933,475 @@ def test_get_asset_chart_session_vars_with_canonical_params(
     with client.session_transaction() as sess:
         assert sess.get("event_starts_after") == "2025-05-01T00:00:00+02:00"
         assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"
+
+
+def _asset_with_daily_kpi(
+    db, requesting_user, setup_sources, days: int
+) -> tuple[GenericAsset, datetime]:
+    """Build an asset whose KPI sums a distinct value per day.
+
+    The values differ per day, so that a window covering the wrong days totals differently,
+    rather than merely covering the same number of days.
+    """
+    window_start = datetime(2022, 1, 1, tzinfo=utc)
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    if asset_type is None:
+        asset_type = GenericAssetType(name="battery")
+        db.session.add(asset_type)
+        db.session.flush()
+    asset = GenericAsset(
+        name=f"kpi window asset ({days} days)",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name=f"kpi window sensor ({days} days)",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="MWh",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    source = list(setup_sources.values())[0]
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=window_start + timedelta(days=day),
+                belief_horizon=timedelta(0),
+                event_value=float(day + 1),
+                sensor_id=sensor.id,
+                source_id=source.id,
+                cumulative_probability=0.5,
+            )
+            for day in range(days)
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Total", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+    return asset, window_start
+
+
+def _kpi_total(client, asset: GenericAsset, start: str, end: str) -> float:
+    """Ask the KPI endpoint for one window and return its single value."""
+    response = client.get(
+        url_for("AssetAPI:get_kpis", id=asset.id),
+        query_string={"start": start, "end": end},
+    )
+    assert response.status_code == 200, response.json
+    kpis = response.json["data"]
+    assert len(kpis) == 1, f"expected exactly one KPI, got {kpis}"
+    return kpis[0]["downsample_value"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_end_is_exclusive(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """The KPI window ends before `end`, as the chart's own window does.
+
+    The asset page derives the KPI window from the chart's,
+    so the two have to agree on whether the end is part of the window.
+    """
+    asset, window_start = _asset_with_daily_kpi(
+        db, requesting_user, setup_sources, days=5
+    )
+
+    # Days one to five carry the values 1 to 5, so the first three total six.
+    # Treating the end as inclusive would add the fourth day and total ten.
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=3)).isoformat(),
+    )
+    assert total == pytest.approx(
+        6.0
+    ), "the window must end before its end date, not on it"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_window_honours_the_offset_it_is_given(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A window written with a UTC offset names the instants that offset implies.
+
+    The asset page sends its window as local clock times carrying an offset,
+    so the endpoint has to read the offset rather than the clock time alone.
+    """
+    asset, _ = _asset_with_daily_kpi(db, requesting_user, setup_sources, days=6)
+
+    # Midnight UTC on the first, written as one o'clock in +01:00.
+    # These are the first three days, worth 1 + 2 + 3.
+    total = _kpi_total(
+        client, asset, "2022-01-01T01:00:00+01:00", "2022-01-04T01:00:00+01:00"
+    )
+    assert total == pytest.approx(
+        6.0
+    ), "the offset must be read, not just the clock time"
+
+    # The same clock times read as UTC name instants an hour later,
+    # which drops the first day and picks up the fourth: 2 + 3 + 4.
+    shifted = _kpi_total(
+        client, asset, "2022-01-01T01:00:00+00:00", "2022-01-04T01:00:00+00:00"
+    )
+    assert shifted == pytest.approx(
+        9.0
+    ), "an hour later is a different set of days, so the two windows must not agree"
+    assert total != shifted, "the assertion above only means something if these differ"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_counts_an_event_once_when_two_sources_report_it(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """Two sources reporting one event are two claims about it, not two contributions to it.
+
+    Summing them produced a number no source ever reported, and that no point on the chart showed.
+    The KPI now reduces one value per event, and these two sources are of the same version,
+    so the one that believed the event more recently is the one it counts.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi with two sources on one event",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi with two sources sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    sources = list(setup_sources.values())
+    reported, corrected = sources[0], sources[-1]
+    assert reported.id != corrected.id, "this test needs two distinct sources"
+
+    window_start = datetime(2030, 3, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # One event, claimed by two sources, the second more recently than the first.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=2),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=reported.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=1),
+                event_value=80.0,
+                sensor_id=sensor.id,
+                source_id=corrected.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=1)).isoformat(),
+    )
+    assert total == pytest.approx(
+        80.0
+    ), "the more recent belief about the event, rather than 180.0, which neither source reported"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_prefers_the_latest_source_version_over_the_most_recent_belief(
+    db, client, setup_api_test_data, requesting_user
+):
+    """A newer version of a source wins the event, even when an older version believed it more recently.
+
+    Version comes first because it says which code produced the value,
+    where the belief time only says when it was said.
+    """
+    from flexmeasures.data.models.data_sources import DataSource
+
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi with two source versions",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi with two source versions sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    # Two versions of one reporter, which is what a release upgrade leaves behind.
+    older_version = DataSource(
+        name="Reporter", type="reporter", model="Rep", version="1"
+    )
+    newer_version = DataSource(
+        name="Reporter", type="reporter", model="Rep", version="2"
+    )
+    db.session.add_all([older_version, newer_version])
+    db.session.flush()
+
+    window_start = datetime(2030, 4, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # The newer version spoke first, and the older version spoke later.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=2),
+                event_value=42.0,
+                sensor_id=sensor.id,
+                source_id=newer_version.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(days=1),
+                event_value=99.0,
+                sensor_id=sensor.id,
+                source_id=older_version.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    total = _kpi_total(
+        client,
+        asset,
+        window_start.isoformat(),
+        (window_start + timedelta(days=1)).isoformat(),
+    )
+    assert total == pytest.approx(
+        42.0
+    ), "the newer version's value, despite the older belief time"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_reports_what_the_chart_draws(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A KPI is read beside the chart, so it must describe the same beliefs.
+
+    Two ways that used to diverge: several sources reporting one sensor were counted separately,
+    and a revised belief was counted on top of the belief it revised.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi agrees with chart",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi agrees with chart sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    sources = list(setup_sources.values())
+    scheduled, uploaded = sources[0], sources[-1]
+    assert scheduled.id != uploaded.id, "this test needs two distinct sources"
+
+    window_start = datetime(2030, 1, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            # One day per source, as when a single point is uploaded beside computed data.
+            dict(
+                event_start=window_start,
+                belief_horizon=timedelta(0),
+                event_value=122.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start + timedelta(days=1),
+                belief_horizon=timedelta(0),
+                event_value=100.0,
+                sensor_id=sensor.id,
+                source_id=uploaded.id,
+                cumulative_probability=0.5,
+            ),
+            # A third day believed twice, the later belief revising the earlier one.
+            dict(
+                event_start=window_start + timedelta(days=2),
+                belief_horizon=timedelta(days=2),
+                event_value=50.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+            dict(
+                event_start=window_start + timedelta(days=2),
+                belief_horizon=timedelta(days=1),
+                event_value=7.0,
+                sensor_id=sensor.id,
+                source_id=scheduled.id,
+                cumulative_probability=0.5,
+            ),
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    window_end = window_start + timedelta(days=3)
+    total = _kpi_total(client, asset, window_start.isoformat(), window_end.isoformat())
+
+    drawn = sensor.search_beliefs(
+        event_starts_after=window_start,
+        event_ends_before=window_end,
+        most_recent_beliefs_only=True,
+    )
+    starts = drawn.index.get_level_values("event_start")
+    within = drawn[(starts >= window_start) & (starts < window_end)]
+    assert total == pytest.approx(
+        float(within["event_value"].sum())
+    ), "the KPI must total the values the chart draws, for the events this window owns"
+    assert total == pytest.approx(
+        229.0
+    ), "122 from one source, 100 from another, and 7 revising 50, is 229"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_kpi_counts_each_event_under_one_day_only(
+    db, client, setup_api_test_data, setup_sources, requesting_user
+):
+    """A day's KPI covers the events that day owns, not those merely overlapping it.
+
+    A daily sensor on the UTC grid, read from a timezone an hour ahead, has every event
+    straddling the boundary between two local days.
+    Counting an event under both would total it twice across neighbouring selections.
+    """
+    asset_type = (
+        db.session.query(GenericAssetType).filter_by(name="battery").one_or_none()
+    )
+    asset = GenericAsset(
+        name="kpi owns its events",
+        generic_asset_type=asset_type,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="kpi owns its events sensor",
+        generic_asset=asset,
+        event_resolution=timedelta(days=1),
+        unit="EUR",
+        timezone="UTC",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    source = list(setup_sources.values())[0]
+
+    first = datetime(2030, 1, 15, tzinfo=utc)
+    db.session.bulk_insert_mappings(
+        TimedBelief,
+        [
+            dict(
+                event_start=first + timedelta(days=offset),
+                belief_horizon=timedelta(0),
+                event_value=value,
+                sensor_id=sensor.id,
+                source_id=source.id,
+                cumulative_probability=0.5,
+            )
+            for offset, value in ((0, 122.0), (1, 100.0))
+        ],
+    )
+    asset.sensors_to_show_as_kpis = [
+        {"title": "Daily costs", "sensor": sensor.id, "function": "sum"}
+    ]
+    db.session.flush()
+
+    # Local days in +01:00, so each runs from 23:00 UTC to 23:00 UTC and straddles both events.
+    def local_day(day: int) -> str:
+        return f"2030-01-{day:02d}T00:00:00+01:00"
+
+    totals = {
+        day: _kpi_total(client, asset, local_day(day), local_day(day + 1))
+        for day in (15, 16, 17)
+    }
+    assert totals[15] == pytest.approx(122.0), "the 15th owns only its own event"
+    assert totals[16] == pytest.approx(100.0), "the 16th must not also count the 15th"
+    assert totals[17] == pytest.approx(0.0), "the 17th owns nothing"
+    assert sum(totals.values()) == pytest.approx(
+        222.0
+    ), "each event counts once across neighbouring days, not twice"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_of_child_assets(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """A parent asset lists the jobs of its children, unless the caller opts out."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_cache.add(
+        child.id,
+        child_job.id,
+        queue="scheduling",
+        asset_or_sensor_type="asset",
+    )
+
+    response = client.get(url_for("AssetAPI:get_jobs", id=parent.id))
+    assert response.status_code == 200
+    assert child_job.id in [job["job_id"] for job in response.json["jobs"]]
+    assert f"asset: {child.name} (Id: {child.id})" in [
+        job["entity"] for job in response.json["jobs"]
+    ], "the job is reported against the child asset it was triggered on"
+    reported_job = [
+        job for job in response.json["jobs"] if job["job_id"] == child_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        child.id,
+        child.name,
+    ), "the job names the asset it happened on, rather than the asset that was asked about"
+
+    response = client.get(
+        url_for("AssetAPI:get_jobs", id=parent.id),
+        query_string={"include-child-assets": "false"},
+    )
+    assert response.status_code == 200
+    assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
+
+    app.queues["scheduling"].empty()

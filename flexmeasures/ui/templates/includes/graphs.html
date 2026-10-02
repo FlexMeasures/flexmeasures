@@ -23,11 +23,13 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+    import { apiBasePath, pollJobStatus, escapeHtml } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { decompressChartData, checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
+    import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -39,16 +41,22 @@
     let picker;
     let vegaView;
     let previousResult;
+    // Holds the widest contiguous span fetched so far,
+    // so that re-selecting a span we just moved away from costs no request.
+    // Reset whenever the data itself may have changed.
+    const chartDataCache = createChartDataCache();
+    // Counts how often the shown window has been changed.
+    // Selections are not serialised and their requests are not aborted,
+    // so a slow earlier one can answer after a quick later one and draw the wrong range.
+    let shownWindowGeneration = 0;
     let previousPlaybackResult;
-    let queryStartDate;
-    let queryEndDate;
     let storeStartDate;
     let storeEndDate;
     let replaySpeed = 100;
     let chartType = '{{ chart_type }}';  // initial chart type from session variable
     let combineLegend = 'true';
     let dataPath;
-    let dataDevPath;
+    let chartAttributesPath;
     let datasetName;
     let elementId = 'sensorchart';
     let chartSpecsPath;
@@ -61,15 +69,17 @@
     let toggle;
     let stepTriggered = false;
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
+    let fullBeliefInfo = localStorage.getItem('fm-full-belief-info') === '1';
+    let syncFullBeliefInfoToggle = () => {};
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
     // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can
     // rebuild the groupSpec client-side (with y-axis titles) after an in-browser
     // sensors_to_show save without a page reload.
     let sensorTypeById = new Map();
-    // The current query window as plain epoch-ms {start, end}, captured before any
-    // later mutation of the shared Date objects (getAssetKPIs bumps storeEndDate by
-    // +1 day). Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
+    // The current query window as plain epoch-ms {start, end},
+    // captured so that later changes to the shared Date objects cannot move it.
+    // Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
     let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
@@ -79,7 +89,7 @@
     // Initialize Jinja variables
     {% if active_page == "assets" %}
     dataPath = '/api/v3_0/assets/' + {{ asset.id }};
-    dataDevPath = '/api/dev/asset/' + {{ asset.id }};
+    chartAttributesPath = '/api/ui/asset/' + {{ asset.id }};
     datasetName = 'asset_' + {{ asset.id }};
     // Mirror the Vega-Lite chart's subplot structure (one entry per subplot, in order).
     // Entries from validate_sensors_to_show() hold their sensors in a "plots" list,
@@ -134,8 +144,8 @@
     {% endif %}
     {% endif %}
     {% elif active_page == "sensors" %}
-    dataPath = '/api/dev/sensor/' + {{ sensor.id }};
-    dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+    dataPath = '/api/ui/sensor/' + {{ sensor.id }};
+    chartAttributesPath = '/api/ui/sensor/' + {{ sensor.id }};
     datasetName = 'sensor_' + {{ sensor.id }};
     fastChartGroupSpec = [
         {
@@ -198,6 +208,138 @@
         return chartType === 'bar_chart' || chartType === 'chart_for_multiple_sensors';
     }
 
+    {% if active_page == "sensors" and user_can_create_children_sensor %}
+    function visibleRange() {
+        if (!storeStartDate || !storeEndDate) return null;
+        let range = null;
+        if (chartType === 'bar_chart') {
+            if (fastRenderActive()) {
+                range = getFastChartVisibleTimeRange(fastChartElementId);
+            } else if (vegaView) {
+                try {
+                    const domain = vegaView.scale('x').domain();
+                    range = { start: new Date(domain[0]), end: new Date(domain[1]) };
+                } catch (error) {
+                    // A chart without a time x-axis uses the date picker interval.
+                }
+            }
+        }
+        if (range && isFinite(range.start.getTime()) && isFinite(range.end.getTime()) && range.start < range.end) {
+            return range;
+        }
+        return { start: storeStartDate, end: storeEndDate };
+    }
+
+    // The Annotate panel's From/Until fields follow the range shown in the chart,
+    // until a range is selected on the chart or typed in.
+    const annotationStartInput = document.getElementById('annotationStart');
+    const annotationEndInput = document.getElementById('annotationEnd');
+    const annotationRangeInfo = document.getElementById('annotationRangeInfo');
+    const annotationClearSelection = document.getElementById('annotationClearSelection');
+    const sensorResolutionMs = {{ (sensor.event_resolution.total_seconds() * 1000) | int }};
+    let annotationRangeFollowsView = true;
+
+    function toDatetimeLocalValue(date, withSeconds) {
+        const pad = n => String(n).padStart(2, '0');
+        const seconds = withSeconds ? `:${pad(date.getSeconds())}` : '';
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}${seconds}`;
+    }
+
+    function visibleSelectionStepMs() {
+        const view = visibleRange();
+        return selectionStepMs(view ? view.end.getTime() - view.start.getTime() : NaN);
+    }
+
+    // The From and Until fields offer seconds only when zoomed in far enough to select them,
+    // or when they already hold seconds, which a whole-minute step would make invalid.
+    function annotationFieldsShowSeconds(range) {
+        return visibleSelectionStepMs() < 60 * 1000 || (!!range && (range.start.getSeconds() !== 0 || range.end.getSeconds() !== 0));
+    }
+
+    function setAnnotationFieldPrecision(withSeconds) {
+        [annotationStartInput, annotationEndInput].forEach(function (input) {
+            const date = input.value ? new Date(input.value) : null;
+            input.step = withSeconds ? 1 : 60;
+            if (date && isFinite(date.getTime())) input.value = toDatetimeLocalValue(date, withSeconds);
+        });
+    }
+
+    // Round a range to what the annotation will cover: whole events on the grid of the first event shown,
+    // or, for an instant or an instantaneous sensor, whole minutes (whole seconds when zoomed in to 10 minutes or less).
+    function snapToSensorEvents(range) {
+        const data = previousResult && previousResult.data;
+        const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
+        return snapSelection(range, sensorResolutionMs, anchor, visibleSelectionStepMs());
+    }
+
+    function showAnnotationRange(range, info, isSelection) {
+        const withSeconds = annotationFieldsShowSeconds(range);
+        annotationStartInput.step = annotationEndInput.step = withSeconds ? 1 : 60;
+        annotationStartInput.value = toDatetimeLocalValue(range.start, withSeconds);
+        annotationEndInput.value = toDatetimeLocalValue(range.end, withSeconds);
+        annotationRangeInfo.textContent = info;
+        annotationClearSelection.classList.toggle('d-none', !isSelection);
+    }
+
+    function syncAnnotationRangeWithView() {
+        if (!annotationRangeFollowsView) return;
+        const range = visibleRange();
+        if (range) {
+            showAnnotationRange(snapToSensorEvents(range), 'The range shown in the chart.', false);
+        }
+    }
+
+    function clearAnnotationSelection() {
+        annotationRangeFollowsView = true;
+        setFastChartSelection(fastChartElementId, null);
+        syncAnnotationRangeWithView();
+    }
+
+    document.addEventListener('chartvisiblerangechanged', function () {
+        syncAnnotationRangeWithView();
+        // A selection or typed range stays put, but zooming in or out still changes whether seconds are offered
+        if (!annotationRangeFollowsView) setAnnotationFieldPrecision(annotationFieldsShowSeconds(annotationRangeFromInputs()));
+    });
+    // The Vega-Lite chart reports no zoom, so pick up its visible range when the user starts labelling.
+    document.getElementById('annotationLabel').addEventListener('focus', syncAnnotationRangeWithView);
+
+    document.addEventListener('chartrangeselected', function (event) {
+        if (!event.detail) {
+            clearAnnotationSelection();
+            return;
+        }
+        const range = snapToSensorEvents(event.detail);
+        annotationRangeFollowsView = false;
+        setFastChartSelection(fastChartElementId, range);
+        const isInstant = range.start.getTime() === range.end.getTime();
+        showAnnotationRange(range, isInstant ? 'An instant, selected on the chart.' : 'Selected on the chart.', true);
+    });
+
+    function annotationRangeFromInputs() {
+        const start = new Date(annotationStartInput.value);
+        const end = new Date(annotationEndInput.value);
+        // An equal start and end make an instantaneous annotation
+        if (!isFinite(start.getTime()) || !isFinite(end.getTime()) || start > end) return null;
+        return { start: start, end: end };
+    }
+
+    [annotationStartInput, annotationEndInput].forEach(function (input) {
+        input.addEventListener('change', function () {
+            const range = annotationRangeFromInputs();
+            if (!range) return;
+            annotationRangeFollowsView = false;
+            setFastChartSelection(fastChartElementId, range);
+            annotationRangeInfo.textContent = 'Entered by hand.';
+            annotationClearSelection.classList.remove('d-none');
+        });
+    });
+
+    annotationClearSelection.addEventListener('click', function (event) {
+        event.preventDefault();
+        clearAnnotationSelection();
+    });
+    {% endif %}
+
     {% if event_starts_after and event_ends_before %}
     sessionStart = new Date('{{ event_starts_after }}');
     sessionEnd = new Date('{{ event_ends_before }}');
@@ -220,6 +362,27 @@
 
         // Set up the fast chart (canvas-based) toggle
         const fastChartToggle = document.getElementById('fastChartToggle');
+        const fullBeliefInfoToggle = document.getElementById('fullBeliefInfoToggle');
+        const fullBeliefInfoToggleContainer = document.getElementById('fullBeliefInfoToggleContainer');
+        const beliefTooltipSupported = () => {
+            if ('{{ active_page }}' === 'sensors') { return chartType === 'bar_chart'; }
+            if (chartType !== 'chart_for_chargepoint_sessions') { return true; }
+            return (fastChartGroupSpec || []).some((group) =>
+                ['Power flow by type', 'Prices'].includes(group.title)
+            );
+        };
+        syncFullBeliefInfoToggle = () => {
+            if (!fullBeliefInfoToggleContainer) { return; }
+            fullBeliefInfoToggleContainer.classList.toggle('d-none', !fastMode || !beliefTooltipSupported());
+        };
+        if (fullBeliefInfoToggle) {
+            fullBeliefInfoToggle.checked = fullBeliefInfo;
+            fullBeliefInfoToggle.addEventListener('change', function () {
+                fullBeliefInfo = this.checked;
+                localStorage.setItem('fm-full-belief-info', fullBeliefInfo ? '1' : '0');
+                setFastChartFullBeliefInfo(fastChartElementId, fullBeliefInfo);
+            });
+        }
         if (fastChartToggle) {
             fastChartToggle.checked = fastMode;
             if (fastMode) {
@@ -228,6 +391,7 @@
             fastChartToggle.addEventListener('change', async function () {
                 fastMode = this.checked;
                 localStorage.setItem('fm-fast-charts', fastMode ? '1' : '0');
+                syncFullBeliefInfoToggle();
                 if (fastMode) {
                     stopReplay();
                 }
@@ -236,6 +400,7 @@
         } else {
             fastMode = false;  // no toggle on this page, so always use Vega-Lite
         }
+        syncFullBeliefInfoToggle();
 
         // Set up play/pause button for replay, incl. the complete replay logic
         toggle = document.querySelector('#replay');
@@ -275,6 +440,7 @@
             dropdownItems[i].addEventListener('click', function (e) {
                 e.preventDefault();
                 chartType = this.getAttribute('data-chart-type');
+                syncFullBeliefInfoToggle();
                 // Update the active state of the dropdown items
                 var dropdownItems = document.querySelectorAll('.dropdown-item');
                 dropdownItems.forEach(item => {
@@ -392,6 +558,54 @@
                 showToast("An error occurred: " + error.message, "error");
                 finishUploadStatus();
             });
+        });
+    {% endif %}
+
+    {% if active_page == "sensors" and user_can_create_children_sensor %}
+    document.getElementById('annotateForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const input = document.getElementById('annotationLabel');
+        const button = document.getElementById('annotateButton');
+        const content = input.value.trim();
+        if (!content) {
+            input.value = '';
+            input.reportValidity();
+            return;
+        }
+        const range = annotationRangeFromInputs();
+        if (!range) {
+            showToast("Choose a 'From' time no later than the 'Until' time.", 'error');
+            return;
+        }
+        button.disabled = true;
+        try {
+            const response = await fetch(apiBasePath + '/api/v3_0/sensors/{{ sensor.id }}/annotations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    start: range.start.toISOString(),
+                    end: range.end.toISOString(),
+                }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const message = typeof errorData.message === 'string' ? errorData.message : response.statusText;
+                throw new Error(message);
+            }
+            input.value = '';
+            clearAnnotationSelection();
+            showToast('Annotation saved.', 'success');
+            try {
+                await refreshChartAnnotations();
+            } catch (error) {
+                showToast('Annotation saved, but the chart could not refresh: ' + error.message, 'error');
+            }
+        } catch (error) {
+            showToast('Could not save annotation: ' + error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
     });
     {% endif %}
 
@@ -426,6 +640,23 @@
         }
     }, false);
 
+    {% if active_page == "sensors" %}
+    async function refreshChartAnnotations() {
+        if (!storeStartDate || !storeEndDate || !previousResult) return;
+        const currentWindow = shownWindowGeneration;
+        const annotations = await fetchChartAnnotations(dataPath, {
+            start: storeStartDate, end: storeEndDate, signal: signal,
+        });
+        if (currentWindow !== shownWindowGeneration || !previousResult) return;
+        previousResult.annotations = annotations;
+        if (fastRenderActive()) {
+            refreshFastChartAnnotations(fastChartElementId, annotations);
+        } else if (vegaView && chartSupportsAnnotations()) {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(annotations)).resize().run();
+        }
+    }
+    {% endif %}
+
     // Sensors To Show Updated / New Data Available Listener
     async function reloadChartData(event) {
         if (!storeStartDate || !storeEndDate) { return; }
@@ -438,30 +669,42 @@
             // Rebuild the fast chart's groupSpec so the just-saved titles, groupings
             // and per-sub-chart y-axis modes take effect without a page reload.
             fastChartGroupSpec = rebuildFastChartGroupSpec(event.detail.sensorsToShow);
+            syncFullBeliefInfoToggle();
         }
         {% endif %}
         $("#spinner").show();
-        let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-            signal: signal,
-        })
-            .then(function (response) { return response.json(); })
-            .then(data => decompressChartData(data));
-        newData = await Promise.all([
-            newData,
+        // The sensors shown, or the data itself, may have changed, so nothing held is still trustworthy.
+        // Reloading through the emptied cache refills it, rather than leaving it empty for the next selection.
+        chartDataCache.reset();
+        // This reload supersedes any selection still in flight, whose answer is now out of date,
+        // and claims a count of its own, so that a selection made while it runs supersedes it in turn.
+        const thisReload = ++shownWindowGeneration;
+        const reloaded = await Promise.all([
+            chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
+            fetchChartAnnotations(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
-        ]).then(function (result) { return result[0] }).catch(console.error);
+        ]).catch(console.error);
         $("#spinner").hide();
+        if (!reloaded) return;
+        const [newData, annotations] = reloaded;
+        // A window has been shown since this reload was started, so its answer is stale.
+        if (thisReload !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
         }
         previousResult = {
             start: storeStartDate,
             end: storeEndDate,
-            data: newData
+            data: newData,
+            annotations: annotations,
         };
         updateFastChart();
+        if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(annotations)).resize().run();
+        }
+        {% if active_page == "sensors" and user_can_create_children_sensor %}
+        syncAnnotationRangeWithView();
+        {% endif %}
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(newData, sensorsToShowForYAxisCheck);
         {% endif %}
@@ -486,45 +729,60 @@
         reloadChartData();
         reloadSensorStats();
     });
+    document.addEventListener('annotationsDeleted', function() {
+        refreshChartAnnotations().catch(function (error) {
+            showToast('The chart could not refresh its annotations: ' + error.message, 'error');
+        });
+    });
     {% endif %}
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
     {% if active_subpage == "asset_graph" and has_kpis %}
-    getAssetKPIs(storeStartDate, storeEndDate);
+    // Copies, because getAssetKPIs advances the end date it is given, and these two are the
+    // chart's own window: the cache would then record a span a day wider than it holds.
+    // PR #2434 removes that advance, after which the copies are merely belt and braces.
+    getAssetKPIs(new Date(storeStartDate), new Date(storeEndDate));
     {% endif %}
-    const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        signal: signal,
-    })
-        .then(function (response) { return response.json(); })
-        .then(data => decompressChartData(data));
-    let fetchedInitialData = await Promise.all([
+    // The picker is already on the page, so a range can be selected while this first load is still running.
+    const thisInitialLoad = ++shownWindowGeneration;
+    // Through the cache, so that the very first date change already only fetches the days it adds.
+    const initialData = chartDataCache.load(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal });
+    const initialResult = await Promise.all([
         initialData,
+        fetchChartAnnotations(dataPath, { start: storeStartDate, end: storeEndDate, signal: signal }),
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
-    ]).then(function (result) { return result[0] }).catch(console.error);
+    ]).catch(console.error);
     $("#spinner").hide();
-    if (!fastRenderActive() && vegaView) {
-        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+    // A window has been selected while this was loading, so it is already on screen and this answer is stale.
+    if (initialResult && thisInitialLoad === shownWindowGeneration) {
+        const [fetchedInitialData, initialAnnotations] = initialResult;
+        if (!fastRenderActive() && vegaView) {
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+        }
+        previousResult = {
+            start: new Date('{{ event_starts_after }}'),
+            end: new Date('{{ event_ends_before }}'),
+            data: fetchedInitialData,
+            annotations: initialAnnotations,
+        };
+        updateFastChart();
+        if (!fastRenderActive() && vegaView && chartSupportsAnnotations()) {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(initialAnnotations)).resize().run();
+        }
+        {% if active_page == "sensors" and user_can_create_children_sensor %}
+        syncAnnotationRangeWithView();
+        {% endif %}
+        checkSourceMasking(previousResult.data);
+        {% if active_page == "assets" %}
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
     }
-    var sessionStart = new Date('{{ event_starts_after }}');
-    var sessionEnd = new Date('{{ event_ends_before }}');
-    previousResult = {
-        start: sessionStart,
-        end: sessionEnd,
-        data: fetchedInitialData
-    };
-    updateFastChart();
-    checkSourceMasking(previousResult.data);
-    {% if active_page == "assets" %}
-    checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
-    {% endif %}
     var timerangeNotSetYet = false;
     {% else %}
     var timerangeNotSetYet = true;
     {% endif %}
-    fetch(dataDevPath, {
+    fetch(chartAttributesPath, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
     })
@@ -666,7 +924,7 @@
 
             storeStartDate = startDate;
             storeEndDate = endDate;
-            // Capture the window as primitives now, before getAssetKPIs mutates endDate (+1 day).
+            // Capture the window as primitives, fixing the fast chart's x-axis to the selection made here.
             fastChartWindow = { start: startDate.getTime(), end: endDate.getTime() };
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
@@ -689,22 +947,21 @@
 
     stopReplay()
 
+    const thisSelection = ++shownWindowGeneration;
     $("#spinner").show();
     checkDSTTransitions(startDate, endDate)
     Promise.all([
-        fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
+        fetchGraphDataAndKPIs(previousResult, startDate, endDate),
         // Fetch annotations
-        fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-            method: "GET",
-            headers: {"Content-Type": "application/json"},
-            signal: signal,
-        })
-        .then(function(response) { return response.json(); }),
+        fetchChartAnnotations(dataPath, { start: startDate, end: endDate, signal: signal }),
 
         // Embed chart
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
     ]).then(function (result) {
         $("#spinner").hide();
+        // Another window has been shown since this one was asked for, so this answer is stale.
+        // Drawing it would put a range on screen that the picker and the URL no longer name.
+        if (thisSelection !== shownWindowGeneration) { return; }
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
         }
@@ -775,11 +1032,14 @@
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
             // sensor page always shows legend below (single sensor, sources are the legend entries)
             isSensorPage: ('{{ active_page }}' === 'sensors'),
+            fullBeliefInfo: fullBeliefInfo,
             datasetName: datasetName,
             annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
             // The requested query window, so the x-axis spans the whole selected
             // range even when data only covers part of it (matches Vega-Lite).
             timeWindow: fastChartWindow,
+            // The sensor page lets users who can annotate select a time range on the chart.
+            selectable: {{ 'true' if active_page == "sensors" and user_can_create_children_sensor else 'false' }},
         };
     }
 
@@ -913,8 +1173,6 @@
         toggle.classList.add('playing');
         var beliefTime = new Date(storeStartDate);
         var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
-        queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
-        queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
         const spinner = document.getElementById('spinner');
         if (!playBackDataLoadedForKnownDateRange) {
             spinner.hidden = false;
@@ -922,14 +1180,11 @@
         }
         Promise.all([
             playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
-                // Fetch time series data (all data, not only the most recent beliefs)
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
-                    method: "GET",
-                    headers: { "Content-Type": "application/json" },
-                    signal: signal,
-                })
-                    .then(function (response) { return response.json(); })
-                    .then(data => decompressChartData(data)),
+                // Fetch time series data (all data, not only the most recent beliefs).
+                // Deliberately not through chartDataCache: that holds only the most recent belief per event,
+                // so mixing every belief into it would answer later chart requests with data the chart does not draw.
+                // Replay keeps its own copy in previousPlaybackResult instead.
+                fetchChartData(dataPath, { start: storeStartDate, end: storeEndDate, mostRecentBeliefsOnly: false, signal: signal }),
         ]).then(function (result) {
             previousPlaybackResult = result[0];
             replayBeliefsData(result[0]);
@@ -1011,27 +1266,26 @@
         }
     }
 
-    function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
+    function fetchGraphDataAndKPIs(previousResult, startDate, endDate) {
         if (previousResult && previousResult.start.getTime() === startDate.getTime() && previousResult.end.getTime() === endDate.getTime()) {
             return Promise.resolve(previousResult.data);
         } else {
             {% if active_subpage == "asset_graph" and has_kpis %}
-            getAssetKPIs(startDate, endDate);
+            // Copies, for the same reason as at the initial load: this endDate is the object
+            // held by storeEndDate and previousResult.end, and is about to be handed to the cache.
+            getAssetKPIs(new Date(startDate), new Date(endDate));
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
-                method: "GET",
-                headers: { "Content-Type": "application/json" },
-                signal: signal,
-            })
-                .then(response => response.json())
-                .then(data => decompressChartData(data));
+            // Only the days not already held are fetched (issue #101).
+            return chartDataCache.load(dataPath, { start: startDate, end: endDate, signal: signal });
         }
     }
 
     {% if active_subpage == "asset_graph" and has_kpis %}
     function getAssetKPIs(startDate, endDate) {
         const start = encodeURIComponent(toIsoStringWithOffset(startDate));
-        endDate.setDate(endDate.getDate() + 1);  // make the end date inclusive
+        // The endpoint selects the same events as the chart, so the chart's own window is passed through unchanged.
+        // Advancing the end by a day here was right while this function read picker.getEndDate(), which is the last day selected;
+        // PR #1909 changed the callers to pass the chart's exclusive end, at which point the advance became one day too many.
         const end = encodeURIComponent(toIsoStringWithOffset(endDate));
         const kpiCards = document.querySelector('#kpi-cards');
         return fetch('/api/v3_0/assets/{{ asset.id }}/kpis?start=' + start + '&end=' + end, {
@@ -1068,10 +1322,10 @@
                     const label = labelMap[kpi.downsample_function];
                     card.innerHTML = `
                   <div class="card-body d-flex flex-column justify-content-between">
-                      <h5 class="card-title">${kpi.title}</h5>
+                      <h5 class="card-title">${escapeHtml(kpi.title)}</h5>
                       <h5 class="card-text">
                           <strong>
-                              ${label}: ${kpi.downsample_value} ${kpi.unit}
+                              ${label}: ${escapeHtml(kpi.downsample_value)} ${escapeHtml(kpi.unit)}
                           </strong>
                       </h5>
                   </div>

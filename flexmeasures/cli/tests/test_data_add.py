@@ -1,5 +1,7 @@
 import json
 
+import pandas as pd
+
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -8,6 +10,7 @@ from flexmeasures.data.models.annotations import (
     AccountAnnotationRelationship,
 )
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Plan, RateLimitKey
 
 from flexmeasures.cli.tests.utils import (
@@ -35,19 +38,19 @@ def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     # Check database for annotation entry
     assert db.session.execute(
         select(Annotation)
-        .filter_by(
-            content=cli_input["content"],
-            start=cli_input["at"],
+        .filter(
+            Annotation.content == cli_input["content"],
+            Annotation.start == pd.Timestamp(cli_input["at"]),
         )
         .join(AccountAnnotationRelationship)
-        .filter_by(
-            account_id=cli_input["account"],
-            annotation_id=Annotation.id,
+        .filter(
+            AccountAnnotationRelationship.account_id == cli_input["account"],
+            AccountAnnotationRelationship.annotation_id == Annotation.id,
         )
         .join(DataSource)
-        .filter_by(
-            id=Annotation.source_id,
-            user_id=cli_input["user"],
+        .filter(
+            DataSource.id == Annotation.source_id,
+            DataSource.user_id == cli_input["user"],
         )
     ).scalar_one_or_none()
 
@@ -209,6 +212,130 @@ def test_cli_help(app):
         assert "Usage" in result.output
 
 
+def test_add_report_as_job(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+    """The report CLI can persist its reporter and queue work for a worker."""
+    from flexmeasures.cli.data_add import add_report
+
+    input_1, input_2, output, _ = setup_dummy_data
+    reporter_config = {
+        "required_input": [{"name": "one"}, {"name": "two"}],
+        "required_output": [{"name": "sum"}],
+        "transformations": [
+            {
+                "df_input": "one",
+                "method": "add",
+                "args": ["@two"],
+                "df_output": "sum",
+            }
+        ],
+    }
+    config_file = tmp_path / "report-config.json"
+    config_file.write_text(json.dumps(reporter_config))
+    parameters_file = tmp_path / "report-parameters.json"
+    parameters_file.write_text(
+        json.dumps(
+            {
+                "input": [
+                    {"name": "one", "sensor": input_1},
+                    {"name": "two", "sensor": input_2},
+                ],
+                "output": [{"name": "sum", "sensor": output}],
+            }
+        )
+    )
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        [
+            "--config",
+            str(config_file),
+            "--parameters",
+            str(parameters_file),
+            "--start",
+            "2023-04-10T00:00:00+00:00",
+            "--end",
+            "2023-04-10T10:00:00+00:00",
+            "--as-job",
+        ],
+    )
+
+    check_command_ran_without_error(result)
+    assert "Created reporting job" in result.output
+    job = app.queues["reporting"].jobs[0]
+    assert job.timeout == app.queues["reporting"]._default_timeout
+    assert job.meta["trigger"] == {"origin": "CLI"}
+    source = fresh_db.session.get(DataSource, job.kwargs["data_source_id"])
+    assert source is not None
+    assert source.attributes["data_generator"]["config"] == {
+        **reporter_config,
+        "droplevels": False,
+    }
+
+
+def test_add_profit_report_as_job_requires_input(
+    app, fresh_db, setup_dummy_data, clean_redis, tmp_path
+):
+    """The CLI must not queue a profit report without its flow sensor."""
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    price_sensor = Sensor(
+        "price sensor",
+        generic_asset=report_sensor.generic_asset,
+        event_resolution=report_sensor.event_resolution,
+        unit="EUR/kWh",
+    )
+    cost_sensor = Sensor(
+        "cost sensor",
+        generic_asset=report_sensor.generic_asset,
+        event_resolution=report_sensor.event_resolution,
+        unit="EUR",
+    )
+    fresh_db.session.add_all([price_sensor, cost_sensor])
+    fresh_db.session.flush()
+
+    config_file = tmp_path / "profit-config.json"
+    config_file.write_text(json.dumps({"consumption_price_sensor": price_sensor.id}))
+    parameters_file = tmp_path / "profit-parameters.json"
+    parameters_file.write_text(json.dumps({"output": [{"sensor": cost_sensor.id}]}))
+    source_count = fresh_db.session.scalar(
+        select(func.count())
+        .select_from(DataSource)
+        .where(DataSource.type == "reporter")
+    )
+
+    result = app.test_cli_runner().invoke(
+        add_report,
+        [
+            "--reporter",
+            "ProfitOrLossReporter",
+            "--config",
+            str(config_file),
+            "--parameters",
+            str(parameters_file),
+            "--start",
+            "2023-04-10T00:00:00+00:00",
+            "--end",
+            "2023-04-10T10:00:00+00:00",
+            "--as-job",
+        ],
+        catch_exceptions=True,
+    )
+
+    assert result.exit_code != 0
+    assert "input" in str(result.exception)
+    assert app.queues["reporting"].jobs == []
+    assert (
+        fresh_db.session.scalar(
+            select(func.count())
+            .select_from(DataSource)
+            .where(DataSource.type == "reporter")
+        )
+        == source_count
+    )
+
+
 def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
     app,
     fresh_db,
@@ -229,6 +356,9 @@ def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
     captured_configs = []
 
     class StubForecaster:
+        def set_job_trigger(self, origin):
+            pass
+
         def compute(self, **kwargs):
             return {"n_jobs": 1}
 
@@ -261,6 +391,85 @@ def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
     assert captured_configs[0]["past_regressors"] == [filtered_regressor]
     assert captured_configs[1]["future_regressors"] == [regressor_sensor]
     assert captured_configs[1]["past_regressors"] == [regressor_sensor]
+
+
+def test_add_forecast_cli_accepts_a_source_filtered_target_sensor(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+):
+    """The target sensor takes a bare ID, or a JSON reference naming the sources to train on."""
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        ForecasterParametersSchema,
+    )
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    captured_parameters = []
+
+    class StubForecaster:
+        def set_job_trigger(self, origin):
+            pass
+
+        def compute(self, **kwargs):
+            captured_parameters.append(
+                ForecasterParametersSchema().load(kwargs["parameters"])
+            )
+            return {"n_jobs": 1}
+
+    monkeypatch.setattr(
+        data_add, "get_data_generator", lambda **kwargs: StubForecaster()
+    )
+    runner = app.test_cli_runner()
+
+    reference_result = runner.invoke(
+        data_add.add_forecast,
+        [
+            "--sensor",
+            json.dumps({"sensor": target_sensor.id, "sources": [source.id]}),
+            "--as-job",
+        ],
+    )
+    plain_id_result = runner.invoke(
+        data_add.add_forecast,
+        ["--sensor", str(target_sensor.id), "--as-job"],
+    )
+
+    check_command_ran_without_error(reference_result)
+    check_command_ran_without_error(plain_id_result)
+    filtered_target = captured_parameters[0]["sensor"]
+    assert isinstance(filtered_target, SensorReference)
+    assert filtered_target.sensor == target_sensor
+    assert filtered_target.sources == [source]
+    # Forecasts are recorded on the sensor itself, not on a source-filtered view of it.
+    assert captured_parameters[0]["sensor_to_save"] == target_sensor
+    assert captured_parameters[1]["sensor"] == target_sensor
+
+
+def test_add_forecast_cli_reports_a_malformed_target_sensor_reference(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+):
+    """A --sensor value that was meant to be a reference is reported as such, not as a bad integer."""
+    from flexmeasures.cli import data_add
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        data_add.add_forecast,
+        ["--sensor", '{"sensor": %d, "sources": [1]' % target_sensor.id],
+    )
+
+    assert result.exit_code != 0
+    assert "looks like a JSON sensor reference" in result.output
+    assert "Not a valid integer" not in result.output
 
 
 def test_add_holidays_with_timezone(app, fresh_db, setup_roles_users_fresh_db):

@@ -19,14 +19,40 @@ class Reporter(DataGenerator):
     _parameters_schema = ReporterParametersSchema()
     _config_schema = ReporterConfigSchema()
 
-    def _compute(self, check_output_resolution=True, **kwargs) -> list[dict[str, Any]]:
+    @property
+    def input_sensors(self) -> list:
+        """Return the sensors from which the report reads input data."""
+        parameters = self._parameters or {}
+        return self._resolve_sensors(
+            [item.get("sensor") for item in parameters.get("input", [])]
+        )
+
+    @property
+    def output_sensors(self) -> list:
+        """Return the sensors on which the report records its results."""
+        parameters = self._parameters or {}
+        return self._resolve_sensors(
+            [item.get("sensor") for item in parameters.get("output", [])]
+        )
+
+    def _compute(
+        self, check_output_resolution=True, as_job: bool = False, **kwargs
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """This method triggers the creation of a new report.
 
         The same object can generate multiple reports with different start, end, resolution and belief_time values.
 
         :param check_output_resolution: If True, checks each output for whether the event_resolution
                                         matches that of the sensor it is supposed to be recorded on.
+        :param as_job:                  If True, queue a reporting job instead of computing immediately.
+        :returns:                       A dictionary with ``job_id`` and ``n_jobs`` when queued,
+                                        otherwise the computed report results.
         """
+        if as_job:
+            from flexmeasures.data.services.reporting import create_reporting_job
+
+            job = create_reporting_job(self)
+            return {"job_id": job.id, "n_jobs": 1}
 
         results = self._compute_report(**kwargs)
 

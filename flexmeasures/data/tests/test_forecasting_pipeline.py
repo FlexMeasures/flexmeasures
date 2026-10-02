@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import pytest
 
+import itertools
 import logging
+import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 
+from darts import TimeSeries
 from marshmallow import ValidationError
 from sqlalchemy import inspect as sa_inspect, select
 
+from flexmeasures.data.models.forecasting.custom_models import (
+    base_model as base_model_module,
+)
+from flexmeasures.data.models.forecasting.custom_models.base_model import default_n_jobs
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
 )
+from flexmeasures.data.models.forecasting.pipelines import base as pipelines_base
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
@@ -22,6 +30,10 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    ForecasterParametersSchema,
+    TrainPredictPipelineConfigSchema,
+)
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
     _load_job_config_payload,
     _load_job_parameters_payload,
@@ -171,6 +183,42 @@ def test_train_predict_job_config_payload_round_trips_sensor_references(
     assert queued_regressor.source_account == [account]
 
 
+def test_train_predict_job_parameters_payload_round_trips_a_filtered_target(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """A target carrying source filters survives the trip through a queued job."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    parameters = ForecasterParametersSchema().load(
+        {
+            "sensor": {"sensor": target_sensor.id, "sources": [source.id]},
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        }
+    )
+
+    payload = _make_job_parameters_payload(parameters)
+
+    assert payload["sensor_id"]["sensor"] == target_sensor.id
+    assert payload["sensor_id"]["sources"] == [source.id]
+    # Forecasts are recorded on the sensor itself, not on a source-filtered view of it.
+    assert payload["sensor_to_save_id"] == target_sensor.id
+    assert not _contains_orm_instance(payload)
+
+    restored_parameters = _load_job_parameters_payload(payload)
+    restored_target = restored_parameters["sensor"]
+
+    assert isinstance(restored_target, SensorReference)
+    assert restored_target.sensor == target_sensor
+    assert restored_target.sources == [source]
+    assert restored_parameters["sensor_to_save"] == target_sensor
+
+
 def test_load_data_all_beliefs_applies_regressor_source_filters(
     setup_fresh_test_forecast_data,
     fresh_db,
@@ -220,6 +268,95 @@ def test_load_data_all_beliefs_applies_regressor_source_filters(
     )
     assert excluded_value not in loaded_data[pipeline.future_regressors[0]].values
     assert loaded_data[pipeline.future_regressors[0]].notna().any()
+
+
+def _load_target_values(target_sensor, regressor_sensor) -> pd.Series:
+    """The target column that belief loading produces for this target sensor or reference."""
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[regressor_sensor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+    return pipeline.load_data_all_beliefs()[pipeline.target]
+
+
+def test_load_data_all_beliefs_applies_target_source_filters(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """A source-filtered target is trained on the beliefs of the sources it names, and no others."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    selected_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    excluded_source = DataSource(name="excluded-target-source", type="demo script")
+    excluded_value = -999.0
+    fresh_db.session.add_all(
+        [
+            excluded_source,
+            TimedBelief(
+                sensor=target_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=excluded_value,
+                belief_horizon=timedelta(hours=0),
+                source=excluded_source,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+
+    # Without filters, every source counts but forecasters, so the second script source wins the collision.
+    assert excluded_value in _load_target_values(target_sensor, regressor_sensor).values
+
+    target_values = _load_target_values(
+        SensorReference(sensor=target_sensor, sources=[selected_source]),
+        regressor_sensor,
+    )
+
+    assert excluded_value not in target_values.values
+    assert target_values.notna().any()
+
+
+def test_load_data_all_beliefs_target_reference_replaces_the_forecaster_exclusion(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Naming sources on the target says what the truth is, in place of the default of leaving forecasters out."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    forecaster_source = DataSource(name="target-forecaster", type="forecaster")
+    forecast_value = -777.0
+    fresh_db.session.add_all(
+        [
+            forecaster_source,
+            TimedBelief(
+                sensor=target_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=forecast_value,
+                belief_horizon=timedelta(hours=0),
+                source=forecaster_source,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+
+    assert (
+        forecast_value
+        not in _load_target_values(target_sensor, regressor_sensor).values
+    )
+    assert (
+        forecast_value
+        in _load_target_values(
+            SensorReference(sensor=target_sensor, sources=[forecaster_source]),
+            regressor_sensor,
+        ).values
+    )
 
 
 def _add_colliding_beliefs(db, sensor, sources_and_values):
@@ -396,6 +533,145 @@ def test_load_data_all_beliefs_determinizes_probabilistic_regressors_per_source(
     assert not {-111.0, -222.0, -333.0, -444.0, -666.0}.intersection(values.values)
 
 
+def _autoregressive_pipeline(target_sensor: Sensor) -> BasePipeline:
+    """A pipeline whose target sensor is also its own past regressor."""
+    return BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[target_sensor],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+
+
+def _add_forecaster_belief(db, sensor: Sensor, value: float) -> None:
+    """Record a belief from a forecaster, which the target data should not contain."""
+    forecaster_source = DataSource(name="forecaster-on-target", type="forecaster")
+    db.session.add(forecaster_source)
+    db.session.add(
+        TimedBelief(
+            sensor=sensor,
+            event_start=as_server_time(datetime(2025, 1, 2)),
+            event_value=value,
+            belief_horizon=timedelta(hours=6),
+            source=forecaster_source,
+        )
+    )
+    db.session.commit()
+
+
+def test_load_data_all_beliefs_derives_target_data_from_reused_query(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+    monkeypatch,
+):
+    """Sharing one query between the target and its past regressor changes no loaded value."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    forecast_value = -999.0
+    _add_forecaster_belief(fresh_db, target_sensor, forecast_value)
+
+    pipeline = _autoregressive_pipeline(target_sensor)
+    loaded_data = pipeline.load_data_all_beliefs()
+
+    # Disable the query reuse, by making every planned search look unique.
+    unique_keys = itertools.count()
+    monkeypatch.setattr(
+        pipelines_base, "_belief_search_key", lambda search: next(unique_keys)
+    )
+    separately_loaded_data = _autoregressive_pipeline(
+        target_sensor
+    ).load_data_all_beliefs()
+
+    pd.testing.assert_frame_equal(loaded_data, separately_loaded_data)
+
+    # The two entries do differ, so the comparison above is not between two identical columns.
+    past_regressor = pipeline.past_regressors[0]
+    assert forecast_value in loaded_data[past_regressor].values
+    assert forecast_value not in loaded_data[pipeline.target].values
+    assert loaded_data[pipeline.target].notna().any()
+
+
+def test_load_data_all_beliefs_queries_each_sensor_once(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+    monkeypatch,
+):
+    """A sensor that is both target and past regressor is queried once, not twice."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    _add_forecaster_belief(fresh_db, target_sensor, -999.0)
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatch.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+
+    _autoregressive_pipeline(target_sensor).load_data_all_beliefs()
+
+    assert searched_sensor_ids == [target_sensor.id]
+
+
+def test_load_data_all_beliefs_shares_a_query_between_differently_ordered_source_lists(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Two regressors that select the same sources in a different order share one query."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="ordered-source-a", type="forecaster")
+    source_b = DataSource(name="ordered-source-b", type="forecaster")
+    value_a = -111.0
+    value_b = -222.0
+    fresh_db.session.add_all([source_a, source_b])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(source_a, value_a), (source_b, value_b)]
+    )
+
+    searched_sensor_ids = []
+    search_beliefs = Sensor.search_beliefs
+
+    def counting_search_beliefs(self, *args, **kwargs):
+        searched_sensor_ids.append(self.id)
+        return search_beliefs(self, *args, **kwargs)
+
+    monkeypatched = pytest.MonkeyPatch()
+    monkeypatched.setattr(Sensor, "search_beliefs", counting_search_beliefs)
+    try:
+        pipeline = BasePipeline(
+            target_sensor=target_sensor,
+            future_regressors=[],
+            past_regressors=[
+                SensorReference(sensor=regressor_sensor, sources=[source_a, source_b]),
+                SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+            ],
+            n_steps_to_predict=1,
+            max_forecast_horizon=1,
+            forecast_frequency=1,
+            event_starts_after=as_server_time(datetime(2025, 1, 1)),
+            event_ends_before=as_server_time(datetime(2025, 1, 3)),
+        )
+        loaded_data = pipeline.load_data_all_beliefs()
+    finally:
+        monkeypatched.undo()
+
+    assert sorted(searched_sensor_ids) == sorted(
+        [regressor_sensor.id, target_sensor.id]
+    )
+
+    # Sharing one frame does not cost the two regressors their own source precedence.
+    first, second = pipeline.past_regressors
+    assert value_a in loaded_data[first].values
+    assert value_b not in loaded_data[first].values
+    assert value_b in loaded_data[second].values
+    assert value_a not in loaded_data[second].values
+
+
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
     setup_fresh_test_forecast_data,
 ):
@@ -512,6 +788,112 @@ def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     assert any(
         "does not evenly divide one day" in message for message in caplog.messages
     )
+
+
+def _input_sensor_stub(unit: str = "kW", resolution: timedelta = timedelta(hours=1)):
+    """A stand-in for a sensor, carrying just what the filling step reads off one."""
+    return type(
+        "SensorStub",
+        (),
+        {"name": "meter", "id": 7, "unit": unit, "event_resolution": resolution},
+    )()
+
+
+def _fill_one_input(sensor_or_reference, values, unit: str = "kW"):
+    """Run the filling step over a single input column, returning its values."""
+    index = pd.date_range("2025-01-01", periods=len(values), freq="h")
+    df = pd.DataFrame({"event_start": index, "meter": values})
+
+    pipeline = BasePipeline.__new__(BasePipeline)
+    pipeline.missing_threshold = 1.0
+    pipeline.target_sensor = _input_sensor_stub(unit=unit)
+
+    filled = BasePipeline.detect_and_fill_missing_values(
+        pipeline,
+        df=df,
+        sensors=[sensor_or_reference],
+        sensor_names=["meter"],
+        start=index[0].tz_localize("UTC"),
+        end=index[-1].tz_localize("UTC"),
+    )
+    return filled.values().ravel()
+
+
+def test_input_bounds_clean_a_regressor_after_its_gaps_are_filled():
+    """A spike is clipped, a near-zero reading is snapped, and the filled gap is bounded too."""
+    sensor = _input_sensor_stub()
+    reference = SensorReference(
+        sensor=sensor,
+        lower="0 kW",
+        upper="20 kW",
+        snap={"0 kW": ["0 kW", "0.5 kW"]},
+    )
+
+    bounded = _fill_one_input(reference, [-5.0, 0.3, 99.0, np.nan, 4.0])
+
+    # The gap interpolates between 99 and 4 to 51.5 before being clipped back to the upper bound,
+    # because bounding deliberately runs after filling.
+    np.testing.assert_allclose(bounded, [0.0, 0.0, 20.0, 20.0, 4.0])
+
+
+def test_input_bounds_leave_an_unbounded_regressor_alone():
+    """Without bounds, the same readings survive untouched, spike and all."""
+    sensor = _input_sensor_stub()
+
+    plain = _fill_one_input(sensor, [-5.0, 0.3, 99.0, np.nan, 4.0])
+    unbounded_reference = _fill_one_input(
+        SensorReference(sensor=sensor), [-5.0, 0.3, 99.0, np.nan, 4.0]
+    )
+
+    np.testing.assert_allclose(plain, [-5.0, 0.3, 99.0, 51.5, 4.0])
+    np.testing.assert_allclose(unbounded_reference, [-5.0, 0.3, 99.0, 51.5, 4.0])
+
+
+def test_input_bounds_are_read_in_the_regressors_own_unit():
+    """A regressor recording watts reads a bound given in kilowatts as watts, not as the target's unit."""
+    sensor = _input_sensor_stub(unit="W")
+    reference = SensorReference(sensor=sensor, lower="0.02 kW")
+
+    # The target sensor is in kW, so a bound read in the target's unit would clip at 0.02 instead.
+    bounded = _fill_one_input(reference, [5.0, 50.0], unit="kW")
+
+    np.testing.assert_allclose(bounded, [20.0, 50.0])
+
+
+def test_input_bounds_reject_a_unit_the_regressor_cannot_take():
+    sensor = _input_sensor_stub(unit="kW")
+    reference = SensorReference(sensor=sensor, lower="5 EUR")
+
+    with pytest.raises(ValueError, match="bounds on sensor meter"):
+        _fill_one_input(reference, [1.0, 2.0])
+
+
+def test_filling_gives_each_regressor_exactly_one_component():
+    """Two regressors must reach the model as two components, not as four."""
+    index = pd.date_range("2025-01-01", periods=3, freq="h")
+    df = pd.DataFrame(
+        {
+            "event_start": index,
+            "meter-a": [1.0, 2.0, 3.0],
+            "meter-b": [10.0, 20.0, 30.0],
+        }
+    )
+
+    pipeline = BasePipeline.__new__(BasePipeline)
+    pipeline.missing_threshold = 1.0
+    pipeline.target_sensor = _input_sensor_stub()
+
+    filled = BasePipeline.detect_and_fill_missing_values(
+        pipeline,
+        df=df,
+        sensors=[_input_sensor_stub(), _input_sensor_stub()],
+        sensor_names=["meter-a", "meter-b"],
+        start=index[0].tz_localize("UTC"),
+        end=index[-1].tz_localize("UTC"),
+    )
+
+    assert list(filled.components) == ["meter-a", "meter-b"]
+    np.testing.assert_allclose(filled.values(), [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
 
 
 def test_forecast_post_processing_clips_and_snaps_values():
@@ -1130,7 +1512,12 @@ def test_train_predict_pipeline(  # noqa: C901
         assert (
             "regressors" not in data_generator_config
         ), "(past and future) regressors should be stored under 'past_regressors' and 'future_regressors' instead"
-        assert "max-training-period" in data_generator_config
+        assert (
+            "train-period" in data_generator_config
+        ), "the training window should be stored under the name that remains"
+        assert (
+            "max-training-period" not in data_generator_config
+        ), "the deprecated name should not be written back out"
 
         # Check DataGenerator parameters stored under DataSource attributes is empty
         assert "parameters" not in source.attributes["data_generator"]
@@ -1285,7 +1672,7 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
     )
 
 
-# Test that max_training-period caps train-period and logs a warning
+# Test that a config carrying both training limits trains on the shorter of the two
 @pytest.mark.parametrize(
     ["config", "params"],
     [
@@ -1310,15 +1697,16 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
         ),
     ],
 )
-def test_train_period_capped_logs_warning(
+def test_train_period_takes_the_shorter_of_two_limits(
     setup_fresh_test_forecast_data,
     config,  # config passed to the Forecaster
     params,  # parameters passed to the compute method of the Forecaster
     caplog,
 ):
-    """
-    Verify that a warning is logged when train-period exceeds max-training-period,
-    and that train-period is capped accordingly.
+    """A config naming both training limits trains on whichever asks for less data.
+
+    The deprecated max-training-period says the same thing as train-period,
+    so carrying both is asking twice, and the shorter of the two is all either allows.
     """
     sensor = setup_fresh_test_forecast_data[params["sensor"]]
     params["sensor"] = sensor.id
@@ -1327,16 +1715,76 @@ def test_train_period_capped_logs_warning(
         pipeline = TrainPredictPipeline(config=config)
         pipeline.compute(parameters=params)
 
-    assert any(
-        "train-period is greater than max-training-period" in message
-        for message in caplog.messages
-    ), "Expected warning about capping train_period"
-
     config_used = pipeline._config
     assert config_used["missing_threshold"] == 1
     assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
-    ), "train_period_in_hours should be capped to max_training_period"
+    ), "the shorter of the two limits should decide"
+
+
+def test_train_predict_pipeline_trains_on_the_sources_the_target_names(
+    app,
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """The source filters on a target decide what the model learns, while the forecast is recorded on the sensor itself.
+
+    The target sensor holds two stories about the same events: the readings the fixture recorded,
+    and a second source reporting a flat, far higher value.
+    Which of the two a forecast reflects should follow the sources the target names.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    trusted_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    noisy_source = DataSource(name="noisy-target-source", type="demo script")
+    noisy_value = 100000.0
+    fresh_db.session.add(noisy_source)
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                sensor=target_sensor,
+                event_start=as_server_time(event_start),
+                event_value=noisy_value,
+                belief_horizon=timedelta(hours=0),
+                source=noisy_source,
+            )
+            for event_start in pd.date_range(
+                datetime(2025, 1, 1), datetime(2025, 1, 7, 23), freq="60min"
+            )
+        ]
+    )
+    fresh_db.session.commit()
+
+    base_params = {
+        "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "output-path": None,
+        "start": "2025-01-08T00:00+00:00",
+        "end": "2025-01-08T02:00+00:00",
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "dry-run": True,
+    }
+
+    def forecast_naming(source) -> list[dict]:
+        pipeline = TrainPredictPipeline(
+            config={"train-start": "2025-01-01T00:00+00:00"}
+        )
+        return pipeline.compute(
+            parameters={
+                **base_params,
+                "sensor": {"sensor": target_sensor.id, "sources": [source.id]},
+            }
+        )
+
+    trusted_returns = forecast_naming(trusted_source)
+    noisy_returns = forecast_naming(noisy_source)
+
+    assert float(trusted_returns[0]["data"]["event_value"].mean()) < noisy_value / 2
+    assert float(noisy_returns[0]["data"]["event_value"].mean()) > noisy_value / 2
+    # Forecasts are recorded on the sensor itself, not on a source-filtered view of it.
+    assert trusted_returns[0]["sensor"] == target_sensor
+    assert trusted_returns[0]["data"].sensor == target_sensor
 
 
 def test_prior_restricts_training_beliefs(
@@ -2265,3 +2713,162 @@ def test_model_params_can_reach_darts_categorical_covariates():
     )
     assert model.models_params["categorical_future_covariates"] == ["day_type"]
     assert model.models_params["min_data_per_group"] == 20
+
+
+@pytest.mark.parametrize(
+    ["config", "expected_span", "why"],
+    [
+        ({}, timedelta(days=30), "the default period applies when nothing is stated"),
+        (
+            {"train-start": "2025-09-04T17:00:00+02:00"},
+            timedelta(days=30),
+            "a start on its own says where training may begin, not how much history to use",
+        ),
+        (
+            {
+                "train-start": "2025-01-01T00:00:00+01:00",
+                "max-training-period": "P366D",
+            },
+            timedelta(days=366),
+            "the deprecated name still says how much history to use",
+        ),
+        (
+            {"train-period": "P7D"},
+            timedelta(days=7),
+            "a stated period applies on its own",
+        ),
+        (
+            {"train-start": "2025-06-01T00:00:00+02:00", "train-period": "P7D"},
+            timedelta(days=7),
+            "stating both goes back no further than the period asks for",
+        ),
+        (
+            {"train-start": "2026-09-01T17:00:00+02:00", "train-period": "P30D"},
+            timedelta(days=3),
+            "stating both goes back no further than the start asks for either",
+        ),
+        (
+            {"train-period": None},
+            timedelta(days=30),
+            "asking for no period of its own leaves the default to say how much history to use",
+        ),
+    ],
+)
+def test_training_window_goes_back_no_further_than_asked_for(
+    config, expected_span, why
+):
+    """Whichever of train-start and train-period asks for less data decides."""
+    predict_start = datetime.fromisoformat("2026-09-04T17:00:00+02:00")
+    loaded = TrainPredictPipelineConfigSchema().load(config)
+
+    pipeline = TrainPredictPipeline.__new__(TrainPredictPipeline)
+    pipeline._config = loaded
+    pipeline._parameters = {"predict_start": predict_start}
+
+    train_start, train_end = pipeline._derive_training_period()
+    assert train_end == predict_start
+    assert train_end - train_start == expected_span, why
+
+
+def _synthetic_series_and_covariate(n_horizons: int):
+    """Build a seasonal target series, and a future covariate that outlasts it.
+
+    Future covariates have to reach past the target series far enough for the longest horizon,
+    otherwise darts refuses to predict.
+    """
+    index = pd.date_range("2025-01-01", periods=600, freq="15min", tz="UTC")
+    steps = np.arange(len(index))
+    series = TimeSeries.from_times_and_values(
+        index, 10 + 3 * np.sin(steps * 2 * np.pi / 96) + np.sin(steps * 2 * np.pi / 17)
+    )
+
+    covariate_index = pd.date_range(
+        "2025-01-01", periods=len(index) + 4 * n_horizons, freq="15min", tz="UTC"
+    )
+    covariate_steps = np.arange(len(covariate_index))
+    covariate = TimeSeries.from_times_and_values(
+        covariate_index, 5 + 1.5 * np.sin(covariate_steps * 2 * np.pi / 96)
+    )
+    return series, covariate
+
+
+def test_horizon_sub_models_are_worked_on_concurrently_by_default():
+    """The horizons do not depend on each other, so they are fitted and predicted concurrently."""
+    model = CustomLGBM(max_forecast_horizon=4)
+    assert model.n_jobs == default_n_jobs()
+    # Each sub-model stays single-threaded, so the concurrency does not oversubscribe the cores.
+    # On a single-core machine there is no concurrency to speak of, and LightGBM keeps the threading instead.
+    assert model.models_params["num_threads"] == (1 if default_n_jobs() > 1 else 0)
+    # A caller can still override the thread count.
+    assert (
+        CustomLGBM(
+            max_forecast_horizon=4, models_params={"num_threads": 4}
+        ).models_params["num_threads"]
+        == 4
+    )
+    # A nonsensical worker count still leaves one worker to do the job.
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=0).n_jobs == 1
+    assert CustomLGBM(max_forecast_horizon=4, n_jobs=-5).n_jobs == 1
+
+
+def test_a_single_core_machine_leaves_the_threading_to_lightgbm(monkeypatch):
+    """One core means no horizons to run side by side, so LightGBM should keep its own threading."""
+    monkeypatch.setattr(base_model_module, "default_n_jobs", lambda: 1)
+    model = CustomLGBM(max_forecast_horizon=4)
+    assert model.n_jobs == 1
+    assert model.models_params["num_threads"] == 0
+
+
+@pytest.mark.parametrize("n_jobs", [1, 0, -5])
+def test_opting_out_of_concurrency_hands_the_cores_back_to_lightgbm(n_jobs):
+    """Without the concurrency, LightGBM's own threading is what should use the cores.
+
+    Single-threading the sub-models only pays off because the horizons run side by side,
+    so opting out of one has to opt out of the other as well.
+    """
+    model = CustomLGBM(max_forecast_horizon=4, n_jobs=n_jobs)
+    assert model.n_jobs == 1
+    assert (
+        model.models_params["num_threads"] == 0
+    )  # 0 means LightGBM decides, its own default
+
+
+def test_predicting_without_a_horizon_says_so():
+    """Without a horizon there is no sub-model to predict with, which should be said out loud."""
+    model = CustomLGBM(max_forecast_horizon=0)
+    series, covariate = _synthetic_series_and_covariate(1)
+    with pytest.raises(ValueError, match="without a horizon to forecast for"):
+        model.predict(
+            series=series, past_covariates=covariate, future_covariates=covariate
+        )
+
+
+def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
+    """Working on the horizons concurrently must not move a single forecast value."""
+    n_horizons = 12
+    series, covariate = _synthetic_series_and_covariate(n_horizons)
+
+    def fitted(n_jobs: int):
+        model = CustomLGBM(
+            max_forecast_horizon=n_horizons,
+            probabilistic=False,
+            auto_regressive=False,
+            use_past_covariates=True,
+            use_future_covariates=True,
+            training_sample_count=len(series),
+            n_jobs=n_jobs,
+        )
+        model.fit(series=series, past_covariates=covariate, future_covariates=covariate)
+        return model
+
+    predictions = [
+        fitted(n_jobs).predict(
+            series=series, past_covariates=covariate, future_covariates=covariate
+        )
+        for n_jobs in (1, 8)
+    ]
+
+    # One prediction per horizon, in horizon order, holding the very same values.
+    assert len(predictions[0]) == n_horizons
+    assert list(predictions[0].time_index) == list(predictions[1].time_index)
+    assert np.array_equal(predictions[0].values(), predictions[1].values())

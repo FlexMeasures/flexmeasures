@@ -19,10 +19,18 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
+from flexmeasures.data.schemas.automations import (
+    AutomationIdField,
+    CronField,
+    TimezoneField,
+)
+from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
@@ -49,9 +57,71 @@ def _resolve_secret_path(
     return secret
 
 
-@click.group("edit")
+@click.group("edit", cls=LoggedClickExceptionGroup)
 def fm_edit_data():
     """FlexMeasures: Edit data."""
+
+
+@fm_edit_data.command("automation")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=True,
+    type=AutomationIdField(),
+    help="ID of the automation to edit.",
+)
+@click.option(
+    "--name",
+    "name",
+    required=False,
+    type=click.STRING,
+    help="New name of the automation.",
+)
+@click.option(
+    "--cron",
+    "cronstr",
+    required=False,
+    type=CronField(),
+    help="New recurrence as a standard five-field cron expression, interpreted in the automation timezone.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    required=False,
+    type=TimezoneField(),
+    help='New IANA timezone in which to interpret the cron recurrence, e.g. "Europe/Amsterdam".',
+)
+@click.option(
+    "--activate/--deactivate",
+    "active",
+    default=None,
+    help="Activate or deactivate the automation.",
+)
+def edit_automation(
+    automation: Automation,
+    name: str | None = None,
+    cronstr: str | None = None,
+    timezone: str | None = None,
+    active: bool | None = None,
+):
+    """Edit the name, recurrence, timezone or activation status of an automation."""
+    changes = update_automation(
+        automation,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        active=active,
+        origin="CLI",
+    )
+    if not changes:
+        click.secho("Nothing to change.", **MsgStyle.WARN)
+        return
+    db.session.commit()
+    click.secho(
+        f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 # Plan fields which may be cleared back to NULL (meaning: server-wide behaviour applies)

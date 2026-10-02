@@ -18,6 +18,7 @@ from flexmeasures.data.models.time_series import TimedBelief
         (6, 6, "m³/h", False, -11.28, True, 200),
         (6, 5, "m³/h", True, -11.28, False, 200),  # NaN value does not enter database
         (6, 6, "m³", False, 6 * -11.28, False, 200),  # 6 * 10-min intervals per hour
+        (6, 5, "m³", True, 6 * -11.28, False, 200),
         (6, 6, "l/h", False, -11.28 / 1000, False, 200),  # 1 m³ = 1000 l
         (3, 6, "m³/h", False, -11.28, False, 200),  # upsample from 20-min intervals
         (
@@ -71,7 +72,7 @@ def test_post_sensor_data(
     sensor = setup_api_fresh_test_data["some gas sensor"]
     filters = (
         TimedBelief.sensor_id == sensor.id,
-        TimedBelief.event_start >= post_data["start"],
+        TimedBelief.event_start >= pd.Timestamp(post_data["start"]),
     )
     beliefs_before = db.session.scalars(select(TimedBelief).filter(*filters)).all()
     print(f"BELIEFS BEFORE: {beliefs_before}")

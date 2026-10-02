@@ -332,14 +332,17 @@ function getHumanFriendlyDateString(iso8601_date_string) {
 }
 
 /** Given an ISO 8601 date string, render a human-friendly description
- *  of how long ago it was, if recent.
+ *  of how far off it is, if it is near.
  *
  *  Examples:
  *  - "just now"
  *  - "10 seconds ago"
  *  - "20 minutes ago"
+ *  - "in 6 minutes"
+ *  - "tomorrow"
  * 
- * If longer ago than 24 hours, let getHumanFriendlyDateString take over.
+ * If further off than 7 days, let getHumanFriendlyDateString take over,
+ * or use options.fallback, for a caller that knows a better absolute rendering than the viewer's own clock.
  */
 function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
     const dateOnlyForOlder = options.dateOnlyForOlder === true;
@@ -351,7 +354,8 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
 
   // Determine if the date is in the future or past (negative means future and positive means past)
   const isFuture = deltaMilliseconds < 0;
-  let suffix = isFuture ? " from now" : " ago"; // Use " from now" for future, " ago" for past
+  // A future moment reads as "in 6 minutes", the way people say it, while a past one keeps the "6 minutes ago" form.
+  const relative = (amount, unit) => isFuture ? `in ${amount} ${unit}` : `${amount} ${unit} ago`;
 
   // Use the absolute value for all time unit calculations
   const absDeltaMilliseconds = Math.abs(deltaMilliseconds);
@@ -366,18 +370,18 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
   if (deltaSeconds < 5) {
     return "just now";
   } else if (deltaSeconds < 60) {
-    return deltaSeconds + " seconds" + suffix;
+    return relative(deltaSeconds, "seconds");
   } else if (deltaMinutes === 1) {
-    return "1 minute" + suffix;
+    return relative(1, "minute");
   } else if (deltaMinutes < 60) {
-    return deltaMinutes + " minutes" + suffix;
+    return relative(deltaMinutes, "minutes");
   }
 
   // --- Logic for Hours ---
   else if (deltaHours === 1) {
-    return "1 hour" + suffix;
+    return relative(1, "hour");
   } else if (deltaHours < 24) {
-    return deltaHours + " hours" + suffix;
+    return relative(deltaHours, "hours");
   }
 
   // --- Logic for Days (24+ hours) ---
@@ -402,6 +406,11 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
 
   // 3. Fallback: Too far in the past or future
   else {
+        // A caller whose moment belongs to another clock than the viewer's can render it itself.
+        if (options.fallback !== undefined) {
+            return options.fallback;
+        }
+
         // For table views, optionally hide time for older moments.
         if (dateOnlyForOlder) {
             return shortDateFormatter.format(date);
@@ -470,6 +479,10 @@ function unpackData(data) {
     );
 }
 
+// The key under which the stats endpoint reports the statistics covering every source.
+// Kept in step with ALL_SOURCES_KEY in flexmeasures/data/services/sensors.py.
+const ALL_SOURCES_KEY = "All sources";
+
 function getLatestBeliefName(data) {
     return Object.keys(data).reduce((latest, name) => {
         const currentBeliefTime = new Date(data[name]["Last recorded"]);
@@ -504,6 +517,71 @@ function updateStatsTable(stats, tableBody) {
         row.appendChild(keyCell);
         row.appendChild(valueCell);
         tableBody.appendChild(row);
+    });
+}
+
+function sourceIdFromKey(sourceKey) {
+    // Source keys are shown as "<description> (ID: <id>)"
+    const idMatch = String(sourceKey).match(/\(ID:\s*(\d+)\)$/);
+    return idMatch ? idMatch[1] : null;
+}
+
+function preselectedSourceId() {
+    // The sensor page passes on the source query parameter, if given
+    const preselected = document.getElementById('sensorPageData')?.dataset.preselectedSourceId;
+    return preselected ? String(preselected) : null;
+}
+
+function setUpSourceDetailsButton(sourceKey) {
+    // Let the button next to the source selector show the details of the selected source
+    const detailsButton = document.getElementById('sourceDetailsButton');
+    if (!detailsButton) { return; }
+    const sourceId = sourceIdFromKey(sourceKey);
+    if (!sourceId) {
+        detailsButton.classList.add('d-none');
+        return;
+    }
+    detailsButton.classList.remove('d-none');
+    detailsButton.dataset.sourceId = sourceId;
+}
+
+function showSourceDetails(sourceId) {
+    const title = document.getElementById('SourceDetailsTitle');
+    const body = document.getElementById('SourceDetailsBody');
+    if (!body) { return; }
+    title.textContent = `Data source ${sourceId}`;
+    body.textContent = 'Loading ...';
+    fetch(`/api/v3_0/sources/${encodeURIComponent(sourceId)}`)
+    .then(response => {
+        if (!response.ok) { throw new Error(`status ${response.status}`); }
+        return response.json();
+    })
+    .then(source => {
+        title.textContent = `Data source ${source.id}: ${source.description}`;
+        const table = document.createElement('table');
+        table.className = 'table table-striped';
+        Object.entries(source).forEach(([field, value]) => {
+            const row = document.createElement('tr');
+            const fieldCell = document.createElement('th');
+            fieldCell.textContent = field;
+            const valueCell = document.createElement('td');
+            if (value !== null && typeof value === 'object') {
+                const pre = document.createElement('pre');
+                pre.className = 'mb-0';
+                pre.textContent = JSON.stringify(value, null, 4);
+                valueCell.appendChild(pre);
+            } else {
+                valueCell.textContent = value === null ? '—' : String(value);
+            }
+            row.appendChild(fieldCell);
+            row.appendChild(valueCell);
+            table.appendChild(row);
+        });
+        body.innerHTML = '';
+        body.appendChild(table);
+    })
+    .catch(error => {
+        body.textContent = `Could not load the details of this data source (${error.message}).`;
     });
 }
 
@@ -555,8 +633,14 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
         if (Object.keys(data).length > 0) {
             // Show the header and dropdown container
             dropdownContainer.classList.remove('d-none');
-            // Populate the dropdown menu with sourceKeys
-            Object.keys(data).forEach(sourceKey => {
+            // Populate the dropdown menu with sourceKeys, the combined entry first.
+            // The response arrives with its keys sorted, which does not put it there.
+            const sourceKeys = Object.keys(data);
+            if (sourceKeys.includes(ALL_SOURCES_KEY)) {
+                sourceKeys.splice(sourceKeys.indexOf(ALL_SOURCES_KEY), 1);
+                sourceKeys.unshift(ALL_SOURCES_KEY);
+            }
+            sourceKeys.forEach(sourceKey => {
                 const dropdownItem = document.createElement('li');
                 const dropdownLink = document.createElement('a');
                 dropdownLink.className = 'dropdown-item';
@@ -569,16 +653,24 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
                     const selectedSourceKey = event.target.dataset.sourceKey;
                     dropdownButton.textContent = selectedSourceKey;
                     updateStatsTable(data[selectedSourceKey], tableBody);
+                    setUpSourceDetailsButton(selectedSourceKey);
                 });
 
                 dropdownItem.appendChild(dropdownLink);
                 dropdownMenu.appendChild(dropdownItem);
             });
 
-            // Update the table with the first sourceKey's data by default
-            const firstSourceKey = getLatestBeliefName(data);
+            // Show the source pre-selected via the source query parameter (e.g. when
+            // arriving here from an automation), or else every source at once, as the graph does.
+            // A sensor recorded by a single source gets no combined entry, so fall back to that source.
+            const preselectedSourceKey = Object.keys(data).find(
+                sourceKey => sourceIdFromKey(sourceKey) === preselectedSourceId()
+            );
+            const firstSourceKey = preselectedSourceKey
+                || (ALL_SOURCES_KEY in data ? ALL_SOURCES_KEY : getLatestBeliefName(data));
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+            setUpSourceDetailsButton(firstSourceKey);
 
             // Populate the "Delete data" source dropdown if it exists on the page,
             // re-using the stats data already fetched to avoid a duplicate API call.

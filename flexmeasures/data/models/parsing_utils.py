@@ -9,6 +9,55 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 
 
+def parse_source_arg_per_entry(
+    source: (
+        DataSource
+        | int
+        | str
+        | Sequence[DataSource]
+        | Sequence[int]
+        | Sequence[str]
+        | None
+    ),
+) -> list[list[DataSource]] | None:
+    """Parse the "source" argument, keeping the sources of each entry together.
+
+    One entry can name more than one source, because a name is not unique,
+    and the sources it names arrive in no particular order.
+    Callers that care which source is preferred should treat one entry as one preference,
+    rather than reading an order into what a single name happened to match.
+
+    Passes None as is (i.e. no source argument is given).
+    """
+    if source is None:
+        return source
+    if isinstance(source, (DataSource, str, int)):
+        entries: Sequence = [source]
+    else:
+        entries = source
+    parsed_entries: list[list[DataSource]] = []
+    for entry in entries:
+        if isinstance(entry, int):
+            parsed_source = db.session.get(DataSource, entry)
+            if parsed_source is None:
+                current_app.logger.warning(
+                    f"Beliefs searched for unknown source {entry}"
+                )
+                parsed_entries.append([])
+            else:
+                parsed_entries.append([parsed_source])
+        elif isinstance(entry, str):
+            named = db.session.scalars(select(DataSource).filter_by(name=entry)).all()
+            if not named:
+                current_app.logger.warning(
+                    f"Beliefs searched for unknown source {entry}"
+                )
+            parsed_entries.append(list(named))
+        else:
+            parsed_entries.append([entry])
+    return parsed_entries
+
+
 def parse_source_arg(
     source: (
         DataSource
@@ -25,32 +74,7 @@ def parse_source_arg(
     Passes None as is (i.e. no source argument is given).
     Accepts ids and names as list or tuples, always converting them to a list.
     """
-    if source is None:
-        return source
-    if isinstance(source, (DataSource, str, int)):
-        sources = [source]
-    else:
-        sources = source
-    parsed_sources: list[DataSource] = []
-    for source in sources:
-        if isinstance(source, int):
-            parsed_source = db.session.get(DataSource, source)
-            if parsed_source is None:
-                current_app.logger.warning(
-                    f"Beliefs searched for unknown source {source}"
-                )
-            else:
-                parsed_sources.append(parsed_source)
-        elif isinstance(source, str):
-            _parsed_sources = db.session.scalars(
-                select(DataSource).filter_by(name=source)
-            ).all()
-            if _parsed_sources is []:
-                current_app.logger.warning(
-                    f"Beliefs searched for unknown source {source}"
-                )
-            else:
-                parsed_sources.extend(_parsed_sources)
-        else:
-            parsed_sources.append(source)
-    return parsed_sources
+    parsed_entries = parse_source_arg_per_entry(source)
+    if parsed_entries is None:
+        return None
+    return [parsed_source for entry in parsed_entries for parsed_source in entry]

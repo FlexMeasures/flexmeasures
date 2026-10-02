@@ -94,9 +94,10 @@ class AssetAPIQuerySchema(PaginationSchema):
     )
     include_public = fields.Bool(
         data_key="include_public",
-        load_default=False,
+        load_default=None,
+        allow_none=True,
         metadata=dict(
-            description="Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            description="Whether to include public assets. Leave out to let `all_accessible` and `root` decide: those include public assets, while a listing of a single account does not. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             example=False,
         ),
     )

@@ -312,6 +312,90 @@ def test_collect_flex_config_missing_sensor_raises(fresh_db):
         scheduler_soc.collect_flex_config()
 
 
+def test_momentary_flex_fields_do_not_make_a_new_data_source(fresh_db):
+    """A value describing one moment stays out of a scheduler's data source identity.
+
+    A state of charge measured at the start of a schedule differs on every trigger,
+    so recording it would make every schedule the work of a brand new data source.
+    What the site and its devices can do is what tells one scheduler source from another.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-momentary-config")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(
+        name="test-asset-momentary-config", generic_asset_type=asset_type
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+
+    def source_for(soc_at_start: str, power_capacity: str = "2 MW"):
+        scheduler = StorageScheduler(
+            asset_or_sensor=asset,
+            start=start,
+            end=start + timedelta(hours=1),
+            resolution=timedelta(hours=1),
+            flex_model=[
+                {
+                    "soc-at-start": soc_at_start,
+                    "soc-min": "0 kWh",
+                    "power-capacity": power_capacity,
+                }
+            ],
+            flex_context={},
+        )
+        return scheduler.data_source
+
+    # Two schedules of the same device, from different states of charge
+    assert source_for("4 kWh") == source_for("7 kWh")
+    # ... but a device that can draw less power is a different configuration
+    assert source_for("4 kWh") != source_for("4 kWh", power_capacity="1 MW")
+
+
+def test_renaming_a_sensor_does_not_make_a_new_data_source(fresh_db):
+    """A scheduler's data source records the sensors its config names by id, not by name.
+
+    A caller which deserialized the flex config first, as ``flexmeasures add schedule`` does,
+    hands the scheduler sensor objects rather than their ids.
+    Recording how those print would tie the configuration to the sensor's name,
+    so renaming a sensor would describe a different configuration, and two sensors sharing a name the same one.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-renamed-sensor")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(
+        name="test-asset-renamed-sensor", generic_asset_type=asset_type
+    )
+    fresh_db.session.add(asset)
+    price_sensor = Sensor(
+        name="day-ahead prices",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+    )
+    fresh_db.session.add(price_sensor)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+
+    def source_now():
+        scheduler = StorageScheduler(
+            asset_or_sensor=asset,
+            start=start,
+            end=start + timedelta(hours=1),
+            resolution=timedelta(hours=1),
+            flex_model=[{"soc-min": "0 kWh", "power-capacity": "2 MW"}],
+            # As a caller hands it over once deserialized: the sensor itself, not its id.
+            flex_context={"consumption-price": price_sensor},
+        )
+        return scheduler.data_source
+
+    before = source_now()
+    price_sensor.name = "day-ahead prices (renamed)"
+    fresh_db.session.commit()
+
+    assert source_now() == before
+
+
 def test_get_power_values_sign_conventions_and_source_filters(fresh_db):
     """The explicit sign convention wins; None defers to the sensor attribute;
     source filters on a SensorReference are honored.
@@ -388,3 +472,113 @@ def test_get_power_values_sign_conventions_and_source_filters(fresh_db):
     assert series(reference, consumption_is_positive=True)[0] == pytest.approx(0.2)
     reference = SensorReference(sensor=sensor, source_types=["scheduler"])
     assert series(reference, consumption_is_positive=False)[0] == pytest.approx(-0.1)
+
+
+def _sensor_with_readings(fresh_db, name: str, start, values, instantaneous=False):
+    """Record readings on a new sensor, one per 15 minutes from ``start``, skipping None.
+
+    The sensor records power in kW, or, if instantaneous, a state of charge in kWh.
+    """
+    source = DataSource(name=f"{name}-source", type="demo script")
+    asset_type = GenericAssetType(name=f"{name}-asset-type")
+    asset = GenericAsset(name=f"{name}-asset", generic_asset_type=asset_type)
+    sensor = Sensor(
+        name=name,
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=0 if instantaneous else 15),
+        unit="kWh" if instantaneous else "kW",
+    )
+    fresh_db.session.add_all([source, asset_type, asset, sensor])
+    fresh_db.session.flush()
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                event_start=start + i * timedelta(minutes=15),
+                belief_horizon=timedelta(0),
+                event_value=value,
+                source=source,
+                sensor=sensor,
+            )
+            for i, value in enumerate(values)
+            if value is not None
+        ]
+    )
+    fresh_db.session.commit()
+    return sensor
+
+
+def test_get_series_from_sensor_reference_applies_its_bounds(fresh_db):
+    """Readings are snapped and clipped in the sensor's own unit, and a missing reading is still left to the default."""
+    start = pd.Timestamp("2025-06-01 08:00:00+02:00")
+    query_window = (start, start + timedelta(hours=1))
+    sensor = _sensor_with_readings(
+        fresh_db, "test-sensor-bounds", start, [-5.0, 0.05, 99.0, None]
+    )
+
+    def series(reference):
+        return get_series_from_quantity_or_sensor(
+            variable_quantity=reference,
+            query_window=query_window,
+            resolution=sensor.event_resolution,
+            unit="MW",
+            as_instantaneous_events=False,
+        )
+
+    unbounded = series(SensorReference(sensor=sensor, default=ur.Quantity("30 kW")))
+    assert list(unbounded) == pytest.approx([-0.005, 0.00005, 0.099, 0.03])
+
+    bounded = series(
+        SensorReference(
+            sensor=sensor,
+            default=ur.Quantity("30 kW"),
+            lower="0 kW",
+            upper="0.02 MW",
+            snap={"0 kW": ["0 kW", "0.1 kW"]},
+        )
+    )
+    assert list(bounded) == pytest.approx([0.0, 0.0, 0.02, 0.03])
+
+
+def test_get_power_values_applies_reference_bounds(fresh_db):
+    """An inflexible device's readings are cleaned before the sign convention is applied."""
+    from flexmeasures.data.models.planning.utils import get_power_values
+
+    start = pd.Timestamp("2025-06-01 08:00:00+02:00")
+    sensor = _sensor_with_readings(
+        fresh_db, "test-sensor-gpv-bounds", start, [-5.0, 99.0]
+    )
+    reference = SensorReference(sensor=sensor, lower="0 kW", upper="20 kW")
+
+    values = get_power_values(
+        query_window=(start, start + timedelta(minutes=30)),
+        resolution=sensor.event_resolution,
+        beliefs_before=None,
+        sensor=reference,
+        consumption_is_positive=True,
+    )
+
+    assert list(values) == pytest.approx([0.0, 0.02])
+
+
+def test_soc_at_start_applies_reference_bounds(fresh_db):
+    """A state-of-charge reading outside the reference's bounds is clipped before it becomes the starting state of charge."""
+    start = pd.Timestamp("2025-06-01 08:00:00+02:00")
+    soc_sensor = _sensor_with_readings(
+        fresh_db, "test-soc-bounds", start, [-3.0], instantaneous=True
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=soc_sensor.generic_asset,
+        start=start,
+        end=start + timedelta(hours=1),
+        resolution=timedelta(minutes=15),
+        flex_model=[],
+        flex_context={},
+    )
+
+    unbounded = scheduler._resolve_soc_at_start_from_sensor(soc_sensor, flex_model={})
+    bounded = scheduler._resolve_soc_at_start_from_sensor(
+        SensorReference(sensor=soc_sensor, lower="0 kWh"), flex_model={}
+    )
+
+    assert unbounded == pytest.approx(-0.003)
+    assert bounded == pytest.approx(0.0)

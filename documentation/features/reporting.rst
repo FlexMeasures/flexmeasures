@@ -17,6 +17,12 @@ We added an infrastructure that allows us to define computation pipelines and CL
 - ``flexmeasures show reporters``
 - ``flexmeasures add report``
 
+Reports can be queued for asynchronous processing with ``flexmeasures add report --as-job``.
+Run ``flexmeasures jobs run-worker --queue reporting`` to process these jobs. A one-off report
+can also be queued through ``POST /api/v3_0/assets/<id>/reports/trigger``. The caller needs read
+access to every input and configuration sensor and permission to record data on each output;
+outputs are limited to the asset in the URL and its descendants.
+
 The reporter classes we are designing are using pandas under the hood and can be sub-classed, allowing us to build new reporters from stable simpler ones, and even pipelines. Remember: re-use is developer power!
 
 We believe this infrastructure will become very powerful and enable FlexMeasures hosts and plugin developers to implement exciting new features.
@@ -123,3 +129,11 @@ Here, the ``ProfitOrLossReporter`` used as source (with Id 6) is the one we conf
 With the offsets, we control the timing ― we indicate that we want the new report to encompass the day of tomorrow (see Pandas offset strings).
 
 The report sensor will now store all costs which we know will be made tomorrow by the  schedule.
+
+.. _automating_reports:
+
+Automating reports
+--------------------
+
+Instead of computing reports one at a time, you can set up an *automation*: a recurring task defined on an asset, which queues reporting jobs on a cron schedule.
+See :ref:`automations`.

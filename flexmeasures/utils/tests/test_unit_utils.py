@@ -66,6 +66,35 @@ def test_convert_unit(
 
 
 @pytest.mark.parametrize(
+    "from_unit, to_unit, event_resolution, expected_values",
+    [
+        ("MW", "kW", None, [1000.0, None, 3000.0]),
+        ("kWh", "kW", timedelta(minutes=15), [4.0, None, 12.0]),
+        ("°C", "K", None, [274.15, None, 276.15]),
+    ],
+)
+def test_convert_unit_preserves_missing_list_values(
+    from_unit,
+    to_unit,
+    event_resolution,
+    expected_values,
+):
+    """Unit conversion should preserve gaps represented by null list values."""
+    converted_data = convert_units(
+        data=[1, None, 3],
+        from_unit=from_unit,
+        to_unit=to_unit,
+        event_resolution=event_resolution,
+    )
+
+    assert isinstance(converted_data, list)
+    pd.testing.assert_series_equal(
+        pd.Series(converted_data, dtype=float),
+        pd.Series(expected_values, dtype=float),
+    )
+
+
+@pytest.mark.parametrize(
     "from_unit, to_unit, timezone, input_values, expected_values",
     [
         # datetimes are converted to seconds since UNIX epoch

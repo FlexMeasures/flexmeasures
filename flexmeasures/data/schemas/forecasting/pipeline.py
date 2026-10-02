@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-import numbers
 import os
 
 from datetime import timedelta
@@ -20,7 +18,10 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.sensors import SensorIdOrReferenceField
+from flexmeasures.data.schemas.sensors import (
+    SensorIdOrReferenceField,
+    SensorReference,
+)
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
@@ -28,23 +29,25 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.utils.bound_utils import bound_validation_errors
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import ur
+
+DEFAULT_TRAIN_PERIOD = timedelta(days=30)
 
 
-def _is_parseable_quantity(value) -> bool:
-    """Whether a post-processing value is a number or a pint-parseable quantity string."""
-    if isinstance(value, numbers.Real):
-        return True
-    if not isinstance(value, str):
-        return False
+def _fixed_length_or_none(value) -> timedelta | None:
+    """Return a duration as a timedelta, or None when it is not one of fixed length.
+
+    A duration given in years or months parses to a Duration rather than a timedelta,
+    and the two cannot be compared, so anything that compares durations has to know which it has.
+    """
     try:
-        ur.Quantity(value)
-    except Exception:
-        return False
-    return True
+        parsed = DurationField().deserialize(value)
+    except ValidationError:
+        return None
+    return parsed if isinstance(parsed, timedelta) else None
 
 
 class AnnotationRegressorSchema(Schema):
@@ -106,7 +109,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references to be treated only as future regressors."
+                "Sensor IDs or sensor references to be treated only as future regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -126,7 +130,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
+                "Sensor IDs or sensor references to be treated only as past regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -143,7 +148,8 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references used as both past and future regressors."
+                "Sensor IDs or sensor references used as both past and future regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
                 " When a sensor reference lists multiple sources, the first listed source wins"
                 " if they contain beliefs with the same event and belief time."
@@ -216,10 +222,15 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=False,
         allow_none=True,
         metadata={
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            # Meant to be deprecated in favour of the explicit `lower` bound, which says the same thing without hiding it inside the model.
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting ``lower`` to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": True,
             "cli": {
                 "option": "--ensure-positive",
+                "extra_help": (
+                    "Deprecated: set `lower` to 0 in the file passed to --config instead,"
+                    " which bounds the forecast explicitly rather than inside the model."
+                ),
             },
         },
     )
@@ -267,32 +278,19 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
     train_period = DurationField(
         data_key="train-period",
-        load_default=timedelta(days=30),
+        load_default=DEFAULT_TRAIN_PERIOD,
         allow_none=True,
         metadata={
             "description": (
-                "Duration of the initial training period (ISO 8601 format, min 2 days). "
-                "Defaults to P30D (30 days). Ignored when --train-start is set: "
-                "the training window then runs from --train-start to --start, "
-                "capped to --max-training-period."
+                "How much history to train on (ISO 8601 format, min 2 days). Defaults to P30D (30 days). "
+                "Together with train-start this bounds the training window: training starts no earlier than train-start, and spans no more than train-period, so whichever of the two asks for less data decides. "
+                "max-training-period said the same thing, and is still accepted as a deprecated alias."
             ),
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
                 "option": "--train-period",
-            },
-        },
-    )
-    max_training_period = DurationField(
-        data_key="max-training-period",
-        load_default=timedelta(days=365),
-        allow_none=True,
-        metadata={
-            "description": "Maximum duration of the training period. Defaults to 1 year (P1Y).",
-            "example": "P1Y",
-            "cli": {
-                "cli-exclusive": True,
-                "option": "--max-training-period",
+                "aliases": ["--max-training-period"],
             },
         },
     )
@@ -311,13 +309,33 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
 
     @pre_load
-    def warn_when_train_period_is_ignored(self, data, **kwargs):
-        """An explicit train-start takes precedence over train-period (see _derive_training_period)."""
-        if data.get("train-start") is not None and data.get("train-period") is not None:
-            logging.warning(
-                "Both train-start and train-period are set; train-period is ignored "
-                "and the training window runs from train-start (capped to max-training-period)."
-            )
+    def fold_in_max_training_period(self, data, **kwargs):
+        """Read the deprecated max-training-period as the train-period it always was.
+
+        Both said how far back training may reach, so a config carrying both asks twice,
+        and the shorter of the two is all that either of them allows.
+        Folding it in here keeps configs written before the two were merged working, without keeping the merged name in the schema.
+        """
+        if not isinstance(data, dict) or "max-training-period" not in data:
+            return data
+        data = dict(data)
+        deprecated = data.pop("max-training-period")
+        if deprecated is None:
+            return data
+        stated = data.get("train-period")
+        if stated is None:
+            data["train-period"] = deprecated
+            return data
+        stated_length = _fixed_length_or_none(stated)
+        deprecated_length = _fixed_length_or_none(deprecated)
+        if stated_length is None or deprecated_length is None:
+            # One of them is malformed, or is a length that varies, such as a year.
+            # Hand that one to the field, which says what is wrong with it, rather than quietly going with the other.
+            data["train-period"] = stated if stated_length is None else deprecated
+            return data
+        data["train-period"] = (
+            stated if stated_length <= deprecated_length else deprecated
+        )
         return data
 
     @validates_schema
@@ -329,20 +347,20 @@ class TrainPredictPipelineConfigSchema(Schema):
             )
 
         train_period = data.get("train_period")
-        max_training_period = data.get("max_training_period")
+
+        # Say this first: a Duration cannot be compared to a timedelta, so any check below it would raise a TypeError rather than report the problem.
+        if isinstance(train_period, Duration):
+            # DurationField only returns Duration when years/months are present
+            raise ValidationError(
+                "train-period must be specified using days or smaller units "
+                "(e.g. P365D, PT48H). Years and months are not supported.",
+                field_name="train_period",
+            )
 
         if train_period is not None and train_period < timedelta(days=2):
             raise ValidationError(
                 "train-period must be at least 2 days (48 hours)",
                 field_name="train_period",
-            )
-
-        if isinstance(max_training_period, Duration):
-            # DurationField only returns Duration when years/months are present
-            raise ValidationError(
-                "max-training-period must be specified using days or smaller units "
-                "(e.g. P365D, PT48H). Years and months are not supported.",
-                field_name="max_training_period",
             )
 
     @validates_schema
@@ -352,22 +370,9 @@ class TrainPredictPipelineConfigSchema(Schema):
         Unit compatibility with the sensor and interval semantics can only be
         checked once the output sensor is known, so those run at forecast time.
         """
-        errors: dict[str, list[str]] = {}
-        for field_name in ("lower", "upper"):
-            value = data.get(field_name)
-            if value is not None and not _is_parseable_quantity(value):
-                errors[field_name] = [
-                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
-                ]
-
-        snap_errors = [
-            f"Snap entry '{target}' must use numbers or parseable quantity strings."
-            for target, interval in (data.get("snap") or {}).items()
-            if not all(_is_parseable_quantity(v) for v in (target, *interval))
-        ]
-        if snap_errors:
-            errors["snap"] = snap_errors
-
+        errors = bound_validation_errors(
+            data.get("lower"), data.get("upper"), data.get("snap")
+        )
         if errors:
             raise ValidationError(errors)
 
@@ -393,22 +398,9 @@ class TrainPredictPipelineConfigSchema(Schema):
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
 
-        train_period_in_hours = (
-            data["train_period"] // timedelta(hours=1)
-            if data.get("train_period") is not None
-            else None
-        )
-        max_training_period = data["max_training_period"]
-        if (
-            train_period_in_hours is not None
-            and train_period_in_hours > max_training_period // timedelta(hours=1)
-        ):
-            train_period_in_hours = max_training_period // timedelta(hours=1)
-            logging.warning(
-                f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
-            )
-
-        data["train_period_in_hours"] = train_period_in_hours
+        # A null train-period asks for no limit of its own, which leaves the default to say how much history to use.
+        train_period = data.get("train_period") or DEFAULT_TRAIN_PERIOD
+        data["train_period_in_hours"] = train_period // timedelta(hours=1)
         return data
 
 
@@ -417,14 +409,25 @@ class ForecasterParametersSchema(Schema):
     NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
     """
 
-    sensor = SensorIdField(
+    sensor = SensorIdOrReferenceField(
         data_key="sensor",
         required=True,
         metadata={
-            "description": "ID of the sensor to forecast.",
-            "example": 2092,
+            "description": (
+                "ID of the sensor to forecast, or a sensor reference."
+                " Use a reference to say which of the sources recording on that sensor hold the truth to train on,"
+                " and to carry lower, upper and snap bounds that clean the target's readings before they become training labels."
+                " Those bounds clean what the model learns from; the forecaster's own lower, upper and snap config shapes what it writes back out."
+                " Without one, every source on the sensor is trained on, except forecasters,"
+                " which are left out so that the forecaster does not learn from its own forecasts."
+                " A reference replaces that default entirely, so pass exclude-source-types yourself to keep forecasters out alongside another filter."
+                " When a reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
+            ),
+            "example": {"sensor": 2092, "sources": [12, 13]},
             "cli": {
                 "option": "--sensor",
+                "extra_help": "Pass a bare sensor ID, or a JSON sensor reference to filter by source or to clean the target's readings.",
             },
         },
     )
@@ -551,6 +554,18 @@ class ForecasterParametersSchema(Schema):
             "example": 2092,
             "cli": {
                 "option": "--sensor-to-save",
+            },
+        },
+    )
+    dry_run = fields.Bool(
+        data_key="dry-run",
+        load_default=False,
+        metadata={
+            "description": "Add this flag to avoid saving the results to the database.",
+            "cli": {
+                "cli-exclusive": True,
+                "is_flag": True,
+                "option": "--dry-run",
             },
         },
     )
@@ -696,7 +711,13 @@ class ForecasterParametersSchema(Schema):
         predict_period_in_hours = int(predict_period.total_seconds() / 3600)
 
         if data.get("sensor_to_save") is None:
-            sensor_to_save = target_sensor
+            # Forecasts are recorded on a sensor, never on a source-filtered view of one,
+            # so a referenced target contributes only the sensor it wraps.
+            sensor_to_save = (
+                target_sensor.sensor
+                if isinstance(target_sensor, SensorReference)
+                else target_sensor
+            )
         else:
             sensor_to_save = data["sensor_to_save"]
 
@@ -725,6 +746,7 @@ class ForecasterParametersSchema(Schema):
             save_belief_time=save_belief_time,
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
+            dry_run=data.get("dry_run", False),
         )
         if "config" in data:
             result["config"] = data["config"]

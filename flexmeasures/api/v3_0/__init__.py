@@ -16,6 +16,8 @@ from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
 from marshmallow import Schema, fields
 
+from packaging.version import Version
+
 from flexmeasures import __version__ as fm_version
 from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.api.v3_0.sensors import (
@@ -38,10 +40,14 @@ from flexmeasures.api.v3_0.sources import SourceAPI
 from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
-    DefaultAssetViewJSONSchema,
 )
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.schemas.automations import (
+    AutomationCreationSchema,
+    AutomationUpdateSchema,
+)
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.schemas.reporting import ReportTriggerSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import (
     AccountSchema,
@@ -55,6 +61,8 @@ from flexmeasures.api.common.rate_limiting import (
     TRIGGER_LIMITED_VIEWS,
 )
 from flexmeasures.utils.doc_utils import rst_to_openapi
+
+UI_SUPPORT_PACKAGE = "flexmeasures.api.ui"
 
 OPENAPI_DOCSTRING_REPLACEMENTS = {
     "{{CONSULTANCY_ACCOUNT_ROLE}}": CONSULTANCY_ACCOUNT_ROLE,
@@ -119,8 +127,28 @@ def collapse_schema_to_field(
 
 
 def flask_rule_to_openapi_path(rule: str) -> str:
-    """Turn a Flask rule like "/api/v3_0/assets/<id>/data" into its OpenAPI path."""
-    return re.sub(r"<(?:[^:<>]+:)?([^<>]+)>", r"{\1}", rule)
+    """Turn a Flask rule like "/api/v3_0/assets/<id>/automations/<int:automation_id>" into its OpenAPI path.
+
+    Path parameters are spelled in kebab-case, like the rest of the API, as in "/api/v3_0/assets/{id}/automations/{automation-id}".
+    Flask cannot name a route variable that way, so the rule keeps the underscore, which never reaches the wire.
+    """
+    return re.sub(
+        r"<(?:[^:<>]+:)?([^<>]+)>",
+        lambda match: "{" + match.group(1).replace("_", "-") + "}",
+        rule,
+    )
+
+
+def kebab_case_path_parameters(spec_dict: dict):
+    """Spell the path parameters in the paths of the OpenAPI specs in kebab-case (see `flask_rule_to_openapi_path`)."""
+    spec_dict["paths"] = {
+        re.sub(
+            r"{([^{}]+)}",
+            lambda match: "{" + match.group(1).replace("_", "-") + "}",
+            path,
+        ): operations
+        for path, operations in spec_dict.get("paths", {}).items()
+    }
 
 
 def trigger_limited_operations_of(rule, view) -> set[tuple]:
@@ -164,9 +192,10 @@ def create_openapi_specs(app: Flask):
     Create OpenAPI specs for the API and save them to a JSON file in the static folder.
     This function should be called when generating docs (and needs extra dependencies).
     """
-    version = ".".join(
-        fm_version.split(".")[:3]
-    )  # only keep major, minor and patch parts
+    # Only keep major, minor and patch: a naive dot-split mistakes a pre-release suffix
+    # glued onto the patch number (e.g. "1.1.0rc2") for part of the version itself.
+    parsed_version = Version(fm_version)
+    version = f"{parsed_version.major}.{parsed_version.minor}.{parsed_version.micro}"
     platform_name = app.config.get("FLEXMEASURES_PLATFORM_NAME", "FlexMeasures")
     token_header_name = app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
 
@@ -222,8 +251,10 @@ def create_openapi_specs(app: Flask):
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
         ("AnnotationSchema", AnnotationSchema),
+        ("AutomationCreationSchema", AutomationCreationSchema),
+        ("AutomationUpdateSchema", AutomationUpdateSchema),
+        ("ReportTriggerSchema", ReportTriggerSchema),
         ("CopyAssetSchema", CopyAssetSchema),
-        ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountCreateSchema", AccountCreateSchema()),
         ("AccountPatchSchema", AccountPatchSchema()),
@@ -263,8 +294,11 @@ def create_openapi_specs(app: Flask):
                 trigger_limited_operations_of(rule, target)
             )
 
-            # Document all API endpoints under /api or root /
-            if rule.rule.startswith("/api/") or rule.rule == "/":
+            # Document all API endpoints under /api or root /,
+            # except the endpoints supporting the UI, which are not part of the official API (see flexmeasures.api.ui).
+            if (
+                rule.rule.startswith("/api/") or rule.rule == "/"
+            ) and not view_function.__module__.startswith(UI_SUPPORT_PACKAGE):
                 try:
                     spec.path(view=view_function)
                     documented_endpoints_counter += 1
@@ -289,6 +323,7 @@ def create_openapi_specs(app: Flask):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     spec_dict = spec.to_dict()
+    kebab_case_path_parameters(spec_dict)
     document_rate_limits(spec_dict, trigger_limited_operations)
 
     with open(output_path, "w") as f:

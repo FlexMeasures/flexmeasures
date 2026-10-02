@@ -188,6 +188,7 @@ Config settings can be registered by setting the (optional) ``__settings__`` att
         "MY_PLUGIN_COLOR": {
             "description": "Color used to override the default plugin color.",
             "level": "info",
+            "default": "blue",
         },
     }
 
@@ -208,7 +209,39 @@ Alternatively, use ``from my_plugin import __settings__`` in your plugin module,
     MY_PLUGIN_COLOR = {
         "description": "Color used to override the default plugin color.",
         "level": "info",
+        "default": "blue",
     }
+
+
+Each setting is described with the following (all optional) keys:
+
+- ``description``: what the setting is used for. It is included in the log message when the setting is missing.
+- ``level``: the level to log at when the setting is missing (``error`` by default).
+- ``message_if_missing``: extra advice to log when the setting is missing, for instance where to get a token.
+- ``parse_as``: the type the setting should have. FlexMeasures logs a warning if it has another type,
+  and uses this type to interpret the setting when it is read from an environment variable (see below).
+- ``default``: the value to fall back to when the setting is missing.
+  FlexMeasures says in its log message whether a missing setting falls back to a default or stays unset,
+  so declare a ``default`` here rather than only promising one in ``message_if_missing``.
+
+Where these settings can be set
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Plugin settings are set just like FlexMeasures' own settings (see :ref:`configuration`):
+in your FlexMeasures config file, or as environment variables.
+
+Your plugin is registered after the config file has been read, so a setting that the config file sets keeps that value,
+and the environment is only consulted for settings that are still unset.
+
+Environment variables are strings, so declare a ``parse_as`` for any setting that should not be one.
+FlexMeasures then reads ``parse_as: int`` and ``parse_as: float`` settings as numbers,
+``parse_as: bool`` settings as ``True`` for ``1``, ``true``, ``yes`` or ``on`` (case-insensitively) and ``False`` otherwise,
+and ``parse_as: list`` and ``parse_as: dict`` settings as JSON.
+
+.. note:: While the test suite and the documentation build are running, FlexMeasures runs on defaults:
+          it reads neither your config file nor the environment, so your plugin's settings are not read from the environment either.
+          (A few of FlexMeasures' own settings are exceptions, among them ``FLEXMEASURES_ENV``, ``SECRET_KEY`` and ``SQLALCHEMY_TEST_DATABASE_URI``.)
+          If your plugin has its own test suite, set your plugin's settings on the app config directly.
 
 
 Set config programmatically - Example of using a custom logo
@@ -365,3 +398,50 @@ Finally, add this config setting to your FlexMeasures config file (using the tem
  .. code-block:: python
 
     SECURITY_LOGIN_USER_TEMPLATE = "my_user_login.html"
+
+
+.. _plugin_automation_types:
+
+Adding your own automation type
+--------------------------------
+
+A custom automation type combines a :class:`DataGenerator` with an automation handler.
+The generator declares its inputs, outputs and strict configuration and parameter schemas.
+The handler gives the type a stable identifier, display name and worker queue.
+
+Declare handlers in the plugin module's ``__automation_types__`` list:
+
+.. code-block:: python
+
+    from flexmeasures.data.automations import AutomationHandler
+    from .ingestion import SiteIngestor
+
+    __automation_types__ = [
+        AutomationHandler(
+            type_id="site-ingestion",
+            display_name="Site measurements",
+            generator_class=SiteIngestor,
+            queue="ingestion",
+            result_noun="measurement",
+        ),
+    ]
+
+``SiteIngestor`` must subclass ``flexmeasures.data.models.data_sources.DataGenerator``.
+Set ``__data_generator_base__ = "ingestor"`` and a stable ``__version__`` on the generator class.
+Define ``_config_schema`` and ``_parameters_schema`` as Marshmallow schemas with ``unknown=RAISE``.
+Expose ``input_sensors`` and ``output_sensors`` as properties returning lists of ``Sensor`` objects.
+Implement ``_compute`` to return a list of dictionaries with ``sensor`` and ``data`` keys, where ``data`` is a ``BeliefsDataFrame``.
+The output declarations must cover every sensor returned by the computation.
+The worker rejects undeclared outputs, records results with the generator's data source and version, and attaches automation provenance to the job.
+
+Type identifiers must be unique across built-in types and installed plugins.
+The built-in identifiers ``forecasting``, ``scheduling`` and ``reporting`` are reserved.
+Keep identifiers stable: stored automations refer to them, so removing or renaming a handler makes those automations unavailable until the plugin is restored or the automations are migrated.
+Do not store credentials in generator configuration or automation parameters; read credentials from deployment settings instead.
+
+For app extensions that do not use plugin discovery, register a handler during app initialization with ``register_automation_handler(app, handler)`` from ``flexmeasures.data.automations``.
+Registration belongs to each Flask application, allowing separate applications to load different handlers.
+
+Create an automation using the CLI example in :ref:`automations`.
+Run a worker for the handler's queue and invoke ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
+The execution user's permissions and the output sensors' asset scope are checked again when queueing and computing a run.

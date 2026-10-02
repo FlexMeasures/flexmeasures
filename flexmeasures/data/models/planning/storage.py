@@ -1924,6 +1924,15 @@ class MetaStorageScheduler(Scheduler):
                 "soc_in_mwh", self.flex_model.get("soc_at_start")
             )
 
+    def resolve_flex_config(self) -> dict:
+        """A storage scheduler also reads flex config from the asset tree, so merge that in before recording it.
+
+        Without this, the data source would describe only what the trigger message said,
+        which for a minimal trigger message is next to nothing.
+        """
+        self.collect_flex_config()
+        return super().resolve_flex_config()
+
     def deserialize_flex_config(self):
         """
         Deserialize storage flex model and the flex context against schemas.
@@ -2346,6 +2355,10 @@ class MetaStorageScheduler(Scheduler):
             )
 
         beliefs_df = beliefs.reset_index()
+        if isinstance(state_of_charge_sensor, SensorReference):
+            beliefs_df["event_value"] = state_of_charge_sensor.apply_bounds(
+                beliefs_df["event_value"].to_numpy()
+            )
         beliefs_df["time_distance"] = (
             beliefs_df["event_start"] - pd.Timestamp(self.start)
         ).abs()

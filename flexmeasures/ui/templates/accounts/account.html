@@ -305,9 +305,18 @@
                   <tr>
                     <td>Plan</td>
                     <td>
-                      {% if account.plan %} {{ account.plan.name }}{% if
-                      account.plan.legacy %} (legacy){% endif %} {% else %} No
-                      plan (server defaults apply) {% endif %}
+                      <span
+                        rel="tooltip"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="right"
+                        data-bs-html="true"
+                        tabindex="0"
+                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}<br>Trigger rate-limit scope: {{ effective_rate_limit_key }}"
+                      >
+                        {% if account.plan %}{{ account.plan.name }}{% if
+                        account.plan.legacy %} (legacy){% endif %}{% else %}No
+                        plan (server defaults apply){% endif %}
+                      </span>
                     </td>
                   </tr>
                   <tr>
@@ -412,15 +421,28 @@
             </a>
         {% endif %}
         </h3>
-        <div class="form-check form-check-inline">
-          <label class="form-check-label">
-            <input
-              id="includePublicAssetsCheckbox"
-              name="include_public_assets"
-              type="checkbox"
-            />
-            Include public assets
-          </label>
+        <div class="d-flex flex-wrap">
+          <div class="form-check form-check-inline">
+            <label class="form-check-label">
+              <input
+                id="topLevelAssetsOnlyCheckbox"
+                name="top_level_assets_only"
+                type="checkbox"
+                checked
+              />
+              Top-level only
+            </label>
+          </div>
+          <div class="form-check form-check-inline">
+            <label class="form-check-label">
+              <input
+                id="includePublicAssetsCheckbox"
+                name="include_public_assets"
+                type="checkbox"
+              />
+              Include public assets
+            </label>
+          </div>
         </div>
 
         <div class="table-responsive">
@@ -718,6 +740,7 @@ $(document).ready(function () {
 
   $(document).ready(function () {
     let includePublicAssets = false;
+    let topLevelAssetsOnly = $("#topLevelAssetsOnlyCheckbox").is(":checked");
     const assetsTableTitle = $("#assetsTableTitle");
     const assetsTable = $("#assetTable").dataTable({
       order: [[1, "asc"]],
@@ -745,6 +768,11 @@ $(document).ready(function () {
         }`;
         
         url += "&fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
+
+        if (topLevelAssetsOnly) {
+          // depth=0 keeps the descendants of top-level assets out of the list
+          url += "&depth=0";
+        }
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
@@ -785,6 +813,12 @@ $(document).ready(function () {
       },
     });
     
+    // Event listener for the checkbox to toggle the topLevelAssetsOnly state
+    $("#topLevelAssetsOnlyCheckbox").change(function () {
+      topLevelAssetsOnly = this.checked;
+      assetsTable.api().ajax.reload();
+    });
+
     // Event listener for the checkbox to toggle includePublicAssets state
     $("#includePublicAssetsCheckbox").change(function () {
       includePublicAssets = this.checked;
