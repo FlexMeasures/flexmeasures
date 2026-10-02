@@ -1685,7 +1685,7 @@ def test_get_jobs_leaves_out_child_assets_the_user_may_not_read(
     job_ids = {}
     for child in (own_child, foreign_child):
         job = app.queues["scheduling"].enqueue(sum, [1, 2])
-        app.job_cache.add(
+        app.job_map.add(
             child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
         )
         job_ids[child.id] = job.id
