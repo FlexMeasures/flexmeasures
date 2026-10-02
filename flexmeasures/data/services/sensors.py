@@ -839,10 +839,16 @@ def _can_read_automation(automation: Automation | None) -> bool:
     return True
 
 
-def _collect_asset_jobs(asset: Asset) -> list[tuple]:
-    """List the cached jobs of one asset and of its own sensors.
+def _collect_asset_jobs(
+    asset: Asset, lookup: Callable[[int, str, str], list]
+) -> list[tuple]:
+    """List the indexed jobs of one asset and of its own sensors.
 
     Each tuple is (queue, entity type, entity id, entity name, jobs), and the asset the jobs happened on is the one passed in.
+
+    :param asset:   Asset to list the jobs for.
+    :param lookup:  JobCache method that looks up the jobs of one asset or sensor, taking its ID, the queue and the entity type,
+                    i.e. get for the full jobs, or get_enqueued_at for only their IDs and enqueue times.
     """
     jobs = list()
 
@@ -853,7 +859,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
             "asset",
             asset.id,
             asset.name,
-            current_app.job_cache.get_snapshot(asset.id, "scheduling", "asset"),
+            lookup(asset.id, "scheduling", "asset"),
         )
     )
 
@@ -865,7 +871,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
                     "sensor",
                     sensor.id,
                     sensor.name,
-                    current_app.job_cache.get_snapshot(sensor.id, queue, "sensor"),
+                    lookup(sensor.id, queue, "sensor"),
                 )
             )
 
@@ -907,31 +913,43 @@ def build_asset_jobs_data(
 
     assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
 
+    # A page only needs every job's enqueue time for sorting, and the full jobs on that page.
+    job_cache = current_app.job_cache
+    lookup = job_cache.get if page is None else job_cache.get_enqueued_at
+
     jobs = list()
     for asset_to_report_on in assets:
         # Pair each entry with the asset it came from, so that every job can name the asset it happened on.
         jobs.extend(
             (asset_to_report_on, entry)
-            for entry in _collect_asset_jobs(asset_to_report_on)
+            for entry in _collect_asset_jobs(asset_to_report_on, lookup)
         )
 
     if page is not None:
-        # Sort before building metadata, which is expensive for large job histories.
+        # Sort before fetching the full jobs and building their metadata, which is expensive for large job histories.
         flattened_jobs = [
-            (job_asset, queue, asset_or_sensor_type, entity_id, entity_name, job)
+            (
+                job_asset,
+                queue,
+                asset_or_sensor_type,
+                entity_id,
+                entity_name,
+                job_id,
+                enqueued_at,
+            )
             for job_asset, (
                 queue,
                 asset_or_sensor_type,
                 entity_id,
                 entity_name,
-                cached_jobs,
+                enqueued_ats,
             ) in jobs
-            for job in cached_jobs
+            for job_id, enqueued_at in enqueued_ats
         ]
         flattened_jobs.sort(
             key=lambda item: (
-                item[5].enqueued_at.timestamp() if item[5].enqueued_at else 0,
-                item[5].id,
+                item[6].timestamp() if item[6] else 0,
+                item[5],
             ),
             reverse=True,
         )
@@ -942,11 +960,21 @@ def build_asset_jobs_data(
             flattened_jobs.reverse()
         total_jobs = len(flattened_jobs)
         start = (page - 1) * per_page
+        page_of_jobs = flattened_jobs[start : start + per_page]
+        fetched_jobs = job_cache.fetch_jobs([item[5] for item in page_of_jobs])
         jobs = [
             (job_asset, (queue, asset_or_sensor_type, entity_id, entity_name, [job]))
-            for job_asset, queue, asset_or_sensor_type, entity_id, entity_name, job in flattened_jobs[
-                start : start + per_page
-            ]
+            for (
+                job_asset,
+                queue,
+                asset_or_sensor_type,
+                entity_id,
+                entity_name,
+                _,
+                _,
+            ), job in zip(page_of_jobs, fetched_jobs)
+            # Skip a job that expired between sorting and fetching.
+            if job is not None
         ]
 
     jobs_data = list()

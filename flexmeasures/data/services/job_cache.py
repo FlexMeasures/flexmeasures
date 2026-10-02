@@ -1,16 +1,16 @@
 """
-Index RQ jobs by asset or sensor and cache fetched job lists.
+Index RQ jobs by asset or sensor, and look them up again.
 """
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from time import monotonic
+from datetime import datetime
 
 import redis
 
 from redis.exceptions import ConnectionError
 from rq.job import Job
+from rq.utils import str_to_date
 
 
 class NoRedisConfigured(Exception):
@@ -21,39 +21,24 @@ class NoRedisConfigured(Exception):
 class JobCache:
     """
     This class is used for storing jobs and retrieving them from redis cache.
-    This happens in two ways: asset/sensor <> job mapping, and actual job lists.
-    Both are heavily used in the status page, but could be used by other places.
 
-    1. asset/sensor <> job mapping
-
-    JobCache creates a lookup layer in Redis, by which each job can be found by its assorted asset or sensor,
-    for as long as the job itself lives (the job itself is not in this layer). Places that create jobs use JobCache so that the status page
-    can make us of it later.
+    JobCache creates a lookup layer in Redis, by which each job can be found by its associated asset or sensor,
+    for as long as the job itself lives (the job itself is not in this layer).
+    Places that create jobs use JobCache, so that the status page can make use of it later.
     The Redis index key includes asset or sensor ID, queue, and entity type:
         - forecasting:sensor:1 (forecasting jobs can be stored by sensor only)
         - scheduling:sensor:2
         - scheduling:asset:3
 
-    2. actual job lists
-
-    The status page (and the /asset/ID/jobs endpoint it uses) is paginated.
-    We also want to lower the amount of Redis work when looking up jobs.
-    So we store lists of actual job objects for a minute, to ease browsing the pages.
-
-    In particular:
-    - get() reads the current jobs from Redis and removes IDs whose jobs expired.
-    - get_snapshot() reuses fetched job lists in process for one minute.
-    paging does not fetch the same jobs repeatedly.
+    Jobs can be looked up in two ways:
+    - get() fetches the full jobs, for listing all of them.
+    - get_enqueued_at() reads only when each job was enqueued, which is all that sorting needs,
+      so that a paginated listing can sort every job and then fetch_jobs() only the ones on the requested page.
+    Both remove IDs whose jobs expired from the Redis index.
     """
-
-    SNAPSHOT_TTL_SECONDS = 60
-    SNAPSHOT_MAX_ENTRIES = 2048
 
     def __init__(self, connection: redis.Redis):
         self.connection = connection
-        self._job_list_snapshots: OrderedDict[str, tuple[float, list[Job]]] = (
-            OrderedDict()
-        )
 
     def _redis_index_key(
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
@@ -78,44 +63,22 @@ class JobCache:
             asset_or_sensor_id, queue, asset_or_sensor_type
         )
         self.connection.sadd(index_key, job_id)
-        # The Redis index changed, so this worker's fetched list is stale.
-        self._job_list_snapshots.pop(index_key, None)
+
+    def _get_job_ids(self, index_key: str) -> list[str]:
+        return [
+            job_id.decode("utf-8") for job_id in self.connection.smembers(index_key)
+        ]
 
     def get(
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
     ) -> list[Job]:
-        """Fetch current jobs from the Redis ID index."""
-        return self._get_jobs(asset_or_sensor_id, queue, asset_or_sensor_type, False)
-
-    def get_snapshot(
-        self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
-    ) -> list[Job]:
-        """Reuse a short-lived in-process job list snapshot."""
-        return self._get_jobs(asset_or_sensor_id, queue, asset_or_sensor_type, True)
-
-    def _get_jobs(
-        self,
-        asset_or_sensor_id: int,
-        queue: str,
-        asset_or_sensor_type: str,
-        use_snapshot: bool,
-    ) -> list[Job]:
+        """Fetch the current jobs from the Redis ID index."""
+        self._check_redis_connection()
         index_key = self._redis_index_key(
             asset_or_sensor_id, queue, asset_or_sensor_type
         )
-        if use_snapshot:
-            cached = self._job_list_snapshots.get(index_key)
-            if cached is not None and cached[0] > monotonic():
-                # Keep recently used entries when the cache reaches its size limit.
-                self._job_list_snapshots.move_to_end(index_key)
-                return cached[1]
-
-        self._check_redis_connection()
-
         job_ids_to_remove, jobs = list(), list()
-        job_ids = [
-            job_id.decode("utf-8") for job_id in self.connection.smembers(index_key)
-        ]
+        job_ids = self._get_job_ids(index_key)
         for job_id, job in zip(
             job_ids, Job.fetch_many(job_ids, connection=self.connection)
         ):
@@ -126,12 +89,38 @@ class JobCache:
             jobs.append(job)
         if job_ids_to_remove:
             self.connection.srem(index_key, *job_ids_to_remove)
-        if use_snapshot:
-            self._job_list_snapshots[index_key] = (
-                monotonic() + self.SNAPSHOT_TTL_SECONDS,
-                jobs,
-            )
-            self._job_list_snapshots.move_to_end(index_key)
-            if len(self._job_list_snapshots) > self.SNAPSHOT_MAX_ENTRIES:
-                self._job_list_snapshots.popitem(last=False)
         return jobs
+
+    def get_enqueued_at(
+        self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
+    ) -> list[tuple[str, datetime | None]]:
+        """List the current job IDs from the Redis ID index, each with the time its job was enqueued.
+
+        Only these fields are read, rather than the full jobs, so that all jobs can be sorted cheaply.
+        A job that was created but not enqueued yet (e.g. one waiting on another job) comes with None.
+        """
+        self._check_redis_connection()
+        index_key = self._redis_index_key(
+            asset_or_sensor_id, queue, asset_or_sensor_type
+        )
+        job_ids = self._get_job_ids(index_key)
+        pipeline = self.connection.pipeline()
+        for job_id in job_ids:
+            pipeline.hmget(Job.key_for(job_id), "created_at", "enqueued_at")
+        job_ids_to_remove, enqueued_ats = list(), list()
+        for job_id, (created_at, enqueued_at) in zip(job_ids, pipeline.execute()):
+            # Every RQ job records when it was created, so both fields missing means the job has expired.
+            if created_at is None and enqueued_at is None:
+                job_ids_to_remove.append(job_id)
+                continue
+            enqueued_ats.append(
+                (job_id, str_to_date(enqueued_at) if enqueued_at else None)
+            )
+        if job_ids_to_remove:
+            self.connection.srem(index_key, *job_ids_to_remove)
+        return enqueued_ats
+
+    def fetch_jobs(self, job_ids: list[str]) -> list[Job | None]:
+        """Fetch the given jobs, in order, with None for each job that has expired meanwhile."""
+        self._check_redis_connection()
+        return Job.fetch_many(job_ids, connection=self.connection)
