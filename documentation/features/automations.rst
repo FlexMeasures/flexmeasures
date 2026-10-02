@@ -15,6 +15,15 @@ Timing parameters are resolved on each run — for instance, the forecast or sch
 Creating an automation
 ----------------------
 
+In the UI, the *New automation* button on the asset's *Automations* page opens a form for a new automation on that asset.
+It asks for the same things as the CLI below: a name, the type, the recurrence and its timezone, the data generator and its configuration, and the task's parameters.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_new.png
+    :align: center
+..    :scale: 40%
+
+|
+
 Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
 
 .. code-block:: bash
@@ -272,7 +281,14 @@ This is useful to try out a new automation, to re-run one after fixing what made
 
     flexmeasures jobs run-automation --automation 4
 
-The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as *Run now* in the automation's *Actions* menu on the asset's *Automations* page.
+That menu also lets you edit, deactivate (or activate) and delete the automation.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_actions.png
+    :align: center
+..    :scale: 40%
+
+|
 
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
@@ -289,6 +305,12 @@ Turn *Include automations of sub-assets* off to see only the automations defined
 The API endpoint does the same, and takes ``include-child-assets=false`` to narrow the listing.
 Either way, only the assets you may read are included.
 
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_automations.png
+    :align: center
+..    :scale: 40%
+
+|
+
 The page shows how far off each automation's next scheduled run is, such as "in 6 minutes" or "tomorrow" (excluding any pending catch-up run).
 Hovering it gives the exact time, read on the automation's own timezone, together with the recurrence it follows.
 Created At reads on that same clock.
@@ -297,6 +319,12 @@ The page brings itself up to date once a minute, so runs and job counts appear w
 An automation's *Info* panel shows the sensors it reads from and writes to, linking to each sensor's page, and the data source it records under, together with the configuration that data source was created with.
 It also summarizes the automation's recent runs and their outcomes (see :ref:`automation_runs`).
 Conversely, a sensor's page lists the automations that write data to it.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_info.png
+    :align: center
+..    :scale: 40%
+
+|
 
 .. _automation_cursor:
 
