@@ -301,3 +301,118 @@ def setup_dummy_data(db, app, generic_report):
     db.session.commit()
 
     yield sensor1, sensor2, sensor3, sensor4, report_sensor, daily_report_sensor
+
+
+@pytest.fixture(scope="module")
+def setup_pv_group(db, app):
+    """Build the asset tree of a PV group, exactly as the flex-config describes it for scheduling.
+
+    Farm (site)
+    └── PV (the group, recording its aggregate production on "PV production", MW, 15 min)
+        ├── Roof PV      "power", kW, 15 min
+        ├── Carport PV   "power", MW, 1 hour
+        └── Weather      "temperature", °C, 1 hour  (in the subtree, but not a member of the group)
+
+    No topology is written for the reporter: the members declare themselves inflexible producers of the group,
+    and the group's own entry says where its aggregate belongs.
+    """
+    site_type = GenericAssetType(name="PvGroupSite")
+    solar_type = GenericAssetType(name="PvGroupSolar")
+    weather_type = GenericAssetType(name="PvGroupWeather")
+    db.session.add_all([site_type, solar_type, weather_type])
+
+    farm = GenericAsset(name="Farm", generic_asset_type=site_type)
+    db.session.add(farm)
+    db.session.flush()
+
+    pv_group = GenericAsset(name="PV", generic_asset_type=solar_type, parent_asset=farm)
+    db.session.add(pv_group)
+    db.session.flush()
+
+    roof = GenericAsset(
+        name="Roof PV", generic_asset_type=solar_type, parent_asset=pv_group
+    )
+    carport = GenericAsset(
+        name="Carport PV", generic_asset_type=solar_type, parent_asset=pv_group
+    )
+    weather = GenericAsset(
+        name="Weather", generic_asset_type=weather_type, parent_asset=pv_group
+    )
+    db.session.add_all([roof, carport, weather])
+    db.session.flush()
+
+    aggregate_sensor = Sensor(
+        "PV production",
+        generic_asset=pv_group,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    roof_power = Sensor(
+        "power",
+        generic_asset=roof,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+        timezone="UTC",
+    )
+    carport_power = Sensor(
+        "power",
+        generic_asset=carport,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        timezone="UTC",
+    )
+    temperature = Sensor(
+        "temperature",
+        generic_asset=weather,
+        event_resolution=timedelta(hours=1),
+        unit="°C",
+        timezone="UTC",
+    )
+    db.session.add_all([aggregate_sensor, roof_power, carport_power, temperature])
+    db.session.flush()
+
+    # the flex-config: members name their group, the group names where its aggregate goes
+    roof.flex_model = {
+        "inflexible-production": {"sensor": roof_power.id},
+        "group": {"asset": pv_group.id},
+    }
+    carport.flex_model = {
+        "inflexible-production": {"sensor": carport_power.id},
+        "group": {"asset": pv_group.id},
+    }
+    weather.flex_model = {}
+    pv_group.flex_model = {"production": {"sensor": aggregate_sensor.id}}
+
+    measured = DataSource("pv measurements", type="A")
+    forecaster = DataSource("pv forecaster", type="forecaster")
+    db.session.add_all([measured, forecaster])
+    db.session.flush()
+
+    start = datetime(2026, 6, 1, tzinfo=utc)
+
+    def save(sensor, value, source, horizon=timedelta(0)):
+        db.session.add_all(
+            [
+                TimedBelief(
+                    event_start=start + event * sensor.event_resolution,
+                    belief_horizon=horizon,
+                    event_value=value,
+                    sensor=sensor,
+                    source=source,
+                )
+                for event in range(int(timedelta(days=1) / sensor.event_resolution))
+            ]
+        )
+
+    save(roof_power, 400, measured)  # 400 kW, quarter-hourly
+    save(carport_power, 0.15, measured)  # 0.15 MW, hourly
+    save(temperature, 18, measured)  # 18 °C, hourly
+    # a forecast on the roof sensor, which a realized report must leave out
+    save(roof_power, 999, forecaster, horizon=timedelta(hours=12))
+    # a schedule already sitting on the aggregate sensor, which must not be read back in
+    save(aggregate_sensor, 42, measured)
+
+    db.session.commit()
+
+    yield farm, pv_group, aggregate_sensor, roof_power, carport_power, temperature, roof, carport
