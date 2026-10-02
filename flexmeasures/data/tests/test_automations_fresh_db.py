@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import isodate
 import pytest
-from rq.job import Job
+from rq.job import Job, JobStatus
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
@@ -511,6 +512,71 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
     assert get_automation_job_stats(schedule_automation) == {"queued": 2}
+
+
+def test_automation_stats_take_a_fixed_number_of_redis_round_trips(
+    fresh_db, app, automation_with_generator, clean_scheduling_redis
+):
+    """Counting an automation's jobs costs the same few Redis round trips, however many sensors and jobs it covers.
+
+    The automations page asks for these counts every minute, so a round trip per sensor or per job adds up.
+    Commands sent in a pipeline share one round trip, so only direct commands and pipelines are counted.
+    """
+    forecast_automation, _ = automation_with_generator
+    root = forecast_automation.asset
+    child = GenericAsset(
+        name="automation child",
+        generic_asset_type=root.generic_asset_type,
+        parent_asset=root,
+    )
+    child_sensors = [
+        Sensor(
+            name=f"child power {i}",
+            generic_asset=child,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        for i in range(3)
+    ]
+    schedule_automation = build_schedule_automation(
+        root,
+        name="schedules over many sensors",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT1H"},
+    )
+    fresh_db.session.add_all([*child_sensors, schedule_automation])
+    fresh_db.session.flush()
+
+    queue = app.queues["scheduling"]
+    statuses = [JobStatus.FINISHED] * 4 + [JobStatus.FAILED] * 2 + [None] * 3
+    for i, status in enumerate(statuses):
+        job = Job.create(
+            "flexmeasures.utils.time_utils.server_now", connection=queue.connection
+        )
+        job.meta["trigger"] = {
+            "origin": "automation",
+            "automation_id": schedule_automation.id,
+        }
+        job.save_meta()
+        queue.enqueue_job(job)
+        if status is not None:
+            job.set_status(status)
+        sensor = child_sensors[i % len(child_sensors)]
+        app.job_cache.add(sensor.id, job.id, "scheduling", "sensor")
+
+    connection = app.redis_connection
+    with (
+        patch.object(
+            connection, "execute_command", wraps=connection.execute_command
+        ) as direct_commands,
+        patch.object(connection, "pipeline", wraps=connection.pipeline) as pipelines,
+    ):
+        stats = get_automation_job_stats(schedule_automation)
+
+    assert stats == {"finished": 4, "failed": 2, "queued": 3}
+    # One ping, then one pipeline for the job IDs of all sensors and one for all jobs.
+    assert direct_commands.call_count == 1
+    assert pipelines.call_count == 2
 
 
 def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generator):
