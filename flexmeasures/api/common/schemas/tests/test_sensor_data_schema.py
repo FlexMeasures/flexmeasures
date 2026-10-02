@@ -623,18 +623,24 @@ def test_build_asset_jobs_data_includes_child_assets(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_build_asset_jobs_data_uses_cached_status_after_redis_flush(
+def test_build_asset_jobs_data_reports_current_status(
     db, app, add_battery_assets, clean_redis, requesting_user
 ):
-    """A cached job remains readable until its one-minute cache entry expires."""
+    """A job's status change shows on the very next listing, paginated or not."""
     asset = add_battery_assets["Test battery"]
     job = app.queues["scheduling"].enqueue(sum, [1, 2])
     app.job_cache.add(asset.id, job.id, "scheduling", "asset")
 
-    first = build_asset_jobs_data(asset)
-    assert first[0]["status"] == "queued"
+    assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.QUEUED
+    page, total_jobs = build_asset_jobs_data(asset, page=1)
+    assert page[0]["status"] == JobStatus.QUEUED
+    assert total_jobs == 1
 
-    app.job_cache.connection.flushdb()
-    second = build_asset_jobs_data(asset)
-    assert second[0]["job_id"] == job.id
-    assert second[0]["status"] == first[0]["status"]
+    job.set_status(JobStatus.FAILED)
+
+    assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.FAILED
+    page, _ = build_asset_jobs_data(asset, page=1)
+    assert page[0]["job_id"] == job.id
+    assert page[0]["status"] == JobStatus.FAILED
+
+    app.queues["scheduling"].empty()

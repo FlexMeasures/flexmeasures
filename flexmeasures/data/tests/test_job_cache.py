@@ -58,6 +58,38 @@ def test_cache_on_create_scheduling_jobs(db, app, add_battery_assets, setup_test
     assert app.job_cache.get(battery.id, "scheduling", "sensor") == [job]
 
 
+def test_get_enqueued_at_and_fetch_jobs(app, clean_redis):
+    """Paging reads only enqueue times, prunes expired jobs, and then fetches just the jobs it needs."""
+    queue = app.queues["scheduling"]
+    enqueued_job = queue.enqueue(sum, [1, 2])
+    waiting_job = queue.enqueue(sum, [3, 4], depends_on=enqueued_job)
+    for job_id in (enqueued_job.id, waiting_job.id, "expired-job"):
+        app.job_cache.add(1, job_id, queue="scheduling", asset_or_sensor_type="asset")
+
+    enqueued_ats = dict(app.job_cache.get_enqueued_at(1, "scheduling", "asset"))
+
+    # A job waiting on another one was created but not enqueued yet, so it is listed without an enqueue time.
+    assert enqueued_ats == {
+        enqueued_job.id: enqueued_job.enqueued_at,
+        waiting_job.id: None,
+    }
+    assert enqueued_ats[enqueued_job.id].tzinfo is not None
+    # The job without a hash in Redis is removed from the index.
+    assert app.job_cache.connection.smembers("scheduling:asset:1") == {
+        enqueued_job.id.encode(),
+        waiting_job.id.encode(),
+    }
+
+    fetched = app.job_cache.fetch_jobs([waiting_job.id, "expired-job", enqueued_job.id])
+    assert [job.id if job else None for job in fetched] == [
+        waiting_job.id,
+        None,
+        enqueued_job.id,
+    ]
+
+    queue.empty()
+
+
 class TestJobCache(unittest.TestCase):
     def setUp(self):
         self.connection = MagicMock(spec_set=["sadd", "smembers", "srem", "ping"])
@@ -117,40 +149,3 @@ class TestJobCache(unittest.TestCase):
                 forecasting_job
             ]
             assert self.connection.srem.call_count == 0
-
-    def test_status_page_cache_expires_and_is_invalidated_by_new_jobs(self):
-        """Paging can reuse one Redis read, but a new job refreshes the cache."""
-        self.connection.smembers.return_value = [b"job_id"]
-        forecasting_job = MagicMock()
-        self.mock_redis_job.fetch_many.return_value = [forecasting_job]
-        with (
-            patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job),
-            patch("flexmeasures.data.services.job_cache.monotonic") as clock,
-        ):
-            clock.return_value = 100
-            assert self.job_cache.get_snapshot(
-                "sensor_id", "forecasting", "sensor"
-            ) == [forecasting_job]
-            clock.return_value = 110
-            assert self.job_cache.get_snapshot(
-                "sensor_id", "forecasting", "sensor"
-            ) == [forecasting_job]
-            assert self.mock_redis_job.fetch_many.call_count == 1
-
-            self.job_cache.add("sensor_id", "new_job", "forecasting", "sensor")
-            self.job_cache.get_snapshot("sensor_id", "forecasting", "sensor")
-            assert self.mock_redis_job.fetch_many.call_count == 2
-
-            clock.return_value = 110 + self.job_cache.SNAPSHOT_TTL_SECONDS + 1
-            self.job_cache.get_snapshot("sensor_id", "forecasting", "sensor")
-            assert self.mock_redis_job.fetch_many.call_count == 3
-
-    def test_get_reads_redis_even_with_job_list_snapshot(self):
-        """The normal read bypasses the in-process job list snapshot."""
-        self.connection.smembers.return_value = [b"job_id"]
-        self.mock_redis_job.fetch_many.return_value = [MagicMock()]
-        with patch("flexmeasures.data.services.job_cache.Job", new=self.mock_redis_job):
-            self.job_cache.get_snapshot("sensor_id", "forecasting", "sensor")
-            self.job_cache.get("sensor_id", "forecasting", "sensor")
-
-        assert self.mock_redis_job.fetch_many.call_count == 2
