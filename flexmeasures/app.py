@@ -132,7 +132,7 @@ def create(  # noqa C901
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )
     app.job_map = JobMap(app.redis_connection)
-    # Keep the old attribute for integrations that still register jobs through it.
+    # Keep the old attribute name, for plugins that still register jobs through it.
     app.job_cache = app.job_map
 
     # Some basic security measures

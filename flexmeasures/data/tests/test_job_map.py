@@ -61,7 +61,7 @@ def test_index_scheduling_jobs_on_creation(
 
 
 def test_legacy_app_job_cache_alias(app):
-    """External integrations can still register jobs through the old app attribute."""
+    """External plugins can still register jobs through the old app attribute."""
     assert app.job_cache is app.job_map
 
 

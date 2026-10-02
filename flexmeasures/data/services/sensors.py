@@ -913,8 +913,8 @@ def build_asset_jobs_data(
 
     assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
 
-    # A page only needs every job's enqueue time for sorting, and the full jobs on that page.
     job_map = current_app.job_map
+    # A page only needs every job's enqueue time for sorting, and the full jobs on that page.
     lookup = job_map.get if page is None else job_map.get_enqueued_at
 
     jobs = list()
