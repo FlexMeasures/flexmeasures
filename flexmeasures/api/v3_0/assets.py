@@ -2132,7 +2132,6 @@ class AssetAPI(FlaskView):
           description: |
             The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
-            Job lists are cached for up to one minute, so new jobs and status changes may take that long to appear.
 
             By default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.
             Pass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.
