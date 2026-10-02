@@ -18,23 +18,23 @@ class NoRedisConfigured(Exception):
         super().__init__(message)
 
 
-class JobCache:
+class JobMap:
     """
-    This class is used for storing jobs and retrieving them from redis cache.
+    Map assets or sensors and queues to RQ job IDs in Redis.
 
-    JobCache creates a lookup layer in Redis, by which each job can be found by its associated asset or sensor,
-    for as long as the job itself lives (the job itself is not in this layer).
-    Places that create jobs use JobCache, so that the status page can make use of it later.
-    The Redis index key includes asset or sensor ID, queue, and entity type:
+    Job creation code adds IDs to Redis sets. Listing code uses those IDs to
+    retrieve jobs from RQ, which stores the job records separately. An expired
+    job's ID remains in the map until a read removes it.
+
+    Each index key contains the queue, entity type, and entity ID:
         - forecasting:sensor:1 (forecasting jobs can be stored by sensor only)
         - scheduling:sensor:2
         - scheduling:asset:3
 
-    Jobs can be looked up in two ways:
-    - get() fetches the full jobs, for listing all of them.
-    - get_enqueued_at() reads only when each job was enqueued, which is all that sorting needs,
-      so that a paginated listing can sort every job and then fetch_jobs() only the ones on the requested page.
-    Both remove IDs whose jobs expired from the Redis index.
+    get() fetches all matching jobs. get_enqueued_at() reads only the fields
+    needed to check that each job exists and sort it by enqueue time. This lets
+    a paginated listing fetch full records only for the requested page with
+    fetch_jobs().
     """
 
     def __init__(self, connection: redis.Redis):

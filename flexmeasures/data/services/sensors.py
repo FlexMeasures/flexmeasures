@@ -847,8 +847,8 @@ def _collect_asset_jobs(
     Each tuple is (queue, entity type, entity id, entity name, jobs), and the asset the jobs happened on is the one passed in.
 
     :param asset:   Asset to list the jobs for.
-    :param lookup:  JobCache method that looks up the jobs of one asset or sensor, taking its ID, the queue and the entity type,
-                    i.e. get for the full jobs, or get_enqueued_at for only their IDs and enqueue times.
+    :param lookup:  JobMap method for looking up an asset's or sensor's jobs by ID, queue, and entity type.
+                    Use get for full jobs or get_enqueued_at for IDs and enqueue times.
     """
     jobs = list()
 
@@ -914,8 +914,8 @@ def build_asset_jobs_data(
     assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
 
     # A page only needs every job's enqueue time for sorting, and the full jobs on that page.
-    job_cache = current_app.job_cache
-    lookup = job_cache.get if page is None else job_cache.get_enqueued_at
+    job_map = current_app.job_map
+    lookup = job_map.get if page is None else job_map.get_enqueued_at
 
     jobs = list()
     for asset_to_report_on in assets:
@@ -961,7 +961,7 @@ def build_asset_jobs_data(
         total_jobs = len(flattened_jobs)
         start = (page - 1) * per_page
         page_of_jobs = flattened_jobs[start : start + per_page]
-        fetched_jobs = job_cache.fetch_jobs([item[5] for item in page_of_jobs])
+        fetched_jobs = job_map.fetch_jobs([item[5] for item in page_of_jobs])
         jobs = [
             (job_asset, (queue, asset_or_sensor_type, entity_id, entity_name, [job]))
             for (

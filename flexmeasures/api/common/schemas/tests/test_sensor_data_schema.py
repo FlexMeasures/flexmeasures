@@ -532,7 +532,7 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     reporting_job.meta["exception"] = "report failed"
     reporting_job.save_meta()
     reporting_job.set_status(JobStatus.FAILED)
-    app.job_cache.add(
+    app.job_map.add(
         battery.id,
         reporting_job.id,
         queue="reporting",
@@ -629,7 +629,7 @@ def test_build_asset_jobs_data_reports_current_status(
     """A job's status change shows on the very next listing, paginated or not."""
     asset = add_battery_assets["Test battery"]
     job = app.queues["scheduling"].enqueue(sum, [1, 2])
-    app.job_cache.add(asset.id, job.id, "scheduling", "asset")
+    app.job_map.add(asset.id, job.id, "scheduling", "asset")
 
     assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.QUEUED
     page, total_jobs = build_asset_jobs_data(asset, page=1)

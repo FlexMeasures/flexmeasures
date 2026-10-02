@@ -43,7 +43,7 @@ from flexmeasures.api.common.schemas.assets import (
     AssetPaginationSchema,
     PublicAssetAPISchema,
 )
-from flexmeasures.data.services.job_cache import NoRedisConfigured
+from flexmeasures.data.services.job_map import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation

@@ -215,7 +215,7 @@ class AutomationHandler:
             },
         )
         queue.enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             automation.asset_id,
             job_id=job.id,
             queue=self.queue,

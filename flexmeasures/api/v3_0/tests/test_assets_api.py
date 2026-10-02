@@ -2376,7 +2376,7 @@ def test_get_jobs_of_child_assets(
     parent = add_asset_with_children["parent"]
     child = add_asset_with_children["child_1"]
     child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
-    app.job_cache.add(
+    app.job_map.add(
         child.id,
         child_job.id,
         queue="scheduling",
@@ -2416,7 +2416,7 @@ def test_get_jobs_pagination(
     child = add_asset_with_children["child_1"]
     jobs = [app.queues["scheduling"].enqueue(sum, [n]) for n in range(4)]
     for job in jobs:
-        app.job_cache.add(
+        app.job_map.add(
             child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
         )
 
@@ -2479,7 +2479,7 @@ def test_get_jobs_pagination_sorts_across_pages(
             app.queues[queue].enqueue(sum, [number]) for number in range(2)
         ]
         for job in jobs_by_queue[queue]:
-            app.job_cache.add(sensor.id, job.id, queue, "sensor")
+            app.job_map.add(sensor.id, job.id, queue, "sensor")
 
     url = url_for("AssetAPI:get_jobs", id=asset.id)
     ascending_queues = client.get(
