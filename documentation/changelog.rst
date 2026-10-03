@@ -18,12 +18,10 @@ v1.1.0 | September XX, 2026
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
 
-.. warning:: This version's database upgrade merges identical data sources into the oldest one, as the database now refuses duplicate data sources.
-             Data sources used to be duplicated when identical scheduling requests arrived at the same moment, or when several workers computed their first schedules at once.
-             A merge moves over the beliefs, annotations and other references of each duplicate, and where both hold the same belief, keeps the oldest source's one.
-             Stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, are pointed at the source they were merged into, too.
-             Jobs waiting in Redis cannot be updated this way, and fail if they refer to a merged data source, so run ``flexmeasures jobs check-source-references`` *before* upgrading, to let the jobs it lists finish, or to cancel them.
-             The upgrade prints which data sources it merged, so users referring to one by ID (for instance in API calls) can switch to the ID it was merged into [see `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_]
+.. warning:: This version's database upgrade merges identical data sources, as the database now refuses duplicates. Of each group, the source that recorded most recently keeps its ID; ``flexmeasures db upgrade -x keep-source=<id>`` names another, for an ID something outside FlexMeasures refers to.
+             A merge moves over the beliefs, annotations and other references of each duplicate, and points stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, at the source they were merged into.
+             Jobs waiting in Redis cannot be updated this way and fail if they refer to a merged source, so run ``flexmeasures jobs check-source-references`` *before* upgrading, to let the jobs it lists finish, or to cancel them.
+             The upgrade prints what it merged, so anyone referring to a source by ID can switch to the one it was merged into [see `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_]
 
 New features
 -------------

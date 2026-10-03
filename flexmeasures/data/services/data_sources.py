@@ -142,16 +142,33 @@ def _is_id(value) -> bool:
 
 
 def find_duplicate_sources() -> dict[int, int]:
-    """Find data sources identical to an older one, as the unique index on data sources defines them.
+    """Find data sources identical to another, as the unique index on data sources defines them.
 
-    Such duplicates can only exist in a database that predates that index, whose migration merges each one into the oldest.
+    Such duplicates can only exist in a database that predates that index, whose migration merges each group into one source.
+    Which one that is has to be decided the same way here, because this is what tells a host, before they upgrade,
+    which of their waiting jobs name a source that is about to go: the source that recorded most recently keeps its ID.
+    Recency is the belief time rather than the event a belief is about, since a generator mostly records about the future.
+    A host naming a source with `-x keep-source=<id>` turns one group around, which this cannot know about.
 
-    :returns: the ID of each duplicate data source, mapped to the ID of the oldest data source identical to it
+    Kept in step with `SURVIVOR_RANKING` in migration 7c4e1a9d2b58, which cannot import from here.
+
+    :returns: the ID of each duplicate data source, mapped to the ID of the data source it will be merged into
     """
     duplicates = db.session.execute(text(f"""
+            WITH recorded AS (
+                SELECT ds.*,
+                       (SELECT max(tb.event_start - tb.belief_horizon)
+                          FROM timed_belief tb
+                         WHERE tb.source_id = ds.id) AS last_recorded
+                  FROM data_source ds
+            )
             SELECT duplicate, keep FROM (
-                SELECT id AS duplicate, min(id) OVER (PARTITION BY {', '.join(DATA_SOURCE_IDENTITY_EXPRESSIONS)}) AS keep
-                FROM data_source
+                SELECT id AS duplicate,
+                       first_value(id) OVER (
+                           PARTITION BY {', '.join(DATA_SOURCE_IDENTITY_EXPRESSIONS)}
+                           ORDER BY last_recorded DESC NULLS LAST, id ASC
+                       ) AS keep
+                FROM recorded
             ) AS grouped
             WHERE duplicate <> keep
             """)).all()

@@ -3,7 +3,7 @@
 The unique constraint on data_source treated NULL values as distinct,
 so it never refused a second source without a user or account (such as a scheduler) with the same name, model, version and attributes.
 Concurrent calls to get_or_create_source could thus each insert the same source (#2611).
-This migration merges each group of such duplicates into its oldest source,
+This migration merges each group of such duplicates into the one of them that recorded most recently,
 and replaces the constraint with a unique index on expressions that replace NULLs, so that NULLs count as equal, on any PostgreSQL version.
 The index now also includes the source type, which every lookup of a source already filters on,
 so that sources differing only in type are not merged.
@@ -55,7 +55,7 @@ IDENTITY_EXPRESSIONS = (
     "coalesce(attributes_hash, '\\x'::bytea)",
 )
 
-# References that moving to the oldest source can make collide with that source's own rows, so they get merged rather than just moved.
+# References that moving to the kept source can make collide with that source's own rows, so they get merged rather than just moved.
 MERGED_REFERENCES = {
     ("timed_belief", "source_id"),
     ("sensor_data_source", "source_id"),
