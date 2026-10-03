@@ -62,7 +62,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     )
     current_app.queues[queue].enqueue_job(job)
     for sensor_id in output_sensor_ids:
-        current_app.job_cache.add(
+        current_app.job_map.add(
             sensor_id,
             job_id=job.id,
             queue=queue,
@@ -100,6 +100,12 @@ def compute_and_save_report(
     This is the single place where report computation and persistence meet, shared by
     the synchronous CLI and the background worker. With persist=False (dry runs),
     results are computed but nothing is written.
+
+    Transaction ownership: this function owns its transaction. On success it commits
+    once after saving all results, so the CLI and the worker share atomic persistence;
+    on any save or commit failure it rolls back and re-raises. Unlike save_to_db,
+    which deliberately never commits, a report cannot be composed into a larger
+    transaction.
 
     :param reporter: the reporter computing the report.
     :param parameters: the reporter parameters to compute with.

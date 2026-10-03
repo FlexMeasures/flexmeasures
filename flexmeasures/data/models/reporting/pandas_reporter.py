@@ -88,6 +88,11 @@ class PandasReporter(Reporter):
             source = _input_search_parameters.pop(
                 "source", _input_search_parameters.pop("sources", None)
             )
+            # Dropping the source level only leaves a usable frame if each event has a single belief,
+            # so ask for that, unless this input decides for itself.
+            _input_search_parameters.setdefault(
+                "one_deterministic_belief_per_event", droplevels
+            )
 
             bdf = sensor.search_beliefs(
                 event_starts_after=event_starts_after,

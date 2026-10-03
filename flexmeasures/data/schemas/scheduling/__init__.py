@@ -45,7 +45,7 @@ from flexmeasures.data.schemas.times import (
     ResolutionField,
 )
 from flexmeasures.data.schemas.utils import FMValidationError
-from flexmeasures.utils.flexmeasures_inflection import p
+from flexmeasures.utils.flexmeasures_inflection import indefinite_article
 from flexmeasures.utils.unit_utils import (
     ur,
     units_are_convertible,
@@ -1588,13 +1588,13 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
         if isinstance(data[field], ur.Quantity):
             if not unit_validator(str(data[field].units)):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {indefinite_article(field_type)} {field_type} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
         elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
-                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
+                    f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {indefinite_article(field_type)} {field_type} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
 

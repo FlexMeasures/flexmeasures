@@ -59,6 +59,23 @@ class MarshmallowClickMixin:
             raise click.exceptions.BadParameter(_format_validation_error(e)) from e
 
 
+#: The largest id an integer column can hold, which all our id columns are.
+POSTGRES_INTEGER_MAX = 2**31 - 1
+
+
+def get_by_id(model_class, id: int):
+    """Look up a model by its id, or return None if there is none, including for an id that no integer column can hold.
+
+    Unlike psycopg2, which wrote such an id into the query, where it simply matched nothing,
+    psycopg 3 sends it as a bigint, which the database refuses to cast to the integer id column.
+    """
+    from flexmeasures.data import db
+
+    if not -POSTGRES_INTEGER_MAX - 1 <= id <= POSTGRES_INTEGER_MAX:
+        return None
+    return db.session.get(model_class, id)
+
+
 class FMValidationError(ma.exceptions.ValidationError):
     """
     Custom validation error class.

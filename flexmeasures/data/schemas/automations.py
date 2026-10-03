@@ -5,12 +5,22 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from croniter.croniter import CroniterBadDateError
-from marshmallow import fields, validate, validates, Schema, ValidationError
+from marshmallow import (
+    fields,
+    validate,
+    validates,
+    validates_schema,
+    Schema,
+    ValidationError,
+)
 from pytz import all_timezones_set
 
-from flexmeasures.data import ma, db
+from flexmeasures.data import ma
+from flexmeasures.data.automations import validate_automation_type
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.utils import (
+    get_by_id,
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
@@ -57,7 +67,7 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
     def _deserialize(self, value, attr, obj, **kwargs) -> Automation:
         """Turn an automation id into an Automation."""
         value = super()._deserialize(value, attr, obj, **kwargs)
-        automation = db.session.get(Automation, value)
+        automation = get_by_id(Automation, value)
         if automation is None:
             raise FMValidationError(f"No automation found with id {value}.")
         return automation
@@ -77,7 +87,10 @@ class AutomationCreationSchema(Schema):
     automation_type = fields.Str(
         data_key="type",
         load_default="forecasting",
-        validate=validate.OneOf(Automation.SUPPORTED_TYPES),
+        validate=validate_automation_type,
+        metadata={
+            "description": "Registered automation type: forecasting, scheduling, reporting, or a type provided by an installed plugin."
+        },
     )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
     cronstr = CronField(required=True, data_key="cron")
@@ -97,7 +110,7 @@ class AutomationCreationSchema(Schema):
         metadata={
             "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`."
             " A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter),"
-            " and a schedule automation's generator follows from the asset and the flex config.",
+            " a plugin type declares its generator, and a schedule automation's generator follows from the asset and the flex config.",
             "example": "TrainPredictPipeline",
         },
     )
@@ -105,10 +118,46 @@ class AutomationCreationSchema(Schema):
         keys=fields.Str(),
         load_default=dict,
         metadata={
-            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by a forecast or report automation.",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
             "example": {},
         },
     )
+    source = DataSourceIdField(
+        required=False,
+        # Leaving the source out and sending a null one both mean that the automation sets up its own data generator,
+        # which is what a client sends when it fills in the rest of the form and leaves the source field empty.
+        allow_none=True,
+        metadata={
+            "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
+            "example": 6,
+        },
+    )
+
+    @validates_schema
+    def validate_generator_is_named_once(self, data: dict, **kwargs):
+        """A data source already determines the data generator and its config, so the two ways of naming one are exclusive."""
+        if data.get("source") is None:
+            return
+        named_alongside = [
+            data_key
+            for data_key, value in (
+                ("data-generator", data.get("generator_class")),
+                ("config", data.get("config")),
+            )
+            if value
+        ]
+        if named_alongside:
+            raise ValidationError(
+                f"{' and '.join(named_alongside)} cannot be combined with source:"
+                " a data source already stores the data generator and the configuration it runs under.",
+                field_name="source",
+            )
+        if data.get("automation_type") == "scheduling":
+            raise ValidationError(
+                "A schedule automation cannot name a source:"
+                " its data source follows from the asset and the flex config, and is resolved afresh on every run.",
+                field_name="source",
+            )
 
 
 class AutomationUpdateSchema(Schema):
@@ -163,6 +212,14 @@ class AutomationSchema(ma.SQLAlchemySchema):
             "example": "2026-08-05T08:00:00+02:00",
         },
     )
+    schedule_revision = ma.auto_field(
+        data_key="schedule-revision",
+        dump_only=True,
+        metadata={
+            "description": "Execution-affecting schedule/configuration revision used to distinguish durable runs around automation edits and reactivation.",
+            "example": 2,
+        },
+    )
     active = ma.auto_field()
 
     @staticmethod
@@ -192,7 +249,4 @@ class AutomationSchema(ma.SQLAlchemySchema):
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):
-        if type not in Automation.SUPPORTED_TYPES:
-            raise ValidationError(
-                f"Automation type '{type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
-            )
+        validate_automation_type(type)

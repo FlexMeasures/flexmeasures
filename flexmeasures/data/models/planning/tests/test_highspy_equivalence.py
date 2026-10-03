@@ -370,6 +370,35 @@ def scenario_chp_coupling_groups():
     )
 
 
+def scenario_chp_coupling_groups_next_to_operation_mode():
+    """A coupled CHP that needs a normalised flow above 1, next to another device with an operation mode.
+
+    The small coefficients let the gas input reach its full flow only at a normalised flow of 10.
+    The operation mode (power band) on the fourth device adds binary band columns to the model,
+    which must not spill over onto the coupling group's normalised flow (#2605).
+    """
+    index = make_index()
+    prices = make_prices(index)
+    banded_device = make_flow_device(0, 1)
+    banded_device["derivative equals"] = 0.3
+    return dict(
+        device_constraints=[
+            make_flow_device(0, 1),  # gas in
+            make_flow_device(-1, 0),  # heat out
+            make_flow_device(-1, 0),  # power out
+            banded_device,
+        ],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            make_energy_commitment(index, prices, devices=2),
+            make_energy_commitment(index, -prices / 4, devices=0),
+        ],
+        initial_stock=[0.0, 0.0, 0.0, 0.0],
+        coupling_groups={"chp": [(0, 0.1), (1, -0.05), (2, -0.03)]},
+        device_power_bands=[None, None, None, [(0.2, 0.5)]],
+    )
+
+
 def scenario_internal_commodity_balance():
     """A heat node with a producer and a fixed consumer, and no grid connection.
 
@@ -395,6 +424,39 @@ def scenario_internal_commodity_balance():
     )
 
 
+def scenario_tied_commitments():
+    """Two commitments that constrain the solver identically, one of them not convex on its own.
+
+    One of them carries the pair on their summed prices, so the pair needs no sign variables and the problem stays a linear program.
+    Both backends have to share the merged sub-commitment's cost out by each member's own prices, so that both report the same cost per commitment,
+    which is why this belongs in the equivalence set rather than in one backend's own tests.
+    """
+    index = make_index()
+    device_constraints = initialize_df(COLUMNS, START, END, RESOLUTION)
+    device_constraints["derivative max"] = 0.5
+    device_constraints["derivative min"] = -0.5
+    return dict(
+        device_constraints=[device_constraints],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            FlowCommitment(
+                name="rewarded downwards",
+                quantity=0,
+                upwards_deviation_price=0,
+                downwards_deviation_price=50,
+                index=index,
+            ),
+            FlowCommitment(
+                name="expensive upwards",
+                quantity=0,
+                upwards_deviation_price=100,
+                downwards_deviation_price=0,
+                index=index,
+            ),
+        ],
+    )
+
+
 @pytest.mark.parametrize(
     "make_scenario",
     [
@@ -406,7 +468,9 @@ def scenario_internal_commodity_balance():
         scenario_ems_level_flow_commitment,
         scenario_ems_level_commodity_commitment,
         scenario_chp_coupling_groups,
+        scenario_chp_coupling_groups_next_to_operation_mode,
         scenario_internal_commodity_balance,
+        scenario_tied_commitments,
     ],
     ids=lambda f: f.__name__.replace("scenario_", ""),
 )

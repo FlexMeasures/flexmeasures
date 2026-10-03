@@ -338,6 +338,39 @@ def test_get_or_create_source_stable_under_key_order(db, app):
     )
 
 
+def test_get_or_create_source_reuses_oldest_duplicate(db, app):
+    """get_or_create_source must tolerate duplicate sources, and consistently reuse the oldest one.
+
+    Two concurrent calls can each insert the same source, because the unique constraint on data sources treats NULL user and account IDs as distinct.
+    Every later call then found two matching rows, and failed with MultipleResultsFound (#2611).
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    identity = dict(
+        name="test-duplicate-source",
+        type="scheduler",
+        model="StorageScheduler",
+        version="1",
+        attributes={"data_generator": {"config": {}}},
+    )
+    older, newer = DataSource(**identity), DataSource(**identity)
+    db.session.add(older)
+    db.session.flush()
+    db.session.add(newer)
+    db.session.flush()
+    assert older.id < newer.id
+
+    source = get_or_create_source(
+        identity["name"],
+        source_type=identity["type"],
+        model=identity["model"],
+        version=identity["version"],
+        attributes=identity["attributes"],
+    )
+
+    assert source.id == older.id
+
+
 def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
     """Both Sensor.data_sources and DataSource.sensors must stay fast on large tables.
 

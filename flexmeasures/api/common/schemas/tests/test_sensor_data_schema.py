@@ -532,7 +532,7 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     reporting_job.meta["exception"] = "report failed"
     reporting_job.save_meta()
     reporting_job.set_status(JobStatus.FAILED)
-    app.job_cache.add(
+    app.job_map.add(
         battery.id,
         reporting_job.id,
         queue="reporting",
@@ -574,10 +574,16 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     assert app.queues["reporting"].count == 0
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_build_asset_jobs_data_includes_child_assets(
-    db, app, add_battery_assets, clean_redis
+    db, app, add_battery_assets, clean_redis, requesting_user
 ):
-    """A parent asset reports the jobs of its children too, unless asked not to."""
+    """A parent asset reports the jobs of its children too, unless asked not to.
+
+    The jobs of the assets below are listed as far as the current user may read those assets, so this runs as the user owning them.
+    """
     battery_asset = add_battery_assets["Test battery"]
     building_asset = battery_asset.parent_asset
     battery = battery_asset.sensors[0]
@@ -612,3 +618,29 @@ def test_build_asset_jobs_data_includes_child_assets(
     # Clean up queues
     app.queues["scheduling"].empty()
     assert app.queues["scheduling"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_build_asset_jobs_data_reports_current_status(
+    db, app, add_battery_assets, clean_redis, requesting_user
+):
+    """A job's status change shows on the very next listing, paginated or not."""
+    asset = add_battery_assets["Test battery"]
+    job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_map.add(asset.id, job.id, "scheduling", "asset")
+
+    assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.QUEUED
+    page, total_jobs = build_asset_jobs_data(asset, page=1)
+    assert page[0]["status"] == JobStatus.QUEUED
+    assert total_jobs == 1
+
+    job.set_status(JobStatus.FAILED)
+
+    assert build_asset_jobs_data(asset)[0]["status"] == JobStatus.FAILED
+    page, _ = build_asset_jobs_data(asset, page=1)
+    assert page[0]["job_id"] == job.id
+    assert page[0]["status"] == JobStatus.FAILED
+
+    app.queues["scheduling"].empty()

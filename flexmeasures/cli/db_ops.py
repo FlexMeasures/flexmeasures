@@ -7,6 +7,7 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 import flask_migrate as migrate
 import click
+from sqlalchemy.engine import make_url
 
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 
@@ -52,20 +53,35 @@ def dump():
 
     $ docker stop <container>; docker rm <container>
     """
-    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
     db_name = db_host_and_db_name.split("/")[-1]
     time_of_saving = datetime.now().strftime("%F-%H%M")
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} '{db_uri}'"
+    # An argument list rather than a shell command, so that no character in the URI (e.g. in a password) can break it.
+    command_for_dumping = [
+        "pg_dump",
+        "--no-privileges",
+        "--no-owner",
+        "--data-only",
+        "--format=c",
+        f"--file={dump_filename}",
+        db_uri,
+    ]
     try:
-        subprocess.check_output(command_for_dumping, shell=True)
+        subprocess.run(command_for_dumping, check=True)
         click.secho(f"db dump successful: saved to {dump_filename}", **MsgStyle.SUCCESS)
 
-    except Exception as e:
-        click.secho(f"Exception happened during dump: {e}", **MsgStyle.ERROR)
+    # We report the exit code rather than the exception, whose command includes the URI and thus the password.
+    except subprocess.CalledProcessError as e:
+        click.secho(f"pg_dump exited with code {e.returncode}", **MsgStyle.ERROR)
         click.secho("db dump unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
+    except OSError as e:
+        click.secho(f"Could not run pg_dump: {e.strerror}", **MsgStyle.ERROR)
+        click.secho("db dump unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
 
 
 @fm_db_ops.command()
@@ -82,17 +98,40 @@ def restore(file: str):
 
     """
 
-    db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI")  # type: ignore
+    db_uri = libpq_uri(app.config.get("SQLALCHEMY_DATABASE_URI"))
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
-    command_for_restoring = f"pg_restore -d {db_uri} {file}"
+    # An argument list rather than a shell command, so that no character in the URI (e.g. in a password) can break it.
+    command_for_restoring = ["pg_restore", "-d", db_uri, file]
     try:
-        subprocess.check_output(command_for_restoring, shell=True)
+        subprocess.run(command_for_restoring, check=True)
         click.secho("db restore successful", **MsgStyle.SUCCESS)
 
-    except Exception as e:
-        click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
+    # We report the exit code rather than the exception, whose command includes the URI and thus the password.
+    except subprocess.CalledProcessError as e:
+        click.secho(f"pg_restore exited with code {e.returncode}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
+    except OSError as e:
+        click.secho(f"Could not run pg_restore: {e.strerror}", **MsgStyle.ERROR)
+        click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+        raise click.Abort()
+
+
+def libpq_uri(sqlalchemy_uri: str | None) -> str:
+    """Turn a SQLAlchemy database URI into one that libpq tools (pg_dump, pg_restore) accept.
+
+    libpq does not know SQLAlchemy's driver names (e.g. postgresql+psycopg2://),
+    and would read such a URI as the name of a database on the local socket.
+    """
+    if not sqlalchemy_uri:
+        raise click.ClickException("SQLALCHEMY_DATABASE_URI is not set.")
+    url = make_url(sqlalchemy_uri)
+    if url.get_backend_name() != "postgresql":
+        raise click.ClickException(
+            f"pg_dump and pg_restore need a PostgreSQL database, not {url.get_backend_name()}."
+        )
+    return url.set(drivername="postgresql").render_as_string(hide_password=False)
 
 
 app.cli.add_command(fm_db_ops)
