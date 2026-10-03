@@ -275,10 +275,20 @@ def query_assets_by_search_terms(
                 order_by_column = None
             if order_by_column is not None:
                 query = query.order_by(
-                    order_by_column.asc()
-                    if sort_dir == "asc"
-                    else order_by_column.desc()
+                    (
+                        order_by_column.asc()
+                        if sort_dir == "asc"
+                        else order_by_column.desc()
+                    ),
+                    # Tie-breaker so the result set has a total order,
+                    # otherwise paging can show some rows twice and skip others.
+                    asset_alias.id,
                 )
+        else:
+            # A total order also protects the unsorted case: without any
+            # ORDER BY, Postgres returns rows in whatever order the query plan
+            # happens to produce, which is not stable across LIMIT/OFFSET pages.
+            query = query.order_by(asset_alias.id)
 
     else:
         query = query.where(filter_statement)
@@ -290,7 +300,17 @@ def query_assets_by_search_terms(
                     if sort_dir == "asc"
                     else valid_sort_columns[sort_by].desc()
                 )
-                query = query.order_by(order_by_clause)
+                query = query.order_by(
+                    order_by_clause,
+                    # Tie-breaker so the result set has a total order,
+                    # otherwise paging can show some rows twice and skip others.
+                    GenericAsset.id,
+                )
+        else:
+            # A total order also protects the unsorted case: without any
+            # ORDER BY, Postgres returns rows in whatever order the query plan
+            # happens to produce, which is not stable across LIMIT/OFFSET pages.
+            query = query.order_by(GenericAsset.id)
     return query
 
 
