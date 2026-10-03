@@ -696,7 +696,7 @@ class TrainPredictPipeline(Forecaster):
             if reconcile_automation_job_intent(intent):
                 # This job survived an earlier attempt at this run, so leave it be.
                 if cache_for_sensor_id is not None:
-                    current_app.job_cache.add(
+                    current_app.job_map.add(
                         cache_for_sensor_id,
                         job_id=intent.rq_job_id,
                         queue=queue,
@@ -725,7 +725,7 @@ class TrainPredictPipeline(Forecaster):
                 automation_run_id, job_spec["logical_job_key"], job.id
             )
         if cache_for_sensor_id is not None:
-            current_app.job_cache.add(
+            current_app.job_map.add(
                 cache_for_sensor_id,
                 job_id=job.id,
                 queue=queue,

@@ -12,8 +12,13 @@ Where source IDs are stored in JSON (such as the sources a sensor reference in a
 references to a merged source are pointed at the source it was merged into.
 Jobs waiting in Redis cannot be updated this way; ``flexmeasures jobs check-source-references`` lists them.
 
+This runs after the migration that couples each data source to the organisation it records for (c5e1a7b94d20),
+and the order matters: that one fills in ``account_id``, which the unique index below treats as part of a source's identity.
+Two organisations running the same data generator under the same configuration are therefore left alone here,
+where before they would have looked like duplicates of one another and been merged into a single source.
+
 Revision ID: 7c4e1a9d2b58
-Revises: b63a02d5e184
+Revises: c5e1a7b94d20
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "7c4e1a9d2b58"
-down_revision = "b63a02d5e184"
+down_revision = "c5e1a7b94d20"
 branch_labels = None
 depends_on = None
 
