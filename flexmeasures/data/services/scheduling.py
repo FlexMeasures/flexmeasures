@@ -1070,6 +1070,7 @@ def make_schedule(  # noqa: C901
             )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     num_beliefs_created = 0
+    schedules: list[dict] = []
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1112,6 +1113,16 @@ def make_schedule(  # noqa: C901
             # todo: move this into save_to_db
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
+        # Remember the values as they would be saved to the database
+        schedules.append(
+            {
+                "sensor": bdf.sensor.id,
+                "start": bdf.event_starts.min().isoformat() if not bdf.empty else None,
+                "resolution": bdf.event_resolution.total_seconds(),
+                "values": bdf["event_value"].tolist(),
+            }
+        )
+
         if not dry_run:
             save_to_db(bdf)
             num_beliefs_created += len(bdf)
@@ -1127,6 +1138,13 @@ def make_schedule(  # noqa: C901
                 f"\nNot saving schedule for sensor `{bdf.sensor}` (ID {bdf.sensor.id}) to the database (because of --dry-run),"
                 f" but this is what I computed ({len(bdf)} beliefs{event_range}):\n{bdf}"
             )
+
+    # Keep the schedule values on the job, so they can be read without a database query.
+    # Like the commitment costs above, they need an explicit save,
+    # because RQ saves a finishing job without its meta.
+    if rq_job:
+        rq_job.meta["schedules"] = schedules
+        rq_job.save_meta()
 
     # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
     scheduling_result_dict["num-beliefs"] = num_beliefs_created

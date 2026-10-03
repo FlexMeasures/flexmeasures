@@ -773,3 +773,38 @@ def test_scheduling_device_with_nested_output_sensor_only(
     ).all()
     assert len(beliefs) == 96
     assert len({belief.event_start for belief in beliefs}) == 96
+
+
+def test_job_keeps_schedule_values(fresh_db, app, add_battery_assets_fresh_db):
+    """A finished job keeps the schedule values in its metadata, so they can be read without a database query (#2028)."""
+    scheduler_specs["module"] = make_module_descr(is_path=False)
+
+    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
+    battery.attributes["custom-scheduler"] = scheduler_specs
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 3))
+    end = tz.localize(datetime(2015, 1, 4))
+    resolution = timedelta(minutes=15)
+
+    job = create_scheduling_job(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
+    )
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    finished_job = Job.fetch(job.id, connection=app.queues["scheduling"].connection)
+    schedules = finished_job.meta["schedules"]
+
+    capacity = battery.get_attribute(
+        "capacity_in_mw",
+        ur.Quantity(battery.get_attribute("site-power-capacity")).to("MW").magnitude,
+    )
+    (schedule,) = schedules
+    assert schedule["sensor"] == battery.id
+    assert len(schedule["values"]) == 96
+    # Same sign as in the database: a consumption schedule is stored as negative values
+    assert all(value == -1 * capacity for value in schedule["values"])
