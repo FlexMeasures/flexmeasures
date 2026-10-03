@@ -435,7 +435,7 @@
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}&include_public_assets=true`;
-        let unavailablePlotCount = 0;
+        let unavailableReferenceCount = 0;
 
         // ==========================================
         // REACTIVE STATE MANAGEMENT
@@ -1022,6 +1022,7 @@
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Sensors:</b>";
                     const sensorsContent = await renderSensorsList(plot.sensors, index, removePlotOrSensor, plotIndex);
+                    unavailableReferenceCount += sensorsContent.missingCount;
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorsContent.element);
                     const uniqueUnits = [...new Set(sensorsContent.uniqueUnits)];
@@ -1040,11 +1041,14 @@
                     plotHeader.className = "card-title pt-2";
                     plotHeader.innerHTML = "<b>Sensor:</b>";
                     const sensorContent = await renderSensorCard(plot.sensor, index, removePlotOrSensor, plotIndex);
+                    if (sensorContent.missing) {
+                        unavailableReferenceCount += 1;
+                    }
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorContent.element);
                     childComponents.push({
                         element: plotContainer,
-                        uniqueUnits: [sensorContent.unit],
+                        uniqueUnits: sensorContent.missing ? [] : [sensorContent.unit],
                     });
                 } else if ("asset" in plot) {
                     const plotHeader = document.createElement("h5");
@@ -1056,7 +1060,7 @@
                         asset = null;
                     }
                     if (!asset || !asset.name) {
-                        unavailablePlotCount += 1;
+                        unavailableReferenceCount += 1;
                         plotHeader.innerHTML = `<b>Asset ${escapeHtml(plot.asset)}: ${escapeHtml(plot["flex-model"] || plot["flex-context"])} (Not available)</b>`;
                         plotHeader.classList.add("text-warning");
                     } else {
@@ -1141,7 +1145,7 @@
 
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";
-            unavailablePlotCount = 0;
+            unavailableReferenceCount = 0;
             const oldSensorsToShow = getSensorToShow();
             const newSensorsToShow = [];
 
@@ -1171,11 +1175,11 @@
                 graphList.appendChild(graphCard);
             }
 
-            if (unavailablePlotCount > 0) {
+            if (unavailableReferenceCount > 0) {
                 const warning = document.createElement("div");
                 warning.className = "alert alert-warning mt-2";
                 warning.setAttribute("role", "alert");
-                warning.textContent = `${unavailablePlotCount} saved plot${unavailablePlotCount > 1 ? "s are" : " is"} not available anymore. You can remove or update these references.`;
+                warning.textContent = `${unavailableReferenceCount} saved reference${unavailableReferenceCount > 1 ? "s are" : " is"} not available anymore, as the asset or sensor it points at has been deleted. You can remove or update these references.`;
                 graphList.prepend(warning);
             }
 
@@ -1346,7 +1350,7 @@
             }
             sensors.forEach(async (sensor) => {
                 const Asset = await getAsset(sensor.generic_asset_id);
-                const Account = await getAccount(Asset.account_id);
+                const Account = Asset === null ? null : await getAccount(Asset.account_id);
 
                 const col = document.createElement("div");
                 col.classList.add("col-12", "mb-1");
@@ -1361,7 +1365,7 @@
                     <p class="card-text">
                         <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
                         <b>Unit:</b> ${unitHtml(sensor.unit)},
-                        <b>Asset:</b> ${escapeHtml(Asset.name)},
+                        <b>Asset:</b> ${Asset === null ? "unknown" : escapeHtml(Asset.name)},
                         <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
                     </p>
                     ${activeCard() && activeCard().id === `graph_${graphIndex}`
@@ -1385,7 +1389,7 @@
 
             sensors.forEach(async (sensor) => {
                 const Asset = await getAsset(sensor.generic_asset_id);
-                const Account = await getAccount(Asset.account_id);
+                const Account = Asset === null ? null : await getAccount(Asset.account_id);
 
                 const col = document.createElement("div");
                 col.classList.add("col-12", "mb-1");
@@ -1397,7 +1401,7 @@
                         <p class="card-text">
                             <b>ID:</b> <a href="${apiBasePath}/sensors/${sensor.id}">${sensor.id}</a>,
                             <b>Unit:</b> ${unitHtml(sensor.unit)},
-                            <b>Asset:</b> ${escapeHtml(Asset.name)},
+                            <b>Asset:</b> ${Asset === null ? "unknown" : escapeHtml(Asset.name)},
                             <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
                         </p>
                         <button class="btn btn-primary btn-sm" onclick="updateFlexContextFieldValue('sensor', ${sensor.id})">Add Sensor</button>
@@ -1532,14 +1536,20 @@
         }
 
         formModal.addEventListener('shown.bs.modal', function () {
-            // Clear asset cache for all assets used in plots when modal opens
-            // This ensures we get fresh data for asset plots
+            // Clear the cache for everything the plots refer to when the modal opens.
+            // This ensures we get fresh data for asset plots,
+            // and that a sensor or asset which has been deleted since it was cached is shown as the dangling reference it is.
             const sensorsToShowData = getSensorToShow();
             for (const entry of sensorsToShowData) {
                 for (const plot of entry.plots || []) {
                     if ("asset" in plot) {
-                        // Clear cache for this asset so we fetch fresh data
                         localStorage.removeItem(`asset_${plot.asset}`);
+                    }
+                    if ("sensor" in plot) {
+                        localStorage.removeItem(`sensor_${plot.sensor}`);
+                    }
+                    for (const sensorId of plot.sensors || []) {
+                        localStorage.removeItem(`sensor_${sensorId}`);
                     }
                 }
             }

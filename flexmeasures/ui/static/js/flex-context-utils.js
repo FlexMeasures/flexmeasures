@@ -51,6 +51,40 @@ export function entrySensorId(entry) {
   return typeof entry === "object" && entry !== null ? entry["sensor"] : entry;
 }
 
+/**
+ * Every sensor a flex-config refers to, wherever in it the reference sits.
+ *
+ * A reference is {"sensor": <id>}, which can sit at any depth: in a field, in a list entry, or inside a commitment.
+ * The deprecated inflexible-device-sensors field holds bare ids instead.
+ * The ids are what a dialogue has to look up, and a reference can outlive its sensor,
+ * so the lookups are also how a dangling reference is found.
+ *
+ * @param {Object|null} flexConfig - A flex-context or flex-model.
+ * @returns {number[]} - The referenced sensor ids, each one once.
+ */
+export function flexConfigSensorIds(flexConfig) {
+  const sensorIds = new Set();
+
+  function collect(value, key) {
+    if (Array.isArray(value)) {
+      value.forEach((entry) => collect(entry, key));
+    } else if (value !== null && typeof value === "object") {
+      for (const [childKey, childValue] of Object.entries(value)) {
+        collect(childValue, childKey);
+      }
+    } else if (
+      Number.isInteger(value) &&
+      (key === "sensor" || key === "inflexible-device-sensors")
+    ) {
+      sensorIds.add(value);
+    }
+  }
+
+  collect(flexConfig, null);
+
+  return [...sensorIds];
+}
+
 // Fields managed by the commodity tab bar rather than as cards.
 const STRUCTURAL_FIELDS = ["commodities", "commodity"];
 
