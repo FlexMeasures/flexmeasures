@@ -44,6 +44,12 @@ For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filter
 
 .. note::
 
+   Since FlexMeasures v1.1, a forecaster, scheduler or reporter records under a data source belonging to the organisation it computes for, which is the organisation of the assets it writes to.
+   Until then only a user's own source named an organisation, so ``source-account`` matched user-recorded data only.
+   A data source belonging to no organisation is one the host runs for everyone.
+
+.. note::
+
    If schedules are recorded on the same sensor as measurements or forecasts, source filtering can be used to distinguish them.
    An alternative is to model schedules on dedicated sensors; see :ref:`one_or_multiple_sensors`.
 

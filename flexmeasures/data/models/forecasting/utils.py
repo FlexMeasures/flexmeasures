@@ -197,4 +197,7 @@ def refresh_data_source(data_source: DataSource) -> DataSource:
         model=data_source.model,
         version=data_source.version,
         attributes=data_source.attributes,
+        # The organisation is part of what identifies a source, so a detached one has to carry its own along.
+        # Looking up without it asks for a source belonging to none, which would make a second source beside the organisation's.
+        account=data_source.account,
     )
