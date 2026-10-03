@@ -7,6 +7,7 @@ from flask_login import login_user, logout_user
 from marshmallow import ValidationError
 import pytest
 from rq.job import Job
+from sqlalchemy import select
 from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data.automations import (
@@ -369,3 +370,50 @@ def test_a_source_of_another_version_is_refused_at_creation(
             automation_type="mock-ingestion",
             source=stale_source,
         )
+
+
+def test_a_source_that_is_not_the_users_to_work_with_is_refused_for_a_plugin_type(
+    app, fresh_db, ingestion_plugin, ingestion_assets, setup_roles_users_fresh_db
+):
+    """An automation of a plugin type takes its own branch, which used to reach no source check at all.
+
+    Naming a source records the automation's results under it, so a plugin's type is held to the same rule as the built-in ones.
+    """
+    from flexmeasures.data.automations import get_automation_handler
+    from flexmeasures.data.models.data_sources import DataSource
+
+    root, sensors = ingestion_assets
+    user = fresh_db.session.get(User, setup_roles_users_fresh_db["Test Prosumer User"])
+    root.owner = user.account
+    sensors[0].generic_asset.owner = user.account
+    someone_else = fresh_db.session.scalars(
+        select(Account).filter(Account.id != user.account_id)
+    ).first()
+    handler = get_automation_handler("mock-ingestion")
+    foreign_source = DataSource(
+        name="Mock ingestion",
+        type=handler.generator_class.__data_generator_base__,
+        model=handler.generator_class.__name__,
+        version=handler.installed_generator_version(),
+        attributes={"data_generator": {"config": {"sensor": sensors[0].id}}},
+        account=someone_else,
+    )
+    fresh_db.session.add(foreign_source)
+    fresh_db.session.commit()
+
+    with app.test_request_context():
+        login_user(user)
+        try:
+            with pytest.raises(Forbidden) as refusal:
+                create_automation(
+                    asset=root,
+                    name="Ingestion under someone else's source",
+                    cronstr="0 * * * *",
+                    automation_type="mock-ingestion",
+                    source=foreign_source,
+                    check_permissions=True,
+                )
+            # The message the API reports sits on `api_message`, as it does for the built-in types.
+            assert "not yours to work with" in refusal.value.api_message
+        finally:
+            logout_user()

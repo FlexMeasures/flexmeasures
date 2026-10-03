@@ -1582,12 +1582,12 @@ def _asset_subtree_sensor_ids(asset_id: int) -> set[int]:
     )
 
 
-def _job_cache_refs(
+def _job_map_refs(
     automation: Automation, schedule_sensor_ids: set[int] | None = None
 ) -> set[tuple[int, str, str]]:
-    """The job-cache entries in which an automation's jobs may live.
+    """The job-map entries in which an automation's jobs may live.
 
-    Forecasting and reporting jobs are cached under their target/output sensor(s),
+    Forecasting and reporting jobs are indexed under their target/output sensor(s),
     which may belong to a different asset than the automation's own asset.
     """
     from flexmeasures.data.automations import get_automation_types
@@ -1595,10 +1595,10 @@ def _job_cache_refs(
     handler = get_automation_types().get(automation.type)
     if handler is None:
         return set()
-    # Determine the job cache entries to scan.
+    # Determine the job map entries to scan.
     parameters = automation.parameters or {}
     if handler.generator_class is not None:
-        # A plugin type's jobs are cached under the automation's own asset, on the queue its handler names.
+        # A plugin type's jobs are indexed under the automation's own asset, on the queue its handler names.
         return {(automation.asset_id, handler.queue, "asset")}
     elif automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
@@ -1632,14 +1632,14 @@ def _job_cache_refs(
 
 
 def _count_automation_jobs(
-    cache_refs: set[tuple[int, str, str]], automation_ids: set[int]
+    index_refs: set[tuple[int, str, str]], automation_ids: set[int]
 ) -> dict[int, dict[str, int]]:
-    """Count jobs per automation and status in one pass over the cache entries."""
+    """Count jobs per automation and status in one pass over the index entries."""
     counts: dict[int, dict[str, int]] = {
         automation_id: {} for automation_id in automation_ids
     }
     seen_job_ids: set[str] = set()
-    for jobs in current_app.job_cache.get_many(cache_refs).values():
+    for jobs in current_app.job_map.get_many(index_refs).values():
         for job in jobs:
             if job.id in seen_job_ids:
                 continue
@@ -1654,13 +1654,13 @@ def _count_automation_jobs(
 
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     """Count the recent jobs created by this automation, per job status."""
-    return _count_automation_jobs(_job_cache_refs(automation), {automation.id})[
+    return _count_automation_jobs(_job_map_refs(automation), {automation.id})[
         automation.id
     ]
 
 
 def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
-    """Count recent jobs for all of an asset's automations in one cache pass."""
+    """Count recent jobs for all of an asset's automations in one index pass."""
     automations = asset.automations
     if not automations:
         return {}
@@ -1669,11 +1669,11 @@ def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
         if any(automation.type == "scheduling" for automation in automations)
         else None
     )
-    cache_refs: set[tuple[int, str, str]] = set()
+    index_refs: set[tuple[int, str, str]] = set()
     for automation in automations:
-        cache_refs |= _job_cache_refs(automation, schedule_sensor_ids)
+        index_refs |= _job_map_refs(automation, schedule_sensor_ids)
     return _count_automation_jobs(
-        cache_refs, {automation.id for automation in automations}
+        index_refs, {automation.id for automation in automations}
     )
 
 
@@ -1996,6 +1996,9 @@ def _create_builtin_automation(
             validate_automation_output_scope(asset.id, output_sensor, automation_type)
 
     if data_generator is not None:
+        # The automation hangs off an asset, so what it computes is that asset's organisation's own data,
+        # which its data source says by belonging to that organisation.
+        data_generator.set_source_account(asset.owner)
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
         generator = data_generator.data_source
