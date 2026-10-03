@@ -20,7 +20,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Getting a schedule can now optionally use the values that the scheduling job kept, which saves a database query and is therefore faster [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Getting a schedule can now optionally use the values that the scheduling job kept, which saves a database query and is therefore faster [see `PR #2651 <https://www.github.com/FlexMeasures/flexmeasures/pull/2651>`_]
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * Automations: recurring tasks defined per asset, which compute forecasts, schedules or reports on a cron recurrence read in the automation's own timezone, defined from the CLI, the API or the UI, and dispatched once a minute by ``flexmeasures jobs run-automations``. See :ref:`automations` for what they do, and `Automations, in detail`_ for what each pull request contributed.
 * In the UI, users can now add annotation labels to sensor data from the sensor page, over a time range selected on the chart and rounded to whole events, or at an instant clicked on the chart, recording the signed-in user as the source; the sensor page's **Delete data** panel can delete annotations, too, backed by a new API endpoint (``[DELETE] /sensors/(id)/annotations``) [see `PR #2570 <https://www.github.com/FlexMeasures/flexmeasures/pull/2570>`_]
