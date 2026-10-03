@@ -298,6 +298,10 @@ An automation's *Info* panel shows the sensors it reads from and writes to, link
 It also summarizes the automation's recent runs and their outcomes (see :ref:`automation_runs`).
 Conversely, a sensor's page lists the automations that write data to it.
 
+Each row's *Actions* menu also offers *Copy*, which opens the creation form with that automation's type, recurrence, timezone and parameters filled in, and its data source already selected.
+It is a starting point for a variation on an existing automation, such as the same forecast on a different recurrence, rather than a command of its own: nothing is created until you submit the form, and you can change anything in it first.
+The copy is created inactive, so that it does not start running while you are still working on it, and it is named after the original with a ``(copy)`` suffix.
+
 .. _automation_cursor:
 
 Appendix: how the runner decides what is due
