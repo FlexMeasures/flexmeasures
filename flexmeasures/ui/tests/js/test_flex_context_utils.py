@@ -113,3 +113,26 @@ def test_commitment_values(assert_js):
             eq(`"${text}" survives a round trip`, describeCommitmentValue(parseCommitmentValue(text)), text);
         }
         """)
+
+
+def test_flex_config_sensor_ids(assert_js):
+    """The dialogues look up every sensor a config refers to, wherever the reference sits."""
+    assert_js("""
+        import { flexConfigSensorIds } from "/js/flex-context-utils.js";
+        eq("a field holding a sensor is found", flexConfigSensorIds({"consumption-price": {sensor: 4}}), [4]);
+        eq("so are the entries of a sensor list",
+           flexConfigSensorIds({"inflexible-consumption": [{sensor: 1}, {sensor: 2, source: 3}]}),
+           [1, 2]);
+        eq("and the bare ids of the deprecated field",
+           flexConfigSensorIds({"inflexible-device-sensors": [8, 9]}),
+           [8, 9]);
+        eq("a reference inside a commitment is found too",
+           flexConfigSensorIds({commodities: [{commitments: [{"up-price": {sensor: 5}}]}]}),
+           [5]);
+        eq("each sensor is named once", flexConfigSensorIds({a: {sensor: 4}, b: {sensor: 4}}), [4]);
+        eq("numbers that are not sensor ids are left alone",
+           flexConfigSensorIds({"site-power-capacity": 1000, source: 3, "relax-constraints": false}),
+           []);
+        eq("a config without references names nothing", flexConfigSensorIds({}), []);
+        eq("and neither does an unset one", flexConfigSensorIds(null), []);
+        """)
