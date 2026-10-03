@@ -1639,14 +1639,15 @@ def _count_automation_jobs(
         automation_id: {} for automation_id in automation_ids
     }
     seen_job_ids: set[str] = set()
-    for entity_id, queue, asset_or_sensor_type in index_refs:
-        for job in current_app.job_map.get(entity_id, queue, asset_or_sensor_type):
+    for jobs in current_app.job_map.get_many(index_refs).values():
+        for job in jobs:
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
             automation_id = job.meta.get("trigger", {}).get("automation_id")
             if automation_id in counts:
-                status = str(job.get_status().value)
+                # The job was just fetched with its status, so asking Redis again would cost a round trip per job.
+                status = str(job.get_status(refresh=False).value)
                 counts[automation_id][status] = counts[automation_id].get(status, 0) + 1
     return counts
 
