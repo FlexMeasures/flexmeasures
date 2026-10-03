@@ -249,11 +249,13 @@ A dispatch which fails is attempted again, each time after a longer wait, and st
 A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
 and the run's record says what went wrong on each attempt.
 
-Retrying a failed dispatch this way is what a forecast run does.
-A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
+A forecast run and a schedule run are both retried this way.
+Each names its jobs after the run it belongs to, rather than letting them take a fresh identity on every dispatch,
+which is what lets a second attempt tell the jobs the first one queued from the ones it still owes:
+a schedule run that queued two of its three devices queues the third, and schedules no device twice.
 
 A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
-A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs are not recorded individually yet.
+A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs do not report back individually yet.
 
 A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
