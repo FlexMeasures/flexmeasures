@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import (
     create_user,
     find_user_by_email,
@@ -12,6 +12,11 @@ from flexmeasures.data.services.users import (
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.auth.policy import (
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
+)
 
 
 def test_create_user(
@@ -32,11 +37,7 @@ def test_create_user(
     assert user.email == "new_user@seita.nl"
     assert user.username == "new_user"
     assert user.account.name == "Test Prosumer Account"
-    assert user.roles == [
-        fresh_db.session.execute(
-            select(Role).filter_by(name="SomeRole")
-        ).scalar_one_or_none()
-    ]
+    assert {role.name for role in user.roles} == {ACCOUNT_MEMBER_ROLE, "SomeRole"}
     assert fresh_db.session.execute(
         select(DataSource).filter_by(user_id=user.id)
     ).scalar_one_or_none()
@@ -52,6 +53,41 @@ def test_create_user(
     assert user_audit_log.event == "User new_user created"
     assert user_audit_log.affected_account_id == prosumer_account.id
     assert user_audit_log.active_user_id is None
+
+
+@pytest.mark.parametrize(
+    "role_name",
+    [ACCOUNT_READER_ROLE, ACCOUNT_DATA_INTEGRATOR_ROLE, ACCOUNT_MEMBER_ROLE],
+)
+def test_create_user_with_home_role_does_not_add_account_member(
+    fresh_db, setup_accounts_fresh_db, role_name
+):
+    user = create_user(
+        email=f"{role_name}@example.com",
+        password="testtest",
+        account_name=setup_accounts_fresh_db["Prosumer"].name,
+        user_roles=[role_name],
+    )
+
+    assert {role.name for role in user.roles} == {role_name}
+
+
+@pytest.mark.parametrize("old_name", ["member", "read-only", "integration"])
+@pytest.mark.parametrize("as_dict", [False, True])
+def test_create_user_rejects_retired_home_role_names(
+    fresh_db, setup_accounts_fresh_db, old_name, as_dict
+):
+    supplied_role = {"name": old_name} if as_dict else old_name
+    with pytest.raises(InvalidFlexMeasuresUser, match="was renamed"):
+        create_user(
+            email=f"{old_name}@example.com",
+            password="testtest",
+            account_name=setup_accounts_fresh_db["Prosumer"].name,
+            user_roles=[supplied_role],
+        )
+    assert not fresh_db.session.execute(
+        select(User).filter_by(email=f"{old_name}@example.com")
+    ).scalar_one_or_none()
 
 
 def test_create_user_no_account(

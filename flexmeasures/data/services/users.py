@@ -21,6 +21,11 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
+from flexmeasures.auth.policy import (
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
+)
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.utils.time_utils import server_now
 
@@ -65,6 +70,26 @@ def create_user(  # noqa: C901
 
     Remember to commit the session after calling this function!
     """
+
+    # Reject old built-in names before creating any user or account. Otherwise
+    # they would become custom roles and the default account-member grant would
+    # be added, broadening access for a caller using an outdated name.
+    retired_roles = {
+        "member": ACCOUNT_MEMBER_ROLE,
+        "read-only": ACCOUNT_READER_ROLE,
+        "integration": ACCOUNT_DATA_INTEGRATOR_ROLE,
+    }
+    supplied_roles = user_roles if isinstance(user_roles, list) else [user_roles]
+    for supplied_role in supplied_roles:
+        name = (
+            supplied_role.get("name")
+            if isinstance(supplied_role, dict)
+            else supplied_role
+        )
+        if name in retired_roles:
+            raise InvalidFlexMeasuresUser(
+                f"Role '{name}' was renamed to '{retired_roles[name]}'."
+            )
 
     # Check necessary input explicitly before anything happens
     if password is None or password == "":
@@ -136,6 +161,21 @@ def create_user(  # noqa: C901
     user.tf_totp_secret = jsonified_totp
 
     user.account = account
+
+    # A new user's implicit home-account rights are represented by account-member.
+    # Account-reader and account-data-integrator are narrower alternatives.
+    if user_roles is None:
+        user_roles = [ACCOUNT_MEMBER_ROLE]
+    elif user_roles:
+        if not isinstance(user_roles, list):
+            user_roles = [user_roles]
+        names = {
+            role["name"] if isinstance(role, dict) else role for role in user_roles
+        }
+        if not names.intersection(
+            {ACCOUNT_READER_ROLE, ACCOUNT_DATA_INTEGRATOR_ROLE, ACCOUNT_MEMBER_ROLE}
+        ):
+            user_roles = [ACCOUNT_MEMBER_ROLE, *user_roles]
 
     # add roles to user (creating new roles if necessary)
     if user_roles:

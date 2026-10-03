@@ -157,47 +157,43 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         Editing as well as deletion is left to account admins.
         Everyone in the account and its consultant can add beliefs.
         """
-        return {
-            "create-children": [
+        post_data_access = [
+            f"account:{self.generic_asset.account_id}",
+            (
+                (
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.generic_asset.owner is not None
+                else ()
+            ),
+        ]
+        manage_sensor_access = [
+            (
                 f"account:{self.generic_asset.account_id}",
+                f"role:{ACCOUNT_ADMIN_ROLE}",
+            ),
+            (
                 (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
+                    f"account:{self.generic_asset.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.generic_asset.owner is not None
+                else ()
+            ),
+        ]
+        return {
             "read": self.generic_asset.__acl__()["read"],
-            "update": [
-                (
-                    f"account:{self.generic_asset.account_id}",
-                    f"role:{ACCOUNT_ADMIN_ROLE}",
-                ),
-                (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
-            "delete": [
-                (
-                    f"account:{self.generic_asset.account_id}",
-                    f"role:{ACCOUNT_ADMIN_ROLE}",
-                ),
-                (
-                    (
-                        f"account:{self.generic_asset.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.generic_asset.owner is not None
-                    else ()
-                ),
-            ],
+            "post-data": post_data_access,
+            "trigger-schedules": post_data_access,
+            "trigger-forecasts": post_data_access,
+            "annotate": post_data_access,
+            "edit-sensors": manage_sensor_access,
+            "delete-data": manage_sensor_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": post_data_access,
+            "update": manage_sensor_access,
+            "delete": manage_sensor_access,
         }
 
     @property

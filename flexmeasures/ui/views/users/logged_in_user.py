@@ -3,7 +3,7 @@ from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_security.core import current_user
 from flask_security import login_required
 
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_can_reset_own_password
 
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
@@ -45,6 +45,7 @@ def logged_in_user_view():
     return render_flexmeasures_template(
         "admin/logged_in_user.html",
         logged_in_user=current_user,
+        can_reset_own_password=user_can_reset_own_password(current_user),
         roles=",".join([role.name for role in current_user.roles]),
         num_assets=get_number_of_assets_in_account(current_user.account_id),
         account_role_names=account_role_names,
