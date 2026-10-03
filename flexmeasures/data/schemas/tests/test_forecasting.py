@@ -10,6 +10,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.forecasting.references import AutoSensorReference
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.data.schemas.utils import kebab_to_snake
 
@@ -1014,6 +1015,37 @@ def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
     target = data["sensor"]
     assert isinstance(target, SensorReference)
     assert target.lower == "0 kW"
+
+
+def test_forecaster_config_schema_loads_an_auto_regressor_entry(setup_dummy_sensors):
+    """A config says "auto" where it means the sensor being forecast, which it cannot name by ID."""
+    data = TrainPredictPipelineConfigSchema().load(
+        {"past-regressors": ["auto", {"sensor": "auto", "lower": "0 kW"}]}
+    )
+
+    bare, qualified = data["past_regressors"]
+    assert isinstance(bare, AutoSensorReference)
+    assert bare.qualifiers == {}
+    assert isinstance(qualified, AutoSensorReference)
+    assert qualified.qualifiers == {"lower": "0 kW"}
+
+
+def test_an_auto_regressor_entry_survives_the_round_trip_onto_a_data_source(
+    setup_dummy_sensors,
+):
+    """The config a data source records is dumped and loaded again, so "auto" has to survive both ways."""
+    schema = TrainPredictPipelineConfigSchema()
+    config = {"past-regressors": ["auto", {"sensor": "auto", "snap": {"0 kW": [0, 1]}}]}
+
+    dumped = schema.dump(schema.load(config))
+
+    assert dumped["past-regressors"] == [
+        "auto",
+        {"sensor": "auto", "snap": {"0 kW": [0, 1]}},
+    ]
+    assert schema.load(dumped)["past_regressors"][1].qualifiers == {
+        "snap": {"0 kW": [0, 1]}
+    }
 
 
 def test_forecaster_config_schema_rejects_an_unparseable_regressor_bound(
