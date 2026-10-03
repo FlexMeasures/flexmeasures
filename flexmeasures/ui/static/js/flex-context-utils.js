@@ -51,11 +51,15 @@ export function entrySensorId(entry) {
   return typeof entry === "object" && entry !== null ? entry["sensor"] : entry;
 }
 
+// The flex-config keys whose value is a bare sensor id, rather than a {"sensor": <id>} reference.
+const SENSOR_ID_KEYS = ["sensor", "inflexible-device-sensors", "sensors"];
+
 /**
  * Every sensor a flex-config refers to, wherever in it the reference sits.
  *
  * A reference is {"sensor": <id>}, which can sit at any depth: in a field, in a list entry, or inside a commitment.
- * The deprecated inflexible-device-sensors field holds bare ids instead.
+ * Two fields hold bare ids instead: the deprecated inflexible-device-sensors field,
+ * and the sensors a commitment is scoped to.
  * The ids are what a dialogue has to look up, and a reference can outlive its sensor,
  * so the lookups are also how a dangling reference is found.
  *
@@ -72,10 +76,7 @@ export function flexConfigSensorIds(flexConfig) {
       for (const [childKey, childValue] of Object.entries(value)) {
         collect(childValue, childKey);
       }
-    } else if (
-      Number.isInteger(value) &&
-      (key === "sensor" || key === "inflexible-device-sensors")
-    ) {
+    } else if (Number.isInteger(value) && SENSOR_ID_KEYS.includes(key)) {
       sensorIds.add(value);
     }
   }

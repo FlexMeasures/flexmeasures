@@ -97,6 +97,19 @@ export async function getSensor(id) {
 }
 
 /**
+ * The account an asset belongs to, for an asset which may not be there.
+ *
+ * Every place that names a sensor also names the account its asset belongs to,
+ * and an asset we could not look up has no account to name.
+ *
+ * @param {Object|null} asset - The asset, or null if it could not be looked up.
+ * @returns {Promise<Object|null>} - The account, or null if there is none to name.
+ */
+export async function getAccountOfAsset(asset) {
+  return asset === null ? null : getAccount(asset.account_id);
+}
+
+/**
  * How both dialogues word a reference to a sensor which is no longer there.
  *
  * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,
@@ -218,7 +231,7 @@ export async function renderSensor(sensorId) {
     return `<div class="text-warning">${escapeHtml(missingSensorLabel(sensorId))}</div>`;
   }
   const Asset = await getAsset(sensorData.generic_asset_id);
-  const Account = Asset === null ? null : await getAccount(Asset.account_id);
+  const Account = await getAccountOfAsset(Asset);
 
   return `
         <div class="d-flex justify-content-between">
@@ -299,7 +312,7 @@ export function renderSensorSearchResults(
 
   sensors.forEach(async (sensor) => {
     const Asset = await getAsset(sensor.generic_asset_id);
-    const Account = Asset === null ? null : await getAccount(Asset.account_id);
+    const Account = await getAccountOfAsset(Asset);
 
     const col = document.createElement("div");
     col.classList.add("col-12", "mb-1");

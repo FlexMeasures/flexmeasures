@@ -406,7 +406,7 @@
 <!-- Graph editing support -->
 <script type="module">
     import {
-        getFlexFieldTitle, renderSensor, getAsset, getAccount, getSensor, createReactiveState,
+        getFlexFieldTitle, renderSensor, getAsset, getAccountOfAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, moveArrayItem, escapeHtml, unitHtml
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
@@ -555,6 +555,14 @@
                 flexConfigField.innerHTML = '<option value="null" selected>Select Field</option>';
                 flexConfigFieldDetail.value = "";
                 const selectedAsset = await getAsset(selectedValue, false);
+
+                // The asset list is built once per page load, so an asset deleted since then is still offered here,
+                // and it has no flex-config left to refer to.
+                if (selectedAsset === null) {
+                    showToast("That asset is not available anymore, as it has been deleted.", "warning");
+                    configTypeSelect.disabled = true;
+                    return;
+                }
 
                 if (selectedAsset.flex_context !== "{}" && selectedAsset.flex_context !== '"{\"inflexible-device-sensors\": []}"') { // Some flex-context have this value set with an empty array
                     const flexContextOption = document.createElement("option");
@@ -1350,7 +1358,7 @@
             }
             sensors.forEach(async (sensor) => {
                 const Asset = await getAsset(sensor.generic_asset_id);
-                const Account = Asset === null ? null : await getAccount(Asset.account_id);
+                const Account = await getAccountOfAsset(Asset);
 
                 const col = document.createElement("div");
                 col.classList.add("col-12", "mb-1");
@@ -1389,7 +1397,7 @@
 
             sensors.forEach(async (sensor) => {
                 const Asset = await getAsset(sensor.generic_asset_id);
-                const Account = Asset === null ? null : await getAccount(Asset.account_id);
+                const Account = await getAccountOfAsset(Asset);
 
                 const col = document.createElement("div");
                 col.classList.add("col-12", "mb-1");

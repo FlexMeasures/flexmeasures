@@ -9,7 +9,7 @@
 
 import {
   getAsset,
-  getAccount,
+  getAccountOfAsset,
   getSensor,
   apiBasePath,
   missingSensorLabel,
@@ -232,7 +232,7 @@ export async function renderSensorCard(
 ) {
   const Sensor = await getSensor(sensorId);
   const Asset = Sensor === null ? null : await getAsset(Sensor.generic_asset_id);
-  const Account = Asset === null ? null : await getAccount(Asset.account_id);
+  const Account = await getAccountOfAsset(Asset);
 
   const container = document.createElement("div");
   container.className = `mb-3 border-secondary ${childRender ? "pt-2 pb-1" : "p-1 border-bottom"}`;
