@@ -27,6 +27,7 @@ from rq.registry import (
     StartedJobRegistry,
 )
 from marshmallow import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
@@ -34,6 +35,7 @@ import pandas as pd
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.schemas.automations import AutomationIdField
 from werkzeug.exceptions import Forbidden
@@ -45,6 +47,10 @@ from flexmeasures.data.services.automations import (
     floor_to_minute,
     get_dispatchable_automation_runs,
     run_automation,
+)
+from flexmeasures.data.services.data_sources import (
+    find_duplicate_sources,
+    find_referenced_source_ids,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -753,6 +759,88 @@ def save_last(
     else:
         filter_message = ""
     click.secho(f"No {registry_name} jobs found{filter_message}.", fg="yellow")
+
+
+@fm_jobs.command("check-source-references")
+@with_appcontext
+@click.option(
+    "--queue",
+    default=None,
+    help="State which queue(s) to check (using '|' as separator), e.g. 'forecasting' or 'forecasting|scheduling'. Defaults to all queues.",
+)
+def check_source_references(queue: str | None):
+    """
+    List waiting jobs that refer to a data source which no longer exists, or which a database upgrade will merge.
+
+    Jobs can refer to data sources by ID, for instance where a sensor reference in a flex-context filters on its sources.
+    Such a job fails once the data source it refers to is gone.
+    Upgrading to FlexMeasures v1.1 merges each group of identical data sources into one of them,
+    so run this before `flexmeasures db upgrade` to see which jobs that affects, and again after,
+    to find the jobs that still refer to a merged data source.
+    Queued, deferred, scheduled and started jobs are checked.
+
+    This command exists for that one upgrade, so it is expected to be dropped again in v1.2:
+    from v1.1 on, the database refuses duplicate data sources, so there are no further merges to prepare for.
+    """
+    q_list = parse_queue_list(queue) if queue else list(app.queues.values())
+    configure_mappers()
+    duplicates = find_duplicate_sources()
+    # First collect what each waiting job refers to, so that the data sources are looked up in one query.
+    references = []
+    for the_queue in q_list:
+        registries = dict(
+            queued=the_queue,
+            deferred=the_queue.deferred_job_registry,
+            scheduled=the_queue.scheduled_job_registry,
+            started=the_queue.started_job_registry,
+        )
+        for registry_name, registry in registries.items():
+            job_ids = registry.get_job_ids()
+            for job in Job.fetch_many(job_ids, connection=the_queue.connection):
+                if job is None:
+                    continue
+                source_ids = find_referenced_source_ids([job.args, job.kwargs])
+                if source_ids:
+                    references.append(
+                        (job.id, the_queue.name, registry_name, source_ids)
+                    )
+    referenced_ids = set().union(*(ids for *_, ids in references))
+    existing_ids = (
+        set(
+            db.session.scalars(
+                select(DataSource.id).where(DataSource.id.in_(referenced_ids))
+            )
+        )
+        if referenced_ids
+        else set()
+    )
+    rows = []
+    for job_id, queue_name, registry_name, source_ids in references:
+        for source_id in sorted(source_ids):
+            if source_id not in existing_ids:
+                problem = "does not exist"
+            elif source_id in duplicates:
+                problem = f"will be merged into data source {duplicates[source_id]}"
+            else:
+                continue
+            rows.append((job_id, queue_name, registry_name, source_id, problem))
+    if not rows:
+        click.secho(
+            "No waiting job refers to a data source that no longer exists, or that a database upgrade will merge.",
+            **MsgStyle.SUCCESS,
+        )
+        return
+    click.echo(
+        tabulate(
+            rows,
+            headers=["Job", "Queue", "Registry", "Data source", "Problem"],
+        )
+    )
+    click.secho(
+        f"{len(set(row[0] for row in rows))} waiting job(s) refer to a data source that no longer exists, or that a database upgrade will merge. "
+        "Let them finish before upgrading, or cancel them and have them created again after upgrading.",
+        **MsgStyle.WARN,
+    )
 
 
 @fm_jobs.command("clear-queue")
