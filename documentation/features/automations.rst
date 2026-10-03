@@ -28,6 +28,15 @@ The remaining options are the ones the task itself needs: a forecast automation 
 The forecaster and its configuration are stored on a data source, so you can also pass ``--source`` to reuse the data source of an existing forecaster, in which case ``--forecaster`` and ``--config`` (and the individual configuration options) are not needed — the data source already determines them.
 That data source is required while the automation exists, so it cannot be deleted until the automation is removed.
 
+The API takes the same choice as the ``source`` field of `[POST] /assets/(id)/automations <../api/v3_0.html#post--api-v3_0-assets-id-automations>`_, which cannot be combined with ``data-generator`` or ``config``.
+In the UI, the asset's *Automations* page searches the data sources you may work with, by id, by name and by data generator class, and shows the configuration the picked one stores before you create the automation.
+A data source is yours to work with when it belongs to your organisation, or when an automation you may read already computes under it, which is how a source becomes yours before it has recorded anything.
+Those are the sources you may name, and the only ones whose stored configuration you are shown.
+Reading a data source is allowed more widely: one that has recorded data on a sensor you may read answers the question of what computed a number you can see.
+A source you reach only that way hands over no configuration, because a data generator's configuration names the sensors it runs on, which may be sensors you cannot see at all.
+Reusing a source means the results of both automations are recorded under it, so they share one lineage of data.
+A schedule automation cannot name a data source, because it works its own out on every run, as described under `Automating schedules`_.
+
 The recurrence is defined by a standard five-field cron string (minute, hour, day of month, month, and day of week), which defaults to ``"0 0 * * *"`` (daily at midnight).
 It is interpreted in the automation's IANA timezone.
 If ``--timezone`` is omitted, the current ``FLEXMEASURES_TIMEZONE`` value is copied to the automation.
@@ -118,6 +127,7 @@ A schedule automation has a data generator too, but you do not name it separatel
 It is put together from choices you have already made: the flex config in the trigger message, the flex config saved on the asset tree, and the scheduler that the asset resolves to.
 Because those live in two places, and the asset can be edited without touching the automation, the runner puts the generator together again on every run, and moves the automation to another data source when the combination has changed.
 Editing an asset's flex-model is therefore a configuration change, and shows up as one: the schedules computed before and after it carry different data sources.
+That is also why a schedule automation cannot be pinned to a data source you pick: the next run would move it off that source again.
 
 Because the schedule is recomputed on every run, the flex config may only describe the site and its devices, not one moment.
 A field with a fixed moment in it, such as ``soc-at-start`` or a ``soc-targets`` entry with a ``datetime``, is refused when the automation is created, and the error names the field.
@@ -287,6 +297,10 @@ The page brings itself up to date once a minute, so runs and job counts appear w
 An automation's *Info* panel shows the sensors it reads from and writes to, linking to each sensor's page, and the data source it records under, together with the configuration that data source was created with.
 It also summarizes the automation's recent runs and their outcomes (see :ref:`automation_runs`).
 Conversely, a sensor's page lists the automations that write data to it.
+
+Each row's *Actions* menu also offers *Copy*, which opens the creation form with that automation's type, recurrence, timezone and parameters filled in, and its data source already selected.
+It is a starting point for a variation on an existing automation, such as the same forecast on a different recurrence, rather than a command of its own: nothing is created until you submit the form, and you can change anything in it first.
+The copy is created inactive, so that it does not start running while you are still working on it, and it is named after the original with a ``(copy)`` suffix.
 
 .. _automation_cursor:
 

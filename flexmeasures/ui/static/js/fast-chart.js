@@ -730,16 +730,30 @@ const ZOOM_ICON =
   "path://M551.7,526.3l-155-155c26.1-34.6,41.6-77.7,41.6-124.4C438.3,132.5,349.8,44,244.1,44S49.9,132.5,49.9,246.9s88.5,202.9,194.2,202.9c46.7,0,89.8-15.5,124.4-41.6l155,155c3.5,3.5,8,5.2,12.6,5.2s9.1-1.7,12.6-5.2C558.7,544.5,558.7,533.3,551.7,526.3z M91.9,246.9c0-83.9,68.3-152.2,152.2-152.2s152.2,68.3,152.2,152.2s-68.3,152.2-152.2,152.2S91.9,330.8,91.9,246.9z";
 const PAN_ICON =
   "path://M512,150 L432,230 L482,230 L482,482 L230,482 L230,432 L150,512 L230,592 L230,542 L482,542 L482,794 L432,794 L512,874 L592,794 L542,794 L542,542 L794,542 L794,592 L874,512 L794,432 L794,482 L542,482 L542,230 L592,230 Z";
+// Two brackets joined by a bar: select a time range (for annotating it).
+const SELECT_ICON = "path://M3 5 L3 19 M21 5 L21 19 M3 12 L21 12 M7 8 L3 12 L7 16 M17 8 L21 12 L17 16";
 const RESET_ICON =
   "path://M868 545C868 736 713 891 522 891C331 891 176 736 176 545C176 354 331 199 522 199L522 95L722 255L522 415L522 311C393 311 289 415 289 544C289 672 393 776 522 776C650 776 754 672 754 544L868 545Z";
 // Selected (active) vs idle toolbox icon colours — blue mimics ECharts' own active zoom.
 const TOOL_BLUE = "#4e91fc";
 const TOOL_GRAY = "#666";
 
+// Whether the range selection is *effectively* active right now: the chosen mode, unless Ctrl is held to pan.
+function effectiveSelect(instance) {
+  return !!instance._selectable && !!instance._selectMode && !instance._ctrlHeld;
+}
+
 // Whether the marquee zoom (vs pan) is *effectively* active right now: the chosen mode,
 // inverted while Ctrl is held. Drives both the marquee and the blue button highlight.
+// In select mode, Ctrl pans, as it does in zoom mode.
 function effectiveZoom(instance) {
+  if (instance._selectMode && instance._selectable) return false;
   return (instance._zoomMode !== false) !== !!instance._ctrlHeld;
+}
+
+// The button colour of the Pan tool: blue when neither zooming nor selecting.
+function panColor(instance) {
+  return effectiveZoom(instance) || effectiveSelect(instance) ? TOOL_GRAY : TOOL_BLUE;
 }
 
 function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
@@ -787,9 +801,20 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
       show: true,
       title: "Pan",
       icon: PAN_ICON,
-      iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE },
+      iconStyle: { borderColor: panColor(instance) },
       onclick: () => setChartMode(elementId, false),
     };
+    if (instance._selectable) {
+      feature.mySelect = {
+        show: true,
+        title: "Select a time range",
+        icon: SELECT_ICON,
+        iconStyle: { borderColor: effectiveSelect(instance) ? TOOL_BLUE : TOOL_GRAY },
+        onclick: () => setSelectMode(elementId),
+      };
+      // ECharts gives a brush component its own toolbox buttons (box, lasso, keep, clear) unless told otherwise.
+      feature.brush = { show: false };
+    }
   } else if (!zoomable) {
     // histogram/heatmap keep the plain built-in dataZoom (zoom + reset), as before.
     feature.dataZoom = { yAxisIndex: false };
@@ -821,16 +846,23 @@ function applyChartMode(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed()) return;
   const zoomActive = effectiveZoom(instance);
+  const selectActive = effectiveSelect(instance);
+  const feature = {
+    myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+    myPan: { iconStyle: { borderColor: panColor(instance) } },
+  };
+  if (instance._selectable) {
+    feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
+  }
   // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({
-    toolbox: {
-      feature: {
-        myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
-        myPan: { iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE } },
-      },
-    },
-  });
-  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+  chart.setOption({ toolbox: { feature: feature } });
+  // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
+  if (selectActive && instance.lastOption && instance.lastOption.brush) {
+    chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
+  } else {
+    chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+  }
+  drawSelection(instance);
 }
 
 // The Zoom / Pan buttons pick the mode (persists across re-renders); Ctrl inverts it.
@@ -838,6 +870,15 @@ function setChartMode(elementId, zoom) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
   instance._zoomMode = zoom;
+  instance._selectMode = false;
+  applyChartMode(instance);
+}
+
+// The Select button makes a drag select a time range instead of zooming into it.
+function setSelectMode(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._selectMode = true;
   applyChartMode(instance);
 }
 
@@ -1162,7 +1203,10 @@ function seriesTooltipFormatter(seriesMeta, instance) {
 
 // Warm warning hue for 'alert' annotations, matching the Vega-Lite charts'
 // ANNOTATION_ALERT_COLOR; other types use the neutral --gray.
+// A hovered or pinned annotation of any type takes the secondary (highlight) colour, as in the Vega-Lite charts.
 const ANNOTATION_ALERT_COLOR = "#d9822b";
+// Near-black annotation text, legible on the white chart background, as in the Vega-Lite charts
+const ANNOTATION_TEXT_COLOR = "#333";
 const ANNOTATION_RESTING_OPACITY = 0.2;
 const ANNOTATION_HOVER_OPACITY = 0.55;
 const ANNOTATION_SELECT_OPACITY = 0.65;
@@ -1191,10 +1235,22 @@ export function normalizeAnnotations(raw) {
     .sort((a, b) => a.start - b.start);
 }
 
-function annotationColor(a) {
-  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
+// The colour of an annotation, given whether it is "pinned", "hovered" or neither.
+export function annotationColor(a, highlight) {
   const cs = getComputedStyle(document.documentElement);
+  if (highlight === "pinned") return cs.getPropertyValue("--secondary-color").trim() || "#f1a122";
+  if (highlight === "hovered") return cs.getPropertyValue("--secondary-hover-color").trim() || "#f1a122";
+  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
   return cs.getPropertyValue("--gray").trim() || "#bbb";
+}
+
+// The pinned annotations of a subplot: a set of indices, or a single index (-1 for none).
+function pinnedSet(pinned) {
+  return pinned instanceof Set ? pinned : new Set(pinned >= 0 ? [pinned] : []);
+}
+
+function annotationHighlight(idx, hoverIdx, pinned) {
+  return pinned.has(idx) ? "pinned" : idx === hoverIdx ? "hovered" : null;
 }
 
 // Build the markArea config for one subplot's annotation bands (annotations
@@ -1202,6 +1258,7 @@ function annotationColor(a) {
 // shows below the subplot; the rest stay lightly shaded. Indices refer to the
 // full annotations array (instants are skipped but keep their index).
 function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
+  const pinned = pinnedSet(pinIdx);
   return {
     silent: true, // hover is handled via the zrender mouse listeners instead (wireAnnotationHover)
     animation: false,
@@ -1209,9 +1266,9 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
       .map((a, idx) => {
         if (a.end <= a.start) return null; // instants are drawn by buildAnnotationMarkLine
         const itemStyle = {
-          color: annotationColor(a),
+          color: annotationColor(a, annotationHighlight(idx, hoverIdx, pinned)),
           opacity:
-            idx === pinIdx
+            pinned.has(idx)
               ? ANNOTATION_SELECT_OPACITY
               : idx === hoverIdx
               ? ANNOTATION_HOVER_OPACITY
@@ -1243,11 +1300,12 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
 // replay ruler at the current belief time (when replaying). Returns null when
 // there is nothing to draw.
 function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+  const pinned = pinnedSet(pinIdx);
   const data = annotations
     .map((a, idx) => {
       if (a.end > a.start) return null;
-      const color = annotationColor(a);
-      const opacity = idx === pinIdx ? 1 : idx === hoverIdx ? 0.9 : 0.5;
+      const color = annotationColor(a, annotationHighlight(idx, hoverIdx, pinned));
+      const opacity = pinned.has(idx) ? 1 : idx === hoverIdx ? 0.9 : 0.5;
       const lineStyle = { color: color, width: 2, type: "solid", opacity: opacity };
       const itemStyle = { color: color, opacity: opacity }; // the triangle marker
       return {
@@ -2369,6 +2427,8 @@ export function renderFastChart(elementId, data, options) {
   instance.lastArgs = { data: data, options: options };
   instance.isSensorPage = !!opts.isSensorPage;
   instance.fullBeliefInfo = !!opts.fullBeliefInfo;
+  // Range selection (for annotating) is a desktop tool on the time-axis charts; read by toolboxFeatures.
+  instance._selectable = !!opts.selectable && !IS_TOUCH && isZoomableChartType(opts.chartType);
   // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
   // to colour the initial buttons, and by applyChartMode.)
   if (instance._zoomMode === undefined) instance._zoomMode = true;
@@ -2393,6 +2453,9 @@ export function renderFastChart(elementId, data, options) {
   if (!option) {
     option = noDataOption();
   }
+  if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
+    option.brush = selectionBrush(option);
+  }
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
@@ -2402,7 +2465,204 @@ export function renderFastChart(elementId, data, options) {
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
+  wireSelection(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+}
+
+/* ============================== range selection ============================== */
+
+// The brush that draws the selected time range across the whole plot height.
+// It selects no series, so the data keeps its colours inside and outside the selection.
+function selectionBrush(option) {
+  return {
+    xAxisIndex: (option.xAxis || []).map((_, i) => i),
+    brushType: "lineX",
+    brushMode: "single",
+    seriesIndex: "none",
+    transformable: true,
+    // A click selects an instant instead (see wireSelection), and a click outside the plot clears the selection
+    removeOnClick: false,
+    throttleType: "debounce",
+    brushStyle: { borderWidth: 1, color: "rgba(78, 145, 252, 0.15)", borderColor: TOOL_BLUE },
+    outOfBrush: { colorAlpha: 1 },
+  };
+}
+
+// The time range a lineX brush covers, from the areas of a brushEnd event.
+export function selectedRangeFromBrushAreas(areas) {
+  const area = Array.isArray(areas) && areas.length > 0 ? areas[0] : null;
+  const range = area && area.coordRange;
+  if (!Array.isArray(range) || range.length !== 2) return null;
+  const start = Math.min(range[0], range[1]);
+  const end = Math.max(range[0], range[1]);
+  if (!isFinite(start) || !isFinite(end)) return null;
+  return { start: new Date(start), end: new Date(end) };
+}
+
+// Draw a selected instant as a blue rule with a triangle at its top, shaped like an instant annotation.
+// These are plain zrender elements, kept out of the chart option, and redrawn on every render and zoom.
+function drawSelectedInstant(instance, time) {
+  const chart = instance.chart;
+  const zr = chart.getZr();
+  if (instance._instantMarker) {
+    zr.remove(instance._instantMarker);
+    instance._instantMarker = null;
+  }
+  if (time === null) return;
+  const gridModel = chart.getModel().getComponent("grid", 0);
+  const rect = gridModel && gridModel.coordinateSystem && gridModel.coordinateSystem.getRect();
+  const x = chart.convertToPixel({ xAxisIndex: 0 }, time);
+  if (!rect || !isFinite(x) || x < rect.x || x > rect.x + rect.width) return;
+  const group = new echarts.graphic.Group({ silent: true, z: 100 });
+  group.add(new echarts.graphic.Line({
+    shape: { x1: x, y1: rect.y, x2: x, y2: rect.y + rect.height },
+    style: { stroke: TOOL_BLUE, lineWidth: 2 },
+    silent: true,
+  }));
+  group.add(new echarts.graphic.Polygon({
+    shape: { points: [[x - 6.5, rect.y - 5.5], [x + 6.5, rect.y - 5.5], [x, rect.y + 5.5]] },
+    style: { fill: TOOL_BLUE },
+    silent: true,
+  }));
+  zr.add(group);
+  instance._instantMarker = group;
+}
+
+// Draw the selected range or instant (kept on the instance, so it survives re-renders), or clear it.
+// A range can be dragged and resized only with the select tool, so that zooming or panning never moves it.
+function drawSelection(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed() || !instance.lastOption || !instance.lastOption.brush) return;
+  const selection = instance._selection;
+  const isInstant = !!selection && selection.start.getTime() === selection.end.getTime();
+  chart.dispatchAction({
+    type: "brush",
+    areas: selection && !isInstant
+      ? [{
+          brushType: "lineX",
+          xAxisIndex: 0,
+          coordRange: [selection.start.getTime(), selection.end.getTime()],
+          transformable: effectiveSelect(instance),
+        }]
+      : [],
+  });
+  drawSelectedInstant(instance, isInstant ? selection.start.getTime() : null);
+}
+
+// Report a drawn selection (or its removal) and zooming to the page,
+// as DOM events on the chart container: "chartrangeselected" and "chartvisiblerangechanged".
+// With the select tool, a drag selects a range and a click in a plot selects an instant.
+// With any tool, a click outside the plots clears the selection, as it releases pinned annotations.
+function wireSelection(instance, elementId) {
+  const chart = instance.chart;
+  const zr = chart.getZr();
+  if (instance.onBrushEnd) {
+    chart.off("brushEnd", instance.onBrushEnd);
+    instance.onBrushEnd = null;
+  }
+  if (instance.onVisibleRangeChange) {
+    chart.off("dataZoom", instance.onVisibleRangeChange);
+    instance.onVisibleRangeChange = null;
+  }
+  if (instance.onSelectClick) {
+    zr.off("mousedown", instance.onSelectMouseDown);
+    zr.off("click", instance.onSelectClick);
+    instance.onSelectMouseDown = null;
+    instance.onSelectClick = null;
+  }
+  const container = document.getElementById(elementId);
+  if (!container || !instance.lastOption || !Array.isArray(instance.lastOption.dataZoom)) return;
+  const report = () => {
+    container.dispatchEvent(new CustomEvent("chartrangeselected", { bubbles: true, detail: instance._selection }));
+  };
+  instance.onVisibleRangeChange = () => {
+    drawSelectedInstant(instance, instance._selection && instance._selection.start.getTime() === instance._selection.end.getTime()
+      ? instance._selection.start.getTime() : null);
+    container.dispatchEvent(new CustomEvent("chartvisiblerangechanged", {
+      bubbles: true,
+      detail: visibleTimeRangeFromOption(chart.getOption()),
+    }));
+  };
+  chart.on("dataZoom", instance.onVisibleRangeChange);
+  if (!instance.lastOption.brush) return;
+  instance.onBrushEnd = (params) => {
+    const range = selectedRangeFromBrushAreas(params && params.areas);
+    if (!range) return; // clearing is done by a click outside the plots
+    instance._selection = range;
+    report();
+  };
+  chart.on("brushEnd", instance.onBrushEnd);
+  // The browser also fires a click at the end of a drag, so only a pointer that barely moved counts as a click.
+  instance.onSelectMouseDown = (e) => {
+    instance._selectPressedAt = [e.offsetX, e.offsetY];
+  };
+  instance.onSelectClick = (e) => {
+    const pressedAt = instance._selectPressedAt;
+    instance._selectPressedAt = null;
+    if (pressedAt && Math.hypot(e.offsetX - pressedAt[0], e.offsetY - pressedAt[1]) > 3) return;
+    const xAxes = instance.lastOption.xAxis || [];
+    const grid = xAxes.findIndex((_, g) => chart.containPixel({ gridIndex: g }, [e.offsetX, e.offsetY]));
+    if (grid < 0) {
+      if (instance._selection) {
+        instance._selection = null;
+        drawSelection(instance);
+        report();
+      }
+      return;
+    }
+    if (!effectiveSelect(instance)) return;
+    const time = new Date(chart.convertFromPixel({ xAxisIndex: grid }, e.offsetX));
+    instance._selection = { start: time, end: new Date(time) };
+    report();
+  };
+  zr.on("mousedown", instance.onSelectMouseDown);
+  zr.on("click", instance.onSelectClick);
+  drawSelection(instance);
+}
+
+// Show a selected time range on the chart (e.g. after rounding it to whole events), or clear it with null.
+// A range whose start equals its end is an instant.
+export function setFastChartSelection(elementId, range) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._selection = range ? { start: new Date(range.start), end: new Date(range.end) } : null;
+  drawSelection(instance);
+}
+
+// The sensor annotation form uses the time interval currently visible after
+// mouse zooming, which can be narrower than the date picker's query window.
+export function visibleTimeRangeFromOption(option) {
+  const axis = option && option.xAxis && option.xAxis[0];
+  const zoom = option && option.dataZoom && option.dataZoom[0];
+  if (!axis || axis.type !== "time" || !zoom) return null;
+  const min = new Date(axis.min).getTime();
+  const max = new Date(axis.max).getTime();
+  const start = typeof zoom.start === "number" ? zoom.start : 0;
+  const end = typeof zoom.end === "number" ? zoom.end : 100;
+  if (!isFinite(min) || !isFinite(max) || min >= max ||
+      !isFinite(start) || !isFinite(end) || start < 0 || end > 100 || start >= end) return null;
+  return {
+    start: new Date(min + (max - min) * start / 100),
+    end: new Date(min + (max - min) * end / 100),
+  };
+}
+
+export function getFastChartVisibleTimeRange(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return null;
+  return visibleTimeRangeFromOption(instance.chart.getOption());
+}
+
+// Refresh annotation marks without discarding the user's current zoom.
+export function refreshFastChartAnnotations(elementId, annotations) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed() || !instance.lastArgs) return;
+  const zoom = (instance.chart.getOption().dataZoom || [])[0];
+  const { data, options } = instance.lastArgs;
+  renderFastChart(elementId, data, { ...options, annotations });
+  if (zoom && typeof zoom.start === "number" && typeof zoom.end === "number") {
+    instance.chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: zoom.start, end: zoom.end });
+  }
 }
 
 // Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
@@ -2606,7 +2866,8 @@ function wireSessionTooltipRedirect(instance, opts) {
 // Highlight the annotation band/rule under the cursor and show its text below the
 // hovered subplot ONLY (the other subplots keep the light shading), matching the
 // Vega-Lite annotation layers. Clicking (or tapping, on touch) pins the highlight;
-// clicking it again, or clicking outside any annotation, releases it. markArea
+// clicking it again, or clicking outside any annotation, releases it.
+// Shift-click pins another annotation, or releases a pinned one, keeping the other pins. markArea
 // emphasis does not fire because the axisPointer intercepts mouse events. Track
 // hover on the chart container, rather than the canvas: crossing belief hit areas
 // or the HTML data tooltip must not briefly clear the annotation. ZRender still
@@ -2635,7 +2896,7 @@ export function wireAnnotationHover(instance) {
     instance.onAnnotZoom = null;
   }
   if (instance._annotLabels) {
-    Object.values(instance._annotLabels).forEach((label) => label.remove());
+    instance._annotLabels.forEach((label) => label.remove());
     instance._annotLabels = null;
   }
   const ctx = instance._annotCtx;
@@ -2667,11 +2928,15 @@ export function wireAnnotationHover(instance) {
     container.appendChild(label);
     return label;
   };
-  const labels = { pin: makeLabel("pin"), hover: makeLabel("hover") };
-  instance._annotLabels = labels;
+  // One label per pinned annotation (added as needed), and one for the hovered annotation.
+  const pinLabels = [makeLabel("pin")];
+  const hoverLabel = makeLabel("hover");
+  instance._annotLabels = [pinLabels[0], hoverLabel];
 
-  let hover = { grid: -1, idx: -1 };
-  let pin = { grid: -1, idx: -1 };
+  const NONE = { grid: -1, idx: -1 };
+  const key = (state) => state.grid + ":" + state.idx;
+  let hover = NONE;
+  let pins = [];
 
   // Which annotation is at the given pixel position, and in which subplot?
   // Bands match when the time under the cursor falls inside their window;
@@ -2690,10 +2955,11 @@ export function wireAnnotationHover(instance) {
     return { grid: -1, idx: -1 };
   };
 
-  const stateFor = (g, hv, pn) => ({
+  const stateFor = (g, hv, pns) => ({
     h: hv.grid === g ? hv.idx : -1,
-    p: pn.grid === g ? pn.idx : -1,
+    p: new Set(pns.filter((pn) => pn.grid === g).map((pn) => pn.idx)),
   });
+  const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
   const renderLabel = (label, state, row) => {
     if (state.grid < 0 || state.idx < 0) {
@@ -2723,7 +2989,7 @@ export function wireAnnotationHover(instance) {
       "Start: " + formatFullDate(annotation.start),
       "End: " + formatFullDate(annotation.end),
     ].join("\n");
-    label.style.color = annotationColor(annotation);
+    label.style.color = ANNOTATION_TEXT_COLOR;
     label.style.maxWidth = plotWidth + "px";
     label.style.display = "inline-block";
     // Measure after showing it, then shift a right-edge label left instead of
@@ -2733,6 +2999,7 @@ export function wireAnnotationHover(instance) {
     label.style.left = Math.round(canvasLeft + x) + "px";
     label.style.top =
       Math.round(canvasTop + grid.labelTop + row * ANNOTATION_LABEL_ROW_HEIGHT) + "px";
+    label.dataset.grid = state.grid;
   };
 
   const labelsOverlap = (first, second) => {
@@ -2744,36 +3011,61 @@ export function wireAnnotationHover(instance) {
     );
   };
 
-  const renderHoverLabel = (newHover, newPin) => {
-    const hoverDuplicatesPin =
-      newHover.grid === newPin.grid && newHover.idx === newPin.idx && newHover.idx >= 0;
+  // Show a label in the first row where it overlaps none of the labels already shown in its subplot.
+  // The strip below a subplot has two rows, so a third overlapping label shares the second row.
+  const placeLabel = (label, state, shown) => {
+    renderLabel(label, state, 0);
+    const clashes = shown.some(
+      (other) => other.dataset.grid === label.dataset.grid && other.style.top === label.style.top && labelsOverlap(other, label)
+    );
+    if (clashes) renderLabel(label, state, 1);
+  };
+
+  const shownPinLabels = () => pinLabels.filter((label) => label.style.display !== "none");
+
+  const renderPinLabels = (newPins) => {
+    while (pinLabels.length < newPins.length) {
+      const label = makeLabel("pin");
+      pinLabels.push(label);
+      instance._annotLabels.push(label);
+    }
+    const shown = [];
+    pinLabels.forEach((label, i) => {
+      if (i >= newPins.length) {
+        renderLabel(label, NONE, 0);
+        return;
+      }
+      placeLabel(label, newPins[i], shown);
+      shown.push(label);
+    });
+  };
+
+  const renderHoverLabel = (newHover, newPins) => {
+    const hoverDuplicatesPin = newHover.idx >= 0 && newPins.some((pn) => key(pn) === key(newHover));
     if (hoverDuplicatesPin) {
-      renderLabel(labels.hover, { grid: -1, idx: -1 }, 0);
+      renderLabel(hoverLabel, NONE, 0);
       return;
     }
-    renderLabel(labels.hover, newHover, 0);
-    if (
-      newHover.grid >= 0 &&
-      newHover.grid === newPin.grid &&
-      labelsOverlap(labels.pin, labels.hover)
-    ) {
-      renderLabel(labels.hover, newHover, 1);
+    if (newHover.grid < 0) {
+      renderLabel(hoverLabel, newHover, 0);
+      return;
     }
+    placeLabel(hoverLabel, newHover, shownPinLabels());
   };
 
   // Re-shade the subplots whose highlight state changed. setOption merges series
   // by position, so build a patch array up to the last changed annotation-bearing
   // series; only those carry new marks, the rest pass through untouched.
-  const apply = (newHover, newPin) => {
-    const hoverChanged = newHover.grid !== hover.grid || newHover.idx !== hover.idx;
-    const pinChanged = newPin.grid !== pin.grid || newPin.idx !== pin.idx;
+  const apply = (newHover, newPins) => {
+    const hoverChanged = key(newHover) !== key(hover);
+    const pinChanged = newPins.map(key).join() !== pins.map(key).join();
     if (!hoverChanged && !pinChanged) return;
     const patches = new Map();
     let maxSeriesIdx = -1;
     ctx.grids.forEach((info, g) => {
-      const before = stateFor(g, hover, pin);
-      const after = stateFor(g, newHover, newPin);
-      if (before.h === after.h && before.p === after.p) return;
+      const before = stateFor(g, hover, pins);
+      const after = stateFor(g, newHover, newPins);
+      if (before.h === after.h && sameSet(before.p, after.p)) return;
       const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
       const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
       if (markLine) marks.markLine = markLine;
@@ -2787,10 +3079,10 @@ export function wireAnnotationHover(instance) {
       }
       chart.setOption({ series: seriesPatch });
     }
-    if (pinChanged) renderLabel(labels.pin, newPin, 0);
-    if (hoverChanged || pinChanged) renderHoverLabel(newHover, newPin);
+    if (pinChanged) renderPinLabels(newPins);
+    renderHoverLabel(newHover, newPins);
     hover = newHover;
-    pin = newPin;
+    pins = newPins;
   };
 
   instance.onAnnotMove = (e) => {
@@ -2800,17 +3092,23 @@ export function wireAnnotationHover(instance) {
     // offsetX/offsetY would be relative to the tooltip when it covers the
     // canvas, so convert viewport coordinates to chart coordinates instead.
     const rect = canvas.getBoundingClientRect();
-    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pin);
+    apply(locate([e.clientX - rect.left, e.clientY - rect.top]), pins);
   };
-  instance.onAnnotOut = () => apply({ grid: -1, idx: -1 }, pin);
+  instance.onAnnotOut = () => apply(NONE, pins);
   instance.onAnnotClick = (e) => {
     const at = locate([e.offsetX, e.offsetY]);
-    const samePin = at.grid === pin.grid && at.idx === pin.idx;
-    apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
+    const isPinned = at.idx >= 0 && pins.some((pn) => key(pn) === key(at));
+    if (e.event && e.event.shiftKey) {
+      // Shift-click adds the annotation to the pins, or releases it, keeping the other pins
+      if (at.idx < 0) return;
+      apply(hover, isPinned ? pins.filter((pn) => key(pn) !== key(at)) : [...pins, at]);
+      return;
+    }
+    apply(hover, at.idx < 0 || (isPinned && pins.length === 1) ? [] : [at]);
   };
   instance.onAnnotZoom = () => {
-    renderLabel(labels.pin, pin, 0);
-    renderHoverLabel(hover, pin);
+    renderPinLabels(pins);
+    renderHoverLabel(hover, pins);
   };
   container.addEventListener("mousemove", instance.onAnnotMove);
   container.addEventListener("mouseleave", instance.onAnnotOut);

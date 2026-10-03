@@ -1853,14 +1853,20 @@ def test_get_asset_chart_with_annotation_layers(
     annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
     subcharts = chart_specs["vconcat"]
     assert len(subcharts) > 0
-    for subchart in subcharts:
+    for row_index, subchart in enumerate(subcharts):
         annotation_layers = [
             layer
             for layer in subchart["layer"]
             if layer.get("data", {}).get("name") == annotations_dataset_name
         ]
-        # band + rule + marker + text layers
-        assert len(annotation_layers) == 4
+        # band, rule, invisible hit area for pointing at the rule, marker and text layers
+        assert [layer["name"] for layer in annotation_layers] == [
+            f"annotation_band_{row_index}",
+            f"annotation_rule_{row_index}",
+            f"annotation_rule_hit_{row_index}",
+            f"annotation_marker_{row_index}",
+            f"annotation_text_{row_index}",
+        ]
     # hover params are unique per subchart, so that hovering one subchart
     # does not darken the annotation bands in the other subcharts
     all_param_names = [
@@ -2363,7 +2369,7 @@ def test_get_jobs_of_child_assets(
     parent = add_asset_with_children["parent"]
     child = add_asset_with_children["child_1"]
     child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
-    app.job_cache.add(
+    app.job_map.add(
         child.id,
         child_job.id,
         queue="scheduling",
@@ -2392,3 +2398,126 @@ def test_get_jobs_of_child_assets(
     assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
 
     app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Paged jobs are newest first, while requests without a page stay compatible."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    jobs = [app.queues["scheduling"].enqueue(sum, [n]) for n in range(4)]
+    for job in jobs:
+        app.job_map.add(
+            child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
+        )
+
+    url = url_for("AssetAPI:get_jobs", id=parent.id)
+    legacy = client.get(url)
+    assert legacy.status_code == 200
+    assert set(legacy.json) == {"jobs", "redis-connection-err", "status"}
+    assert {job["job_id"] for job in legacy.json["jobs"]} == {job.id for job in jobs}
+
+    first = client.get(url, query_string={"page": 1, "per-page": 2})
+    second = client.get(url, query_string={"page": 2, "per-page": 2})
+    empty = client.get(url, query_string={"page": 3, "per-page": 2})
+    for response in (first, second, empty):
+        assert response.status_code == 200
+        assert response.json["num-records"] == 4
+        assert response.json["filtered-records"] == 4
+    assert [job["job_id"] for job in first.json["jobs"]] == [
+        job.id for job in reversed(jobs[2:])
+    ]
+    assert [job["job_id"] for job in second.json["jobs"]] == [
+        job.id for job in reversed(jobs[:2])
+    ]
+    assert empty.json["jobs"] == []
+
+    excluded = client.get(
+        url, query_string={"page": 1, "include-child-assets": "false"}
+    )
+    assert excluded.json["num-records"] == 0
+    assert excluded.json["jobs"] == []
+    assert client.get(url, query_string={"page": 0}).status_code == 422
+
+    app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination_sorts_across_pages(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Queue and time ordering apply to all jobs before selecting a page."""
+    # Use a new cache key without reattaching module-scoped ORM objects.
+    existing_asset = add_asset_with_children["child_1"]
+    asset = GenericAsset(
+        name="job sorting asset",
+        account_id=existing_asset.account_id,
+        generic_asset_type_id=existing_asset.generic_asset_type_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="job sorting sensor",
+        generic_asset_id=asset.id,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    jobs_by_queue = {}
+    for queue in ("scheduling", "forecasting"):
+        jobs_by_queue[queue] = [
+            app.queues[queue].enqueue(sum, [number]) for number in range(2)
+        ]
+        for job in jobs_by_queue[queue]:
+            app.job_map.add(sensor.id, job.id, queue, "sensor")
+
+    url = url_for("AssetAPI:get_jobs", id=asset.id)
+    ascending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "asc",
+        },
+    )
+    descending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "desc",
+        },
+    )
+    oldest_jobs = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "enqueued_at",
+            "sort-dir": "asc",
+        },
+    )
+
+    assert [job["queue"] for job in ascending_queues.json["jobs"]] == [
+        "forecasting",
+        "forecasting",
+    ]
+    assert [job["queue"] for job in descending_queues.json["jobs"]] == [
+        "scheduling",
+        "scheduling",
+    ]
+    assert [job["job_id"] for job in oldest_jobs.json["jobs"]] == [
+        job.id for job in jobs_by_queue["scheduling"]
+    ]
+    assert (
+        client.get(url, query_string={"page": 1, "sort-by": "status"}).status_code
+        == 422
+    )
+
+    app.queues["scheduling"].empty()
+    app.queues["forecasting"].empty()

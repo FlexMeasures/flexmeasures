@@ -14,6 +14,7 @@ from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from humanize.time import precisedelta
+from rq.job import JobStatus
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -839,10 +840,16 @@ def _can_read_automation(automation: Automation | None) -> bool:
     return True
 
 
-def _collect_asset_jobs(asset: Asset) -> list[tuple]:
-    """List the cached jobs of one asset and of its own sensors.
+def _collect_asset_jobs(
+    asset: Asset, lookup: Callable[[int, str, str], list]
+) -> list[tuple]:
+    """List the indexed jobs of one asset and of its own sensors.
 
     Each tuple is (queue, entity type, entity id, entity name, jobs), and the asset the jobs happened on is the one passed in.
+
+    :param asset:   Asset to list the jobs for.
+    :param lookup:  JobMap method for looking up an asset's or sensor's jobs by ID, queue, and entity type.
+                    Use get for full jobs or get_enqueued_at for IDs and enqueue times.
     """
     jobs = list()
 
@@ -853,7 +860,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
             "asset",
             asset.id,
             asset.name,
-            current_app.job_cache.get(asset.id, "scheduling", "asset"),
+            lookup(asset.id, "scheduling", "asset"),
         )
     )
 
@@ -865,7 +872,7 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
                     "sensor",
                     sensor.id,
                     sensor.name,
-                    current_app.job_cache.get(sensor.id, queue, "sensor"),
+                    lookup(sensor.id, queue, "sensor"),
                 )
             )
 
@@ -875,12 +882,20 @@ def _collect_asset_jobs(asset: Asset) -> list[tuple]:
 def build_asset_jobs_data(
     asset: Asset,
     include_child_assets: bool = True,
-) -> list[dict]:
+    page: int | None = None,
+    per_page: int = 10,
+    sort_by: str = "enqueued_at",
+    sort_dir: str = "desc",
+) -> list[dict] | tuple[list[dict], int]:
     """Get all jobs data for an asset
 
     :param asset:                Asset to get the jobs for.
     :param include_child_assets: Whether to also include the jobs of the assets below this one, at any depth, so that a site asset shows what happened anywhere below it.
                                  Only the assets the current user may read are included, as a child asset can belong to another account than its parent.
+    :param page:                 One-based page number, or None for the complete list.
+    :param per_page:             Number of jobs per page when page is set.
+    :param sort_by:              Field used to sort pages (enqueued_at or queue).
+    :param sort_dir:             Sort direction (asc or desc).
     :returns:                    A list of dictionaries, each containing the following keys:
                                  - job_id: id of a job
                                  - queue: job queue (scheduling or forecasting)
@@ -892,19 +907,76 @@ def build_asset_jobs_data(
                                  - err: job error (equals to None when there was no error for a job)
                                  - enqueued_at: time when the job was enqueued
                                  - metadata_hash: hash of job metadata (internal field)
+                                 When page is set, return that list together with the total job count.
     """
 
     from flexmeasures.data.services.generic_assets import get_readable_offspring
 
     assets = [asset] + (get_readable_offspring(asset) if include_child_assets else [])
 
+    job_map = current_app.job_map
+    # A page only needs every job's enqueue time for sorting, and the full jobs on that page.
+    lookup = job_map.get if page is None else job_map.get_enqueued_at
+
     jobs = list()
     for asset_to_report_on in assets:
         # Pair each entry with the asset it came from, so that every job can name the asset it happened on.
         jobs.extend(
             (asset_to_report_on, entry)
-            for entry in _collect_asset_jobs(asset_to_report_on)
+            for entry in _collect_asset_jobs(asset_to_report_on, lookup)
         )
+
+    if page is not None:
+        # Sort before fetching the full jobs and building their metadata, which is expensive for large job histories.
+        flattened_jobs = [
+            (
+                job_asset,
+                queue,
+                asset_or_sensor_type,
+                entity_id,
+                entity_name,
+                job_id,
+                enqueued_at,
+            )
+            for job_asset, (
+                queue,
+                asset_or_sensor_type,
+                entity_id,
+                entity_name,
+                enqueued_ats,
+            ) in jobs
+            for job_id, enqueued_at in enqueued_ats
+        ]
+        flattened_jobs.sort(
+            key=lambda item: (
+                item[6].timestamp() if item[6] else 0,
+                item[5],
+            ),
+            reverse=True,
+        )
+        if sort_by == "queue":
+            # Keep the newest jobs first within each queue.
+            flattened_jobs.sort(key=lambda item: item[1], reverse=sort_dir == "desc")
+        elif sort_dir == "asc":
+            flattened_jobs.reverse()
+        total_jobs = len(flattened_jobs)
+        start = (page - 1) * per_page
+        page_of_jobs = flattened_jobs[start : start + per_page]
+        fetched_jobs = job_map.fetch_jobs([item[5] for item in page_of_jobs])
+        jobs = [
+            (job_asset, (queue, asset_or_sensor_type, entity_id, entity_name, [job]))
+            for (
+                job_asset,
+                queue,
+                asset_or_sensor_type,
+                entity_id,
+                entity_name,
+                _,
+                _,
+            ), job in zip(page_of_jobs, fetched_jobs)
+            # Skip a job that expired between sorting and fetching.
+            if job is not None
+        ]
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info
@@ -916,6 +988,7 @@ def build_asset_jobs_data(
         jobs,
     ) in jobs:
         for job in jobs:
+            status = job.get_status(refresh=False)
             e = job.meta.get(
                 "exception",
                 Exception(
@@ -926,7 +999,7 @@ def build_asset_jobs_data(
             )
             job_err = (
                 f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
-                if job.is_failed
+                if status == JobStatus.FAILED
                 else None
             )
 
@@ -953,7 +1026,7 @@ def build_asset_jobs_data(
                     "asset_id": job_asset.id,
                     "asset_name": job_asset.name,
                     "entity": f"{asset_or_sensor_type}: {entity_name} (Id: {entity_id})",
-                    "status": job.get_status(),
+                    "status": status,
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
                     "created_via": created_via,
@@ -961,6 +1034,8 @@ def build_asset_jobs_data(
                 }
             )
 
+    if page is not None:
+        return jobs_data, total_jobs
     return jobs_data
 
 
