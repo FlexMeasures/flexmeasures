@@ -2982,7 +2982,9 @@ def test_a_stored_forecaster_is_refused_rather_than_run_under_qualifiers_its_sou
 
     assert f"data source {source.id}" in str(refusal.value)
     assert "lower" in str(refusal.value)
-    assert "Recreate" in str(refusal.value)
+    # Both ways out are named, as the same refusal reaches an automation and a one-off run reusing a source.
+    assert "leave the source out" in str(refusal.value)
+    assert "recreate the source" in str(refusal.value)
     # Nothing was moved, so the source still describes what it always did.
     assert TrainPredictPipelineConfigSchema().dump(pipeline._config).get(
         "past-regressors"

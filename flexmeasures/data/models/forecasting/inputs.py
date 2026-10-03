@@ -109,7 +109,8 @@ def fold_target_qualifiers_into_config(
             f" while the forecaster is set up from data source {recorded_source.id}, whose configuration says nothing of them."
             f" Moving them into that configuration is not possible, as the source records it as it was,"
             f" so the forecast would be computed under qualifiers its own source does not report."
-            f" Recreate this forecaster with the qualifiers in its configuration, as an entry naming '{AUTO_SENSOR}'."
+            f" Either leave the source out, so that the qualifiers in this forecaster's own configuration decide which source it records under,"
+            f" or recreate the source with the qualifiers in its configuration, as an entry naming '{AUTO_SENSOR}'."
         )
 
     config["past_regressors"] = list(config.get("past_regressors") or []) + [
