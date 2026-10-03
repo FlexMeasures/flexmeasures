@@ -724,6 +724,26 @@ def _get_sensor_asset_relation(
     return ";".join(relations)
 
 
+def _get_flex_context_sensors(asset: Asset) -> dict[str, Sensor]:
+    """The sensors an asset's flex-context refers to, by the field that refers to them.
+
+    A flex-context holds sensor ids, and a sensor can be deleted without those references being cleaned up,
+    for instance when it was deleted directly in the database.
+    A field whose sensor is gone names no sensor to report on, so it is left out here.
+    """
+    context_sensors = {}
+    for field, value in asset.flex_context.items():
+        if not isinstance(value, dict) or field in INFLEXIBLE_DEVICE_KEYS:
+            continue
+        sensor_id = value.get("sensor")
+        if sensor_id is None:
+            continue
+        sensor = db.session.get(Sensor, sensor_id)
+        if sensor is not None:
+            context_sensors[field] = sensor
+    return context_sensors
+
+
 def get_asset_sensors_metadata(
     asset: Asset,
     now: datetime = None,
@@ -742,12 +762,7 @@ def get_asset_sensors_metadata(
     sensors = []
     sensor_ids = set()
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
-    context_sensors = {
-        field: Sensor.query.get(asset.flex_context[field]["sensor"])
-        for field in asset.flex_context
-        if isinstance(asset.flex_context[field], dict)
-        and field not in INFLEXIBLE_DEVICE_KEYS
-    }
+    context_sensors = _get_flex_context_sensors(asset)
 
     # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
@@ -797,12 +812,7 @@ def serialize_sensor_status_data(
         asset = sensor_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
-    context_sensors = {
-        field: Sensor.query.get(asset.flex_context[field]["sensor"])
-        for field in asset.flex_context
-        if isinstance(asset.flex_context[field], dict)
-        and field not in INFLEXIBLE_DEVICE_KEYS
-    }
+    context_sensors = _get_flex_context_sensors(asset)
     sensors = []
     for sensor_status in sensor_statuses:
         sensor_status["id"] = sensor.id

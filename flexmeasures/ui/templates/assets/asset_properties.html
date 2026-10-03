@@ -442,6 +442,7 @@
             getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON,
             escapeHtml
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+        import { flexConfigSensorIds } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -1354,6 +1355,12 @@
 
 
             flexModelModal.addEventListener('shown.bs.modal', function () {
+                // Forget what we remember about the sensors this flex-model refers to.
+                // A sensor can be deleted while a reference to it is cached,
+                // and the editor has to show such a reference as the dangling one it is.
+                for (const sensorId of flexConfigSensorIds(getFlexModel())) {
+                    localStorage.removeItem(`sensor_${sensorId}`);
+                }
                 // Initial renders
                 renderFlexModelForm(); // Initial render of flex model form
                 renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
