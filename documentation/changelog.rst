@@ -18,9 +18,9 @@ v1.1.0 | September XX, 2026
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
 
-.. warning:: This version's database upgrade merges identical data sources, as the database now refuses duplicates. Of each group, the source that recorded most recently keeps its ID; ``flexmeasures db upgrade -x keep-source=<id>`` names another, for an ID something outside FlexMeasures refers to.
+.. warning:: This version's database upgrade merges identical data sources, as the database now refuses duplicates. Of each group, the source that recorded most recently keeps its ID, and the others are merged into it. Pass ``flexmeasures db upgrade -x keep-source=<id>`` to keep a particular source's ID instead, where something outside FlexMeasures refers to it.
              A merge moves over the beliefs, annotations and other references of each duplicate, and points stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, at the source they were merged into.
-             Jobs waiting in Redis cannot be updated this way and fail if they refer to a merged source, so run ``flexmeasures jobs check-source-references`` *before* upgrading, to let the jobs it lists finish, or to cancel them.
+             Jobs waiting in Redis cannot be updated this way and fail if they refer to a merged source. ``flexmeasures jobs check-source-references`` lists such jobs; run it *before* upgrading, so that you can wait for them or cancel them yourself.
              The upgrade prints what it merged, so anyone referring to a source by ID can switch to the one it was merged into [see `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_]
 
 New features

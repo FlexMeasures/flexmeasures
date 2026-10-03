@@ -775,9 +775,12 @@ def check_source_references(queue: str | None):
     Jobs can refer to data sources by ID, for instance where a sensor reference in a flex-context filters on its sources.
     Such a job fails once the data source it refers to is gone.
     Upgrading to FlexMeasures v1.1 merges each group of identical data sources into one of them,
-    so run this before `flexmeasures db upgrade`, to let the jobs it lists finish or to cancel them,
-    and again after, to find the jobs that still refer to a merged data source.
+    so run this before `flexmeasures db upgrade` to see which jobs that affects, and again after,
+    to find the jobs that still refer to a merged data source.
     Queued, deferred, scheduled and started jobs are checked.
+
+    This command exists for that one upgrade, so it is expected to be dropped again in v1.2:
+    from v1.1 on, the database refuses duplicate data sources, so there are no further merges to prepare for.
     """
     q_list = parse_queue_list(queue) if queue else list(app.queues.values())
     configure_mappers()

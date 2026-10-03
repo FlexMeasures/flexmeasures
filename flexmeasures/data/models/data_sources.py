@@ -416,10 +416,10 @@ class SensorDataSource(db.Model):
 # The unique index that refuses identical data sources.
 DATA_SOURCE_UNIQUE_INDEX = "data_source_identity_idx"
 # What identifies a data source.
-# A unique constraint on these columns would treat NULLs as distinct (unless NULLS NOT DISTINCT, from PostgreSQL 15),
-# and so never refuse a second identical source without a user or account.
-# Indexing expressions that replace NULLs makes NULLs count as equal, on any PostgreSQL version;
-# they also count as equal to an empty string (or to -1, or to an empty hash).
+# A unique constraint on these columns would treat NULLs as distinct, and so never refuse a second identical source without a user or account.
+# PostgreSQL can be told otherwise, with NULLS NOT DISTINCT, but only from version 15, which FlexMeasures does not require.
+# Indexing expressions that replace NULLs needs no such minimum: it makes NULLs count as equal whatever the version,
+# where they also count as equal to an empty string (or to -1, or to an empty hash).
 DATA_SOURCE_IDENTITY_EXPRESSIONS = (
     "name",
     "coalesce(type, '')",
