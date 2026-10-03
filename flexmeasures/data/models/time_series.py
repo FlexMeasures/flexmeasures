@@ -284,8 +284,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         )
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        self.attributes[attribute] = value
 
     def check_required_attributes(
         self,
