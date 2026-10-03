@@ -2950,6 +2950,45 @@ def test_target_qualifiers_in_the_parameters_move_into_the_config(
     assert pipeline._parameters["sensor"].lower == "0 kW"
 
 
+def test_a_stored_forecaster_is_refused_rather_than_run_under_qualifiers_its_source_omits(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """A forecaster set up from an existing source cannot absorb qualifiers: its source already records a config without them.
+
+    Moving them in memory would compute the forecast under qualifiers, and attribute it to a source saying it ran without them,
+    which is the gap this release closes. Such a payload is stored, so it would run that way on every recurrence.
+    """
+    from flexmeasures.data.models.data_sources import DataSource
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = DataSource(
+        name="Seita",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        version="1",
+        attributes={"data_generator": {"config": {}}},
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._data_source = source
+    pipeline._parameters = {
+        "sensor": SensorReference(sensor=target_sensor, lower="0 kW")
+    }
+
+    with pytest.raises(ValueError) as refusal:
+        pipeline._resolve_inputs()
+
+    assert f"data source {source.id}" in str(refusal.value)
+    assert "lower" in str(refusal.value)
+    assert "Recreate" in str(refusal.value)
+    # Nothing was moved, so the source still describes what it always did.
+    assert TrainPredictPipelineConfigSchema().dump(pipeline._config).get(
+        "past-regressors"
+    ) in (None, [])
+
+
 def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
     app, setup_fresh_test_forecast_data, fresh_db
 ):

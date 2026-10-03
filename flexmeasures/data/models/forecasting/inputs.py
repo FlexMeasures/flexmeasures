@@ -8,7 +8,7 @@ so a config that wants to say the same about that sensor writes ``"auto"`` in pl
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.forecasting.references import (
@@ -16,6 +16,9 @@ from flexmeasures.data.schemas.forecasting.references import (
     AutoSensorReference,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
+
+if TYPE_CHECKING:
+    from flexmeasures.data.models.data_sources import DataSource
 
 #: The regressor lists a config entry for the sensor being forecast may appear in.
 REGRESSOR_FIELDS = ("past_regressors", "future_regressors")
@@ -76,21 +79,38 @@ def _target_qualifiers(target: Sensor | SensorReference) -> dict[str, Any]:
 
 
 def fold_target_qualifiers_into_config(
-    config: dict[str, Any], parameters: dict[str, Any]
+    config: dict[str, Any],
+    parameters: dict[str, Any],
+    recorded_source: DataSource | None = None,
 ) -> bool:
     """Move source filters and cleaning bounds off the target in the parameters, into the config.
 
     Both were briefly settable on the target in the forecast parameters, where they never reached the data source's data-generator attributes.
     A payload that still carries them keeps working: the qualifiers move to a config entry naming ``"auto"``, and the parameters name the sensor alone.
 
-    :param config:     The forecaster's config, mutated in place where the parameters carry qualifiers.
-    :param parameters: The forecast parameters, whose target is replaced by the sensor it wraps.
-    :returns:          Whether anything was moved.
+    Where the forecaster was set up from a data source that already exists, moving them is refused instead.
+    That source records the config as it was, and nothing here can change what it records:
+    the forecast would be computed with the qualifiers and attributed to a source saying it ran without them,
+    which is the very gap this release closes. Such a payload is stored, so it would run that way again on every recurrence.
+
+    :param config:          The forecaster's config, mutated in place where the parameters carry qualifiers.
+    :param parameters:      The forecast parameters, whose target is replaced by the sensor it wraps.
+    :param recorded_source: The data source the forecaster was set up from, where it was set up from one.
+    :returns:               Whether anything was moved.
+    :raises ValueError:     if the parameters carry qualifiers while the config is already recorded on a data source.
     """
     target = parameters.get("sensor")
     qualifiers = _target_qualifiers(target)
     if not qualifiers:
         return False
+    if recorded_source is not None:
+        raise ValueError(
+            f"The forecast parameters qualify their target sensor with {', '.join(sorted(qualifiers))},"
+            f" while the forecaster is set up from data source {recorded_source.id}, whose configuration says nothing of them."
+            f" Moving them into that configuration is not possible, as the source records it as it was,"
+            f" so the forecast would be computed under qualifiers its own source does not report."
+            f" Recreate this forecaster with the qualifiers in its configuration, as an entry naming '{AUTO_SENSOR}'."
+        )
 
     config["past_regressors"] = list(config.get("past_regressors") or []) + [
         AutoSensorReference(qualifiers)

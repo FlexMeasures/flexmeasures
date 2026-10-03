@@ -277,7 +277,9 @@ class TrainPredictPipeline(Forecaster):
         The config keeps naming ``"auto"`` where it means that sensor, because it is what the data source records.
         Running needs concrete sensors, and needs the target to carry whatever its config entry says about reading it.
         """
-        if fold_target_qualifiers_into_config(self._config, self._parameters):
+        if fold_target_qualifiers_into_config(
+            self._config, self._parameters, recorded_source=self._data_source
+        ):
             for key, value in self._config.items():
                 setattr(self, key, value)
         resolved_config, target = resolve_forecast_inputs(
