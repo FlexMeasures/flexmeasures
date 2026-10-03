@@ -1995,6 +1995,9 @@ def _create_builtin_automation(
             validate_automation_output_scope(asset.id, output_sensor, automation_type)
 
     if data_generator is not None:
+        # The automation hangs off an asset, so what it computes is that asset's organisation's own data,
+        # which its data source says by belonging to that organisation.
+        data_generator.set_source_account(asset.owner)
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
         generator = data_generator.data_source

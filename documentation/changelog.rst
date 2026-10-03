@@ -10,6 +10,10 @@ v1.1.0 | September XX, 2026
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
              If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
+             Run the upgrade **before** deploying the new code, with your workers stopped:
+             this version couples each data source to the organisation it records for, and a worker still running the previous version records under a source belonging to no organisation, beside the one the upgrade has just coupled.
+             Where a data source turns out to have recorded for several organisations, the upgrade stops and names those sources rather than picking one.
+             ``flexmeasures db upgrade -x split-shared-sources=true`` then gives each of those organisations its own data source, keeping each source's ID for the organisation which recorded under it most recently, since a source ID is something some installations may refer to.
 
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
@@ -34,6 +38,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* A data source now belongs to the organisation it records for, where only sources of type ``user`` used to. The organisation is part of what identifies a source, so two organisations running the same data generator under the same configuration each record under their own source, instead of sharing one because their configurations happen to hash alike; a ``source-account`` filter consequently finds generated data, where it used to match user-recorded data only. The sources that already exist are coupled on upgrade, to the organisation of the assets their data sits on [see `PR #2631 <https://www.github.com/FlexMeasures/flexmeasures/pull/2631>`_]
 * Who may read a data source is now decided per source, rather than only by the organisation the source names. A source is readable when it belongs to an organisation you may read, when an automation you may read computes under it, or when it has recorded data on a sensor you may read. A source which names no organisation, which is what most data generators' sources look like today, is no longer readable by everyone for that reason alone. The configuration a data generator stores on its source is handed over only for the first two cases, because such a configuration names the sensors it runs on [see `PR #2584 <https://www.github.com/FlexMeasures/flexmeasures/pull/2584>`_]
 * A schedule whose commitments constrain the solver identically, in that they bind the same devices against the same baseline over the same time steps, now solves them as one commitment priced on their summed prices, rather than as one apiece. A commitment that is not convex on its own can then be carried by one whose prices more than compensate, so such a schedule stays a linear program instead of needing the solver's sign variables, and it is a smaller one. Each commitment is still reported with its own costs, worked out from its own prices [see `PR #2635 <https://www.github.com/FlexMeasures/flexmeasures/pull/2635>`_]
 * The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
