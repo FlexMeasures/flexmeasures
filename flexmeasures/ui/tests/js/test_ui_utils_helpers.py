@@ -335,6 +335,21 @@ def test_a_remembered_error_payload_is_not_taken_for_a_resource(assert_js):
         """)
 
 
+def test_an_asset_which_is_gone_has_no_account_to_name(assert_js):
+    """Every place that names a sensor names its asset's account, for an asset which may not be there."""
+    assert_js("""
+        import { getAccountOfAsset } from "/js/ui-utils.js";
+        localStorage.clear();
+        let asked = 0;
+        window.fetch = async () => { asked += 1; return {ok: true, json: async () => ({id: 3, name: "Acme"})}; };
+
+        eq("an asset which is gone names no account", await getAccountOfAsset(null), null);
+        eq("and is not asked about", asked, 0);
+        eq("an asset that is there names its own", (await getAccountOfAsset({id: 2, account_id: 3}))["name"], "Acme");
+        localStorage.clear();
+        """)
+
+
 def test_a_rendered_sensor_which_is_gone_names_the_reference(assert_js):
     """The flex-config dialogues render sensor references, and one of those can be dangling."""
     assert_js("""

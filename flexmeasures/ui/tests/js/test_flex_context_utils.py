@@ -126,6 +126,9 @@ def test_flex_config_sensor_ids(assert_js):
         eq("and the bare ids of the deprecated field",
            flexConfigSensorIds({"inflexible-device-sensors": [8, 9]}),
            [8, 9]);
+        eq("and the bare ids a commitment is scoped to",
+           flexConfigSensorIds({commodities: [{commitments: [{name: "peak", sensors: [11, 22]}]}]}),
+           [11, 22]);
         eq("a reference inside a commitment is found too",
            flexConfigSensorIds({commodities: [{commitments: [{"up-price": {sensor: 5}}]}]}),
            [5]);
