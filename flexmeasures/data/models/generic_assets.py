@@ -740,8 +740,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return attribute in self.attributes
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        self.attributes[attribute] = value
 
     def get_flex_context_with_provenance(self) -> dict[str, dict]:
         """Reconstitutes the asset's serialized flex-context, tracking each field's origin in the asset tree.
