@@ -1196,6 +1196,35 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
+def get_schedule_values_from_job(job: Job, sensor: Sensor) -> pd.Series | None:
+    """Return the schedule values that a finished job kept for a sensor, if any.
+
+    Scheduling jobs keep the values they computed in their meta (see `make_schedule`),
+    in the form in which they were saved to the database.
+    That allows reading a schedule without querying the database.
+
+    Returns None if the job kept no values for this sensor
+    (for example, if it ran before jobs kept their values),
+    so that the caller can fall back to the database.
+    """
+    for schedule in job.meta.get("schedules", []):
+        if schedule["sensor"] != sensor.id or not schedule["values"]:
+            continue
+        # Like a database lookup, use UTC and name the index `event_start`,
+        # so that either source can be used interchangeably
+        index = pd.date_range(
+            start=pd.Timestamp(schedule["start"]).tz_convert("UTC"),
+            periods=len(schedule["values"]),
+            freq=pd.Timedelta(seconds=schedule["resolution"]),
+            name="event_start",
+        )
+        # The database stores event values as floats, so do the same
+        return pd.Series(
+            schedule["values"], index=index, name="event_value", dtype=float
+        )
+    return None
+
+
 def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:
     """
     Try to find the data source linked by this scheduling or forecasting job.
