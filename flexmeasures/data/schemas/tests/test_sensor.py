@@ -4,6 +4,7 @@ import timely_beliefs as tb
 from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     QuantityOrSensor,
+    sensor_reference_keys,
     SensorReference,
     SensorReferenceSchema,
     VariableQuantityField,
@@ -316,6 +317,53 @@ def test_scheduling_references_refuse_bounds_they_cannot_apply(
     with pytest.raises(ValidationError) as exc:
         InflexibleDeviceSchema().load({"sensor": power_sensor.id, **bounds})
     assert message.strip("`") in exc.value.messages
+
+
+@pytest.mark.parametrize(
+    "stray_key, suggestion",
+    [
+        ("source", "sources"),
+        ("source-type", "source-types"),
+        ("Lower", "lower"),
+        ("colour", None),
+    ],
+)
+def test_a_sensor_reference_refuses_a_key_it_does_not_take(
+    setup_dummy_sensors, stray_key, suggestion
+):
+    """A key a reference does not take used to be read past, so a misspelled filter silently dropped the filtering."""
+    *_, power_sensor = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MW", return_magnitude=False)
+
+    with pytest.raises(ValidationError) as refusal:
+        field.deserialize({"sensor": power_sensor.id, stray_key: "whatever"})
+
+    assert f"`{stray_key}`" in str(refusal.value)
+    if suggestion is not None:
+        assert f"did you mean `{suggestion}`" in str(refusal.value)
+
+
+def test_a_sensor_reference_takes_every_key_its_schema_defines(setup_dummy_sensors):
+    """The keys a reference takes are read off the schema that defines them, so the two cannot drift apart."""
+    *_, power_sensor = setup_dummy_sensors
+    reference = {
+        "sensor": power_sensor.id,
+        "source-types": ["demo script"],
+        "exclude-source-types": ["forecaster"],
+        "sources": [],
+        "source-account": [],
+        "default": "1 MW",
+        "lower": "0 MW",
+        "upper": "2 MW",
+        "snap": {"0 MW": ["0 MW", "0.1 MW"]},
+    }
+
+    assert set(reference) == set(sensor_reference_keys())
+
+    loaded = VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
+        reference
+    )
+    assert isinstance(loaded, SensorReference)
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):

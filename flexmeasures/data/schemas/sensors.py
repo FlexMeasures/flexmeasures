@@ -377,6 +377,16 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
 SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
 
 
+def sensor_reference_keys() -> frozenset[str]:
+    """Every key a sensor reference may carry, as the schema that defines them names them.
+
+    Read off the schema rather than written out again, so that a key added there is accepted here without a second list to remember.
+    """
+    return frozenset(
+        field.data_key or name for name, field in SensorReferenceSchema().fields.items()
+    )
+
+
 def _sets_bounds(reference: dict[str, Any]) -> bool:
     """Whether a sensor-reference dict actually sets a bound, so that an explicit null or an empty snap mapping does not count."""
     return any(
@@ -567,6 +577,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        self._refuse_unknown_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -610,6 +621,30 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             lower=lower,
             upper=upper,
             snap=snap,
+        )
+
+    @staticmethod
+    def _refuse_unknown_keys(value: dict[str, Any]) -> None:
+        """Refuse a key a sensor reference does not have, rather than reading past it.
+
+        This field reads the keys it knows, so a key it does not know used to be accepted and do nothing:
+        a filter written as `source-type` rather than `source-types` dropped the filtering it was meant to apply, silently.
+
+        :raises FMValidationError: naming the keys it does not know, and the nearest key it does.
+        """
+        known = sensor_reference_keys()
+        unknown = [key for key in value if key not in known]
+        if not unknown:
+            return
+        reports = []
+        for key in unknown:
+            nearest = get_close_matches(str(key), sorted(known), n=1, cutoff=0.6)
+            reports.append(
+                f"`{key}`" + (f" (did you mean `{nearest[0]}`?)" if nearest else "")
+            )
+        raise FMValidationError(
+            f"A sensor reference does not take {', '.join(reports)}."
+            f" It takes {', '.join(f'`{key}`' for key in sorted(known))}."
         )
 
     @staticmethod
