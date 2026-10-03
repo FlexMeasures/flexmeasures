@@ -639,3 +639,38 @@ def test_a_public_output_sensor_does_not_dilute_which_organisation_a_generator_r
         reporter.source_account == prosumer
     ), "the public sensor is passed over, not counted"
     assert reporter.data_source.account_id == prosumer.id
+
+
+def test_a_detached_source_is_refreshed_into_its_own_organisations_source(
+    db, setup_accounts
+):
+    """A source that was never flushed is looked up by what it is, which includes the organisation it belongs to."""
+    from flexmeasures.data.models.forecasting.utils import refresh_data_source
+
+    prosumer = setup_accounts["Prosumer"]
+    stored = DataSource(
+        name="Seita",
+        type="forecaster",
+        model="DetachedPipeline",
+        version="1",
+        attributes={"data_generator": {"config": {}}},
+        account=prosumer,
+    )
+    db.session.add(stored)
+    db.session.flush()
+
+    detached = DataSource(
+        name="Seita",
+        type="forecaster",
+        model="DetachedPipeline",
+        version="1",
+        attributes={"data_generator": {"config": {}}},
+        account=prosumer,
+    )
+    assert detached.id is None
+
+    refreshed = refresh_data_source(detached)
+
+    assert (
+        refreshed.id == stored.id
+    ), "it finds the organisation's own source, rather than making a second one"
