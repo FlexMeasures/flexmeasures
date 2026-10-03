@@ -26,7 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 
 revision = "7c4e1a9d2b58"
@@ -90,7 +90,7 @@ def upgrade():
     bind = op.get_bind()
     # Drop the previous constraint first, so that recomputing an attributes hash below cannot trip over it.
     op.drop_constraint(PREVIOUS_CONSTRAINT_NAME, "data_source", type_="unique")
-    merged = merge_duplicate_sources(bind)
+    merged = merge_duplicate_sources(bind, keepers=_keepers_from_x_arguments())
     op.execute(
         f"CREATE UNIQUE INDEX {INDEX_NAME} ON data_source ({', '.join(IDENTITY_EXPRESSIONS)})"
     )
@@ -114,21 +114,71 @@ def downgrade():
     )
 
 
-def merge_duplicate_sources(bind) -> dict[int, int]:
-    """Merge each group of identical data sources into the oldest one, moving over whatever references the newer ones.
+# Which source of a group of duplicates keeps its ID, and therefore stays resolvable from outside the database.
+# The one that recorded most recently is the one an installation is most likely to be naming:
+# a client that discovers a source by looking at recent data finds that one, and a person reading a chart does too.
+# Recency is the belief time, not the event a belief is about, since a generator mostly records about the future
+# and the furthest event start would rank by forecast horizon instead.
+# A group where nobody recorded anything falls back to the oldest, which is at least stable.
+SURVIVOR_RANKING = """
+    first_value(id) OVER (
+        PARTITION BY {identity}
+        ORDER BY last_recorded DESC NULLS LAST, id ASC
+    )
+"""
 
-    Pointing stored references at the oldest source can change the attributes of a data source that records such references,
+
+def _keepers_from_x_arguments() -> dict[int, int]:
+    """Read `-x keep-source=<source id>`, which a host can repeat, naming sources that must keep their ID.
+
+    A source ID can be referred to from outside this database — a client's configuration, a script, an integration —
+    where no migration can follow it. Only the host knows about those, so they can overrule the choice made here.
+    """
+    keepers: dict[int, int] = {}
+    for argument in context.get_x_argument():
+        if not argument.startswith("keep-source="):
+            continue
+        value = argument.split("=", 1)[1]
+        try:
+            keepers[int(value)] = int(value)
+        except ValueError:
+            raise RuntimeError(
+                f"Could not read -x keep-source={value}; it takes a data source ID, as in -x keep-source=37."
+            )
+    return keepers
+
+
+def merge_duplicate_sources(
+    bind, keepers: dict[int, int] | None = None
+) -> dict[int, int]:
+    """Merge each group of identical data sources into one of them, moving over whatever references the others.
+
+    The source that recorded most recently keeps its ID, because that is the one an installation is most likely to refer to,
+    and a source ID is something that can be referred to from outside this database, where no migration can follow it.
+    A host who knows better can say so with ``-x keep-source=<source id>``.
+
+    Pointing stored references at the kept source can change the attributes of a data source that records such references,
     making it identical to another data source, so this repeats until no duplicates remain.
 
+    :param keepers: source IDs the host named, which keep their ID whatever they recorded
     :returns: the ID of each merged data source, mapped to the ID of the data source it was merged into
     """
     merged: dict[int, int] = {}
+    keepers = keepers or {}
     other_references = find_other_references(bind)
+    ranking = SURVIVOR_RANKING.format(identity=", ".join(IDENTITY_EXPRESSIONS))
     while True:
         duplicates = bind.execute(sa.text(f"""
+            WITH recorded AS (
+                SELECT ds.*,
+                       (SELECT max(tb.event_start - tb.belief_horizon)
+                          FROM timed_belief tb
+                         WHERE tb.source_id = ds.id) AS last_recorded
+                  FROM data_source ds
+            )
             SELECT keep, duplicate FROM (
-                SELECT id AS duplicate, min(id) OVER (PARTITION BY {', '.join(IDENTITY_EXPRESSIONS)}) AS keep
-                FROM data_source
+                SELECT id AS duplicate, {ranking} AS keep
+                FROM recorded
             ) AS grouped
             WHERE duplicate <> keep
             ORDER BY keep, duplicate
@@ -136,6 +186,8 @@ def merge_duplicate_sources(bind) -> dict[int, int]:
         if not duplicates:
             return merged
         mapping = {duplicate: keep for keep, duplicate in duplicates}
+        mapping = _apply_named_keepers(mapping, keepers)
+        duplicates = [(keep, duplicate) for duplicate, keep in mapping.items()]
         # A source merged in an earlier round may itself be referred to by the ID of a source merged before it.
         merged = {
             duplicate: mapping.get(keep, keep) for duplicate, keep in merged.items()
@@ -144,6 +196,33 @@ def merge_duplicate_sources(bind) -> dict[int, int]:
         remap_json_references(bind, mapping)
         for keep, duplicate in duplicates:
             merge_source(bind, keep, duplicate, other_references)
+
+
+def _apply_named_keepers(
+    mapping: dict[int, int], keepers: dict[int, int]
+) -> dict[int, int]:
+    """Turn a group around where the host named the source that should keep its ID.
+
+    Each group is a set of IDs mapped onto one of them; naming another member of the same group
+    swaps the two roles, so that the named source is kept and the one this migration chose is merged into it.
+    """
+    if not keepers:
+        return mapping
+    turned = dict(mapping)
+    for named in keepers:
+        group = {named} | {
+            d for d, k in mapping.items() if k == mapping.get(named, named)
+        }
+        group |= {k for d, k in mapping.items() if d == named}
+        chosen = mapping.get(named)
+        if chosen is None or chosen == named:
+            continue
+        for duplicate in list(turned):
+            if turned[duplicate] == chosen:
+                turned[duplicate] = named
+        turned.pop(named, None)
+        turned[chosen] = named
+    return turned
 
 
 def find_other_references(bind) -> list[tuple[str, str]]:
