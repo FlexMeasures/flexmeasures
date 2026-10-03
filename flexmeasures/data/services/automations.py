@@ -314,11 +314,6 @@ def get_dispatchable_automation_runs(
         .join(Automation)
         .where(
             Automation.active.is_(True),
-            # Only a forecast run can be dispatched a second time safely.
-            # Its jobs carry IDs derived from the run, so a retry recognizes the ones it already queued.
-            # A schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules,
-            # which is why such a run is recorded and reported, but left where it failed.
-            AutomationRun.automation_type == "forecasting",
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
             # A run which used up its attempts is left as it is, rather than dispatched again every minute.
@@ -2491,16 +2486,93 @@ def _run_schedule_automation(
     trigger = {"origin": "automation", "automation_id": automation.id}
     if automation_run is not None:
         trigger["automation_run_id"] = automation_run.id
-    if trigger_data["sequential"]:
-        f = create_sequential_scheduling_job
-    else:
-        f = create_simultaneous_scheduling_job
+    sequential = trigger_data["sequential"]
+    f = (
+        create_sequential_scheduling_job
+        if sequential
+        else create_simultaneous_scheduling_job
+    )
+    # A run's jobs are named after it, which is what lets a second attempt recognise the ones the first attempt queued.
+    # A run dispatched outside a durable record, such as by `flexmeasures jobs run-automation`, leaves the naming to RQ.
+    job_naming: dict[str, str] = {}
+    device_sensors: list[Sensor] = []
+    if automation_run is not None:
+        if sequential:
+            job_naming["job_id_prefix"] = f"automation-run-{automation_run.id}"
+            # Which devices a sequential schedule computes for can be left to the asset tree,
+            # so they are resolved here rather than guessed at, and handed on already resolved,
+            # both so that the jobs planned are the jobs created, and so that nothing resolves them twice.
+            from flexmeasures.data.services.scheduling import (
+                find_scheduler_class,
+                resolve_sequential_flex_model,
+            )
+
+            device_sensors = [
+                entry["sensor"]
+                for entry in resolve_sequential_flex_model(
+                    trigger_data["asset"],
+                    scheduler_kwargs,
+                    find_scheduler_class(trigger_data["asset"]),
+                )
+            ]
+        else:
+            job_naming["job_id"] = f"automation-run-{automation_run.id}-schedule"
+        # Say which jobs this run intends to create before any of them exists in Redis,
+        # so that a second attempt can tell the jobs it already queued from the ones it still owes.
+        intents = ensure_automation_run_job_intents(
+            automation_run.id,
+            _plan_schedule_jobs(automation_run.id, device_sensors, sequential),
+        )
+        already_queued = {
+            intent.logical_job_key
+            for intent in intents
+            if reconcile_automation_job_intent(intent)
+        }
     job = f(
         asset=trigger_data["asset"],
         enqueue=True,
         force_new_job_creation=trigger_data.get("force_new_job_creation", False),
         trigger=trigger,
+        **job_naming,
         **scheduler_kwargs,
     )
-    n_jobs = len(job.args[0]) + 1 if trigger_data["sequential"] else 1
+    n_jobs = len(job.args[0]) + 1 if sequential else 1
+    if automation_run is not None:
+        # The jobs the creators found already in Redis were left alone (see `create_scheduling_job`),
+        # so this records what this attempt queued, and leaves what an earlier one queued as it was.
+        for intent in intents:
+            if intent.logical_job_key not in already_queued:
+                mark_automation_job_queued(
+                    automation_run.id, intent.logical_job_key, intent.rq_job_id
+                )
     return {"job_id": job.id, "n_jobs": n_jobs}
+
+
+def _plan_schedule_jobs(
+    run_id: int, device_sensors: list[Sensor], sequential: bool
+) -> list[dict[str, Any]]:
+    """Describe every job a schedule run intends to create, before any of them is queued.
+
+    A sequential schedule computes one job per device, in a chain, and one job that wraps up.
+    A simultaneous one computes the whole asset in a single job.
+    The keys name what each job is for rather than where it ended up, so a second attempt plans the same jobs,
+    which is what `ensure_automation_run_job_intents` holds it to.
+    """
+
+    def spec(logical_job_key: str, kind: str, depends_on: list[str]) -> dict[str, Any]:
+        return {
+            "logical_job_key": logical_job_key,
+            "rq_job_id": f"automation-run-{run_id}-{logical_job_key}",
+            "queue": "scheduling",
+            "kind": kind,
+            "depends_on": depends_on,
+            # The jobs are built by the scheduling service from the trigger message, rather than from a payload recorded here.
+            "payload": {},
+        }
+
+    if not sequential:
+        return [spec("schedule", "schedule", [])]
+    device_keys = [f"device-{sensor.id}" for sensor in device_sensors]
+    return [spec(key, "schedule-device", []) for key in device_keys] + [
+        spec("wrap-up", "schedule-wrap-up", device_keys)
+    ]

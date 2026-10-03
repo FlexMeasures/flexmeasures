@@ -685,3 +685,114 @@ def test_an_automation_whose_sensors_are_unknown_records_nothing(
     job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
 
     assert sensors_automation_job_may_record_on(job) == set()
+
+
+def _schedule_run(db, automation, parameters) -> AutomationRun:
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=parameters,
+        plan={},
+    )
+    db.session.add(run)
+    db.session.flush()
+    return run
+
+
+@pytest.mark.parametrize("sequential", (False, True))
+def test_a_schedule_run_names_its_jobs_after_the_run(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+):
+    """A schedule run's jobs carry IDs derived from the run, which is what lets a second attempt recognise them."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-at-start": "2.5 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    parameters = {"duration": "PT1H", "sequential": sequential}
+    automation = build_schedule_automation(
+        building,
+        name="Stored-flex schedule",
+        cronstr="0 * * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+    run = _schedule_run(fresh_db, automation, parameters)
+
+    returns = run_automation(automation, automation_run=run)
+
+    if sequential:
+        assert returns["job_id"] == f"automation-run-{run.id}-wrap-up"
+        job = Job.fetch(returns["job_id"], connection=app.redis_connection)
+        assert job.args[0] == [f"automation-run-{run.id}-device-{power_sensor.id}"]
+    else:
+        assert returns["job_id"] == f"automation-run-{run.id}-schedule"
+    assert {intent.logical_job_key for intent in run.job_intents} == (
+        {f"device-{power_sensor.id}", "wrap-up"} if sequential else {"schedule"}
+    )
+    assert all(intent.status == "queued" for intent in run.job_intents)
+    assert all(intent.queue == "scheduling" for intent in run.job_intents)
+
+
+@pytest.mark.parametrize("sequential", (False, True))
+def test_dispatching_a_schedule_run_again_queues_no_second_schedule(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+):
+    """A run dispatched twice leaves the jobs of the first attempt alone, rather than scheduling a device again."""
+    battery = add_battery_assets_fresh_db["Test battery"]
+    building = battery.parent_asset
+    power_sensor = next(sensor for sensor in battery.sensors if sensor.name == "power")
+    battery.flex_model = {
+        "consumption": {"sensor": power_sensor.id},
+        "soc-at-start": "2.5 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "2 MW",
+    }
+    parameters = {"duration": "PT1H", "sequential": sequential}
+    automation = build_schedule_automation(
+        building,
+        name="Stored-flex schedule",
+        cronstr="0 * * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+    run = _schedule_run(fresh_db, automation, parameters)
+    queue = app.queues["scheduling"]
+
+    first = run_automation(automation, automation_run=run)
+    queued_after_first = set(queue.job_ids) | set(
+        queue.deferred_job_registry.get_job_ids()
+    )
+
+    second = run_automation(automation, automation_run=run)
+    queued_after_second = set(queue.job_ids) | set(
+        queue.deferred_job_registry.get_job_ids()
+    )
+
+    assert second["job_id"] == first["job_id"]
+    assert (
+        queued_after_second == queued_after_first
+    ), "the second attempt queued a job the first one had already queued"
