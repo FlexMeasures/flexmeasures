@@ -1,11 +1,29 @@
-"""Forecasting job utilities."""
+"""Forecast orchestration, persistence, and job failure handling."""
 
 from __future__ import annotations
 
 import logging
+import os
+from datetime import timedelta
+from typing import TYPE_CHECKING
+
+from timely_beliefs import BeliefsDataFrame
+
+from flask import current_app
+
+from flexmeasures.data import db
+from flexmeasures.data.utils import save_to_db
+from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 import click
 from rq.timeouts import JobTimeoutException
+
+if TYPE_CHECKING:
+    from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
+    from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+        TrainPredictPipeline,
+    )
+
 
 FORECASTING_JOB_TIMEOUT_HINT = (
     "Forecasting job timed out. "
@@ -63,3 +81,142 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         from flexmeasures.data.services.automations import record_automation_job_failed
 
         record_automation_job_failed(automation_run_id, logical_job_key, exc_value)
+
+
+def save_forecast(bdf: BeliefsDataFrame) -> None:
+    """Resolve source attribution and commit one cycle's forecast beliefs."""
+    from flexmeasures.data.models.forecasting.utils import refresh_data_source
+
+    if bdf.empty:
+        return
+    sources = [
+        refresh_data_source(source)
+        for source in bdf.index.levels[bdf.index.names.index("source")]
+    ]
+    bdf.index = bdf.index.set_levels(sources, level="source")
+    save_to_db(
+        bdf, save_changed_beliefs_only=False
+    )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
+    db.session.commit()
+    logging.info(
+        f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {bdf.sensor}, sensor_id: {bdf.sensor.id}."
+    )
+
+
+def _log_forecast_dry_run(bdf: BeliefsDataFrame) -> None:
+    logging.info(
+        "Not saving predictions to DB (because of --dry-run). Would have saved %s with sensor: %s, sensor_id: %s.",
+        pluralize("belief", len(bdf), include_count=True),
+        bdf.sensor,
+        bdf.sensor.id,
+    )
+
+
+def run_prediction(
+    pipeline: PredictPipeline, delete_model: bool = False
+) -> BeliefsDataFrame:
+    """Preserve the legacy prediction entrypoint's exports, save, and cleanup."""
+    bdf = pipeline.compute()
+    if pipeline.output_path is not None:
+        pipeline.save_results_to_CSV(bdf)
+    if pipeline.dry_run:
+        _log_forecast_dry_run(bdf)
+    else:
+        save_forecast(bdf)
+    if delete_model:
+        os.remove(pipeline.model_path)
+    logging.info("Prediction pipeline completed successfully.")
+    return bdf
+
+
+def run_forecast_cycle(pipeline: TrainPredictPipeline, *args, **kwargs) -> float:
+    """Compute and persist one cycle before reporting its runtime to the caller."""
+    result = pipeline.compute_cycle(*args, **kwargs)
+    bdf = result.data
+    if result.output_path is not None:
+        logging.debug("Saving predictions to a CSV file.")
+        os.makedirs(os.path.dirname(result.output_path), exist_ok=True)
+        bdf.to_csv(result.output_path)
+        logging.debug("Successfully saved predictions to %s", result.output_path)
+    if pipeline._parameters.get("dry_run", False):
+        _log_forecast_dry_run(bdf)
+    else:
+        save_forecast(bdf)
+    # Keep DataGenerator's result attribution aligned with the source resolved by the service.
+    pipeline._data_source = bdf.sources[0] if len(bdf) else pipeline.forecast_source()
+    if pipeline.delete_model:
+        os.remove(result.model_path)
+    pipeline.return_values.append({"data": bdf, "sensor": pipeline._target_sensor})
+    return result.runtime
+
+
+def run_forecast(
+    pipeline: TrainPredictPipeline, as_job: bool = False, queue: str = "forecasting"
+) -> list[dict] | dict:
+    """Orchestrate cycles, saving each completed cycle before starting the next."""
+    # Only announce a pipeline run when actually running it here: with as_job, this
+    # method merely queues the cycles, and the workers running them log their own start.
+    log_start = logging.debug if as_job else logging.info
+    log_start(
+        f"Starting Train-Predict Pipeline to predict for {pipeline._parameters['predict_period_in_hours']} hours."
+    )
+    connection = current_app.queues[queue].connection
+    # How much to move forward to the next cycle one prediction period later
+    cycle_frequency = max(
+        pipeline._config["retrain_frequency"],
+        pipeline._parameters["forecast_frequency"],
+    )
+
+    predict_start = pipeline._parameters["predict_start"]
+    predict_end = predict_start + cycle_frequency
+
+    # Determine training window (start, end)
+    train_start, train_end = pipeline._derive_training_period()
+
+    sensor_resolution = pipeline._parameters["sensor"].event_resolution
+    multiplier = int(
+        timedelta(hours=1) / sensor_resolution
+    )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predictions to predict a week
+
+    # Compute number of training cycles (at least 1)
+    n_cycles = max(
+        timedelta(hours=pipeline._parameters["predict_period_in_hours"])
+        // max(
+            pipeline._config["retrain_frequency"],
+            pipeline._parameters["forecast_frequency"],
+        ),
+        1,
+    )
+
+    cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
+    cycles_job_params = []
+    for counter in range(n_cycles):
+        predict_end = min(predict_end, pipeline._parameters["end_date"])
+
+        train_predict_params = {
+            "train_start": train_start,
+            "train_end": train_end,
+            "predict_start": predict_start,
+            "predict_end": predict_end,
+            "counter": counter + 1,
+            "multiplier": multiplier,
+        }
+
+        if not as_job:
+            cycle_runtime = pipeline.run_cycle(**train_predict_params)
+            cumulative_cycles_runtime += cycle_runtime
+        else:
+            cycles_job_params.append(train_predict_params)
+
+        train_end += cycle_frequency
+        predict_start += cycle_frequency
+        predict_end += cycle_frequency
+    if not as_job:
+        logging.info(
+            f"Train-Predict Pipeline completed successfully in {cumulative_cycles_runtime:.2f} seconds."
+        )
+
+    if as_job:
+        return pipeline._queue_cycle_jobs(cycles_job_params, queue, connection)
+
+    return pipeline.return_values

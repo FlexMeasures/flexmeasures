@@ -116,7 +116,31 @@ To use the forecaster through the CLI:
 
     flexmeasures add forecasts --forecaster DummyForecaster
 
-.. note:: Currently, the forecaster is responsible for saving the data. Use ``flexmeasures.data.utils.save_to_db(bdf)``.
+.. note:: Custom forecasters remain responsible for saving their data. Use ``flexmeasures.data.utils.save_to_db(bdf)``.
+
+The built-in ``TrainPredictPipeline`` delegates orchestration and database persistence to
+``flexmeasures.data.services.forecasting``. The service saves and commits each completed
+cycle, so a failure in a later cycle does not discard earlier forecasts.
+Its existing ``compute()``, ``run()``, and ``run_cycle()`` entrypoints retain their saving
+behavior, and queued job entrypoints remain compatible. Custom forecasters are not saved
+again by the service.
+
+For computations that must not record results, ``PredictPipeline.compute()`` returns a
+``BeliefsDataFrame`` without saving beliefs, creating a source, exporting a CSV, or deleting
+the trained model. Pass a transient ``DataSource`` to attribute these results without
+inserting it into the database. ``PredictPipeline.run()`` retains its existing saving,
+CSV export, and optional model cleanup behavior.
+
+``TrainPredictPipeline.compute_cycle()`` trains a model and returns a
+``ForecastCycleResult`` containing the forecast data, runtime, and model/output paths.
+It reads the pipeline's resolved configuration and parameters and leaves the trained model
+on disk. It does not save beliefs, insert a source, or export a CSV. The caller owns
+persistence and cleanup. Subclasses can override this method to customize computation;
+existing ``run_cycle()`` overrides are still called by synchronous orchestration.
+
+The built-in synchronous ``--dry-run`` path uses transient source attribution, so even a
+subsequent database commit does not record a new forecasting source. The existing CLI
+restriction against combining ``--dry-run`` and ``--as-job`` still applies.
 
 
 Deploying your plugin via Docker

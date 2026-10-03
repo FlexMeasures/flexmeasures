@@ -62,17 +62,16 @@ def test_add_forecast_dry_run_saves_no_beliefs(app, fresh_db, setup_dummy_data):
     )
     assert f"for sensor `sensor 1` (ID {sensor_id})" in result.output
 
-    # The source is named, but never by ID: a source this run had to create is rolled back on the way out,
-    # so any ID reported for it would belong to nothing by the time the command returns.
+    # The source is named, but never by ID: a dry run can attribute beliefs to a transient source
+    # which has no database ID.
     assert "to be recorded under data source `" in result.output
     assert (
         "data source `FlexMeasures's TrainPredictPipeline forecaster` (ID"
         not in result.output
     )
 
-    # The forecaster's data source is flushed, because the dry run reports which source it would have recorded under,
-    # but it is never committed, so no more of it survives the session than of the beliefs.
-    fresh_db.session.rollback()
+    # Source attribution must not leave a pending insert that an unrelated commit would persist.
+    fresh_db.session.commit()
     assert _count_beliefs(fresh_db, sensor_id) == beliefs_before_dry_run
     assert _count_sources(fresh_db) == sources_before_dry_run
 
