@@ -202,11 +202,7 @@ class AutomationHandler:
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
                 ).total_seconds()
             ),
-            result_ttl=int(
-                current_app.config.get(
-                    "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                ).total_seconds()
-            ),
+            result_ttl=job_result_ttl(self.queue),
             meta={
                 "trigger": {"origin": "automation", "automation_id": automation.id},
                 "data_source_info": {"id": source_id},
@@ -222,6 +218,21 @@ class AutomationHandler:
             asset_or_sensor_type="asset",
         )
         return {"job_id": job.id, "n_jobs": 1}
+
+
+def job_result_ttl(queue_name: str) -> int:
+    """Return how long, in seconds, to keep the result of a job on the given queue.
+
+    Ingestion results are kept for FLEXMEASURES_JOB_TTL, as for ingestion jobs queued by the API;
+    results on the forecasting, scheduling and reporting queues are kept for FLEXMEASURES_PLANNING_TTL.
+    NB job.cleanup docs say that a negative number of seconds means persisting forever.
+    """
+    setting = (
+        "FLEXMEASURES_JOB_TTL"
+        if queue_name == "ingestion"
+        else "FLEXMEASURES_PLANNING_TTL"
+    )
+    return int(current_app.config.get(setting, timedelta(-1)).total_seconds())
 
 
 def initialize_automation_handlers(app):
@@ -374,7 +385,7 @@ def check_execution_access(automation, sensors):
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.utils import save_to_db
+    from flexmeasures.data.utils import save_to_db_and_count
 
     automation = db.session.get(Automation, automation_id, populate_existing=True)
     if automation is None:
@@ -400,7 +411,7 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
             )
     saved = []
     for result in results:
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": len(result["data"])})
+        _, n_saved = save_to_db_and_count(result["data"])
+        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
     db.session.commit()
     return saved
