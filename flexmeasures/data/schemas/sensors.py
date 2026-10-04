@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from datetime import timedelta
 from difflib import get_close_matches
-
-import inflection
 import numbers
 import pytz
 from pytz.exceptions import UnknownTimeZoneError
@@ -389,80 +387,19 @@ def sensor_reference_keys() -> frozenset[str]:
     )
 
 
-def listed_sensor_reference_keys() -> frozenset[str]:
-    """The keys of a sensor reference which hold a list of values, rather than one."""
-    return frozenset(
-        field.data_key or name
-        for name, field in SensorReferenceSchema().fields.items()
-        if isinstance(field, fields.List)
-    )
+def refuse_unknown_sensor_reference_keys(value: dict[str, Any]) -> None:
+    """Refuse a key no sensor reference has, rather than reading past it.
 
+    A sensor reference used to be read for the keys it knows, so anything else was accepted and did nothing:
+    a filter written as `source` rather than `sources` dropped the filtering it was meant to apply, silently.
 
-def sensor_reference_key_aliases() -> dict[str, str]:
-    """The other number of each key that holds a list, mapped to the key itself.
-
-    A key that takes a list may be written in the singular when one value is listed, which is the notation this documentation has always used,
-    so `source` says what `sources` says and `source-type` what `source-types` says.
-    Computed from the schema with the same inflection the rest of FlexMeasures uses, rather than written out, so a key added there needs no second entry here.
-    """
-    aliases = {}
-    for key in listed_sensor_reference_keys():
-        for alias in (inflection.singularize(key), inflection.pluralize(key)):
-            if alias != key:
-                aliases[alias] = key
-    return aliases
-
-
-def singular_sensor_reference_keys() -> dict[str, str]:
-    """The singular spelling of each key that holds a list, mapped to the key itself.
-
-    Written in the singular, a key names one value rather than a list of one: `source: 12` says what `sources: [12]` says.
-    A key written in the plural still takes a list, so that the number of a key and the number of its value agree.
-    """
-    return {inflection.singularize(key): key for key in listed_sensor_reference_keys()}
-
-
-def normalize_sensor_reference(value: dict[str, Any]) -> dict[str, Any]:
-    """Read a sensor reference as it was written, and return it as the schema names it.
-
-    A key which takes a list may be written in the singular, naming one value rather than a list of one,
-    which is the notation this documentation has always used: `source: 12` says what `sources: [12]` says.
-    A key written in the plural still takes a list, so that the number of a key and the number of its value agree.
-    A key the reference does not have is refused rather than read past, so that a misspelling fails instead of quietly dropping what it meant to say.
+    Which spelling belongs where is a question of its own, recorded in issue #2659.
 
     :param value:              A sensor reference, as given.
-    :returns:                  The same reference, keyed as the schema names it, with a single value wrapped in a list where it was named in the singular.
-    :raises FMValidationError: If the reference holds a key no sensor reference has.
-    """
-    aliases = sensor_reference_key_aliases()
-    singulars = singular_sensor_reference_keys()
-    _refuse_unknown_reference_keys(value, aliases)
-
-    normalized: dict[str, Any] = {}
-    for key, item in value.items():
-        canonical = aliases.get(key, key)
-        if key in singulars and item is not None and not isinstance(item, list):
-            # A key written in the singular names one value. A null is not a value,
-            # but what a reference dumped without that filter says, so it is left as it is.
-            item = [item]
-        if canonical != key:
-            current_app.logger.warning(
-                f"A sensor reference names `{key}`, which is read as `{canonical}`."
-                " A filter written this way takes effect; until FlexMeasures v1.1 it was read past and did nothing."
-            )
-        normalized[canonical] = item
-    return normalized
-
-
-def _refuse_unknown_reference_keys(
-    value: dict[str, Any], aliases: dict[str, str]
-) -> None:
-    """Refuse a key no sensor reference has, naming the nearest key one does.
-
-    :raises FMValidationError: naming the keys it does not know, and the nearest key it does.
+    :raises FMValidationError: naming the keys it does not know, and what to write instead.
     """
     known = sensor_reference_keys()
-    unknown = [key for key in value if key not in known and key not in aliases]
+    unknown = [key for key in value if key not in known]
     if not unknown:
         return
     reports = []
@@ -473,8 +410,9 @@ def _refuse_unknown_reference_keys(
         )
     raise FMValidationError(
         f"A sensor reference does not take {', '.join(reports)}."
-        f" It takes {', '.join(f'`{key}`' for key in sorted(known))},"
-        f" where a key holding a list may name a single value in the singular, as in `source` for one `sources`."
+        f" It takes {', '.join(f'`{key}`' for key in sorted(known))}."
+        " A sensor reference filters by source in the plural, where a data request filters in the singular:"
+        " `sources` and `source-types` here, `source` and `source-type` on `GET /sensors/<id>/data`."
     )
 
 
@@ -668,7 +606,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        value = normalize_sensor_reference(value)
+        refuse_unknown_sensor_reference_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -1288,15 +1226,14 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         description = "Sensor reference from which to look up a variable quantity."
 
     @pre_load
-    def read_the_notation_it_was_written_in(self, data, **kwargs):
-        """Read a key written in the singular as the plural key it names, and refuse a key no reference has.
+    def refuse_keys_no_reference_has(self, data, **kwargs):
+        """Refuse a key no sensor reference has, with the same message the field reading a flex config by hand gives.
 
-        Shared with the field which reads a flex-model or flex-context reference by hand,
-        so that the same reference means the same thing wherever it is written.
+        Shared so that the same reference is read the same way wherever it is written.
         """
-        if not isinstance(data, dict):
-            return data
-        return normalize_sensor_reference(data)
+        if isinstance(data, dict):
+            refuse_unknown_sensor_reference_keys(data)
+        return data
 
     source_types = fields.List(
         fields.String(),
@@ -1469,9 +1406,6 @@ class SensorIdOrReferenceField(fields.Raw):
         if not isinstance(value, dict):
             return self.sensor_id_field.deserialize(value, attr, data, **kwargs)
 
-        # Read the reference as the schema names its keys first,
-        # so that a filter written in the singular is seen by the checks below rather than taken for an absent one.
-        value = normalize_sensor_reference(value)
         sensor_reference = self.sensor_reference_schema.load(value)
         # A bare sensor is enough unless the reference asks for filtering or cleaning.
         if SENSOR_REFERENCE_SOURCE_FILTER_KEYS.isdisjoint(value) and not _sets_bounds(

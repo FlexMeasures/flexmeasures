@@ -1,5 +1,3 @@
-import logging
-
 import pytest
 import pandas as pd
 import timely_beliefs as tb
@@ -13,7 +11,6 @@ from flexmeasures.data.schemas.sensors import (
     InflexibleDeviceSchema,
     floor_bdf_event_starts,
 )
-from flexmeasures.data.schemas.utils import kebab_to_snake
 from flexmeasures.utils.unit_utils import ur
 from marshmallow import Schema, ValidationError
 
@@ -325,8 +322,9 @@ def test_scheduling_references_refuse_bounds_they_cannot_apply(
 @pytest.mark.parametrize(
     "stray_key, suggestion",
     [
+        ("source", "sources"),
+        ("source-type", "source-types"),
         ("Lower", "lower"),
-        ("sorce-types", "source-types"),
         ("colour", None),
     ],
 )
@@ -343,46 +341,14 @@ def test_a_sensor_reference_refuses_a_key_it_does_not_take(
     assert f"`{stray_key}`" in str(refusal.value)
     if suggestion is not None:
         assert f"did you mean `{suggestion}`" in str(refusal.value)
-
-
-@pytest.mark.parametrize(
-    "singular, plural, value",
-    [
-        ("source", "sources", 12),
-        ("source-type", "source-types", "forecaster"),
-        ("exclude-source-type", "exclude-source-types", "forecaster"),
-    ],
-)
-def test_a_key_holding_a_list_may_be_written_in_the_singular(
-    setup_dummy_sensors, setup_sources, db, singular, plural, value, caplog
-):
-    """A key that takes a list names a single value when written in the singular, which is the notation the documentation uses.
-
-    This used to be read past: a filter written that way did nothing at all.
-    """
-    *_, power_sensor = setup_dummy_sensors
-    field = VariableQuantityField(to_unit="MW", return_magnitude=False)
-    db.session.flush()
-    value = setup_sources["Seita"].id if singular == "source" else value
-
-    with caplog.at_level(logging.WARNING):
-        written_singular = field.deserialize(
-            {"sensor": power_sensor.id, singular: value}
-        )
-    written_plural = field.deserialize({"sensor": power_sensor.id, plural: [value]})
-
-    assert isinstance(written_singular, SensorReference)
-    assert getattr(written_singular, kebab_to_snake(plural)) == getattr(
-        written_plural, kebab_to_snake(plural)
-    )
-    # The notation is read, and said out loud, because a filter written this way starts taking effect.
-    assert any(f"`{singular}`" in message for message in caplog.messages)
+    # A filter written in the singular is a spelling from another surface rather than a typo, so the message says which is which.
+    assert "a data request filters in the singular" in str(refusal.value)
 
 
 def test_a_reference_dumped_without_its_filters_loads_again(setup_dummy_sensors):
-    """A dumped reference spells out the filters it does not set, as nulls, which are not values to read in the singular.
+    """A dumped reference spells out the filters it does not set, as nulls, and loads again as it was.
 
-    Queued forecasting jobs carry references this way, so reading a null as a single value would break every one of them.
+    Queued forecasting jobs carry references this way, so refusing those keys would break every one of them.
     """
     *_, power_sensor = setup_dummy_sensors
     schema = SensorReferenceSchema()
@@ -390,43 +356,6 @@ def test_a_reference_dumped_without_its_filters_loads_again(setup_dummy_sensors)
 
     assert dumped["source-account"] is None
     assert schema.load(dumped)["sensor"] == power_sensor
-
-
-def test_a_singular_key_whose_plural_is_what_the_schema_names(
-    setup_dummy_sensors, setup_accounts, db
-):
-    """`source-account` holds a list under a singular name, so a single value is read as one."""
-    *_, power_sensor = setup_dummy_sensors
-    db.session.flush()
-    account = setup_accounts["Prosumer"]
-
-    loaded = VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
-        {"sensor": power_sensor.id, "source-account": account.id}
-    )
-
-    assert isinstance(loaded, SensorReference)
-    assert [organisation.id for organisation in loaded.source_account] == [account.id]
-
-
-@pytest.mark.parametrize(
-    "plural, value, expected_fragment",
-    [
-        ("sources", 42, "list of data source IDs"),
-        ("source-types", "forecaster", "list of strings"),
-    ],
-)
-def test_a_key_written_in_the_plural_still_takes_a_list(
-    setup_dummy_sensors, plural, value, expected_fragment
-):
-    """The number of a key and the number of its value agree, so the plural key keeps asking for a list."""
-    *_, power_sensor = setup_dummy_sensors
-
-    with pytest.raises(ValidationError) as refusal:
-        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
-            {"sensor": power_sensor.id, plural: value}
-        )
-
-    assert expected_fragment in str(refusal.value)
 
 
 def test_a_sensor_reference_takes_every_key_its_schema_defines(setup_dummy_sensors):
@@ -631,6 +560,10 @@ def test_sensor_reference_filters_are_kept_per_reference(
         (
             {"sensor": 1, "sources": 42},
             "list of data source IDs",
+        ),
+        (
+            {"sensor": 1, "source-account": 42},
+            "list of account IDs",
         ),
     ],
 )

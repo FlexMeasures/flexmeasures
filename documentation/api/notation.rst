@@ -39,32 +39,15 @@ Data source IDs can be found by hovering over data in charts.
 Singular and plural keys
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Where a key takes a list of values, it may also be written in the singular to name a single value.
-``"source": 42`` says what ``"sources": [42]`` says, and ``"source-type": "forecaster"`` what ``"source-types": ["forecaster"]`` says.
-This documentation shows the plural, and the two spellings mean the same thing, so a message written either way is read the same.
+The same filter is named in the singular where it takes one value and in the plural where it takes a list, and which one applies depends on what is being written:
 
-The number of a key and the number of its value agree: a key written in the plural takes a list, so ``"sources": 42`` is refused and ``"source": 42`` is not.
-A key a message does not have is refused rather than read past, naming the nearest key it does have.
+- a data request filters with ``source``, ``source-account`` and ``source-type``, each naming one value — see the filters listed above for ``GET /api/v3_0/sensors/<id>/data``;
+- a sensor reference, inside a flex-model or flex-context field, filters with ``sources``, ``source-types`` and ``exclude-source-types``, each taking a list.
 
-.. note:: The singular reading applies to the source filters of a sensor reference, in a flex-model or flex-context field.
-          Data endpoints name their own filters in the singular already — see the filters listed above for ``GET /api/v3_0/sensors/<id>/data``.
+A sensor reference refuses a key it does not have, naming the nearest key it does, so a filter written in the singular there fails rather than being read past, as it used to be.
 
-For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filtering supports:
+.. note:: Writing the plural everywhere is the convention this is headed for, so prefer the plural keys where both exist, and expect the singular ones to be the spellings that change.
 
-- ``source``: filter by data source ID
-- ``source-account``: filter by the account ID linked to data sources
-- ``source-type``: filter by the type of data source (e.g. 'forecaster' or 'scheduler')
-
-.. note::
-
-   Since FlexMeasures v1.1, a forecaster, scheduler or reporter records under a data source belonging to the organisation it computes for, which is the organisation of the assets it writes to.
-   Until then only a user's own source named an organisation, so ``source-account`` matched user-recorded data only.
-   A data source belonging to no organisation is one the host runs for everyone.
-
-.. note::
-
-   If schedules are recorded on the same sensor as measurements or forecasts, source filtering can be used to distinguish them.
-   An alternative is to model schedules on dedicated sensors; see :ref:`one_or_multiple_sensors`.
 
 
 .. _units:
