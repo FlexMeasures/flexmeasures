@@ -441,7 +441,9 @@ def normalize_sensor_reference(value: dict[str, Any]) -> dict[str, Any]:
     normalized: dict[str, Any] = {}
     for key, item in value.items():
         canonical = aliases.get(key, key)
-        if key in singulars and not isinstance(item, list):
+        if key in singulars and item is not None and not isinstance(item, list):
+            # A key written in the singular names one value. A null is not a value,
+            # but what a reference dumped without that filter says, so it is left as it is.
             item = [item]
         if canonical != key:
             current_app.logger.warning(

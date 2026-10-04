@@ -379,6 +379,19 @@ def test_a_key_holding_a_list_may_be_written_in_the_singular(
     assert any(f"`{singular}`" in message for message in caplog.messages)
 
 
+def test_a_reference_dumped_without_its_filters_loads_again(setup_dummy_sensors):
+    """A dumped reference spells out the filters it does not set, as nulls, which are not values to read in the singular.
+
+    Queued forecasting jobs carry references this way, so reading a null as a single value would break every one of them.
+    """
+    *_, power_sensor = setup_dummy_sensors
+    schema = SensorReferenceSchema()
+    dumped = schema.dump(SensorReference(sensor=power_sensor))
+
+    assert dumped["source-account"] is None
+    assert schema.load(dumped)["sensor"] == power_sensor
+
+
 def test_a_singular_key_whose_plural_is_what_the_schema_names(
     setup_dummy_sensors, setup_accounts, db
 ):
