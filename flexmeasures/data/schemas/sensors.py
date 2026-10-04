@@ -1469,8 +1469,8 @@ class SensorIdOrReferenceField(fields.Raw):
         if not isinstance(value, dict):
             return self.sensor_id_field.deserialize(value, attr, data, **kwargs)
 
-        # Read the reference as the schema names its keys first, so that a filter written
-        # in the singular is seen by the checks below rather than taken for an absent one.
+        # Read the reference as the schema names its keys first,
+        # so that a filter written in the singular is seen by the checks below rather than taken for an absent one.
         value = normalize_sensor_reference(value)
         sensor_reference = self.sensor_reference_schema.load(value)
         # A bare sensor is enough unless the reference asks for filtering or cleaning.
