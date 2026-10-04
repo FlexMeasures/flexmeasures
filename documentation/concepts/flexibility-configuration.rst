@@ -132,7 +132,9 @@ The supported filter keys are:
 
 This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
 
-A key a reference does not take is refused, naming the nearest key it does, so that a filter written as ``source-type`` rather than ``source-types`` fails rather than quietly dropping the filtering it was meant to apply. Besides the filter keys above, a reference takes ``sensor``, the ``default`` described next, and the cleaning bounds further below.
+Each of these keys takes a list, and may also be written in the singular to name a single value: ``{"source": 42}`` says what ``{"sources": [42]}`` says, which is the notation the API documentation uses (see :ref:`api_notation`). A key written in the plural still takes a list.
+
+A key a reference does not take is refused, naming the nearest key it does, so that a misspelling fails rather than quietly dropping the filtering it was meant to apply. Besides the filter keys above, a reference takes ``sensor``, the ``default`` described next, and the cleaning bounds further below.
 
 A reference can also name a ``default``: a fallback quantity to use for the moments where the sensor holds no value.
 

@@ -36,6 +36,19 @@ For example, to obtain data originating from data source 42, include the followi
 
 Data source IDs can be found by hovering over data in charts.
 
+Singular and plural keys
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Where a key takes a list of values, it may also be written in the singular to name a single value.
+``"source": 42`` says what ``"sources": [42]`` says, and ``"source-type": "forecaster"`` what ``"source-types": ["forecaster"]`` says.
+This documentation shows the plural, and the two spellings mean the same thing, so a message written either way is read the same.
+
+The number of a key and the number of its value agree: a key written in the plural takes a list, so ``"sources": 42`` is refused and ``"source": 42`` is not.
+A key a message does not have is refused rather than read past, naming the nearest key it does have.
+
+.. note:: The singular reading applies to the source filters of a sensor reference, in a flex-model or flex-context field.
+          Data endpoints name their own filters in the singular already — see the filters listed above for ``GET /api/v3_0/sensors/<id>/data``.
+
 For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filtering supports:
 
 - ``source``: filter by data source ID
