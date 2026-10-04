@@ -3838,6 +3838,19 @@
                       "duration": "P1D"
                     }
                   }
+                },
+                "forecasts_on_an_existing_source": {
+                  "summary": "Forecasts computed by an existing data source",
+                  "description": "Reuses the forecaster and the configuration stored on data source 6, and records the forecasts under that same source.",
+                  "value": {
+                    "name": "Day-ahead PV forecasts",
+                    "cron": "0 6 * * *",
+                    "type": "forecasting",
+                    "source": 6,
+                    "parameters": {
+                      "sensor": 2092
+                    }
+                  }
                 }
               }
             }
@@ -4253,7 +4266,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
+        "description": "The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4276,6 +4289,52 @@
             "description": "Whether to also list the jobs of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "description": "One-based page number. Omit to return all jobs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "per-page",
+            "required": false,
+            "description": "Jobs per page when page is provided (default 10).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-by",
+            "required": false,
+            "description": "Sort paginated jobs by enqueue time or queue (default enqueued_at).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enqueued_at",
+                "queue"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-dir",
+            "required": false,
+            "description": "Sort direction for paginated jobs (default desc).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
             }
           }
         ],
@@ -5463,7 +5522,7 @@
     "/api/v3_0/sources/{id}": {
       "get": {
         "summary": "Get one data source.",
-        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nA source is readable when it belongs to an organisation the user may read,\nwhen an automation they may read computes under it,\nor when it has recorded data on a sensor they may read, so that they can ask what computed a number they see.\n\nThe <code>attributes</code>, which hold the configuration a data generator was set up with, are only included for the first two:\na configuration names the sensors it runs on, which can be sensors the user cannot see at all.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5526,7 +5585,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nthe <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>,\nand the <code>limit</code> parameter returns only the most recently created ones.\n\nThe <code>types</code> in the response are those of every source this listing can hold,\nrather than only those of the sources this call returns,\nso that one call can both search the sources and offer the types to search by.\n\n<strong>Access rules:</strong>\n\nThis lists the sources which are the user's to work with, which is what a source has to be to be reused.\nThat is a stricter rule than the one for reading one source with <code>GET /api/v3_0/sources/<id></code>,\nwhich also covers a source that recorded data on a sensor the user may read.\n\n- Admins see all data sources.\n- Everyone else sees the sources of their own organisation, of any organisation they consult for,\n  and the sources an automation they may read computes under.\n- A source which belongs to no organisation is not listed for that reason alone.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5540,6 +5599,37 @@
             "schema": {
               "type": "boolean",
               "default": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "description": "Search terms, separated by spaces, matched against the source's name, its model and its id prefix. A source matching any of the terms is returned.",
+            "schema": {
+              "type": "string",
+              "example": "TrainPredictPipeline"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "description": "Only return sources of this type, such as forecaster, scheduler or reporter.",
+            "schema": {
+              "type": "string",
+              "example": "forecaster"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "description": "Maximum number of sources to return, the most recently created ones first. Without it, every accessible source is returned. Note that `only_latest` collapses the sources which this limit let through, so the response can hold fewer sources than the limit allows.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 25
             },
             "required": false
           }
@@ -6722,6 +6812,14 @@
             "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
             "example": {},
             "additionalProperties": {}
+          },
+          "source": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
+            "example": 6
           }
         },
         "required": [

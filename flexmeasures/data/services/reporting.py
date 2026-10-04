@@ -62,7 +62,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     )
     current_app.queues[queue].enqueue_job(job)
     for sensor_id in output_sensor_ids:
-        current_app.job_cache.add(
+        current_app.job_map.add(
             sensor_id,
             job_id=job.id,
             queue=queue,

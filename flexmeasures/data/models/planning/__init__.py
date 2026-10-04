@@ -336,8 +336,24 @@ class Scheduler(DataGenerator):
                         "config": _json_safe(self._config_schema.dump(self._config))
                     }
                 },
+                account=self.source_account,
             )
         return self._data_source
+
+    @property
+    def source_account(self):
+        """The organisation whose asset is being scheduled, which the schedule is computed for.
+
+        A scheduler is always handed an asset or a sensor, so it knows this without being told,
+        where a reporter or a forecaster goes by the sensors it writes to.
+        """
+        if self._source_account is not None:
+            return self._source_account
+        scheduled = self.asset if self.asset is not None else self.sensor
+        if scheduled is None:
+            return None
+        asset = scheduled if self.asset is not None else scheduled.generic_asset
+        return asset.owner
 
     def persist_flex_model(self):
         """
