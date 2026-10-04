@@ -9,7 +9,7 @@ def bare_app():
     """A Flask app with only the generic error handler, and one HTML fallback to tell the two apart."""
     app = Flask(__name__)
     add_basic_error_handlers(app)
-    app.NotFoundError_handler_html = lambda error: (
+    app.NotFound_handler_html = lambda error: (
         "<html>not found</html>",
         404,
         {"Content-Type": "text/html"},
@@ -41,6 +41,7 @@ def test_unknown_non_api_url_still_gets_html_404(bare_app):
     assert response.status_code == 404
     assert not response.is_json
     assert response.content_type.startswith("text/html")
+    assert response.get_data(as_text=True) == "<html>not found</html>"
 
 
 def test_unknown_non_api_url_gets_json_404_for_json_request(bare_app):
