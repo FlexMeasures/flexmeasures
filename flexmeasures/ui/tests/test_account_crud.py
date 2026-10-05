@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from flask import url_for
@@ -348,6 +350,10 @@ def test_account_audit_log_shows_acting_user_name_and_id(db, client, as_admin):
     assert (
         f'data-event-datetime="{audit_log.event_datetime.isoformat()}"'.encode()
         in audit_log_page.data
+    )
+    assert re.search(
+        rb'<span class="audit-log-datetime"[^>]*>[^<\s][^<]*</span>',
+        audit_log_page.data,
     )
 
 
