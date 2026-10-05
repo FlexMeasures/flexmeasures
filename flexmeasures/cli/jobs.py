@@ -45,6 +45,7 @@ from flexmeasures.data.services.automations import (
     floor_to_minute,
     get_dispatchable_automation_runs,
     run_automation,
+    skip_stale_automation_runs,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -77,12 +78,22 @@ def fm_jobs():
 
 @fm_jobs.command("run-automations")
 @with_appcontext
-def run_automations():
+@click.option(
+    "--max-catchup",
+    "max_catchup",
+    type=click.IntRange(min=0),
+    default=None,
+    help="Only catch up on a missed run scheduled at most this many minutes ago."
+    " Older missed runs are skipped, and their automations resume on their next scheduled run."
+    " Use 0 to skip every missed run. By default, missed runs are caught up however old they are.",
+)
+def run_automations(max_catchup: int | None):
     """
     Queue jobs for all automations that are due to run this minute.
 
     Each cron string is interpreted in the automation's timezone.
-    Missed forecast runs are caught up once, with several missed runs coalesced into the latest useful forecast.
+    Missed runs are caught up once, with several missed runs of the same automation coalesced into the latest one.
+    Use --max-catchup to bound how old a missed run may be to still be caught up.
     Run this command once per minute (e.g. via cron):
 
     \b
@@ -92,6 +103,13 @@ def run_automations():
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
     """
     now = floor_to_minute(server_now())
+    if max_catchup is not None:
+        for skipped in skip_stale_automation_runs(timedelta(minutes=max_catchup), now):
+            automation = skipped.automation
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') skipped its missed run scheduled for {skipped.scheduled_at}, which is more than {max_catchup} minute(s) ago.",
+                **MsgStyle.WARN,
+            )
     claimed_runs = get_dispatchable_automation_runs(now)
     if not claimed_runs:
         click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
