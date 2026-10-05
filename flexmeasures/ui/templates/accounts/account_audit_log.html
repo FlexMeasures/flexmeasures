@@ -27,7 +27,7 @@
                             {{ audit_log.event_datetime | to_utc_timestamp }} <!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
                         </td>
                         <td>
-                            {{ audit_log.event_datetime }}
+                            <span class="audit-log-datetime" data-event-datetime="{{ audit_log.event_datetime.isoformat() }}"></span>
                         </td>
                         <td>
                             {{ audit_log.event }}
@@ -46,6 +46,12 @@
 
 <script>
     $(document).ready(function() {
+        $('.audit-log-datetime').each(function() {
+            const naturalDateTime = new Date(this.dataset.eventDatetime);
+            this.textContent = naturalDateTime.toLocaleDateString(undefined, { day: '02-digit', month: 'short' });
+            this.title = naturalDateTime;
+        });
+
         $('#account_audit_log').DataTable({
             "order": [[ 0, "desc" ]], //Default sort by "Event Datetime" column
             "columnDefs": [
