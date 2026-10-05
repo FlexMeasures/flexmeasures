@@ -301,6 +301,42 @@ def test_copied_automation_keeps_an_entry_naming_the_sensor_it_forecasts(
     assert copied.generator_id == automation.generator_id
 
 
+def test_cross_organisation_copy_checks_the_sources_an_auto_entry_filters_on(
+    fresh_db, setup_accounts_fresh_db, automated_site
+):
+    """An entry written as "auto" names no sensor, but its source filters still name data sources.
+
+    A copy into another organisation has to check those as it would on any sensor reference,
+    or an automation reading one organisation's private source would carry it into another.
+    """
+    site = automated_site["site"]
+    private_source = DataSource(
+        name="private meter", type="script", account_id=site.account_id
+    )
+    fresh_db.session.add(private_source)
+    fresh_db.session.flush()
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["meter"],
+        name="Meter forecasts trained on a private source",
+        parameters={"sensor": automated_site["temperature"].id},
+        config={
+            "past-regressors": [{"sensor": "auto", "sources": [private_source.id]}]
+        },
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(site, account=setup_accounts_fresh_db["Supplier"])
+
+    skipped = [
+        skipped_automation
+        for skipped_automation in asset_copy.skipped_automations
+        if skipped_automation.automation_id == automation.id
+    ]
+    assert len(skipped) == 1
+    assert f"data source {private_source.id}" in skipped[0].reason
+
+
 def test_copy_within_the_same_organisation_keeps_an_external_regressor(
     fresh_db, automated_site
 ):
