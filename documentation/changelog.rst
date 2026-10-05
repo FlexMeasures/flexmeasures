@@ -111,6 +111,7 @@ Automations arrived over several pull requests. This is what each of them contri
 * Copying an asset now copies the automations on it and on its descendant assets as well, pointing them at the copied sensors and leaving them switched off, so they can be checked before they start running; an automation that cannot be copied safely is skipped and reported, rather than holding up the copy [see `PR #2531 <https://www.github.com/FlexMeasures/flexmeasures/pull/2531>`_]
 * Plugins can register automation types with their own validated configuration, parameters and worker queue, with data provenance and sensor authorization [see `PR #2553 <https://github.com/FlexMeasures/flexmeasures/pull/2553>`_]
 * The *Automations* page lists the automations of the assets below an asset too, says when each automation runs next, keeps itself up to date, and shows the configuration of an automation's data source, which the *New automation* form now also lets you set [see `PR #2554 <https://www.github.com/FlexMeasures/flexmeasures/pull/2554>`_ and `PR #2584 <https://www.github.com/FlexMeasures/flexmeasures/pull/2584>`_]
+* Operators can bound catch-up with ``flexmeasures jobs run-automations --max-catchup <minutes>``, which skips missed runs older than that and resumes each automation on its next scheduled run, or, with ``0``, skips every missed run [see `issue #2423 <https://www.github.com/FlexMeasures/flexmeasures/issues/2423>`_]
 
 
 v1.0.1 | September 9, 2026

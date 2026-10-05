@@ -233,6 +233,15 @@ Each due automation then queues its jobs.
 If the runner misses runs, because it was down or overloaded, it catches up when it resumes: it queues only the latest missed run of each automation, rather than replaying stale ones.
 Timing parameters that default to the run time are resolved when that catch-up run is queued, so it produces a current forecast, schedule or report.
 
+To bound how old a missed run may be to still be caught up, pass ``--max-catchup`` with a number of minutes.
+A missed run scheduled longer ago than that is skipped: it is marked as handled without being queued, and the automation resumes on its next scheduled run.
+With ``--max-catchup 0``, every missed run is skipped, which suits restarting a runner while a backlog is still being worked through:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automations --max-catchup 60  # only catch up on runs missed in the last hour
+    flexmeasures jobs run-automations --max-catchup 0   # skip missed runs, and just resume
+
 Each scheduled run a runner picks up is recorded durably, so a queueing attempt which fails can be retried without duplicating the jobs it already created.
 See :ref:`automation_runs`.
 
