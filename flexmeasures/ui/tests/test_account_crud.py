@@ -345,6 +345,10 @@ def test_account_audit_log_shows_acting_user_name_and_id(db, client, as_admin):
     assert audit_log_page.status_code == 200
     assert b"Acting User" in audit_log_page.data
     assert f"{user.username} (Id: {user.id})".encode() in audit_log_page.data
+    assert (
+        f'data-event-datetime="{audit_log.event_datetime.isoformat()}"'.encode()
+        in audit_log_page.data
+    )
 
 
 def test_account_page_forbidden_for_different_account_user(
