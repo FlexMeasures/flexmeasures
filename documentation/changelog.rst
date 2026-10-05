@@ -15,10 +15,6 @@ v1.1.0 | September XX, 2026
              Where a data source turns out to have recorded for several organisations, the upgrade stops and names those sources rather than picking one.
              ``flexmeasures db upgrade -x split-shared-sources=true`` then gives each of those organisations its own data source, keeping each source's ID for the organisation which recorded under it most recently, since a source ID is something some installations may refer to.
 
-.. warning:: ``asset.sensors`` now lists an asset's sensors in order of creation (by sensor id), where the order used to be whatever the database returned.
-             This makes positional access reliable: code that takes ``asset.sensors[0]`` now always gets the oldest sensor, where on a database with a history of updates it could get a different one from one query to the next.
-             Select sensors by name or id if you need a specific one.
-
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
 
