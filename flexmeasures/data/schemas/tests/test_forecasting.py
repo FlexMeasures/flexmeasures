@@ -1039,6 +1039,59 @@ def test_a_bound_on_the_sensor_to_forecast_is_read_in_its_unit_when_that_sensor_
     assert data["past_regressors"] == [AutoSensorReference({"lower": "3 EUR"})]
 
 
+def test_an_entry_naming_the_sensor_to_forecast_by_its_id_stays_a_regressor(
+    setup_dummy_sensors,
+    db,
+):
+    """Naming the sensor being forecast by its ID keeps the meaning it has always had: a regressor of its own.
+
+    Only ``"auto"`` describes the training labels. The two are not the same thing said twice:
+    the labels leave out what forecasters recorded, while a regressor column of the same sensor does not,
+    so reading an ID entry as a description of the target would quietly drop a column a config asked for.
+    """
+    from flexmeasures.data.models.forecasting.inputs import resolve_forecast_inputs
+
+    *_, target_sensor = setup_dummy_sensors
+    db.session.flush()
+
+    config = TrainPredictPipelineConfigSchema().load(
+        {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "past-regressors": [target_sensor.id],
+        }
+    )
+    resolved, target = resolve_forecast_inputs(config, target_sensor)
+
+    assert resolved["past_regressors"] == [target_sensor]
+    assert (
+        target is target_sensor
+    ), "nothing described the target, so it is read as it was given"
+
+
+def test_an_auto_entry_describes_the_target_rather_than_adding_a_regressor(
+    setup_dummy_sensors,
+    db,
+):
+    """An ``"auto"`` entry leaves the regressor lists and describes the sensor being forecast."""
+    from flexmeasures.data.models.forecasting.inputs import resolve_forecast_inputs
+
+    *_, target_sensor = setup_dummy_sensors
+    db.session.flush()
+
+    config = TrainPredictPipelineConfigSchema().load(
+        {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "past-regressors": [{"sensor": "auto", "source-types": ["user"]}],
+        }
+    )
+    resolved, target = resolve_forecast_inputs(config, target_sensor)
+
+    assert resolved["past_regressors"] == []
+    assert isinstance(target, SensorReference)
+    assert target.sensor is target_sensor
+    assert target.source_types == ["user"]
+
+
 def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
     setup_dummy_sensors,
     db,

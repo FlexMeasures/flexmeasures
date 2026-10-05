@@ -112,7 +112,10 @@ Put the bounds on the sensor reference itself, in the forecaster config, alongsi
     }
 
 Here sensor 2095 is cleaned as a regressor, and ``"auto"`` cleans the sensor being forecast, which the model learns from.
-An entry naming that sensor, whether as ``"auto"`` or by its ID, says how to read it rather than handing it to the model a second time.
+Only an ``"auto"`` entry says how to read the sensor being forecast.
+An entry naming that same sensor by its ID stays an ordinary regressor, which puts its readings in the model as a column of their own:
+the training labels leave out what forecasters recorded, while a regressor column does not,
+so such an entry adds the sensor's own history including its earlier forecasts.
 
 Each sensor's bounds are read in that sensor's own unit, not the unit of the sensor being forecast, so a regressor recording watts takes its bounds in watts unless you say otherwise.
 Snapping and clipping behave exactly as they do on the output, including the ``[first, second)`` interval rule described above.

@@ -2915,10 +2915,15 @@ def test_an_auto_entry_describes_the_target_instead_of_adding_a_regressor(
     assert target.exclude_source_types == ["scheduler"]
 
 
-def test_naming_the_target_by_id_describes_it_as_auto_would(
+def test_naming_the_target_by_id_keeps_it_a_regressor(
     app, setup_fresh_test_forecast_data, fresh_db
 ):
-    """The entry for the sensor being forecast is the same entry, however it names that sensor."""
+    """An entry naming the sensor being forecast by its ID is a regressor, not a description of the target.
+
+    Only ``"auto"`` describes the training labels. Reading an ID entry as that description would drop
+    a column the config asked for, and would reinterpret its qualifiers:
+    the bound here cleans that regressor column, while the labels stay as the parameters give them.
+    """
     target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
     pipeline = _forecast_pipeline(
         {"past-regressors": [{"sensor": target_sensor.id, "upper": "20 kW"}]},
@@ -2927,8 +2932,13 @@ def test_naming_the_target_by_id_describes_it_as_auto_would(
 
     resolved = pipeline._resolve_inputs()
 
-    assert resolved["past_regressors"] == []
-    assert pipeline._parameters["sensor"].upper == "20 kW"
+    assert len(resolved["past_regressors"]) == 1
+    regressor = resolved["past_regressors"][0]
+    assert regressor.sensor == target_sensor
+    assert regressor.upper == "20 kW"
+    assert (
+        pipeline._parameters["sensor"] == target_sensor
+    ), "the target itself was not qualified"
 
 
 def test_target_qualifiers_in_the_parameters_move_into_the_config(

@@ -24,13 +24,15 @@ if TYPE_CHECKING:
 REGRESSOR_FIELDS = ("past_regressors", "future_regressors")
 
 
-def _is_target_entry(
-    entry: Sensor | SensorReference | AutoSensorReference, target_sensor: Sensor
-) -> bool:
-    """Whether a config entry describes the sensor being forecast."""
-    if isinstance(entry, AutoSensorReference):
-        return True
-    return getattr(entry, "id", None) == target_sensor.id
+def _is_target_entry(entry: Sensor | SensorReference | AutoSensorReference) -> bool:
+    """Whether a config entry describes the sensor being forecast, rather than naming a sensor to read.
+
+    Only an entry written as ``"auto"`` does. An entry that names the sensor being forecast by its ID
+    stays an ordinary regressor, which is what it has always been:
+    it puts that sensor's readings in the model as a column of their own, read without the forecaster exclusion
+    the training labels get, so it is not the same thing said twice.
+    """
+    return isinstance(entry, AutoSensorReference)
 
 
 def resolve_forecast_inputs(
@@ -39,10 +41,14 @@ def resolve_forecast_inputs(
     """Resolve a config against the sensor being forecast.
 
     The config holds one entry per sensor the forecaster reads.
-    The sensor being forecast is read as well, as the labels the model learns from and as its own lags,
-    so an entry naming it says how to read it rather than adding it to the model a second time:
+    The sensor being forecast is read as well, as the labels the model learns from,
+    so an entry written as ``"auto"`` says how to read those labels rather than adding a column to the model:
     such an entry is taken out of the regressor lists and describes the target instead.
     Where several entries name it, the last one wins.
+
+    An entry naming that same sensor by its ID is left where it is, as the regressor it has always been.
+    The two say different things: the labels leave out what forecasters recorded, while a regressor column does not,
+    so an entry by ID adds the sensor's own history including its earlier forecasts.
 
     :param config:        The forecaster's config, as loaded.
     :param target_sensor: The sensor the forecast is made for.
@@ -53,12 +59,8 @@ def resolve_forecast_inputs(
     for field_name in REGRESSOR_FIELDS:
         kept = []
         for entry in config.get(field_name) or []:
-            if _is_target_entry(entry, target_sensor):
-                target = (
-                    entry.resolve(target_sensor)
-                    if isinstance(entry, AutoSensorReference)
-                    else entry
-                )
+            if _is_target_entry(entry):
+                target = entry.resolve(target_sensor)
                 continue
             kept.append(entry)
         resolved[field_name] = kept
