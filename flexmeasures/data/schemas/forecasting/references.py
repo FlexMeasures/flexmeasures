@@ -9,11 +9,29 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import (
     SensorIdOrReferenceField,
     SensorReference,
+    SensorReferenceSchema,
 )
 
 #: What a forecaster's config writes where it means the sensor being forecast,
 #: which only the forecast parameters name.
 AUTO_SENSOR = "auto"
+
+#: The qualifiers an entry naming the sensor being forecast may carry, read without the sensor they will describe.
+#: Everything a sensor reference checks without knowing its sensor is checked here, at the time the config is accepted.
+_TARGET_QUALIFIERS_SCHEMA = SensorReferenceSchema(exclude=("sensor",))
+
+
+def validate_target_qualifiers(qualifiers: dict[str, Any]) -> None:
+    """Refuse a qualifier the sensor being forecast cannot be read with, while its config is being accepted.
+
+    Only the unit check has to wait for that sensor, as a bound is read in the sensor's own unit.
+    Key names and value shapes do not: a typo such as ``lowr``, a source filter that is not a list,
+    or a bound that is no quantity at all is refused here rather than on every run of a stored automation.
+
+    :param qualifiers:         The entry's keys other than ``sensor``, as given.
+    :raises ValidationError:   naming the qualifiers that cannot be read.
+    """
+    _TARGET_QUALIFIERS_SCHEMA.load(qualifiers)
 
 
 @dataclass
@@ -64,9 +82,10 @@ class ForecastInputField(SensorIdOrReferenceField):
         if value == AUTO_SENSOR:
             return AutoSensorReference()
         if isinstance(value, dict) and value.get("sensor") == AUTO_SENSOR:
-            return AutoSensorReference(
-                {key: item for key, item in value.items() if key != "sensor"}
-            )
+            qualifiers = {key: item for key, item in value.items() if key != "sensor"}
+            # Checked now rather than at run time, so that a stored automation does not fail on every recurrence.
+            validate_target_qualifiers(qualifiers)
+            return AutoSensorReference(qualifiers)
         return super()._deserialize(value, attr, data, **kwargs)
 
     def _serialize(

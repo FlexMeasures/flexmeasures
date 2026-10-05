@@ -999,6 +999,46 @@ def test_forecaster_config_schema_keeps_an_unbounded_regressor_a_plain_sensor(
         assert isinstance(data["past_regressors"][0], Sensor)
 
 
+@pytest.mark.parametrize(
+    "entry, expected_message",
+    [
+        ({"sensor": "auto", "lowr": "0 kW"}, "did you mean `lower`?"),
+        ({"sensor": "auto", "sources": "garbage"}, "Not a valid list."),
+        ({"sensor": "auto", "lower": "banana"}, "parseable quantity"),
+    ],
+)
+def test_an_entry_naming_the_sensor_to_forecast_is_checked_when_its_config_is_accepted(
+    entry, expected_message
+):
+    """A qualifier that cannot be read is refused now, not on every run of a stored automation.
+
+    The sensor being forecast is not known while a config is loaded, so the unit a bound is read in has to wait for it.
+    Everything else — which keys a reference takes, and what shape their values have — does not.
+    """
+    with pytest.raises(ValidationError) as refusal:
+        TrainPredictPipelineConfigSchema().load(
+            {"train-start": "2025-01-01T00:00:00+00:00", "past-regressors": [entry]}
+        )
+
+    assert expected_message in str(refusal.value)
+
+
+def test_a_bound_on_the_sensor_to_forecast_is_read_in_its_unit_when_that_sensor_is_known():
+    """Whether a bound suits the sensor being forecast is the one check that cannot happen yet.
+
+    A config is written once for whichever sensor a forecast names, so a bound in an unrelated dimension
+    is held until the target is known rather than refused here, where there is nothing to compare it against.
+    """
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "past-regressors": [{"sensor": "auto", "lower": "3 EUR"}],
+        }
+    )
+
+    assert data["past_regressors"] == [AutoSensorReference({"lower": "3 EUR"})]
+
+
 def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
     setup_dummy_sensors,
     db,
