@@ -358,6 +358,28 @@ def test_a_reference_dumped_without_its_filters_loads_again(setup_dummy_sensors)
     assert schema.load(dumped)["sensor"] == power_sensor
 
 
+def test_a_schema_extending_the_reference_accepts_what_it_declares(setup_dummy_sensors):
+    """A plugin may extend the reference schema, and what it declares is read rather than refused.
+
+    The refusal reads the keys off the schema at hand, not off the class it inherits from,
+    so a field added by a subclass is accepted while anything neither of them declares is still refused.
+    """
+    from marshmallow import fields as marshmallow_fields
+
+    class ReferenceWithAPluginsOwnField(SensorReferenceSchema):
+        hint = marshmallow_fields.Str()
+
+    *_, power_sensor = setup_dummy_sensors
+    schema = ReferenceWithAPluginsOwnField()
+
+    loaded = schema.load({"sensor": power_sensor.id, "hint": "mine"})
+    assert loaded["hint"] == "mine"
+
+    with pytest.raises(ValidationError) as refusal:
+        schema.load({"sensor": power_sensor.id, "colour": "blue"})
+    assert "`colour`" in str(refusal.value)
+
+
 def test_a_sensor_reference_takes_every_key_its_schema_defines(setup_dummy_sensors):
     """The keys a reference takes are read off the schema that defines them, so the two cannot drift apart."""
     *_, power_sensor = setup_dummy_sensors

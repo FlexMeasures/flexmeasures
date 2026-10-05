@@ -36,18 +36,32 @@ For example, to obtain data originating from data source 42, include the followi
 
 Data source IDs can be found by hovering over data in charts.
 
+For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filtering supports:
+
+- ``source``: filter by data source ID
+- ``source-account``: filter by the account ID linked to data sources
+- ``source-type``: filter by the type of data source (e.g. 'forecaster' or 'scheduler')
+
+.. note::
+
+   Since FlexMeasures v1.1, a forecaster, scheduler or reporter records under a data source belonging to the organisation it computes for, which is the organisation of the assets it writes to.
+   Until then only a user's own source named an organisation, so ``source-account`` matched user-recorded data only.
+   A data source belonging to no organisation is one the host runs for everyone.
+
+.. note::
+
+   If schedules are recorded on the same sensor as measurements or forecasts, source filtering can be used to distinguish them.
+   An alternative is to model schedules on dedicated sensors; see :ref:`one_or_multiple_sensors`.
+
 Singular and plural keys
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The same filter is named in the singular where it takes one value and in the plural where it takes a list, and which one applies depends on what is being written:
+The keys above name one value each. A sensor reference, inside a :ref:`flex-model or flex-context field <variable_quantities>`, names its source filters in the plural instead, and each takes a list:
 
-- a data request filters with ``source``, ``source-account`` and ``source-type``, each naming one value — see the filters listed above for ``GET /api/v3_0/sensors/<id>/data``;
-- a sensor reference, inside a flex-model or flex-context field, filters with ``sources``, ``source-types`` and ``exclude-source-types``, each taking a list.
+- a data request filters with ``source``, ``source-account`` and ``source-type``;
+- a sensor reference filters with ``sources``, ``source-types`` and ``exclude-source-types``.
 
-A sensor reference refuses a key it does not have, naming the nearest key it does, so a filter written in the singular there fails rather than being read past, as it used to be.
-
-.. note:: Writing the plural everywhere is the convention this is headed for, so prefer the plural keys where both exist, and expect the singular ones to be the spellings that change.
-
+A sensor reference takes those keys and no others. One it does not take is refused, naming the nearest key it does, so a filter written in the singular there fails rather than being accepted and ignored, as it was until FlexMeasures v1.1.
 
 
 .. _units:

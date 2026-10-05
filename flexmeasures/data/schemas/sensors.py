@@ -387,7 +387,9 @@ def sensor_reference_keys() -> frozenset[str]:
     )
 
 
-def refuse_unknown_sensor_reference_keys(value: dict[str, Any]) -> None:
+def refuse_unknown_sensor_reference_keys(
+    value: dict[str, Any], known: frozenset[str] | set[str] | None = None
+) -> None:
     """Refuse a key no sensor reference has, rather than reading past it.
 
     A sensor reference used to be read for the keys it knows, so anything else was accepted and did nothing:
@@ -396,9 +398,11 @@ def refuse_unknown_sensor_reference_keys(value: dict[str, Any]) -> None:
     Which spelling belongs where is a question of its own, recorded in issue #2659.
 
     :param value:              A sensor reference, as given.
+    :param known:              The keys this reference may carry, where that is more than a flex-config reference takes,
+                               as for a schema which extends `SensorReferenceSchema` with fields of its own.
     :raises FMValidationError: naming the keys it does not know, and what to write instead.
     """
-    known = sensor_reference_keys()
+    known = sensor_reference_keys() if known is None else frozenset(known)
     unknown = [key for key in value if key not in known]
     if not unknown:
         return
@@ -1227,12 +1231,17 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 
     @pre_load
     def refuse_keys_no_reference_has(self, data, **kwargs):
-        """Refuse a key no sensor reference has, with the same message the field reading a flex config by hand gives.
+        """Refuse a key this reference does not have, with the same message the field reading a flex config by hand gives.
 
         Shared so that the same reference is read the same way wherever it is written.
+        The keys come from this schema rather than from this class, so that a schema extending it with fields of its own
+        — a plugin's, or :class:`InflexibleDeviceSchema` — accepts what it declares.
         """
         if isinstance(data, dict):
-            refuse_unknown_sensor_reference_keys(data)
+            refuse_unknown_sensor_reference_keys(
+                data,
+                known={field.data_key or name for name, field in self.fields.items()},
+            )
         return data
 
     source_types = fields.List(
