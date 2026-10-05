@@ -388,10 +388,58 @@ def _add_inflexible_devices(flex_context: dict, sensors: list[Sensor]) -> None:
             )
 
 
+def resolve_sequential_flex_model(
+    asset: Asset, scheduler_kwargs: dict, scheduler_class: Type[Scheduler]
+) -> list[dict]:
+    """Work out which device each job of a sequential schedule computes for.
+
+    A trigger may name the devices itself, or leave them to be collected from the asset tree,
+    in which case each device's output sensor is read off its stored flex-model.
+    The flex-model and flex-context in `scheduler_kwargs` are filled in as they are resolved,
+    so that a caller which resolves first and schedules afterwards resolves only once.
+
+    :returns: the flex-model entries, each naming the sensor its job computes for.
+    """
+    if not scheduler_kwargs["flex_model"]:
+        scheduler = get_scheduler_instance(
+            scheduler_class=scheduler_class,
+            asset_or_sensor=asset,
+            scheduler_params=scheduler_kwargs,
+        )
+        scheduler.collect_flex_config()
+        collected_flex_model = deepcopy(scheduler.flex_model)
+        scheduler_kwargs["flex_context"] = scheduler.flex_context
+        scheduler.deserialize_config()
+        scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).load(
+            collected_flex_model
+        )
+
+    flex_model = scheduler_kwargs["flex_model"]
+    for child_flex_model in flex_model:
+        if child_flex_model.get("sensor") is not None:
+            continue
+        sensor_ids = {
+            sensor_reference["sensor"]
+            for field in ("consumption", "production")
+            if (sensor_reference := child_flex_model["sensor_flex_model"].get(field))
+            is not None
+        }
+        if len(sensor_ids) != 1:
+            device_asset = child_flex_model.get("asset")
+            raise ValidationError(
+                "Sequential scheduling requires each stored device flex-model to "
+                "reference exactly one output sensor through 'consumption' or "
+                f"'production' (asset {device_asset.id if device_asset else 'unknown'})."
+            )
+        child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
+    return flex_model
+
+
 @job_cache("scheduling")
 def create_sequential_scheduling_job(
     asset: Asset,
     job_id: str | None = None,
+    job_id_prefix: str | None = None,
     enqueue: bool = True,
     requeue: bool = False,
     force_new_job_creation: bool = False,
@@ -404,7 +452,12 @@ def create_sequential_scheduling_job(
     """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
 
     :param asset:                   Asset (e.g. a site) for which the schedule is computed.
-    :param job_id:                  Optionally, set a job id explicitly.
+    :param job_id:                  Optionally, set the id of the wrap-up job explicitly, which is the job this returns.
+                                    Ignored where `job_id_prefix` is given, which names every job in the chain.
+    :param job_id_prefix:           Optionally, derive the id of every job in the chain from this prefix:
+                                    `<prefix>-device-<sensor id>` per device, and `<prefix>-wrap-up` for the job that wraps up.
+                                    Derived ids let a second attempt at the same work recognise the jobs the first one queued,
+                                    which is what lets an automation run be dispatched again without scheduling a device twice.
     :param enqueue:                 If True, enqueues the job in case it is new.
     :param requeue:                 If True, requeues the job in case it is not new and had previously failed
                                     (this argument is used by the @job_cache decorator).
@@ -440,38 +493,7 @@ def create_sequential_scheduling_job(
         scheduler_class: Type[Scheduler] = load_custom_scheduler(scheduler_specs)
     else:
         scheduler_class = find_scheduler_class(asset)
-    if not scheduler_kwargs["flex_model"]:
-        scheduler = get_scheduler_instance(
-            scheduler_class=scheduler_class,
-            asset_or_sensor=asset,
-            scheduler_params=scheduler_kwargs,
-        )
-        scheduler.collect_flex_config()
-        collected_flex_model = deepcopy(scheduler.flex_model)
-        scheduler_kwargs["flex_context"] = scheduler.flex_context
-        scheduler.deserialize_config()
-        scheduler_kwargs["flex_model"] = MultiSensorFlexModelSchema(many=True).load(
-            collected_flex_model
-        )
-
-    flex_model = scheduler_kwargs["flex_model"]
-    for child_flex_model in flex_model:
-        if child_flex_model.get("sensor") is not None:
-            continue
-        sensor_ids = {
-            sensor_reference["sensor"]
-            for field in ("consumption", "production")
-            if (sensor_reference := child_flex_model["sensor_flex_model"].get(field))
-            is not None
-        }
-        if len(sensor_ids) != 1:
-            asset = child_flex_model.get("asset")
-            raise ValidationError(
-                "Sequential scheduling requires each stored device flex-model to "
-                "reference exactly one output sensor through 'consumption' or "
-                f"'production' (asset {asset.id if asset else 'unknown'})."
-            )
-        child_flex_model["sensor"] = db.session.get(Sensor, sensor_ids.pop())
+    flex_model = resolve_sequential_flex_model(asset, scheduler_kwargs, scheduler_class)
 
     # A scheduling request is one run of one generator,
     # so all of its device jobs record their schedules under one data source, describing the request's own configuration.
@@ -511,7 +533,12 @@ def create_sequential_scheduling_job(
             data_source_config=data_source_config,
             scheduler_specs=scheduler_specs,
             requeue=requeue,
-            job_id=job_id,
+            # One id per device: a single id shared by the chain would have each device job overwrite the last.
+            job_id=(
+                f"{job_id_prefix}-device-{sensor.id}"
+                if job_id_prefix is not None
+                else None
+            ),
             enqueue=enqueue,
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
@@ -525,6 +552,7 @@ def create_sequential_scheduling_job(
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
+        id=f"{job_id_prefix}-wrap-up" if job_id_prefix is not None else job_id,
         depends_on=previous_job,
         ttl=int(
             current_app.config.get(
