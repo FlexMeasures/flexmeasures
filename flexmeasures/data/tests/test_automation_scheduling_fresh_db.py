@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from flask import current_app
@@ -13,6 +13,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 from flexmeasures.data.services.automations import (
     claim_due_automation_run,
     get_due_automations,
+    skip_stale_automation_runs,
 )
 
 
@@ -116,6 +117,61 @@ def test_missed_runs_are_coalesced(automation_factory, cronstr, cursor, now, exp
     assert [(item.automation.id, item.scheduled_at) for item in due] == [
         (automation.id, expected)
     ]
+
+
+@pytest.mark.parametrize(
+    ("max_catchup", "expected_skipped"),
+    (
+        # At 11:05, the missed 10:00 run is 65 minutes old.
+        (timedelta(minutes=60), True),
+        (timedelta(minutes=65), False),
+        (timedelta(0), True),
+    ),
+)
+def test_stale_missed_runs_are_skipped(
+    fresh_db, automation_factory, max_catchup, expected_skipped
+):
+    automation = automation_factory(
+        name="Bounded catch-up",
+        cronstr="0 10 * * *",
+        timezone_name="UTC",
+        cursor=datetime(2026, 1, 31, 10, 0, tzinfo=timezone.utc),
+    )
+    now = datetime(2026, 2, 1, 11, 5, tzinfo=timezone.utc)
+    missed_run = datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc)
+
+    skipped = skip_stale_automation_runs(max_catchup, now)
+
+    if expected_skipped:
+        assert [(item.automation.id, item.scheduled_at) for item in skipped] == [
+            (automation.id, missed_run)
+        ]
+        # the cursor moved past the skipped run, so it is not caught up afterwards either
+        fresh_db.session.refresh(automation)
+        assert automation.cursor == missed_run
+        assert get_due_automations(now) == []
+    else:
+        assert skipped == []
+        assert [item.scheduled_at for item in get_due_automations(now)] == [missed_run]
+
+    # either way, the automation resumes on its next scheduled run
+    next_run = datetime(2026, 2, 2, 10, 0, tzinfo=timezone.utc)
+    assert [item.scheduled_at for item in get_due_automations(next_run)] == [next_run]
+
+
+def test_zero_catchup_keeps_the_run_due_this_minute(fresh_db, automation_factory):
+    automation = automation_factory(
+        name="On time",
+        cronstr="0 * * * *",
+        timezone_name="UTC",
+        cursor=datetime(2026, 2, 1, 9, 0, tzinfo=timezone.utc),
+    )
+    now = datetime(2026, 2, 1, 10, 0, tzinfo=timezone.utc)
+
+    assert skip_stale_automation_runs(timedelta(0), now) == []
+    assert [
+        (item.automation.id, item.scheduled_at) for item in get_due_automations(now)
+    ] == [(automation.id, now)]
 
 
 def test_spring_forward_run_happens_at_transition_boundary(
