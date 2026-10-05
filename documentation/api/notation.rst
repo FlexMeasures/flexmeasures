@@ -59,9 +59,10 @@ Singular and plural keys
 The keys above name one value each. A sensor reference, inside a :ref:`flex-model or flex-context field <variable_quantities>`, names its source filters in the plural instead, and each takes a list:
 
 - a data request filters with ``source``, ``source-account`` and ``source-type``;
-- a sensor reference filters with ``sources``, ``source-types`` and ``exclude-source-types``.
+- a sensor reference filters with ``sources``, ``source-types``, ``exclude-source-types`` and ``source-account``.
 
-A sensor reference takes those keys and no others. One it does not take is refused, naming the nearest key it does, so a filter written in the singular there fails rather than being accepted and ignored, as it was until FlexMeasures v1.1.
+Besides its filters, a sensor reference takes ``sensor``, a ``default`` and the cleaning bounds, all described under :ref:`variable_quantities`.
+A key it does not take is refused, naming the nearest key it does and listing the ones it has, so a filter written in the singular there fails rather than being accepted and ignored, as it was until FlexMeasures v1.1.
 
 
 .. _units:

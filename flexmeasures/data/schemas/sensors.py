@@ -1234,8 +1234,8 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         """Refuse a key this reference does not have, with the same message the field reading a flex config by hand gives.
 
         Shared so that the same reference is read the same way wherever it is written.
-        The keys come from this schema rather than from this class, so that a schema extending it with fields of its own
-        — a plugin's, or :class:`InflexibleDeviceSchema` — accepts what it declares.
+        The keys come from this schema rather than from this class,
+        so that a schema extending it with fields of its own, such as a plugin's, accepts what it declares.
         """
         if isinstance(data, dict):
             refuse_unknown_sensor_reference_keys(
