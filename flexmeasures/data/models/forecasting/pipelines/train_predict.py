@@ -276,6 +276,12 @@ class TrainPredictPipeline(Forecaster):
 
         The config keeps naming ``"auto"`` where it means that sensor, because it is what the data source records.
         Running needs concrete sensors, and needs the target to carry whatever its config entry says about reading it.
+
+        Mind that this changes ``self._config`` where the parameters still carry qualifiers, by folding them in.
+        So ``_config`` — and therefore ``data_source``, which records it — says something different before and after the first resolve.
+        That is the point of the fold, since the source has to report the qualifiers the run used,
+        and it is why a forecaster set up from a source that already exists is refused rather than folded:
+        that source records its config as it was, and nothing here can change what it records.
         """
         if fold_target_qualifiers_into_config(
             self._config, self._parameters, recorded_source=self._data_source
