@@ -1026,8 +1026,8 @@ def test_an_entry_naming_the_sensor_to_forecast_is_checked_when_its_config_is_ac
 def test_a_bound_on_the_sensor_to_forecast_is_read_in_its_unit_when_that_sensor_is_known():
     """Whether a bound suits the sensor being forecast is the one check that cannot happen yet.
 
-    A config is written once for whichever sensor a forecast names, so a bound in an unrelated dimension
-    is held until the target is known rather than refused here, where there is nothing to compare it against.
+    A config is written once for whichever sensor a forecast names,
+    so a bound in an unrelated dimension is held until the target is known rather than refused here, where there is nothing to compare it against.
     """
     data = TrainPredictPipelineConfigSchema().load(
         {

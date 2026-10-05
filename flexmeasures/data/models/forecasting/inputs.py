@@ -27,10 +27,10 @@ REGRESSOR_FIELDS = ("past_regressors", "future_regressors")
 def _is_target_entry(entry: Sensor | SensorReference | AutoSensorReference) -> bool:
     """Whether a config entry describes the sensor being forecast, rather than naming a sensor to read.
 
-    Only an entry written as ``"auto"`` does. An entry that names the sensor being forecast by its ID
-    stays an ordinary regressor, which is what it has always been:
-    it puts that sensor's readings in the model as a column of their own, read without the forecaster exclusion
-    the training labels get, so it is not the same thing said twice.
+    Only an entry written as ``"auto"`` does.
+    An entry that names the sensor being forecast by its ID stays an ordinary regressor, which is what it has always been:
+    it puts that sensor's readings in the model as a column of their own, read without the forecaster exclusion the training labels get,
+    so it is not the same thing said twice.
     """
     return isinstance(entry, AutoSensorReference)
 

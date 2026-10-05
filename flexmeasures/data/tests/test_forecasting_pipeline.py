@@ -2920,8 +2920,8 @@ def test_naming_the_target_by_id_keeps_it_a_regressor(
 ):
     """An entry naming the sensor being forecast by its ID is a regressor, not a description of the target.
 
-    Only ``"auto"`` describes the training labels. Reading an ID entry as that description would drop
-    a column the config asked for, and would reinterpret its qualifiers:
+    Only ``"auto"`` describes the training labels.
+    Reading an ID entry as that description would drop a column the config asked for, and would reinterpret its qualifiers:
     the bound here cleans that regressor column, while the labels stay as the parameters give them.
     """
     target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
@@ -3041,8 +3041,8 @@ def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
 ):
     """Resolving must not write anything into the config of a forecaster that qualifies nothing.
 
-    The config is what identifies a forecaster's data source, so a forecaster that configures no
-    cleaning has to keep recording what it recorded before, and keep its source with it.
+    The config is what identifies a forecaster's data source,
+    so a forecaster that configures no cleaning has to keep recording what it recorded before, and keep its source with it.
     """
     target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
     regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
