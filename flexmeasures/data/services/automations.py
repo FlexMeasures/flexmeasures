@@ -337,6 +337,27 @@ def get_dispatchable_automation_runs(
     return claimed_runs
 
 
+def pin_automation_run_effective_start(run_id: int, start: datetime) -> None:
+    """Record when a run is working from, for an automation which left that to the run time.
+
+    An automation need not say when to start: its parameters then carry no start,
+    and each dispatch attempt resolves one from the clock.
+    A run resumed hours later would therefore queue its remaining jobs for a later window than the ones it already queued.
+    Pin the start the first attempt resolved, so that every later attempt of the same run reads it back instead.
+    Only the start is pinned, because the end follows from it and the automation's own duration,
+    and stating both alongside a duration is rejected as contradictory.
+    """
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    parameters = dict(run.parameters or {})
+    if parameters.get("start") is not None:
+        return
+    parameters["start"] = start.astimezone(timezone.utc).isoformat()
+    run.parameters = parameters
+    db.session.commit()
+
+
 def ensure_automation_run_job_intents(
     run_id: int, job_specs: list[dict[str, Any]]
 ) -> list[AutomationRunJob]:
