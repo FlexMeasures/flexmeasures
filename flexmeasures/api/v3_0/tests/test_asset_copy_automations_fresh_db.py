@@ -264,6 +264,43 @@ def test_copied_automation_keeps_a_public_regressor(
     assert copied.generator_id == automation.generator_id
 
 
+def test_copied_automation_keeps_an_entry_naming_the_sensor_it_forecasts(
+    fresh_db, automated_site
+):
+    """An entry written as "auto" copies as it stands, naming no sensor to be pointed at a copy.
+
+    It is the one entry that is never tied to a sensor, so it needs neither remapping nor a readability check:
+    whichever sensor the copy forecasts is the sensor it describes.
+    """
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["meter"],
+        name="Meter forecasts qualifying their own target",
+        parameters={"sensor": automated_site["temperature"].id},
+        config={
+            "past-regressors": ["auto", {"sensor": "auto", "lower": "0 kW"}],
+        },
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert asset_copy.skipped_automations == []
+    meter_copy = _child_of(fresh_db, asset_copy.asset)
+    copied = [
+        copied_automation
+        for copied_automation in _automations_of(fresh_db, meter_copy)
+        if copied_automation.name == automation.name
+    ][0]
+    copied_config = copied.generator.attributes["data_generator"]["config"]
+    assert copied_config["past-regressors"] == [
+        "auto",
+        {"sensor": "auto", "lower": "0 kW"},
+    ]
+    # Nothing was remapped, so the copy shares the configuration rather than duplicating it.
+    assert copied.generator_id == automation.generator_id
+
+
 def test_copy_within_the_same_organisation_keeps_an_external_regressor(
     fresh_db, automated_site
 ):

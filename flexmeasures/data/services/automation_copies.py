@@ -19,6 +19,10 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.account import AccountIdField, AccountIdOrListField
+from flexmeasures.data.schemas.forecasting.references import (
+    AUTO_SENSOR,
+    ForecastInputField,
+)
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField, SensorIdOrReferenceField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -357,6 +361,16 @@ def _user_can_read(sensor_or_asset) -> bool:
     return True
 
 
+def _names_the_forecast_target(value) -> bool:
+    """Whether a forecaster's input entry names the sensor being forecast, rather than a sensor of its own.
+
+    Such an entry is written as ``"auto"``, either on its own or as the ``sensor`` of a reference that qualifies it.
+    """
+    if value == AUTO_SENSOR:
+        return True
+    return isinstance(value, dict) and value.get("sensor") == AUTO_SENSOR
+
+
 def _account_can_read(
     owner_account_id: int | None, destination_account_id: int | None
 ) -> bool:
@@ -483,6 +497,10 @@ class _ReferenceRemapper:
         if isinstance(field, fields.Nested):
             _require_stored_type(value, dict, "an object", field)
             return self.remap(value, field.schema)
+        if isinstance(field, ForecastInputField) and _names_the_forecast_target(value):
+            # An entry naming the sensor being forecast names no sensor of its own,
+            # so there is nothing to point at a copied sensor and nothing whose readability to check.
+            return value
         if isinstance(field, SensorIdOrReferenceField):
             if isinstance(value, dict):
                 return self.remap(value, field.sensor_reference_schema)
