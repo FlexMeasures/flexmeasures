@@ -794,3 +794,44 @@ def test_a_detached_source_is_refreshed_into_its_own_organisations_source(
     assert (
         refreshed.id == stored.id
     ), "it finds the organisation's own source, rather than making a second one"
+
+
+def test_get_data_source_finds_the_source_of_the_organisation_it_is_asked_about(
+    db, setup_accounts
+):
+    """A script's source belongs to an organisation like any other, so the lookup has to say which.
+
+    Two organisations running the same script have a source each; without naming one,
+    the lookup used to find both where it expected one, and raised rather than returning either.
+    """
+    from flexmeasures.data.utils import get_data_source
+
+    prosumer, supplier = setup_accounts["Prosumer"], setup_accounts["Supplier"]
+    for account in (prosumer, supplier):
+        db.session.add(
+            DataSource(
+                name="shared script",
+                type="script",
+                model="Importer",
+                version="1",
+                account=account,
+            )
+        )
+    db.session.flush()
+
+    for account in (prosumer, supplier):
+        found = get_data_source(
+            data_source_name="shared script",
+            data_source_model="Importer",
+            data_source_version="1",
+            account=account,
+        )
+        assert found.account_id == account.id
+
+    # Naming no organisation asks for the host's own source, which is created rather than borrowed from an organisation.
+    hosts_own = get_data_source(
+        data_source_name="shared script",
+        data_source_model="Importer",
+        data_source_version="1",
+    )
+    assert hosts_own.account_id is None
