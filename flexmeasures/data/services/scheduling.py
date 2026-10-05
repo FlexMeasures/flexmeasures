@@ -204,7 +204,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             job.save_meta()
             current_app.queues["scheduling"].enqueue_job(fallback_job)
             asset_or_sensor_ref = get_asset_or_sensor_ref(asset_or_sensor)
-            current_app.job_cache.add(
+            current_app.job_map.add(
                 asset_or_sensor_ref["id"],
                 fallback_job.id,
                 queue="scheduling",
@@ -337,7 +337,7 @@ def create_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset_or_sensor["id"],
             job.id,
             queue="scheduling",
@@ -552,7 +552,7 @@ def create_sequential_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset.id,
             job.id,
             queue="scheduling",
@@ -631,7 +631,7 @@ def create_simultaneous_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset.id,
             job.id,
             queue="scheduling",
