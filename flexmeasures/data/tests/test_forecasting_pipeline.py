@@ -2950,6 +2950,41 @@ def test_target_qualifiers_in_the_parameters_move_into_the_config(
     assert pipeline._parameters["sensor"].lower == "0 kW"
 
 
+def test_a_payload_that_qualifies_its_target_is_still_queued_rather_than_refused(
+    app, clean_redis, setup_fresh_test_forecast_data, fresh_db
+):
+    """A payload with qualifiers on its target and no source of its own folds and queues, as it always did.
+
+    Refusing one of these depends on an ordering rather than on anything written down:
+    `run` resolves the inputs before `_persist_data_source_id` reads the `data_source` property,
+    which is what creates a source and so attaches one. Were the two to swap places,
+    every such payload would arrive at the refusal with a source attached and be turned away at the front door,
+    and the refusal's own test would still pass. This is what says the fold path is still reachable.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = TrainPredictPipeline(config={"train-start": "2025-01-01T00:00:00+00:00"})
+    assert pipeline._data_source is None, "nothing has attached a source yet"
+
+    queued = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": {"sensor": target_sensor.id, "lower": "0 kW"},
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+
+    job = app.queues["forecasting"].fetch_job(queued["job_id"])
+    assert job is not None, "the payload was queued rather than refused"
+    # The fold moved the bound off the parameters' target and into the config as an `auto` entry,
+    # which resolving then put back on the target the job runs with. Either way it travelled with the job.
+    target = job.kwargs["parameters"]["sensor_id"]
+    assert target["sensor"] == target_sensor.id
+    assert target["lower"] == "0 kW"
+
+
 def test_a_stored_forecaster_is_refused_rather_than_run_under_qualifiers_its_source_omits(
     app, setup_fresh_test_forecast_data, fresh_db
 ):
