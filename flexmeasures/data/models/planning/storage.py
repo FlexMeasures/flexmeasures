@@ -1909,21 +1909,6 @@ class MetaStorageScheduler(Scheduler):
 
         return commitments
 
-    def persist_flex_model(self):
-        """Store new soc info as GenericAsset attributes
-
-        This method should become obsolete when all SoC information is recorded on a sensor, instead.
-
-        Deprecated: get rid of this when moving to v1.0 (requiring to also remove attributes from test data assets)
-        """
-        if self.sensor is not None:
-            self.sensor.generic_asset.set_attribute(
-                "soc_datetime", self.start.isoformat()
-            )
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model.get("soc_at_start")
-            )
-
     def resolve_flex_config(self) -> dict:
         """A storage scheduler also reads flex config from the asset tree, so merge that in before recording it.
 
