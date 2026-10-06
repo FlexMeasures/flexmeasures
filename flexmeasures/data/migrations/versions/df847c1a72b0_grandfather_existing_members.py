@@ -99,5 +99,14 @@ def upgrade():
 
 
 def downgrade():
-    # Do not remove assignments made after this migration.
-    pass
+    # Before this revision, code ignored these roles, so removing them restores the former behaviour.
+    # Account readers and data integrators thereby regain the access every account member had.
+    connection = op.get_bind()
+    new_roles = "('account-member', 'account-reader', 'account-data-integrator')"
+    connection.execute(
+        sa.text(
+            "DELETE FROM roles_users WHERE role_id IN "
+            f"(SELECT id FROM role WHERE name IN {new_roles})"
+        )
+    )
+    connection.execute(sa.text(f"DELETE FROM role WHERE name IN {new_roles}"))
