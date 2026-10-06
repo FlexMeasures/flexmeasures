@@ -680,7 +680,6 @@ def create_assets(
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
-                soc_in_mwh=0,
                 is_producer=True,
                 can_curtail=True,
             ),
@@ -1033,10 +1032,6 @@ def create_test_battery_kWh_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the three soc_ attributes all together
-            "soc_in_mwh": 2.5,
-            "soc_datetime": "2015-01-01T00:00+01",
-            "soc_udi_event_id": 203,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1153,10 +1148,6 @@ def create_test_battery_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the three soc_ attributes all together
-            "soc_in_mwh": 2.5,
-            "soc_datetime": "2015-01-01T00:00+01",
-            "soc_udi_event_id": 203,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1242,9 +1233,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2040-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1277,7 +1265,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.0,
         ),
     )
     test_battery_dynamic_capacity_power_sensor = Sensor(
@@ -1308,9 +1295,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
-            soc_in_mwh=0.005,
-            soc_datetime="2040-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1432,9 +1416,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -1469,9 +1450,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
