@@ -81,7 +81,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_sensors",
-        backref=db.backref("sensors", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("sensors", lazy="dynamic", order_by="Sensor.id"),
     )
 
     def get_path(self, separator: str = ">"):

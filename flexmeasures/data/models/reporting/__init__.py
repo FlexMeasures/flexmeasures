@@ -1,12 +1,52 @@
 from __future__ import annotations
 
 from typing import Any
+
+import timely_beliefs as tb
+
 from flexmeasures.data.models.data_sources import DataGenerator
+from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures.data.schemas.reporting import (
     ReporterParametersSchema,
     ReporterConfigSchema,
 )
+from flexmeasures.utils.bound_utils import apply_bounds_to_values, parse_bounds
+
+#: The keys an input entry carries to clean the readings it asks for, rather than to search with.
+INPUT_BOUND_KEYS = ("lower", "upper", "snap")
+
+
+def read_input_beliefs(
+    sensor: Sensor, search_parameters: dict, **search_criteria
+) -> tb.BeliefsDataFrame:
+    """Read a report input's beliefs, cleaned against the bounds that input carries.
+
+    An input entry may say how to clean the readings it asks for, the way a forecaster's regressors and a scheduler's references can.
+    Those keys are taken out of the search, which would not know what to do with them, and applied to what the search returns.
+    The bounds are read in the sensor's own unit, and snapping runs before clipping, as everywhere else.
+
+    :param sensor:            The sensor the input names.
+    :param search_parameters: What is left of the input entry, which this function takes the bounds out of.
+    :param search_criteria:   The search criteria the reporter decided on, such as the event window.
+    :returns:                 The beliefs, with their values snapped and clipped where the input asked for it.
+    """
+    bounds = {key: search_parameters.pop(key, None) for key in INPUT_BOUND_KEYS}
+    beliefs = sensor.search_beliefs(**search_criteria, **search_parameters)
+    if bounds["lower"] is None and bounds["upper"] is None and not bounds["snap"]:
+        return beliefs
+
+    lower_value, upper_value, snap_intervals = parse_bounds(
+        bounds["lower"],
+        bounds["upper"],
+        bounds["snap"],
+        sensor.unit,
+        label=f"bounds on sensor {sensor.name} (ID: {sensor.id})",
+    )
+    beliefs["event_value"] = apply_bounds_to_values(
+        beliefs["event_value"].to_numpy(), lower_value, upper_value, snap_intervals
+    )
+    return beliefs
 
 
 class Reporter(DataGenerator):

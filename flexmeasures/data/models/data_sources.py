@@ -23,7 +23,7 @@ from marshmallow import Schema
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.models.user import User
+    from flexmeasures.data.models.user import Account, User
 
 
 class DataGenerator:
@@ -33,6 +33,8 @@ class DataGenerator:
     _config: dict = None
     _parameters: dict = None
     _job_trigger: dict | None = None
+    # The organisation this data generator computes for, which its data source belongs to. See `set_source_account`.
+    _source_account: Account | None = None
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
@@ -99,6 +101,16 @@ class DataGenerator:
             self._config = self._config_schema.load(config)
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
+
+    def set_source_account(self, account: Account | None) -> None:
+        """Say which organisation this data generator computes for, so that its data source belongs to that organisation.
+
+        Two organisations running the same data generator under the same configuration would otherwise record under one source,
+        because a source is looked up by what it is rather than by who it runs for.
+        Call this wherever the organisation is known, which is wherever the asset or the sensor is known.
+        Leaving it unset means the source belongs to no organisation, which is what a generator the host runs for everyone looks like.
+        """
+        self._source_account = account
 
     def set_job_trigger(
         self,
@@ -275,9 +287,43 @@ class DataGenerator:
 
             data_source_info["attributes"] = attributes
 
-            self._data_source = get_or_create_source(**data_source_info)
+            self._data_source = get_or_create_source(
+                **data_source_info, account=self.source_account
+            )
 
         return self._data_source
+
+    @property
+    def source_account(self) -> Account | None:
+        """The organisation this data generator's source belongs to.
+
+        It is whatever `set_source_account` was told, and otherwise the organisation of the sensors this generator writes to.
+        Sensors of several organisations, or none to go by, leave the source belonging to no organisation in particular.
+        """
+        if self._source_account is not None:
+            return self._source_account
+        # A public asset has no organisation, and writing to one does not make a generator the host's,
+        # so public outputs are passed over rather than counted as a second answer.
+        accounts = {
+            sensor.generic_asset.owner
+            for sensor in self.output_sensors
+            if sensor.generic_asset is not None
+            and sensor.generic_asset.owner is not None
+        }
+        if len(accounts) == 1:
+            return accounts.pop()
+        if len(accounts) > 1:
+            # Refusing here would fail a schedule or a report over a question of provenance, so the source is left without an organisation.
+            # It is said out loud because this is the only path on which newly computed data lands on a source belonging to none.
+            # Migration c5e1a7b94d20 applies the same rule to the sources that predate it.
+            current_app.logger.warning(
+                "%s writes to sensors of %d organisations (%s), so its data source belongs to none of them."
+                " Tell it which organisation it computes for, with `set_source_account`, to record under that organisation's own source.",
+                self.__class__.__name__,
+                len(accounts),
+                sorted(account.id for account in accounts),
+            )
+        return None
 
     def _clean_parameters(self, parameters: dict) -> dict:
         """Use this function to clean up the parameters dictionary from the
@@ -388,7 +434,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "User",
         primaryjoin="DataSource.user_id == User.id",
         foreign_keys="[DataSource.user_id]",
-        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_source", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -399,7 +447,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "Account",
         primaryjoin="DataSource.account_id == Account.id",
         foreign_keys="[DataSource.account_id]",
-        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_sources", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 

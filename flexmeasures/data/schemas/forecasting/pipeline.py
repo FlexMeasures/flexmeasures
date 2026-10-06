@@ -227,6 +227,10 @@ class TrainPredictPipelineConfigSchema(Schema):
             "example": True,
             "cli": {
                 "option": "--ensure-positive",
+                "extra_help": (
+                    "Deprecated: set `lower` to 0 in the file passed to --config instead,"
+                    " which bounds the forecast explicitly rather than inside the model."
+                ),
             },
         },
     )

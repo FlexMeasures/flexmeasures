@@ -424,6 +424,39 @@ def scenario_internal_commodity_balance():
     )
 
 
+def scenario_tied_commitments():
+    """Two commitments that constrain the solver identically, one of them not convex on its own.
+
+    One of them carries the pair on their summed prices, so the pair needs no sign variables and the problem stays a linear program.
+    Both backends have to share the merged sub-commitment's cost out by each member's own prices, so that both report the same cost per commitment,
+    which is why this belongs in the equivalence set rather than in one backend's own tests.
+    """
+    index = make_index()
+    device_constraints = initialize_df(COLUMNS, START, END, RESOLUTION)
+    device_constraints["derivative max"] = 0.5
+    device_constraints["derivative min"] = -0.5
+    return dict(
+        device_constraints=[device_constraints],
+        ems_constraints=initialize_df(COLUMNS, START, END, RESOLUTION),
+        commitments=[
+            FlowCommitment(
+                name="rewarded downwards",
+                quantity=0,
+                upwards_deviation_price=0,
+                downwards_deviation_price=50,
+                index=index,
+            ),
+            FlowCommitment(
+                name="expensive upwards",
+                quantity=0,
+                upwards_deviation_price=100,
+                downwards_deviation_price=0,
+                index=index,
+            ),
+        ],
+    )
+
+
 @pytest.mark.parametrize(
     "make_scenario",
     [
@@ -437,6 +470,7 @@ def scenario_internal_commodity_balance():
         scenario_chp_coupling_groups,
         scenario_chp_coupling_groups_next_to_operation_mode,
         scenario_internal_commodity_balance,
+        scenario_tied_commitments,
     ],
     ids=lambda f: f.__name__.replace("scenario_", ""),
 )

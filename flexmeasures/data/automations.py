@@ -45,6 +45,47 @@ class AutomationHandler:
     queue: str = "ingestion"
     result_noun: str = "result"
 
+    def _generator_from_source(
+        self, source, check_permissions: bool, config_given: bool
+    ) -> DataGenerator:
+        """Set up this type's data generator from an existing data source, as the user named it.
+
+        The built-in types do this in `_create_builtin_automation`, and a type registered by a plugin is held to the same rules.
+        """
+        # Naming a source hands its configuration over and records the automation's results under it,
+        # so it takes more than being allowed to read what it computed: it has to be a source the user may work with.
+        if check_permissions:
+            from flexmeasures.data.services.data_sources import user_may_use_source
+
+            if not user_may_use_source(source):
+                exception = Forbidden()
+                exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
+                raise exception
+        try:
+            generator = copy(source.data_generator)
+        except NotImplementedError as exc:
+            raise ValidationError(
+                f"The source stores no data generator this server can set up: {exc}"
+            ) from exc
+        if type(generator) is not self.generator_class:
+            raise ValidationError("The source does not belong to this automation type.")
+        installed_version = self.installed_generator_version()
+        if source.version != installed_version:
+            # Every run checks this too (see `resolve_plugin_generator`),
+            # so an automation which cannot pass it is refused here rather than at every run it will ever have.
+            raise ValidationError(
+                f"The source stores generator version {source.version},"
+                f" while version {installed_version} is installed."
+            )
+        load_automation_payload(
+            self.generator_class._config_schema,
+            source.attributes.get("data_generator", {}).get("config", {}),
+            "config",
+        )
+        if config_given:
+            raise ValidationError("Use either a source or configuration, not both.")
+        return generator
+
     def create(self, **kwargs):
         """Validate and create the automation without committing it."""
         from flexmeasures.data.models.automations import Automation
@@ -67,31 +108,11 @@ class AutomationHandler:
         asset = kwargs["asset"]
         source = kwargs.get("source")
         if source is not None:
-            try:
-                generator = copy(source.data_generator)
-            except NotImplementedError as exc:
-                raise ValidationError(
-                    f"The source stores no data generator this server can set up: {exc}"
-                ) from exc
-            if type(generator) is not self.generator_class:
-                raise ValidationError(
-                    "The source does not belong to this automation type."
-                )
-            installed_version = self.installed_generator_version()
-            if source.version != installed_version:
-                # Every run checks this too (see `resolve_plugin_generator`),
-                # so an automation which cannot pass it is refused here rather than at every run it will ever have.
-                raise ValidationError(
-                    f"The source stores generator version {source.version},"
-                    f" while version {installed_version} is installed."
-                )
-            load_automation_payload(
-                self.generator_class._config_schema,
-                source.attributes.get("data_generator", {}).get("config", {}),
-                "config",
+            generator = self._generator_from_source(
+                source,
+                check_permissions=bool(kwargs.get("check_permissions")),
+                config_given=bool(kwargs.get("config")),
             )
-            if kwargs.get("config"):
-                raise ValidationError("Use either a source or configuration, not both.")
         else:
             config = load_automation_payload(
                 self.generator_class._config_schema,
@@ -121,7 +142,10 @@ class AutomationHandler:
                     "config": generator._config_schema.dump(generator._config)
                 }
             }
-            generator._data_source = get_or_create_source(**source_info)
+            # As for the built-in types, the source belongs to the organisation whose asset the automation hangs off.
+            generator._data_source = get_or_create_source(
+                **source_info, account=asset.owner
+            )
         automation = Automation(
             asset_id=asset.id,
             type=self.type_id,
@@ -215,7 +239,7 @@ class AutomationHandler:
             },
         )
         queue.enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             automation.asset_id,
             job_id=job.id,
             queue=self.queue,

@@ -43,7 +43,7 @@ from flexmeasures.api.common.schemas.assets import (
     AssetPaginationSchema,
     PublicAssetAPISchema,
 )
-from flexmeasures.data.services.job_cache import NoRedisConfigured
+from flexmeasures.data.services.job_map import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
@@ -325,6 +325,23 @@ class AssetAuditLogPaginationSchema(PaginationSchema):
 
 
 class AssetJobsQuerySchema(Schema):
+    page = fields.Int(required=False, validate=validate.Range(min=1))
+    per_page = fields.Int(
+        data_key="per-page",
+        required=False,
+        validate=validate.Range(min=1),
+        load_default=10,
+    )
+    sort_by = fields.Str(
+        data_key="sort-by",
+        validate=validate.OneOf(["enqueued_at", "queue"]),
+        load_default="enqueued_at",
+    )
+    sort_dir = fields.Str(
+        data_key="sort-dir",
+        validate=validate.OneOf(["asc", "desc"]),
+        load_default="desc",
+    )
     include_child_assets = fields.Bool(
         data_key="include-child-assets",
         required=False,
@@ -1794,6 +1811,18 @@ class AssetAPI(FlaskView):
                       parameters:
                         start-offset: "1D,DB"
                         duration: P1D
+                  forecasts_on_an_existing_source:
+                    summary: Forecasts computed by an existing data source
+                    description: >-
+                      Reuses the forecaster and the configuration stored on data source 6,
+                      and records the forecasts under that same source.
+                    value:
+                      name: Day-ahead PV forecasts
+                      cron: "0 6 * * *"
+                      type: forecasting
+                      source: 6
+                      parameters:
+                        sensor: 2092
           responses:
             201:
               description: CREATED
@@ -2085,14 +2114,23 @@ class AssetAPI(FlaskView):
     @use_kwargs(AssetJobsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_jobs(self, id: int, asset: GenericAsset, include_child_assets: bool = True):
+    def get_jobs(
+        self,
+        id: int,
+        asset: GenericAsset,
+        include_child_assets: bool = True,
+        page: int | None = None,
+        per_page: int = 10,
+        sort_by: str = "enqueued_at",
+        sort_dir: str = "desc",
+    ):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
         ---
         get:
           summary: Get all background jobs related to an asset.
           description: |
-            The response will be a list of jobs.
+            The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
 
             By default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.
@@ -2114,6 +2152,34 @@ class AssetAPI(FlaskView):
               description: Whether to also list the jobs of the assets below it, at any depth (default true).
               schema:
                 type: boolean
+            - in: query
+              name: page
+              required: false
+              description: One-based page number. Omit to return all jobs.
+              schema:
+                type: integer
+                minimum: 1
+            - in: query
+              name: per-page
+              required: false
+              description: Jobs per page when page is provided (default 10).
+              schema:
+                type: integer
+                minimum: 1
+            - in: query
+              name: sort-by
+              required: false
+              description: Sort paginated jobs by enqueue time or queue (default enqueued_at).
+              schema:
+                type: string
+                enum: [enqueued_at, queue]
+            - in: query
+              name: sort-dir
+              required: false
+              description: Sort direction for paginated jobs (default desc).
+              schema:
+                type: string
+                enum: [asc, desc]
           responses:
             200:
               description: PROCESSED
@@ -2151,17 +2217,30 @@ class AssetAPI(FlaskView):
         all_jobs_data = list()
         try:
             jobs_data = build_asset_jobs_data(
-                asset, include_child_assets=include_child_assets
+                asset,
+                include_child_assets=include_child_assets,
+                page=page,
+                per_page=per_page,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
             )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
-            all_jobs_data = jobs_data
+            if page is None:
+                all_jobs_data = jobs_data
+            else:
+                all_jobs_data, total_jobs = jobs_data
 
-        return {
+        response = {
             "jobs": all_jobs_data,
             "redis-connection-err": redis_connection_err,
-        }, 200
+        }
+        if page is not None:
+            response["num-records"] = response["filtered-records"] = (
+                total_jobs if redis_connection_err is None else 0
+            )
+        return response, 200
 
     @route("/<id>/reports/trigger", methods=["POST"])
     @limit_triggers()
