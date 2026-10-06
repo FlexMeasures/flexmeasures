@@ -264,22 +264,22 @@ def test_copied_automation_keeps_a_public_regressor(
     assert copied.generator_id == automation.generator_id
 
 
+@pytest.mark.parametrize("entry", ["auto", {"sensor": "auto", "lower": "0 kW"}])
 def test_copied_automation_keeps_an_entry_naming_the_sensor_it_forecasts(
-    fresh_db, automated_site
+    fresh_db, automated_site, entry
 ):
     """An entry written as "auto" copies as it stands, naming no sensor to be pointed at a copy.
 
     It is the one entry that is never tied to a sensor, so it needs neither remapping nor a readability check:
     whichever sensor the copy forecasts is the sensor it describes.
+    Bare and qualified are copied separately, since one config may describe that sensor only once.
     """
     automation = _add_automation(
         fresh_db,
         asset=automated_site["meter"],
         name="Meter forecasts qualifying their own target",
         parameters={"sensor": automated_site["temperature"].id},
-        config={
-            "past-regressors": ["auto", {"sensor": "auto", "lower": "0 kW"}],
-        },
+        config={"past-regressors": [entry]},
     )
     fresh_db.session.commit()
 
@@ -293,10 +293,7 @@ def test_copied_automation_keeps_an_entry_naming_the_sensor_it_forecasts(
         if copied_automation.name == automation.name
     ][0]
     copied_config = copied.generator.attributes["data_generator"]["config"]
-    assert copied_config["past-regressors"] == [
-        "auto",
-        {"sensor": "auto", "lower": "0 kW"},
-    ]
+    assert copied_config["past-regressors"] == [entry]
     # Nothing was remapped, so the copy shares the configuration rather than duplicating it.
     assert copied.generator_id == automation.generator_id
 
