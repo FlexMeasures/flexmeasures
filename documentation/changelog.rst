@@ -11,10 +11,6 @@ v1.1.0 | September XX, 2026
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
              If you maintain indexes of your own on the ``timed_belief`` table, the upgrade will advise you on indexes it made redundant.
 
-.. warning:: ``asset.sensors`` now lists an asset's sensors in order of creation (by sensor id), where the order used to be whatever the database returned.
-             This makes positional access reliable: code that takes ``asset.sensors[0]`` now always gets the oldest sensor, where on a database with a history of updates it could get a different one from one query to the next.
-             Select sensors by name or id if you need a specific one.
-
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
 
@@ -36,8 +32,7 @@ New features
 
 Infrastructure / Support
 -------------------------
-* ``asset.sensors`` now lists an asset's sensors in order of creation (by sensor id), where it used to return them in whatever order the database did, so that code which takes a sensor by position gets the same sensor on every database (see the warning above) [see `PR #2637 <https://www.github.com/FlexMeasures/flexmeasures/pull/2637>`_]
-* Speed up the test suite (from ~600 s to ~200 s), by hashing test passwords with the cheapest argon2 settings instead of Flask-Security's defaults, emptying the test database between tests instead of recreating it, and letting more tests share one database per module; plugins that reuse the ``setup_accounts``, ``setup_roles_users`` and similar fixtures should know that these now commit their data, and that the schema is created once per test session [see `PR # <https://www.github.com/FlexMeasures/flexmeasures/pull/>`_]
+* Speed up the test suite (two to three times faster), by hashing test passwords with the cheapest argon2 settings instead of Flask-Security's defaults, emptying the test database between tests instead of recreating it, and letting more tests share one database per module; plugins that reuse the ``setup_accounts``, ``setup_roles_users`` and similar fixtures should know that these now commit their data, and that the schema is created once per test session [see `PR #2638 <https://www.github.com/FlexMeasures/flexmeasures/pull/2638>`_]
 * The endpoints supporting the UI moved from ``/api/dev`` to ``/api/ui``, where the old prefix keeps working until FlexMeasures v2 [see `PR #2578 <https://www.github.com/FlexMeasures/flexmeasures/pull/2578>`_]
 * Find the built-in schedulers, reporters and forecasters from an explicit list, instead of importing every module under ``flexmeasures.data.models`` at start-up to look for them. Shortens boot time for every process and keeps an unrelated broken module from stopping the app; plugins keep being discovered as before [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
 * ``MetaStorageScheduler``, an internal base class that was never meant to be selected, is no longer registered and can no longer be named as a custom scheduler; name ``StorageScheduler`` instead [see `PR #2566 <https://www.github.com/FlexMeasures/flexmeasures/pull/2566>`_]
