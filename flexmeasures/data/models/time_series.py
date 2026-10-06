@@ -289,6 +289,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         )
 
     def set_attribute(self, attribute: str, value):
+        """Sets the attribute on the Sensor itself, creating it if it does not exist yet.
+
+        If the GenericAsset has the same attribute, the Sensor's value takes precedence over it from then on.
+        Note that :meth:`get_attribute` first looks for a Sensor property or column of that name,
+        so an attribute named like one (e.g. ``name`` or ``unit``) is stored, but never read back.
+        """
         self.attributes[attribute] = value
 
     def check_required_attributes(

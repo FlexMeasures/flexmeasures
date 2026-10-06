@@ -743,6 +743,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return attribute in self.attributes
 
     def set_attribute(self, attribute: str, value):
+        """Sets the attribute on the GenericAsset, creating it if it does not exist yet."""
         self.attributes[attribute] = value
 
     def get_flex_context_with_provenance(self) -> dict[str, dict]:
