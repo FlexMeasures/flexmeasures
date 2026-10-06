@@ -1689,7 +1689,7 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
                 "output-path": None,
                 "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
-                "start": "2025-01-25T00:00+02:00",
+                "start": "2025-01-29T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,

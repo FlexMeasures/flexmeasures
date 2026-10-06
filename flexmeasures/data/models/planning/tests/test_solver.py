@@ -41,7 +41,7 @@ from flexmeasures.utils.calculations import (
     apply_stock_changes_and_losses,
     integrate_time_series,
 )
-from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.tests.utils import get_power_sensor, get_test_sensor
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.utils.unit_utils import convert_units, ur
 
@@ -2809,7 +2809,9 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
 
     Moreover, the SOC maxima constraints are defined in MWh to check that the unit conversion works well.
     """
-    power = add_battery_assets["Test battery with dynamic power capacity"].sensors[0]
+    power = get_power_sensor(
+        add_battery_assets["Test battery with dynamic power capacity"]
+    )
     epex_da = get_test_sensor(db)
 
     soc_maxima, soc_minima, soc_targets, expected_soc_schedule = soc_sensors
