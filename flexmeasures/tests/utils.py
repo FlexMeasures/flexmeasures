@@ -13,6 +13,11 @@ def get_test_sensor(db) -> Sensor | None:
     return sensor
 
 
+def get_power_sensor(asset) -> Sensor:
+    """Get the sensor named "power" of an asset, so that a test does not depend on its position in `asset.sensors`."""
+    return next(sensor for sensor in asset.sensors if sensor.name == "power")
+
+
 class QueryCounter(object):
     """Context manager to count SQLALchemy queries."""
 
