@@ -71,13 +71,18 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         "GenericAsset",
         foreign_keys=[generic_asset_id],
         backref=db.backref(
-            "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+            "sensors",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+            order_by="Sensor.id",  # creation order, so that sensors[0] does not depend on the physical row order the database returns
         ),
     )
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_sensors",
-        backref=db.backref("sensors", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("sensors", lazy="dynamic", order_by="Sensor.id"),
     )
 
     def get_path(self, separator: str = ">"):

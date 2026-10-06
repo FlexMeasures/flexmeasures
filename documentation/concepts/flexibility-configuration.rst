@@ -132,6 +132,10 @@ The supported filter keys are:
 
 This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
 
+Each of these keys takes a list, also where it names a single source. A data request filters in the singular instead, with ``source`` and ``source-type``, which :ref:`api_notation` sets side by side.
+
+A key a reference does not take is refused, naming the nearest key it does, so that a filter written in the singular here, or misspelled, fails rather than quietly dropping the filtering it was meant to apply. Besides the filter keys above, a reference takes ``sensor``, the ``default`` described next, and the cleaning bounds further below.
+
 A reference can also name a ``default``: a fallback quantity to use for the moments where the sensor holds no value.
 
 .. code-block:: json
