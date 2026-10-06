@@ -159,7 +159,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
     def __acl__(self):
         """
         We allow reading to whoever can read the asset.
-        Editing as well as deletion is left to account admins.
+        Editing is left to account admins and consultants.
+        Members may delete a sensor that holds no data; deleting data is left to account admins and consultants.
         Everyone in the account and its consultant can add beliefs.
         """
         post_data_access = [
