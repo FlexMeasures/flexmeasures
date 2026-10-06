@@ -196,14 +196,11 @@ def _finish_attempt(
         attempt.error_message = str(error)
 
 
-def claim_due_automation_run(
-    due_automation: DueAutomation,
-    owner: str | None = None,
-    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
-) -> ClaimedAutomationRun | None:
-    """Atomically claim a newly due occurrence and create its durable run."""
-    owner = owner or _runner_owner()
-    now = _now_utc()
+def _advance_cursor(due_automation: DueAutomation) -> bool:
+    """Move the automation's cursor to the due run, unless another runner or an edit got there first.
+
+    The caller commits, or rolls back if this returns False.
+    """
     if due_automation.expected_cursor is None:
         cursor_matches = Automation.cursor.is_(None)
     else:
@@ -221,7 +218,18 @@ def claim_due_automation_run(
         .values(cursor=due_automation.scheduled_at)
         .execution_options(synchronize_session=False)
     )
-    if result.rowcount != 1:
+    return result.rowcount == 1
+
+
+def claim_due_automation_run(
+    due_automation: DueAutomation,
+    owner: str | None = None,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> ClaimedAutomationRun | None:
+    """Atomically claim a newly due occurrence and create its durable run."""
+    owner = owner or _runner_owner()
+    now = _now_utc()
+    if not _advance_cursor(due_automation):
         db.session.rollback()
         return None
 
@@ -293,6 +301,32 @@ def claim_existing_automation_run(
     attempt = _new_attempt(claimed_run, owner, now)
     db.session.commit()
     return ClaimedAutomationRun(run=claimed_run, attempt=attempt)
+
+
+def skip_stale_automation_runs(
+    max_catchup: timedelta,
+    now: datetime | None = None,
+) -> list[DueAutomation]:
+    """Mark due runs scheduled more than ``max_catchup`` before ``now`` as handled, without queueing them.
+
+    Each automation's cursor moves to its stale run, so the run is not caught up later either,
+    and the automation resumes on its next scheduled run.
+    A zero ``max_catchup`` skips every missed run, and keeps only the run scheduled for this very minute.
+    Return the runs that were skipped.
+    """
+    if now is None:
+        now = _now_utc()
+    now = floor_to_minute(now)
+    skipped = []
+    for due_automation in get_due_automations(now):
+        if due_automation.scheduled_at >= now - max_catchup:
+            continue
+        if _advance_cursor(due_automation):
+            db.session.commit()
+            skipped.append(due_automation)
+        else:
+            db.session.rollback()
+    return skipped
 
 
 def get_dispatchable_automation_runs(
