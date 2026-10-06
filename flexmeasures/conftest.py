@@ -6,7 +6,7 @@ import warnings
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-from sqlalchemy import select, text
+from sqlalchemy import Integer, delete, func, or_, select, text
 from sqlalchemy.exc import ProgrammingError
 from isodate import parse_duration
 import pandas as pd
@@ -154,6 +154,47 @@ def truncate_test_db(_db: SQLAlchemy) -> SQLAlchemy:
     _db.session.commit()
     _db.session.expunge_all()
     return _db
+
+
+@pytest.fixture(scope="function")
+def undo_new_rows(db):
+    """Delete the rows a test adds to the database its module shares, also when the test fails halfway.
+
+    Modules whose tests share one database (through `db`) and add rows to it can opt in with `pytestmark = pytest.mark.usefixtures("undo_new_rows")`.
+    A row is new if its id is higher than its table's highest id before the test.
+    Rows of tables without an id (such as beliefs and association tables) are deleted with the new rows they refer to.
+    Changes to existing rows are left for the test itself to undo.
+    """
+    tables_with_ids = [
+        table
+        for table in db.metadata.sorted_tables
+        if "id" in table.c
+        and table.c.id.primary_key
+        and isinstance(table.c.id.type, Integer)
+    ]
+    last_ids = {
+        table: db.session.scalar(select(func.max(table.c.id))) or 0
+        for table in tables_with_ids
+    }
+
+    yield
+
+    db.session.rollback()
+    for table in reversed(db.metadata.sorted_tables):
+        if table in last_ids:
+            new_rows = table.c.id > last_ids[table]
+        else:
+            references_to_new_rows = [
+                foreign_key.parent > last_ids[foreign_key.column.table]
+                for foreign_key in table.foreign_keys
+                if foreign_key.column.table in last_ids
+                and foreign_key.column.name == "id"
+            ]
+            if not references_to_new_rows:
+                continue
+            new_rows = or_(*references_to_new_rows)
+        db.session.execute(delete(table).where(new_rows))
+    db.session.commit()
 
 
 @pytest.fixture(scope="module")

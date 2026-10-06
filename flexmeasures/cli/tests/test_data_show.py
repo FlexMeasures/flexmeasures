@@ -8,6 +8,9 @@ from flexmeasures.cli.tests.utils import (
 )
 from flexmeasures.tests.utils import get_test_sensor
 
+# Tests here share one database, so the rows each test adds are deleted afterwards.
+pytestmark = pytest.mark.usefixtures("undo_new_rows")
+
 
 def test_list_accounts(app, setup_accounts):
     from flexmeasures.cli.data_show import list_accounts
@@ -162,17 +165,18 @@ def test_show_asset_with_standardized_sensors_to_show(app, db, setup_generic_ass
     original_sensors_to_show = asset.sensors_to_show
     asset.sensors_to_show = [{"title": "Power", "plots": [{"sensors": [432, 433]}]}]
     db.session.commit()
+    try:
+        runner = app.test_cli_runner()
+        result = runner.invoke(show_generic_asset, ["--id", asset.id])
 
-    runner = app.test_cli_runner()
-    result = runner.invoke(show_generic_asset, ["--id", asset.id])
-
-    assert "Power: [432, 433]" in result.output
-    assert "KeyError" not in result.output
-    assert result.exit_code == 1  # command raises a click.Abort Exception
-
-    # restore for other tests in this module
-    asset.sensors_to_show = original_sensors_to_show
-    db.session.commit()
+        assert "Power: [432, 433]" in result.output
+        assert "KeyError" not in result.output
+        assert result.exit_code == 1  # command raises a click.Abort Exception
+    finally:
+        # restore for other tests in this module
+        db.session.rollback()
+        asset.sensors_to_show = original_sensors_to_show
+        db.session.commit()
 
 
 def test_format_sensors_to_show_supports_asset_plots():

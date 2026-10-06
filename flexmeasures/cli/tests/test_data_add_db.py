@@ -12,6 +12,9 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.data.models.data_sources import DataSource
 
+# Tests here share one database, so the rows each test adds are deleted afterwards.
+pytestmark = pytest.mark.usefixtures("undo_new_rows")
+
 
 def test_add_forecast(app, setup_dummy_data):
     from flexmeasures.cli.data_add import add_forecast
@@ -298,7 +301,7 @@ def test_add_user_roles(
     monkeypatch.setattr("getpass.getpass", lambda prompt="": "testtest")
 
     account = setup_accounts["Prosumer"]
-    # Name the user after the parametrization, as users persist for the other tests in this module.
+    # Name the user after the parametrization, so that each case creates a user of its own.
     username = f"cli-user-{request.node.callspec.id}"
     email = f"{username}@example.com"
 

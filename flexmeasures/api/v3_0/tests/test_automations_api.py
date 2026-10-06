@@ -14,6 +14,9 @@ from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
+# Tests here share one database, so the rows each test adds are deleted afterwards.
+pytestmark = pytest.mark.usefixtures("undo_new_rows")
+
 
 def _with_sensor(parameters: dict, sensor_id: int) -> dict:
     """Fill in the sensor id that a parametrised payload leaves as "SENSOR".
@@ -306,9 +309,6 @@ def test_post_automation(
         assert response.json["recurrence-description"] == "At 00:00"
         automation = db.session.get(Automation, response.json["id"])
         assert automation.parameters == {"duration": "PT12H"}
-        # clean up for other tests in this module
-        db.session.delete(automation)
-        db.session.commit()
 
 
 @pytest.mark.parametrize(
@@ -550,9 +550,6 @@ def test_post_and_patch_automation_timezone(
             json={"timezone": "Europe/NotAmsterdam"},
         )
     assert response.status_code == 422
-    # clean up for other tests in this module
-    db.session.delete(automation)
-    db.session.commit()
 
 
 @pytest.mark.parametrize(
@@ -668,9 +665,6 @@ def test_post_automation_with_inaccessible_sensor(
             },
         )
     assert response.status_code == 201, response.json
-    # clean up for other tests in this module
-    db.session.delete(db.session.get(Automation, response.json["id"]))
-    db.session.commit()
 
 
 @pytest.mark.parametrize(
@@ -740,20 +734,23 @@ def test_patch_automation(
     battery = add_battery_assets["Test battery"]
     automation = add_automations[0]
     original_name = automation.name
-    with app.test_client() as client:
-        response = client.patch(
-            url_for(
-                "AssetAPI:patch_automation",
-                id=battery.id,
-                automation_id=automation.id,
-            ),
-            json={"name": "Renamed via API", "active": False},
-        )
-    assert response.status_code == expected_status_code
-    if expected_status_code == 200:
-        assert response.json["name"] == "Renamed via API"
-        assert response.json["active"] is False
+    try:
+        with app.test_client() as client:
+            response = client.patch(
+                url_for(
+                    "AssetAPI:patch_automation",
+                    id=battery.id,
+                    automation_id=automation.id,
+                ),
+                json={"name": "Renamed via API", "active": False},
+            )
+        assert response.status_code == expected_status_code
+        if expected_status_code == 200:
+            assert response.json["name"] == "Renamed via API"
+            assert response.json["active"] is False
+    finally:
         # restore for other tests in this module
+        db.session.rollback()
         automation.name = original_name
         automation.active = True
         db.session.commit()
@@ -1008,9 +1005,6 @@ def test_a_forecast_automation_names_the_data_generator_it_runs(
     )
     assert detail.status_code == 200, detail.json
     assert detail.json["source"]["id"] == automation.generator_id
-
-    db.session.delete(automation)
-    db.session.commit()
 
 
 @pytest.mark.parametrize(
@@ -1293,6 +1287,3 @@ def test_automation_details_report_the_data_source_configuration(
         "model": "CustomLGBM",
         "train-period": "P30D",
     }
-    # clean up for other tests in this module
-    db.session.delete(automation)
-    db.session.commit()

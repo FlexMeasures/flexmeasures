@@ -7,6 +7,9 @@ from sqlalchemy import func, select
 from flexmeasures.api.v3_0.tests.utils import report_message
 from flexmeasures.data.models.data_sources import DataSource
 
+# Tests here share one database, so the rows each test adds are deleted afterwards.
+pytestmark = pytest.mark.usefixtures("undo_new_rows")
+
 
 def reporter_source_count(db) -> int:
     return db.session.scalar(
