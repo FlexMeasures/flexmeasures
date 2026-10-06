@@ -1023,6 +1023,43 @@ def test_an_entry_naming_the_sensor_to_forecast_is_checked_when_its_config_is_ac
     assert expected_message in str(refusal.value)
 
 
+@pytest.mark.parametrize(
+    "config",
+    [
+        {
+            "past-regressors": ["auto"],
+            "future-regressors": [{"sensor": "auto", "lower": 0}],
+        },
+        {"regressors": ["auto", {"sensor": "auto", "lower": 0}]},
+    ],
+)
+def test_describing_the_sensor_to_forecast_twice_is_refused(config):
+    """Two entries for the sensor being forecast are two answers to one question, wherever they are written.
+
+    Taking the last one and dropping the rest would leave a config whose recorded text does not say what the forecast did,
+    which is the gap this whole feature exists to close.
+    """
+    with pytest.raises(ValidationError) as refusal:
+        TrainPredictPipelineConfigSchema().load(
+            {"train-start": "2025-01-01T00:00:00+00:00", **config}
+        )
+
+    assert "described 2 times" in str(refusal.value)
+
+
+def test_one_entry_for_the_sensor_to_forecast_under_regressors_is_one_statement():
+    """``regressors`` asks for both roles, so its single entry is not two descriptions of the target.
+
+    The entry is counted before the lists are merged, since merging would otherwise make one statement look like two.
+    """
+    data = TrainPredictPipelineConfigSchema().load(
+        {"train-start": "2025-01-01T00:00:00+00:00", "regressors": ["auto"]}
+    )
+
+    assert data["past_regressors"] == [AutoSensorReference({})]
+    assert data["future_regressors"] == [AutoSensorReference({})]
+
+
 def test_a_bound_on_the_sensor_to_forecast_is_read_in_its_unit_when_that_sensor_is_known():
     """Whether a bound suits the sensor being forecast is the one check that cannot happen yet.
 
@@ -1111,14 +1148,19 @@ def test_forecaster_parameters_schema_loads_target_cleaning_bounds(
 
 
 def test_forecaster_config_schema_loads_an_auto_regressor_entry(setup_dummy_sensors):
-    """A config says "auto" where it means the sensor being forecast, which it cannot name by ID."""
-    data = TrainPredictPipelineConfigSchema().load(
-        {"past-regressors": ["auto", {"sensor": "auto", "lower": "0 kW"}]}
-    )
+    """A config says "auto" where it means the sensor being forecast, which it cannot name by ID.
 
-    bare, qualified = data["past_regressors"]
+    Bare and qualified are loaded separately, since one config may describe that sensor only once.
+    """
+    bare = TrainPredictPipelineConfigSchema().load({"past-regressors": ["auto"]})[
+        "past_regressors"
+    ][0]
     assert isinstance(bare, AutoSensorReference)
     assert bare.qualifiers == {}
+
+    qualified = TrainPredictPipelineConfigSchema().load(
+        {"past-regressors": [{"sensor": "auto", "lower": "0 kW"}]}
+    )["past_regressors"][0]
     assert isinstance(qualified, AutoSensorReference)
     assert qualified.qualifiers == {"lower": "0 kW"}
 
@@ -1128,15 +1170,15 @@ def test_an_auto_regressor_entry_survives_the_round_trip_onto_a_data_source(
 ):
     """The config a data source records is dumped and loaded again, so "auto" has to survive both ways."""
     schema = TrainPredictPipelineConfigSchema()
-    config = {"past-regressors": ["auto", {"sensor": "auto", "snap": {"0 kW": [0, 1]}}]}
 
-    dumped = schema.dump(schema.load(config))
+    bare_dumped = schema.dump(schema.load({"past-regressors": ["auto"]}))
+    assert bare_dumped["past-regressors"] == ["auto"]
+    assert schema.load(bare_dumped)["past_regressors"][0].qualifiers == {}
 
-    assert dumped["past-regressors"] == [
-        "auto",
-        {"sensor": "auto", "snap": {"0 kW": [0, 1]}},
-    ]
-    assert schema.load(dumped)["past_regressors"][1].qualifiers == {
+    qualified = {"past-regressors": [{"sensor": "auto", "snap": {"0 kW": [0, 1]}}]}
+    dumped = schema.dump(schema.load(qualified))
+    assert dumped["past-regressors"] == [{"sensor": "auto", "snap": {"0 kW": [0, 1]}}]
+    assert schema.load(dumped)["past_regressors"][0].qualifiers == {
         "snap": {"0 kW": [0, 1]}
     }
 

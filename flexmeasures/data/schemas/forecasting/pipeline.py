@@ -18,7 +18,12 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.forecasting.references import ForecastInputField
+from flexmeasures.data.schemas.utils import snake_to_kebab
+from flexmeasures.data.schemas.forecasting.references import (
+    AUTO_SENSOR,
+    AutoSensorReference,
+    ForecastInputField,
+)
 from flexmeasures.data.schemas.sensors import (
     SensorIdOrReferenceField,
     SensorReference,
@@ -382,6 +387,31 @@ class TrainPredictPipelineConfigSchema(Schema):
         )
         if errors:
             raise ValidationError(errors)
+
+    @validates_schema
+    def refuse_several_entries_for_the_sensor_to_forecast(self, data: dict, **kwargs):
+        """Refuse a config that describes the sensor being forecast more than once.
+
+        Such an entry is taken out of the regressor lists and describes the target,
+        so two of them are two answers to one question, whichever lists they were written in.
+        Reading the last one and dropping the rest would leave a config whose recorded text does not say what the forecast did.
+        The entries are counted before the lists are merged, since `regressors` asks for both roles with one entry.
+        """
+        written_in = [
+            field_name
+            for field_name in ("past_regressors", "future_regressors", "regressors")
+            for entry in data.get(field_name) or []
+            if isinstance(entry, AutoSensorReference)
+        ]
+        if len(written_in) > 1:
+            spelled = ", ".join(
+                sorted(snake_to_kebab(field_name) for field_name in set(written_in))
+            )
+            raise ValidationError(
+                f"The sensor being forecast is described {len(written_in)} times, under {spelled}."
+                f' Describe it once: an entry naming "{AUTO_SENSOR}" says how that sensor is read, wherever it is written,'
+                " so a second one cannot say anything the first does not."
+            )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
