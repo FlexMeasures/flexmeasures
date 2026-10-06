@@ -11,7 +11,7 @@ from sqlalchemy.exc import ProgrammingError
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, g
+from flask import Flask, request, jsonify, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted, SQLAlchemySessionUserDatastore, hash_password
@@ -51,7 +51,7 @@ One application is made per test session.
 
 # Database
 
-The schema is created once per session (db_schema); the tables are emptied per test (use fresh_db) or per module (use db).
+The schema is created once per session (see get_test_schema); the tables are emptied per test (use fresh_db) or per module (use db).
 Having tests inside a module share a database makes those tests faster.
 Tests that use fresh_db should be put in a separate module to avoid clashing with the module scoped test db.
 For example:
@@ -107,12 +107,19 @@ def clear_flask_login_cache(app):
         g.pop(key, None)
 
 
-@pytest.fixture(scope="session")
-def db_schema(app):
-    """Create the database schema once per test session, and drop it at the end.
+test_schema_key = pytest.StashKey[SQLAlchemy]()
+
+
+def get_test_schema(app: Flask, request: pytest.FixtureRequest) -> SQLAlchemy:
+    """Create the database schema the first time a test session asks for it, and drop it when the session ends.
 
     `db` and `fresh_db` empty its tables, which is cheaper than recreating the schema per module or per test.
+    This is a function rather than a session fixture of its own,
+    so that plugins which import only `db` and `fresh_db` from this module keep working.
     """
+    if test_schema_key in request.config.stash:
+        return request.config.stash[test_schema_key]
+
     print("DB FIXTURE")
     # _db is a SQLAlchemy DB instance
     from flexmeasures.data import db as _db
@@ -122,25 +129,28 @@ def db_schema(app):
         _db.drop_all()
         _db.create_all()
 
-    yield _db
+    def drop_test_schema():
+        print("DB FIXTURE CLEANUP")
+        with app.app_context():
+            # Explicitly close DB connection
+            _db.session.close()
+            _db.drop_all()
 
-    print("DB FIXTURE CLEANUP")
-    # Explicitly close DB connection
-    _db.session.close()
-
-    _db.drop_all()
+    request.config.add_cleanup(drop_test_schema)
+    request.config.stash[test_schema_key] = _db
+    return _db
 
 
 @pytest.fixture(scope="module")
-def db(app, db_schema):
+def db(app, request):
     """Empty test db per module."""
-    return truncate_test_db(db_schema)
+    return truncate_test_db(get_test_schema(app, request))
 
 
 @pytest.fixture(scope="function")
-def fresh_db(app, db_schema):
+def fresh_db(app, request):
     """Empty test db per function."""
-    return truncate_test_db(db_schema)
+    return truncate_test_db(get_test_schema(app, request))
 
 
 def truncate_test_db(_db: SQLAlchemy) -> SQLAlchemy:
