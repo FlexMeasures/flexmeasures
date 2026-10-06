@@ -164,7 +164,7 @@ def create_user(  # noqa: C901
 
     # A new user's implicit home-account rights are represented by account-member.
     # Account-reader and account-data-integrator are narrower alternatives.
-    if user_roles is None:
+    if not user_roles:
         user_roles = [ACCOUNT_MEMBER_ROLE]
     elif user_roles:
         if not isinstance(user_roles, list):
