@@ -2491,13 +2491,6 @@ class MetaStorageScheduler(Scheduler):
                 state_of_charge, sensor, stock_key=stock_key
             )
 
-        if sensor is not None:
-            if (
-                self.start == sensor.get_attribute("soc_datetime")
-                and sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                return sensor.get_attribute("soc_in_mwh")
-
         # Keep the historical empty-stock fallback when absolute SoC matters.
         if _has_absolute_soc_constraints(stock_model):
             return 0
@@ -2556,13 +2549,6 @@ class MetaStorageScheduler(Scheduler):
                 + "MWh"
             )
 
-        if not self.has_soc_at_start_in(flex_model) and sensor is not None:
-            # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
-            if (
-                self.start == sensor.get_attribute("soc_datetime")
-                and sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
         if not self.has_soc_at_start_in(flex_model) and _has_absolute_soc_constraints(
             flex_model
         ):
