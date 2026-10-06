@@ -67,8 +67,12 @@ def resolve_forecast_inputs(
     return resolved, target
 
 
-def _target_qualifiers(target: Sensor | SensorReference) -> dict[str, Any]:
-    """The source filters and cleaning bounds a target reference carries, as a config entry would write them."""
+def target_qualifiers(target: Sensor | SensorReference) -> dict[str, Any]:
+    """The source filters and cleaning bounds a target reference carries, as a config entry would write them.
+
+    Read both by the fold here and by the service refusing them when an automation is created,
+    so that the two agree on what counts as a qualifier.
+    """
     if not isinstance(target, SensorReference):
         return {}
     dumped = SensorReferenceSchema().dump(target)
@@ -102,7 +106,7 @@ def fold_target_qualifiers_into_config(
     :raises ValueError:     if the parameters carry qualifiers while the config is already recorded on a data source.
     """
     target = parameters.get("sensor")
-    qualifiers = _target_qualifiers(target)
+    qualifiers = target_qualifiers(target)
     if not qualifiers:
         return False
     if recorded_source is not None:

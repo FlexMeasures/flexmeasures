@@ -1724,10 +1724,10 @@ def _refuse_target_qualifiers(sensor: Any) -> None:
 
     :raises ValidationError: naming the qualifiers and where they belong.
     """
-    from flexmeasures.data.models.forecasting.inputs import _target_qualifiers
+    from flexmeasures.data.models.forecasting.inputs import target_qualifiers
     from flexmeasures.data.schemas.forecasting.references import AUTO_SENSOR
 
-    qualifiers = _target_qualifiers(sensor) if sensor is not None else {}
+    qualifiers = target_qualifiers(sensor) if sensor is not None else {}
     if not qualifiers:
         return
     raise ValidationError(
