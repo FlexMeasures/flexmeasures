@@ -267,6 +267,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             lazy=True,
             cascade="all, delete-orphan",
             passive_deletes=True,
+            order_by="GenericAsset.id",
         ),
     )
 
@@ -281,13 +282,14 @@ class GenericAsset(db.Model, AuthModelMixin):
     child_assets = db.relationship(
         "GenericAsset",
         cascade="all",
+        order_by="GenericAsset.id",
         backref=db.backref("parent_asset", remote_side="GenericAsset.id"),
     )
 
     generic_asset_type = db.relationship(
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
-        backref=db.backref("generic_assets", lazy=True),
+        backref=db.backref("generic_assets", lazy=True, order_by="GenericAsset.id"),
     )
 
     # not a FK, but representation of this asset in an external system (e.g. IoT solution)
@@ -297,7 +299,8 @@ class GenericAsset(db.Model, AuthModelMixin):
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_assets",
-        backref=db.backref("assets", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("assets", lazy="dynamic", order_by="GenericAsset.id"),
     )
 
     def __init__(self, **kwargs):
