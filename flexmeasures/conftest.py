@@ -680,7 +680,6 @@ def create_assets(
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
-                soc_in_mwh=0,
                 is_producer=True,
                 can_curtail=True,
             ),
@@ -1033,8 +1032,6 @@ def create_test_battery_kWh_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the soc_in_mwh attribute
-            "soc_in_mwh": 2.5,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1151,8 +1148,6 @@ def create_test_battery_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the soc_in_mwh attribute
-            "soc_in_mwh": 2.5,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1238,7 +1233,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1271,7 +1265,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.0,
         ),
     )
     test_battery_dynamic_capacity_power_sensor = Sensor(
@@ -1302,7 +1295,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
-            soc_in_mwh=0.005,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1424,7 +1416,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -1459,7 +1450,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,

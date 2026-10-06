@@ -82,13 +82,16 @@ def test_storage_loss_function(
 
 
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
-@pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
+@pytest.mark.parametrize(
+    "battery_name, soc_at_start", [("Test battery", 2.5), ("Test small battery", 0.005)]
+)
 def test_battery_solver_day_1(
     setup_planning_test_data,
     add_battery_assets,
     add_inflexible_device_forecasts,
     use_inflexible_device,
     battery_name,
+    soc_at_start,
     db,
 ):
     epex_da, battery = get_sensors_from_db(
@@ -98,13 +101,12 @@ def test_battery_solver_day_1(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
-        flex_model={"soc-at-start": soc_at_start},
+        flex_model={"soc-at-start": f"{soc_at_start} MWh"},
         flex_context={
             "inflexible-device-sensors": (
                 [s.id for s in add_inflexible_device_forecasts.keys()]
@@ -152,7 +154,7 @@ def test_battery_solver_day_2(
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     soc_min = 0.5
     soc_max = 4.5
     scheduler = StorageScheduler(
@@ -161,7 +163,7 @@ def test_battery_solver_day_2(
         end,
         resolution,
         flex_model={
-            "soc-at-start": soc_at_start,
+            "soc-at-start": f"{soc_at_start} MWh",
             "soc-min": soc_min,
             "soc-max": soc_max,
             "roundtrip-efficiency": roundtrip_efficiency,
@@ -200,12 +202,8 @@ def test_battery_solver_day_2(
         )  # Buy what you can to sell later
     elif storage_efficiency > 0.9:
         # If only the roundtrip efficiency is poor, best to stand idle (keep a high SoC as long as possible)
-        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
-            "soc_in_mwh"
-        )
-        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
-            "soc_in_mwh"
-        )
+        assert soc_schedule.loc[start + timedelta(hours=8)] == soc_at_start
+        assert soc_schedule.loc[start + timedelta(hours=16)] == soc_at_start
     else:
         # If the storage efficiency is poor, regardless of whether the roundtrip efficiency is poor, best to sell asap
         assert soc_schedule.loc[start + timedelta(hours=8)] == max(
@@ -773,7 +771,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # soc parameters
     soc_unit = "MWh"
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     soc_min = 0.5
     soc_max = 4.5
 
@@ -1287,13 +1285,13 @@ def test_infeasible_problem_error(db, add_battery_assets):
         return soc_schedule
 
     # soc parameters
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     infeasible_max_soc_targets = [
         {"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}
     ]
 
     flex_model = {
-        "soc-at-start": soc_at_start,
+        "soc-at-start": f"{soc_at_start} MWh",
         "soc-min": 0.5,
         "soc-max": 4.5,
         "soc-targets": infeasible_max_soc_targets,
@@ -1320,14 +1318,14 @@ def test_unreachable_soc_target_is_relaxed_by_default(db, add_battery_assets):
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(hours=1)
 
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
     scheduler = StorageScheduler(
         battery,
         start,
         end,
         resolution,
         flex_model={
-            "soc-at-start": soc_at_start,
+            "soc-at-start": f"{soc_at_start} MWh",
             "soc-min": 0.5,
             "soc-max": 4.5,
             "soc-targets": [{"datetime": "2015-01-02T16:00:00+01:00", "value": 8.0}],
@@ -4881,7 +4879,7 @@ def test_battery_solver_inflexible_key_equivalence(
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_at_start = 2.5  # MWh
 
     inflexible_sensor_ids = [s.id for s in add_inflexible_device_forecasts.keys()]
     flex_contexts = [
@@ -4903,7 +4901,7 @@ def test_battery_solver_inflexible_key_equivalence(
             start,
             end,
             resolution,
-            flex_model={"soc-at-start": soc_at_start},
+            flex_model={"soc-at-start": f"{soc_at_start} MWh"},
             flex_context=flex_context,
         )
         schedules.append(scheduler.compute())
