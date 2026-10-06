@@ -69,12 +69,15 @@ def automation_scope_assets(fresh_db, setup_dummy_data_fresh_db):
     }
 
 
-def test_add_automation_with_a_source_filtered_target_sensor(
+def test_add_automation_refuses_a_source_filtered_target_sensor(
     app, fresh_db, setup_dummy_data_fresh_db
 ):
-    """An automation may name the sources its forecaster trains on, and still records on the sensor itself."""
+    """The sources a forecaster trains on are named in its config, so an automation refuses them on the sensor to forecast.
+
+    Created with them, the automation would be refused on every run instead,
+    as its data source records a config that says nothing of them.
+    """
     from flexmeasures.cli.data_add import add_automation
-    from flexmeasures.data.services.automations import get_forecast_output_sensor
 
     sensor_id = setup_dummy_data_fresh_db[0]
     runner = app.test_cli_runner()
@@ -90,13 +93,12 @@ def test_add_automation_with_a_source_filtered_target_sensor(
         ),
     )
 
-    assert "Successfully created" in result.output, result.output
+    assert "Successfully created" not in result.output, result.output
+    assert '"auto"' in result.output, result.output
     automation = fresh_db.session.execute(
         select(Automation).filter_by(name="Filtered forecasts")
     ).scalar_one_or_none()
-    assert automation is not None
-    assert automation.parameters == {"sensor": {"sensor": sensor_id, "sources": [1]}}
-    assert get_forecast_output_sensor(automation.parameters).id == sensor_id
+    assert automation is None
 
 
 def test_add_edit_delete_automation(app, fresh_db, setup_dummy_data_fresh_db):

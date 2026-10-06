@@ -2872,3 +2872,186 @@ def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
     assert len(predictions[0]) == n_horizons
     assert list(predictions[0].time_index) == list(predictions[1].time_index)
     assert np.array_equal(predictions[0].values(), predictions[1].values())
+
+
+def _forecast_pipeline(config: dict, target_sensor) -> TrainPredictPipeline:
+    """A pipeline holding just what resolving its inputs needs."""
+    pipeline = TrainPredictPipeline(config=config)
+    pipeline._parameters = {"sensor": target_sensor}
+    return pipeline
+
+
+def test_an_auto_entry_describes_the_target_instead_of_adding_a_regressor(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """A config entry naming "auto" says how to read the sensor being forecast.
+
+    The model already learns from that sensor, as its labels and its own lags,
+    so the entry says how to read it rather than handing it to the model a second time.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    pipeline = _forecast_pipeline(
+        {
+            "past-regressors": [
+                {
+                    "sensor": "auto",
+                    "lower": "0 kW",
+                    "exclude-source-types": ["scheduler"],
+                },
+                regressor_sensor.id,
+            ]
+        },
+        target_sensor,
+    )
+
+    resolved = pipeline._resolve_inputs()
+
+    assert resolved["past_regressors"] == [regressor_sensor]
+    target = pipeline._parameters["sensor"]
+    assert isinstance(target, SensorReference)
+    assert target.sensor == target_sensor
+    assert target.lower == "0 kW"
+    assert target.exclude_source_types == ["scheduler"]
+
+
+def test_naming_the_target_by_id_keeps_it_a_regressor(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """An entry naming the sensor being forecast by its ID is a regressor, not a description of the target.
+
+    Only ``"auto"`` describes the training labels.
+    Reading an ID entry as that description would drop a column the config asked for, and would reinterpret its qualifiers:
+    the bound here cleans that regressor column, while the labels stay as the parameters give them.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = _forecast_pipeline(
+        {"past-regressors": [{"sensor": target_sensor.id, "upper": "20 kW"}]},
+        target_sensor,
+    )
+
+    resolved = pipeline._resolve_inputs()
+
+    assert len(resolved["past_regressors"]) == 1
+    regressor = resolved["past_regressors"][0]
+    assert regressor.sensor == target_sensor
+    assert regressor.upper == "20 kW"
+    assert (
+        pipeline._parameters["sensor"] == target_sensor
+    ), "the target itself was not qualified"
+
+
+def test_target_qualifiers_in_the_parameters_move_into_the_config(
+    app, setup_fresh_test_forecast_data, fresh_db, caplog
+):
+    """Qualifiers that a payload still puts on the target move to the config, where the data source records them."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._parameters = {
+        "sensor": SensorReference(sensor=target_sensor, lower="0 kW")
+    }
+
+    with caplog.at_level(logging.WARNING):
+        pipeline._resolve_inputs()
+
+    assert any("have been moved" in message for message in caplog.messages)
+    recorded = TrainPredictPipelineConfigSchema().dump(pipeline._config)
+    assert recorded["past-regressors"] == [{"sensor": "auto", "lower": "0 kW"}]
+    assert pipeline._parameters["sensor"].lower == "0 kW"
+
+
+def test_a_payload_that_qualifies_its_target_is_still_queued_rather_than_refused(
+    app, clean_redis, setup_fresh_test_forecast_data, fresh_db
+):
+    """A payload with qualifiers on its target and no source of its own folds and queues, as it always did.
+
+    Refusing one of these depends on an ordering rather than on anything written down:
+    `run` resolves the inputs before `_persist_data_source_id` reads the `data_source` property,
+    which is what creates a source and so attaches one. Were the two to swap places,
+    every such payload would arrive at the refusal with a source attached and be turned away at the front door,
+    and the refusal's own test would still pass. This is what says the fold path is still reachable.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = TrainPredictPipeline(config={"train-start": "2025-01-01T00:00:00+00:00"})
+    assert pipeline._data_source is None, "nothing has attached a source yet"
+
+    queued = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": {"sensor": target_sensor.id, "lower": "0 kW"},
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+
+    job = app.queues["forecasting"].fetch_job(queued["job_id"])
+    assert job is not None, "the payload was queued rather than refused"
+    # The fold moved the bound off the parameters' target and into the config as an `auto` entry,
+    # which resolving then put back on the target the job runs with. Either way it travelled with the job.
+    target = job.kwargs["parameters"]["sensor_id"]
+    assert target["sensor"] == target_sensor.id
+    assert target["lower"] == "0 kW"
+
+
+def test_a_stored_forecaster_is_refused_rather_than_run_under_qualifiers_its_source_omits(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """A forecaster set up from an existing source cannot absorb qualifiers: its source already records a config without them.
+
+    Moving them in memory would compute the forecast under qualifiers, and attribute it to a source saying it ran without them,
+    which is the gap this release closes. Such a payload is stored, so it would run that way on every recurrence.
+    """
+    from flexmeasures.data.models.data_sources import DataSource
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = DataSource(
+        name="Seita",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        version="1",
+        attributes={"data_generator": {"config": {}}},
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._data_source = source
+    pipeline._parameters = {
+        "sensor": SensorReference(sensor=target_sensor, lower="0 kW")
+    }
+
+    with pytest.raises(ValueError) as refusal:
+        pipeline._resolve_inputs()
+
+    assert f"data source {source.id}" in str(refusal.value)
+    assert "lower" in str(refusal.value)
+    # Both ways out are named, as the same refusal reaches an automation and a one-off run reusing a source.
+    assert "leave the source out" in str(refusal.value)
+    assert "recreate the source" in str(refusal.value)
+    # Nothing was moved, so the source still describes what it always did.
+    assert TrainPredictPipelineConfigSchema().dump(pipeline._config).get(
+        "past-regressors"
+    ) in (None, [])
+
+
+def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """Resolving must not write anything into the config of a forecaster that qualifies nothing.
+
+    The config is what identifies a forecaster's data source,
+    so a forecaster that configures no cleaning has to keep recording what it recorded before, and keep its source with it.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    pipeline = _forecast_pipeline(
+        {"past-regressors": [regressor_sensor.id]}, target_sensor
+    )
+    recorded_before = TrainPredictPipelineConfigSchema().dump(pipeline._config)
+
+    pipeline._resolve_inputs()
+
+    assert TrainPredictPipelineConfigSchema().dump(pipeline._config) == recorded_before
+    assert pipeline._parameters["sensor"] == target_sensor
