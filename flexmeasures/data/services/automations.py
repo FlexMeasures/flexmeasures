@@ -1715,6 +1715,32 @@ def errors_reported_for(section: str):
         raise ValidationError({section: error.messages}) from error
 
 
+def _refuse_target_qualifiers(sensor: Any) -> None:
+    """Refuse a forecast automation whose parameters qualify the sensor to forecast.
+
+    Source filters and cleaning bounds on that sensor belong in the forecaster's config, as an entry naming ``"auto"``.
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so an automation created with them would be accepted now and then fail on every run.
+
+    :raises ValidationError: naming the qualifiers and where they belong.
+    """
+    from flexmeasures.data.models.forecasting.inputs import target_qualifiers
+    from flexmeasures.data.schemas.forecasting.references import AUTO_SENSOR
+
+    qualifiers = target_qualifiers(sensor) if sensor is not None else {}
+    if not qualifiers:
+        return
+    raise ValidationError(
+        {
+            "sensor": [
+                f"The sensor to forecast is qualified with {', '.join(sorted(qualifiers))}, which belong in the forecaster's config,"
+                f' as an entry naming "{AUTO_SENSOR}" among the past-regressors, such as {{"sensor": "{AUTO_SENSOR}", "lower": "0 kW"}}.'
+                " Name the sensor to forecast by its ID."
+            ]
+        }
+    )
+
+
 def _stored_sensor_id(sensor_reference: Any) -> int | None:
     """Return the sensor ID from a stored automation parameter naming a sensor.
 
@@ -1745,7 +1771,8 @@ def _prepare_forecast_automation(
     with errors_reported_for("parameters"):
         deserialized_parameters = ForecasterParametersSchema().load(parameters)
     sensor = deserialized_parameters.get("sensor")
-    # A target may be given as a source-filtered reference, whose filters say which beliefs to train on, and not which sensor is meant.
+    with errors_reported_for("parameters"):
+        _refuse_target_qualifiers(sensor)
     if isinstance(sensor, SensorReference):
         sensor = sensor.sensor
     if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
@@ -1995,6 +2022,9 @@ def _create_builtin_automation(
             validate_automation_output_scope(asset.id, output_sensor, automation_type)
 
     if data_generator is not None:
+        # The automation hangs off an asset, so what it computes is that asset's organisation's own data,
+        # which its data source says by belonging to that organisation.
+        data_generator.set_source_account(asset.owner)
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
         generator = data_generator.data_source

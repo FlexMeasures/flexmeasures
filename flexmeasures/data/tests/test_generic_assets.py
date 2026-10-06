@@ -420,3 +420,29 @@ def test_set_attribute_creates_missing_attribute_on_sensor(
 
     assert sensor.has_attribute("soc_in_mwh")
     assert sensor.attributes["soc_in_mwh"] == 42
+
+
+def test_asset_sensors_are_listed_in_creation_order(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    """An asset lists its sensors by id, whatever physical row order the database returns.
+
+    Updating the first sensor makes PostgreSQL store its new row version after the second sensor's row,
+    so a plain sequential scan would return the second sensor first.
+    """
+    asset = GenericAsset(
+        name="asset with two sensors",
+        generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
+    )
+    first = Sensor(name="power", generic_asset=asset, unit="MW")
+    second = Sensor(name="consumption-capacity", generic_asset=asset, unit="MW")
+    fresh_db.session.add_all([asset, first, second])
+    fresh_db.session.commit()
+
+    first.unit = "kW"
+    fresh_db.session.commit()
+
+    assert [sensor.name for sensor in asset.sensors] == [
+        "power",
+        "consumption-capacity",
+    ]
