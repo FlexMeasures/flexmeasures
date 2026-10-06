@@ -865,10 +865,8 @@ def _set_output_sensor_consumption_is_positive(
             f"(expected `consumption_is_positive={intended}`). "
             f"Remove or correct the attribute before re-running the scheduler."
         )
-    # Direct attribute assignment works for both new and existing attributes.
-    # set_attribute() is intentionally not used here because it silently
-    # no-ops when the attribute does not yet exist.
-    result_sensor.attributes["consumption_is_positive"] = intended
+
+    result_sensor.set_attribute("consumption_is_positive", intended)
 
 
 def _resolve_schedule_output_sign(
