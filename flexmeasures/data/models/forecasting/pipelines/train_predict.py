@@ -330,6 +330,9 @@ class TrainPredictPipeline(Forecaster):
             model=info.get("model"),
             version=info.get("version"),
             attributes=self.get_data_source_attributes(),
+            # A source is identified by the organisation it belongs to as well, so leaving this out would
+            # look up a source belonging to nobody and create one beside this forecaster's own.
+            account=self.source_account,
         )
 
     def run_cycle(self, *args, **kwargs):
