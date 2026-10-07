@@ -347,8 +347,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         is allowed for every user in the account or consultants.
         Deletion is only allowed for account admins, as well as for consultants.
 
-        Members may remove an empty asset; deleting recorded data requires
-        account-admin or consultant rights at the endpoint.
+        Members may delete an asset only if it holds no data;
+        deleting an asset that holds data requires account-admin or consultant rights, which the endpoint checks.
         """
         operate_access = [
             f"account:{self.account_id}",
