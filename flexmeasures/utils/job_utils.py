@@ -115,8 +115,8 @@ def get_job_timeout(
 def job_result_ttl(queue_name: str) -> int:
     """Return how long, in seconds, to keep the result of a job on the given queue.
 
-    Ingestion results are kept for FLEXMEASURES_JOB_TTL, as for ingestion jobs queued by the API;
-    results on the forecasting, scheduling and reporting queues are kept for FLEXMEASURES_PLANNING_TTL.
+    An ingestion job's result is kept for FLEXMEASURES_JOB_TTL, as are the results of the ingestion jobs the API queues.
+    A job on any other queue keeps its result for FLEXMEASURES_PLANNING_TTL, including a job on a queue a plugin invents.
     NB job.cleanup docs say that a negative number of seconds means persisting forever.
     """
     setting = (
