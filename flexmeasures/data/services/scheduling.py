@@ -36,6 +36,7 @@ from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
+from flexmeasures.data.services.automations import record_outcome_on_automation_run
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -347,6 +348,7 @@ def create_scheduling_job(
     return job
 
 
+@record_outcome_on_automation_run
 def cb_done_sequential_scheduling_job(jobs_ids: list[str]):
     """
     TODO: maybe check if any of the subjobs used a fallback scheduler or accrued a relaxation penalty.
@@ -912,6 +914,7 @@ class ScheduleWritesUncheckedSensor(PermissionError):
     """Raised when a scheduler returns results for a sensor that nobody's permissions were checked against."""
 
 
+@record_outcome_on_automation_run
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,

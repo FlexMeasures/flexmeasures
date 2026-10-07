@@ -417,3 +417,80 @@ def test_a_source_that_is_not_the_users_to_work_with_is_refused_for_a_plugin_typ
             assert "not yours to work with" in refusal.value.api_message
         finally:
             logout_user()
+
+
+def _claimed_run(fresh_db, automation):
+    """Return the durable run a runner would have claimed for this automation."""
+    from datetime import datetime, timezone
+
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=dict(automation.parameters),
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    return run
+
+
+def test_a_plugin_run_records_how_its_job_ended(
+    fresh_db, app, ingestion_plugin, ingestion_assets
+):
+    """A plugin run names itself on its job, records the job, and succeeds once a worker finished it."""
+    from flexmeasures.data.models.automations import AutomationRun
+
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+
+    result = run_automation(automation, automation_run=run)
+    job = Job.fetch(result["job_id"], connection=app.redis_connection)
+    assert job.meta["trigger"]["automation_run_id"] == run_id
+    work_on_rq(app.queues["ingestion"], job=job)
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert [(intent.logical_job_key, intent.status) for intent in run.job_intents] == [
+        ("job", "succeeded")
+    ]
+    assert run.execution_state == "succeeded"
+
+
+def test_a_job_that_ended_before_its_run_recorded_it_is_caught_up_on(
+    fresh_db, app, ingestion_plugin, ingestion_assets, monkeypatch
+):
+    """A worker may finish a job before the run that queued it has recorded it, so the run takes the outcome from Redis."""
+    from flexmeasures.data.models.automations import AutomationRun
+    from flexmeasures.data.services import automations as automation_services
+
+    root, sensors = ingestion_assets
+    automation = make_automation(fresh_db, root, sensors[0], parameters={"value": 3})
+    run = _claimed_run(fresh_db, automation)
+    run_id = run.id
+    record_automation_run_jobs = automation_services.record_automation_run_jobs
+    held_back = []
+    monkeypatch.setattr(
+        automation_services,
+        "record_automation_run_jobs",
+        lambda *args: held_back.append(args),
+    )
+    result = run_automation(automation, automation_run=run)
+    work_on_rq(
+        app.queues["ingestion"],
+        job=Job.fetch(result["job_id"], connection=app.redis_connection),
+    )
+
+    record_automation_run_jobs(*held_back[0])
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert run.execution_state == "succeeded"

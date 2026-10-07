@@ -1724,6 +1724,14 @@ def test_run_report_automation(
     )
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
 
+    # the run followed its job to the end
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run.id)
+    assert [(intent.logical_job_key, intent.status) for intent in run.job_intents] == [
+        ("report", "succeeded")
+    ]
+    assert run.execution_state == "succeeded"
+
     # the successful job recorded the end of the report window as covered
     import pandas as pd
 
@@ -1770,6 +1778,12 @@ def test_report_automation_with_nothing_new_to_report_queues_no_job(
     assert result.exit_code == 0, result.output
     assert "queued 0 reporting job(s)" in result.output, result.output
     assert len(app.queues["reporting"].jobs) == 0
+    # A run with nothing to do is done.
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
+    assert run.job_intents == []
+    assert run.execution_state == "succeeded"
 
     # Run on demand, it says why it queued nothing.
     result = runner.invoke(run_one_automation, ["--automation", str(automation.id)])
@@ -1836,8 +1850,18 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
     )
+    mocker.patch(
+        "flexmeasures.data.services.automations.get_current_job", return_value=job
+    )
     with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
         run_report_job(**job.kwargs)
+
+    # the refusal failed the run, saying why
+    from flexmeasures.data.models.automations import AutomationRun
+
+    run = fresh_db.session.execute(select(AutomationRun)).scalar_one()
+    assert run.execution_state == "failed"
+    assert run.last_error_type == "ReportWritesUncheckedSensor"
 
     # a refused report covers nothing, so the next run still starts where the last successful one ended
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
