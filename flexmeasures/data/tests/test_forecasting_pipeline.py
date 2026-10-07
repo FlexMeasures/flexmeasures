@@ -3055,3 +3055,36 @@ def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
 
     assert TrainPredictPipelineConfigSchema().dump(pipeline._config) == recorded_before
     assert pipeline._parameters["sensor"] == target_sensor
+
+
+def test_a_forecasters_transient_source_belongs_to_its_organisation(
+    app, fresh_db, setup_accounts_fresh_db, setup_generic_asset_types_fresh_db
+):
+    """The source a forecaster names before anything is saved has to belong to the organisation it computes for.
+
+    An organisation is part of what identifies a source, so a transient source without one is looked up as a source belonging to nobody:
+    it does not find the forecaster's own source, and `refresh_data_source` creates an unowned one beside it.
+    Forecasts would then be recorded under a source that says it belongs to no organisation, and a `source-account` filter would stop matching them.
+    No existing forecasting test sees this, because `setup_fresh_test_forecast_data` builds its assets without an organisation;
+    this one has to own its asset to say anything at all.
+    """
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    asset = Asset(
+        name="owned site",
+        generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
+        account_id=prosumer.id,
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.flush()
+    sensor = Sensor(
+        name="owned power", generic_asset=asset, event_resolution=timedelta(hours=1)
+    )
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._parameters = {"sensor": sensor}
+    assert pipeline._data_source is None, "nothing has attached a source yet"
+
+    # The account rather than the account_id: the source is transient, so its foreign key is only populated on a flush.
+    assert pipeline.forecast_source().account == prosumer
