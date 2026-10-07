@@ -1335,17 +1335,17 @@ def test_add_report_persistence_failure_saves_nothing(
         _count_beliefs(fresh_db, report_sensor_id),
         _count_beliefs(fresh_db, report_sensor_2_id),
     )
-    real_save_to_db = reporting_service.save_to_db
+    real_save = reporting_service.save_to_db_and_count
     saves_attempted = []
 
     def fail_on_second_save(data, **kwargs):
         saves_attempted.append(data)
         if len(saves_attempted) > 1:
             raise RuntimeError("database gone")
-        return real_save_to_db(data, **kwargs)
+        return real_save(data, **kwargs)
 
     mocker.patch.object(
-        reporting_service, "save_to_db", side_effect=fail_on_second_save
+        reporting_service, "save_to_db_and_count", side_effect=fail_on_second_save
     )
     with pytest.raises(RuntimeError, match="database gone"):
         runner.invoke(add_report, cli_input)

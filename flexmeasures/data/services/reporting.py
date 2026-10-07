@@ -11,7 +11,7 @@ from rq.job import Job
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.utils import save_to_db_and_count
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.reporting import Reporter
@@ -95,28 +95,25 @@ def compute_and_save_report(
     permitted_output_sensor_ids: set[int] | None = None,
     automation_id: int | None = None,
 ) -> tuple[list[dict], list[dict]]:
-    """Compute a report and, unless told otherwise, persist its results.
+    """Compute a report and, unless told otherwise, save its results.
 
-    This is the single place where report computation and persistence meet, shared by
-    the synchronous CLI and the background worker. With persist=False (dry runs),
-    results are computed but nothing is written.
+    This is the single place where report computation and persistence meet, shared by the synchronous CLI and the background worker.
+    With persist=False (dry runs), results are computed but nothing is written.
 
-    Transaction ownership: this function owns its transaction. On success it commits
-    once after saving all results, so the CLI and the worker share atomic persistence;
-    on any save or commit failure it rolls back and re-raises. Unlike save_to_db,
-    which deliberately never commits, a report cannot be composed into a larger
-    transaction.
+    Transaction ownership: this function owns its transaction.
+    On success it commits once after saving all results, so the CLI and the worker share atomic persistence;
+    on any save or commit failure it rolls back and re-raises.
 
     :param reporter: the reporter computing the report.
     :param parameters: the reporter parameters to compute with.
-    :param persist: whether to persist the computed results. Pass False for dry runs.
-    :param permitted_output_sensor_ids: if given, every computed result must record
-        on one of these sensors, or a ReportWritesUncheckedSensor error is raised
-        before anything is written. Pass None where no such guard applies (e.g. the CLI).
+    :param persist: whether to save the computed results. Pass False for dry runs.
+    :param permitted_output_sensor_ids: if given, every computed result must record on one of these sensors,
+        or a ReportWritesUncheckedSensor error is raised before anything is written.
+        Pass None where no such guard applies (e.g. the CLI).
     :param automation_id: named in the ReportWritesUncheckedSensor error, if raised.
-    :returns: the computed results, and per result a summary of what was saved
-        (the sensor id plus the number of persistable values, counted with
-        _count_persistable_values semantics). With persist=False the summary is empty.
+    :returns: the computed results, and per result a summary of what was saved:
+        the sensor id and the number of beliefs saved, which leaves out NaN values and beliefs that were already on record.
+        With persist=False the summary is empty.
     """
     results = reporter.compute(parameters=parameters)
     saved: list[dict] = []
@@ -138,9 +135,8 @@ def compute_and_save_report(
             )
     try:
         for result in results:
-            n_rows = _count_persistable_values(result["data"])
-            save_to_db(result["data"])
-            saved.append({"sensor_id": result["sensor"].id, "n_rows": n_rows})
+            _, n_saved = save_to_db_and_count(result["data"])
+            saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
         db.session.commit()
     except Exception:
         # Leave nothing half-saved behind: the caller sees the original error
@@ -181,7 +177,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         if permitted_output_sensor_ids is not None
         else None
     )
-    _, saved = compute_and_save_report(
+    results, saved = compute_and_save_report(
         reporter,
         parameters,
         persist=True,
@@ -195,6 +191,13 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     if any(result["n_rows"] for result in saved):
         current_app.logger.info(
             "Report by %s ran successfully, producing %s.", source, summary
+        )
+    elif any(_count_persistable_values(result["data"]) for result in results):
+        # Saving nothing is not the same as computing nothing: these values were all on record already.
+        current_app.logger.info(
+            "Report by %s ran successfully, but every value it computed was already on record (%s).",
+            source,
+            summary,
         )
     else:
         current_app.logger.warning(

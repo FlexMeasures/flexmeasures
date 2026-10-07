@@ -2067,7 +2067,7 @@ def test_empty_permitted_output_set_rejects_everything_before_any_save(
         def compute(self, parameters=None):
             return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
 
-    save = mocker.patch.object(reporting_service, "save_to_db")
+    save = mocker.patch.object(reporting_service, "save_to_db_and_count")
     with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
         compute_and_save_report(
             StubReporter(),
@@ -2096,7 +2096,9 @@ def test_none_permitted_output_set_disables_output_guard(
         def compute(self, parameters=None):
             return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
 
-    save = mocker.patch.object(reporting_service, "save_to_db", return_value="mocked")
+    save = mocker.patch.object(
+        reporting_service, "save_to_db_and_count", return_value=("mocked", 0)
+    )
     _, saved = compute_and_save_report(
         StubReporter(), {}, persist=True, permitted_output_sensor_ids=None
     )
@@ -2136,17 +2138,17 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
     mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
     )
-    real_save_to_db = reporting_service.save_to_db
+    real_save = reporting_service.save_to_db_and_count
     saves_attempted = []
 
     def fail_on_second_save(data, **kwargs):
         saves_attempted.append(data)
         if len(saves_attempted) > 1:
             raise RuntimeError("database gone")
-        return real_save_to_db(data, **kwargs)
+        return real_save(data, **kwargs)
 
     mocker.patch.object(
-        reporting_service, "save_to_db", side_effect=fail_on_second_save
+        reporting_service, "save_to_db_and_count", side_effect=fail_on_second_save
     )
     with pytest.raises(RuntimeError, match="database gone"):
         run_report_job(**job.kwargs)
@@ -2167,6 +2169,56 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
             == 0
         )
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
+
+def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A report job reports the beliefs it saved, not the ones it computed, and an unchanged rerun is not blamed on its inputs.
+
+    Running the same job twice computes the same values, which the second run finds already on record.
+    It has to count none of them as saved, and has to say so,
+    rather than warn that its inputs do not align, which is what a report that computed nothing would be told.
+    """
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import run_report_job
+
+    report_sensor_id = setup_dummy_data_fresh_db[2]
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    runner = app.test_cli_runner()
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    _, job = _queue_two_output_report_automation(
+        app,
+        fresh_db,
+        runner,
+        tmp_path,
+        setup_dummy_data_fresh_db,
+        report_sensor.generic_asset_id,
+    )
+    mocker.patch(
+        "flexmeasures.data.services.reporting.get_current_job", return_value=job
+    )
+
+    first = run_report_job(**job.kwargs)
+    assert all(result["n_rows"] > 0 for result in first), first
+
+    info = mocker.spy(app.logger, "info")
+    warning = mocker.spy(app.logger, "warning")
+    second = run_report_job(**job.kwargs)
+
+    assert [result["n_rows"] for result in second] == [0] * len(first)
+    assert any(
+        "already on record" in call.args[0] for call in info.call_args_list
+    ), info.call_args_list
+    assert not any(
+        "no persistable values" in call.args[0] for call in warning.call_args_list
+    ), warning.call_args_list
 
 
 def test_run_automations(
