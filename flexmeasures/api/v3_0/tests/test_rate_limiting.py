@@ -550,6 +550,25 @@ def test_reset_rate_limit_skips_a_limit_the_account_is_exempt_from(
     assert "Reset the default rate limit of" in result.output
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_aborts_when_rate_limiting_is_off(
+    db, app, setup_roles_users, rate_limiting, requesting_user
+):
+    """With rate limiting turned off, there are no counters to reset, and the host hears so."""
+    from flexmeasures.cli.data_edit import reset_rate_limit
+
+    rate_limiting.setattr(limiter, "enabled", False)
+
+    result = app.test_cli_runner().invoke(
+        reset_rate_limit, ["--account", str(requesting_user.account.id)]
+    )
+
+    assert result.exit_code != 0
+    assert "Rate limiting is turned off on this server" in result.output
+
+
 def test_openapi_specs_document_the_429_response():
     """Every rate-limited endpoint documents that it can answer with a 429.
 
