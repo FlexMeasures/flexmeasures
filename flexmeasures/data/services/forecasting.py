@@ -111,11 +111,17 @@ def save_forecast(bdf: BeliefsDataFrame, save_changed_beliefs_only: bool = True)
         bdf, save_changed_beliefs_only=save_changed_beliefs_only
     )
     db.session.commit()
-    # Say how many were new, because a cycle that saved nothing and one that saved everything otherwise read alike.
+    # Say how many were saved, because a cycle that saved nothing and one that saved everything otherwise read alike.
+    # Beliefs left out are named only when there are some, and not all of them need be repeats: a belief without a value is left out as well.
+    left_out = len(bdf) - n_saved
     logging.info(
-        "Saved %s of the %s computed to DB, the rest repeating beliefs already on record, with source: %s, sensor: %s, sensor_id: %s.",
+        "Saved %s to DB%s, with source: %s, sensor: %s, sensor_id: %s.",
         pluralize("prediction", n_saved, include_count=True),
-        len(bdf),
+        (
+            f", leaving out {left_out} that repeat beliefs already on record or have no value"
+            if left_out
+            else ""
+        ),
         bdf.sources[0],
         bdf.sensor,
         bdf.sensor.id,
