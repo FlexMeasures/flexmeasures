@@ -11,28 +11,26 @@ from werkzeug.exceptions import Unauthorized, Forbidden
 # Permissions that custom-role ACLs could grant before role grants were introduced.
 LEGACY_ACL_PERMISSIONS = frozenset({"read", "create-children", "update", "delete"})
 
-PERMISSIONS = frozenset(
-    {
-        "read",
-        "post-data",
-        "annotate",
-        "trigger-schedules",
-        "trigger-forecasts",
-        "trigger-reports",
-        "manage-automations",
-        "edit-flex-config",
-        "edit-assets",
-        "edit-sensors",
-        "delete-data",
-        "manage-users",
-        "edit-profile",
-        "reset-password",
-        "edit-account",
-        # Keep legacy names for plugin ACLs during the transition.
-        "create-children",
-        "update",
-        "delete",
-    }
+PERMISSIONS = (
+    frozenset(
+        {
+            "post-data",
+            "annotate",
+            "trigger-schedules",
+            "trigger-forecasts",
+            "trigger-reports",
+            "manage-automations",
+            "edit-flex-config",
+            "edit-assets",
+            "edit-sensors",
+            "delete-data",
+            "manage-users",
+            "edit-profile",
+            "reset-password",
+            "edit-account",
+        }
+    )
+    | LEGACY_ACL_PERMISSIONS
 )
 
 # User Roles
