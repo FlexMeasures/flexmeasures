@@ -116,7 +116,15 @@ To use the forecaster through the CLI:
 
     flexmeasures add forecasts --forecaster DummyForecaster
 
-.. note:: Currently, the forecaster is responsible for saving the data. Use ``flexmeasures.data.utils.save_to_db(bdf)``.
+.. note:: A forecaster of your own saves its own data.
+   Nothing downstream does it for you, so call ``flexmeasures.data.utils.save_to_db(bdf)`` on every frame you return.
+
+You can also build on the built-in ``TrainPredictPipeline``, rather than on ``Forecaster`` directly,
+and one rule tells its methods apart: a ``compute`` method returns forecasts without recording anything,
+while a ``run`` method records what it computes.
+An override of ``compute_cycle`` therefore changes how a forecast is computed without taking on where it is kept,
+which ``flexmeasures.data.services.forecasting`` sees to.
+What each of these methods returns is described in its docstring.
 
 
 Deploying your plugin via Docker

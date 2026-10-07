@@ -15,7 +15,7 @@ from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataGenerator
-from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES
+from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES, job_result_ttl
 
 
 class AutomationPayloadValidationError(ValidationError):
@@ -45,6 +45,47 @@ class AutomationHandler:
     queue: str = "ingestion"
     result_noun: str = "result"
 
+    def _generator_from_source(
+        self, source, check_permissions: bool, config_given: bool
+    ) -> DataGenerator:
+        """Set up this type's data generator from an existing data source, as the user named it.
+
+        The built-in types do this in `_create_builtin_automation`, and a type registered by a plugin is held to the same rules.
+        """
+        # Naming a source hands its configuration over and records the automation's results under it,
+        # so it takes more than being allowed to read what it computed: it has to be a source the user may work with.
+        if check_permissions:
+            from flexmeasures.data.services.data_sources import user_may_use_source
+
+            if not user_may_use_source(source):
+                exception = Forbidden()
+                exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
+                raise exception
+        try:
+            generator = copy(source.data_generator)
+        except NotImplementedError as exc:
+            raise ValidationError(
+                f"The source stores no data generator this server can set up: {exc}"
+            ) from exc
+        if type(generator) is not self.generator_class:
+            raise ValidationError("The source does not belong to this automation type.")
+        installed_version = self.installed_generator_version()
+        if source.version != installed_version:
+            # Every run checks this too (see `resolve_plugin_generator`),
+            # so an automation which cannot pass it is refused here rather than at every run it will ever have.
+            raise ValidationError(
+                f"The source stores generator version {source.version},"
+                f" while version {installed_version} is installed."
+            )
+        load_automation_payload(
+            self.generator_class._config_schema,
+            source.attributes.get("data_generator", {}).get("config", {}),
+            "config",
+        )
+        if config_given:
+            raise ValidationError("Use either a source or configuration, not both.")
+        return generator
+
     def create(self, **kwargs):
         """Validate and create the automation without committing it."""
         from flexmeasures.data.models.automations import Automation
@@ -67,31 +108,11 @@ class AutomationHandler:
         asset = kwargs["asset"]
         source = kwargs.get("source")
         if source is not None:
-            try:
-                generator = copy(source.data_generator)
-            except NotImplementedError as exc:
-                raise ValidationError(
-                    f"The source stores no data generator this server can set up: {exc}"
-                ) from exc
-            if type(generator) is not self.generator_class:
-                raise ValidationError(
-                    "The source does not belong to this automation type."
-                )
-            installed_version = self.installed_generator_version()
-            if source.version != installed_version:
-                # Every run checks this too (see `resolve_plugin_generator`),
-                # so an automation which cannot pass it is refused here rather than at every run it will ever have.
-                raise ValidationError(
-                    f"The source stores generator version {source.version},"
-                    f" while version {installed_version} is installed."
-                )
-            load_automation_payload(
-                self.generator_class._config_schema,
-                source.attributes.get("data_generator", {}).get("config", {}),
-                "config",
+            generator = self._generator_from_source(
+                source,
+                check_permissions=bool(kwargs.get("check_permissions")),
+                config_given=bool(kwargs.get("config")),
             )
-            if kwargs.get("config"):
-                raise ValidationError("Use either a source or configuration, not both.")
         else:
             config = load_automation_payload(
                 self.generator_class._config_schema,
@@ -121,7 +142,10 @@ class AutomationHandler:
                     "config": generator._config_schema.dump(generator._config)
                 }
             }
-            generator._data_source = get_or_create_source(**source_info)
+            # As for the built-in types, the source belongs to the organisation whose asset the automation hangs off.
+            generator._data_source = get_or_create_source(
+                **source_info, account=asset.owner
+            )
         automation = Automation(
             asset_id=asset.id,
             type=self.type_id,
@@ -202,11 +226,7 @@ class AutomationHandler:
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
                 ).total_seconds()
             ),
-            result_ttl=int(
-                current_app.config.get(
-                    "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                ).total_seconds()
-            ),
+            result_ttl=job_result_ttl(self.queue),
             meta={
                 "trigger": {"origin": "automation", "automation_id": automation.id},
                 "data_source_info": {"id": source_id},
@@ -374,7 +394,7 @@ def check_execution_access(automation, sensors):
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.utils import save_to_db
+    from flexmeasures.data.utils import save_to_db_and_count
 
     automation = db.session.get(Automation, automation_id, populate_existing=True)
     if automation is None:
@@ -400,7 +420,7 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
             )
     saved = []
     for result in results:
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": len(result["data"])})
+        _, n_saved = save_to_db_and_count(result["data"])
+        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
     db.session.commit()
     return saved

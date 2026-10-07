@@ -1909,21 +1909,6 @@ class MetaStorageScheduler(Scheduler):
 
         return commitments
 
-    def persist_flex_model(self):
-        """Store new soc info as GenericAsset attributes
-
-        This method should become obsolete when all SoC information is recorded on a sensor, instead.
-
-        Deprecated: get rid of this when moving to v1.0 (requiring to also remove attributes from test data assets)
-        """
-        if self.sensor is not None:
-            self.sensor.generic_asset.set_attribute(
-                "soc_datetime", self.start.isoformat()
-            )
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model.get("soc_at_start")
-            )
-
     def resolve_flex_config(self) -> dict:
         """A storage scheduler also reads flex config from the asset tree, so merge that in before recording it.
 
@@ -2506,13 +2491,6 @@ class MetaStorageScheduler(Scheduler):
                 state_of_charge, sensor, stock_key=stock_key
             )
 
-        if sensor is not None:
-            if (
-                self.start == sensor.get_attribute("soc_datetime")
-                and sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                return sensor.get_attribute("soc_in_mwh")
-
         # Keep the historical empty-stock fallback when absolute SoC matters.
         if _has_absolute_soc_constraints(stock_model):
             return 0
@@ -2571,13 +2549,6 @@ class MetaStorageScheduler(Scheduler):
                 + "MWh"
             )
 
-        if not self.has_soc_at_start_in(flex_model) and sensor is not None:
-            # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
-            if (
-                self.start == sensor.get_attribute("soc_datetime")
-                and sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
         if not self.has_soc_at_start_in(flex_model) and _has_absolute_soc_constraints(
             flex_model
         ):

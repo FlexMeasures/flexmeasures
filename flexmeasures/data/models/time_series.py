@@ -71,13 +71,18 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         "GenericAsset",
         foreign_keys=[generic_asset_id],
         backref=db.backref(
-            "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+            "sensors",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+            order_by="Sensor.id",  # creation order, so that sensors[0] does not depend on the physical row order the database returns
         ),
     )
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_sensors",
-        backref=db.backref("sensors", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("sensors", lazy="dynamic", order_by="Sensor.id"),
     )
 
     def get_path(self, separator: str = ">"):
@@ -284,8 +289,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         )
 
     def set_attribute(self, attribute: str, value):
-        if self.has_attribute(attribute):
-            self.attributes[attribute] = value
+        """Sets the attribute on the Sensor itself, creating it if it does not exist yet.
+
+        If the GenericAsset has the same attribute, the Sensor's value takes precedence over it from then on.
+        Note that :meth:`get_attribute` first looks for a Sensor property or column of that name,
+        so an attribute named like one (e.g. ``name`` or ``unit``) is stored, but never read back.
+        """
+        self.attributes[attribute] = value
 
     def check_required_attributes(
         self,
