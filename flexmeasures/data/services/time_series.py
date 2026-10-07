@@ -160,12 +160,28 @@ def _drop_unchanged_beliefs_compared_to_db(
     return bdf[rows.isin(pd.MultiIndex.from_frame(kept[belief_keys]))]
 
 
+def _source_keys(sources: pd.Index) -> list[int]:
+    """The ID of each source, or a negative number unique to each source that has no ID yet.
+
+    A source that was not flushed yet has no ID, so it matches no stored belief,
+    and two such sources in one save must not be taken for one and the same source.
+    """
+    unsaved: dict[int, int] = {}
+    keys = []
+    for source in sources:
+        if source.id is not None:
+            keys.append(source.id)
+        else:
+            keys.append(unsaved.setdefault(id(source), -1 - len(unsaved)))
+    return keys
+
+
 def _belief_keys_per_row(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
-    """The event start, source ID, belief time, cumulative probability and value of each row, in the frame's row order."""
+    """The event start, source key, belief time, cumulative probability and value of each row, in the frame's row order."""
     return pd.DataFrame(
         {
             "event_start": bdf.index.get_level_values("event_start"),
-            "source_id": [source.id for source in bdf.index.get_level_values("source")],
+            "source_id": _source_keys(bdf.index.get_level_values("source")),
             "belief_time": bdf.index.get_level_values("belief_time"),
             "cumulative_probability": bdf.index.get_level_values(
                 "cumulative_probability"
@@ -184,17 +200,17 @@ def _beliefs_as_distributions(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
         ["event_start", "source_id", "belief_time", "cumulative_probability"]
     )
     belief_keys = ["event_start", "source_id", "belief_time"]
+    # A missing value repeats a missing value, as it always did, so NaN is replaced by None, which equals itself.
+    values = rows["event_value"].astype(object).where(rows["event_value"].notna(), None)
     if not rows.duplicated(belief_keys).any():
         # Deterministic beliefs (one row each) are by far the most common, and need no grouping.
         # Each is still wrapped as a tuple of pairs, so that it compares equal to the same belief from the grouped path below.
         rows["distribution"] = [
             ((probability, value),)
-            for probability, value in zip(
-                rows["cumulative_probability"], rows["event_value"]
-            )
+            for probability, value in zip(rows["cumulative_probability"], values)
         ]
         return rows[belief_keys + ["distribution"]].reset_index(drop=True)
-    rows["pair"] = list(zip(rows["cumulative_probability"], rows["event_value"]))
+    rows["pair"] = list(zip(rows["cumulative_probability"], values))
     return (
         rows.groupby(belief_keys, sort=False, dropna=False)["pair"]
         .agg(tuple)
