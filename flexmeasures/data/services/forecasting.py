@@ -101,9 +101,9 @@ def save_forecast(bdf: BeliefsDataFrame) -> None:
         for source in bdf.index.levels[bdf.index.names.index("source")]
     ]
     bdf.index = bdf.index.set_levels(sources, level="source")
-    save_to_db(
-        bdf, save_changed_beliefs_only=False
-    )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
+    # A forecast that repeats the belief right before it adds nothing a lookup of the most recent beliefs could use,
+    # and repeating a whole run from the same viewpoint would otherwise fail on the unique constraint.
+    save_to_db(bdf)
     db.session.commit()
     logging.info(
         f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {bdf.sensor}, sensor_id: {bdf.sensor.id}."
