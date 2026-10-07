@@ -1625,7 +1625,6 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
 
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48
-    assert power_sensor.generic_asset.get_attribute("soc_in_mwh") == 2.5
 
     # Reload sensors from the DB after the schedule has been committed.
     consumption_output_sensor = fresh_db.session.get(

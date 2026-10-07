@@ -395,6 +395,33 @@ def test_get_inflexible_device_sensors_across_keys(
     assert set(site.get_inflexible_device_sensors()) == expected_sensors
 
 
+def test_set_attribute_creates_missing_attribute_on_asset(
+    fresh_db, setup_generic_assets_fresh_db
+):
+    asset = setup_generic_assets_fresh_db["test_wind_turbine"]
+    assert not asset.has_attribute("timezone")
+
+    asset.set_attribute("timezone", "Europe/Amsterdam")
+
+    assert asset.has_attribute("timezone")
+    assert asset.attributes["timezone"] == "Europe/Amsterdam"
+
+
+def test_set_attribute_creates_missing_attribute_on_sensor(
+    fresh_db, setup_generic_assets_fresh_db
+):
+    asset = setup_generic_assets_fresh_db["test_wind_turbine"]
+    sensor = Sensor(name="a sensor", generic_asset=asset, unit="kW")
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+    assert not sensor.has_attribute("soc_in_mwh")
+
+    sensor.set_attribute("soc_in_mwh", 42)
+
+    assert sensor.has_attribute("soc_in_mwh")
+    assert sensor.attributes["soc_in_mwh"] == 42
+
+
 def test_asset_sensors_are_listed_in_creation_order(
     fresh_db, setup_generic_asset_types_fresh_db
 ):
