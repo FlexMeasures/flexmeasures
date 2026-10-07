@@ -10,7 +10,7 @@ from pytz import UTC
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
-from sqlalchemy import false, insert, select
+from sqlalchemy import false, select, text
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.models.data_sources import (
@@ -20,7 +20,7 @@ from flexmeasures.data.models.data_sources import (
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.reporting import Reporter
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
 
 
 def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sensors):
@@ -535,20 +535,23 @@ def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
     db.session.add(source)
     db.session.flush()
 
-    # --- bulk-insert 100 000 belief rows via Core (fast path) ------------------
+    # --- insert 100 000 belief rows with one server-side statement -------------
+    # (shipping the rows through executemany costs seconds, generate_series costs milliseconds)
     base_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
-    rows = [
+    db.session.execute(
+        text(
+            "INSERT INTO timed_belief"
+            " (sensor_id, source_id, event_start, belief_horizon, cumulative_probability, event_value)"
+            " SELECT :sensor_id, :source_id, :base_dt + i * interval '15 minutes', interval '0', 0.5, i::float"
+            " FROM generate_series(0, :n - 1) AS i"
+        ),
         {
             "sensor_id": sensor.id,
             "source_id": source.id,
-            "event_start": base_dt + timedelta(minutes=15 * i),
-            "belief_horizon": timedelta(0),
-            "cumulative_probability": 0.5,
-            "event_value": float(i),
-        }
-        for i in range(N_BELIEFS)
-    ]
-    db.session.execute(insert(TimedBelief), rows)
+            "base_dt": base_dt,
+            "n": N_BELIEFS,
+        },
+    )
     db.session.flush()
 
     # --- Sensor.data_sources ---------------------------------------------------

@@ -8,7 +8,7 @@ from flask import current_app
 from flexmeasures.utils.unit_utils import convert_units
 import timely_beliefs as tb
 import pandas as pd
-from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting import Reporter, read_input_beliefs
 from flexmeasures.data.schemas.reporting.pandas_reporter import (
     PandasReporterConfigSchema,
     PandasReporterParametersSchema,
@@ -94,13 +94,14 @@ class PandasReporter(Reporter):
                 "one_deterministic_belief_per_event", droplevels
             )
 
-            bdf = sensor.search_beliefs(
+            bdf = read_input_beliefs(
+                sensor,
+                _input_search_parameters,
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 resolution=resolution,
                 beliefs_before=belief_time,
                 source=source,
-                **_input_search_parameters,
             )
 
             # store data source as local variable

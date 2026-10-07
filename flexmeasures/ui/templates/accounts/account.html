@@ -258,7 +258,7 @@
     <div class="col-md-8">
       <div class="card">
         <div class="d-flex justify-content-between align-items-center">
-          <h3>Account</h3>
+          <h3>Account: {{ account.name }}</h3>
           {% if can_add_client_account %}
           <a
             class="btn bg-primary-custom text-decoration-none text-light nav-button"
@@ -268,7 +268,6 @@
           </a>
           {% endif %}
         </div>
-        <small>Account: {{ account.name }}</small>
         <div class="row">
           <div class="col-md-7">
             <div class="floatThead-wrapper table-responsive">

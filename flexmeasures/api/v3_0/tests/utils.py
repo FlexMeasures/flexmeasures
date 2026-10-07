@@ -198,3 +198,35 @@ def generate_csv_content(
 
     # Join all rows
     return "\n".join(csv_rows)
+
+
+def report_message(sensor_1: Sensor, sensor_2: Sensor, output: Sensor) -> dict:
+    """Build a PandasReporter trigger message that adds two inputs and resamples their sum to two-hour events."""
+    return {
+        "reporter": "PandasReporter",
+        "config": {
+            "required_input": [
+                {"name": "one", "unit": "kW"},
+                {"name": "two", "unit": "kW"},
+            ],
+            "required_output": [{"name": "sum", "unit": "kW"}],
+            "transformations": [
+                {
+                    "df_input": "one",
+                    "method": "add",
+                    "args": ["@two"],
+                    "df_output": "sum",
+                },
+                {"method": "resample_events", "args": ["2h"]},
+            ],
+        },
+        "parameters": {
+            "input": [
+                {"name": "one", "sensor": sensor_1.id},
+                {"name": "two", "sensor": sensor_2.id},
+            ],
+            "output": [{"name": "sum", "sensor": output.id}],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T10:00:00+00:00",
+        },
+    }
