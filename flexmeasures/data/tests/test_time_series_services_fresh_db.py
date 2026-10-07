@@ -237,3 +237,31 @@ def test_a_deterministic_duplicate_saved_alongside_a_probabilistic_belief_is_dro
     fresh_db.session.commit()
 
     assert len(sensor.search_beliefs(most_recent_beliefs_only=False)) == 4
+
+
+@pytest.mark.parametrize(
+    "already_stored", [False, True], ids=["nothing-stored", "already-stored"]
+)
+@by_time_and_by_horizon
+def test_an_exact_duplicate_within_one_save_is_saved_once(
+    fresh_db, sensor_and_source, by_horizon, already_stored
+):
+    """A row that occurs twice in one save is saved once, rather than failing the save on the unique constraint.
+
+    Reporters and aggregations that concatenate overlapping chunks hand over such frames.
+    """
+    from flexmeasures.data.services.time_series import drop_unchanged_beliefs
+
+    sensor, source = sensor_and_source
+    if already_stored:
+        save_to_db(frame(sensor, source, [("01:00", 12.0)], by_horizon))
+        fresh_db.session.commit()
+    bdf = frame(sensor, source, [("00:00", 10.0), ("01:00", 12.0)], by_horizon)
+    doubled = pd.concat([bdf, bdf.iloc[[-1]]])
+    assert doubled.index.duplicated().any(), "the frame holds one row twice"
+
+    assert not drop_unchanged_beliefs(doubled).index.duplicated().any()
+    save_to_db(doubled)
+    fresh_db.session.commit()
+
+    assert stored(sensor) == [("00:00", 10.0), ("01:00", 12.0)]
