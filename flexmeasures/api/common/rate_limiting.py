@@ -16,8 +16,7 @@ The two limits count differently. The default limit counts every request, includ
 triggers we accepted, because it exists to protect the expensive computation which those set in motion:
 a client whose payload we rejected did not cost us a schedule, and should not pay for one.
 
-The default limit is counted per account, so that all users and API clients of an account share one budget,
-which is the budget the account's plan sets.
+The default limit is counted per account, so that all users and API clients of an account share one budget (set in the account's plan).
 A user of a consultancy account counts against the consultancy's account, also when acting on a client account's assets.
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
 
