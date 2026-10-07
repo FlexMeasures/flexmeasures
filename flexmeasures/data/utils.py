@@ -268,10 +268,6 @@ def save_to_db_and_count(
             if len_after < len_before:
                 status = SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED
 
-            # Work around bug in which groupby still introduces an index level, even though we asked it not to
-            if None in timed_values.index.names:
-                timed_values.index = timed_values.index.droplevel(None)
-
             if timed_values.empty:
                 # No state changes among the beliefs
                 current_app.logger.info("No changes needing to be saved to DB.")
