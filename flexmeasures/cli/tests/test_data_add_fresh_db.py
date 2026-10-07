@@ -1216,7 +1216,6 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
         ),
     )
     check_command_ran_without_error(result)
-    assert "Saving report for sensor" in result.output
     assert "has been saved to the database" in result.output
 
     assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5

@@ -2472,9 +2472,8 @@ def add_report(  # noqa: C901
                 **MsgStyle.WARN,
             )
 
-        # save the report if it's not running in dry mode
+        # the report was saved above, unless running in dry mode
         if not dry_run:
-            click.echo(f"Saving report for sensor `{sensor}` to the database...")
             click.secho(
                 f"Success. The report for sensor `{sensor}` has been saved to the database.",
                 **MsgStyle.SUCCESS,
