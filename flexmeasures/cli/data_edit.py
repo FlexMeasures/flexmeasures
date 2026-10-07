@@ -269,7 +269,7 @@ def reset_rate_limit(account: Account, limit_name: str | None):
     skipped = [name for name in limit_names if name not in reset]
     if skipped:
         click.secho(
-            f"Account '{account.name}' (ID: {account.id}) is exempt from the {' and '.join(skipped)} rate limit, so there was nothing to reset there.",
+            f"Account '{account.name}' (ID: {account.id}) is exempt from the {' and '.join(skipped)} rate {pluralize('limit', len(skipped))}, so there was nothing to reset there.",
             **MsgStyle.WARN,
         )
     if reset:
