@@ -85,7 +85,11 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
         return pd.concat([ex_ante_bdf, ex_post_bdf])
 
-    # Look up the stored beliefs of the same kind, so that each new belief can be compared with the one right before it
+    # Look up the stored beliefs of the same kind and from the same sources, so that each new belief can be compared with the one right before it.
+    source_ids = [source.id for source in bdf.lineage.sources if source.id is not None]
+    if not source_ids:
+        # Sources without an ID were not flushed yet, so nothing stored can be theirs.
+        return _drop_unchanged_beliefs_compared_to_db(bdf, bdf_db=None)
     if bdf.belief_horizons[0] > timedelta(0):
         # Look up only ex-ante beliefs (horizon > 0)
         kwargs = dict(horizons_at_least=timedelta(0))
@@ -95,6 +99,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     bdf_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts.min(),
         event_ends_before=bdf.event_ends.max(),
+        source=source_ids,
         most_recent_beliefs_only=False,  # all beliefs
         **kwargs,
     )
@@ -103,7 +108,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
 
 def _drop_unchanged_beliefs_compared_to_db(
     bdf: tb.BeliefsDataFrame,
-    bdf_db: tb.BeliefsDataFrame,
+    bdf_db: tb.BeliefsDataFrame | None,
 ) -> tb.BeliefsDataFrame:
     """Drop the beliefs in bdf that say the same as the belief right before them, among the beliefs in bdf and bdf_db together.
 
