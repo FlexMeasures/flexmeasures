@@ -15,6 +15,7 @@ from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataGenerator
+from flexmeasures.data.services.automations import record_outcome_on_automation_run
 from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES
 
 
@@ -180,8 +181,8 @@ class AutomationHandler:
 
         A durable run (see `dispatch_automation_run`) carries the parameters and the jobs its run was planned with,
         which the built-in types read to pick up where an earlier attempt at the same run stopped.
-        A plugin type's run is dispatched with the parameters its run was planned with, but records no jobs of its own,
-        so such a run reports how far its dispatch got and leaves its execution state at 'pending'.
+        A plugin type's run is dispatched with the parameters its run was planned with,
+        and records its one job once queued, so that the run follows how the job ends.
         """
         if self.generator_class is None:
             from flexmeasures.data.services.automations import (
@@ -212,6 +213,9 @@ class AutomationHandler:
         parameters = planned_parameters
         db.session.commit()
         queue = current_app.queues[self.queue]
+        trigger = {"origin": "automation", "automation_id": automation.id}
+        if automation_run is not None:
+            trigger["automation_run_id"] = automation_run.id
         job = Job.create(
             execute_automation_job,
             kwargs={
@@ -232,7 +236,7 @@ class AutomationHandler:
                 ).total_seconds()
             ),
             meta={
-                "trigger": {"origin": "automation", "automation_id": automation.id},
+                "trigger": trigger,
                 "data_source_info": {"id": source_id},
                 "asset_id": automation.asset_id,
                 "asset_or_sensor": {"class": "Asset", "id": automation.asset_id},
@@ -245,6 +249,12 @@ class AutomationHandler:
             queue=self.queue,
             asset_or_sensor_type="asset",
         )
+        if automation_run is not None:
+            from flexmeasures.data.services.automations import (
+                record_automation_run_jobs,
+            )
+
+            record_automation_run_jobs(automation_run.id, [("job", self.type_id, job)])
         return {"job_id": job.id, "n_jobs": 1}
 
 
@@ -395,6 +405,7 @@ def check_execution_access(automation, sensors):
                 )
 
 
+@record_outcome_on_automation_run
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation

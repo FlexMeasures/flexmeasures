@@ -11,6 +11,7 @@ from rq.job import Job
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
+from flexmeasures.data.services.automations import record_outcome_on_automation_run
 from flexmeasures.data.utils import save_to_db
 
 if TYPE_CHECKING:
@@ -88,6 +89,7 @@ class ReportWritesUncheckedSensor(PermissionError):
     """Raised when a reporter returns results for a sensor that nobody's permissions were checked against."""
 
 
+@record_outcome_on_automation_run
 def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     """Compute and store a report in a reporting worker.
 

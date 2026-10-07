@@ -5,6 +5,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 from __future__ import annotations
 
 from contextlib import contextmanager
+import functools
 from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,8 @@ import pandas as pd
 from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
-from rq.job import Job
+from rq import get_current_job
+from rq.job import Job, JobStatus
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -572,6 +574,116 @@ def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
         )
         return True
     return False
+
+
+class AutomationJobFailed(Exception):
+    """Stands in for the error of a job that failed before its run had a record of it, as only its traceback is left."""
+
+
+def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) -> None:
+    """Record the jobs that a schedule, report or plugin run queued, so that the run follows what becomes of them.
+
+    A forecast run records its jobs before queueing them, under IDs it derives from the run (see `ensure_automation_run_job_intents`).
+    The other types get their job IDs from RQ, and a sequential schedule queues each device job as it creates it,
+    so their jobs are recorded once they are queued.
+    A worker may have finished one of them in the meantime, when there was no record yet to report to,
+    so whatever Redis already knows to be over is taken from there.
+    A run which queued no jobs, such as a report with nothing new to report on, has nothing left to do, so it succeeded.
+
+    :param jobs:    the logical job key, the kind and the RQ job of each job, in the order they were queued.
+    """
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    now = _now_utc()
+    if not jobs:
+        run.execution_state = "succeeded"
+        run.execution_completed_at = now
+        db.session.commit()
+        return
+    run.plan = {
+        **dict(run.plan or {}),
+        "jobs": [
+            {"logical_job_key": key, "kind": kind, "rq_job_id": job.id}
+            for key, kind, job in jobs
+        ],
+    }
+    for key, kind, job in jobs:
+        db.session.add(
+            AutomationRunJob(
+                run=run,
+                logical_job_key=key,
+                rq_job_id=job.id,
+                queue=job.origin,
+                kind=kind,
+                status="queued",
+                enqueued_at=now,
+            )
+        )
+    run.first_enqueued_at = run.first_enqueued_at or now
+    db.session.commit()
+    for key, _, job in jobs:
+        status = job.get_status(refresh=True)
+        if status == JobStatus.FINISHED:
+            record_automation_job_succeeded(run_id, key)
+        elif status == JobStatus.FAILED:
+            traceback_lines = (job.exc_info or "").strip().splitlines()
+            record_automation_job_failed(
+                run_id,
+                key,
+                AutomationJobFailed(
+                    traceback_lines[-1] if traceback_lines else "unknown error"
+                ),
+            )
+
+
+def record_outcome_on_automation_run(job_function):
+    """Record a job's start and outcome on the automation run that queued it, if one did.
+
+    Decorates the function a schedule, report or plugin job runs.
+    The job is looked up by its RQ ID among the jobs its run recorded (see `record_automation_run_jobs`),
+    so a job queued outside a run, or on behalf of a run that never recorded it (such as a fallback schedule job), is left alone.
+    A forecast job reports on its own, as its run hands it the key it was recorded under.
+    """
+
+    @functools.wraps(job_function)
+    def wrapper(*args, **kwargs):
+        rq_job = get_current_job()
+        run_id = (
+            (rq_job.meta.get("trigger") or {}).get("automation_run_id")
+            if rq_job is not None
+            else None
+        )
+        if run_id is None:
+            return job_function(*args, **kwargs)
+        # The run records its jobs once they are queued, so a job which starts right away may not find itself yet,
+        # in which case it looks again once it is done (or the run catches up from Redis, see `record_automation_run_jobs`).
+        logical_job_key = _logical_job_key(run_id, rq_job.id)
+        record_automation_job_started(run_id, logical_job_key)
+        try:
+            result = job_function(*args, **kwargs)
+        except Exception as exc:
+            # The job may have failed on the database itself, so get a usable session before looking anything up.
+            db.session.rollback()
+            record_automation_job_failed(
+                run_id, logical_job_key or _logical_job_key(run_id, rq_job.id), exc
+            )
+            raise
+        record_automation_job_succeeded(
+            run_id, logical_job_key or _logical_job_key(run_id, rq_job.id)
+        )
+        return result
+
+    return wrapper
+
+
+def _logical_job_key(run_id: int, rq_job_id: str) -> str | None:
+    """Return the key under which a run recorded the job with this RQ ID, if it did."""
+    return db.session.scalar(
+        select(AutomationRunJob.logical_job_key).filter_by(
+            run_id=run_id, rq_job_id=rq_job_id
+        )
+    )
 
 
 # Fields naming a sensor that a scheduler records its results on, rather than reads from.
@@ -2452,6 +2564,8 @@ def _run_report_automation(
         current_app.logger.info(
             f"Report automation {automation.id} has nothing new to report on, up to {parameters['end']}, so it queues no job."
         )
+        if automation_run is not None:
+            record_automation_run_jobs(automation_run.id, [])
         return {
             "job_id": None,
             "n_jobs": 0,
@@ -2472,7 +2586,13 @@ def _run_report_automation(
         automation_id=automation.id,
         automation_run_id=automation_run.id if automation_run is not None else None,
     )
-    return reporter.compute(as_job=True, parameters=parameters)
+    returns = reporter.compute(as_job=True, parameters=parameters)
+    if automation_run is not None:
+        job = Job.fetch(
+            returns["job_id"], connection=current_app.queues["reporting"].connection
+        )
+        record_automation_run_jobs(automation_run.id, [("report", "report", job)])
+    return returns
 
 
 def _run_schedule_automation(
@@ -2529,5 +2649,20 @@ def _run_schedule_automation(
         trigger=trigger,
         **scheduler_kwargs,
     )
+    if automation_run is not None:
+        if trigger_data["sequential"]:
+            # The returned job is the wrap-up job, which names the device jobs it waits for.
+            connection = current_app.queues["scheduling"].connection
+            run_jobs = [
+                (
+                    f"device-{index}",
+                    "schedule-device",
+                    Job.fetch(job_id, connection=connection),
+                )
+                for index, job_id in enumerate(job.args[0])
+            ] + [("wrap-up", "schedule-wrap-up", job)]
+        else:
+            run_jobs = [("schedule", "schedule", job)]
+        record_automation_run_jobs(automation_run.id, run_jobs)
     n_jobs = len(job.args[0]) + 1 if trigger_data["sequential"] else 1
     return {"job_id": job.id, "n_jobs": n_jobs}
