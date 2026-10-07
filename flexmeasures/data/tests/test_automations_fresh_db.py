@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import isodate
 import pytest
 from rq.job import Job
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
@@ -221,6 +222,135 @@ def test_a_durable_run_schedules_what_it_was_planned_with(
     assert job.kwargs["end"] - job.kwargs["start"] == isodate.parse_duration(
         planned_parameters["duration"]
     )
+
+
+def _planned_schedule_run(fresh_db, battery, sequential: bool):
+    """Set up a schedule automation on the battery, and the durable run a runner would have claimed for it."""
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    parameters = {**message, "flex-model": [flex_model], "sequential": sequential}
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters=parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=parameters,
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.commit()
+    return automation, run
+
+
+@pytest.mark.parametrize(
+    "sequential, expected_jobs",
+    [(False, ["schedule"]), (True, ["device-0", "wrap-up"])],
+)
+def test_a_schedule_run_records_how_its_jobs_ended(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    sequential,
+    expected_jobs,
+):
+    """A schedule run records each job it queued, and succeeds once the workers finished all of them."""
+    from flexmeasures.data.services.scheduling import handle_scheduling_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    automation, run = _planned_schedule_run(
+        fresh_db, add_battery_assets_fresh_db["Test battery"], sequential
+    )
+    run_id = run.id
+    run_automation(automation, automation_run=run)
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert [intent.logical_job_key for intent in run.job_intents] == sorted(
+        expected_jobs
+    )
+    assert {intent.status for intent in run.job_intents} == {"queued"}
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert {intent.status for intent in run.job_intents} == {"succeeded"}
+    assert run.execution_state == "succeeded"
+    assert run.execution_completed_at is not None
+
+
+@pytest.mark.parametrize("sequential", [False, True])
+def test_a_schedule_run_records_a_failed_job(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    monkeypatch,
+    sequential,
+):
+    """A schedule run whose job fails is failed, with the job's error, and over once nothing of it runs any more.
+
+    A failed device job of a sequential schedule leaves its wrap-up job waiting for good, which must not keep the run going.
+    """
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    automation, run = _planned_schedule_run(
+        fresh_db, add_battery_assets_fresh_db["Test battery"], sequential
+    )
+    run_id = run.id
+    run_automation(automation, automation_run=run)
+
+    def refuse_to_save(*args, **kwargs):
+        raise ValueError("The database is read-only today.")
+
+    monkeypatch.setattr(scheduling, "save_to_db", refuse_to_save)
+    work_on_rq(
+        app.queues["scheduling"], exc_handler=scheduling.handle_scheduling_exception
+    )
+
+    fresh_db.session.expire_all()
+    run = fresh_db.session.get(AutomationRun, run_id)
+    assert run.execution_state == "failed"
+    assert run.last_error_type == "ValueError"
+    assert run.last_error_message == "The database is read-only today."
+    assert run.execution_completed_at is not None
+
+
+def test_a_schedule_job_queued_outside_a_run_is_not_recorded(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """Running an automation on demand has no run to record its job on, and its job runs as it always did."""
+    from flexmeasures.data.models.automations import AutomationRunJob
+    from flexmeasures.data.services.scheduling import handle_scheduling_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    automation, _ = _planned_schedule_run(
+        fresh_db, add_battery_assets_fresh_db["Test battery"], sequential=False
+    )
+    returns = run_automation(automation)
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+    assert fresh_db.session.scalars(select(AutomationRunJob)).all() == []
 
 
 def test_run_day_ahead_schedule_automation(
