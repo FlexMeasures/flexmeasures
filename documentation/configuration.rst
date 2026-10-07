@@ -893,8 +893,10 @@ Default: ``True``
 FLEXMEASURES_API_DEFAULT_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
-if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
+How often a client may call the API. This is one budget for the whole API, counted per account (or per IP address,
+if unauthenticated), so that all users and API clients of an account share it. A consultant counts against their own
+account, also when acting on a client account's assets. The health endpoints are exempt, so that monitoring cannot lock
+itself out.
 
 Default: ``"500 per minute"``
 
