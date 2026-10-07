@@ -74,6 +74,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Running the same forecast twice from the same start no longer fails on the beliefs it already recorded, and a forecast that repeats the previous one no longer stores its values again; a report input that asks only for forecasts made at most some time ahead (``horizons_at_most``) can therefore find fewer of them [see `PR #2688 <https://www.github.com/FlexMeasures/flexmeasures/pull/2688>`_]
 * Saving several beliefs about the same event at once no longer drops a belief whose value changes back to an earlier one, which made the most recent belief look like a value that had already been revised; ``flexmeasures edit resample-data`` lost such beliefs for good [see `PR #2687 <https://www.github.com/FlexMeasures/flexmeasures/pull/2687>`_]
 * A schedule with several commitments, one of which pays more for deviating downwards than it costs to deviate upwards, no longer comes back as infeasible or unbounded: whether a commitment needs the solver's sign variables is now decided for each commitment on its own, rather than from every commitment's prices added together, where another commitment's prices could hide it [see `PR #2631 <https://www.github.com/FlexMeasures/flexmeasures/pull/2631>`_]
 * Setting an attribute that does not exist yet on an asset or sensor now takes effect, instead of being silently ignored [see `PR #2649 <https://www.github.com/FlexMeasures/flexmeasures/pull/2649>`_]
