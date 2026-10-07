@@ -48,7 +48,10 @@ For example:
 
     Refused a request for hitting the trigger rate limit (10 per 5 minute): account 3, user 12, asset 41, POST /api/v3_0/assets/41/schedules/trigger (AssetAPI:trigger_schedule).
 
-To see what spent a budget before it ran out, set ``LOGGING_LEVEL`` to ``"DEBUG"`` (see :ref:`configuration`):
+These warnings only show up when ``LOGGING_LEVEL`` is ``"WARNING"`` or lower (see :ref:`configuration`).
+Note that a production server only logs errors by default, so you need to set it explicitly there.
+
+To see what spent a budget before it ran out, set ``LOGGING_LEVEL`` to ``"DEBUG"``:
 each trigger which counts against the trigger limit is then logged, with the same details.
 
 .. note:: The recurring runs of automations queue their jobs from within FlexMeasures, rather than calling the API,
