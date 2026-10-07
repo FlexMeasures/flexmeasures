@@ -184,7 +184,7 @@ class Account(db.Model, AuthModelMixin):
             "edit-account": update_access,
             "manage-users": create_access,
             "edit-assets": create_access,
-            "annotate": read_access,
+            "annotate": create_access,
             # Compatibility for callers still checking broad CRUD permissions.
             "create-children": create_access,
             "update": update_access,
