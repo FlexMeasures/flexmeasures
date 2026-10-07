@@ -1374,9 +1374,8 @@ def test_add_report_persistence_failure_saves_nothing(
     with pytest.raises(RuntimeError, match="database gone"):
         runner.invoke(add_report, cli_input)
 
-    # The first output really was saved before the failure, so the unchanged
-    # counts below prove the failed run rolled everything back, leaving neither
-    # output pending nor committed.
+    # The first output really was saved before the failure,
+    # so the unchanged counts below prove the failed run rolled everything back, leaving neither output pending nor committed.
     assert len(saves_attempted) == 2
     assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before[0]
     assert _count_beliefs(fresh_db, report_sensor_2_id) == beliefs_before[1]

@@ -1990,8 +1990,8 @@ def test_report_automation_refusal_leaves_all_outputs_unchanged(
 ):
     """A reporter returning an unchecked sensor alongside valid outputs records nothing anywhere.
 
-    The whole set of outputs is judged before any of it is written, so the
-    permitted outputs stay exactly as they were, too.
+    The whole set of outputs is judged before any of it is written,
+    so the permitted outputs stay exactly as they were, too.
     """
     from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
     from flexmeasures.data.models.time_series import Sensor
@@ -2185,9 +2185,8 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
     with pytest.raises(RuntimeError, match="database gone"):
         run_report_job(**job.kwargs)
 
-    # The first output really was saved before the failure, so the unchanged
-    # counts below prove the failed run rolled everything back, leaving neither
-    # output pending nor committed.
+    # The first output really was saved before the failure,
+    # so the unchanged counts below prove the failed run rolled everything back, leaving neither output pending nor committed.
     assert len(saves_attempted) == 2
     for sensor_id in (report_sensor_id, report_sensor_2_id):
         sensor = fresh_db.session.get(Sensor, sensor_id)
