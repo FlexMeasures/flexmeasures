@@ -218,7 +218,7 @@ def user_has_admin_access(user, permission: str) -> bool:
 
 
 def _custom_role_grants_legacy_permission(
-    user, permission: str, parts: tuple[str, ...], explicit_roles: set[str]
+    user, permission: str, principals: tuple[str, ...], explicit_roles: set[str]
 ) -> bool:
     """Keep explicit custom-role grants on preexisting ACL permissions."""
     if permission not in LEGACY_ACL_PERMISSIONS:
@@ -227,8 +227,10 @@ def _custom_role_grants_legacy_permission(
     if not any(user.has_role(role) for role in custom_roles):
         return False
     # Check the whole tuple because the principal matcher short-circuits on this wildcard.
-    required_parts = tuple(part for part in parts if part != EVERY_LOGGED_IN_USER)
-    return user_matches_principals(user, required_parts)
+    required_principals = tuple(
+        principal for principal in principals if principal != EVERY_LOGGED_IN_USER
+    )
+    return user_matches_principals(user, required_principals)
 
 
 def user_has_scoped_permission(
@@ -239,17 +241,21 @@ def user_has_scoped_permission(
     for alternative in alternatives:
         if not alternative or not user_matches_principals(user, alternative):
             continue
-        parts = (alternative,) if isinstance(alternative, str) else alternative
+        alternative_principals = (
+            (alternative,) if isinstance(alternative, str) else alternative
+        )
         explicit_roles = {
-            part.removeprefix("role:") for part in parts if part.startswith("role:")
+            principal.removeprefix("role:")
+            for principal in alternative_principals
+            if principal.startswith("role:")
         }
         if explicit_roles:
             if _custom_role_grants_legacy_permission(
-                user, permission, parts, explicit_roles
+                user, permission, alternative_principals, explicit_roles
             ):
                 return True
             eligible_roles = explicit_roles
-        elif EVERY_LOGGED_IN_USER in parts:
+        elif EVERY_LOGGED_IN_USER in alternative_principals:
             eligible_roles = {role.name for role in user.roles}
         else:
             eligible_roles = {
