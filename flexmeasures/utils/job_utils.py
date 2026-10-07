@@ -112,6 +112,21 @@ def get_job_timeout(
         return _configured_default_job_timeout(config, logger)
 
 
+def job_result_ttl(queue_name: str) -> int:
+    """Return how long, in seconds, to keep the result of a job on the given queue.
+
+    Ingestion results are kept for FLEXMEASURES_JOB_TTL, as for ingestion jobs queued by the API;
+    results on the forecasting, scheduling and reporting queues are kept for FLEXMEASURES_PLANNING_TTL.
+    NB job.cleanup docs say that a negative number of seconds means persisting forever.
+    """
+    setting = (
+        "FLEXMEASURES_JOB_TTL"
+        if queue_name == "ingestion"
+        else "FLEXMEASURES_PLANNING_TTL"
+    )
+    return int(current_app.config.get(setting, timedelta(-1)).total_seconds())
+
+
 def work_on_rq(
     redis_queue: Queue,
     exc_handler=None,
