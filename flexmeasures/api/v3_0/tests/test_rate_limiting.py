@@ -480,7 +480,7 @@ def test_reset_rate_limit_leaves_other_accounts_alone(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_reset_rate_limit_can_reset_one_limit(
-    app, rate_limiting, requesting_user, without_plan
+    app, setup_roles_users, rate_limiting, requesting_user, without_plan
 ):
     """The --limit option resets only the limit it names."""
     rate_limiting.setitem(
@@ -536,7 +536,7 @@ def test_reset_rate_limit_resets_the_plans_limit(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_reset_rate_limit_skips_a_limit_the_account_is_exempt_from(
-    db, app, rate_limiting, requesting_user, without_plan
+    db, app, setup_roles_users, rate_limiting, requesting_user, without_plan
 ):
     """An account exempt from a limit has nothing to reset there, and hears so."""
     requesting_user.account.plan = Plan(
