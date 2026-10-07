@@ -381,6 +381,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             "read": read_access,
             "edit-assets": operate_access,
             "edit-flex-config": operate_access,
+            # On an asset, members may create sensors and delete sensors without data.
             "edit-sensors": operate_access,
             "annotate": operate_access,
             "manage-automations": operate_access,

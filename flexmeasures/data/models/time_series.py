@@ -194,6 +194,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             "trigger-schedules": post_data_access,
             "trigger-forecasts": post_data_access,
             "annotate": post_data_access,
+            # PATCH can change units and resolution, so field editing remains limited to account admins and consultants.
             "edit-sensors": manage_sensor_access,
             "delete-data": manage_sensor_access,
             # Compatibility for callers still checking broad CRUD permissions.
