@@ -111,7 +111,7 @@ def _drop_unchanged_beliefs_compared_to_db(
     Beliefs are compared whole: a probabilistic belief is unchanged only if every one of its cumulative probabilities has the same value,
     and if any of them changed, the whole belief is kept, not just the parts that changed.
 
-    Two cases are handled alike:
+    Three cases are handled:
 
     1. **Unchanged belief** — the belief right before it says the same, whether that belief is stored or arrives in the same save:
        the candidate is dropped to avoid cluttering the database with redundant history.
@@ -119,6 +119,8 @@ def _drop_unchanged_beliefs_compared_to_db(
        a stored belief counts as coming right before a new one at the same belief time,
        so the candidate is dropped, which prevents duplicate key violations when re-running forecasters or reporters with identical data.
        A different value at the same belief time is kept, leaving it to the caller to replace or refuse the stored one.
+    3. **Repeated row** — the same row occurs more than once in bdf, as when overlapping chunks are concatenated:
+       it is kept once, since its copies would otherwise fail the save on the unique constraint.
 
     Sources are compared by ID rather than by object identity:
     the candidates may have been deserialized from an RQ job queue (pickled in a different process),
@@ -133,7 +135,8 @@ def _drop_unchanged_beliefs_compared_to_db(
     )
     # One numbering of the rows, and of their sources, serves both the comparison and the selection at the end.
     rows = _belief_keys_per_row(bdf)
-    new = _beliefs_as_distributions(rows)
+    repeated = rows.duplicated().to_numpy()
+    new = _beliefs_as_distributions(rows[~repeated])
     if bdf_db is not None and not bdf_db.empty:
         stored = _beliefs_as_distributions(
             _belief_keys_per_row(bdf_db.convert_index_from_belief_horizon_to_time())
@@ -157,12 +160,12 @@ def _drop_unchanged_beliefs_compared_to_db(
     unchanged = sequence["distribution"] == previous
     kept = sequence[sequence["is_new"] & ~unchanged]
 
-    # Keep every row of each kept belief, selecting rows of the original frame so that its metadata stays intact.
+    # Keep every row of each kept belief, once, selecting rows of the original frame so that its metadata stays intact.
     belief_keys = ["event_start", "source_id", "belief_time"]
     is_kept = pd.MultiIndex.from_frame(rows[belief_keys]).isin(
         pd.MultiIndex.from_frame(kept[belief_keys])
     )
-    return bdf[is_kept]
+    return bdf[is_kept & ~repeated]
 
 
 def _source_keys(index: pd.MultiIndex) -> np.ndarray:
