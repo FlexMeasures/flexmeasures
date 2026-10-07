@@ -4,6 +4,7 @@ from typing import Any
 from datetime import timedelta
 
 from flask import current_app
+import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 
@@ -130,10 +131,12 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf = bdf.convert_index_from_belief_horizon_to_time().reorder_levels(
         CANONICAL_INDEX_ORDER
     )
-    new = _beliefs_as_distributions(bdf)
+    # One numbering of the rows, and of their sources, serves both the comparison and the selection at the end.
+    rows = _belief_keys_per_row(bdf)
+    new = _beliefs_as_distributions(rows)
     if bdf_db is not None and not bdf_db.empty:
         stored = _beliefs_as_distributions(
-            bdf_db.convert_index_from_belief_horizon_to_time()
+            _belief_keys_per_row(bdf_db.convert_index_from_belief_horizon_to_time())
         )
         # Only the events and sources being saved matter.
         stored = stored[
@@ -148,7 +151,7 @@ def _drop_unchanged_beliefs_compared_to_db(
     sequence = pd.concat(
         [stored.assign(is_new=False), new.assign(is_new=True)], ignore_index=True
     ).sort_values(["event_start", "source_id", "belief_time", "is_new"], kind="stable")
-    previous = sequence.groupby(["event_start", "source_id"], sort=False, dropna=False)[
+    previous = sequence.groupby(["event_start", "source_id"], sort=False)[
         "distribution"
     ].shift()
     unchanged = sequence["distribution"] == previous
@@ -156,32 +159,40 @@ def _drop_unchanged_beliefs_compared_to_db(
 
     # Keep every row of each kept belief, selecting rows of the original frame so that its metadata stays intact.
     belief_keys = ["event_start", "source_id", "belief_time"]
-    rows = pd.MultiIndex.from_frame(_belief_keys_per_row(bdf)[belief_keys])
-    return bdf[rows.isin(pd.MultiIndex.from_frame(kept[belief_keys]))]
+    is_kept = pd.MultiIndex.from_frame(rows[belief_keys]).isin(
+        pd.MultiIndex.from_frame(kept[belief_keys])
+    )
+    return bdf[is_kept]
 
 
-def _source_keys(sources: pd.Index) -> list[int]:
-    """The ID of each source, or a negative number unique to each source that has no ID yet.
+def _source_keys(index: pd.MultiIndex) -> np.ndarray:
+    """The ID of each row's source, or a negative number unique to each source that has no ID yet.
 
+    Each distinct source is looked up once, and its key is spread over its rows through the index's codes.
     A source that was not flushed yet has no ID, so it matches no stored belief,
     and two such sources in one save must not be taken for one and the same source.
     """
-    unsaved: dict[int, int] = {}
+    level = index.names.index("source")
     keys = []
-    for source in sources:
-        if source.id is not None:
-            keys.append(source.id)
+    unsaved = 0
+    for source in index.levels[level]:
+        if source.id is None:
+            unsaved += 1
+            keys.append(-unsaved)
         else:
-            keys.append(unsaved.setdefault(id(source), -1 - len(unsaved)))
-    return keys
+            keys.append(source.id)
+    return np.asarray(keys, dtype="int64")[index.codes[level]]
 
 
 def _belief_keys_per_row(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
-    """The event start, source key, belief time, cumulative probability and value of each row, in the frame's row order."""
+    """The event start, source key, belief time, cumulative probability and value of each row, in the frame's row order.
+
+    Expects a frame indexed by belief time.
+    """
     return pd.DataFrame(
         {
             "event_start": bdf.index.get_level_values("event_start"),
-            "source_id": _source_keys(bdf.index.get_level_values("source")),
+            "source_id": _source_keys(bdf.index),
             "belief_time": bdf.index.get_level_values("belief_time"),
             "cumulative_probability": bdf.index.get_level_values(
                 "cumulative_probability"
@@ -191,12 +202,12 @@ def _belief_keys_per_row(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
     )
 
 
-def _beliefs_as_distributions(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
+def _beliefs_as_distributions(rows: pd.DataFrame) -> pd.DataFrame:
     """One row per belief, holding its whole distribution as a tuple of (cumulative probability, value) pairs.
 
-    Expects a frame indexed by belief time.
+    Takes the rows of a frame as `_belief_keys_per_row` describes them.
     """
-    rows = _belief_keys_per_row(bdf).sort_values(
+    rows = rows.sort_values(
         ["event_start", "source_id", "belief_time", "cumulative_probability"]
     )
     belief_keys = ["event_start", "source_id", "belief_time"]
@@ -212,7 +223,7 @@ def _beliefs_as_distributions(bdf: tb.BeliefsDataFrame) -> pd.DataFrame:
         return rows[belief_keys + ["distribution"]].reset_index(drop=True)
     rows["pair"] = list(zip(rows["cumulative_probability"], values))
     return (
-        rows.groupby(belief_keys, sort=False, dropna=False)["pair"]
+        rows.groupby(belief_keys, sort=False)["pair"]
         .agg(tuple)
         .rename("distribution")
         .reset_index()
