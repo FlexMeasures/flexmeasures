@@ -4266,7 +4266,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
+        "description": "The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4289,6 +4289,52 @@
             "description": "Whether to also list the jobs of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "description": "One-based page number. Omit to return all jobs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "per-page",
+            "required": false,
+            "description": "Jobs per page when page is provided (default 10).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-by",
+            "required": false,
+            "description": "Sort paginated jobs by enqueue time or queue (default enqueued_at).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enqueued_at",
+                "queue"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-dir",
+            "required": false,
+            "description": "Sort direction for paginated jobs (default desc).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
             }
           }
         ],
@@ -6190,7 +6236,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2093,
@@ -6212,6 +6258,12 @@
                   "type": "integer"
                 },
                 {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
                   "$ref": "#/components/schemas/SensorReference"
                 }
               ]
@@ -6220,7 +6272,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2095,
@@ -6235,6 +6287,12 @@
                   "type": "integer"
                 },
                 {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
                   "$ref": "#/components/schemas/SensorReference"
                 }
               ]
@@ -6243,7 +6301,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2093,
@@ -6263,6 +6321,12 @@
               "oneOf": [
                 {
                   "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
                 },
                 {
                   "$ref": "#/components/schemas/SensorReference"

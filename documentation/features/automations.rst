@@ -15,6 +15,15 @@ Timing parameters are resolved on each run — for instance, the forecast or sch
 Creating an automation
 ----------------------
 
+In the UI, the *New automation* button on the asset's *Automations* page opens a form for a new automation on that asset.
+It asks for the same things as the CLI below: a name, the type, the recurrence and its timezone, the task's parameters, and either an existing data source to reuse or the data generator and its configuration.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_new.png
+    :align: center
+..    :scale: 40%
+
+|
+
 Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
 
 .. code-block:: bash
@@ -30,6 +39,13 @@ That data source is required while the automation exists, so it cannot be delete
 
 The API takes the same choice as the ``source`` field of `[POST] /assets/(id)/automations <../api/v3_0.html#post--api-v3_0-assets-id-automations>`_, which cannot be combined with ``data-generator`` or ``config``.
 In the UI, the asset's *Automations* page searches the data sources you may work with, by id, by name and by data generator class, and shows the configuration the picked one stores before you create the automation.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_source_search.png
+    :align: center
+..    :scale: 40%
+
+|
+
 A data source is yours to work with when it belongs to your organisation, or when an automation you may read already computes under it, which is how a source becomes yours before it has recorded anything.
 Those are the sources you may name, and the only ones whose stored configuration you are shown.
 Reading a data source is allowed more widely: one that has recorded data on a sensor you may read answers the question of what computed a number you can see.
@@ -272,7 +288,14 @@ This is useful to try out a new automation, to re-run one after fixing what made
 
     flexmeasures jobs run-automation --automation 4
 
-The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as the *Run now* button on the asset's *Automations* page.
+The same is available in the API, as `[POST] /assets/(id)/automations/(automation-id)/trigger <../api/v3_0.html#post--api-v3_0-assets-id-automations-automation-id-trigger>`_, and in the UI, as *Run now* in the automation's *Actions* menu on the asset's *Automations* page.
+That menu also lets you edit, copy, deactivate (or activate) and delete the automation.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_actions.png
+    :align: center
+..    :scale: 40%
+
+|
 
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
@@ -289,6 +312,12 @@ Turn *Include automations of sub-assets* off to see only the automations defined
 The API endpoint does the same, and takes ``include-child-assets=false`` to narrow the listing.
 Either way, only the assets you may read are included.
 
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_automations.png
+    :align: center
+..    :scale: 40%
+
+|
+
 The page shows how far off each automation's next scheduled run is, such as "in 6 minutes" or "tomorrow" (excluding any pending catch-up run).
 Hovering it gives the exact time, read on the automation's own timezone, together with the recurrence it follows.
 Created At reads on that same clock.
@@ -297,6 +326,16 @@ The page brings itself up to date once a minute, so runs and job counts appear w
 An automation's *Info* panel shows the sensors it reads from and writes to, linking to each sensor's page, and the data source it records under, together with the configuration that data source was created with.
 It also summarizes the automation's recent runs and their outcomes (see :ref:`automation_runs`).
 Conversely, a sensor's page lists the automations that write data to it.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_automation_info.png
+    :align: center
+..    :scale: 40%
+
+|
+
+Each row's *Actions* menu also offers *Copy*, which opens the creation form with that automation's type, recurrence, timezone and parameters filled in, and its data source already selected.
+It is a starting point for a variation on an existing automation, such as the same forecast on a different recurrence, rather than a command of its own: nothing is created until you submit the form, and you can change anything in it first.
+The copy is created inactive, so that it does not start running while you are still working on it, and it is named after the original with a ``(copy)`` suffix.
 
 .. _automation_cursor:
 

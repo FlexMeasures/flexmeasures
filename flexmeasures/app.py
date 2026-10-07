@@ -18,7 +18,7 @@ from flask_cors import CORS
 from redis import Redis
 from rq import Queue
 
-from flexmeasures.data.services.job_cache import JobCache
+from flexmeasures.data.services.job_map import JobMap
 from flexmeasures.utils.job_utils import get_job_timeout
 
 
@@ -135,7 +135,9 @@ def create(  # noqa C901
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )
-    app.job_cache = JobCache(app.redis_connection)
+    app.job_map = JobMap(app.redis_connection)
+    # Keep the old attribute name, for plugins that still register jobs through it.
+    app.job_cache = app.job_map
 
     # Some basic security measures
 

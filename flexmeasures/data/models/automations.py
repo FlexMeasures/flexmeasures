@@ -107,7 +107,11 @@ class Automation(db.Model, AuthModelMixin):
         "GenericAsset",
         foreign_keys=[asset_id],
         backref=db.backref(
-            "automations", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+            "automations",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+            order_by="Automation.id",
         ),
     )
     generator = db.relationship("DataSource", foreign_keys=[generator_id])
