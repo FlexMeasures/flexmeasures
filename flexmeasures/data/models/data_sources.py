@@ -435,7 +435,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "User",
         primaryjoin="DataSource.user_id == User.id",
         foreign_keys="[DataSource.user_id]",
-        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_source", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 
@@ -446,7 +448,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         "Account",
         primaryjoin="DataSource.account_id == Account.id",
         foreign_keys="[DataSource.account_id]",
-        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "data_sources", lazy=True, passive_deletes="all", order_by="DataSource.id"
+        ),
         passive_deletes="all",
     )
 

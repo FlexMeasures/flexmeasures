@@ -160,6 +160,9 @@ def run_forecast(
     log_start(
         f"Starting Train-Predict Pipeline to predict for {pipeline._parameters['predict_period_in_hours']} hours."
     )
+    # Resolve before anything reads the target or the regressors, so that the cycles,
+    # the queued payloads and the data source all see the same inputs.
+    pipeline._resolved_config = pipeline._resolve_inputs()
     connection = current_app.queues[queue].connection
     # How much to move forward to the next cycle one prediction period later
     cycle_frequency = max(
