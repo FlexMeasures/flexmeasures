@@ -108,7 +108,7 @@ def compute_and_save_report(
     :param parameters: the reporter parameters to compute with.
     :param persist: whether to save the computed results. Pass False for dry runs.
     :param permitted_output_sensor_ids: if given, every computed result must record on one of these sensors,
-        or a ReportWritesUncheckedSensor error is raised before anything is written.
+        or a ReportWritesUncheckedSensor error is raised before anything is written or returned, also when not persisting.
         Pass None where no such guard applies (e.g. the CLI).
     :param automation_id: named in the ReportWritesUncheckedSensor error, if raised.
     :returns: the computed results, and per result a summary of what was saved:
@@ -117,8 +117,7 @@ def compute_and_save_report(
     """
     results = reporter.compute(parameters=parameters)
     saved: list[dict] = []
-    if not persist:
-        return results, saved
+    # Judge the outputs before returning them, also on a dry run, so that no caller is handed results for unchecked sensors.
     if permitted_output_sensor_ids is not None:
         refused = sorted(
             {
@@ -133,6 +132,8 @@ def compute_and_save_report(
                 f" which are not among the sensors automation {automation_id}"
                 " was checked against when it was created."
             )
+    if not persist:
+        return results, saved
     with db.session.begin_nested():
         for result in results:
             _, n_saved = save_to_db_and_count(result["data"])
