@@ -73,9 +73,6 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     """
     if bdf.empty:
         return bdf
-    bdf = bdf.convert_index_from_belief_horizon_to_time().reorder_levels(
-        CANONICAL_INDEX_ORDER
-    )
     # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
@@ -158,7 +155,7 @@ def _drop_unchanged_beliefs_compared_to_db(
     # with a stored belief coming right before a new one at the same belief time.
     sequence = pd.concat(
         [stored.assign(is_new=False), new.assign(is_new=True)], ignore_index=True
-    ).sort_values(["event_start", "source_id", "belief_time", "is_new"], kind="stable")
+    ).sort_values(["event_start", "source_id", "belief_time", "is_new"])
     previous = sequence.groupby(["event_start", "source_id"], sort=False)[
         "distribution"
     ].shift()
