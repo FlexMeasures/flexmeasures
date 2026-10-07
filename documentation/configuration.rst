@@ -832,9 +832,20 @@ Default: ``None``
 FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run``, ``flexmeasures monitor last-seen`` and ``flexmeasures monitor automations`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+
+.. _monitor_automations_stuck_after:
+
+FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How long an automation run may execute before ``flexmeasures monitor automations`` reports it as stuck, for instance because the worker running its job died.
+Its ``--stuck-after-minutes`` option overrides this setting.
+
+Default: ``timedelta(hours=6)``
 
 
 .. _redis-config:

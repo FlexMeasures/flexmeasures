@@ -278,6 +278,31 @@ This is what an operator needs to tell a run which failed before queueing anythi
 Editing an automation's cron string or timezone, or reactivating it, counts up its schedule revision.
 Runs of the old and the new schedule therefore stay distinct, even when they fall on the same scheduled UTC time.
 
+.. _monitoring_automations:
+
+Monitoring automation runs
+--------------------------
+
+As a host, you can have FlexMeasures email you a digest of the automation runs that failed, by running ``flexmeasures monitor automations`` regularly, for instance every hour:
+
+.. code-block:: bash
+
+    0 * * * * flexmeasures monitor automations
+
+A run is reported when its execution failed, when it has been executing for longer than six hours, or when its dispatch failed and will not be attempted again.
+A forecast run therefore counts once its five dispatch attempts are used up, and a run of any other type after its first failed attempt.
+The six hours are set by :ref:`monitor_automations_stuck_after`, and ``--stuck-after-minutes`` overrides that setting.
+
+Each run is reported once, so if one monitoring run is missed, the next one still reports what failed in the meantime.
+Repeated failures of an automation are collapsed into one entry, saying how often it failed, when it last did and with which error.
+No email is sent when nothing failed.
+
+The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
+The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.
+
+.. note:: Until schedule, report and plugin runs record how their jobs ended, only forecast runs can be reported for a failed or stuck execution.
+          A failed dispatch is reported for every type.
+
 Running one automation on demand
 --------------------------------
 
