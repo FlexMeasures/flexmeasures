@@ -33,6 +33,9 @@ How the two limits count
   asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
   flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
 
+The trigger limit is counted per account: all users and assets of an account share one budget.
+A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
+
 .. _rate-limiting-plans:
 
 Managing plans
