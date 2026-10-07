@@ -1664,3 +1664,71 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     assert (
         production_values > 0
     ).any(), "Some discharging must occur given the positive production prices"
+
+
+def _forecast_beliefs(db, sensor_id: int) -> int:
+    """Count the forecasts recorded on the given sensor."""
+    return db.session.scalar(
+        select(func.count())
+        .select_from(TimedBelief)
+        .join(DataSource)
+        .filter(TimedBelief.sensor_id == sensor_id, DataSource.type == "forecaster")
+    )
+
+
+def test_rerunning_a_forecast_from_the_same_viewpoint_succeeds(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """Running the same forecast twice from an explicit start records it once, rather than failing on the unique constraint.
+
+    The second run computes the same beliefs at the same belief times,
+    which an automation window or a repeated API call with an explicit start also does.
+    """
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+    start = pd.Timestamp(server_now()).floor("h").isoformat()
+    runner = app.test_cli_runner()
+
+    first = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id, "from-date": start})
+    )
+    assert first.exit_code == 0, first.output
+    recorded = _forecast_beliefs(fresh_db, sensor_id)
+    assert recorded > 0
+
+    second = runner.invoke(
+        add_forecast, to_flags({"sensor": sensor_id, "from-date": start})
+    )
+    assert second.exit_code == 0, second.output
+    assert _forecast_beliefs(fresh_db, sensor_id) == recorded
+
+
+def test_a_forecast_that_confirms_the_previous_one_records_nothing_new(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """A new run that forecasts the same values adds no beliefs, while what was believed after it is still known.
+
+    Each run starts at its own moment, so the second is a new viewpoint;
+    a lookup of the most recent beliefs before that moment returns the first run's forecasts, which still hold.
+    """
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+
+    first = runner.invoke(add_forecast, to_flags({"sensor": sensor_id}))
+    assert first.exit_code == 0, first.output
+    recorded = _forecast_beliefs(fresh_db, sensor_id)
+    assert recorded > 0
+
+    second = runner.invoke(add_forecast, to_flags({"sensor": sensor_id}))
+    assert second.exit_code == 0, second.output
+    assert _forecast_beliefs(fresh_db, sensor_id) == recorded
+
+    sensor = fresh_db.session.get(Sensor, sensor_id)
+    still_known = sensor.search_beliefs(
+        beliefs_before=pd.Timestamp(server_now()) + pd.Timedelta(minutes=1),
+        source_types=["forecaster"],
+    )
+    assert len(still_known) == recorded
