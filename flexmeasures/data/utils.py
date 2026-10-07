@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
@@ -149,31 +150,43 @@ def get_data_source(
     data_source_model: str | None = None,
     data_source_version: str | None = None,
     data_source_type: str = "script",
+    account: Account | None = None,
 ) -> DataSource:
     """Make sure we have a data source. Create one if it doesn't exist, and add to session.
     Meant for scripts that may run for the first time.
+
+    The organisation is part of what identifies a source, as it is for `get_or_create_source`:
+    naming none asks for a source belonging to none, which is what a script the host runs for everyone records under.
+    Leaving it out of the lookup would both hand a script another organisation's source and,
+    where two organisations run the same script, find two sources where one was expected.
     """
 
-    data_source = db.session.execute(
-        select(DataSource).filter_by(
-            name=data_source_name,
-            model=data_source_model,
-            version=data_source_version,
-            type=data_source_type,
-        )
-    ).scalar_one_or_none()
+    # Imported here to avoid a circular import at module load time.
+    from flexmeasures.data.services.data_sources import add_and_flush_source
+
+    query = select(DataSource).filter_by(
+        name=data_source_name,
+        model=data_source_model,
+        version=data_source_version,
+        type=data_source_type,
+        account_id=account.id if account is not None else None,
+    )
+    data_source = db.session.execute(query).scalar_one_or_none()
     if data_source is None:
-        data_source = DataSource(
+        new_source = DataSource(
             name=data_source_name,
             model=data_source_model,
             version=data_source_version,
             type=data_source_type,
+            account=account,
         )
-        db.session.add(data_source)
-        db.session.flush()  # populate the primary key attributes (like id) without committing the transaction
-        current_app.logger.info(
-            f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
-        )
+        # This populates the primary key attributes (like id) without committing the transaction,
+        # or uses the source another transaction inserted concurrently.
+        data_source = add_and_flush_source(new_source, query)
+        if data_source is new_source:
+            current_app.logger.info(
+                f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
+            )
     return data_source
 
 

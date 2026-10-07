@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
+* Add ``flexmeasures jobs check-source-references`` to list waiting jobs that refer to a data source which no longer exists, or which the database upgrade to v1.1 will merge into an identical one. Run it before upgrading, so that you can wait for the jobs it lists or cancel them yourself, and again after. It is expected to be dropped again in v1.2, as from v1.1 the database refuses duplicate data sources.
 * Add ``flexmeasures show automations`` to list all automations, including inactive ones, with the IDs which the edit, delete and run commands expect, and ``flexmeasures show automations --id <id>`` to show one automation in detail: its recurrence in words, timezone, cursor, data generator, parameters and the sensors it reads from and writes to.
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
 * Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.

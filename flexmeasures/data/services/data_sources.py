@@ -3,13 +3,19 @@ from __future__ import annotations
 import logging
 
 from flask import current_app
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import ColumnElement
 from typing import Type, TypeVar
 
 from flexmeasures import Account, Source, User
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource, DataGenerator
+from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_IDENTITY_EXPRESSIONS,
+    DATA_SOURCE_UNIQUE_INDEX,
+    DataSource,
+    DataGenerator,
+)
 from flexmeasures.data.models.user import is_user
 from flask import current_app as app
 
@@ -54,14 +60,7 @@ def get_or_create_source(
         )
     else:
         raise TypeError("source should be of type User or str")
-    # Concurrent calls can each insert the same source, because the unique constraint treats NULL user and account IDs as distinct.
-    # Rather than failing on such duplicates, reuse the oldest one, so that later calls consistently pick the same source.
-    matches = db.session.scalars(query.order_by(DataSource.id).limit(2)).all()
-    _source = matches[0] if matches else None
-    if len(matches) > 1:
-        current_app.logger.warning(
-            f"Found duplicate data sources matching {_source} (IDs {[match.id for match in matches]}, and possibly more); using the oldest one (ID {_source.id})."
-        )
+    _source = db.session.execute(query).scalar_one_or_none()
     if not _source:
         if is_user(source):
             _source = DataSource(user=source, model=model, version=version)
@@ -77,11 +76,103 @@ def get_or_create_source(
                 account=account,
             )
         current_app.logger.info(f"Setting up {_source} as new data source...")
-        db.session.add(_source)
         if flush:
-            # assigns id so that we can reference the new object in the current db session
-            db.session.flush()
+            _source = add_and_flush_source(_source, query)
+        else:
+            db.session.add(_source)
     return _source
+
+
+def add_and_flush_source(source: DataSource, query) -> DataSource:
+    """Add and flush a new source, or return the identical source another transaction inserted since `query` looked for it.
+
+    :param source:  the new data source, not yet added to the session
+    :param query:   the lookup that found no such source, to fetch the one another transaction inserted in the meantime
+    """
+    # Flush anything else pending first, so that the savepoint below only concerns the new source.
+    db.session.flush()
+    try:
+        with db.session.begin_nested():
+            db.session.add(source)
+            # Assigns an id, so that we can reference the new object in the current db session.
+            db.session.flush()
+    except IntegrityError as exc:
+        if (
+            getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            != DATA_SOURCE_UNIQUE_INDEX
+        ):
+            raise
+        # Another transaction inserted the same source since we looked it up, so use that one.
+        winner = db.session.execute(query).scalar_one_or_none()
+        if winner is None:
+            # The index also counts NULL as equal to an empty string, which the lookup does not.
+            raise
+        return winner
+    return source
+
+
+# Keys holding a list of source IDs, such as the sources a sensor reference filters on.
+SOURCE_ID_LIST_KEYS = ("sources", "user_source_ids")
+# The key holding a single source ID, next to a "sensor" key (as in reporter inputs).
+SOURCE_ID_KEY = "source"
+
+
+def find_referenced_source_ids(value) -> set[int]:
+    """Find the data source IDs referred to in a JSON-like value, such as the arguments of a job.
+
+    Source IDs are recognised under the keys that hold them in sensor references and reporter inputs.
+    """
+    found: set[int] = set()
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            found |= find_referenced_source_ids(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if key in SOURCE_ID_LIST_KEYS and isinstance(item, list):
+                found |= {i for i in item if _is_id(i)}
+            elif key == SOURCE_ID_KEY and "sensor" in value and _is_id(item):
+                found.add(item)
+            else:
+                found |= find_referenced_source_ids(item)
+    return found
+
+
+def _is_id(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def find_duplicate_sources() -> dict[int, int]:
+    """Find data sources identical to another, as the unique index on data sources defines them.
+
+    Such duplicates can only exist in a database that predates that index, whose migration merges each group into one source.
+    Which one that is has to be decided the same way here, because this is what tells a host, before they upgrade,
+    which of their waiting jobs name a source that is about to go: the source that recorded most recently keeps its ID.
+    Recency is the belief time rather than the event a belief is about, since a generator mostly records about the future.
+    A host naming a source with `-x keep-source=<id>` turns one group around, which this cannot know about.
+
+    Kept in step with `SURVIVOR_RANKING` in migration 7c4e1a9d2b58, which cannot import from here.
+
+    :returns: the ID of each duplicate data source, mapped to the ID of the data source it will be merged into
+    """
+    duplicates = db.session.execute(text(f"""
+            WITH recorded AS (
+                SELECT ds.*,
+                       (SELECT max(tb.event_start - tb.belief_horizon)
+                          FROM timed_belief tb
+                         WHERE tb.source_id = ds.id) AS last_recorded
+                  FROM data_source ds
+            )
+            SELECT duplicate, keep FROM (
+                SELECT id AS duplicate,
+                       first_value(id) OVER (
+                           PARTITION BY {', '.join(DATA_SOURCE_IDENTITY_EXPRESSIONS)}
+                           ORDER BY last_recorded DESC NULLS LAST, id ASC
+                       ) AS keep
+                FROM recorded
+            ) AS grouped
+            WHERE duplicate <> keep
+            """)).all()
+    return dict(duplicates)
 
 
 def get_source_or_none(

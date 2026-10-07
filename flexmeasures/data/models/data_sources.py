@@ -5,7 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -413,13 +413,33 @@ class SensorDataSource(db.Model):
         return f"<SensorDataSource sensor={self.sensor_id} source={self.source_id}>"
 
 
+# The unique index that refuses identical data sources.
+DATA_SOURCE_UNIQUE_INDEX = "data_source_identity_idx"
+# What identifies a data source.
+# A unique constraint on these columns would treat NULLs as distinct, and so never refuse a second identical source without a user or account.
+# PostgreSQL can be told otherwise, with NULLS NOT DISTINCT, but only from version 15, which FlexMeasures does not require.
+# Indexing expressions that replace NULLs needs no such minimum: it makes NULLs count as equal whatever the version,
+# where they also count as equal to an empty string (or to -1, or to an empty hash).
+DATA_SOURCE_IDENTITY_EXPRESSIONS = (
+    "name",
+    "coalesce(type, '')",
+    "coalesce(user_id, -1)",
+    "coalesce(account_id, -1)",
+    "coalesce(model, '')",
+    "coalesce(version, '')",
+    "coalesce(attributes_hash, '\\x'::bytea)",
+)
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint(
-            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        db.Index(
+            DATA_SOURCE_UNIQUE_INDEX,
+            *(text(expression) for expression in DATA_SOURCE_IDENTITY_EXPRESSIONS),
+            unique=True,
         ),
     )
 
