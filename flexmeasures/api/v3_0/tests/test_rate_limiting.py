@@ -2,6 +2,7 @@ from flask import url_for
 import pytest
 
 from flexmeasures.api.common.rate_limiting import limiter
+from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -91,6 +92,51 @@ def test_default_rate_limit(app, rate_limiting, requesting_user):
     assert response.json["status"] == "TOO_MANY_REQUESTS"
     assert "2 per 1 minute" in response.json["message"]
     assert "Retry-After" in response.headers
+
+
+def list_sensors_as(app, auth_token: str):
+    """List sensors as the user the token belongs to, like a separate API client would.
+
+    Each request gets an app context and a client of its own.
+    The tests run inside one app context, whose ``g`` would otherwise hand the user loaded by one request to the next,
+    and a session cookie would do the same, so that the limiter would count each request against the previous request's user.
+    """
+    path = url_for("SensorAPI:index")
+    with app.app_context(), app.test_client() as client:
+        return client.get(path, headers={"Authorization": auth_token})
+
+
+@pytest.mark.parametrize(
+    "other_user_email, expected_status_code_for_other_user",
+    [
+        # Users of the same account share one budget ...
+        ("test_prosumer_user_2@seita.nl", 429),
+        # ... while users of another account have a budget of their own
+        ("test_dummy_user_3@seita.nl", 200),
+    ],
+)
+def test_default_rate_limit_is_counted_per_account(
+    app,
+    setup_roles_users,
+    rate_limiting,
+    other_user_email,
+    expected_status_code_for_other_user,
+):
+    """The default limit is one budget per account, which is what the account's plan sets."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "2 per minute"
+    )
+    with app.test_client() as client:
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        other_auth_token = get_auth_token(client, other_user_email, "testtest")
+    limiter.reset()  # start counting afresh, so that logging in spent nothing
+
+    for _ in range(2):
+        assert list_sensors_as(app, auth_token).status_code == 200
+    assert list_sensors_as(app, auth_token).status_code == 429
+    response = list_sensors_as(app, other_auth_token)
+
+    assert response.status_code == expected_status_code_for_other_user
 
 
 @pytest.mark.parametrize(

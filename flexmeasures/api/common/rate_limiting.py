@@ -16,6 +16,8 @@ The two limits count differently. The default limit counts every request, includ
 triggers we accepted, because it exists to protect the expensive computation which those set in motion:
 a client whose payload we rejected did not cost us a schedule, and should not pay for one.
 
+The default limit is counted per account, so that all users and API clients of an account share one budget (set in the account's plan).
+A user of a consultancy account counts against the consultancy's account, also when acting on a client account's assets.
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
 
 Neither limit applies on a play server (``FLEXMEASURES_MODE`` is "play"), which is the mode for running
@@ -81,9 +83,14 @@ def _is_play_mode() -> bool:
 
 
 def default_key_func() -> str:
-    """Count requests against the user, or against the IP address if unauthenticated."""
+    """Count requests against the user's account, or against the IP address if unauthenticated.
+
+    All users and API clients of an account share one budget, which is what the account's plan sets.
+    A consultant counts against their own account, also when acting on a client account's assets,
+    because it is the consultancy's integration which makes the requests.
+    """
     if current_user.is_authenticated:
-        return f"user:{current_user.id}"
+        return f"account:{current_user.account_id}"
     return get_remote_address()
 
 
