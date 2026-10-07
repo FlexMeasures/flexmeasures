@@ -232,3 +232,34 @@ def test_prediction_run_preserves_saving_export_and_cleanup(
     assert result.sources[0].id is not None
     assert pd.read_csv(output_path)["event_value"].tolist() == [12.5]
     assert not model_path.exists()
+
+
+def test_saving_a_forecast_that_computed_nothing_says_so(
+    fresh_db, setup_fresh_test_forecast_data, monkeypatch
+):
+    """A cycle that computed no beliefs has to say so, because silence reads like a cycle that never ran.
+
+    The dry run already reports an empty forecast, through `_log_forecast_dry_run`,
+    so the saving path should not be the quiet one of the two.
+    """
+    from flexmeasures.data.services import forecasting as forecasting_service
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    messages = []
+    monkeypatch.setattr(
+        forecasting_service.logging,
+        "info",
+        lambda message, *args: messages.append(message % args),
+    )
+    beliefs_before = fresh_db.session.scalar(
+        select(func.count()).select_from(TimedBelief)
+    )
+
+    forecasting_service.save_forecast(BeliefsDataFrame(sensor=sensor))
+
+    assert beliefs_before == fresh_db.session.scalar(
+        select(func.count()).select_from(TimedBelief)
+    ), "an empty forecast records nothing"
+    assert any(
+        "computed none" in message for message in messages
+    ), f"the empty cycle said nothing: {messages}"

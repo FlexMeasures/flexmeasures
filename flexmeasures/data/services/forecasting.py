@@ -88,6 +88,13 @@ def save_forecast(bdf: BeliefsDataFrame) -> None:
     from flexmeasures.data.models.forecasting.utils import refresh_data_source
 
     if bdf.empty:
+        # Say so, because a cycle that computed nothing and a cycle that never ran look the same in a silent log.
+        # The dry run says it too, through `_log_forecast_dry_run`.
+        logging.info(
+            "Saving no predictions to DB: this cycle computed none for sensor: %s, sensor_id: %s.",
+            bdf.sensor,
+            bdf.sensor.id,
+        )
         return
     sources = [
         refresh_data_source(source)
