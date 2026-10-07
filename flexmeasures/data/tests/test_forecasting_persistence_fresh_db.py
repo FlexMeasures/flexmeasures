@@ -331,3 +331,57 @@ def test_a_forecast_repeating_the_one_before_is_not_saved_again_unless_asked(
         )
         == 4
     )
+
+
+def test_a_forecast_save_logs_what_it_left_out_only_when_it_left_something_out(
+    fresh_db, setup_fresh_test_forecast_data, monkeypatch
+):
+    """The log of a forecast save mentions beliefs left out only when some were, and does not claim they all repeat stored ones.
+
+    A first run saves everything, and a belief without a value is left out without repeating anything.
+    """
+    import numpy as np
+    import timely_beliefs as tb
+
+    from flexmeasures.data.services import forecasting as forecasting_service
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = DataSource(name="test forecaster", type="forecaster")
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+    messages = []
+    monkeypatch.setattr(
+        forecasting_service.logging,
+        "info",
+        lambda message, *args: messages.append(message % args),
+    )
+
+    def forecast(belief_time: str, values: list) -> BeliefsDataFrame:
+        return BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2025-01-09T00:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp(belief_time),
+                    event_value=value,
+                )
+                for i, value in enumerate(values)
+            ]
+        )
+
+    forecasting_service.save_forecast(
+        forecast("2025-01-08T00:00:00+00:00", [1.0, 2.0, 3.0])
+    )
+    assert "Saved 3 predictions" in messages[-1]
+    # Nothing was left out, so nothing may be said to repeat what is on record.
+    assert "leaving out" not in messages[-1], messages[-1]
+    assert "repeat" not in messages[-1], messages[-1]
+
+    forecasting_service.save_forecast(
+        forecast("2025-01-08T06:00:00+00:00", [1.0, 5.0, np.nan])
+    )
+    assert "Saved 1 prediction" in messages[-1]
+    assert "leaving out 2" in messages[-1], messages[-1]
+    assert "repeat beliefs already on record or have no value" in messages[-1]
