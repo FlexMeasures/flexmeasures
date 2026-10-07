@@ -2456,6 +2456,8 @@ def add_report(  # noqa: C901
 
     # compute the report (and save it, unless running in dry mode)
     results, _ = compute_and_save_report(reporter, parameters, persist=not dry_run)
+    if not dry_run:
+        db.session.commit()
 
     for result in results:
         data = result["data"]

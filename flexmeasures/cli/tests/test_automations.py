@@ -2221,6 +2221,52 @@ def test_a_rerun_report_job_counts_what_it_saved_and_says_why_it_saved_nothing(
     ), warning.call_args_list
 
 
+def test_a_report_is_saved_but_left_for_its_caller_to_commit(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """Saving a report stages its results without committing them, so that a report can be part of a larger transaction."""
+    import pandas as pd
+    import timely_beliefs as tb
+    from sqlalchemy import func
+
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+    from flexmeasures.data.services.data_sources import get_or_create_source
+    from flexmeasures.data.services.reporting import compute_and_save_report
+
+    sensor = fresh_db.session.get(Sensor, setup_dummy_data_fresh_db[2])
+    source = get_or_create_source("stub reporter", source_type="reporter")
+    fresh_db.session.commit()
+
+    def count_beliefs() -> int:
+        return fresh_db.session.scalar(
+            select(func.count()).select_from(TimedBelief).filter_by(sensor_id=sensor.id)
+        )
+
+    class StubReporter:
+        def compute(self, parameters=None):
+            beliefs = [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2023-05-01T00:00:00+00:00")
+                    + index * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2023-04-30T00:00:00+00:00"),
+                    event_value=float(index),
+                )
+                for index in range(3)
+            ]
+            return [{"sensor": sensor, "data": tb.BeliefsDataFrame(beliefs)}]
+
+    beliefs_before = count_beliefs()
+    _, saved = compute_and_save_report(StubReporter(), {}, persist=True)
+    assert saved == [{"sensor_id": sensor.id, "n_rows": 3}]
+    assert count_beliefs() == beliefs_before + 3, "the results are staged"
+
+    # A caller that decides against its transaction takes the report down with it.
+    fresh_db.session.rollback()
+    assert count_beliefs() == beliefs_before
+
+
 def test_run_automations(
     app, fresh_db, setup_dummy_data_fresh_db, clean_redis, freeze_server_now
 ):

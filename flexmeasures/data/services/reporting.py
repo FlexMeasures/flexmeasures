@@ -100,9 +100,9 @@ def compute_and_save_report(
     This is the single place where report computation and persistence meet, shared by the synchronous CLI and the background worker.
     With persist=False (dry runs), results are computed but nothing is written.
 
-    Transaction ownership: this function owns its transaction.
-    On success it commits once after saving all results, so the CLI and the worker share atomic persistence;
-    on any save or commit failure it rolls back and re-raises.
+    Committing is left to the caller, as it is for ``save_to_db``, so that a report can be part of a larger transaction.
+    The results are saved within a savepoint, so a report that fails halfway leaves none of its results staged:
+    the savepoint is rolled back and the original error is raised, while whatever the caller staged before stays as it was.
 
     :param reporter: the reporter computing the report.
     :param parameters: the reporter parameters to compute with.
@@ -133,16 +133,10 @@ def compute_and_save_report(
                 f" which are not among the sensors automation {automation_id}"
                 " was checked against when it was created."
             )
-    try:
+    with db.session.begin_nested():
         for result in results:
             _, n_saved = save_to_db_and_count(result["data"])
             saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
-        db.session.commit()
-    except Exception:
-        # Leave nothing half-saved behind: the caller sees the original error
-        # with the session rolled back to before this report ran.
-        db.session.rollback()
-        raise
     return results, saved
 
 
@@ -184,6 +178,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         permitted_output_sensor_ids=permitted_output_sensor_ids,
         automation_id=automation_id,
     )
+    db.session.commit()
 
     summary = ", ".join(
         f"{result['n_rows']} values on sensor {result['sensor_id']}" for result in saved
