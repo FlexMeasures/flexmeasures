@@ -2079,6 +2079,38 @@ def test_empty_permitted_output_set_rejects_everything_before_any_save(
     save.assert_not_called()
 
 
+def test_a_dry_run_refuses_unchecked_outputs_too(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """A dry run with a permitted-output set refuses results for other sensors, rather than handing them back.
+
+    Nothing is saved on a dry run, but a preview on the automation or API path would otherwise show results for unchecked sensors.
+    """
+    import timely_beliefs as tb
+
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.services.reporting import (
+        ReportWritesUncheckedSensor,
+        compute_and_save_report,
+    )
+
+    sensor1_id, *_ = setup_dummy_data_fresh_db
+    sensor = fresh_db.session.get(Sensor, sensor1_id)
+
+    class StubReporter:
+        def compute(self, parameters=None):
+            return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
+
+    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+        compute_and_save_report(
+            StubReporter(),
+            {},
+            persist=False,
+            permitted_output_sensor_ids=set(),
+            automation_id=7,
+        )
+
+
 def test_none_permitted_output_set_disables_output_guard(
     app, fresh_db, setup_dummy_data_fresh_db, mocker
 ):

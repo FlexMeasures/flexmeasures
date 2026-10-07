@@ -1227,6 +1227,31 @@ def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
 
 
+def test_add_report_says_when_a_rerun_saves_nothing_new(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A report run again over the same window says it saved nothing new, rather than claiming to have saved it again.
+
+    Its values repeat the beliefs already on record, so none of them are saved a second time.
+    """
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+    cli_input = to_flags(
+        _report_cli_input(tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id)
+    )
+
+    check_command_ran_without_error(runner.invoke(add_report, cli_input))
+    recorded = _count_beliefs(fresh_db, report_sensor_id)
+    rerun = runner.invoke(add_report, cli_input)
+
+    check_command_ran_without_error(rerun)
+    assert "repeats beliefs already on record, so nothing new was saved" in rerun.output
+    assert "Success. Saved" not in rerun.output
+    assert _count_beliefs(fresh_db, report_sensor_id) == recorded
+
+
 def test_add_report_dry_run_saves_no_beliefs(
     app, fresh_db, setup_dummy_data_fresh_db, tmp_path
 ):
