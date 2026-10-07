@@ -8,6 +8,9 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
+# Permissions that custom-role ACLs could grant before role grants were introduced.
+LEGACY_ACL_PERMISSIONS = frozenset({"read", "create-children", "update", "delete"})
+
 PERMISSIONS = frozenset(
     {
         "read",
@@ -216,10 +219,24 @@ def user_has_admin_access(user, permission: str) -> bool:
     return False
 
 
+def _custom_role_grants_legacy_permission(
+    user, permission: str, parts: tuple[str, ...], explicit_roles: set[str]
+) -> bool:
+    """Keep explicit custom-role grants on preexisting ACL permissions."""
+    if permission not in LEGACY_ACL_PERMISSIONS:
+        return False
+    custom_roles = explicit_roles - ROLE_PERMISSION_GRANTS.keys()
+    if not any(user.has_role(role) for role in custom_roles):
+        return False
+    # Check the whole tuple because the principal matcher short-circuits on this wildcard.
+    required_parts = tuple(part for part in parts if part != EVERY_LOGGED_IN_USER)
+    return user_matches_principals(user, required_parts)
+
+
 def user_has_scoped_permission(
     user, permission: str, principals: PRINCIPALS_TYPE
 ) -> bool:
-    """Require a role grant in the scope of the matching ACL alternative."""
+    """Require a scoped role grant or an explicit legacy custom-role ACL grant."""
     alternatives = principals if isinstance(principals, list) else [principals]
     for alternative in alternatives:
         if not alternative or not user_matches_principals(user, alternative):
@@ -229,6 +246,10 @@ def user_has_scoped_permission(
             part.removeprefix("role:") for part in parts if part.startswith("role:")
         }
         if explicit_roles:
+            if _custom_role_grants_legacy_permission(
+                user, permission, parts, explicit_roles
+            ):
+                return True
             eligible_roles = explicit_roles
         elif EVERY_LOGGED_IN_USER in parts:
             eligible_roles = {role.name for role in user.roles}

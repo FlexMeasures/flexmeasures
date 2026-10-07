@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from flexmeasures.auth import policy
 from flexmeasures.auth.policy import (
     ACCOUNT_ADMIN_ROLE,
     ADMIN_READER_ROLE,
@@ -14,6 +15,8 @@ from flexmeasures.auth.policy import (
     ACCOUNT_DATA_INTEGRATOR_ROLE,
     ACCOUNT_MEMBER_ROLE,
     ACCOUNT_READER_ROLE,
+    AuthModelMixin,
+    check_access,
     user_has_scoped_permission,
 )
 from flexmeasures.data.models.user import Role
@@ -92,6 +95,55 @@ def test_read_only_role_can_match_read_acl_but_not_mutation_acl():
     assert not user_has_scoped_permission(user, "edit-assets", "account:10")
     assert not user_has_scoped_permission(user, "post-data", "account:10")
     assert "reset-password" not in Role(name=ACCOUNT_READER_ROLE).permissions
+
+
+@pytest.mark.parametrize("permission", ("read", "create-children", "update", "delete"))
+def test_explicit_custom_role_preserves_legacy_acl_grants(permission, app, monkeypatch):
+    user = ScopedUser([("plugin-operator", Role(name="plugin-operator").permissions)])
+    user.is_anonymous = False
+    monkeypatch.setattr(policy, "current_user", user)
+
+    class PluginResource(AuthModelMixin):
+        def __acl__(self):
+            return {permission: ("account:10", "role:plugin-operator")}
+
+    with app.app_context():
+        assert check_access(PluginResource(), permission) is None
+
+
+def test_custom_role_grant_requires_explicit_role_and_matching_scope():
+    user = ScopedUser([("plugin-operator", Role(name="plugin-operator").permissions)])
+
+    assert user_has_scoped_permission(user, "read", "role:plugin-operator")
+    assert not user_has_scoped_permission(user, "update", "account:10")
+    assert not user_has_scoped_permission(
+        user, "update", ("account:20", "role:plugin-operator")
+    )
+    assert not user_has_scoped_permission(user, "update", ("account:10", "role:other"))
+    assert not user_has_scoped_permission(
+        user,
+        "update",
+        ("every-logged-in-user", "account:20", "role:plugin-operator"),
+    )
+    assert not user_has_scoped_permission(
+        user, "update", ("every-logged-in-user", "account:10", "role:other")
+    )
+
+
+def test_custom_role_does_not_grant_new_permissions_or_bypass_builtin_grants():
+    plugin_user = ScopedUser(
+        [("plugin-operator", Role(name="plugin-operator").permissions)]
+    )
+    reader = ScopedUser(
+        [(ACCOUNT_READER_ROLE, Role(name=ACCOUNT_READER_ROLE).permissions)]
+    )
+
+    assert not user_has_scoped_permission(
+        plugin_user, "edit-assets", ("account:10", "role:plugin-operator")
+    )
+    assert not user_has_scoped_permission(
+        reader, "update", ("account:10", f"role:{ACCOUNT_READER_ROLE}")
+    )
 
 
 def test_new_permission_is_not_granted_to_existing_roles(monkeypatch):
