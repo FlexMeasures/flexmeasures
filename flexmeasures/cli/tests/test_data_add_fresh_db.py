@@ -18,7 +18,7 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import Account, Plan, RateLimitKey
+from flexmeasures.data.models.user import Account, Plan
 
 from flexmeasures.cli.tests.utils import (
     check_command_ran_without_error,
@@ -71,7 +71,6 @@ def test_add_plan(app, fresh_db):
     cli_input = {
         "name": "Pro",
         "trigger-rate-limit": "60 per 5 minutes",
-        "rate-limit-key": "account",
         "max-assets": 200,
     }
     runner = app.test_cli_runner()
@@ -82,7 +81,6 @@ def test_add_plan(app, fresh_db):
 
     plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
     assert plan.trigger_rate_limit == "60 per 5 minutes"
-    assert plan.rate_limit_key == RateLimitKey.ACCOUNT
     assert plan.max_assets == 200
     # Fields we did not set fall back on the server-wide config settings
     assert plan.default_rate_limit is None

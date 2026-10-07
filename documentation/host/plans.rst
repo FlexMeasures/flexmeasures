@@ -49,7 +49,7 @@ Create a plan with ``flexmeasures add plan``:
 
 .. code-block:: bash
 
-    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes" --rate-limit-key account
+    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes"
 
 List the plans you created, with the limits each of them sets, using ``flexmeasures show plans``:
 
@@ -57,7 +57,7 @@ List the plans you created, with the limits each of them sets, using ``flexmeasu
 
     $ flexmeasures show plans
 
-A plan's ``default_rate_limit``, ``trigger_rate_limit`` and ``rate_limit_key`` override the server-wide settings
+A plan's ``default_rate_limit`` and ``trigger_rate_limit`` override the server-wide settings
 for the accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account
 on a plan which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the
 value ``"unlimited"`` to exempt an account from a limit altogether.
@@ -106,6 +106,7 @@ Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``, the 
 accounts a consultancy account may manage). These are not enforced yet, which is why ``flexmeasures show plans``
 leaves them out for now.
 
-.. note:: Changing an account's ``rate_limit_key`` orphans the counters it has in Redis (the old keys simply expire),
-          so the account may get a fresh budget for the remainder of the current window. Harmless, but worth knowing
-          when you wonder why a plan change handed someone a clean slate.
+.. note:: Changing an account's limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
+          because the limit's amount is part of their key (the old keys simply expire).
+          So the account may get a fresh budget for the remainder of the current window.
+          Harmless, but worth knowing when you wonder why a plan change handed someone a clean slate.

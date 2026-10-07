@@ -70,7 +70,6 @@ from flexmeasures.data.models.user import (
     Account,
     AccountRole,
     Plan,
-    RateLimitKey,
     RolesAccounts,
 )
 from flexmeasures.data.models.time_series import (
@@ -242,12 +241,6 @@ def new_account_role(name: str, description: str):
     " Defaults to the FLEXMEASURES_API_TRIGGER_RATE_LIMIT setting. Pass 'unlimited' to exempt them.",
 )
 @click.option(
-    "--rate-limit-key",
-    type=click.Choice([key.value for key in RateLimitKey]),
-    help="What the trigger rate limit is counted against."
-    " Defaults to the FLEXMEASURES_API_RATE_LIMIT_KEY setting.",
-)
-@click.option(
     "--max-users",
     type=int,
     help="How many users an account on this plan may have (not enforced yet).",
@@ -266,7 +259,6 @@ def new_plan(
     name: str,
     default_rate_limit: str | None,
     trigger_rate_limit: str | None,
-    rate_limit_key: str | None,
     max_users: int | None,
     max_assets: int | None,
     max_clients: int | None,
@@ -286,7 +278,6 @@ def new_plan(
         name=name,
         default_rate_limit=default_rate_limit,
         trigger_rate_limit=trigger_rate_limit,
-        rate_limit_key=RateLimitKey(rate_limit_key) if rate_limit_key else None,
         max_users=max_users,
         max_assets=max_assets,
         max_clients=max_clients,
