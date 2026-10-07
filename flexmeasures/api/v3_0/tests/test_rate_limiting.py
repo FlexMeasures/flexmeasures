@@ -1,3 +1,5 @@
+import logging
+
 from flask import url_for
 import pytest
 
@@ -479,3 +481,128 @@ def test_trigger_limited_views_are_registered():
         "SensorAPI.trigger_schedule",
         "SensorAPI.trigger_forecast",
     } <= TRIGGER_LIMITED_VIEWS
+
+
+def refusal_logs(caplog) -> list[str]:
+    """The warnings we logged for requests refused by a rate limit."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+        and record.getMessage().startswith("Refused a request for hitting")
+    ]
+
+
+@pytest.mark.parametrize("through_deprecated_sensor_endpoint", [False, True])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_hitting_the_trigger_rate_limit_is_logged(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    caplog,
+    through_deprecated_sensor_endpoint,
+):
+    """A host can tell from the logs who spent an account's trigger budget, on which asset and endpoint.
+
+    The deprecated sensor endpoint names a sensor rather than an asset, and we still log the asset.
+    """
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    battery = add_battery_assets["Test battery"]
+
+    with app.test_client() as client:
+        assert trigger(client, battery).status_code == 202  # spends the budget
+        if through_deprecated_sensor_endpoint:
+            response = trigger_through_deprecated_sensor_endpoint(
+                client, battery.sensors[0]
+            )
+            endpoint = "SensorAPI:trigger_schedule"
+            path = url_for(endpoint, id=battery.sensors[0].id)
+        else:
+            response = trigger(client, battery)
+            endpoint = "AssetAPI:trigger_schedule"
+            path = url_for(endpoint, id=battery.id)
+
+    assert response.status_code == 429
+    assert refusal_logs(caplog) == [
+        f"Refused a request for hitting the trigger rate limit (1 per 5 minute): "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, asset {battery.id}, "
+        f"POST {path} ({endpoint})."
+    ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_hitting_the_default_rate_limit_is_logged(
+    app, rate_limiting, requesting_user, caplog
+):
+    """The default limit spans the whole API, so we log the endpoint, but no asset."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert refusal_logs(caplog) == [
+        f"Refused a request for hitting the default rate limit (1 per 1 minute): "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, "
+        f"GET {url_for('SensorAPI:index')} (SensorAPI:index)."
+    ]
+
+
+def test_hitting_the_default_rate_limit_unauthenticated_is_logged(
+    app, rate_limiting, caplog
+):
+    """Without a user to attribute a request to, we log the IP address it was counted against."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    with app.test_client() as client:
+        client.get(url_for("SensorAPI:index"))
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert refusal_logs(caplog) == [
+        "Refused a request for hitting the default rate limit (1 per 1 minute): "
+        f"unauthenticated caller 127.0.0.1, GET {url_for('SensorAPI:index')} (SensorAPI:index)."
+    ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_counted_triggers_are_logged_at_debug_level(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    caplog,
+):
+    """Each trigger which spends budget is logged at debug level, and a trigger we refuse is not."""
+    battery = add_battery_assets["Test battery"]
+
+    with caplog.at_level(logging.DEBUG, logger=app.logger.name):
+        with app.test_client() as client:
+            assert trigger(client, battery, message={}).status_code == 422
+            assert trigger(client, battery).status_code == 202
+
+    counted = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.DEBUG
+        and record.getMessage().startswith("Counted a trigger")
+    ]
+    assert counted == [
+        f"Counted a trigger against the trigger rate limit: "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, asset {battery.id}, "
+        f"POST {url_for('AssetAPI:trigger_schedule', id=battery.id)} (AssetAPI:trigger_schedule)."
+    ]
