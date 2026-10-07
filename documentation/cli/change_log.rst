@@ -19,6 +19,7 @@ since v1.1.0 | September XX, 2026
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
 * ``flexmeasures jobs run-automations`` now records a durable run for each scheduled run it claims, and retries the forecast runs whose queueing did not finish. A run which failed before queueing anything is dispatched again in full, and one which queued only part of its jobs resumes from its stored plan, reusing the job IDs it already queued. Each attempt is recorded with its owner, outcome and error, and the command reports the run and attempt it is working on. A run is only picked up by another runner once the claim lease of the runner holding it has expired, which is how a runner that died mid-queueing hands its work over.
 * ``flexmeasures edit automation`` now counts up the automation's schedule revision whenever it rebases the cursor (on a changed cron string or timezone, or on reactivation), which keeps the durable runs of the old and the new schedule apart, even at the same scheduled UTC time.
+* Consolidate report computation and persistence behind one shared reporting-service function used by both ``flexmeasures add report`` and the reporting worker, so dry runs and multi-sensor reports behave identically on both paths; automation output permission checks keep guarding worker persistence before anything is written.
 
 since v1.0.1 | September 9, 2026
 =================================
