@@ -25,19 +25,18 @@ The settings themselves are documented under :ref:`rate-limiting-config`.
 How the two limits count
 -------------------------
 
-- The **default limit** counts *every* request, including the ones we refuse. The limiter runs before
-  authentication, so requests without valid credentials are counted, too (per IP address, as there is no account
-  to count them against). This is what bounds a client who keeps sending requests we refuse.
-- The **trigger limit** only counts triggers we *accepted*. It exists to protect the expensive computation which
-  a trigger sets in motion, and a request we rejected ― because its payload did not validate, or because the
-  asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
-  flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+- The **default limit** counts *every* request, including the ones we refuse.
+  The limiter runs before authentication, so requests without valid credentials are counted, too (per IP address, as there is no account to count them against).
+  This is what bounds a client who keeps sending requests we refuse.
+- The **trigger limit** only counts triggers we *accepted*.
+  It exists to protect the expensive computation which a trigger sets in motion,
+  and a request we rejected ― because its payload did not validate, or because the asset belongs to someone else ― cost us no computation.
+  In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
 
-The default limit is counted per account: all users and API clients of an account share one budget, which is the
-budget the account's plan sets. What the trigger limit is counted against is up to you (see
-``FLEXMEASURES_API_RATE_LIMIT_KEY`` under :ref:`rate-limiting-config`), and is the account by default. A user of a
-consultancy account counts against the consultancy's own account, also when acting on a client account's assets, as
-it is the consultancy's integration which makes those requests.
+The default limit is counted per account: all users and API clients of an account share one budget, which is the budget the account's plan sets.
+That includes the UI, which fetches the data it shows from the API, so someone browsing the UI spends from the same budget as the account's integrations.
+A user of a consultancy account counts against the consultancy's own account, also when acting on a client account's assets,
+as it is the consultancy's integration which makes those requests.
 
 .. _rate-limiting-plans:
 
