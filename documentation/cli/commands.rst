@@ -73,6 +73,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
 ``flexmeasures edit plan``                        Edit a plan's name, rate limits and quotas, or retire it.
+``flexmeasures edit reset-rate-limit``            Reset an account's rate limits, so that its requests are accepted again straight away.
 ``flexmeasures edit secret``                      Edit (or add) an encrypted secret on an account or asset.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
