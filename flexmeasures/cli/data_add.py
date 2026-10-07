@@ -63,7 +63,10 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
-from flexmeasures.data.services.reporting import compute_and_save_report
+from flexmeasures.data.services.reporting import (
+    compute_and_save_report,
+    count_persistable_values,
+)
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.data.services.users import create_user
@@ -2455,11 +2458,11 @@ def add_report(  # noqa: C901
     click.echo("Report computation is running...")
 
     # compute the report (and save it, unless running in dry mode)
-    results, _ = compute_and_save_report(reporter, parameters, persist=not dry_run)
+    results, saved = compute_and_save_report(reporter, parameters, persist=not dry_run)
     if not dry_run:
         db.session.commit()
 
-    for result in results:
+    for i, result in enumerate(results):
         data = result["data"]
         sensor = result["sensor"]
         if not data.empty:
@@ -2472,12 +2475,25 @@ def add_report(  # noqa: C901
                 **MsgStyle.WARN,
             )
 
-        # the report was saved above, unless running in dry mode
+        # The report was saved above, unless running in dry mode, so say what that save stored.
         if not dry_run:
-            click.secho(
-                f"Success. The report for sensor `{sensor}` has been saved to the database.",
-                **MsgStyle.SUCCESS,
-            )
+            n_saved = saved[i]["n_rows"]
+            if n_saved:
+                click.secho(
+                    f"Success. Saved {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` to the database.",
+                    **MsgStyle.SUCCESS,
+                )
+            elif count_persistable_values(data):
+                click.secho(
+                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was saved.",
+                    **MsgStyle.SUCCESS,
+                )
+            else:
+                click.secho(
+                    f"Nothing was saved for sensor `{sensor}`, as the report holds no values to save."
+                    " This can happen when its inputs do not align on source and belief time.",
+                    **MsgStyle.WARN,
+                )
         else:
             click.echo(
                 f"Not saving report for sensor `{sensor}` to the database  (because of --dry-run), but this is what I computed:\n{data}"

@@ -71,7 +71,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     return job
 
 
-def _count_persistable_values(data) -> int:
+def count_persistable_values(data) -> int:
     """Count computed values that will not be dropped as NaN before persistence.
 
     This does not account for valid values that ``save_to_db`` may skip because
@@ -188,7 +188,7 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         current_app.logger.info(
             "Report by %s ran successfully, producing %s.", source, summary
         )
-    elif any(_count_persistable_values(result["data"]) for result in results):
+    elif any(count_persistable_values(result["data"]) for result in results):
         # Saving nothing is not the same as computing nothing: these values were all on record already.
         current_app.logger.info(
             "Report by %s ran successfully, but every value it computed was already on record (%s).",
