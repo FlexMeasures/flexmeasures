@@ -113,7 +113,7 @@ def test_resources_are_fetched_once_and_then_cached(assert_js):
         import { getAsset, getSensor, getAccount } from "/js/ui-utils.js";
         localStorage.clear();
         const requests = [];
-        window.fetch = async (url) => { requests.push(url); return {json: async () => ({id: requests.length, url})}; };
+        window.fetch = async (url) => { requests.push(url); return {ok: true, json: async () => ({id: requests.length, url})}; };
 
         const first = await getSensor(5);
         const again = await getSensor(5);
@@ -219,7 +219,7 @@ def test_rendered_sensors_show_names_as_text(assert_js):
         import { renderSensor } from "/js/ui-utils.js";
         localStorage.clear();
         const hostile = "<img src=x onerror=window.__ran=1>";
-        window.fetch = async (url) => ({json: async () =>
+        window.fetch = async (url) => ({ok: true, json: async () =>
             url.includes("/sensors/") ? {id: 1, name: hostile, unit: "", generic_asset_id: 2}
             : url.includes("/assets/") ? {id: 2, name: hostile, account_id: 3}
             : {id: 3, name: hostile}});
@@ -291,4 +291,92 @@ def test_a_network_failure_is_reported_too(assert_js):
         check("the checkbox goes back to ticked", checkbox.checked === true);
         eq("the failure is reported", toasts.length, 1);
         eq("the toast is an error", toasts[0].type, "error");
+        """)
+
+
+def test_a_resource_which_is_gone_is_not_handed_out_or_remembered(assert_js):
+    """A sensor a config still refers to can be gone, and a lookup of it says so rather than raising."""
+    assert_js("""
+        import { getSensor, getAsset } from "/js/ui-utils.js";
+        localStorage.clear();
+        let answer = {ok: false, status: 404, json: async () => ({message: "Sensor not found"})};
+        const requests = [];
+        window.fetch = async (url) => { requests.push(url); return answer; };
+
+        eq("a sensor which is gone is answered with null", await getSensor(404), null);
+        eq("and so is its asset", await getAsset(404), null);
+        eq("nothing about it is remembered", localStorage.getItem("sensor_404"), null);
+
+        eq("so a later lookup asks again", requests.length, 2);
+        answer = {ok: true, json: async () => ({id: 404, name: "Back", unit: "MW"})};
+        eq("and sees the sensor once it is there", (await getSensor(404))["name"], "Back");
+        eq("which is asked for once", requests.length, 3);
+        await getSensor(404);
+        eq("and then remembered", requests.length, 3);
+
+        window.fetch = async () => { throw new Error("Failed to fetch"); };
+        eq("an API we cannot reach is as good as a resource which is gone", await getSensor(7), null);
+        localStorage.clear();
+        """)
+
+
+def test_a_remembered_error_payload_is_not_taken_for_a_resource(assert_js):
+    """Earlier versions remembered whatever the API answered, including the error body for a deleted sensor."""
+    assert_js("""
+        import { getSensor } from "/js/ui-utils.js";
+        localStorage.clear();
+        localStorage.setItem("sensor_404", JSON.stringify({message: "Sensor not found"}));
+        let asked = 0;
+        window.fetch = async () => { asked += 1; return {ok: true, json: async () => ({id: 404, name: "Still here"})}; };
+
+        eq("such a payload is not handed out as a sensor", (await getSensor(404))["name"], "Still here");
+        eq("the API is asked instead", asked, 1);
+        localStorage.clear();
+        """)
+
+
+def test_an_asset_which_is_gone_has_no_account_to_name(assert_js):
+    """Every place that names a sensor names its asset's account, for an asset which may not be there."""
+    assert_js("""
+        import { getAccountOfAsset } from "/js/ui-utils.js";
+        localStorage.clear();
+        let asked = 0;
+        window.fetch = async () => { asked += 1; return {ok: true, json: async () => ({id: 3, name: "Acme"})}; };
+
+        eq("an asset which is gone names no account", await getAccountOfAsset(null), null);
+        eq("and is not asked about", asked, 0);
+        eq("an asset that is there names its own", (await getAccountOfAsset({id: 2, account_id: 3}))["name"], "Acme");
+        localStorage.clear();
+        """)
+
+
+def test_a_rendered_sensor_which_is_gone_names_the_reference(assert_js):
+    """The flex-config dialogues render sensor references, and one of those can be dangling."""
+    assert_js("""
+        import { renderSensor, missingSensorLabel } from "/js/ui-utils.js";
+        localStorage.clear();
+        window.fetch = async () => ({ok: false, status: 404, json: async () => ({message: "Sensor not found"})});
+
+        const holder = document.createElement("div");
+        holder.innerHTML = await renderSensor(536);
+        check("the reference is named", holder.textContent.includes("536"), holder.textContent);
+        check("and said to be gone", holder.textContent.includes(missingSensorLabel(536)), holder.textContent);
+        localStorage.clear();
+        """)
+
+
+def test_a_rendered_sensor_survives_an_asset_which_is_gone(assert_js):
+    """A sensor's asset is answered for separately, and that lookup can come back empty too."""
+    assert_js("""
+        import { renderSensor } from "/js/ui-utils.js";
+        localStorage.clear();
+        window.fetch = async (url) => url.includes("/sensors/")
+            ? {ok: true, json: async () => ({id: 1, name: "Power", unit: "MW", generic_asset_id: 2})}
+            : {ok: false, status: 404, json: async () => ({message: "not found"})};
+
+        const holder = document.createElement("div");
+        holder.innerHTML = await renderSensor(1);
+        check("the sensor is still rendered", holder.textContent.includes("Power"), holder.textContent);
+        check("with an unknown asset", holder.textContent.includes("unknown"), holder.textContent);
+        localStorage.clear();
         """)

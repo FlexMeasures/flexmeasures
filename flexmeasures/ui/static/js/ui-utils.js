@@ -30,58 +30,96 @@ export function unitHtml(unit) {
     : escapeHtml(unit);
 }
 
-// Fetch Account Details
-export async function getAccount(accountId) {
-  const cacheKey = `account_${accountId}`;
-  const cachedData = localStorage.getItem(cacheKey);
+/**
+ * Fetch one resource from the API, remembering it in localStorage.
+ *
+ * A configuration can still refer to a sensor or an asset which is gone,
+ * for instance one deleted directly in the database, where our cleanup on deletion never ran.
+ * A lookup the API does not answer with a resource therefore yields null, rather than raising,
+ * and nothing is remembered, so a resource that is there is picked up on the next lookup.
+ *
+ * @param {string} path - The resource's path within the API.
+ * @param {string} cacheKey - Where to remember the resource in localStorage.
+ * @param {boolean} [useCache=true] - Whether a remembered resource may be handed out.
+ * @returns {Promise<Object|null>} - The resource, or null if the API did not hand one out.
+ */
+async function fetchResource(path, cacheKey, useCache = true) {
+  const cachedData = useCache ? localStorage.getItem(cacheKey) : null;
 
   if (cachedData) {
-    return JSON.parse(cachedData);
+    const cached = JSON.parse(cachedData);
+    // Earlier versions remembered whatever the API answered,
+    // which for a resource that is gone is an error payload rather than a resource.
+    if (cached !== null && cached.id !== undefined) {
+      return cached;
+    }
+    localStorage.removeItem(cacheKey);
   }
 
-  const apiUrl = apiBasePath + "/api/v3_0/accounts/" + accountId;
-  const response = await fetch(apiUrl);
-  const account = await response.json();
+  let resource;
+  try {
+    const response = await fetch(apiBasePath + path);
+    if (!response.ok) {
+      return null;
+    }
+    resource = await response.json();
+  } catch (error) {
+    // A resource we cannot ask about is as good as missing here;
+    // whoever renders it says so, rather than leaving a dialogue half-built.
+    return null;
+  }
 
-  localStorage.setItem(cacheKey, JSON.stringify(account));
+  localStorage.setItem(cacheKey, JSON.stringify(resource));
 
-  return account;
+  return resource;
+}
+
+// Fetch Account Details
+export async function getAccount(accountId) {
+  return fetchResource(
+    "/api/v3_0/accounts/" + accountId,
+    `account_${accountId}`,
+  );
 }
 
 // Fetch Asset Details
 export async function getAsset(assetId, useCache = true) {
-  const cacheKey = `asset_${assetId}`;
-  const cachedData = localStorage.getItem(cacheKey);
-
-  if (cachedData && useCache) {
-    return JSON.parse(cachedData);
-  }
-
-  const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
-  const response = await fetch(apiUrl);
-  const asset = await response.json();
-
-  localStorage.setItem(cacheKey, JSON.stringify(asset));
-
-  return asset;
+  return fetchResource(
+    "/api/v3_0/assets/" + assetId,
+    `asset_${assetId}`,
+    useCache,
+  );
 }
 
 // Fetch Sensor Details
 export async function getSensor(id) {
-  const cacheKey = `sensor_${id}`;
-  const cachedData = localStorage.getItem(cacheKey);
+  return fetchResource("/api/v3_0/sensors/" + id, `sensor_${id}`);
+}
 
-  if (cachedData) {
-    return JSON.parse(cachedData);
-  }
+/**
+ * The account an asset belongs to, for an asset which may not be there.
+ *
+ * Every place that names a sensor also names the account its asset belongs to,
+ * and an asset we could not look up has no account to name.
+ *
+ * @param {Object|null} asset - The asset, or null if it could not be looked up.
+ * @returns {Promise<Object|null>} - The account, or null if there is none to name.
+ */
+export async function getAccountOfAsset(asset) {
+  return asset === null ? null : getAccount(asset.account_id);
+}
 
-  const apiUrl = apiBasePath + "/api/v3_0/sensors/" + id;
-  const response = await fetch(apiUrl);
-  const sensor = await response.json();
-
-  localStorage.setItem(cacheKey, JSON.stringify(sensor));
-
-  return sensor;
+/**
+ * How both dialogues word a reference to a sensor which is no longer there.
+ *
+ * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,
+ * so the flex-config and graph dialogues have to name such a reference rather than fail on it.
+ *
+ * @param {number|string} sensorId - The id the configuration still refers to.
+ * @returns {string} - The text to show, for the caller to escape if it builds markup from it.
+ */
+export function missingSensorLabel(sensorId) {
+  return `Sensor ${sensorId} is not available anymore (it may have been deleted).`;
 }
 
 /**
@@ -189,8 +227,11 @@ export async function renderSensor(sensorId) {
   }
 
   const sensorData = await getSensor(sensorId);
+  if (sensorData === null) {
+    return `<div class="text-warning">${escapeHtml(missingSensorLabel(sensorId))}</div>`;
+  }
   const Asset = await getAsset(sensorData.generic_asset_id);
-  const Account = await getAccount(Asset.account_id);
+  const Account = await getAccountOfAsset(Asset);
 
   return `
         <div class="d-flex justify-content-between">
@@ -201,7 +242,7 @@ export async function renderSensor(sensorId) {
                 <b>Unit:</b> ${unitHtml(sensorData.unit)},
                 <b>Name:</b> ${escapeHtml(sensorData.name)},
                 <div style="padding-top: 1px;"></div>
-                <b>Asset:</b> ${escapeHtml(Asset.name)},
+                <b>Asset:</b> ${Asset === null ? "unknown" : escapeHtml(Asset.name)},
                 <b>Account:</b> ${Account?.name ? escapeHtml(Account.name) : "PUBLIC"}
             </div>
         </div>
@@ -271,7 +312,7 @@ export function renderSensorSearchResults(
 
   sensors.forEach(async (sensor) => {
     const Asset = await getAsset(sensor.generic_asset_id);
-    const Account = await getAccount(Asset.account_id);
+    const Account = await getAccountOfAsset(Asset);
 
     const col = document.createElement("div");
     col.classList.add("col-12", "mb-1");
@@ -285,7 +326,7 @@ export function renderSensorSearchResults(
                               sensor.id
                             }">${sensor.id}</a>,
                             <b>Unit:</b> ${unitHtml(sensor.unit)},
-                            <b>Asset:</b> ${escapeHtml(Asset.name)},
+                            <b>Asset:</b> ${Asset === null ? "unknown" : escapeHtml(Asset.name)},
                             <b>Account:</b> ${
                               Account?.name ? escapeHtml(Account.name) : "PUBLIC"
                             }
