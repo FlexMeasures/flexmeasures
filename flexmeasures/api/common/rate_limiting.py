@@ -18,6 +18,9 @@ a client whose payload we rejected did not cost us a schedule, and should not pa
 
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
 
+Each refused request is logged as a warning, saying who hit which limit, on which endpoint (and, for triggers, about which asset),
+because a budget is shared by everyone it counts, so a 429 alone does not tell a host who used it up.
+
 Neither limit applies on a play server (``FLEXMEASURES_MODE`` is "play"), which is the mode for running
 simulations ― precisely the tight trigger loop the trigger limit exists to stop. Note that this is about
 the play mode, not about running in development: a development server rate-limits like any other, so that
@@ -25,6 +28,8 @@ what you see there is what you get in production.
 """
 
 from __future__ import annotations
+
+import logging
 
 from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
@@ -39,6 +44,9 @@ from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
 # Endpoints under /api/ which the default limit should not apply to
 EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
+
+# The scope which all trigger endpoints share their budget under (see limit_triggers)
+TRIGGER_SCOPE = "triggers"
 
 # Qualified names of the views which limit_triggers() decorated, so that the OpenAPI specs
 # can tell which endpoints hit the stricter trigger limit on top of the default one.
@@ -182,14 +190,34 @@ limiter = Limiter(
 )
 
 
+def _requester() -> str:
+    """Who made the current request, for the logs: their account and user, or their IP address."""
+    if not current_user.is_authenticated:
+        return f"unauthenticated caller {get_remote_address()}"
+    return f"account {current_user.account_id}, user {current_user.id}"
+
+
+def _endpoint() -> str:
+    """Which endpoint the current request is for, for the logs."""
+    return f"{request.method} {request.path} ({request.endpoint})"
+
+
 def _trigger_set_work_in_motion(response: Response) -> bool:
     """Whether a trigger request got to the expensive part, and should therefore be counted.
 
     A request we refused (bad credentials, no permission, invalid payload) cost us no computation,
     so it does not spend the account's trigger budget. Such requests are still counted by the default
     limit, which applies to every API endpoint.
+
+    Counted triggers are logged at debug level, so that a host can see what spent a budget before it ran out.
     """
-    return response.status_code < 400
+    counted = response.status_code < 400
+    if counted and current_app.logger.isEnabledFor(logging.DEBUG):
+        # Checking the log level first spares us the asset lookup, which may query the database
+        current_app.logger.debug(
+            f"Counted a trigger against the trigger rate limit: {_requester()}, asset {_asset_id_of_trigger()}, {_endpoint()}."
+        )
+    return counted
 
 
 def limit_triggers():
@@ -199,7 +227,7 @@ def limit_triggers():
         # All trigger endpoints share one budget. Without this, each of them would get its own,
         # so a client could ask for twice as many schedules by alternating between the asset
         # endpoint and the (deprecated) sensor endpoint.
-        scope="triggers",
+        scope=TRIGGER_SCOPE,
         key_func=trigger_key_func,
         exempt_when=lambda: _is_play_mode() or _is_unlimited("trigger"),
         deduct_when=_trigger_set_work_in_motion,
@@ -212,11 +240,32 @@ def limit_triggers():
     return decorator
 
 
+def _log_rate_limit_hit(error):
+    """Log who hit which limit, and where.
+
+    Limits are counted per budget (an account, say), so a 429 alone does not tell a host which integration used that budget up.
+    """
+    runtime_limit = getattr(error, "limit", None)
+    if runtime_limit is None:
+        # Not raised by the limiter, so we cannot tell which limit this was
+        limit_description = "an unknown limit"
+        is_trigger_limit = False
+    else:
+        is_trigger_limit = runtime_limit.scope == TRIGGER_SCOPE
+        limit_name = "trigger" if is_trigger_limit else "default"
+        limit_description = f"the {limit_name} rate limit ({runtime_limit.limit})"
+    asset = f", asset {_asset_id_of_trigger()}" if is_trigger_limit else ""
+    current_app.logger.warning(
+        f"Refused a request for hitting {limit_description}: {_requester()}{asset}, {_endpoint()}."
+    )
+
+
 def rate_limit_exceeded_handler(error):
     """Respond to a hit rate limit like we respond to other API errors.
 
     The Retry-After and X-RateLimit-* headers are added by the limiter itself, after this request.
     """
+    _log_rate_limit_hit(error)
     limit: RequestLimit | None = limiter.current_limit
     message = "You hit a rate limit."
     if limit is not None:

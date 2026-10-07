@@ -33,6 +33,29 @@ How the two limits count
   asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
   flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
 
+
+Finding out who hit a limit
+----------------------------
+
+A budget is shared by everyone it counts (an account's users and integrations, for instance),
+so a ``429`` alone does not tell you which of them used it up.
+That is why each refused request is logged as a warning, saying which limit was hit (and what it allows),
+who made the request (their account and user, or their IP address if they were not logged in),
+and which endpoint they called (and, for the trigger limit, about which asset).
+For example:
+
+.. code-block:: text
+
+    Refused a request for hitting the trigger rate limit (10 per 5 minute): account 3, user 12, asset 41, POST /api/v3_0/assets/41/schedules/trigger (AssetAPI:trigger_schedule).
+
+To see what spent a budget before it ran out, set ``LOGGING_LEVEL`` to ``"DEBUG"`` (see :ref:`configuration`):
+each trigger which counts against the trigger limit is then logged, with the same details.
+
+.. note:: The recurring runs of automations queue their jobs from within FlexMeasures, rather than calling the API,
+          so they are not rate-limited, and do not show up in these logs.
+          Running an automation on demand (``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger``) is a trigger like any other,
+          and is logged as one.
+
 .. _rate-limiting-plans:
 
 Managing plans
