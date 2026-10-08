@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import reduce
 
 import numpy as np
@@ -299,6 +299,14 @@ class BasePipeline:
         # Belief time is NaT where the annotation records none, meaning "always known".
         self._annotation_belief_times: dict[str, pd.Series] = {}
         self._annotation_values: dict[str, pd.Series] = {}
+        # Regressor columns of instantaneous sensors, whose readings are realized at the instant they describe
+        self._instantaneous_regressor_names = {
+            name
+            for name, regressor in zip(
+                self.future_regressors + self.past_regressors, self.future + self.past
+            )
+            if _sensor_and_source_filters(regressor)[0].event_resolution == timedelta(0)
+        }
 
     def _annotation_values_known_at(
         self, col_name: str, event_starts: pd.Series, vantage_point: pd.Timestamp
@@ -876,7 +884,22 @@ class BasePipeline:
 
                 known = df_.loc[df_["belief_time"] <= forecast_belief_time].copy()
                 if realized_only:
-                    known = known.loc[known["belief_time"] > known["event_start"]]
+                    is_known = known["belief_time"] > known["event_start"]
+
+                    # A belief recorded at its event's start is a forecast of an event that lasts,
+                    # but a measurement of an instantaneous one.
+                    instantaneous = [
+                        column
+                        for column in regressor_columns
+                        if column in self._instantaneous_regressor_names
+                    ]
+                    if instantaneous:
+                        is_at_event_start = known["belief_time"] == known["event_start"]
+                        for column in regressor_columns:
+                            if column not in instantaneous:
+                                known[column] = known[column].where(~is_at_event_start)
+                        is_known = is_known | is_at_event_start
+                    known = known.loc[is_known]
                 else:
                     known = known.loc[known["belief_time"] <= known["event_start"]]
                 if known.empty:

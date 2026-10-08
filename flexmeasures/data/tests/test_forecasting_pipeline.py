@@ -3088,3 +3088,74 @@ def test_a_forecasters_transient_source_belongs_to_its_organisation(
 
     # The account rather than the account_id: the source is transient, so its foreign key is only populated on a flush.
     assert pipeline.forecast_source().account == prosumer
+
+
+def test_instantaneous_past_regressor_is_realized_when_recorded_at_its_instant(
+    monkeypatch,
+):
+    """A reading recorded at the instant it describes counts as realized, but only for an instantaneous regressor.
+
+    For a regressor with a resolution, a belief recorded at its event's start is still a forecast.
+    """
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    instantaneous_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "thermometer", "id": 2, "event_resolution": timedelta(0)},
+    )()
+    hourly_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "meter", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[instantaneous_regressor, hourly_regressor],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    instantaneous, hourly = pipeline.past_regressors
+    event_start = pd.Timestamp("2025-01-08T09:00:00")
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": event_start,
+                "belief_time": event_start,
+                pipeline.target: None,
+                instantaneous: 5.0,
+                hourly: 7.0,
+            },
+            {
+                "event_start": event_start,
+                "belief_time": event_start + pd.Timedelta(hours=1),
+                pipeline.target: 1.0,
+                instantaneous: None,
+                hourly: None,
+            },
+        ]
+    )
+
+    captured_past_frames = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.past_regressors:
+            captured_past_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    selected = captured_past_frames[0].set_index("event_start")
+    assert selected.loc[event_start, instantaneous] == 5.0
+    assert pd.isna(selected.loc[event_start, hourly])
