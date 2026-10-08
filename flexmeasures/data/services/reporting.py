@@ -11,7 +11,11 @@ from rq.job import Job
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
-from flexmeasures.data.utils import save_to_db_and_count
+from flexmeasures.data.services.generator_results import (
+    check_generator_results,
+    describe_generator,
+    save_generator_results,
+)
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.reporting import Reporter
@@ -84,61 +88,53 @@ def count_persistable_values(data) -> int:
     return len(data.dropna(subset=["event_value"]))
 
 
-class ReportWritesUncheckedSensor(PermissionError):
-    """Raised when a reporter returns results for a sensor that nobody's permissions were checked against."""
+def compute_report(
+    reporter: "Reporter",
+    parameters: dict,
+    permitted_output_sensor_ids: set[int] | None = None,
+    automation_id: int | None = None,
+) -> list[dict]:
+    """Compute a report, and refuse it if it would record on a sensor outside the permitted ones.
+
+    The outputs are judged before they are handed back, so that no caller receives results for unchecked sensors,
+    also one that only shows them, as a dry run does.
+
+    :param reporter: the reporter computing the report.
+    :param parameters: the reporter parameters to compute with.
+    :param permitted_output_sensor_ids: if given, every computed result must record on one of these sensors,
+        or a GeneratorWritesUncheckedSensor error is raised.
+        Pass None where no such check applies (e.g. the CLI).
+    :param automation_id: named in the GeneratorWritesUncheckedSensor error, if raised.
+    """
+    results = reporter.compute(parameters=parameters)
+    check_generator_results(
+        results,
+        permitted_output_sensor_ids,
+        describe_generator(reporter),
+        automation_id,
+    )
+    return results
 
 
 def compute_and_save_report(
     reporter: "Reporter",
     parameters: dict,
-    persist: bool = True,
     permitted_output_sensor_ids: set[int] | None = None,
     automation_id: int | None = None,
 ) -> tuple[list[dict], list[dict]]:
-    """Compute a report and, unless told otherwise, save its results.
+    """Compute a report, check it as `compute_report` does, and save it, as the synchronous CLI and the background worker both do.
 
-    This is the single place where report computation and persistence meet, shared by the synchronous CLI and the background worker.
-    With persist=False (dry runs), results are computed but nothing is written.
+    It is saved the way every data generator's results are, by `save_generator_results`:
+    within a savepoint, so a report that fails halfway leaves none of its results staged,
+    and without committing, which is left to the caller.
 
-    Committing is left to the caller, as it is for ``save_to_db``, so that a report can be part of a larger transaction.
-    The results are saved within a savepoint, so a report that fails halfway leaves none of its results staged:
-    the savepoint is rolled back and the original error is raised, while whatever the caller staged before stays as it was.
-
-    :param reporter: the reporter computing the report.
-    :param parameters: the reporter parameters to compute with.
-    :param persist: whether to save the computed results. Pass False for dry runs.
-    :param permitted_output_sensor_ids: if given, every computed result must record on one of these sensors,
-        or a ReportWritesUncheckedSensor error is raised before anything is written or returned, also when not persisting.
-        Pass None where no such guard applies (e.g. the CLI).
-    :param automation_id: named in the ReportWritesUncheckedSensor error, if raised.
     :returns: the computed results, and per result a summary of what was saved:
         the sensor id and the number of beliefs saved, which leaves out NaN values and beliefs that were already on record.
-        With persist=False the summary is empty.
     """
-    results = reporter.compute(parameters=parameters)
-    saved: list[dict] = []
-    # Judge the outputs before returning them, also on a dry run, so that no caller is handed results for unchecked sensors.
-    if permitted_output_sensor_ids is not None:
-        refused = sorted(
-            {
-                result["sensor"].id
-                for result in results
-                if result["sensor"].id not in permitted_output_sensor_ids
-            }
-        )
-        if refused:
-            raise ReportWritesUncheckedSensor(
-                f"This report would record data on sensor(s) {', '.join(str(i) for i in refused)},"
-                f" which are not among the sensors automation {automation_id}"
-                " was checked against when it was created."
-            )
-    if not persist:
-        return results, saved
-    with db.session.begin_nested():
-        for result in results:
-            _, n_saved = save_to_db_and_count(result["data"])
-            saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
-    return results, saved
+    results = compute_report(
+        reporter, parameters, permitted_output_sensor_ids, automation_id
+    )
+    return results, save_generator_results(results)
 
 
 def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
@@ -175,7 +171,6 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     results, saved = compute_and_save_report(
         reporter,
         parameters,
-        persist=True,
         permitted_output_sensor_ids=permitted_output_sensor_ids,
         automation_id=automation_id,
     )

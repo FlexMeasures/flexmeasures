@@ -65,6 +65,7 @@ from flexmeasures.data.services.data_sources import (
 )
 from flexmeasures.data.services.reporting import (
     compute_and_save_report,
+    compute_report,
     count_persistable_values,
 )
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
@@ -2479,8 +2480,10 @@ def add_report(  # noqa: C901
     click.echo("Report computation is running...")
 
     # compute the report (and save it, unless running in dry mode)
-    results, saved = compute_and_save_report(reporter, parameters, persist=not dry_run)
-    if not dry_run:
+    if dry_run:
+        results, saved = compute_report(reporter, parameters), []
+    else:
+        results, saved = compute_and_save_report(reporter, parameters)
         db.session.commit()
 
     for i, result in enumerate(results):

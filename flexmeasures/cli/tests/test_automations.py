@@ -14,6 +14,9 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.cli.tests.utils import to_flags
+from flexmeasures.data.services.generator_results import (
+    GeneratorWritesUncheckedSensor,
+)
 
 
 @pytest.fixture(scope="function")
@@ -1800,7 +1803,6 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.services.reporting import (
-        ReportWritesUncheckedSensor,
         run_report_job,
     )
 
@@ -1836,7 +1838,7 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
     )
-    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(sensor1_id)):
         run_report_job(**job.kwargs)
 
     # a refused report covers nothing, so the next run still starts where the last successful one ended
@@ -1996,7 +1998,6 @@ def test_report_automation_refusal_leaves_all_outputs_unchanged(
     from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.services.reporting import (
-        ReportWritesUncheckedSensor,
         run_report_job,
     )
 
@@ -2030,7 +2031,7 @@ def test_report_automation_refusal_leaves_all_outputs_unchanged(
     mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
     )
-    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(sensor1_id)):
         run_report_job(**job.kwargs)
 
     for sensor_id in (report_sensor_id, report_sensor_2_id):
@@ -2054,9 +2055,10 @@ def test_empty_permitted_output_set_rejects_everything_before_any_save(
     import timely_beliefs as tb
 
     from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.services import reporting as reporting_service
+    from flexmeasures.data.services import (
+        generator_results as generator_results_service,
+    )
     from flexmeasures.data.services.reporting import (
-        ReportWritesUncheckedSensor,
         compute_and_save_report,
     )
 
@@ -2067,12 +2069,11 @@ def test_empty_permitted_output_set_rejects_everything_before_any_save(
         def compute(self, parameters=None):
             return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
 
-    save = mocker.patch.object(reporting_service, "save_to_db_and_count")
-    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
+    save = mocker.patch.object(generator_results_service, "save_to_db_and_count")
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(sensor1_id)):
         compute_and_save_report(
             StubReporter(),
             {},
-            persist=True,
             permitted_output_sensor_ids=set(),
             automation_id=7,
         )
@@ -2090,8 +2091,7 @@ def test_a_dry_run_refuses_unchecked_outputs_too(
 
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.services.reporting import (
-        ReportWritesUncheckedSensor,
-        compute_and_save_report,
+        compute_report,
     )
 
     sensor1_id, *_ = setup_dummy_data_fresh_db
@@ -2101,11 +2101,10 @@ def test_a_dry_run_refuses_unchecked_outputs_too(
         def compute(self, parameters=None):
             return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
 
-    with pytest.raises(ReportWritesUncheckedSensor, match=str(sensor1_id)):
-        compute_and_save_report(
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(sensor1_id)):
+        compute_report(
             StubReporter(),
             {},
-            persist=False,
             permitted_output_sensor_ids=set(),
             automation_id=7,
         )
@@ -2118,7 +2117,9 @@ def test_none_permitted_output_set_disables_output_guard(
     import timely_beliefs as tb
 
     from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.services import reporting as reporting_service
+    from flexmeasures.data.services import (
+        generator_results as generator_results_service,
+    )
     from flexmeasures.data.services.reporting import compute_and_save_report
 
     sensor1_id, *_ = setup_dummy_data_fresh_db
@@ -2129,10 +2130,10 @@ def test_none_permitted_output_set_disables_output_guard(
             return [{"sensor": sensor, "data": tb.BeliefsDataFrame(sensor=sensor)}]
 
     save = mocker.patch.object(
-        reporting_service, "save_to_db_and_count", return_value=("mocked", 0)
+        generator_results_service, "save_to_db_and_count", return_value=("mocked", 0)
     )
     _, saved = compute_and_save_report(
-        StubReporter(), {}, persist=True, permitted_output_sensor_ids=None
+        StubReporter(), {}, permitted_output_sensor_ids=None
     )
     save.assert_called_once()
     assert saved == [{"sensor_id": sensor1_id, "n_rows": 0}]
@@ -2149,7 +2150,9 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
 ):
     """If saving fails midway, the job records nothing (single transaction) and the automation cursor does not move."""
     from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.services import reporting as reporting_service
+    from flexmeasures.data.services import (
+        generator_results as generator_results_service,
+    )
     from flexmeasures.data.services.reporting import run_report_job
 
     sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = (
@@ -2170,7 +2173,7 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
     mocker.patch(
         "flexmeasures.data.services.reporting.get_current_job", return_value=job
     )
-    real_save = reporting_service.save_to_db_and_count
+    real_save = generator_results_service.save_to_db_and_count
     saves_attempted = []
 
     def fail_on_second_save(data, **kwargs):
@@ -2180,7 +2183,9 @@ def test_report_job_persistence_failure_rolls_back_all_outputs(
         return real_save(data, **kwargs)
 
     mocker.patch.object(
-        reporting_service, "save_to_db_and_count", side_effect=fail_on_second_save
+        generator_results_service,
+        "save_to_db_and_count",
+        side_effect=fail_on_second_save,
     )
     with pytest.raises(RuntimeError, match="database gone"):
         run_report_job(**job.kwargs)
@@ -2289,7 +2294,7 @@ def test_a_report_is_saved_but_left_for_its_caller_to_commit(
             return [{"sensor": sensor, "data": tb.BeliefsDataFrame(beliefs)}]
 
     beliefs_before = count_beliefs()
-    _, saved = compute_and_save_report(StubReporter(), {}, persist=True)
+    _, saved = compute_and_save_report(StubReporter(), {})
     assert saved == [{"sensor_id": sensor.id, "n_rows": 3}]
     assert count_beliefs() == beliefs_before + 3, "the results are staged"
 

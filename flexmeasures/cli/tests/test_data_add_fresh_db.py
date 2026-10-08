@@ -1304,7 +1304,9 @@ def test_add_report_persistence_failure_saves_nothing(
 ):
     """If persistence fails midway, the synchronous run records nothing (single transaction)."""
     from flexmeasures.cli.data_add import add_report
-    from flexmeasures.data.services import reporting as reporting_service
+    from flexmeasures.data.services import (
+        generator_results as generator_results_service,
+    )
 
     sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = (
         setup_dummy_data_fresh_db
@@ -1359,7 +1361,7 @@ def test_add_report_persistence_failure_saves_nothing(
         _count_beliefs(fresh_db, report_sensor_id),
         _count_beliefs(fresh_db, report_sensor_2_id),
     )
-    real_save = reporting_service.save_to_db_and_count
+    real_save = generator_results_service.save_to_db_and_count
     saves_attempted = []
 
     def fail_on_second_save(data, **kwargs):
@@ -1369,7 +1371,9 @@ def test_add_report_persistence_failure_saves_nothing(
         return real_save(data, **kwargs)
 
     mocker.patch.object(
-        reporting_service, "save_to_db_and_count", side_effect=fail_on_second_save
+        generator_results_service,
+        "save_to_db_and_count",
+        side_effect=fail_on_second_save,
     )
     with pytest.raises(RuntimeError, match="database gone"):
         runner.invoke(add_report, cli_input)
