@@ -52,7 +52,11 @@ from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import LoggedClickExceptionGroup, MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
+from flexmeasures.data.services.utils import (
+    failed_job_exc_info,
+    job_status_description,
+    store_job_exception,
+)
 
 REGISTRY_MAP = dict(
     canceled=CanceledJobRegistry,
@@ -872,8 +876,7 @@ def handle_worker_exception(
     """
     queue_name = job.origin
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
-    job.meta["exception"] = str(exc_value)  # meta must contain JSON serializable data
-    job.save_meta()
+    store_job_exception(job, exc_type, exc_value)
 
 
 def get_exception_handler(queue_name: str) -> Callable:

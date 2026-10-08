@@ -61,9 +61,52 @@ def failed_job_exc_info(job: Job) -> str | None:
     return latest_result.exc_string
 
 
+def store_job_exception(
+    job: Job,
+    exc_type: type[BaseException] | None,
+    exc_value: BaseException | None,
+    hint: str | None = None,
+) -> dict:
+    """Store a summary of a job's failure in its meta, the same way for every queue, and return that summary.
+
+    The summary is a plain dict rather than the exception itself,
+    because RQ pickles a job's meta, and an exception that cannot be unpickled would make RQ drop the job's whole meta.
+    It holds the exception's type and message, a hint for the user where there is one,
+    and the facts a refusal to record on an unchecked sensor carries, so that a reader need not parse them from the message.
+    """
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+
+    if exc_type is None and exc_value is not None:
+        exc_type = type(exc_value)
+    summary: dict = {
+        "type": exc_type.__name__ if exc_type is not None else None,
+        "message": str(exc_value) if exc_value is not None else "",
+    }
+    if hint:
+        summary["hint"] = hint
+    if isinstance(exc_value, GeneratorWritesUncheckedSensor):
+        summary["generator"] = exc_value.generator
+        summary["refused_sensor_ids"] = list(exc_value.refused_sensor_ids)
+        summary["permitted_sensor_ids"] = list(exc_value.permitted_sensor_ids)
+        summary["automation_id"] = exc_value.automation_id
+    job.meta["exception"] = summary
+    job.save_meta()
+    return summary
+
+
 def failed_job_reason(job: Job) -> str | None:
     """Return a short failure reason for failed RQ jobs when available."""
     exception = job.meta.get("exception")
+    if isinstance(exception, dict) and "type" in exception:
+        reason = f"{exception['type']}: {exception.get('message', '')}"
+        if exception.get("hint"):
+            reason = f"{reason.rstrip('.')}. {exception['hint']}"
+        return reason
+    # Jobs that failed before every queue stored a summary hold a message, or the exception itself.
+    if isinstance(exception, str):
+        return exception
     if exception is not None:
         return f"{type(exception).__name__}: {exception}"
 

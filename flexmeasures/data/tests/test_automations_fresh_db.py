@@ -706,10 +706,12 @@ def test_a_refused_schedule_job_keeps_its_meta(
     assert fetched.is_failed
     assert "unserialized" not in fetched.meta, "RQ could not read the meta back"
     assert fetched.meta["trigger"]["automation_id"] == automation.id
+    # The refusal is stored as a summary that keeps its facts, so that a reader need not parse the message.
     refusal = fetched.meta["exception"]
-    assert isinstance(refusal, GeneratorWritesUncheckedSensor)
-    assert refusal.refused_sensor_ids == [other_sensor.id]
-    assert refusal.automation_id == automation.id
+    assert refusal["type"] == GeneratorWritesUncheckedSensor.__name__
+    assert refusal["refused_sensor_ids"] == [other_sensor.id]
+    assert refusal["automation_id"] == automation.id
+    assert str(other_sensor.id) in refusal["message"]
 
 
 def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):
