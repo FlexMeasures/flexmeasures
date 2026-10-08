@@ -1735,37 +1735,39 @@ def add_forecast(  # noqa: C901
                 click.echo(item["data"])
             return
 
-        # A forecaster that only returns its forecasts has them saved here, as every data generator's results are,
-        # so that what is reported below is what was saved. The built-in pipeline saves as it goes, and says so.
-        save_results_not_yet_saved(pipeline_returns)
-        db.session.commit()
-
-        # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
-        source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
-        computed = (
-            f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
-        )
-        # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
-        total_saved = sum(item["n_saved"] for item in pipeline_returns)
-        if total_saved == total_beliefs:
-            click.secho(
-                f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
-            )
-        elif total_saved == 0:
-            click.secho(
-                f"Computed {computed}, all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added,{source_named}",
-                **MsgStyle.SUCCESS,
-            )
-        else:
-            click.secho(
-                f"Computed {computed} and saved {total_saved} of them, the rest repeating beliefs already on record,{source_named}",
-                **MsgStyle.SUCCESS,
-            )
-
     except Exception as e:
-        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
+        # Name the forecaster that failed: it need not be the built-in Train-Predict Pipeline.
+        click.echo(f"Error running {type(forecaster).__name__}: {str(e)}")
         raise
+
+    # Saving happens outside the try above, so that a failed save is reported as itself, not as a failure to compute.
+    # A forecaster that only returns its forecasts has them saved here, as every data generator's results are,
+    # so that what is reported below is what was saved. The built-in pipeline saves as it goes, and says so.
+    save_results_not_yet_saved(pipeline_returns)
+    db.session.commit()
+
+    # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+    source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
+    computed = (
+        f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
+        f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
+    )
+    # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
+    total_saved = sum(item["n_saved"] for item in pipeline_returns)
+    if total_saved == total_beliefs:
+        click.secho(
+            f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
+        )
+    elif total_saved == 0:
+        click.secho(
+            f"Computed {computed}, all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added,{source_named}",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Computed {computed} and saved {total_saved} of them, the rest repeating beliefs already on record,{source_named}",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("automation")
