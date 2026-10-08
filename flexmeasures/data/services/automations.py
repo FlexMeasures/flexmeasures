@@ -1216,6 +1216,14 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
         return {"input_sensors": [], "output_sensors": []}
 
 
+def automation_id_of_job(rq_job) -> int | None:
+    """Return the id of the automation that triggered a job, or None if no automation did."""
+    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
+    if trigger.get("origin") != "automation":
+        return None
+    return trigger.get("automation_id")
+
+
 def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     """Return the sensor ids an automation-triggered job was cleared to record on, or None if it is not one.
 
@@ -1232,10 +1240,7 @@ def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
     a guard that cannot work out what is allowed should not conclude that everything is.
     """
-    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
-    if trigger.get("origin") != "automation":
-        return None
-    automation_id = trigger.get("automation_id")
+    automation_id = automation_id_of_job(rq_job)
     if automation_id is None:
         return None
 
