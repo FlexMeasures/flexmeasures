@@ -263,3 +263,125 @@ def test_saving_a_forecast_that_computed_nothing_says_so(
     assert any(
         "computed none" in message for message in messages
     ), f"the empty cycle said nothing: {messages}"
+
+
+def test_running_the_same_forecast_twice_records_it_once(fresh_db, forecast_setup):
+    """Running the same forecast twice from the same start records it once, rather than failing on the unique constraint.
+
+    The second run computes the same beliefs at the same belief times, as an automation window or a repeated request with an explicit start does.
+    Model fitting is replaced, so the forecasts are the same by construction, rather than by a model that happens to reproduce them.
+    """
+    _, parameters = forecast_setup
+
+    first = _pipeline().compute(parameters=parameters)
+    rows_after_first = _row_counts(fresh_db)
+    second = _pipeline().compute(parameters=parameters)
+
+    assert _row_counts(fresh_db) == rows_after_first
+    computed = sum(len(item["data"]) for item in first)
+    assert computed > 0
+    assert sum(item["n_saved"] for item in first) == computed
+    assert sum(item["n_saved"] for item in second) == 0
+
+
+def test_a_forecast_repeating_the_one_before_is_not_saved_again_unless_asked(
+    fresh_db, setup_fresh_test_forecast_data
+):
+    """A forecast whose values repeat the belief right before it is not saved again, while a lookup after it still finds them.
+
+    Both forecasts are built here rather than trained, so the second repeats the first by construction.
+    Passing save_changed_beliefs_only=False records every belief, for a host that evaluates forecasts per horizon.
+    """
+    import timely_beliefs as tb
+
+    from flexmeasures.data.services.forecasting import save_forecast
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = DataSource(name="test forecaster", type="forecaster")
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+    first_event = pd.Timestamp("2025-01-09T00:00:00+00:00")
+
+    def forecast(belief_time: str) -> BeliefsDataFrame:
+        return BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=first_event + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp(belief_time),
+                    event_value=10.0 + i,
+                )
+                for i in range(4)
+            ]
+        )
+
+    assert save_forecast(forecast("2025-01-08T00:00:00+00:00")) == 4
+    assert save_forecast(forecast("2025-01-08T06:00:00+00:00")) == 0
+
+    still_known = sensor.search_beliefs(
+        beliefs_before=pd.Timestamp("2025-01-08T07:00:00+00:00"),
+        source=source,
+    )
+    assert list(still_known["event_value"]) == [10.0, 11.0, 12.0, 13.0]
+
+    assert (
+        save_forecast(
+            forecast("2025-01-08T12:00:00+00:00"), save_changed_beliefs_only=False
+        )
+        == 4
+    )
+
+
+def test_a_forecast_save_logs_what_it_left_out_only_when_it_left_something_out(
+    fresh_db, setup_fresh_test_forecast_data, monkeypatch
+):
+    """The log of a forecast save mentions beliefs left out only when some were, and does not claim they all repeat stored ones.
+
+    A first run saves everything, and a belief without a value is left out without repeating anything.
+    """
+    import numpy as np
+    import timely_beliefs as tb
+
+    from flexmeasures.data.services import forecasting as forecasting_service
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = DataSource(name="test forecaster", type="forecaster")
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+    messages = []
+    monkeypatch.setattr(
+        forecasting_service.logging,
+        "info",
+        lambda message, *args: messages.append(message % args),
+    )
+
+    def forecast(belief_time: str, values: list) -> BeliefsDataFrame:
+        return BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2025-01-09T00:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp(belief_time),
+                    event_value=value,
+                )
+                for i, value in enumerate(values)
+            ]
+        )
+
+    forecasting_service.save_forecast(
+        forecast("2025-01-08T00:00:00+00:00", [1.0, 2.0, 3.0])
+    )
+    assert "Saved 3 predictions" in messages[-1]
+    # Nothing was left out, so nothing may be said to repeat what is on record.
+    assert "leaving out" not in messages[-1], messages[-1]
+    assert "repeat" not in messages[-1], messages[-1]
+
+    forecasting_service.save_forecast(
+        forecast("2025-01-08T06:00:00+00:00", [1.0, 5.0, np.nan])
+    )
+    assert "Saved 1 prediction" in messages[-1]
+    assert "leaving out 2" in messages[-1], messages[-1]
+    assert "repeat beliefs already on record or have no value" in messages[-1]
