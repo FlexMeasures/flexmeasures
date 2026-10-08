@@ -44,6 +44,27 @@ def test_a_refused_output_is_not_mistaken_for_an_operating_system_error():
     )
 
 
+def test_a_refusal_survives_pickling_with_its_fields_and_message():
+    """The refusal comes back whole from pickling and copying, as an RQ job's meta pickles it.
+
+    Exception rebuilds an instance from its args, which hold only the message,
+    so without telling pickle how to rebuild this one, unpickling fails, and RQ then drops the job's whole meta.
+    """
+    import copy
+    import pickle
+
+    refusal = GeneratorWritesUncheckedSensor(
+        "StorageScheduler (data source 4)", [12], {1, 3}, automation_id=7
+    )
+    for restored in (pickle.loads(pickle.dumps(refusal)), copy.deepcopy(refusal)):
+        assert type(restored) is GeneratorWritesUncheckedSensor
+        assert str(restored) == str(refusal)
+        assert restored.generator == refusal.generator
+        assert restored.refused_sensor_ids == [12]
+        assert restored.permitted_sensor_ids == [1, 3]
+        assert restored.automation_id == 7
+
+
 class _Sensor:
     def __init__(self, sensor_id: int):
         self.id = sensor_id
