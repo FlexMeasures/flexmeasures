@@ -75,7 +75,7 @@ def describe_generator(generator) -> str:
 
 
 def check_generator_results(
-    results: Iterable[dict],
+    results: list[dict],
     permitted_sensor_ids: set[int] | None,
     generator: str,
     automation_id: int | None = None,
@@ -100,12 +100,14 @@ def check_generator_results(
         )
 
 
-def save_generator_results(results: Iterable[dict]) -> list[dict]:
+def save_generator_results(results: list[dict]) -> list[dict]:
     """Save what a data generator returns, all of it or none of it, and say how many beliefs each result saved.
 
     The results are saved within a savepoint, so a save that fails halfway leaves none of them staged,
     while whatever the caller staged before stays as it was.
     Committing is left to the caller, as it is for ``save_to_db``, so that the results can be part of a larger transaction.
+    Every result saved must name its sensor, unlike for the check:
+    a result without one, such as a scheduler's own bookkeeping, holds no beliefs, so the caller leaves it out, as ``make_schedule`` does.
     A belief that repeats the belief right before it is not saved again, as for any other data,
     which also makes saving results a generator already saved itself cost nothing extra.
 
