@@ -116,10 +116,10 @@ To use the forecaster through the CLI:
 
     flexmeasures add forecasts --forecaster DummyForecaster
 
-.. note:: When FlexMeasures runs your forecaster directly, as ``flexmeasures add forecasts`` without ``--as-job`` does, it saves the forecasts you return,
-   and says how many were new.
-   There is no need to save them yourself; a forecaster that still does costs nothing extra, since beliefs already on record are not saved again.
-   When it is asked to queue jobs instead, queuing them is up to your forecaster, and so is saving what those jobs compute.
+.. note:: FlexMeasures saves the forecasts your forecaster returns, and says how many were new.
+   There is no need to save them yourself;
+   a forecaster that still does costs nothing extra, since beliefs already on record are not saved again.
+   A forecaster that queues its own jobs, as the built-in ``TrainPredictPipeline`` does, saves what those jobs compute.
 
 You can also build on the built-in ``TrainPredictPipeline``, rather than on ``Forecaster`` directly,
 and one rule tells its methods apart: a ``compute`` method returns forecasts without recording anything,
