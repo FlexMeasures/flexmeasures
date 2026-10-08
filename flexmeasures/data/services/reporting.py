@@ -158,16 +158,13 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     # An automation's job may only record on the sensors its creator was checked against.
     # Judge the whole set before writing any of it.
     from flexmeasures.data.services.automations import (
+        automation_id_of_job,
         sensors_automation_job_may_record_on,
     )
 
     rq_job = get_current_job()
     permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
-    automation_id = (
-        rq_job.meta["trigger"]["automation_id"]
-        if permitted_output_sensor_ids is not None
-        else None
-    )
+    automation_id = automation_id_of_job(rq_job)
     results, saved = compute_and_save_report(
         reporter,
         parameters,
@@ -198,7 +195,12 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         )
 
     # The job's trigger says whether an automation created it, as it does for the guard above.
-    if automation_id is not None and parameters.get("end"):
+    # An automation deleted since the job was queued has no permitted set, and no next run to continue from.
+    if (
+        automation_id is not None
+        and permitted_output_sensor_ids is not None
+        and parameters.get("end")
+    ):
         from flexmeasures.data.services.automations import record_automation_run
 
         record_automation_run(

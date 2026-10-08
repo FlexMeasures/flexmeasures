@@ -1043,21 +1043,17 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     from flexmeasures.data.services.automations import (
+        automation_id_of_job,
         sensors_automation_job_may_record_on,
     )
 
-    permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
     # Judge the whole set before writing any of it, as for every data generator.
     # A refusal should not depend on the caller's transaction discipline, and `make_schedule` is also called directly.
     check_generator_results(
         consumption_schedule,
-        permitted_output_sensor_ids,
+        sensors_automation_job_may_record_on(rq_job),
         describe_generator(scheduler),
-        (
-            rq_job.meta["trigger"]["automation_id"]
-            if permitted_output_sensor_ids is not None
-            else None
-        ),
+        automation_id_of_job(rq_job),
     )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     to_save = []
