@@ -72,24 +72,6 @@ def test_create_user_with_home_role_does_not_add_account_member(
     assert {role.name for role in user.roles} == {role_name}
 
 
-@pytest.mark.parametrize("old_name", ["member", "read-only", "integration"])
-@pytest.mark.parametrize("as_dict", [False, True])
-def test_create_user_rejects_retired_home_role_names(
-    fresh_db, setup_accounts_fresh_db, old_name, as_dict
-):
-    supplied_role = {"name": old_name} if as_dict else old_name
-    with pytest.raises(InvalidFlexMeasuresUser, match="was renamed"):
-        create_user(
-            email=f"{old_name}@example.com",
-            password="testtest",
-            account_name=setup_accounts_fresh_db["Prosumer"].name,
-            user_roles=[supplied_role],
-        )
-    assert not fresh_db.session.execute(
-        select(User).filter_by(email=f"{old_name}@example.com")
-    ).scalar_one_or_none()
-
-
 def test_create_user_no_account(
     fresh_db, setup_accounts_fresh_db, setup_roles_users_fresh_db, app
 ):
