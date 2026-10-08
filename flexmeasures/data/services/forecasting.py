@@ -159,6 +159,26 @@ def run_forecast_cycle(pipeline: TrainPredictPipeline, *args, **kwargs) -> float
     """Compute and persist one cycle before reporting its runtime to the caller."""
     result = pipeline.compute_cycle(*args, **kwargs)
     bdf = result.data
+    # A cycle queued by an automation may only record on the sensors that automation was checked against,
+    # as for every data generator. Judge it before anything is exported, saved or handed back.
+    from rq import get_current_job
+
+    from flexmeasures.data.services.automations import (
+        automation_id_of_job,
+        sensors_automation_job_may_record_on,
+    )
+    from flexmeasures.data.services.generator_results import (
+        check_generator_results,
+        describe_generator,
+    )
+
+    rq_job = get_current_job()
+    check_generator_results(
+        [{"sensor": pipeline._parameters["sensor_to_save"], "data": bdf}],
+        sensors_automation_job_may_record_on(rq_job),
+        describe_generator(pipeline),
+        automation_id_of_job(rq_job),
+    )
     if result.output_path is not None:
         logging.debug("Saving predictions to a CSV file.")
         os.makedirs(os.path.dirname(result.output_path), exist_ok=True)
