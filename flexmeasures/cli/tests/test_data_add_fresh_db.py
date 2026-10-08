@@ -1950,3 +1950,71 @@ def test_add_forecast_reports_what_it_saved(
 
     assert result.exit_code == 0, result.output
     assert expected in result.output
+
+
+@pytest.mark.parametrize(
+    "saves_itself", [False, True], ids=["only-returns", "saves-itself"]
+)
+def test_add_forecast_saves_what_a_plugin_forecaster_returns(
+    app, fresh_db, setup_dummy_data_fresh_db, saves_itself
+):
+    """A forecaster registered by a plugin has its forecasts saved, and the command reports what is in the database (#2682).
+
+    One that only returns its forecasts used to have them dropped, while the command reported them as created.
+    One that saves them itself, as the plugin docs used to ask, still has each belief recorded once.
+    """
+    import timely_beliefs as tb
+    from marshmallow import Schema
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data import db
+    from flexmeasures.data.models.forecasting import Forecaster
+    from flexmeasures.data.utils import save_to_db
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+
+    class PluginForecaster(Forecaster):
+        __version__ = "1"
+        __author__ = "test"
+        _parameters_schema = Schema(unknown="include")
+
+        def _compute_forecast(self, as_job: bool = False, **kwargs):
+            sensor = db.session.get(Sensor, sensor_id)
+            bdf = tb.BeliefsDataFrame(
+                [
+                    tb.TimedBelief(
+                        sensor=sensor,
+                        source=self.data_source,
+                        event_start=pd.Timestamp("2026-01-01T05:00:00+00:00")
+                        + i * sensor.event_resolution,
+                        belief_time=pd.Timestamp("2026-01-01T00:00:00+00:00"),
+                        event_value=float(i),
+                    )
+                    for i in range(4)
+                ]
+            )
+            if saves_itself:
+                save_to_db(bdf)
+            return [{"sensor": sensor, "data": bdf}]
+
+    app.data_generators["forecaster"]["PluginForecaster"] = PluginForecaster
+    try:
+        result = app.test_cli_runner().invoke(
+            add_forecast,
+            to_flags({"sensor": sensor_id, "forecaster": "PluginForecaster"}),
+        )
+    finally:
+        del app.data_generators["forecaster"]["PluginForecaster"]
+
+    check_command_ran_without_error(result)
+    recorded = fresh_db.session.scalar(
+        select(func.count())
+        .select_from(TimedBelief)
+        .join(DataSource)
+        .filter(TimedBelief.sensor_id == sensor_id, DataSource.type == "forecaster")
+    )
+    assert recorded == 4
+    if saves_itself:
+        assert "all of which were already on record" in result.output
+    else:
+        assert "Successfully created 4 forecast beliefs" in result.output
