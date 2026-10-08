@@ -2018,3 +2018,65 @@ def test_add_forecast_saves_what_a_plugin_forecaster_returns(
         assert "all of which were already on record" in result.output
     else:
         assert "Successfully created 4 forecast beliefs" in result.output
+
+
+def test_add_forecast_reports_a_failed_save_as_itself(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """A forecaster's results that fail to save surface as that failure, not as an error in running the pipeline.
+
+    Here the forecasts collide with stored beliefs at the same belief time, with other values,
+    which the unique constraint refuses unless the host allows data to be overwritten.
+    """
+    import timely_beliefs as tb
+    from marshmallow import Schema
+    from sqlalchemy.exc import IntegrityError
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data import db
+    from flexmeasures.data.models.forecasting import Forecaster
+    from flexmeasures.data.utils import save_to_db
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+
+    def beliefs(sensor, source, offset: float) -> tb.BeliefsDataFrame:
+        return tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2026-01-01T05:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2026-01-01T00:00:00+00:00"),
+                    event_value=float(i) + offset,
+                )
+                for i in range(2)
+            ]
+        )
+
+    class CollidingForecaster(Forecaster):
+        __version__ = "1"
+        __author__ = "test"
+        _parameters_schema = Schema(unknown="include")
+
+        def _compute_forecast(self, as_job: bool = False, **kwargs):
+            sensor = db.session.get(Sensor, sensor_id)
+            # Beliefs at the same belief time with other values are already on record.
+            save_to_db(beliefs(sensor, self.data_source, offset=100.0))
+            db.session.commit()
+            return [{"sensor": sensor, "data": beliefs(sensor, self.data_source, 0.0)}]
+
+    app.data_generators["forecaster"]["CollidingForecaster"] = CollidingForecaster
+    try:
+        result = app.test_cli_runner().invoke(
+            add_forecast,
+            to_flags({"sensor": sensor_id, "forecaster": "CollidingForecaster"}),
+            # Catch the exception, so that what the command printed before it can be read.
+            catch_exceptions=True,
+        )
+    finally:
+        del app.data_generators["forecaster"]["CollidingForecaster"]
+        fresh_db.session.rollback()
+
+    assert isinstance(result.exception, IntegrityError), result.output
+    assert "Error running" not in result.output
