@@ -10,7 +10,8 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.forecasting.references import AutoSensorReference
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.data.schemas.utils import kebab_to_snake
@@ -1325,12 +1326,162 @@ def instantaneous_sensor(setup_dummy_sensors, db) -> Sensor:
     return instantaneous
 
 
-def test_an_instantaneous_sensor_needs_a_resolution_to_forecast_at(
-    instantaneous_sensor,
+def _new_instantaneous_sensor(db, setup_dummy_sensors, name, **attributes):
+    """A fresh instantaneous sensor, so that no other test's readings or attributes affect it."""
+    sensor, *_ = setup_dummy_sensors
+    instantaneous = Sensor(
+        name,
+        generic_asset=sensor.generic_asset,
+        unit="°C",
+        event_resolution=timedelta(0),
+        attributes=attributes,
+    )
+    db.session.add(instantaneous)
+    db.session.flush()
+    return instantaneous
+
+
+def _record_readings(db, sensor, event_starts):
+    source = DataSource(name="thermometer reader", type="demo script")
+    db.session.add(source)
+    db.session.add_all(
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_start=event_start,
+            belief_time=event_start,
+            event_value=4.0,
+        )
+        for event_start in event_starts
+    )
+    db.session.flush()
+
+
+NOW = pd.Timestamp("2025-01-15T12:23:58+01", tz="Europe/Amsterdam")
+
+
+@pytest.mark.parametrize(
+    ["attributes", "reading_offsets", "expected", "origin"],
+    [
+        # Without anything to go by, an instantaneous sensor is forecast hourly.
+        ({}, [], timedelta(hours=1), "default"),
+        # A single reading has no duration between readings to go by either.
+        ({}, [pd.Timedelta(minutes=-30)], timedelta(hours=1), "default"),
+        # Two readings have their difference to go by.
+        (
+            {},
+            [pd.Timedelta(minutes=-40), pd.Timedelta(minutes=-20)],
+            timedelta(minutes=20),
+            "inferred",
+        ),
+        # Readings every 10 minutes, a few seconds late now and then, are taken as 10-minutely.
+        (
+            {},
+            [pd.Timedelta(minutes=-10 * i, seconds=3 * (i % 2)) for i in range(1, 30)],
+            timedelta(minutes=10),
+            "inferred",
+        ),
+        # The sensor's frequency attribute comes before its data.
+        (
+            {"frequency": "15min"},
+            [pd.Timedelta(minutes=-10 * i) for i in range(1, 30)],
+            timedelta(minutes=15),
+            "frequency",
+        ),
+    ],
+    ids=["default", "one-reading", "two-readings", "jittered-readings", "attribute"],
+)
+def test_an_instantaneous_sensor_without_a_resolution_is_forecast_at_a_derived_one(
+    db,
+    setup_dummy_sensors,
+    freeze_server_now,
+    attributes,
+    reading_offsets,
+    expected,
+    origin,
 ):
+    freeze_server_now(NOW)
+    sensor = _new_instantaneous_sensor(
+        db,
+        setup_dummy_sensors,
+        f"thermometer ({origin}, {len(reading_offsets)})",
+        **attributes,
+    )
+    _record_readings(db, sensor, [NOW + offset for offset in reading_offsets])
+
+    data = ForecasterParametersSchema().load({"sensor": sensor.id})
+
+    assert data["resolution"] == expected
+    # The derived resolution is the one passed on, and so the one recorded with forecasting jobs.
+    assert data["predict_start"] == pd.Timestamp(NOW).floor(expected)
+
+
+def test_a_given_resolution_comes_before_a_derived_one(
+    db, setup_dummy_sensors, freeze_server_now
+):
+    freeze_server_now(NOW)
+    sensor = _new_instantaneous_sensor(
+        db, setup_dummy_sensors, "thermometer (given)", frequency="15min"
+    )
+    _record_readings(
+        db, sensor, [NOW - pd.Timedelta(minutes=10 * i) for i in range(1, 30)]
+    )
+
+    data = ForecasterParametersSchema().load(
+        {"sensor": sensor.id, "resolution": "PT30M"}
+    )
+
+    assert data["resolution"] == timedelta(minutes=30)
+
+
+@pytest.mark.parametrize(
+    ["attributes", "reading_offsets", "origin"],
+    [
+        ({"frequency": "7min"}, [], "taken from the sensor's 'frequency' attribute"),
+        (
+            {},
+            [pd.Timedelta(minutes=-7 * i) for i in range(1, 30)],
+            "inferred from the sensor's data",
+        ),
+    ],
+    ids=["attribute", "inferred"],
+)
+def test_a_derived_resolution_that_does_not_fit_says_where_it_came_from(
+    db, setup_dummy_sensors, freeze_server_now, attributes, reading_offsets, origin
+):
+    freeze_server_now(NOW)
+    sensor = _new_instantaneous_sensor(
+        db,
+        setup_dummy_sensors,
+        f"thermometer (misfit, {len(reading_offsets)})",
+        **attributes,
+    )
+    _record_readings(db, sensor, [NOW + offset for offset in reading_offsets])
+
     with pytest.raises(ValidationError) as exc:
-        ForecasterParametersSchema().load({"sensor": instantaneous_sensor.id})
-    assert "instantaneous" in str(exc.value.messages["resolution"])
+        ForecasterParametersSchema().load(
+            {"sensor": sensor.id, "max-forecast-horizon": "PT1H"}
+        )
+    message = str(exc.value.messages)
+    assert (
+        "max-forecast-horizon must be a multiple of the forecast resolution (0:07:00"
+        in message
+    )
+    assert origin in message
+    assert "set 'resolution'" in message
+
+
+def test_an_unusable_frequency_attribute_is_refused(
+    db, setup_dummy_sensors, freeze_server_now
+):
+    freeze_server_now(NOW)
+    sensor = _new_instantaneous_sensor(
+        db, setup_dummy_sensors, "thermometer (bad attribute)", frequency="often"
+    )
+
+    with pytest.raises(ValidationError) as exc:
+        ForecasterParametersSchema().load({"sensor": sensor.id})
+    assert "'frequency' attribute ('often')" in str(exc.value.messages["resolution"])
 
 
 def test_an_instantaneous_sensor_is_forecast_at_the_resolution_given(

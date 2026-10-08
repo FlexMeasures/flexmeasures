@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from isodate.duration import Duration
+import pandas as pd
 
 from marshmallow import (
     fields,
@@ -436,38 +438,107 @@ class TrainPredictPipelineConfigSchema(Schema):
         return data
 
 
-def _forecast_resolution(
-    sensor: Sensor | SensorReference, resolution: timedelta | Duration | None
-) -> timedelta:
-    """Return the resolution to forecast a sensor at.
+DEFAULT_INSTANTANEOUS_FORECAST_RESOLUTION = timedelta(hours=1)
 
-    An instantaneous sensor has no resolution of its own to step through time by, so it needs one to be given.
+
+def _forecast_resolution(
+    sensor: Sensor | SensorReference,
+    resolution: timedelta | Duration | None,
+    data_until: datetime | None = None,
+) -> tuple[timedelta | None, str | None]:
+    """Return the resolution to forecast a sensor at, and where it came from if it was not given.
+
+    An instantaneous sensor has no resolution of its own to step through time by.
+    Unless one is given, it is derived, as described in ``_derive_instantaneous_resolution``.
     Any other sensor is forecast at its own resolution, so a different one is refused rather than ignored.
 
     :param sensor:      The sensor to forecast, or a source-filtered reference to it.
     :param resolution:  The resolution given in the parameters, if any.
-    :raises ValidationError: If an instantaneous sensor gets no positive resolution, or another sensor gets a different one.
+    :param data_until:  End of the period whose data may be used to derive a resolution for an instantaneous sensor.
+                        Without it, no resolution is derived, and None is returned for an instantaneous sensor without a given resolution.
+    :returns:           The resolution, and a description of its origin when it was derived (None when it was given, or is the sensor's own).
+    :raises ValidationError: If an instantaneous sensor gets a resolution that is not positive, or another sensor gets a different one.
     """
     sensor_resolution = sensor.event_resolution
     if sensor_resolution == timedelta(0):
         if resolution is None:
-            raise ValidationError(
-                "This sensor is instantaneous, so say what resolution to forecast it at, e.g. 'PT1H'.",
-                field_name="resolution",
-            )
+            if data_until is None:
+                return None, None
+            return _derive_instantaneous_resolution(sensor, data_until)
         # A duration in months or years parses to a Duration, which has no fixed length to step by.
         if not isinstance(resolution, timedelta) or resolution <= timedelta(0):
             raise ValidationError(
                 "The resolution to forecast at must be a positive duration of fixed length, such as 'PT1H' rather than 'P1M'.",
                 field_name="resolution",
             )
-        return resolution
+        return resolution, None
     if resolution is not None and resolution != sensor_resolution:
         raise ValidationError(
             f"This sensor is forecast at its own resolution ({sensor_resolution}); a resolution can only be set for an instantaneous sensor.",
             field_name="resolution",
         )
-    return sensor_resolution
+    return sensor_resolution, None
+
+
+def _derive_instantaneous_resolution(
+    sensor: Sensor | SensorReference, data_until: datetime
+) -> tuple[timedelta, str]:
+    """Derive the resolution to forecast an instantaneous sensor at, when none is given.
+
+    In order of precedence:
+
+    1. The sensor's ``frequency`` attribute, which also rounds the timing of its incoming readings.
+    2. The most common duration between the sensor's readings in the default training period before ``data_until``,
+       snapped to whole minutes (at least one minute), so that slightly irregular timing does not yield an odd resolution.
+    3. One hour.
+
+    :param sensor:      The instantaneous sensor, or a source-filtered reference to it.
+    :param data_until:  End of the period whose readings are used to infer the resolution.
+    :returns:           The resolution, and a description of where it came from.
+    :raises ValidationError: If the sensor's ``frequency`` attribute is not a positive duration.
+    """
+    if isinstance(sensor, SensorReference):
+        sensor = sensor.sensor
+    frequency = sensor.get_attribute("frequency")
+    if frequency:
+        try:
+            resolution = pd.Timedelta(pd.tseries.frequencies.to_offset(frequency))
+        except (ValueError, TypeError):
+            resolution = None
+        if resolution is None or pd.isna(resolution) or resolution <= timedelta(0):
+            raise ValidationError(
+                f"The sensor's 'frequency' attribute ({frequency!r}) is not a positive duration, such as '15min', so it cannot set the resolution to forecast at; set 'resolution' instead.",
+                field_name="resolution",
+            )
+        return (
+            resolution.to_pytimedelta(),
+            "taken from the sensor's 'frequency' attribute",
+        )
+
+    bdf = sensor.search_beliefs(
+        event_starts_after=data_until - DEFAULT_TRAIN_PERIOD,
+        event_ends_before=data_until,
+        most_recent_beliefs_only=True,
+        one_deterministic_belief_per_event=True,
+    )
+    event_starts = pd.DatetimeIndex(bdf.event_starts.unique()).sort_values()
+    if len(event_starts) >= 2:
+        # As when inferring the resolution of posted data: two events only have their difference to go by.
+        frequency = (
+            event_starts[1] - event_starts[0]
+            if len(event_starts) == 2
+            else bdf.most_common_event_frequency
+        )
+        minutes = max(1, round(pd.Timedelta(frequency) / pd.Timedelta(minutes=1)))
+        resolution = timedelta(minutes=minutes)
+        logging.info(
+            f"Forecasting instantaneous sensor {sensor.id} at a resolution of {resolution}, inferred from its data."
+        )
+        return resolution, "inferred from the sensor's data"
+    return (
+        DEFAULT_INSTANTANEOUS_FORECAST_RESOLUTION,
+        "the default for an instantaneous sensor without data to infer one from",
+    )
 
 
 class ForecasterParametersSchema(Schema):
@@ -602,9 +673,12 @@ class ForecasterParametersSchema(Schema):
         metadata={
             "description": (
                 "Resolution to forecast at, in ISO 8601 duration format."
-                " Only needed for an instantaneous sensor (one with a zero resolution),"
-                " whose readings are then taken onto slots of this resolution,"
-                " and whose forecasts are saved as instantaneous values at the start of each slot."
+                " Only used for an instantaneous sensor (one with a zero resolution), for which it is the frequency of the forecasts,"
+                " as for the resolution of a data request (see 'Frequency and resolution' in the documentation):"
+                " its readings are taken onto slots of this resolution, and its forecasts are saved as instantaneous values at the start of each slot."
+                " If not given, it is the sensor's 'frequency' attribute,"
+                " or else the most common duration between the sensor's readings in the 30 days before the predictions start, in whole minutes,"
+                " or else one hour."
                 " Any other sensor is forecast at its own resolution, so a different one is refused."
             ),
             "example": "PT1H",
@@ -669,8 +743,6 @@ class ForecasterParametersSchema(Schema):
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         end_date = data.get("end")
         predict_start = data.get("start", None)
-        max_forecast_horizon = data.get("max_forecast_horizon")
-        forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
         # todo: consider moving this to the run method in train_predict.py
@@ -691,19 +763,8 @@ class ForecasterParametersSchema(Schema):
                     field_name="start",
                 )
 
-        resolution = _forecast_resolution(sensor, data.get("resolution"))
-
-        if max_forecast_horizon is not None:
-            if max_forecast_horizon % resolution != timedelta(0):
-                raise ValidationError(
-                    f"max-forecast-horizon must be a multiple of the forecast resolution ({resolution})"
-                )
-
-        if forecast_frequency is not None:
-            if forecast_frequency % resolution != timedelta(0):
-                raise ValidationError(
-                    f"forecast-frequency must be a multiple of the forecast resolution ({resolution})"
-                )
+        # A given resolution is checked here, while the timing it must divide is checked once it is resolved, see resolve_config.
+        _forecast_resolution(sensor, data.get("resolution"))
 
     @post_load(pass_original=True)
     def resolve_config(  # noqa: C901
@@ -723,9 +784,22 @@ class ForecasterParametersSchema(Schema):
 
         target_sensor = data["sensor"]
 
-        resolution = _forecast_resolution(target_sensor, data.get("resolution"))
-
         now = server_now()
+        resolution, origin = _forecast_resolution(
+            target_sensor, data.get("resolution"), data_until=data.get("start", now)
+        )
+        # Say where a derived resolution came from, and how to choose another, when the timing does not fit it.
+        origin_note = (
+            f", {origin}; set 'resolution' to forecast at another one" if origin else ""
+        )
+        for field_name, duration in (
+            ("max-forecast-horizon", data.get("max_forecast_horizon")),
+            ("forecast-frequency", data.get("forecast_frequency")),
+        ):
+            if duration is not None and duration % resolution != timedelta(0):
+                raise ValidationError(
+                    f"{field_name} must be a multiple of the forecast resolution ({resolution}{origin_note})"
+                )
         floored_now = floor_to_resolution(now, resolution)
 
         if data.get("start") is None:

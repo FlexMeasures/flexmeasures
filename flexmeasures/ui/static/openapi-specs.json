@@ -6432,7 +6432,7 @@
               "string",
               "null"
             ],
-            "description": "Resolution to forecast at, in ISO 8601 duration format. Only needed for an instantaneous sensor (one with a zero resolution), whose readings are then taken onto slots of this resolution, and whose forecasts are saved as instantaneous values at the start of each slot. Any other sensor is forecast at its own resolution, so a different one is refused.",
+            "description": "Resolution to forecast at, in ISO 8601 duration format. Only used for an instantaneous sensor (one with a zero resolution), for which it is the frequency of the forecasts, as for the resolution of a data request (see 'Frequency and resolution' in the documentation): its readings are taken onto slots of this resolution, and its forecasts are saved as instantaneous values at the start of each slot. If not given, it is the sensor's 'frequency' attribute, or else the most common duration between the sensor's readings in the 30 days before the predictions start, in whole minutes, or else one hour. Any other sensor is forecast at its own resolution, so a different one is refused.",
             "example": "PT1H",
             "format": "duration"
           },
