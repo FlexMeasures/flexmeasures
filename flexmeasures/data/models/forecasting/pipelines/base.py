@@ -7,7 +7,6 @@ from functools import reduce
 import numpy as np
 import pandas as pd
 from darts import TimeSeries
-from darts.dataprocessing.transformers import MissingValuesFiller
 from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
@@ -1141,7 +1140,7 @@ class BasePipeline:
         fill: float = 0.0,
     ) -> TimeSeries:
         """
-        Detects and fills missing values in a time series using the Darts `MissingValuesFiller` transformer.
+        Detects and fills missing values in a time series.
 
         This method interpolates missing values in the time series using the `pd.DataFrame.interpolate()` method.
 
@@ -1150,9 +1149,7 @@ class BasePipeline:
         - sensors (list[Sensor]): The list of sensors (used for logging).
         - start (datetime): The desired start time of the time series.
         - end (datetime): The desired end time of the time series.
-        - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `MissingValuesFiller`,
-          which internally calls `pd.DataFrame.interpolate()`. For more details, see the
-          `Darts documentation <https://unit8co.github.io/darts/generated_api/darts.utils.missing_values.html#darts.utils.missing_values.fill_missing_values>`_.
+        - interpolate_kwargs (dict, optional): Additional keyword arguments passed to `pd.Series.interpolate()`.
         - fill (float): value used to fill gaps in case there is no data at all.
         Returns:
         - TimeSeries: The time series with missing values filled.
@@ -1177,6 +1174,7 @@ class BasePipeline:
                         f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
                     )
 
+            constant_fill = None
             if df.empty:
                 last_event_start = end - pd.Timedelta(
                     hours=sensor.event_resolution.total_seconds() / 3600
@@ -1192,9 +1190,7 @@ class BasePipeline:
                 logging.debug(
                     f"Sensor {sensor_name} has no data from {start} to {end}. Filling with {fill}."
                 )
-                transformer = MissingValuesFiller(fill=float(fill))
-            else:
-                transformer = MissingValuesFiller(fill="auto")
+                constant_fill = float(fill)
 
             # Keep only this sensor's own column, so each pass contributes exactly one component.
             # Copying the whole frame would stack every sensor's column once per sensor,
@@ -1208,74 +1204,10 @@ class BasePipeline:
             # Convert start & end to naive UTC
             start = start.tz_localize(None)
             end = end.tz_localize(None)
-            last_event_start = end
 
-            # Ensure the first and last event_starts match the expected dates specified in the CLI arguments
-            # Add start time if missing
-            if data.empty or (
-                data["event_start"].iloc[0] != start
-                and data["event_start"].iloc[0] > start
-            ):
-                new_row_start = pd.DataFrame(
-                    {"event_start": [start], sensor_name: [None]}
-                )
-                data = pd.concat([new_row_start, data], ignore_index=True)
-
-            if data.empty or (
-                data["event_start"].iloc[-1] != last_event_start
-                and data["event_start"].iloc[-1] < last_event_start
-            ):
-                new_row_end = pd.DataFrame(
-                    {"event_start": [last_event_start], sensor_name: [None]}
-                )
-                data = pd.concat([data, new_row_end], ignore_index=True)
-
-            # Drop duplicate event_starts (keep first)
-            if n_extra_points := len(data) - len(data["event_start"].unique()):
-                logging.debug(
-                    f"Data for sensor {sensor_name} contains multiple beliefs about a single event. "
-                    f"Dropping {n_extra_points} beliefs with duplicate event starts."
-                )
-                data = data.drop_duplicates("event_start")
-
-            # Convert to Darts TimeSeries & fill
-            data_darts = TimeSeries.from_dataframe(
-                df=data,
-                time_col="event_start",
-                fill_missing_dates=True,
-                freq=self.target_sensor.event_resolution,
+            data_darts = self._fill_missing_values(
+                data, sensor, sensor_name, start, end, constant_fill, interpolate_kwargs
             )
-            # Identify gaps in the time index (where timestamp rows are missing)
-            data_darts_gaps = data_darts.gaps()
-
-            # Calculate number of missing rows per gap
-            data_darts_gaps["missing_rows"] = (
-                (data_darts_gaps["gap_end"] - data_darts_gaps["gap_start"])
-                / sensor.event_resolution
-            ).astype(int)
-
-            # Total missing rows
-            total_missing = data_darts_gaps["missing_rows"].sum()
-
-            # Total expected rows in full dataset
-            total_expected = int((end - start) / sensor.event_resolution) + 1
-
-            # Fraction of missing rows
-            missing_rows_fraction = total_missing / total_expected
-
-            if missing_rows_fraction > self.missing_threshold:
-                raise NotEnoughDataException(
-                    f"Sensor {sensor_name} has {missing_rows_fraction * 100:.1f}% missing values "
-                    f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
-                )
-            if not data_darts_gaps.empty:
-                data_darts = transformer.transform(
-                    data_darts, **(interpolate_kwargs or {})
-                )
-                logging.debug(
-                    f"Sensor {sensor_name} has gaps:\n{data_darts_gaps.to_string()}\n"
-                    "These were filled using `pd.DataFrame.interpolate()`."
-                )
 
             data_darts = _bound_input_series(data_darts, sensor)
 
@@ -1289,3 +1221,110 @@ class BasePipeline:
                 dfs,
             )
         return data_darts
+
+    def _fill_missing_values(
+        self,
+        data: pd.DataFrame,
+        sensor: Sensor,
+        sensor_name: str,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        constant_fill: float | None,
+        interpolate_kwargs: dict | None,
+    ) -> TimeSeries:
+        """Pad one sensor's column to the expected window, check its share of missing rows and fill its gaps.
+
+        Works in pandas and numpy, and converts to a Darts ``TimeSeries`` only at the end,
+        because converting to Darts and back is most of the cost of preparing the inputs of a forecast step.
+        Fills gaps the way Darts' ``MissingValuesFiller`` does.
+
+        :param data:                Frame with the columns "event_start" (naive UTC) and ``sensor_name``.
+        :param start:               Naive UTC start of the expected window.
+        :param end:                 Naive UTC end of the expected window.
+        :param constant_fill:       Value to fill all gaps with, or None to interpolate.
+        :param interpolate_kwargs:  Keyword arguments for ``pd.Series.interpolate()`` when interpolating.
+        :raises ValueError:             If the "event_start" column contains missing timestamps.
+        :raises NotEnoughDataException: If the fraction of missing rows exceeds the threshold.
+        """
+        if data["event_start"].isna().any():
+            raise ValueError(
+                f"Data for sensor {sensor_name} contains missing event starts (NaT), so its gaps cannot be filled."
+            )
+
+        # Drop duplicate event_starts (keep first)
+        column = data[sensor_name].astype(float)
+        column.index = pd.DatetimeIndex(data["event_start"])
+        if n_extra_points := int(column.index.duplicated().sum()):
+            logging.debug(
+                f"Data for sensor {sensor_name} contains multiple beliefs about a single event. "
+                f"Dropping {n_extra_points} beliefs with duplicate event starts."
+            )
+            column = column[~column.index.duplicated()]
+        column = column.sort_index()
+
+        # The expected window is padded to the data's own range, where that reaches further
+        resolution = self.target_sensor.event_resolution
+        first = min(start, column.index[0]) if len(column) else start
+        last = max(end, column.index[-1]) if len(column) else end
+        index = pd.date_range(first, last, freq=resolution)
+        values = column.reindex(index).to_numpy()
+        is_missing = np.isnan(values)
+
+        # Runs of consecutive missing rows are gaps
+        edges = np.diff(np.concatenate(([0], is_missing.view(np.int8), [0])))
+        gap_starts = np.flatnonzero(edges == 1)
+        gap_ends = np.flatnonzero(edges == -1) - 1
+        # Count, at the target resolution, the window's rows that no reading covers.
+        # A reading covers the rows its sensor's resolution spans, so a complete hourly regressor leaves no 15-minute row uncovered,
+        # and an instantaneous one covers just its own row.
+        rows_per_reading = max(1, sensor.event_resolution // resolution)
+        is_covered = (
+            pd.Series(~is_missing)
+            .rolling(rows_per_reading, min_periods=1)
+            .max()
+            .to_numpy(dtype=bool)
+        )
+        in_window = (index >= start) & (index <= end)
+        total_missing = int((~is_covered & in_window).sum())
+
+        # Total expected rows in full dataset
+        total_expected = int((end - start) / resolution) + 1
+
+        # Fraction of missing rows
+        missing_rows_fraction = total_missing / total_expected
+
+        if missing_rows_fraction > self.missing_threshold:
+            raise NotEnoughDataException(
+                f"Sensor {sensor_name} has {missing_rows_fraction * 100:.1f}% missing values "
+                f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
+            )
+        if len(gap_starts):
+            if constant_fill is not None:
+                values = np.where(is_missing, constant_fill, values)
+            else:
+                values = (
+                    pd.Series(values, index=index)
+                    .interpolate(
+                        **{"limit_direction": "both", **(interpolate_kwargs or {})}
+                    )
+                    .to_numpy(dtype=float)
+                )
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                gap_table = pd.DataFrame(
+                    {
+                        "gap_start": index[gap_starts],
+                        "gap_end": index[gap_ends],
+                        "gap_size": gap_ends - gap_starts + 1,
+                    }
+                )
+                logging.debug(
+                    f"Sensor {sensor_name} has gaps:\n{gap_table.to_string()}\n"
+                    "These were filled using `pd.DataFrame.interpolate()`."
+                )
+
+        return TimeSeries.from_times_and_values(
+            times=index,
+            values=values.reshape(-1, 1),
+            freq=resolution,
+            columns=[sensor_name],
+        )

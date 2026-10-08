@@ -1730,13 +1730,34 @@ def add_forecast(  # noqa: C901
                 click.echo(item["data"])
             return
 
-        click.secho(
-            f"Successfully created {pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)},"
-            # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
-            f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id}).",
-            **MsgStyle.SUCCESS,
+        # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+        source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
+        computed = (
+            f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
+            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
         )
+        if not all("n_saved" in item for item in pipeline_returns):
+            # A forecaster that does not say what it saved is reported by what it computed.
+            click.secho(
+                f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
+            )
+            return
+        # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
+        total_saved = sum(item["n_saved"] for item in pipeline_returns)
+        if total_saved == total_beliefs:
+            click.secho(
+                f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
+            )
+        elif total_saved == 0:
+            click.secho(
+                f"Computed {computed}, all of which repeat beliefs already on record, so none were saved,{source_named}",
+                **MsgStyle.SUCCESS,
+            )
+        else:
+            click.secho(
+                f"Computed {computed} and saved {total_saved} of them, the rest repeating beliefs already on record,{source_named}",
+                **MsgStyle.SUCCESS,
+            )
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
