@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import enum
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
@@ -8,7 +7,7 @@ from flask_security import UserMixin, RoleMixin, current_user
 import pandas as pd
 from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey, Enum
+from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
@@ -53,17 +52,6 @@ class AccountRole(db.Model):
         return "<AccountRole:%s (ID:%s)>" % (self.name, self.id)
 
 
-class RateLimitKey(enum.Enum):
-    """What a trigger rate limit is counted against.
-
-    See flexmeasures.api.common.rate_limiting for how this is used.
-    """
-
-    ACCOUNT_PLUS_ASSET = "account+asset"
-    ACCOUNT = "account"
-    USER = "user"
-
-
 class Plan(db.Model):
     """
     A plan bundles the rate limits and quotas that apply to the accounts assigned to it.
@@ -83,8 +71,6 @@ class Plan(db.Model):
     # NULL falls back to the server-wide config setting.
     default_rate_limit = Column(String(80), nullable=True)
     trigger_rate_limit = Column(String(80), nullable=True)
-    # The enum type name is pinned to match the migration which created it
-    rate_limit_key = Column(Enum(RateLimitKey, name="ratelimitkey"), nullable=True)
 
     # Quotas, not enforced yet. NULL means no quota (falls back to server-wide behaviour).
     max_users = Column(Integer, nullable=True)
