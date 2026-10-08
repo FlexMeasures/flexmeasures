@@ -77,6 +77,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* A failed job now says why in the same way on every queue, in the API, the CLI and the asset page's jobs table: a failed forecasting job no longer reads ``dict: {...}`` and now shows its timeout hint, and a failed report or plugin automation no longer reads ``str: ...`` [see `PR #2698 <https://www.github.com/FlexMeasures/flexmeasures/pull/2698>`_]
 * The result of a reporting or scheduling job now counts the beliefs it saved rather than those it computed, so a report's ``n_rows`` and a schedule's ``num-beliefs`` read 0 when a rerun only repeats what is on record, and ``flexmeasures add forecasts`` no longer drops what a forecaster registered by a plugin returns [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]
 * Running the same forecast twice from the same start no longer fails on the beliefs it already recorded [see `PR #2688 <https://www.github.com/FlexMeasures/flexmeasures/pull/2688>`_]
 * Saving several beliefs about the same event at once no longer drops a belief whose value changes back to an earlier one, which made the most recent belief look like a value that had already been revised; ``flexmeasures edit resample-data`` lost such beliefs for good [see `PR #2687 <https://www.github.com/FlexMeasures/flexmeasures/pull/2687>`_]
