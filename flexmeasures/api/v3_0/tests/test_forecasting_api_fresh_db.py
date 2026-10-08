@@ -1,12 +1,16 @@
+from datetime import timedelta
+
 from flask import current_app
 import isodate
 import pytest
 from flask import url_for
 
 from rq.job import Job
+from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
 
@@ -167,3 +171,64 @@ def test_trigger_forecast_returns_200_for_legacy_client(
 
     assert response.status_code == 200
     assert response.json["job"] == response.json["forecast"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_forecasts_of_an_instantaneous_sensor_span_the_resolution_they_were_made_at(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    setup_roles_users_fresh_db,
+    requesting_user,
+):
+    """Three hourly forecasts of an instantaneous sensor are reported as covering three hours, not two."""
+    solar = setup_fresh_test_forecast_data["solar-sensor"]
+    thermometer = Sensor(
+        name="instantaneous solar",
+        generic_asset=solar.generic_asset,
+        unit=solar.unit,
+        event_resolution=timedelta(0),
+    )
+    fresh_db.session.add(thermometer)
+    for belief in fresh_db.session.scalars(
+        select(TimedBelief).filter_by(sensor_id=solar.id)
+    ).all():
+        fresh_db.session.add(
+            TimedBelief(
+                sensor=thermometer,
+                source=belief.source,
+                event_start=belief.event_start,
+                belief_time=belief.event_start,
+                event_value=belief.event_value,
+            )
+        )
+    fresh_db.session.commit()
+
+    client = app.test_client()
+    token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    trigger_res = client.post(
+        url_for("SensorAPI:trigger_forecast", id=thermometer.id),
+        json={
+            "start": "2025-01-05T00:00:00+00:00",
+            "end": "2025-01-05T03:00:00+00:00",
+            "max-forecast-horizon": "PT3H",
+            "forecast-frequency": "PT3H",
+            "resolution": "PT1H",
+            "config": {"train-start": "2025-01-01T00:00:00+00:00"},
+        },
+        headers={"Authorization": token},
+    )
+    assert trigger_res.status_code == 202, trigger_res.json
+
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
+
+    res = client.get(
+        url_for(
+            "SensorAPI:get_forecast", id=thermometer.id, uuid=trigger_res.json["job"]
+        ),
+        headers={"Authorization": token},
+    )
+    assert res.status_code == 200, res.json
+    assert res.json["start"] == "2025-01-05T00:00:00+00:00"
+    assert len(res.json["values"]) == 3
+    assert res.json["duration"] == "PT3H"

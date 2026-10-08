@@ -4,6 +4,7 @@ import pytest
 
 from marshmallow import ValidationError
 import pandas as pd
+from sqlalchemy import select
 
 from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
@@ -1303,3 +1304,87 @@ def test_forecaster_config_schema_rejects_unparseable_snap_value():
         )
 
     assert "snap" in exc.value.messages
+
+
+@pytest.fixture
+def instantaneous_sensor(setup_dummy_sensors, db) -> Sensor:
+    sensor, *_ = setup_dummy_sensors
+    # The dummy sensors outlive a single test, so the thermometer may already exist.
+    instantaneous = db.session.execute(
+        select(Sensor).filter_by(name="thermometer", generic_asset=sensor.generic_asset)
+    ).scalar_one_or_none()
+    if instantaneous is None:
+        instantaneous = Sensor(
+            "thermometer",
+            generic_asset=sensor.generic_asset,
+            unit="°C",
+            event_resolution=timedelta(0),
+        )
+        db.session.add(instantaneous)
+        db.session.flush()
+    return instantaneous
+
+
+def test_an_instantaneous_sensor_needs_a_resolution_to_forecast_at(
+    instantaneous_sensor,
+):
+    with pytest.raises(ValidationError) as exc:
+        ForecasterParametersSchema().load({"sensor": instantaneous_sensor.id})
+    assert "instantaneous" in str(exc.value.messages["resolution"])
+
+
+def test_an_instantaneous_sensor_is_forecast_at_the_resolution_given(
+    instantaneous_sensor, freeze_server_now
+):
+    freeze_server_now(
+        pd.Timestamp("2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam")
+    )
+    data = ForecasterParametersSchema().load(
+        {
+            "sensor": instantaneous_sensor.id,
+            "resolution": "PT1H",
+            "max-forecast-horizon": "PT6H",
+        }
+    )
+    assert data["resolution"] == timedelta(hours=1)
+    # The default start is now, floored to the resolution forecast at.
+    assert data["predict_start"] == pd.Timestamp(
+        "2025-01-15T12:00+01", tz="Europe/Amsterdam"
+    )
+
+    with pytest.raises(ValidationError, match="multiple of the forecast resolution"):
+        ForecasterParametersSchema().load(
+            {
+                "sensor": instantaneous_sensor.id,
+                "resolution": "PT1H",
+                "max-forecast-horizon": "PT90M",
+            }
+        )
+
+
+@pytest.mark.parametrize("resolution", ["P1M", "PT0H", "-PT1H"])
+def test_an_instantaneous_sensor_needs_a_positive_fixed_resolution(
+    instantaneous_sensor, resolution
+):
+    with pytest.raises(ValidationError) as exc:
+        ForecasterParametersSchema().load(
+            {"sensor": instantaneous_sensor.id, "resolution": resolution}
+        )
+    assert "positive duration of fixed length" in str(exc.value.messages["resolution"])
+
+
+def test_a_sensor_with_a_resolution_is_forecast_at_its_own(setup_dummy_sensors):
+    sensor, *_ = setup_dummy_sensors
+    own = sensor.event_resolution
+
+    data = ForecasterParametersSchema().load(
+        {"sensor": sensor.id, "resolution": pd.Timedelta(own).isoformat()}
+    )
+    assert data["resolution"] == own
+    assert ForecasterParametersSchema().load({"sensor": sensor.id})["resolution"] == own
+
+    with pytest.raises(ValidationError) as exc:
+        ForecasterParametersSchema().load(
+            {"sensor": sensor.id, "resolution": pd.Timedelta(own * 2).isoformat()}
+        )
+    assert "own resolution" in str(exc.value.messages["resolution"])

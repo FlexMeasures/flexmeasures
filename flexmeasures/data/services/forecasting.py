@@ -207,7 +207,7 @@ def run_forecast(
     # Determine training window (start, end)
     train_start, train_end = pipeline._derive_training_period()
 
-    sensor_resolution = pipeline._parameters["sensor"].event_resolution
+    sensor_resolution = pipeline._target_resolution
     multiplier = int(
         timedelta(hours=1) / sensor_resolution
     )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predictions to predict a week

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import reduce
 
 import numpy as np
@@ -227,6 +227,10 @@ class BasePipeline:
         Maximum look-ahead horizon, in steps of the target resolution.
     event_starts_after / event_ends_before : datetime | None
         Time boundaries for loading sensor events.
+    resolution : timedelta | None
+        Resolution to forecast the target at, which defaults to the target sensor's own.
+        An instantaneous target, whose own resolution is zero, needs one,
+        and its readings are then floored onto the slots of this resolution like those of any regressor.
     """
 
     def __init__(
@@ -245,7 +249,9 @@ class BasePipeline:
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
         annotation_regressors: list[dict] | None = None,
+        resolution: timedelta | None = None,
     ) -> None:
+        self._resolution = resolution
         self.future = future_regressors
         self.past = past_regressors
         self.n_steps_to_predict = n_steps_to_predict
@@ -275,9 +281,7 @@ class BasePipeline:
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
         self.max_forecast_horizon_in_hours = (
-            self.max_forecast_horizon
-            * self.target_sensor.event_resolution.total_seconds()
-            / 3600
+            self.max_forecast_horizon * self.target_resolution.total_seconds() / 3600
         )  # convert max_forecast_horizon to hours
         self.forecast_frequency = forecast_frequency
         self.missing_threshold = missing_threshold
@@ -287,7 +291,7 @@ class BasePipeline:
         self.annotation_regressor_proxies = [
             _AnnotationRegressorProxy(
                 name=spec.get("name") or f"annotation_regressor_{i}",
-                event_resolution=target_sensor.event_resolution,
+                event_resolution=self.target_resolution,
             )
             for i, spec in enumerate(self.annotation_regressors)
         ]
@@ -299,6 +303,12 @@ class BasePipeline:
         # Belief time is NaT where the annotation records none, meaning "always known".
         self._annotation_belief_times: dict[str, pd.Series] = {}
         self._annotation_values: dict[str, pd.Series] = {}
+
+    @property
+    def target_resolution(self) -> timedelta:
+        """The resolution the target is forecast at: the one given, or else the target sensor's own."""
+        resolution = getattr(self, "_resolution", None)
+        return resolution if resolution else self.target_sensor.event_resolution
 
     def _annotation_values_known_at(
         self, col_name: str, event_starts: pd.Series, vantage_point: pd.Timestamp
@@ -453,12 +463,12 @@ class BasePipeline:
                 # This ensures the resulting DataFrame can be used directly for predictions.
                 event_starts = df.event_starts
                 try:
-                    floored = event_starts.floor(self.target_sensor.event_resolution)
+                    floored = event_starts.floor(self.target_resolution)
                 except Exception:
                     # DST ambiguity: convert to UTC, floor, convert back to original tz.
                     floored = (
                         event_starts.tz_convert("UTC")
-                        .floor(self.target_sensor.event_resolution)
+                        .floor(self.target_resolution)
                         .tz_convert(event_starts.tz)
                     )
                 df = tb_utils.replace_multi_index_level(df, "event_start", floored)
@@ -599,7 +609,7 @@ class BasePipeline:
         # Build the full time index at target resolution.
         # Normalise start/end to UTC first so pd.date_range never sees two
         # tz-aware endpoints with different UTC offsets (e.g. CET vs CEST).
-        resolution = self.target_sensor.event_resolution
+        resolution = self.target_resolution
         start_utc = (
             pd.Timestamp(start).tz_convert("UTC")
             if pd.Timestamp(start).tzinfo
@@ -788,7 +798,7 @@ class BasePipeline:
 
                 return selected[keep]
 
-            target_sensor_resolution = self.target_sensor.event_resolution
+            target_sensor_resolution = self.target_resolution
 
             # target_start is the timestamp of the event_start of the first event in realizations
             target_start = pd.to_datetime(
@@ -799,7 +809,7 @@ class BasePipeline:
             # belief_time in this module is the belief_time of the last realization to be used for forecasting at each prediction step.
             if self.predict_start:
                 first_target_end = pd.to_datetime(
-                    self.predict_start - self.target_sensor.event_resolution,
+                    self.predict_start - self.target_resolution,
                     utc=True,
                 ).tz_localize(None)
                 first_belief_time = pd.to_datetime(
@@ -807,7 +817,7 @@ class BasePipeline:
                 ).tz_localize(None)
             else:
                 first_target_end = pd.to_datetime(
-                    self.event_ends_before - self.target_sensor.event_resolution,
+                    self.event_ends_before - self.target_resolution,
                     utc=True,
                 ).tz_localize(None)
                 first_belief_time = pd.to_datetime(
@@ -818,7 +828,7 @@ class BasePipeline:
             first_forecast_end = (
                 first_target_end
                 + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
-                + self.target_sensor.event_resolution
+                + self.target_resolution
             )
             # Ensure the forecast_end is in UTC and has no timezone info
             first_forecast_end = pd.to_datetime(
@@ -831,9 +841,11 @@ class BasePipeline:
                     self.save_belief_time, utc=True
                 ).tz_localize(None)
 
+            # A stable sort keeps the beliefs about one slot in the order they were loaded,
+            # so that, of several readings floored onto one slot (as of an instantaneous target), the earliest is the one kept.
             y_clean = (
                 y.drop(columns=["belief_time"])
-                .sort_values("event_start")
+                .sort_values("event_start", kind="stable")
                 .reset_index(drop=True)
             )
 
@@ -1054,7 +1066,7 @@ class BasePipeline:
                         sensor_names=self.future_regressors
                         + self.annotation_regressor_names,
                         start=target_start,
-                        end=forecast_end + self.target_sensor.event_resolution,
+                        end=forecast_end + self.target_resolution,
                     )
 
                 else:
@@ -1263,7 +1275,7 @@ class BasePipeline:
         column = column.sort_index()
 
         # The expected window is padded to the data's own range, where that reaches further
-        resolution = self.target_sensor.event_resolution
+        resolution = self.target_resolution
         first = min(start, column.index[0]) if len(column) else start
         last = max(end, column.index[-1]) if len(column) else end
         index = pd.date_range(first, last, freq=resolution)

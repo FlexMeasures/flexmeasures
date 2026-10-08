@@ -9,6 +9,8 @@ import time
 import logging
 from datetime import datetime, timedelta
 
+import isodate
+
 import inflection
 
 from rq.job import Job
@@ -315,6 +317,17 @@ class TrainPredictPipeline(Forecaster):
         target = self._parameters["sensor"]
         return target.sensor if isinstance(target, SensorReference) else target
 
+    @property
+    def _target_resolution(self) -> timedelta:
+        """The resolution the target is forecast at.
+
+        Parameters resolved before this setting existed, such as those of a job queued before an upgrade, carry none, and then it is the sensor's own.
+        """
+        return (
+            self._parameters.get("resolution")
+            or self._parameters["sensor"].event_resolution
+        )
+
     def run_wrap_up(self, cycle_job_ids: list[str], queue: str = "forecasting"):
         """Log the status of all cycle jobs after completion."""
         run_train_predict_wrap_up_job(cycle_job_ids, queue)
@@ -371,7 +384,7 @@ class TrainPredictPipeline(Forecaster):
             // timedelta(hours=1)
             * multiplier,
             max_forecast_horizon=self._parameters["max_forecast_horizon"]
-            // self._parameters["sensor"].event_resolution,
+            // self._target_resolution,
             event_starts_after=train_start,
             event_ends_before=train_end,
             save_belief_time=self._parameters["save_belief_time"],
@@ -381,6 +394,7 @@ class TrainPredictPipeline(Forecaster):
             missing_threshold=self._config.get("missing_threshold"),
             annotation_regressors=self._config.get("annotation_regressors", []),
             model_params=self._config.get("model_params"),
+            resolution=self._target_resolution,
         )
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
         train_start_time = time.time()
@@ -408,9 +422,9 @@ class TrainPredictPipeline(Forecaster):
             ),
             n_steps_to_predict=self._parameters["predict_period_in_hours"] * multiplier,
             max_forecast_horizon=self._parameters["max_forecast_horizon"]
-            // self._parameters["sensor"].event_resolution,
+            // self._target_resolution,
             forecast_frequency=self._parameters["forecast_frequency"]
-            // self._parameters["sensor"].event_resolution,
+            // self._target_resolution,
             probabilistic=self._parameters["probabilistic"],
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
@@ -427,6 +441,7 @@ class TrainPredictPipeline(Forecaster):
                 "upper": self._config.get("upper"),
                 "snap": self._config.get("snap"),
             },
+            resolution=self._target_resolution,
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
@@ -630,6 +645,7 @@ class TrainPredictPipeline(Forecaster):
             "start": self._parameters["predict_start"].isoformat(),
             "end": self._parameters["end_date"].isoformat(),
             "sensor_id": job_parameters["sensor_to_save_id"],
+            "resolution": isodate.duration_isoformat(self._target_resolution),
         }
         if self._job_trigger:
             job_metadata["trigger"] = self._job_trigger

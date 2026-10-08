@@ -6427,6 +6427,15 @@
             "example": "PT1H",
             "format": "duration"
           },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Resolution to forecast at, in ISO 8601 duration format. Only needed for an instantaneous sensor (one with a zero resolution), whose readings are then taken onto slots of this resolution, and whose forecasts are saved as instantaneous values at the start of each slot. Any other sensor is forecast at its own resolution, so a different one is refused.",
+            "example": "PT1H",
+            "format": "duration"
+          },
           "config": {
             "description": "Changing any of these will result in a new data source ID.",
             "$ref": "#/components/schemas/TrainPredictPipelineConfigSchemaOpenAPI"

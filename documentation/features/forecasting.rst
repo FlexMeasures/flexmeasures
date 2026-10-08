@@ -62,6 +62,22 @@ Note that:
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
+Forecasting an instantaneous sensor
+--------------------------------------
+
+A sensor is forecast at its own resolution: an hourly sensor gets hourly forecasts, and the timing parameters above are multiples of that resolution.
+An instantaneous sensor, such as a thermometer or a state-of-charge sensor, records values at instants rather than over periods,
+so it has no resolution of its own, and you say which one to forecast it at with ``resolution``:
+
+.. code-block:: bash
+
+    flexmeasures add forecasts --sensor 13 --resolution PT1H --from-date 2024-02-02 --to-date 2024-02-02
+
+Its readings are then taken onto the slots of that resolution, where the first reading in each slot stands for the value at the slot's start,
+and its forecasts are saved as instantaneous values at the start of each slot.
+Readings that fall exactly on the slot boundaries are therefore used as they are.
+For any other sensor, ``resolution`` can be left out, and a resolution other than the sensor's own is refused.
+
 Forecast post-processing
 --------------------------------
 

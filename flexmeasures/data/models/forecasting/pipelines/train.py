@@ -55,6 +55,7 @@ class TrainPipeline(BasePipeline):
         missing_threshold: float = 1.0,
         annotation_regressors: list[dict] | None = None,
         model_params: dict | None = None,
+        resolution: timedelta | None = None,
     ) -> None:
         """
         Initialize the TrainPipeline.
@@ -73,6 +74,7 @@ class TrainPipeline(BasePipeline):
         :param ensure_positive: Whether to ensure that predictions are positive.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         :param model_params: LightGBM parameter overrides, merged over the model's defaults.
+        :param resolution: Resolution to forecast the target at; defaults to the target sensor's own, and is needed for an instantaneous target.
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
@@ -98,6 +100,7 @@ class TrainPipeline(BasePipeline):
             forecast_frequency=forecast_frequency,
             missing_threshold=missing_threshold,
             annotation_regressors=annotation_regressors,
+            resolution=resolution,
         )
 
     def train_model(
@@ -168,7 +171,7 @@ class TrainPipeline(BasePipeline):
                 use_future_covariates=future_covariates_list is not None,
                 ensure_positive=self.ensure_positive,
                 seasonal_lags_steps=[
-                    derive_daily_lag_steps(self.target_sensor.event_resolution),
+                    derive_daily_lag_steps(self.target_resolution),
                     *DEFAULT_SEASONAL_LAGS_STEPS,
                 ],
                 training_sample_count=len(y_train),
