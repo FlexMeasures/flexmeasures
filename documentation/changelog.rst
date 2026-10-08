@@ -38,6 +38,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* A forecast automation's cycle jobs are held to the sensors the automation was checked against, as the jobs of every other kind of data generator are [see `PR #2699 <https://www.github.com/FlexMeasures/flexmeasures/pull/2699>`_]
 * Remove the last state-of-charge bookkeeping that served the sunset API versions 1 and 2 [see `PR #2665 <https://www.github.com/FlexMeasures/flexmeasures/pull/2665>`_]
 * A data source now belongs to the organisation it records for, where only sources of type ``user`` used to. The organisation is part of what identifies a source, so two organisations running the same data generator under the same configuration each record under their own source, instead of sharing one because their configurations happen to hash alike; a ``source-account`` filter consequently finds generated data, where it used to match user-recorded data only. The sources that already exist are coupled on upgrade, to the organisation of the assets their data sits on [see `PR #2631 <https://www.github.com/FlexMeasures/flexmeasures/pull/2631>`_]
 * Separate built-in forecast computation from service-managed saving, preserving per-cycle commits and existing plugin entrypoints while avoiding new data sources during synchronous dry runs [see `PR #2645 <https://www.github.com/FlexMeasures/flexmeasures/pull/2645>`_]

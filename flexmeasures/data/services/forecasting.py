@@ -12,6 +12,7 @@ from timely_beliefs import BeliefsDataFrame
 from flask import current_app
 
 from flexmeasures.data import db
+from flexmeasures.data.services.generator_results import check_results_of_current_job
 from flexmeasures.data.utils import save_to_db_and_count
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
@@ -159,6 +160,10 @@ def run_forecast_cycle(pipeline: TrainPredictPipeline, *args, **kwargs) -> float
     """Compute and persist one cycle before reporting its runtime to the caller."""
     result = pipeline.compute_cycle(*args, **kwargs)
     bdf = result.data
+    # Judge the cycle before anything is exported, saved or handed back.
+    check_results_of_current_job(
+        [{"sensor": pipeline._parameters["sensor_to_save"], "data": bdf}], pipeline
+    )
     if result.output_path is not None:
         logging.debug("Saving predictions to a CSV file.")
         os.makedirs(os.path.dirname(result.output_path), exist_ok=True)
