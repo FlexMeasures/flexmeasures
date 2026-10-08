@@ -249,7 +249,8 @@ class ForecastCycleResult:
     data: BeliefsDataFrame
     runtime: float
     output_path: str | None
-    model_path: str
+    # Only set when the model was kept as a file, as asked for with model-save-dir.
+    model_path: str | None
 
 
 class TrainPredictPipeline(Forecaster):
@@ -353,8 +354,9 @@ class TrainPredictPipeline(Forecaster):
     ) -> ForecastCycleResult:
         """Train a model and return predictions without writing to the database.
 
-        The trained model is left on disk for the caller to clean up after consuming
-        the result. CSV export and database persistence belong to the service.
+        The trained model is handed to the prediction in memory.
+        It is also kept as a file only when a model-save-dir was given, which is then left for the caller to clean up, if it asks to.
+        CSV export and database persistence belong to the service.
         """
         # State the training span, because it decides how much work the cycle is, and it is derived rather than configured.
         logging.info(
@@ -384,7 +386,7 @@ class TrainPredictPipeline(Forecaster):
         )
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
         train_start_time = time.time()
-        train_pipeline.run(counter=counter)
+        model = train_pipeline.run(counter=counter)
         train_runtime = time.time() - train_start_time
         logging.info(
             f"{inflection.ordinalize(counter)} Training cycle completed in {train_runtime:.2f} seconds."
@@ -394,10 +396,15 @@ class TrainPredictPipeline(Forecaster):
             future_regressors=self._run_config["future_regressors"],
             past_regressors=self._run_config["past_regressors"],
             target_sensor=self._parameters["sensor"],
-            model_path=os.path.join(
-                self._parameters["model_save_dir"],
-                f"sensor_{self._parameters['sensor'].id}-cycle_{counter}-lgbm.pkl",
+            model_path=(
+                os.path.join(
+                    self._parameters["model_save_dir"],
+                    f"sensor_{self._parameters['sensor'].id}-cycle_{counter}-lgbm.pkl",
+                )
+                if self._parameters["model_save_dir"] is not None
+                else None
             ),
+            model=model,
             output_path=(
                 os.path.join(
                     self._parameters["output_path"],
