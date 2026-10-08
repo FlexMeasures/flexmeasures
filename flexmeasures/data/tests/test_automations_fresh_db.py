@@ -575,10 +575,10 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
     import pandas as pd
 
     from flexmeasures.data.models.planning.storage import StorageScheduler
-    from flexmeasures.data.services.scheduling import (
-        ScheduleWritesUncheckedSensor,
-        make_schedule,
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
     )
+    from flexmeasures.data.services.scheduling import make_schedule
 
     battery = add_battery_assets_fresh_db["Test battery"]
     scheduled_sensor = battery.sensors[0]
@@ -619,7 +619,7 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
         ],
     )
 
-    with pytest.raises(ScheduleWritesUncheckedSensor, match=str(other_sensor.id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(other_sensor.id)):
         make_schedule(
             asset_or_sensor={"class": "Asset", "id": battery.id},
             start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),

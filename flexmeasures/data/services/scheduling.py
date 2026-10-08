@@ -40,7 +40,11 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.services.generator_results import (
+    check_generator_results,
+    describe_generator,
+    save_generator_results,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     job_cache,
@@ -908,10 +912,6 @@ def _resolve_schedule_output_sign(
     return 1
 
 
-class ScheduleWritesUncheckedSensor(PermissionError):
-    """Raised when a scheduler returns results for a sensor that nobody's permissions were checked against."""
-
-
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
@@ -1047,27 +1047,20 @@ def make_schedule(  # noqa: C901
     )
 
     permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
-    if permitted_output_sensor_ids is not None:
-        # Judge the whole set before writing any of it.
-        # The job's transaction would roll an interrupted write back, since `save_to_db` only flushes,
-        # but a refusal should not depend on the caller's transaction discipline,
-        # and `make_schedule` is also called directly.
-        refused = sorted(
-            {
-                result["sensor"].id
-                for result in consumption_schedule
-                if "sensor" in result
-                and result["sensor"].id not in permitted_output_sensor_ids
-            }
-        )
-        if refused:
-            raise ScheduleWritesUncheckedSensor(
-                f"This schedule would record data on sensor(s) {', '.join(str(i) for i in refused)},"
-                f" which are not among the sensors automation {rq_job.meta['trigger']['automation_id']}"
-                " was checked against when it was created."
-            )
+    # Judge the whole set before writing any of it, as for every data generator.
+    # A refusal should not depend on the caller's transaction discipline, and `make_schedule` is also called directly.
+    check_generator_results(
+        consumption_schedule,
+        permitted_output_sensor_ids,
+        describe_generator(scheduler),
+        (
+            rq_job.meta["trigger"]["automation_id"]
+            if permitted_output_sensor_ids is not None
+            else None
+        ),
+    )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
-    num_beliefs_created = 0
+    to_save = []
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1111,8 +1104,7 @@ def make_schedule(  # noqa: C901
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
         if not dry_run:
-            save_to_db(bdf)
-            num_beliefs_created += len(bdf)
+            to_save.append({"sensor": result["sensor"], "data": bdf})
         else:
             # Report what would have been saved, in the same terms as a forecast dry run does:
             # the sensor, the number of beliefs, and the events they cover.
@@ -1126,8 +1118,10 @@ def make_schedule(  # noqa: C901
                 f" but this is what I computed ({len(bdf)} beliefs{event_range}):\n{bdf}"
             )
 
-    # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
-    scheduling_result_dict["num-beliefs"] = num_beliefs_created
+    # Saved the way every data generator's results are: all or nothing, and counting the beliefs actually saved,
+    # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so the count is 0.
+    saved = save_generator_results(to_save) if to_save else []
+    scheduling_result_dict["num-beliefs"] = sum(entry["n_rows"] for entry in saved)
 
     if not dry_run:
         scheduler.persist_flex_model()
