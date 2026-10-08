@@ -63,9 +63,11 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
-from flexmeasures.data.services.generator_results import save_results_not_yet_saved
+from flexmeasures.data.services.generator_results import (
+    save_generator_results,
+    save_results_not_yet_saved,
+)
 from flexmeasures.data.services.reporting import (
-    compute_and_save_report,
     compute_report,
     count_persistable_values,
 )
@@ -2481,25 +2483,30 @@ def add_report(  # noqa: C901
 
     click.echo("Report computation is running...")
 
-    # compute the report (and save it, unless running in dry mode)
-    if dry_run:
-        results, saved = compute_report(reporter, parameters), []
-    else:
-        results, saved = compute_and_save_report(reporter, parameters)
+    results = compute_report(reporter, parameters)
+    # Say what was computed before saving any of it, so that a save that fails still leaves this on screen.
+    for result in results:
+        if not result["data"].empty:
+            click.secho(
+                f"Report computation done for sensor `{result['sensor']}`.",
+                **MsgStyle.SUCCESS,
+            )
+        else:
+            click.secho(
+                f"Report computation done for sensor `{result['sensor']}`, but the report is empty.",
+                **MsgStyle.WARN,
+            )
+
+    # Save all outputs or none, unless running in dry mode, as every data generator's results are saved.
+    saved = []
+    if not dry_run:
+        click.echo("Saving the report to the database...")
+        saved = save_generator_results(results)
         db.session.commit()
 
     for i, result in enumerate(results):
         data = result["data"]
         sensor = result["sensor"]
-        if not data.empty:
-            click.secho(
-                f"Report computation done for sensor `{sensor}`.", **MsgStyle.SUCCESS
-            )
-        else:
-            click.secho(
-                f"Report computation done for sensor `{sensor}`, but the report is empty.",
-                **MsgStyle.WARN,
-            )
 
         # The report was saved above, unless running in dry mode, so say what that save stored.
         if not dry_run:
