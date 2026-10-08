@@ -15,7 +15,7 @@ from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataGenerator
-from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES
+from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES, job_result_ttl
 
 
 class AutomationPayloadValidationError(ValidationError):
@@ -226,11 +226,7 @@ class AutomationHandler:
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
                 ).total_seconds()
             ),
-            result_ttl=int(
-                current_app.config.get(
-                    "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                ).total_seconds()
-            ),
+            result_ttl=job_result_ttl(self.queue),
             meta={
                 "trigger": {"origin": "automation", "automation_id": automation.id},
                 "data_source_info": {"id": source_id},
@@ -398,7 +394,7 @@ def check_execution_access(automation, sensors):
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.utils import save_to_db
+    from flexmeasures.data.utils import save_to_db_and_count
 
     automation = db.session.get(Automation, automation_id, populate_existing=True)
     if automation is None:
@@ -424,7 +420,7 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
             )
     saved = []
     for result in results:
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": len(result["data"])})
+        _, n_saved = save_to_db_and_count(result["data"])
+        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
     db.session.commit()
     return saved
