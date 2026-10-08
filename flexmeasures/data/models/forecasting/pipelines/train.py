@@ -42,7 +42,7 @@ class TrainPipeline(BasePipeline):
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
         target_sensor: Sensor | SensorReference,
-        model_save_dir: str,
+        model_save_dir: str | None,
         n_steps_to_predict: int,
         max_forecast_horizon: int,
         forecast_frequency: int = 1,
@@ -63,7 +63,7 @@ class TrainPipeline(BasePipeline):
         :param past_regressors: List of sensors or sensor references serving as past regressors.
         :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
-        :param model_save_dir: Directory where the trained model will be saved.
+        :param model_save_dir: Directory to also keep the trained model in, as a file; None (the default for a forecast) keeps no file.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
         :param event_starts_after: Only consider events starting after this time.
@@ -133,7 +133,7 @@ class TrainPipeline(BasePipeline):
 
     def save_model(self, model, model_name: str):
         """
-        Save the trained model to the model_save_path.
+        Keep the trained model as a file in the model_save_dir, as asked for.
         """
         model_save_path = os.path.join(self.model_save_dir, model_name)
         # Ensure the directory exists
@@ -144,10 +144,11 @@ class TrainPipeline(BasePipeline):
 
     def run(self, counter: int):
         """
-        Runs the training pipeline.
+        Runs the training pipeline, and returns the trained model.
 
-        This function loads the data, splits it into training and testing sets,
-        trains multiple models on the training set, and saves the trained models.
+        This function loads the data, splits it into training and testing sets, and trains a model on the training set.
+        The model is handed back in memory, so nothing needs to be written to disk to predict with it.
+        It is also kept as a file only when a model_save_dir was given.
         """
         df = self.load_data_all_beliefs()
         past_covariates_list, future_covariates_list, y_train_list, _ = (
@@ -183,4 +184,6 @@ class TrainPipeline(BasePipeline):
                 past_covariates=past_covariates,
                 y_train=y_train,
             )
-            self.save_model(trained_model, model_name)
+            if self.model_save_dir is not None:
+                self.save_model(trained_model, model_name)
+        return trained_model

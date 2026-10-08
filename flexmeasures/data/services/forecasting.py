@@ -146,7 +146,8 @@ def run_prediction(
         _log_forecast_dry_run(bdf)
     else:
         save_forecast(bdf)
-    if delete_model:
+    # Only a model kept as a file can be deleted; one handed over in memory leaves nothing behind.
+    if delete_model and pipeline.model_path is not None:
         os.remove(pipeline.model_path)
     logging.info("Prediction pipeline completed successfully.")
     return bdf
@@ -172,7 +173,8 @@ def run_forecast_cycle(pipeline: TrainPredictPipeline, *args, **kwargs) -> float
         n_saved = save_forecast(bdf)
     # Keep DataGenerator's result attribution aligned with the source resolved by the service.
     pipeline._data_source = bdf.sources[0] if len(bdf) else pipeline.forecast_source()
-    if pipeline.delete_model:
+    # Only a model kept as a file, as asked for with model-save-dir, leaves something to delete.
+    if pipeline.delete_model and result.model_path is not None:
         os.remove(result.model_path)
     result_entry = {"data": bdf, "sensor": pipeline._target_sensor}
     if n_saved is not None:

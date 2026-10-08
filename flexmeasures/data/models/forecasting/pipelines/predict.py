@@ -26,7 +26,7 @@ class PredictPipeline(BasePipeline):
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
         target_sensor: Sensor | SensorReference,
-        model_path: str,
+        model_path: str | None,
         output_path: str,
         n_steps_to_predict: int,
         max_forecast_horizon: int,
@@ -45,6 +45,7 @@ class PredictPipeline(BasePipeline):
         annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
         dry_run: bool = False,
+        model=None,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -53,7 +54,7 @@ class PredictPipeline(BasePipeline):
         :param past_regressors: List of sensors or sensor references serving as past regressors.
         :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
-        :param model_path: Path to the model file.
+        :param model_path: Path to a kept model file, read when no model is handed over; None if no file was kept.
         :param output_path: Path where predictions will be saved.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
         :param max_forecast_horizon: Maximum forecast horizon in steps of 1 resolution.
@@ -70,6 +71,7 @@ class PredictPipeline(BasePipeline):
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         :param post_processing_config: Optional clipping and snapping configuration for forecast values.
         :param dry_run: If True, compute the forecast but do not save it to the database.
+        :param model: The trained model, handed over in memory, so that no file needs to be read.
         """
         super().__init__(
             future_regressors=future_regressors,
@@ -88,6 +90,7 @@ class PredictPipeline(BasePipeline):
             annotation_regressors=annotation_regressors,
         )
         self.model_path = model_path
+        self.model = model
         self.output_path = output_path
         self.probabilistic = probabilistic
         self.quantiles = tuple(quantiles) if quantiles else None
@@ -108,8 +111,14 @@ class PredictPipeline(BasePipeline):
 
     def load_model(self):
         """
-        Load the model and its metadata from the model_path.
+        Return the model handed over, or else load it and its metadata from the model_path.
         """
+        if self.model is not None:
+            return self.model
+        if self.model_path is None:
+            raise ValueError(
+                "No model to predict with: none was handed over, and no model file was named."
+            )
         logging.debug("Loading model and metadata from %s", self.model_path)
         with open(self.model_path, "rb") as file:
             model = pickle.load(file)
