@@ -2459,6 +2459,9 @@ class SensorAPI(FlaskView):
         last_event_start = forecasts["event_start"].max()
 
         resolution = sensor.event_resolution
+        if resolution == timedelta(0) and job.meta.get("resolution"):
+            # Forecasts of an instantaneous sensor are spaced by the resolution they were made at.
+            resolution = isodate.parse_duration(job.meta["resolution"])
         duration = (last_event_start + resolution) - start
 
         response = dict(

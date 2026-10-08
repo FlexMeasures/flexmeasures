@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pickle
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -45,6 +45,7 @@ class PredictPipeline(BasePipeline):
         annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
         dry_run: bool = False,
+        resolution: timedelta | None = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -70,6 +71,7 @@ class PredictPipeline(BasePipeline):
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
         :param post_processing_config: Optional clipping and snapping configuration for forecast values.
         :param dry_run: If True, compute the forecast but do not save it to the database.
+        :param resolution: Resolution to forecast the target at; defaults to the target sensor's own, and is needed for an instantaneous target.
         """
         super().__init__(
             future_regressors=future_regressors,
@@ -86,6 +88,7 @@ class PredictPipeline(BasePipeline):
             save_belief_time=save_belief_time,
             beliefs_before=beliefs_before,
             annotation_regressors=annotation_regressors,
+            resolution=resolution,
         )
         self.model_path = model_path
         self.output_path = output_path
@@ -99,7 +102,7 @@ class PredictPipeline(BasePipeline):
         self.post_processing_config = post_processing_config or {}
         self.dry_run = dry_run
 
-        self.sensor_resolution = self.target_sensor.event_resolution
+        self.sensor_resolution = self.target_resolution
         self.readable_resolution = duration_isoformat(self.sensor_resolution)
         self.total_forecast_hours = (
             self.max_forecast_horizon * self.sensor_resolution.total_seconds() / 3600
@@ -300,5 +303,6 @@ class PredictPipeline(BasePipeline):
             sensor_to_save=self.sensor_to_save,
             data_source=self.data_source,
             refresh_source=False,
+            resolution=self.target_resolution,
         )
         return bdf

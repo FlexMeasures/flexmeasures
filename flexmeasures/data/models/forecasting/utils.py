@@ -66,6 +66,7 @@ def data_to_bdf(
     sensor_to_save: Sensor,
     data_source: DataSource,
     refresh_source: bool = True,
+    resolution: timedelta | None = None,
 ) -> tb.BeliefsDataFrame:
     """
     Converts a prediction DataFrame into a BeliefsDataFrame for saving to the database.
@@ -82,6 +83,7 @@ def data_to_bdf(
     :param sensor_to_save:  The Sensor object to save the forecasts to.
     :param data_source:     The DataSource object to attribute the forecasts to.
     :param refresh_source:  Resolve the source in the database for legacy callers. Disable for computation without writes.
+    :param resolution:      Resolution the target was forecast at, which spaces the horizons; defaults to the target sensor's own.
     :returns:               A formatted BeliefsDataFrame ready for database insertion.
     """
     df = data.copy()
@@ -105,7 +107,7 @@ def data_to_bdf(
 
     # Add shifted event_starts
     expanded["event_start"] = expanded["event_start"] + expanded["h"].apply(
-        lambda h: target_sensor.event_resolution * h
+        lambda h: (resolution or target_sensor.event_resolution) * h
     )
 
     # Forecast values

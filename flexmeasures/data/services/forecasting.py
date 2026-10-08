@@ -195,6 +195,8 @@ def run_forecast(
     # Resolve before anything reads the target or the regressors, so that the cycles,
     # the queued payloads and the data source all see the same inputs.
     pipeline._resolved_config = pipeline._resolve_inputs()
+    # Settle the resolution before the timing below reads it, and before any job records it.
+    pipeline._resolve_target_resolution()
     connection = current_app.queues[queue].connection
     # How much to move forward to the next cycle one prediction period later
     cycle_frequency = max(
@@ -208,7 +210,7 @@ def run_forecast(
     # Determine training window (start, end)
     train_start, train_end = pipeline._derive_training_period()
 
-    sensor_resolution = pipeline._parameters["sensor"].event_resolution
+    sensor_resolution = pipeline._target_resolution
     multiplier = int(
         timedelta(hours=1) / sensor_resolution
     )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predictions to predict a week

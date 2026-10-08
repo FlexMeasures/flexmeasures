@@ -39,6 +39,7 @@ from flexmeasures.utils.bound_utils import bound_validation_errors
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.models.time_series import Sensor
 
 DEFAULT_TRAIN_PERIOD = timedelta(days=30)
 
@@ -435,6 +436,39 @@ class TrainPredictPipelineConfigSchema(Schema):
         return data
 
 
+def _forecast_resolution(
+    sensor: Sensor | SensorReference, resolution: timedelta | Duration | None
+) -> timedelta | None:
+    """Return the resolution to forecast a sensor at, as far as the parameters decide it.
+
+    An instantaneous sensor has no resolution of its own to step through time by.
+    Unless one is given, None is returned, and the forecaster derives one from the sensor and its data, over the training window it uses.
+    Any other sensor is forecast at its own resolution, so a different one is refused rather than ignored.
+
+    :param sensor:      The sensor to forecast, or a source-filtered reference to it.
+    :param resolution:  The resolution given in the parameters, if any.
+    :returns:           The resolution, or None for an instantaneous sensor without a given resolution.
+    :raises ValidationError: If an instantaneous sensor gets a resolution that is not positive, or another sensor gets a different one.
+    """
+    sensor_resolution = sensor.event_resolution
+    if sensor_resolution == timedelta(0):
+        if resolution is None:
+            return None
+        # A duration in months or years parses to a Duration, which has no fixed length to step by.
+        if not isinstance(resolution, timedelta) or resolution <= timedelta(0):
+            raise ValidationError(
+                "The resolution to forecast at must be a positive duration of fixed length, such as 'PT1H' rather than 'P1M'.",
+                field_name="resolution",
+            )
+        return resolution
+    if resolution is not None and resolution != sensor_resolution:
+        raise ValidationError(
+            f"This sensor is forecast at its own resolution ({sensor_resolution}); a resolution can only be set for an instantaneous sensor.",
+            field_name="resolution",
+        )
+    return sensor_resolution
+
+
 class ForecasterParametersSchema(Schema):
     """
     NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
@@ -560,6 +594,27 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
+    resolution = DurationField(
+        data_key="resolution",
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": (
+                "Resolution to forecast at, in ISO 8601 duration format."
+                " Only used for an instantaneous sensor (one with a zero resolution), for which it is the frequency of the forecasts,"
+                " as for the resolution of a data request (see 'Frequency and resolution' in the documentation):"
+                " its readings are taken onto slots of this resolution, and its forecasts are saved as instantaneous values at the start of each slot."
+                " If not given, it is the sensor's 'frequency' attribute,"
+                " or else the most common duration between the sensor's readings over the training window, in whole minutes,"
+                " or else one hour."
+                " Any other sensor is forecast at its own resolution, so a different one is refused."
+            ),
+            "example": "PT1H",
+            "cli": {
+                "option": "--resolution",
+            },
+        },
+    )
     probabilistic = fields.Bool(
         data_key="probabilistic",
         load_default=False,
@@ -616,8 +671,6 @@ class ForecasterParametersSchema(Schema):
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         end_date = data.get("end")
         predict_start = data.get("start", None)
-        max_forecast_horizon = data.get("max_forecast_horizon")
-        forecast_frequency = data.get("forecast_frequency")
         sensor = data.get("sensor")
 
         # todo: consider moving this to the run method in train_predict.py
@@ -638,17 +691,17 @@ class ForecasterParametersSchema(Schema):
                     field_name="start",
                 )
 
-        if max_forecast_horizon is not None:
-            if max_forecast_horizon % sensor.event_resolution != timedelta(0):
-                raise ValidationError(
-                    f"max-forecast-horizon must be a multiple of the sensor resolution ({sensor.event_resolution})"
-                )
-
-        if forecast_frequency is not None:
-            if forecast_frequency % sensor.event_resolution != timedelta(0):
-                raise ValidationError(
-                    f"forecast-frequency must be a multiple of the sensor resolution ({sensor.event_resolution})"
-                )
+        resolution = _forecast_resolution(sensor, data.get("resolution"))
+        # A derived resolution is checked against the timing where it is derived, in the forecaster.
+        if resolution is not None:
+            for field_name, duration in (
+                ("max-forecast-horizon", data.get("max_forecast_horizon")),
+                ("forecast-frequency", data.get("forecast_frequency")),
+            ):
+                if duration is not None and duration % resolution != timedelta(0):
+                    raise ValidationError(
+                        f"{field_name} must be a multiple of the forecast resolution ({resolution})"
+                    )
 
     @post_load(pass_original=True)
     def resolve_config(  # noqa: C901
@@ -668,10 +721,10 @@ class ForecasterParametersSchema(Schema):
 
         target_sensor = data["sensor"]
 
-        resolution = target_sensor.event_resolution
-
         now = server_now()
-        floored_now = floor_to_resolution(now, resolution)
+        resolution = _forecast_resolution(target_sensor, data.get("resolution"))
+        # Without a resolution yet, the forecaster floors a default start once it has derived one.
+        floored_now = floor_to_resolution(now, resolution) if resolution else now
 
         if data.get("start") is None:
             if original_data.get("duration") and data.get("end") is not None:
@@ -774,7 +827,12 @@ class ForecasterParametersSchema(Schema):
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
             dry_run=data.get("dry_run", False),
+            resolution=resolution,
         )
+        if resolution is None:
+            # Tell the forecaster which timing it may still align to the resolution it derives.
+            result["predict_start_is_default"] = data.get("start") is None
+            result["end_is_default"] = original_data.get("end") is None
         if "config" in data:
             result["config"] = data["config"]
         return result

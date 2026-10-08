@@ -3093,6 +3093,111 @@ def test_a_forecasters_transient_source_belongs_to_its_organisation(
     assert pipeline.forecast_source().account == prosumer
 
 
+@pytest.mark.parametrize(
+    ["irregular", "as_job"], [(False, False), (True, False), (False, True)]
+)
+def test_an_instantaneous_sensor_is_forecast_at_the_resolution_given(
+    app, fresh_db, setup_fresh_test_forecast_data, irregular, as_job
+):
+    """An instantaneous sensor is forecast like an hourly one, its forecasts saved as instantaneous values at the start of each hour.
+
+    Each hour's start takes the last reading at or before it, which holds until the next reading (step-before).
+    With readings on the hour, that is the series of the hourly sensor it is copied from.
+    With two readings at other minutes in each hour, it is the later reading of the hour before,
+    so the forecasts match those of an hourly sensor recording that value for the next hour.
+    """
+    solar = setup_fresh_test_forecast_data["solar-sensor"]
+    thermometer = Sensor(
+        name="instantaneous solar",
+        generic_asset=solar.generic_asset,
+        unit=solar.unit,
+        event_resolution=timedelta(0),
+        # Irregular readings hold for up to an hour, so the later reading of an hour reaches the start of the next one.
+        attributes={"interpolation_limit": "PT1H"} if irregular else {},
+    )
+    fresh_db.session.add(thermometer)
+    reference = solar
+    if irregular:
+        reference = Sensor(
+            name="solar, as held into the next hour",
+            generic_asset=solar.generic_asset,
+            unit=solar.unit,
+            event_resolution=solar.event_resolution,
+        )
+        fresh_db.session.add(reference)
+    rng = np.random.default_rng(1)
+    for belief in fresh_db.session.scalars(
+        select(TimedBelief).filter_by(sensor_id=solar.id)
+    ).all():
+        if irregular:
+            fresh_db.session.add(
+                TimedBelief(
+                    sensor=reference,
+                    source=belief.source,
+                    event_start=belief.event_start + timedelta(hours=1),
+                    belief_time=belief.belief_time + timedelta(hours=1),
+                    event_value=10 * belief.event_value + 1,
+                )
+            )
+        if irregular:
+            first, later = sorted(rng.choice(np.arange(1, 60), size=2, replace=False))
+            readings = [
+                (first, belief.event_value),
+                (later, 10 * belief.event_value + 1),
+            ]
+        else:
+            readings = [(0, belief.event_value)]
+        for minutes, value in readings:
+            fresh_db.session.add(
+                TimedBelief(
+                    sensor=thermometer,
+                    source=belief.source,
+                    event_start=belief.event_start + timedelta(minutes=int(minutes)),
+                    belief_time=belief.event_start + timedelta(minutes=int(minutes)),
+                    event_value=value,
+                )
+            )
+    fresh_db.session.flush()
+
+    parameters = {
+        "start": "2025-01-08T00:00+02:00",
+        "end": "2025-01-09T00:00+02:00",
+        "max-forecast-horizon": "PT24H",
+        "forecast-frequency": "PT24H",
+        "probabilistic": False,
+        "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "output-path": None,
+    }
+
+    def forecast(sensor, as_job=False, **extra):
+        pipeline = TrainPredictPipeline(
+            config={"train-start": "2025-01-01T00:00+02:00"}
+        )
+        pipeline.compute(
+            parameters={**parameters, "sensor": sensor.id, **extra}, as_job=as_job
+        )
+        if as_job:
+            work_on_rq(
+                app.queues["forecasting"], exc_handler=handle_forecasting_exception
+            )
+        return sensor.search_beliefs(
+            source_types=["forecaster"], most_recent_beliefs_only=False
+        )
+
+    hourly_forecasts = forecast(reference)
+    instantaneous_forecasts = forecast(thermometer, as_job=as_job, resolution="PT1H")
+
+    assert instantaneous_forecasts.event_resolution == timedelta(0)
+    assert len(instantaneous_forecasts) == 24
+    assert list(instantaneous_forecasts.event_starts) == list(
+        hourly_forecasts.event_starts
+    )
+    np.testing.assert_allclose(
+        instantaneous_forecasts["event_value"].to_numpy(),
+        hourly_forecasts["event_value"].to_numpy(),
+    )
+
+
 def test_instantaneous_past_regressor_is_realized_when_recorded_at_its_instant(
     monkeypatch,
 ):

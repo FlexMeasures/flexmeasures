@@ -62,6 +62,40 @@ Note that:
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
+Forecasting an instantaneous sensor
+--------------------------------------
+
+A sensor is forecast at its own resolution: an hourly sensor gets hourly forecasts, and the timing parameters above are multiples of that resolution.
+An instantaneous sensor, such as a thermometer or a state-of-charge sensor, records values at instants rather than over periods,
+so it has no resolution of its own.
+For such a sensor, ``resolution`` sets the frequency of its forecasts, just as a resolution requested for its data does (see :ref:`frequency_and_resolution`):
+
+.. code-block:: bash
+
+    flexmeasures add forecasts --sensor 13 --resolution PT1H --from-date 2024-02-02 --to-date 2024-02-02
+
+If you leave ``resolution`` out, it is derived, in this order:
+
+1. from the sensor's ``frequency`` attribute, which also rounds the timing of its incoming readings;
+2. from the sensor's data: the most common duration between the readings the model trains on
+   (over the training window, and with the source filters of the forecaster's ``"auto"`` entry, if any), rounded to whole minutes;
+3. otherwise, one hour.
+
+The timing parameters above must be multiples of the resolution, also of a derived one;
+if they are not, the error says where the resolution came from, so you can set ``resolution`` instead.
+
+A reading of an instantaneous sensor is taken as a state that holds until the next reading (step-before, as pandas' ``ffill``),
+so the value at the start of each slot is the last reading at or before it, and its forecasts are saved as instantaneous values at the start of each slot.
+How long a reading may hold is set by the sensor's ``interpolation_limit`` attribute (see :ref:`instantaneous_interpolation`);
+a slot that no reading reaches is missing, and counts towards the ``missing-threshold``.
+For any other sensor, ``resolution`` can be left out, and a resolution other than the sensor's own is refused.
+
+The same goes for an instantaneous sensor used as a regressor.
+For a target with a resolution, such as hourly energy, each slot of the regressor stands for the time-weighted mean of its held readings over that slot.
+Holding never tells a forecast more than was known when it was made:
+a measurement held into a slot is only known once that slot has started (for a mean: once it has ended),
+while a held value of a forecast is part of that forecast, and stays a forecast.
+
 Forecast post-processing
 --------------------------------
 

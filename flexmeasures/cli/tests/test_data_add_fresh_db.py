@@ -2087,3 +2087,43 @@ def test_add_forecast_reports_a_failed_save_as_itself(
 
     assert isinstance(result.exception, IntegrityError), result.output
     assert "Error running" not in result.output
+
+
+def test_add_forecast_cli_reports_a_derived_resolution_that_does_not_fit(
+    app, fresh_db, setup_fresh_test_forecast_data
+):
+    """Without --resolution, a thermometer read every 7 minutes is forecast 7-minutely, which does not divide a 1-hour horizon."""
+    from datetime import timedelta
+
+    from flexmeasures.cli import data_add
+
+    solar = setup_fresh_test_forecast_data["solar-sensor"]
+    thermometer = Sensor(
+        name="7-minute thermometer",
+        generic_asset=solar.generic_asset,
+        unit="°C",
+        event_resolution=timedelta(0),
+        attributes={"frequency": "7min"},
+    )
+    fresh_db.session.add(thermometer)
+    fresh_db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        data_add.add_forecast,
+        [
+            "--sensor",
+            str(thermometer.id),
+            "--start",
+            "2025-01-05T00:00:00+00:00",
+            "--end",
+            "2025-01-05T03:00:00+00:00",
+            "--max-forecast-horizon",
+            "PT1H",
+        ],
+        catch_exceptions=True,
+    )
+    assert result.exit_code != 0
+    assert "Error running TrainPredictPipeline" in result.output
+    assert "taken from the sensor's 'frequency' attribute" in result.output
+    assert "set 'resolution'" in result.output
