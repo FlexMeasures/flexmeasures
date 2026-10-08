@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from flask import request
 from flask_classful import FlaskView
-from flask_security import login_required
+from flask_security import login_required, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import check_access, ADMIN_ROLE
+from flexmeasures.auth.policy import check_access, ADMIN_ROLE, ROLE_DISPLAY_ORDER
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
@@ -37,27 +37,50 @@ def render_user(user: User | None, msg: str | None = None):
 
     can_edit_user_details = True
     try:
-        check_access(user, "update")
+        check_access(
+            user, "edit-profile" if current_user.id == user.id else "manage-users"
+        )
     except (Forbidden, Unauthorized):
         can_edit_user_details = False
+    can_reset_password = True
+    try:
+        check_access(user, "reset-password")
+    except (Forbidden, Unauthorized):
+        can_reset_password = False
 
     roles = {}
-    for role in db.session.scalars(select(Role)).all():
+    role_descriptions = {}
+    role_rank = {name: rank for rank, name in enumerate(ROLE_DISPLAY_ORDER)}
+
+    def role_sort_key(name: str) -> tuple[int, str]:
+        return role_rank.get(name, len(role_rank)), name.casefold()
+
+    available_roles = sorted(
+        db.session.scalars(select(Role)).all(),
+        key=lambda role: role_sort_key(role.name),
+    )
+    for role in available_roles:
+        role_descriptions[role.name] = role.description or ""
         if role.name != ADMIN_ROLE:
             roles[role.name] = role.id
 
     user_roles = []
     if user is not None:
-        user_roles = [role.name for role in user.flexmeasures_roles]
+        user_roles = sorted(
+            (role.name for role in user.flexmeasures_roles), key=role_sort_key
+        )
 
     return render_flexmeasures_template(
         "users/user.html",
         can_view_account_auditlog=user_can_view_account_auditlog,
         can_view_user_auditlog=user_view_user_auditlog,
         can_edit_user_details=can_edit_user_details,
+        can_reset_password=can_reset_password,
         user=user,
         user_roles=user_roles,
         roles=roles,
+        role_descriptions=role_descriptions,
+        role_display_order=ROLE_DISPLAY_ORDER,
         asset_count=user.account.number_of_assets,
         msg=msg,
         breadcrumb_info=get_breadcrumb_info(user),
@@ -90,7 +113,7 @@ class UserCrudUI(FlaskView):
         Set the password to something random (in case of worries the password might be compromised)
         and send instructions on how to reset."""
         user: User = get_user_by_id_or_raise_notfound(id)
-        check_access(user, "update")
+        check_access(user, "reset-password")
         reset_password(user)
         db.session.commit()
         return render_user(
