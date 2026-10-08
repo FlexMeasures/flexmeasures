@@ -30,6 +30,7 @@ from flexmeasures.data.schemas.generic_assets import (
     SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.automations import AutomationIdField
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -948,7 +949,7 @@ def chart(
 @click.option(
     "--timezone",
     "timezone",
-    type=str,
+    type=TimezoneField(),
     required=False,
     help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
 )
@@ -1054,7 +1055,7 @@ def plot_beliefs(
         df.columns = [sensor_aliases.get(s.id, s.name) for s in sensors]
 
     # Convert to the requested or default timezone
-    if timezone is not None:
+    if timezone is None:
         timezone = sensors[0].timezone
     df.index = df.index.tz_convert(timezone)
 
