@@ -46,6 +46,22 @@ class GeneratorWritesUncheckedSensor(Exception):
             f" ({', '.join(str(i) for i in self.permitted_sensor_ids) or 'none'})."
         )
 
+    def __reduce__(self):
+        """Rebuild the refusal from its fields, so that it survives pickling, as an RQ job's meta pickles it.
+
+        Exception rebuilds an instance from its args, which hold only the message,
+        and this constructor needs the fields, so without this an unpickled job meta would lose every key it holds.
+        """
+        return (
+            type(self),
+            (
+                self.generator,
+                self.refused_sensor_ids,
+                self.permitted_sensor_ids,
+                self.automation_id,
+            ),
+        )
+
 
 def describe_generator(generator) -> str:
     """Name a data generator for a message: its class, and its data source if it already has one.
