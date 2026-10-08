@@ -12,7 +12,7 @@ from timely_beliefs import BeliefsDataFrame
 from flask import current_app
 
 from flexmeasures.data import db
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.utils import save_to_db_and_count
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 import click
@@ -83,8 +83,12 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         record_automation_job_failed(automation_run_id, logical_job_key, exc_value)
 
 
-def save_forecast(bdf: BeliefsDataFrame) -> None:
-    """Resolve source attribution and commit one cycle's forecast beliefs."""
+def save_forecast(bdf: BeliefsDataFrame, save_changed_beliefs_only: bool = True) -> int:
+    """Resolve source attribution and commit one cycle's forecast beliefs, returning how many were saved.
+
+    By default, a belief that repeats the belief right before it is not saved again, as for any other data.
+    Pass save_changed_beliefs_only=False to record every belief, for instance to evaluate forecasts per horizon.
+    """
     from flexmeasures.data.models.forecasting.utils import refresh_data_source
 
     if bdf.empty:
@@ -95,19 +99,34 @@ def save_forecast(bdf: BeliefsDataFrame) -> None:
             bdf.sensor,
             bdf.sensor.id,
         )
-        return
+        return 0
     sources = [
         refresh_data_source(source)
         for source in bdf.index.levels[bdf.index.names.index("source")]
     ]
     bdf.index = bdf.index.set_levels(sources, level="source")
-    save_to_db(
-        bdf, save_changed_beliefs_only=False
-    )  # save all beliefs of forecasted values even if they are the same values as the previous beliefs.
-    db.session.commit()
-    logging.info(
-        f"Saved predictions to DB with source: {bdf.sources[0]}, sensor: {bdf.sensor}, sensor_id: {bdf.sensor.id}."
+    # A forecast that repeats the belief right before it adds nothing a lookup of the most recent beliefs could use,
+    # and repeating a whole run from the same viewpoint would otherwise fail on the unique constraint.
+    _, n_saved = save_to_db_and_count(
+        bdf, save_changed_beliefs_only=save_changed_beliefs_only
     )
+    db.session.commit()
+    # Say how many were saved, because a cycle that saved nothing and one that saved everything otherwise read alike.
+    # Beliefs left out are named only when there are some, and not all of them need be repeats: a belief without a value is left out as well.
+    left_out = len(bdf) - n_saved
+    logging.info(
+        "Saved %s to DB%s, with source: %s, sensor: %s, sensor_id: %s.",
+        pluralize("prediction", n_saved, include_count=True),
+        (
+            f", leaving out {left_out} that repeat beliefs already on record or have no value"
+            if left_out
+            else ""
+        ),
+        bdf.sources[0],
+        bdf.sensor,
+        bdf.sensor.id,
+    )
+    return n_saved
 
 
 def _log_forecast_dry_run(bdf: BeliefsDataFrame) -> None:
@@ -145,15 +164,20 @@ def run_forecast_cycle(pipeline: TrainPredictPipeline, *args, **kwargs) -> float
         os.makedirs(os.path.dirname(result.output_path), exist_ok=True)
         bdf.to_csv(result.output_path)
         logging.debug("Successfully saved predictions to %s", result.output_path)
+    n_saved = None
     if pipeline._parameters.get("dry_run", False):
         _log_forecast_dry_run(bdf)
     else:
-        save_forecast(bdf)
+        n_saved = save_forecast(bdf)
     # Keep DataGenerator's result attribution aligned with the source resolved by the service.
     pipeline._data_source = bdf.sources[0] if len(bdf) else pipeline.forecast_source()
     if pipeline.delete_model:
         os.remove(result.model_path)
-    pipeline.return_values.append({"data": bdf, "sensor": pipeline._target_sensor})
+    result_entry = {"data": bdf, "sensor": pipeline._target_sensor}
+    if n_saved is not None:
+        # Callers report what was saved, which can be fewer beliefs than were computed.
+        result_entry["n_saved"] = n_saved
+    pipeline.return_values.append(result_entry)
     return result.runtime
 
 

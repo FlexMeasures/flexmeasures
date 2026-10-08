@@ -1664,3 +1664,58 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     assert (
         production_values > 0
     ).any(), "Some discharging must occur given the positive production prices"
+
+
+@pytest.mark.parametrize(
+    "n_saved, expected",
+    [
+        (3, "Successfully created 3 forecast beliefs"),
+        (
+            1,
+            "Computed 3 forecast beliefs across 1 unique belief time and saved 1 of them",
+        ),
+        (0, "all of which repeat beliefs already on record, so none were saved"),
+    ],
+)
+def test_add_forecast_reports_what_it_saved(
+    app, fresh_db, setup_dummy_data_fresh_db, monkeypatch, n_saved, expected
+):
+    """The command says how many forecast beliefs it saved, which can be fewer than it computed.
+
+    A forecast that repeats the belief right before it is not saved again,
+    so announcing every computed belief as created would claim beliefs that were never stored.
+    """
+    import timely_beliefs as tb
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+    sensor = fresh_db.session.get(Sensor, sensor_id)
+    source = DataSource(name="test forecaster", type="forecaster")
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+
+    def compute_three(self, *args, **kwargs):
+        self._parameters = {"sensor": sensor, "sensor_to_save": sensor}
+        bdf = tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2026-01-01T05:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2026-01-01T00:00:00+00:00"),
+                    event_value=float(i),
+                )
+                for i in range(3)
+            ]
+        )
+        return [{"data": bdf, "sensor": sensor, "n_saved": n_saved}]
+
+    monkeypatch.setattr(TrainPredictPipeline, "compute", compute_three)
+
+    result = app.test_cli_runner().invoke(add_forecast, to_flags({"sensor": sensor_id}))
+
+    assert result.exit_code == 0, result.output
+    assert expected in result.output
