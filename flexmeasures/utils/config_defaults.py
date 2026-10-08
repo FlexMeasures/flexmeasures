@@ -191,6 +191,9 @@ class Config(object):
         True  # Flask-Limiter's own switch, to turn off rate limiting altogether
     )
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
+    FLEXMEASURES_UI_RATE_LIMIT: str = (
+        "500 per minute"  # per user, for the API calls the UI makes with the user's session
+    )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
     FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
         "account"  # what to count triggers against: "account", "account+asset" or "user"
@@ -327,6 +330,7 @@ class TestingConfig(Config):
     # but its limits are set so high that only the rate limiting tests, which lower them, will hit them.
     RATELIMIT_STORAGE_URI: str = "memory://"
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_UI_RATE_LIMIT: str = "1000000 per hour"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA

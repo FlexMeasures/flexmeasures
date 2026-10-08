@@ -18,6 +18,10 @@ a client whose payload we rejected did not cost us a schedule, and should not pa
 
 The default limit is counted per account, so that all users and API clients of an account share one budget (set in the account's plan).
 A user of a consultancy account counts against the consultancy's account, also when acting on a client account's assets.
+The UI is the exception: its pages call the API with the session of the user who is logged in, rather than with a token,
+and those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``), which plans do not touch.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget which the account's integrations need.
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
 
 Neither limit applies on a play server (``FLEXMEASURES_MODE`` is "play"), which is the mode for running
@@ -82,16 +86,33 @@ def _is_play_mode() -> bool:
     return current_app.config.get("FLEXMEASURES_MODE") == "play"
 
 
+def _is_ui_request() -> bool:
+    """Whether the request comes from the UI, rather than from an API client.
+
+    API clients authenticate with a token in a request header,
+    while the UI's pages call the API with the session cookie of the user who is logged in.
+    """
+    if not current_user.is_authenticated:
+        return False
+    return (
+        current_app.config["SECURITY_TOKEN_AUTHENTICATION_HEADER"]
+        not in request.headers
+    )
+
+
 def default_key_func() -> str:
     """Count requests against the user's account, or against the IP address if unauthenticated.
 
     All users and API clients of an account share one budget, which is what the account's plan sets.
     A consultant counts against their own account, also when acting on a client account's assets,
     because it is the consultancy's integration which makes the requests.
+    Requests from the UI count against the user instead, in a budget of their own (see default_limit).
     """
-    if current_user.is_authenticated:
-        return f"account:{current_user.account_id}"
-    return get_remote_address()
+    if not current_user.is_authenticated:
+        return get_remote_address()
+    if _is_ui_request():
+        return f"ui-user:{current_user.id}"
+    return f"account:{current_user.account_id}"
 
 
 def _rate_limit_key_value() -> str:
@@ -161,6 +182,9 @@ def _limit(limit_name: str, config_key: str) -> str:
 
 
 def default_limit() -> str:
+    """The UI's budget per user for requests from the UI, and otherwise the account's budget."""
+    if _is_ui_request():
+        return current_app.config["FLEXMEASURES_UI_RATE_LIMIT"]
     return _limit("default", "FLEXMEASURES_API_DEFAULT_RATE_LIMIT")
 
 
@@ -176,6 +200,9 @@ def _exempt_from_default_limit() -> bool:
         return True
     if _is_play_mode():
         return True
+    if _is_ui_request():
+        # A plan sets the budget of the account's integrations, not of the UI.
+        return False
     return _is_unlimited("default")
 
 

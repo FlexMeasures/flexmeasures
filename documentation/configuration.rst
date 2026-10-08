@@ -897,6 +897,19 @@ How often a client may call the API. This is one budget for the whole API, count
 if unauthenticated), so that all users and API clients of an account share it. A consultant counts against their own
 account, also when acting on a client account's assets. The health endpoints are exempt, so that monitoring cannot lock
 itself out.
+The calls which the UI makes with a user's session do not spend this budget, but ``FLEXMEASURES_UI_RATE_LIMIT``.
+
+Default: ``"500 per minute"``
+
+FLEXMEASURES_UI_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often the UI may call the API on behalf of a user who is logged in.
+The UI's pages fetch the data they show from the API, using the user's session rather than an API token,
+and those requests count against this budget, one per user, rather than against the account's ``FLEXMEASURES_API_DEFAULT_RATE_LIMIT``.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget the account's integrations need.
+Plans do not change this budget (see :ref:`rate-limiting-plans`).
 
 Default: ``"500 per minute"``
 
