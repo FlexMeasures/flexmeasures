@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
+* Add ``flexmeasures edit reset-rate-limit --account <id>`` to reset an account's rate limits, so that its requests are accepted again straight away. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
 * Remove the ``--rate-limit-key`` option from ``flexmeasures add plan`` and ``flexmeasures edit plan`` (including ``--clear rate-limit-key``), and its column from ``flexmeasures show plans``, as triggers are now always counted per account.
 * ``flexmeasures add forecasts`` no longer fails when it runs again from the same ``--from-date``, and says how many of the forecast beliefs it computed were new and saved.
 * Add ``flexmeasures show automations`` to list all automations, including inactive ones, with the IDs which the edit, delete and run commands expect, and ``flexmeasures show automations --id <id>`` to show one automation in detail: its recurrence in words, timezone, cursor, data generator, parameters and the sensors it reads from and writes to.

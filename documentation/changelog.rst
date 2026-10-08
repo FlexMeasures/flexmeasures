@@ -38,6 +38,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* Hosts can reset an organisation's rate limits with ``flexmeasures edit reset-rate-limit``, so that an organisation whose integration has been fixed after running into a rate limit need not wait out the rest of the window [see `PR #2680 <https://www.github.com/FlexMeasures/flexmeasures/pull/2680>`_]
 * Triggers for schedules and forecasts are now always counted per organisation, against one budget that all of its users and assets share, so plans no longer choose what triggers are counted against, and the ``FLEXMEASURES_API_RATE_LIMIT_KEY`` setting is deprecated and ignored. Hosts who set it (or a plan's rate-limit key) to ``account+asset`` or ``user`` may want to raise the trigger rate limit of the affected plans, or ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``, before upgrading [see `PR #2679 <https://www.github.com/FlexMeasures/flexmeasures/pull/2679>`_]
 * A forecast automation's cycle jobs are held to the sensors the automation was checked against, as the jobs of every other kind of data generator are [see `PR #2699 <https://www.github.com/FlexMeasures/flexmeasures/pull/2699>`_]
 * Remove the last state-of-charge bookkeeping that served the sunset API versions 1 and 2 [see `PR #2665 <https://www.github.com/FlexMeasures/flexmeasures/pull/2665>`_]

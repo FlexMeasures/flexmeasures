@@ -1,5 +1,6 @@
 from flask import url_for
 import pytest
+from sqlalchemy import select
 
 import logging
 
@@ -8,9 +9,10 @@ from flexmeasures.api.common.rate_limiting import (
     warn_about_deprecated_settings,
 )
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.user import Plan
+from flexmeasures.data.models.user import Account, Plan
 
 
 @pytest.fixture
@@ -23,6 +25,14 @@ def rate_limiting(app, monkeypatch):
     limiter.reset()
     yield monkeypatch
     limiter.reset()
+
+
+@pytest.fixture
+def without_plan(db, requesting_user):
+    """Take the requesting user's account off any plan, which earlier tests in this module may have put it on."""
+    requesting_user.account.plan = None
+    db.session.commit()
+    return requesting_user
 
 
 def message_for_trigger_asset_schedule(sensor: Sensor) -> dict:
@@ -47,6 +57,17 @@ def trigger(client, asset: GenericAsset, message: dict | None = None):
     if message is None:
         message = message_for_trigger_asset_schedule(asset.sensors[0])
     return client.post(url_for("AssetAPI:trigger_schedule", id=asset.id), json=message)
+
+
+def reset(app, account: Account, *options: str):
+    """Reset the account's rate limits, as a host would from the command line."""
+    from flexmeasures.cli.data_edit import reset_rate_limit
+
+    result = app.test_cli_runner().invoke(
+        reset_rate_limit, ["--account", str(account.id), *options]
+    )
+    check_command_ran_without_error(result)
+    return result
 
 
 def trigger_through_deprecated_sensor_endpoint(client, sensor: Sensor):
@@ -392,6 +413,160 @@ def test_deprecated_rate_limit_key_is_warned_about(
 
     warned = "FLEXMEASURES_API_RATE_LIMIT_KEY is deprecated" in caplog.text
     assert warned is expect_warning
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_lets_an_account_trigger_again(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    without_plan,
+):
+    """After a reset, an account that was refused can trigger again straight away, rather than wait out the window."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    battery = add_battery_assets["Test battery"]
+
+    with app.test_client() as client:
+        assert trigger(client, battery).status_code == 202  # spends the budget
+        assert trigger(client, battery).status_code == 429
+
+        result = reset(app, requesting_user.account)
+        assert "Reset the trigger and default rate limits" in result.output
+
+        assert trigger(client, battery).status_code == 202
+        assert trigger(client, battery).status_code == 429  # one full budget, not more
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_leaves_other_accounts_alone(
+    db,
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    without_plan,
+):
+    """Resetting one account's rate limits does not hand another account a fresh budget."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    battery = add_battery_assets["Test battery"]
+    other_account = (
+        db.session.execute(
+            select(Account).filter(Account.id != requesting_user.account_id)
+        )
+        .scalars()
+        .first()
+    )
+
+    with app.test_client() as client:
+        assert trigger(client, battery).status_code == 202  # spends the budget
+        reset(app, other_account)
+        assert trigger(client, battery).status_code == 429
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_can_reset_one_limit(
+    app, setup_roles_users, rate_limiting, requesting_user, without_plan
+):
+    """The --limit option resets only the limit it names."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+        reset(app, requesting_user.account, "--limit", "trigger")
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+        reset(app, requesting_user.account, "--limit", "default")
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_resets_the_plans_limit(
+    db,
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    without_plan,
+):
+    """The reset clears the counter of the limit in effect for the account, which its plan sets.
+
+    The limit's amount is part of the counter's key, so clearing the server-wide limit's counter would leave this account refused.
+    """
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    requesting_user.account.plan = Plan(
+        name="test-plan-reset", trigger_rate_limit="2 per 5 minutes"
+    )
+    db.session.commit()
+    battery = add_battery_assets["Test battery"]
+
+    with app.test_client() as client:
+        for _ in range(2):
+            assert trigger(client, battery).status_code == 202
+        assert trigger(client, battery).status_code == 429
+
+        reset(app, requesting_user.account, "--limit", "trigger")
+        assert trigger(client, battery).status_code == 202
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_skips_a_limit_the_account_is_exempt_from(
+    db, app, setup_roles_users, rate_limiting, requesting_user, without_plan
+):
+    """An account exempt from a limit has nothing to reset there, and hears so."""
+    requesting_user.account.plan = Plan(
+        name="test-plan-reset-unlimited", trigger_rate_limit="unlimited"
+    )
+    db.session.commit()
+
+    result = reset(app, requesting_user.account)
+
+    assert "is exempt from the trigger rate limit" in result.output
+    assert "Reset the default rate limit of" in result.output
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_reset_rate_limit_aborts_when_rate_limiting_is_off(
+    db, app, setup_roles_users, rate_limiting, requesting_user
+):
+    """With rate limiting turned off, there are no counters to reset, and the host hears so."""
+    from flexmeasures.cli.data_edit import reset_rate_limit
+
+    rate_limiting.setattr(limiter, "enabled", False)
+
+    result = app.test_cli_runner().invoke(
+        reset_rate_limit, ["--account", str(requesting_user.account.id)]
+    )
+
+    assert result.exit_code != 0
+    assert "Rate limiting is turned off on this server" in result.output
 
 
 def test_openapi_specs_document_the_429_response():

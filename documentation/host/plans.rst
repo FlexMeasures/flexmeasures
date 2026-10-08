@@ -36,6 +36,24 @@ How the two limits count
 The trigger limit is counted per account: all users and assets of an account share one budget.
 A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
 
+.. _rate-limiting-reset:
+
+Resetting an account's rate limits
+-----------------------------------
+
+When an account ran into a rate limit, and its integration has since been fixed, it need not wait out the rest of the window.
+Reset its rate limits with ``flexmeasures edit reset-rate-limit``:
+
+.. code-block:: bash
+
+    $ flexmeasures edit reset-rate-limit --account 3
+
+This resets both limits. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
+The default limit is counted per user, so resetting it gives each of the account's users a fresh budget.
+
+A reset clears the counters of the limits in effect for the account, which are its plan's or the server-wide ones.
+A limit the account is exempt from (``"unlimited"``) has nothing to reset, and the command says so.
+
 .. _rate-limiting-plans:
 
 Managing plans
