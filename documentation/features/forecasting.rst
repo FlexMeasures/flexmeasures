@@ -83,10 +83,17 @@ If you leave ``resolution`` out, it is derived, in this order:
 The timing parameters above must be multiples of the resolution, also of a derived one;
 if they are not, the error says where the resolution came from, so you can set ``resolution`` instead.
 
-Its readings are then taken onto the slots of that resolution, where the first reading in each slot stands for the value at the slot's start,
-and its forecasts are saved as instantaneous values at the start of each slot.
-Readings that fall exactly on the slot boundaries are therefore used as they are.
+A reading of an instantaneous sensor is taken as a state that holds until the next reading (step-before, as pandas' ``ffill``),
+so the value at the start of each slot is the last reading at or before it, and its forecasts are saved as instantaneous values at the start of each slot.
+How long a reading may hold is set by the sensor's ``interpolation_limit`` attribute (see :ref:`instantaneous_interpolation`);
+a slot that no reading reaches is missing, and counts towards the ``missing-threshold``.
 For any other sensor, ``resolution`` can be left out, and a resolution other than the sensor's own is refused.
+
+The same goes for an instantaneous sensor used as a regressor.
+For a target with a resolution, such as hourly energy, each slot of the regressor stands for the time-weighted mean of its held readings over that slot.
+Holding never tells a forecast more than was known when it was made:
+a measurement held into a slot is only known once that slot has started (for a mean: once it has ended),
+while a held value of a forecast is part of that forecast, and stays a forecast.
 
 Forecast post-processing
 --------------------------------

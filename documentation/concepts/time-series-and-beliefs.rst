@@ -266,3 +266,16 @@ A "resolution" may be specified explicitly to obtain the data in downsampled for
 For non-instantaneous sensors, the specified resolution needs to be a multiple of the sensor's resolution, e.g. hourly or daily values if the sensor's resolution is 15 minutes.
 For instantaneous sensors, the specified resolution is interpreted as a request for data in a specific frequency.
 The resolution of the underlying data will remain zero (and the returned message will say so).
+
+.. _instantaneous_interpolation:
+
+Interpolating instantaneous readings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Wherever FlexMeasures needs the value of an instantaneous sensor at instants it has no reading for, such as when forecasting it, two sensor attributes say how to fill in:
+
+- ``interpolation``: ``"ffill"`` (the default) takes each reading as a state that holds until the next reading (step-before), which suits setpoints that are only recorded when they change;
+  ``"none"`` uses only readings that fall exactly on the instants asked for.
+- ``interpolation_limit``: the longest a reading may hold, as an ISO 8601 duration such as ``"PT2H"``, or ``null`` to hold it until the next reading, however long that takes.
+  Unlike pandas' ``limit``, which counts consecutive rows, this limit is a duration.
+  If the attribute is not set, the limit is twice the most common duration between the sensor's readings, so that a sensor that stops reporting is not taken to hold its last state for good.

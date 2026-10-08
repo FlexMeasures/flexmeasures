@@ -11,6 +11,10 @@ from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.pipelines.instantaneous import (
+    interpolation_policy,
+    sample_instantaneous_beliefs,
+)
 from flexmeasures.data.schemas.sensors import SensorReference
 
 
@@ -354,6 +358,54 @@ class BasePipeline:
         resolution = getattr(self, "_resolution", None)
         return resolution if resolution else self.target_sensor.event_resolution
 
+    def _load_instantaneous(
+        self,
+        df: pd.DataFrame,
+        name: str,
+        regressor_or_sensor: Sensor | SensorReference,
+        sensor: Sensor,
+    ) -> pd.DataFrame:
+        """Take an instantaneous sensor's beliefs onto the slots of the target, following the sensor's interpolation policy.
+
+        With an instantaneous target, each slot stands for the value at its start.
+        With a target that has a resolution, each slot stands for the time-weighted mean over its period.
+        See ``sample_instantaneous_beliefs`` for how long values hold, and from when they are known.
+
+        :param df:                  The sensor's beliefs, flagged as realized or not for their own events.
+        :param name:                The column name of this entry.
+        :param regressor_or_sensor: The entry as configured, whose source filters decide between colliding sources.
+        :param sensor:              The instantaneous sensor.
+        :returns:                   Frame with "event_start", "belief_time", the entry's column and its realized flags.
+        """
+        policy, limit = interpolation_policy(sensor)
+        flat = _resolve_source_collisions(df.reset_index(), regressor_or_sensor)
+        target_is_instantaneous = _sensor_and_source_filters(self.target_sensor)[
+            0
+        ].event_resolution == timedelta(0)
+        end = self.event_ends_before
+        if regressor_or_sensor in self.future:
+            end = end + pd.Timedelta(hours=self.max_forecast_horizon_in_hours)
+        sampled = sample_instantaneous_beliefs(
+            flat,
+            sensor,
+            resolution=self.target_resolution,
+            anchor=pd.Timestamp(self.event_starts_after),
+            end=pd.Timestamp(end),
+            period=not target_is_instantaneous,
+            policy=policy,
+            limit=limit,
+        )
+        # Several sources may end up at one slot and belief time.
+        sampled = _resolve_source_collisions(sampled, regressor_or_sensor)
+        # Match the time zones of the other sensors' frames, which this one is merged with.
+        for column in ("event_start", "belief_time"):
+            sampled[column] = sampled[column].dt.tz_convert(
+                getattr(flat[column].dtype, "tz", None) or "UTC"
+            )
+        return sampled[
+            ["event_start", "belief_time", "event_value", "is_realized"]
+        ].rename(columns={"event_value": name, "is_realized": _realized_column(name)})
+
     def _annotation_values_known_at(
         self, col_name: str, event_starts: pd.Series, vantage_point: pd.Timestamp
     ) -> pd.Series | None:
@@ -506,6 +558,11 @@ class BasePipeline:
             # i.e. once it is recorded at or after the knowledge time that its sensor's knowledge horizon sets, as timely-beliefs defines it.
             # This is computed before event starts are floored onto the target's slots, which would move the knowledge times.
             df["is_realized"] = np.asarray(df.belief_horizons <= timedelta(0))
+            if sensor.event_resolution == timedelta(0):
+                sensor_dfs.append(
+                    self._load_instantaneous(df, name, regressor_or_sensor, sensor)
+                )
+                continue
             try:
                 # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
@@ -895,7 +952,7 @@ class BasePipeline:
                 ).tz_localize(None)
 
             # A stable sort keeps the beliefs about one slot in the order they were loaded,
-            # so that, of several readings floored onto one slot (as of an instantaneous target), the earliest is the one kept.
+            # so that, of several beliefs about one slot, the earliest is the one kept.
             y_clean = (
                 y.drop(columns=["belief_time"])
                 .sort_values("event_start", kind="stable")

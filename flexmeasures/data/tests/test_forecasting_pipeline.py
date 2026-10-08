@@ -3101,10 +3101,10 @@ def test_an_instantaneous_sensor_is_forecast_at_the_resolution_given(
 ):
     """An instantaneous sensor is forecast like an hourly one, its forecasts saved as instantaneous values at the start of each hour.
 
-    With readings on the hour, it is the same series as the hourly sensor it is copied from.
-    With readings at other minutes, each hour is represented by its earliest reading,
-    so a later reading in the same hour, here a decoy, changes nothing.
-    Either way, the forecasts match those of the hourly sensor.
+    Each hour's start takes the last reading at or before it, which holds until the next reading (step-before).
+    With readings on the hour, that is the series of the hourly sensor it is copied from.
+    With two readings at other minutes in each hour, it is the later reading of the hour before,
+    so the forecasts match those of an hourly sensor recording that value for the next hour.
     """
     solar = setup_fresh_test_forecast_data["solar-sensor"]
     thermometer = Sensor(
@@ -3112,12 +3112,33 @@ def test_an_instantaneous_sensor_is_forecast_at_the_resolution_given(
         generic_asset=solar.generic_asset,
         unit=solar.unit,
         event_resolution=timedelta(0),
+        # Irregular readings hold for up to an hour, so the later reading of an hour reaches the start of the next one.
+        attributes={"interpolation_limit": "PT1H"} if irregular else {},
     )
     fresh_db.session.add(thermometer)
+    reference = solar
+    if irregular:
+        reference = Sensor(
+            name="solar, as held into the next hour",
+            generic_asset=solar.generic_asset,
+            unit=solar.unit,
+            event_resolution=solar.event_resolution,
+        )
+        fresh_db.session.add(reference)
     rng = np.random.default_rng(1)
     for belief in fresh_db.session.scalars(
         select(TimedBelief).filter_by(sensor_id=solar.id)
     ).all():
+        if irregular:
+            fresh_db.session.add(
+                TimedBelief(
+                    sensor=reference,
+                    source=belief.source,
+                    event_start=belief.event_start + timedelta(hours=1),
+                    belief_time=belief.belief_time + timedelta(hours=1),
+                    event_value=10 * belief.event_value + 1,
+                )
+            )
         if irregular:
             first, later = sorted(rng.choice(np.arange(1, 60), size=2, replace=False))
             readings = [
@@ -3163,7 +3184,7 @@ def test_an_instantaneous_sensor_is_forecast_at_the_resolution_given(
             source_types=["forecaster"], most_recent_beliefs_only=False
         )
 
-    hourly_forecasts = forecast(solar)
+    hourly_forecasts = forecast(reference)
     instantaneous_forecasts = forecast(thermometer, as_job=as_job, resolution="PT1H")
 
     assert instantaneous_forecasts.event_resolution == timedelta(0)
