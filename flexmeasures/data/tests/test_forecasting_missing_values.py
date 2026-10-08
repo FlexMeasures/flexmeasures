@@ -256,12 +256,57 @@ def test_empty_frame_is_filled_with_the_constant():
     assert list(filled.components) == ["a"]
 
 
-def test_missing_rows_threshold_counts_one_row_fewer_than_a_gap_spans():
-    """A gap of 4 missing rows counts as 3 of 10, so a threshold of 0.3 still passes and 0.29 does not."""
+def test_missing_rows_threshold_counts_every_row_a_gap_spans():
+    """A gap of 4 missing rows counts as 4 of 10, so a threshold of 0.4 still passes and 0.39 does not."""
     df = _frame({"a": [float(i) for i in range(10)]}).drop(index=[3, 4, 5, 6])
-    assert len(_fill(df, ["a"], threshold=0.3)) == 10
-    with pytest.raises(NotEnoughDataException, match="30.0% missing values"):
-        _fill(df, ["a"], threshold=0.29)
+    assert len(_fill(df, ["a"], threshold=0.4)) == 10
+    with pytest.raises(NotEnoughDataException, match="40.0% missing values"):
+        _fill(df, ["a"], threshold=0.39)
+
+
+def test_single_missing_rows_count_towards_the_threshold():
+    """With every other row missing, half the window is missing, even though no gap is longer than one row."""
+    df = _frame({"a": [float(i) for i in range(10)]}).iloc[::2]
+    with pytest.raises(NotEnoughDataException, match="50.0% missing values"):
+        _fill(df, ["a"], threshold=0.45)
+
+
+def _fill_one_sensor(
+    df,
+    sensor_resolution,
+    threshold,
+    end=START + pd.Timedelta(hours=24) - pd.Timedelta(minutes=15),
+):
+    """Fill the "a" column of a regressor with the given resolution, for a target with a 15-minute resolution."""
+    return BasePipeline.detect_and_fill_missing_values(
+        _pipeline(threshold, resolution=pd.Timedelta(minutes=15)),
+        df=df,
+        sensors=[_SensorStub(sensor_resolution)],
+        sensor_names=["a"],
+        start=START,
+        end=end,
+    )
+
+
+def test_coarser_regressor_counts_the_rows_its_readings_span():
+    """A complete hourly regressor misses no 15-minute row, and one missing reading misses 1 hour of 24."""
+    hourly = pd.DataFrame(
+        {"event_start": pd.date_range(START, periods=24, freq="h"), "a": 1.0}
+    )
+    assert len(_fill_one_sensor(hourly, pd.Timedelta(hours=1), threshold=0.0)) == 96
+    with pytest.raises(NotEnoughDataException, match="4.2% missing values"):
+        _fill_one_sensor(hourly.drop(index=[10]), pd.Timedelta(hours=1), threshold=0.04)
+
+
+def test_instantaneous_regressor_counts_its_missing_rows():
+    """A regressor with a zero resolution has its missing rows counted at the target resolution, rather than dividing by zero."""
+    df = pd.DataFrame(
+        {"event_start": pd.date_range(START, periods=96, freq="15min"), "a": 1.0}
+    )
+    df = df.drop(index=[10, 11, 12])
+    assert len(_fill_one_sensor(df, pd.Timedelta(0), threshold=0.04)) == 96
+    with pytest.raises(NotEnoughDataException, match="3.1% missing values"):
+        _fill_one_sensor(df, pd.Timedelta(0), threshold=0.03)
 
 
 @pytest.mark.parametrize(
@@ -327,36 +372,24 @@ def _random_case(rng: np.random.Generator):
 
 
 def test_matches_the_darts_based_reference():
-    """On random cases, and without data, the result (or the refusal) equals that of the Darts-based reference."""
+    """On random cases, and without data, the filled result equals that of the Darts-based reference.
+
+    The reference counted one row fewer than each gap spans, so refusals are compared in the threshold tests instead.
+    """
     rng = np.random.default_rng(0)
     cases = [(pd.DataFrame(), ["a"], END, {"fill": fill}) for fill in (0.0, 7.0)]
     for _ in range(50):
         df, names, end = _random_case(rng)
         if len(df):
-            cases.append((df, names, end, {"threshold": rng.choice([0.1, 1.0])}))
+            cases.append((df, names, end, {}))
     for df, names, end, kwargs in cases:
-        outcomes = []
-        for implementation in (
-            BasePipeline.detect_and_fill_missing_values,
-            _reference_detect_and_fill_missing_values,
-        ):
-            try:
-                outcomes.append(
-                    _fill(
-                        df.copy(),
-                        names,
-                        end=end,
-                        implementation=implementation,
-                        **kwargs,
-                    )
-                )
-            except NotEnoughDataException as exception:
-                outcomes.append(str(exception))
-        new, old = outcomes
-        if isinstance(old, str):
-            assert new == old
-            continue
-        assert not isinstance(new, str)
+        new, old = (
+            _fill(df.copy(), names, end=end, implementation=implementation, **kwargs)
+            for implementation in (
+                BasePipeline.detect_and_fill_missing_values,
+                _reference_detect_and_fill_missing_values,
+            )
+        )
         assert new.time_index.equals(old.time_index)
         assert list(new.components) == list(old.components)
         assert new.freq == old.freq

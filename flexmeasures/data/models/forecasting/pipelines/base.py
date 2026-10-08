@@ -1274,15 +1274,21 @@ class BasePipeline:
         edges = np.diff(np.concatenate(([0], is_missing.view(np.int8), [0])))
         gap_starts = np.flatnonzero(edges == 1)
         gap_ends = np.flatnonzero(edges == -1) - 1
-        # A gap counts as (gap_end - gap_start) / resolution missing rows, one fewer than it spans
-        total_missing = int(
-            ((gap_ends - gap_starts) * resolution / sensor.event_resolution)
-            .astype(int)
-            .sum()
+        # Count, at the target resolution, the window's rows that no reading covers.
+        # A reading covers the rows its sensor's resolution spans, so a complete hourly regressor leaves no 15-minute row uncovered,
+        # and an instantaneous one covers just its own row.
+        rows_per_reading = max(1, sensor.event_resolution // resolution)
+        is_covered = (
+            pd.Series(~is_missing)
+            .rolling(rows_per_reading, min_periods=1)
+            .max()
+            .to_numpy(dtype=bool)
         )
+        in_window = (index >= start) & (index <= end)
+        total_missing = int((~is_covered & in_window).sum())
 
         # Total expected rows in full dataset
-        total_expected = int((end - start) / sensor.event_resolution) + 1
+        total_expected = int((end - start) / resolution) + 1
 
         # Fraction of missing rows
         missing_rows_fraction = total_missing / total_expected
