@@ -51,6 +51,7 @@ from flexmeasures.data.services.utils import (
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
     get_scheduler_instance,
+    store_job_exception,
 )
 
 
@@ -142,8 +143,7 @@ def success_callback(job, connection, result, *args, **kwargs):
 def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
-    job.meta["exception"] = value
-    job.save_meta()
+    store_job_exception(job, type, value)
 
     if type is InfeasibleProblemException:
         asset_or_sensor = get_asset_or_sensor_from_ref(job.meta.get("asset_or_sensor"))
@@ -1162,8 +1162,7 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     )
 
     print_tb(traceback)
-    job.meta["exception"] = exc_value
-    job.save_meta()
+    store_job_exception(job, exc_type, exc_value)
 
 
 def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:

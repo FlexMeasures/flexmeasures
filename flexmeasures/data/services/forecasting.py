@@ -14,6 +14,7 @@ from flask import current_app
 from flexmeasures.data import db
 from flexmeasures.data.services.generator_results import check_results_of_current_job
 from flexmeasures.data.utils import save_to_db_and_count
+from flexmeasures.data.services.utils import store_job_exception
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 
 import click
@@ -56,11 +57,7 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         job.meta["failures"] = job.meta["failures"] + 1
     job.save_meta()
 
-    exception = {
-        "type": exc_type.__name__ if exc_type is not None else None,
-        "message": str(exc_value),
-    }
-
+    hint = None
     if isinstance(exc_type, type) and issubclass(exc_type, JobTimeoutException):
         logger = logging.getLogger(__name__)
         logger.warning(
@@ -68,10 +65,9 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
             FORECASTING_JOB_TIMEOUT_HINT,
             FORECASTING_JOB_TIMEOUT_HOST_HINT,
         )
-        exception["hint"] = FORECASTING_JOB_TIMEOUT_HINT
+        hint = FORECASTING_JOB_TIMEOUT_HINT
 
-    job.meta["exception"] = exception
-    job.save_meta()
+    store_job_exception(job, exc_type, exc_value, hint=hint)
 
     trigger = job.meta.get("trigger", {})
     automation_run_id = job.meta.get("automation_run_id") or trigger.get(
