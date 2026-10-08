@@ -116,8 +116,10 @@ To use the forecaster through the CLI:
 
     flexmeasures add forecasts --forecaster DummyForecaster
 
-.. note:: A forecaster of your own saves its own data.
-   Nothing downstream does it for you, so call ``flexmeasures.data.utils.save_to_db(bdf)`` on every frame you return.
+.. note:: FlexMeasures saves the forecasts your forecaster returns, and says how many were new.
+   There is no need to save them yourself;
+   a forecaster that still does costs nothing extra, since beliefs already on record are not saved again.
+   A forecaster that queues its own jobs, as the built-in ``TrainPredictPipeline`` does, saves what those jobs compute.
 
 You can also build on the built-in ``TrainPredictPipeline``, rather than on ``Forecaster`` directly,
 and one rule tells its methods apart: a ``compute`` method returns forecasts without recording anything,

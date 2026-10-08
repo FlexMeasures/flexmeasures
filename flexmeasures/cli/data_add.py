@@ -63,6 +63,14 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
+from flexmeasures.data.services.generator_results import (
+    save_generator_results,
+    save_results_not_yet_saved,
+)
+from flexmeasures.data.services.reporting import (
+    compute_report,
+    count_persistable_values,
+)
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.accounts import create_account
 from flexmeasures.data.services.users import create_user
@@ -116,7 +124,6 @@ from flexmeasures.cli.utils import (
     validate_rate_limit_cli,
     validate_url_cli,
 )
-from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 
@@ -1730,38 +1737,39 @@ def add_forecast(  # noqa: C901
                 click.echo(item["data"])
             return
 
-        # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
-        source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
-        computed = (
-            f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
-            f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
-        )
-        if not all("n_saved" in item for item in pipeline_returns):
-            # A forecaster that does not say what it saved is reported by what it computed.
-            click.secho(
-                f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
-            )
-            return
-        # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
-        total_saved = sum(item["n_saved"] for item in pipeline_returns)
-        if total_saved == total_beliefs:
-            click.secho(
-                f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
-            )
-        elif total_saved == 0:
-            click.secho(
-                f"Computed {computed}, all of which repeat beliefs already on record, so none were saved,{source_named}",
-                **MsgStyle.SUCCESS,
-            )
-        else:
-            click.secho(
-                f"Computed {computed} and saved {total_saved} of them, the rest repeating beliefs already on record,{source_named}",
-                **MsgStyle.SUCCESS,
-            )
-
     except Exception as e:
-        click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
+        # Name the forecaster that failed: it need not be the built-in Train-Predict Pipeline.
+        click.echo(f"Error running {type(forecaster).__name__}: {str(e)}")
         raise
+
+    # Saving happens outside the try above, so that a failed save is reported as itself, not as a failure to compute.
+    # A forecaster that only returns its forecasts has them saved here, as every data generator's results are,
+    # so that what is reported below is what was saved. The built-in pipeline saves as it goes, and says so.
+    save_results_not_yet_saved(pipeline_returns)
+    db.session.commit()
+
+    # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
+    source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
+    computed = (
+        f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
+        f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
+    )
+    # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
+    total_saved = sum(item["n_saved"] for item in pipeline_returns)
+    if total_saved == total_beliefs:
+        click.secho(
+            f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
+        )
+    elif total_saved == 0:
+        click.secho(
+            f"Computed {computed}, all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added,{source_named}",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Computed {computed} and saved {total_saved} of them, the rest repeating beliefs already on record,{source_named}",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("automation")
@@ -2475,31 +2483,50 @@ def add_report(  # noqa: C901
 
     click.echo("Report computation is running...")
 
-    # compute the report
-    results = reporter.compute(parameters=parameters)
-
+    results = compute_report(reporter, parameters)
+    # Say what was computed before saving any of it, so that a save that fails still leaves this on screen.
     for result in results:
-        data = result["data"]
-        sensor = result["sensor"]
-        if not data.empty:
+        if not result["data"].empty:
             click.secho(
-                f"Report computation done for sensor `{sensor}`.", **MsgStyle.SUCCESS
+                f"Report computation done for sensor `{result['sensor']}`.",
+                **MsgStyle.SUCCESS,
             )
         else:
             click.secho(
-                f"Report computation done for sensor `{sensor}`, but the report is empty.",
+                f"Report computation done for sensor `{result['sensor']}`, but the report is empty.",
                 **MsgStyle.WARN,
             )
 
-        # save the report if it's not running in dry mode
+    # Save all outputs or none, unless running in dry mode, as every data generator's results are saved.
+    saved = []
+    if not dry_run:
+        click.echo("Saving the report to the database...")
+        saved = save_generator_results(results)
+        db.session.commit()
+
+    for i, result in enumerate(results):
+        data = result["data"]
+        sensor = result["sensor"]
+
+        # The report was saved above, unless running in dry mode, so say what that save stored.
         if not dry_run:
-            click.echo(f"Saving report for sensor `{sensor}` to the database...")
-            save_to_db(data)
-            db.session.commit()
-            click.secho(
-                f"Success. The report for sensor `{sensor}` has been saved to the database.",
-                **MsgStyle.SUCCESS,
-            )
+            n_saved = saved[i]["n_rows"]
+            if n_saved:
+                click.secho(
+                    f"Success. Saved {pluralize('belief', n_saved, include_count=True)} of the report for sensor `{sensor}` to the database.",
+                    **MsgStyle.SUCCESS,
+                )
+            elif count_persistable_values(data):
+                click.secho(
+                    f"The report for sensor `{sensor}` repeats beliefs already on record, so nothing new was saved.",
+                    **MsgStyle.SUCCESS,
+                )
+            else:
+                click.secho(
+                    f"Nothing was saved for sensor `{sensor}`, as the report holds no values to save."
+                    " This can happen when its inputs do not align on source and belief time.",
+                    **MsgStyle.WARN,
+                )
         else:
             click.echo(
                 f"Not saving report for sensor `{sensor}` to the database  (because of --dry-run), but this is what I computed:\n{data}"
