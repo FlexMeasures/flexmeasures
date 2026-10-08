@@ -34,7 +34,11 @@ How the two limits count
   In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
 
 The default limit is counted per account: all users and API clients of an account share one budget, which is the budget the account's plan sets.
-That includes the UI, which fetches the data it shows from the API, so someone browsing the UI spends from the same budget as the account's integrations.
+The UI is the exception. Its pages fetch the data they show from the API, using the session of the user who is logged in rather than an API token,
+and those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``, see :ref:`rate-limiting-config`), which plans do not change.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget the account's integrations need.
+Triggers count against the trigger limit, whether they come from the UI or from an integration.
 A user of a consultancy account counts against the consultancy's own account, also when acting on a client account's assets,
 as it is the consultancy's integration which makes those requests.
 
