@@ -100,6 +100,29 @@ def check_generator_results(
         )
 
 
+def check_results_of_current_job(results: list[dict], generator) -> None:
+    """Refuse results for any sensor outside those the automation behind the current job was checked against.
+
+    Outside a job, or in a job that no automation queued, nothing is checked, as for every caller of ``check_generator_results``.
+
+    :raises GeneratorWritesUncheckedSensor: naming the generator, the automation, the refused sensors and the permitted ones.
+    """
+    from rq import get_current_job
+
+    from flexmeasures.data.services.automations import (
+        automation_id_of_job,
+        sensors_automation_job_may_record_on,
+    )
+
+    rq_job = get_current_job()
+    check_generator_results(
+        results,
+        sensors_automation_job_may_record_on(rq_job),
+        describe_generator(generator),
+        automation_id_of_job(rq_job),
+    )
+
+
 def save_generator_results(results: list[dict]) -> list[dict]:
     """Save what a data generator returns, all of it or none of it, and say how many beliefs each result saved.
 
