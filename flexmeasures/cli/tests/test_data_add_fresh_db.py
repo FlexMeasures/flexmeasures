@@ -1302,7 +1302,7 @@ def test_add_report_rejects_dry_run_as_job(app, setup_dummy_data_fresh_db):
 def test_add_report_persistence_failure_saves_nothing(
     app, fresh_db, setup_dummy_data_fresh_db, tmp_path, mocker
 ):
-    """If persistence fails midway, the synchronous run records nothing (single transaction)."""
+    """If persistence fails midway, the synchronous run records nothing (single transaction), and still shows what it computed."""
     from flexmeasures.cli.data_add import add_report
     from flexmeasures.data.services import (
         generator_results as generator_results_service,
@@ -1375,8 +1375,15 @@ def test_add_report_persistence_failure_saves_nothing(
         "save_to_db_and_count",
         side_effect=fail_on_second_save,
     )
-    with pytest.raises(RuntimeError, match="database gone"):
-        runner.invoke(add_report, cli_input)
+    # Catch the exception, so that what the command printed before it can be read.
+    result = runner.invoke(add_report, cli_input, catch_exceptions=True)
+    assert isinstance(result.exception, RuntimeError), result.output
+    assert "database gone" in str(result.exception)
+
+    # Both outputs were announced before the save failed, so the user sees what was computed.
+    for sensor_id in (report_sensor_id, report_sensor_2_id):
+        sensor = fresh_db.session.get(Sensor, sensor_id)
+        assert f"Report computation done for sensor `{sensor}`" in result.output
 
     # The first output really was saved before the failure,
     # so the unchanged counts below prove the failed run rolled everything back, leaving neither output pending nor committed.
