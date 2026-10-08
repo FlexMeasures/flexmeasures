@@ -239,7 +239,7 @@ class BasePipeline:
     resolution : timedelta | None
         Resolution to forecast the target at, which defaults to the target sensor's own.
         An instantaneous target, whose own resolution is zero, needs one,
-        and its readings are then floored onto the slots of this resolution like those of any regressor.
+        and its readings are then taken onto the slots of this resolution by its interpolation policy (see ``sample_instantaneous_beliefs``).
     """
 
     def __init__(
