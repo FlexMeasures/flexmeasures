@@ -947,11 +947,15 @@ def chart(
     help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
 )
 @click.option(
+    "--export-timezone",
     "--timezone",
     "timezone",
     type=TimezoneField(),
     required=False,
-    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
+    cls=DeprecatedOption,
+    preferred="--export-timezone",
+    deprecated=["--timezone"],
+    help="Timezone of the data, when exported with --to-file. If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
