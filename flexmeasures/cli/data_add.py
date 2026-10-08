@@ -63,6 +63,7 @@ from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
 )
+from flexmeasures.data.services.generator_results import save_results_not_yet_saved
 from flexmeasures.data.services.reporting import (
     compute_and_save_report,
     compute_report,
@@ -1734,18 +1735,17 @@ def add_forecast(  # noqa: C901
                 click.echo(item["data"])
             return
 
+        # A forecaster that only returns its forecasts has them saved here, as every data generator's results are,
+        # so that what is reported below is what was saved. The built-in pipeline saves as it goes, and says so.
+        save_results_not_yet_saved(pipeline_returns)
+        db.session.commit()
+
         # Here the ID is worth naming, unlike on a dry run: this run committed, so the source is there to look up.
         source_named = f" under data source `{forecaster.data_source}` (ID {forecaster.data_source.id})."
         computed = (
             f"{pluralize('forecast belief', total_beliefs, include_count=True)}"
             f" across {pluralize('unique belief time', len(unique_belief_times), include_count=True)}"
         )
-        if not all("n_saved" in item for item in pipeline_returns):
-            # A forecaster that does not say what it saved is reported by what it computed.
-            click.secho(
-                f"Successfully created {computed},{source_named}", **MsgStyle.SUCCESS
-            )
-            return
         # Say what was saved, which is fewer than was computed where a forecast repeats the belief right before it.
         total_saved = sum(item["n_saved"] for item in pipeline_returns)
         if total_saved == total_beliefs:
@@ -1754,7 +1754,7 @@ def add_forecast(  # noqa: C901
             )
         elif total_saved == 0:
             click.secho(
-                f"Computed {computed}, all of which repeat beliefs already on record, so none were saved,{source_named}",
+                f"Computed {computed}, all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added,{source_named}",
                 **MsgStyle.SUCCESS,
             )
         else:

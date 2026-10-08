@@ -1902,7 +1902,10 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
             1,
             "Computed 3 forecast beliefs across 1 unique belief time and saved 1 of them",
         ),
-        (0, "all of which repeat beliefs already on record, so none were saved"),
+        (
+            0,
+            "all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added",
+        ),
     ],
 )
 def test_add_forecast_reports_what_it_saved(
