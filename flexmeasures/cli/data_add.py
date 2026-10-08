@@ -79,7 +79,7 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas.automations import CronField, TimezoneField
+from flexmeasures.data.schemas.automations import CronField
 from flexmeasures.data.schemas import (
     AccountIdField,
     AwareDateTimeField,
@@ -89,6 +89,7 @@ from flexmeasures.data.schemas import (
     SensorIdField,
     AssetIdField,
 )
+from flexmeasures.data.schemas.times import TimezoneField
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema

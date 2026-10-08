@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
+* ``flexmeasures show beliefs`` now calls its CSV export timezone option ``--export-timezone``. The former ``--timezone`` name still works as a deprecated alias.
 * ``flexmeasures add forecasts`` no longer fails when it runs again from the same ``--from-date``, and says how many of the forecast beliefs it computed were new and saved.
 * Add ``flexmeasures show automations`` to list all automations, including inactive ones, with the IDs which the edit, delete and run commands expect, and ``flexmeasures show automations --id <id>`` to show one automation in detail: its recurrence in words, timezone, cursor, data generator, parameters and the sensors it reads from and writes to.
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.

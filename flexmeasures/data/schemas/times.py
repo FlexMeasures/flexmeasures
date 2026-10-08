@@ -8,6 +8,7 @@ from marshmallow import fields, Schema, validates_schema
 from marshmallow.exceptions import ValidationError
 import isodate
 from isodate.isoerror import ISO8601Error
+from pytz import all_timezones_set
 import pandas as pd
 
 from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
@@ -190,3 +191,13 @@ class StartEndTimeSchema(Schema):
             )
         if data["start_time"] >= data["end_time"]:
             raise ValidationError("start_time must be before end_time.")
+
+
+class TimezoneField(MarshmallowClickMixin, fields.Str):
+    """Field that validates an exact IANA timezone name."""
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> str:
+        value = super()._deserialize(value, attr, obj, **kwargs)
+        if value not in all_timezones_set:
+            raise FMValidationError(f"Timezone '{value}' does not exist.")
+        return value
