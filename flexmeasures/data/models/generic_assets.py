@@ -347,52 +347,51 @@ class GenericAsset(db.Model, AuthModelMixin):
         is allowed for every user in the account or consultants.
         Deletion is only allowed for account admins, as well as for consultants.
 
-        Asymmetry note: because create-children is open to all account members, a
-        plain (no-role) user can copy an asset indefinitely but cannot delete the
-        resulting copies — deletion requires account-admin. Account admins are
-        responsible for pruning unwanted copies. This is intentional: the design
-        allows members to contribute data freely while admins retain control over
-        structural cleanup.
+        Members may delete an asset only if it holds no data;
+        deleting an asset that holds data requires account-admin or consultant rights, which the endpoint checks.
         """
-        return {
-            "create-children": [
-                f"account:{self.account_id}",
+        operate_access = [
+            f"account:{self.account_id}",
+            (
                 (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-            "read": (
-                self.owner.__acl__()["read"]
-                if self.account_id is not None
-                else EVERY_LOGGED_IN_USER
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.owner is not None
+                else ()
             ),
-            "update": [
-                f"account:{self.account_id}",
+        ]
+        read_access = (
+            self.owner.__acl__()["read"]
+            if self.account_id is not None
+            else EVERY_LOGGED_IN_USER
+        )
+        delete_data_access = [
+            (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
                 (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
-            "delete": [
-                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    (
-                        f"account:{self.owner.consultancy_account_id}",
-                        f"role:{CONSULTANT_ROLE}",
-                    )
-                    if self.owner is not None
-                    else ()
-                ),
-            ],
+                    f"account:{self.owner.consultancy_account_id}",
+                    f"role:{CONSULTANT_ROLE}",
+                )
+                if self.owner is not None
+                else ()
+            ),
+        ]
+        return {
+            "read": read_access,
+            "edit-assets": operate_access,
+            "edit-flex-config": operate_access,
+            # On an asset, members may create sensors and delete sensors without data.
+            "edit-sensors": operate_access,
+            "annotate": operate_access,
+            "manage-automations": operate_access,
+            "trigger-schedules": operate_access,
+            "trigger-reports": operate_access,
+            "delete-data": delete_data_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": operate_access,
+            "update": operate_access,
+            "delete": delete_data_access,
         }
 
     def __repr__(self):
