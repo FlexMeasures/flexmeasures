@@ -112,7 +112,8 @@ class Account(db.Model, AuthModelMixin):
     account_roles = relationship(
         "AccountRole",
         secondary="roles_accounts",
-        backref=backref("accounts", lazy="dynamic"),
+        order_by="AccountRole.id",
+        backref=backref("accounts", lazy="dynamic", order_by="Account.id"),
     )
     primary_color = Column(String(7), default=None)
     secondary_color = Column(String(7), default=None)
@@ -122,7 +123,8 @@ class Account(db.Model, AuthModelMixin):
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
-        backref=db.backref("accounts", lazy="dynamic"),
+        order_by="Annotation.id",
+        backref=db.backref("accounts", lazy="dynamic", order_by="Account.id"),
     )
 
     # Setup self-referential relationship between consultancy account and consultancy client account
@@ -130,14 +132,16 @@ class Account(db.Model, AuthModelMixin):
         Integer, db.ForeignKey("account.id"), default=None, nullable=True
     )
     consultancy_client_accounts = db.relationship(
-        "Account", back_populates="consultancy_account"
+        "Account", back_populates="consultancy_account", order_by="Account.id"
     )
     consultancy_account = db.relationship(
         "Account", back_populates="consultancy_client_accounts", remote_side=[id]
     )
 
     plan_id = Column(Integer, db.ForeignKey("plan.id"), default=None, nullable=True)
-    plan = db.relationship("Plan", backref=backref("accounts", lazy="dynamic"))
+    plan = db.relationship(
+        "Plan", backref=backref("accounts", lazy="dynamic", order_by="Account.id")
+    )
 
     def __repr__(self):
         return "<Account %s (ID:%s)>" % (self.name, self.id)
@@ -334,11 +338,14 @@ class User(db.Model, UserMixin, AuthModelMixin):
     timezone = Column(String(255), default="Europe/Amsterdam")
     account_id = Column(Integer, db.ForeignKey("account.id"), nullable=False)
 
-    account = db.relationship("Account", backref=db.backref("users", lazy=True))
+    account = db.relationship(
+        "Account", backref=db.backref("users", lazy=True, order_by="User.id")
+    )
     flexmeasures_roles = relationship(
         "Role",
         secondary="roles_users",
-        backref=backref("users", lazy="dynamic"),
+        order_by="Role.id",
+        backref=backref("users", lazy="dynamic", order_by="User.id"),
     )
 
     def __repr__(self):

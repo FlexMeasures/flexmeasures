@@ -315,6 +315,137 @@
         ]
       }
     },
+    "/api/v3_0/sensors/{id}/annotations": {
+      "delete": {
+        "summary": "Delete sensor annotations",
+        "description": "This endpoint deletes the annotations of a sensor. Optionally, filter by source, start time and/or until time. Only annotations that lie entirely between the start and until times are deleted. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteSensorAnnotations"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "integer",
+                      "description": "The number of annotations removed from the sensor."
+                    }
+                  }
+                },
+                "example": {
+                  "message": "Deleted 2 annotations.",
+                  "deleted": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sensors",
+          "Annotations"
+        ]
+      },
+      "post": {
+        "summary": "Creates a new sensor annotation.",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the sensor to register the annotation on.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sensors",
+          "Annotations"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}/data": {
       "delete": {
         "summary": "Delete sensor data",
@@ -1365,64 +1496,6 @@
         },
         "tags": [
           "Sensors"
-        ]
-      }
-    },
-    "/api/v3_0/sensors/{id}/annotations": {
-      "post": {
-        "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The ID of the sensor to register the annotation on.",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AnnotationSchema"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "201": {
-            "description": "PROCESSED"
-          },
-          "400": {
-            "description": "INVALID_REQUEST"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "403": {
-            "description": "INVALID_SENDER"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Sensors",
-          "Annotations"
         ]
       }
     },
@@ -3765,6 +3838,19 @@
                       "duration": "P1D"
                     }
                   }
+                },
+                "forecasts_on_an_existing_source": {
+                  "summary": "Forecasts computed by an existing data source",
+                  "description": "Reuses the forecaster and the configuration stored on data source 6, and records the forecasts under that same source.",
+                  "value": {
+                    "name": "Day-ahead PV forecasts",
+                    "cron": "0 6 * * *",
+                    "type": "forecasting",
+                    "source": 6,
+                    "parameters": {
+                      "sensor": 2092
+                    }
+                  }
                 }
               }
             }
@@ -4180,7 +4266,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
+        "description": "The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4203,6 +4289,52 @@
             "description": "Whether to also list the jobs of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "description": "One-based page number. Omit to return all jobs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "per-page",
+            "required": false,
+            "description": "Jobs per page when page is provided (default 10).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-by",
+            "required": false,
+            "description": "Sort paginated jobs by enqueue time or queue (default enqueued_at).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enqueued_at",
+                "queue"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-dir",
+            "required": false,
+            "description": "Sort direction for paginated jobs (default desc).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
             }
           }
         ],
@@ -5390,7 +5522,7 @@
     "/api/v3_0/sources/{id}": {
       "get": {
         "summary": "Get one data source.",
-        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nA source is readable when it belongs to an organisation the user may read,\nwhen an automation they may read computes under it,\nor when it has recorded data on a sensor they may read, so that they can ask what computed a number they see.\n\nThe <code>attributes</code>, which hold the configuration a data generator was set up with, are only included for the first two:\na configuration names the sensors it runs on, which can be sensors the user cannot see at all.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5453,7 +5585,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nthe <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>,\nand the <code>limit</code> parameter returns only the most recently created ones.\n\nThe <code>types</code> in the response are those of every source this listing can hold,\nrather than only those of the sources this call returns,\nso that one call can both search the sources and offer the types to search by.\n\n<strong>Access rules:</strong>\n\nThis lists the sources which are the user's to work with, which is what a source has to be to be reused.\nThat is a stricter rule than the one for reading one source with <code>GET /api/v3_0/sources/<id></code>,\nwhich also covers a source that recorded data on a sensor the user may read.\n\n- Admins see all data sources.\n- Everyone else sees the sources of their own organisation, of any organisation they consult for,\n  and the sources an automation they may read computes under.\n- A source which belongs to no organisation is not listed for that reason alone.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5467,6 +5599,37 @@
             "schema": {
               "type": "boolean",
               "default": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "description": "Search terms, separated by spaces, matched against the source's name, its model and its id prefix. A source matching any of the terms is returned.",
+            "schema": {
+              "type": "string",
+              "example": "TrainPredictPipeline"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "description": "Only return sources of this type, such as forecaster, scheduler or reporter.",
+            "schema": {
+              "type": "string",
+              "example": "forecaster"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "description": "Maximum number of sources to return, the most recently created ones first. Without it, every accessible source is returned. Note that `only_latest` collapses the sources which this limit let through, so the response can hold fewer sources than the limit allows.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 25
             },
             "required": false
           }
@@ -5592,12 +5755,12 @@
           },
           "lower": {
             "default": null,
-            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "0 kW"
           },
           "upper": {
             "default": null,
-            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "20 kW"
           },
           "snap": {
@@ -5606,7 +5769,7 @@
               "null"
             ],
             "default": {},
-            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": {
               "0 kW": [
                 "0 kW",
@@ -5776,12 +5939,12 @@
           },
           "lower": {
             "default": null,
-            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "0 kW"
           },
           "upper": {
             "default": null,
-            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": "20 kW"
           },
           "snap": {
@@ -5790,7 +5953,7 @@
               "null"
             ],
             "default": {},
-            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied to forecaster regressors and forecast targets; flex-model and flex-context references refuse it until scheduling applies it.",
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
             "example": {
               "0 kW": [
                 "0 kW",
@@ -6073,7 +6236,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2093,
@@ -6095,6 +6258,12 @@
                   "type": "integer"
                 },
                 {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
                   "$ref": "#/components/schemas/SensorReference"
                 }
               ]
@@ -6103,7 +6272,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2095,
@@ -6118,6 +6287,12 @@
                   "type": "integer"
                 },
                 {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
                   "$ref": "#/components/schemas/SensorReference"
                 }
               ]
@@ -6126,7 +6301,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2093,
@@ -6146,6 +6321,12 @@
               "oneOf": [
                 {
                   "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
                 },
                 {
                   "$ref": "#/components/schemas/SensorReference"
@@ -6569,7 +6750,7 @@
           "end": {
             "type": "string",
             "format": "date-time",
-            "description": "End time in ISO 8601 format.",
+            "description": "End time in ISO 8601 format. An end equal to the start makes an instantaneous annotation.",
             "example": "2026-02-11T19:00:00+01:00"
           },
           "type": {
@@ -6649,6 +6830,14 @@
             "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
             "example": {},
             "additionalProperties": {}
+          },
+          "source": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
+            "example": 6
           }
         },
         "required": [
@@ -6913,6 +7102,26 @@
           "email",
           "password"
         ],
+        "additionalProperties": false
+      },
+      "DeleteSensorAnnotations": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "integer",
+            "description": "ID of the data source whose annotations to delete. If not provided, annotations from all sources are deleted."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete annotations starting at or after this datetime (ISO 8601)."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete annotations ending at or before this datetime (ISO 8601)."
+          }
+        },
         "additionalProperties": false
       },
       "DeleteSensorData": {

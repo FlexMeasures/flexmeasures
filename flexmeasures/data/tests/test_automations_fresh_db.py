@@ -485,8 +485,8 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     job.save_meta()
     queue.enqueue_job(job)
-    app.job_cache.add(root.id, job.id, "scheduling", "asset")
-    app.job_cache.add(child_sensor.id, job.id, "scheduling", "sensor")
+    app.job_map.add(root.id, job.id, "scheduling", "asset")
+    app.job_map.add(child_sensor.id, job.id, "scheduling", "sensor")
 
     child_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -497,7 +497,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     child_job.save_meta()
     queue.enqueue_job(child_job)
-    app.job_cache.add(child_sensor.id, child_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, child_job.id, "scheduling", "sensor")
 
     other_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -508,7 +508,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     other_job.save_meta()
     queue.enqueue_job(other_job)
-    app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
     assert get_automation_job_stats(schedule_automation) == {"queued": 2}
 
@@ -685,3 +685,56 @@ def test_an_automation_whose_sensors_are_unknown_records_nothing(
     job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
 
     assert sensors_automation_job_may_record_on(job) == set()
+
+
+@pytest.mark.parametrize(
+    "target, refused",
+    [
+        ({"sensor": "{id}", "lower": "0 kW"}, True),
+        ({"sensor": "{id}", "sources": [1]}, True),
+        ("{id}", False),
+    ],
+)
+def test_a_forecast_automation_refuses_a_qualified_sensor_to_forecast(
+    setup_fresh_test_forecast_data, fresh_db, target, refused
+):
+    """Qualifiers on the sensor to forecast are refused when the automation is created, not on every run after.
+
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so accepting them here would store an automation that can never run.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.automations import create_automation
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    if isinstance(target, dict):
+        target = {**target, "sensor": sensor.id}
+    else:
+        target = sensor.id
+    parameters = {
+        "sensor": target,
+        "max-forecast-horizon": "PT24H",
+        "forecast-frequency": "PT24H",
+    }
+
+    if not refused:
+        automation, _ = create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts naming their sensor by ID",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+        assert automation.parameters["sensor"] == sensor.id
+        return
+
+    with pytest.raises(ValidationError) as refusal:
+        create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts qualifying their sensor in the parameters",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+    assert '"auto"' in str(refusal.value.messages["parameters"]["sensor"])

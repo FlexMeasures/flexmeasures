@@ -1582,12 +1582,12 @@ def _asset_subtree_sensor_ids(asset_id: int) -> set[int]:
     )
 
 
-def _job_cache_refs(
+def _job_map_refs(
     automation: Automation, schedule_sensor_ids: set[int] | None = None
 ) -> set[tuple[int, str, str]]:
-    """The job-cache entries in which an automation's jobs may live.
+    """The job-map entries in which an automation's jobs may live.
 
-    Forecasting and reporting jobs are cached under their target/output sensor(s),
+    Forecasting and reporting jobs are indexed under their target/output sensor(s),
     which may belong to a different asset than the automation's own asset.
     """
     from flexmeasures.data.automations import get_automation_types
@@ -1595,10 +1595,10 @@ def _job_cache_refs(
     handler = get_automation_types().get(automation.type)
     if handler is None:
         return set()
-    # Determine the job cache entries to scan.
+    # Determine the job map entries to scan.
     parameters = automation.parameters or {}
     if handler.generator_class is not None:
-        # A plugin type's jobs are cached under the automation's own asset, on the queue its handler names.
+        # A plugin type's jobs are indexed under the automation's own asset, on the queue its handler names.
         return {(automation.asset_id, handler.queue, "asset")}
     elif automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
@@ -1632,15 +1632,15 @@ def _job_cache_refs(
 
 
 def _count_automation_jobs(
-    cache_refs: set[tuple[int, str, str]], automation_ids: set[int]
+    index_refs: set[tuple[int, str, str]], automation_ids: set[int]
 ) -> dict[int, dict[str, int]]:
-    """Count jobs per automation and status in one pass over the cache entries."""
+    """Count jobs per automation and status in one pass over the index entries."""
     counts: dict[int, dict[str, int]] = {
         automation_id: {} for automation_id in automation_ids
     }
     seen_job_ids: set[str] = set()
-    for entity_id, queue, asset_or_sensor_type in cache_refs:
-        for job in current_app.job_cache.get(entity_id, queue, asset_or_sensor_type):
+    for entity_id, queue, asset_or_sensor_type in index_refs:
+        for job in current_app.job_map.get(entity_id, queue, asset_or_sensor_type):
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
@@ -1653,13 +1653,13 @@ def _count_automation_jobs(
 
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     """Count the recent jobs created by this automation, per job status."""
-    return _count_automation_jobs(_job_cache_refs(automation), {automation.id})[
+    return _count_automation_jobs(_job_map_refs(automation), {automation.id})[
         automation.id
     ]
 
 
 def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
-    """Count recent jobs for all of an asset's automations in one cache pass."""
+    """Count recent jobs for all of an asset's automations in one index pass."""
     automations = asset.automations
     if not automations:
         return {}
@@ -1668,11 +1668,11 @@ def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
         if any(automation.type == "scheduling" for automation in automations)
         else None
     )
-    cache_refs: set[tuple[int, str, str]] = set()
+    index_refs: set[tuple[int, str, str]] = set()
     for automation in automations:
-        cache_refs |= _job_cache_refs(automation, schedule_sensor_ids)
+        index_refs |= _job_map_refs(automation, schedule_sensor_ids)
     return _count_automation_jobs(
-        cache_refs, {automation.id for automation in automations}
+        index_refs, {automation.id for automation in automations}
     )
 
 
@@ -1715,6 +1715,32 @@ def errors_reported_for(section: str):
         raise ValidationError({section: error.messages}) from error
 
 
+def _refuse_target_qualifiers(sensor: Any) -> None:
+    """Refuse a forecast automation whose parameters qualify the sensor to forecast.
+
+    Source filters and cleaning bounds on that sensor belong in the forecaster's config, as an entry naming ``"auto"``.
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so an automation created with them would be accepted now and then fail on every run.
+
+    :raises ValidationError: naming the qualifiers and where they belong.
+    """
+    from flexmeasures.data.models.forecasting.inputs import target_qualifiers
+    from flexmeasures.data.schemas.forecasting.references import AUTO_SENSOR
+
+    qualifiers = target_qualifiers(sensor) if sensor is not None else {}
+    if not qualifiers:
+        return
+    raise ValidationError(
+        {
+            "sensor": [
+                f"The sensor to forecast is qualified with {', '.join(sorted(qualifiers))}, which belong in the forecaster's config,"
+                f' as an entry naming "{AUTO_SENSOR}" among the past-regressors, such as {{"sensor": "{AUTO_SENSOR}", "lower": "0 kW"}}.'
+                " Name the sensor to forecast by its ID."
+            ]
+        }
+    )
+
+
 def _stored_sensor_id(sensor_reference: Any) -> int | None:
     """Return the sensor ID from a stored automation parameter naming a sensor.
 
@@ -1745,7 +1771,8 @@ def _prepare_forecast_automation(
     with errors_reported_for("parameters"):
         deserialized_parameters = ForecasterParametersSchema().load(parameters)
     sensor = deserialized_parameters.get("sensor")
-    # A target may be given as a source-filtered reference, whose filters say which beliefs to train on, and not which sensor is meant.
+    with errors_reported_for("parameters"):
+        _refuse_target_qualifiers(sensor)
     if isinstance(sensor, SensorReference):
         sensor = sensor.sensor
     if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
@@ -1876,15 +1903,25 @@ def _create_builtin_automation(
     An audit log record is added to the asset.
 
     :param check_permissions: whether to require that the current user may read the sensors that the automation reads from,
-                              and record data on the sensors it writes to.
+                              record data on the sensors it writes to, and read the data source they name, if they name one.
                               Set this for automations created by a user (through the API or the UI);
                               the CLI runs without a user, and is trusted.
     :raises marshmallow.ValidationError: if the parameters are invalid.
     :raises ValueError: if the data generator cannot be set up.
-    :raises werkzeug.exceptions.Forbidden: if a sensor is not accessible to the user.
+    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
     :returns: the automation and a list of warnings.
     """
+    from werkzeug.exceptions import Forbidden
+
     from flexmeasures.data.models.audit_log import AssetAuditLog
+    from flexmeasures.data.services.data_sources import user_may_use_source
+
+    # A named source hands over whatever configuration it stores, and the automation's results are recorded under it,
+    # so naming one takes more than being allowed to read what it computed: it has to be a source the user may work with.
+    if check_permissions and source is not None and not user_may_use_source(source):
+        exception = Forbidden()
+        exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
+        raise exception
 
     parameters = parameters or {}
     timezone = timezone or get_default_automation_timezone(asset)
@@ -1985,6 +2022,9 @@ def _create_builtin_automation(
             validate_automation_output_scope(asset.id, output_sensor, automation_type)
 
     if data_generator is not None:
+        # The automation hangs off an asset, so what it computes is that asset's organisation's own data,
+        # which its data source says by belonging to that organisation.
+        data_generator.set_source_account(asset.owner)
         # Look up or create the data source storing the generator config only now that the automation is going ahead,
         # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
         generator = data_generator.data_source
