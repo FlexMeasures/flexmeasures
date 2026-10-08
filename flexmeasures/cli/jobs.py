@@ -876,6 +876,7 @@ def handle_worker_exception(
     """
     queue_name = job.origin
     click.echo(f"HANDLING RQ {queue_name.upper()} EXCEPTION: {exc_type}: {exc_value}")
+    # Meta must hold JSON-serializable data, for the RQ dashboard's job page; the helper stores a summary that is.
     store_job_exception(job, exc_type, exc_value)
 
 

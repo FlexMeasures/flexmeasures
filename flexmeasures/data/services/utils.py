@@ -69,8 +69,10 @@ def store_job_exception(
 ) -> dict:
     """Store a summary of a job's failure in its meta, the same way for every queue, and return that summary.
 
-    The summary is a plain dict rather than the exception itself,
-    because RQ pickles a job's meta, and an exception that cannot be unpickled would make RQ drop the job's whole meta.
+    The summary is a plain dict of JSON-serializable values rather than the exception itself, for two reasons.
+    RQ pickles a job's meta, and an exception that cannot be unpickled would make RQ drop the job's whole meta.
+    The RQ dashboard's job page serializes the meta as JSON, which an exception object fails
+    (see https://github.com/Parallels/rq-dashboard/issues/510, and the fallback in ``flexmeasures.ui``).
     It holds the exception's type and message, a hint for the user where there is one,
     and the facts a refusal to record on an unchecked sensor carries, so that a reader need not parse them from the message.
     """
