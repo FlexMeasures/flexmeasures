@@ -457,3 +457,207 @@ def test_an_instantaneous_regressor_tells_each_forecast_only_what_was_known_when
     }
     assert at_11[naive("11:00")] == 4.1
     assert at_11[naive("12:00")] == 9.0
+
+
+# The resolution to forecast an instantaneous sensor at, when none is given, as derived by the forecaster
+
+
+def _resolve(sensor, config=None, **parameters):
+    """Load the parameters as compute does, and settle the resolution as the forecaster does before running any cycle."""
+    from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+
+    pipeline = TrainPredictPipeline(config={"train-period": "P7D", **(config or {})})
+    pipeline._parameters = pipeline._parameters_schema.load(
+        {"sensor": sensor.id, **parameters}
+    )
+    pipeline._resolved_config = pipeline._resolve_inputs()
+    pipeline._resolve_target_resolution()
+    return pipeline._parameters
+
+
+EVERY_10_MINUTES_JITTERED = [
+    -pd.Timedelta(minutes=10 * i, seconds=3 * (i % 2)) for i in range(1, 300)
+]
+
+
+@pytest.mark.parametrize(
+    ["attributes", "offsets", "expected"],
+    [
+        ({}, [], timedelta(hours=1)),
+        ({}, [-pd.Timedelta(minutes=30)], timedelta(hours=1)),
+        (
+            {},
+            [-pd.Timedelta(minutes=40), -pd.Timedelta(minutes=20)],
+            timedelta(minutes=20),
+        ),
+        ({}, EVERY_10_MINUTES_JITTERED, timedelta(minutes=10)),
+        ({"frequency": "15min"}, EVERY_10_MINUTES_JITTERED, timedelta(minutes=15)),
+    ],
+    ids=[
+        "no-readings",
+        "one-reading",
+        "two-readings",
+        "jittered-readings",
+        "frequency-attribute",
+    ],
+)
+def test_an_instantaneous_target_without_a_resolution_is_forecast_at_a_derived_one(
+    fresh_db, thermometer_setup, freeze_server_now, attributes, offsets, expected
+):
+    freeze_server_now(NOW)
+    asset, (probe, _) = thermometer_setup
+    sensor = _thermometer(fresh_db, asset, **attributes)
+    # The readings precede the start, where the training window ends.
+    _record(fresh_db, sensor, probe, offsets, until=START)
+
+    parameters = _resolve(sensor, start=START.isoformat())
+
+    assert parameters["resolution"] == expected
+
+
+def test_readings_outside_the_training_window_do_not_count(
+    fresh_db, thermometer_setup, freeze_server_now
+):
+    """Readings every 3 minutes, but only before the 7-day training window, leave the 10-minutely ones within it to go by."""
+    freeze_server_now(NOW)
+    asset, (probe, _) = thermometer_setup
+    sensor = _thermometer(fresh_db, asset)
+    _record(
+        fresh_db,
+        sensor,
+        probe,
+        [-pd.Timedelta(days=20, minutes=3 * i) for i in range(1, 2000)],
+    )
+    _record(
+        fresh_db, sensor, probe, [-pd.Timedelta(minutes=10 * i) for i in range(1, 200)]
+    )
+
+    assert _resolve(sensor, start="2025-01-15T12:00+01:00")["resolution"] == timedelta(
+        minutes=10
+    )
+
+
+def test_the_target_entrys_source_filters_decide_which_readings_count(
+    fresh_db, thermometer_setup, freeze_server_now
+):
+    """Probe A reads every 10 minutes and probe B every 15; together their readings are often 5 minutes apart."""
+    freeze_server_now(NOW)
+    asset, (probe_a, probe_b) = thermometer_setup
+    sensor = _thermometer(fresh_db, asset)
+    start = pd.Timestamp("2025-01-15T12:00+01:00")
+    _record(
+        fresh_db,
+        sensor,
+        probe_a,
+        [-pd.Timedelta(minutes=10 * i) for i in range(1, 300)],
+        until=start,
+    )
+    _record(
+        fresh_db,
+        sensor,
+        probe_b,
+        [-pd.Timedelta(minutes=15 * i) for i in range(1, 200)],
+        until=start,
+    )
+
+    unfiltered = _resolve(sensor, start=start.isoformat())
+    from_probe_b = _resolve(
+        sensor,
+        config={"past-regressors": [{"sensor": "auto", "sources": [probe_b.id]}]},
+        start=start.isoformat(),
+    )
+
+    assert unfiltered["resolution"] == timedelta(minutes=5)
+    assert from_probe_b["resolution"] == timedelta(minutes=15)
+
+
+def test_a_given_resolution_comes_before_a_derived_one(
+    fresh_db, thermometer_setup, freeze_server_now
+):
+    freeze_server_now(NOW)
+    asset, (probe, _) = thermometer_setup
+    sensor = _thermometer(fresh_db, asset, frequency="15min")
+    _record(fresh_db, sensor, probe, EVERY_10_MINUTES_JITTERED)
+
+    assert _resolve(sensor, resolution="PT30M", start="2025-01-15T12:00+01:00")[
+        "resolution"
+    ] == timedelta(minutes=30)
+
+
+def test_a_default_start_is_aligned_to_the_derived_resolution(
+    fresh_db, thermometer_setup, freeze_server_now
+):
+    """Now is 12:23:58; with readings every 10 minutes, the predictions start at 12:20, and a default end moves along."""
+    freeze_server_now(NOW)
+    asset, (probe, _) = thermometer_setup
+    sensor = _thermometer(fresh_db, asset)
+    _record(
+        fresh_db,
+        sensor,
+        probe,
+        [-pd.Timedelta(minutes=10 * i) for i in range(1, 300)],
+        until=NOW.floor("10min"),
+    )
+
+    parameters = _resolve(sensor, duration="PT6H", **{"max-forecast-horizon": "PT6H"})
+
+    assert parameters["predict_start"] == NOW.floor("10min")
+    assert parameters["end_date"] == NOW.floor("10min") + pd.Timedelta(hours=6)
+    assert "predict_start_is_default" not in parameters
+
+
+@pytest.mark.parametrize(
+    ["attributes", "offsets", "origin"],
+    [
+        ({"frequency": "7min"}, [], "taken from the sensor's 'frequency' attribute"),
+        (
+            {},
+            [-pd.Timedelta(minutes=7 * i) for i in range(1, 300)],
+            "inferred from the sensor's data",
+        ),
+    ],
+    ids=["frequency-attribute", "inferred"],
+)
+def test_a_derived_resolution_that_does_not_fit_says_where_it_came_from(
+    fresh_db, thermometer_setup, freeze_server_now, attributes, offsets, origin
+):
+    from marshmallow import ValidationError
+
+    freeze_server_now(NOW)
+    asset, (probe, _) = thermometer_setup
+    sensor = _thermometer(fresh_db, asset, **attributes)
+    _record(fresh_db, sensor, probe, offsets)
+
+    with pytest.raises(ValidationError) as exc:
+        _resolve(
+            sensor, start="2025-01-15T12:00+01:00", **{"max-forecast-horizon": "PT1H"}
+        )
+    message = str(exc.value.messages)
+    assert (
+        "max-forecast-horizon must be a multiple of the forecast resolution (0:07:00"
+        in message
+    )
+    assert origin in message
+    assert "set 'resolution'" in message
+
+
+@pytest.mark.parametrize(
+    ["attributes", "expected_message"],
+    [
+        ({"frequency": "often"}, "'frequency' attribute ('often')"),
+        ({"interpolation": "linear"}, "'interpolation' attribute of 'linear'"),
+        ({"interpolation_limit": "P1M"}, "'interpolation_limit' attribute of 'P1M'"),
+    ],
+)
+def test_unusable_attributes_of_an_instantaneous_target_are_refused(
+    fresh_db, thermometer_setup, freeze_server_now, attributes, expected_message
+):
+    from marshmallow import ValidationError
+
+    freeze_server_now(NOW)
+    asset, _ = thermometer_setup
+    sensor = _thermometer(fresh_db, asset, **attributes)
+
+    with pytest.raises(ValidationError) as exc:
+        _resolve(sensor, start="2025-01-15T12:00+01:00")
+    assert expected_message in str(exc.value.messages)

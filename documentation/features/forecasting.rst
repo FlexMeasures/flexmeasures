@@ -77,7 +77,8 @@ For such a sensor, ``resolution`` sets the frequency of its forecasts, just as a
 If you leave ``resolution`` out, it is derived, in this order:
 
 1. from the sensor's ``frequency`` attribute, which also rounds the timing of its incoming readings;
-2. from the sensor's data: the most common duration between its readings in the 30 days before the predictions start, rounded to whole minutes;
+2. from the sensor's data: the most common duration between the readings the model trains on
+   (over the training window, and with the source filters of the forecaster's ``"auto"`` entry, if any), rounded to whole minutes;
 3. otherwise, one hour.
 
 The timing parameters above must be multiples of the resolution, also of a derived one;

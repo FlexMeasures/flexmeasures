@@ -13,7 +13,8 @@ How long a value holds runs along event time, but who could know it, and when, d
 
 from __future__ import annotations
 
-from datetime import timedelta
+import logging
+from datetime import datetime, timedelta
 
 import isodate
 import numpy as np
@@ -21,6 +22,7 @@ import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 
+DEFAULT_INSTANTANEOUS_FORECAST_RESOLUTION = timedelta(hours=1)
 INTERPOLATION_POLICIES = ("ffill", "none")
 DEFAULT_INTERPOLATION_POLICY = "ffill"
 
@@ -371,3 +373,70 @@ def _finish(
     )
     out["is_realized"] = np.asarray(out["belief_time"] >= knowledge_times)
     return out.reset_index(drop=True)
+
+
+def derive_forecast_resolution(
+    sensor: Sensor,
+    source_filters: dict,
+    train_start: datetime,
+    train_end: datetime,
+    beliefs_before: datetime | None = None,
+) -> tuple[timedelta, str]:
+    """Derive the resolution to forecast an instantaneous sensor at, when none is given.
+
+    In order of precedence:
+
+    1. The sensor's ``frequency`` attribute, which also rounds the timing of its incoming readings.
+    2. The most common duration between the readings the model trains on (the same search over the training window),
+       snapped to whole minutes (at least one minute), so that slightly irregular timing does not yield an odd resolution.
+       With exactly two readings, their difference, as when inferring the resolution of posted data.
+    3. One hour.
+
+    :param sensor:          The instantaneous sensor.
+    :param source_filters:  Belief-search filters for the readings the model trains on.
+    :param train_start:     Start of the training window.
+    :param train_end:       End of the training window.
+    :param beliefs_before:  Only use beliefs recorded before this time, as training does.
+    :returns:               The resolution, and a description of where it came from.
+    :raises ValueError:     If the sensor's ``frequency`` attribute is not a positive duration.
+    """
+    frequency = sensor.get_attribute("frequency")
+    if frequency:
+        try:
+            resolution = pd.Timedelta(pd.tseries.frequencies.to_offset(frequency))
+        except (ValueError, TypeError):
+            resolution = None
+        if resolution is None or pd.isna(resolution) or resolution <= timedelta(0):
+            raise ValueError(
+                f"The sensor's 'frequency' attribute ({frequency!r}) is not a positive duration, such as '15min', so it cannot set the resolution to forecast at; set 'resolution' instead."
+            )
+        return (
+            resolution.to_pytimedelta(),
+            "taken from the sensor's 'frequency' attribute",
+        )
+
+    bdf = sensor.search_beliefs(
+        event_starts_after=train_start,
+        event_ends_before=train_end,
+        beliefs_before=beliefs_before,
+        most_recent_beliefs_only=True,
+        one_deterministic_belief_per_event_per_source=True,
+        **source_filters,
+    )
+    event_starts = pd.DatetimeIndex(pd.unique(bdf.event_starts)).sort_values()
+    if len(event_starts) >= 2:
+        frequency = (
+            event_starts[1] - event_starts[0]
+            if len(event_starts) == 2
+            else bdf.most_common_event_frequency
+        )
+        minutes = max(1, round(pd.Timedelta(frequency) / pd.Timedelta(minutes=1)))
+        resolution = timedelta(minutes=minutes)
+        logging.info(
+            f"Forecasting instantaneous sensor {sensor.id} at a resolution of {resolution}, inferred from the data it trains on."
+        )
+        return resolution, "inferred from the sensor's data"
+    return (
+        DEFAULT_INSTANTANEOUS_FORECAST_RESOLUTION,
+        "the default for an instantaneous sensor without data to infer one from",
+    )

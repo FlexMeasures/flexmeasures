@@ -17,10 +17,20 @@ from rq.job import Job
 from sqlalchemy import inspect as sa_inspect
 
 from flask import current_app
+from marshmallow import ValidationError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting import Forecaster
+from flexmeasures.data.models.forecasting.pipelines.base import (
+    _sensor_and_source_filters,
+)
+from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.data.models.forecasting.pipelines.instantaneous import (
+    InterpolationAttributeError,
+    derive_forecast_resolution,
+    interpolation_policy,
+)
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
 from flexmeasures.data.models.time_series import Sensor
@@ -508,6 +518,79 @@ class TrainPredictPipeline(Forecaster):
             decisive,
         )
         return train_start, train_end
+
+    def _resolve_target_resolution(self) -> None:
+        """Settle the resolution to forecast at before any cycle is run or queued, so that every cycle uses, and every job records, the same one.
+
+        For an instantaneous target without a given resolution, it is derived over the training window (see ``derive_forecast_resolution``),
+        from the readings the model trains on, so with the target's source filters,
+        and a default start (and an end derived from it) is aligned to it.
+        The timing must fit the derived resolution, and when it does not, the error says where that resolution came from.
+        Also checks the interpolation attributes of the instantaneous sensors involved.
+
+        :raises ValidationError: If a sensor's interpolation attributes or ``frequency`` attribute cannot be used,
+                                 or the timing is not a multiple of the derived resolution.
+        """
+        target = self._parameters["sensor"]
+        sensor, source_filters = _sensor_and_source_filters(target)
+        for entry in [
+            target,
+            *self._run_config["future_regressors"],
+            *self._run_config["past_regressors"],
+        ]:
+            entry_sensor = _sensor_and_source_filters(entry)[0]
+            if entry_sensor.event_resolution == timedelta(0):
+                try:
+                    interpolation_policy(entry_sensor)
+                except InterpolationAttributeError as exc:
+                    raise ValidationError(str(exc)) from exc
+
+        if self._parameters.get(
+            "resolution"
+        ) is not None or sensor.event_resolution != timedelta(0):
+            self._parameters.pop("predict_start_is_default", None)
+            self._parameters.pop("end_is_default", None)
+            return
+
+        if not source_filters:
+            # As for the training data: without filters of its own, the target is read without forecasts.
+            source_filters = {"exclude_source_types": ["forecaster"]}
+        train_start, train_end = self._derive_training_period()
+        try:
+            resolution, origin = derive_forecast_resolution(
+                sensor,
+                source_filters,
+                train_start,
+                train_end,
+                beliefs_before=self._parameters.get("beliefs_before"),
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc), field_name="resolution") from exc
+        for field_name, key in (
+            ("max-forecast-horizon", "max_forecast_horizon"),
+            ("forecast-frequency", "forecast_frequency"),
+        ):
+            if self._parameters[key] % resolution != timedelta(0):
+                raise ValidationError(
+                    f"{field_name} must be a multiple of the forecast resolution ({resolution}, {origin}; set 'resolution' to forecast at another one)"
+                )
+        self._parameters["resolution"] = resolution
+
+        # Align a default start to the derived resolution, and move an end that was derived from it along.
+        end_is_default = self._parameters.pop("end_is_default", False)
+        if self._parameters.pop("predict_start_is_default", False):
+            start = self._parameters["predict_start"]
+            aligned = floor_to_resolution(start, resolution)
+            self._parameters["predict_start"] = aligned
+            if end_is_default:
+                self._parameters["end_date"] -= start - aligned
+            predict_period = self._parameters["end_date"] - aligned
+            self._parameters["predict_period_in_hours"] = int(
+                predict_period.total_seconds() / 3600
+            )
+            self._parameters["m_viewpoints"] = max(
+                predict_period // self._parameters["forecast_frequency"], 1
+            )
 
     def run(
         self,

@@ -232,3 +232,37 @@ def test_forecasts_of_an_instantaneous_sensor_span_the_resolution_they_were_made
     assert res.json["start"] == "2025-01-05T00:00:00+00:00"
     assert len(res.json["values"]) == 3
     assert res.json["duration"] == "PT3H"
+
+
+def test_a_derived_resolution_that_does_not_fit_is_refused_with_a_422(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    setup_roles_users_fresh_db,
+):
+    """Without a resolution, a thermometer read every 7 minutes is forecast 7-minutely, which does not divide a 1-hour horizon."""
+    solar = setup_fresh_test_forecast_data["solar-sensor"]
+    thermometer = Sensor(
+        name="7-minute thermometer",
+        generic_asset=solar.generic_asset,
+        unit="°C",
+        event_resolution=timedelta(0),
+        attributes={"frequency": "7min"},
+    )
+    fresh_db.session.add(thermometer)
+    fresh_db.session.commit()
+
+    client = app.test_client()
+    token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    trigger_res = client.post(
+        url_for("SensorAPI:trigger_forecast", id=thermometer.id),
+        json={
+            "start": "2025-01-05T00:00:00+00:00",
+            "end": "2025-01-05T03:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+        },
+        headers={"Authorization": token},
+    )
+    assert trigger_res.status_code == 422, trigger_res.json
+    assert "taken from the sensor's 'frequency' attribute" in str(trigger_res.json)
+    assert "set 'resolution'" in str(trigger_res.json)

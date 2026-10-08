@@ -195,6 +195,8 @@ def run_forecast(
     # Resolve before anything reads the target or the regressors, so that the cycles,
     # the queued payloads and the data source all see the same inputs.
     pipeline._resolved_config = pipeline._resolve_inputs()
+    # Settle the resolution before the timing below reads it, and before any job records it.
+    pipeline._resolve_target_resolution()
     connection = current_app.queues[queue].connection
     # How much to move forward to the next cycle one prediction period later
     cycle_frequency = max(
