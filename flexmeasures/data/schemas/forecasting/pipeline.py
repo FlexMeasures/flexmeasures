@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numbers
 import os
 
 from datetime import timedelta
@@ -19,7 +18,16 @@ from marshmallow import (
 )
 
 from flexmeasures.data.schemas import SensorIdField
-from flexmeasures.data.schemas.sensors import SensorIdOrReferenceField
+from flexmeasures.data.schemas.utils import snake_to_kebab
+from flexmeasures.data.schemas.forecasting.references import (
+    AUTO_SENSOR,
+    AutoSensorReference,
+    ForecastInputField,
+)
+from flexmeasures.data.schemas.sensors import (
+    SensorIdOrReferenceField,
+    SensorReference,
+)
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
     AwareDateTimeOrDateField,
@@ -27,10 +35,10 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.utils.bound_utils import bound_validation_errors
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import ur
 
 DEFAULT_TRAIN_PERIOD = timedelta(days=30)
 
@@ -46,19 +54,6 @@ def _fixed_length_or_none(value) -> timedelta | None:
     except ValidationError:
         return None
     return parsed if isinstance(parsed, timedelta) else None
-
-
-def _is_parseable_quantity(value) -> bool:
-    """Whether a post-processing value is a number or a pint-parseable quantity string."""
-    if isinstance(value, numbers.Real):
-        return True
-    if not isinstance(value, str):
-        return False
-    try:
-        ur.Quantity(value)
-    except Exception:
-        return False
-    return True
 
 
 class AnnotationRegressorSchema(Schema):
@@ -115,15 +110,16 @@ class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
     future_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="future-regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references to be treated only as future regressors."
+                "Sensor IDs or sensor references to be treated only as future regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
-                " When a sensor reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings."
+                " See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on)."
             ),
             "example": [
                 {"sensor": 2093, "sources": [12, 13]},
@@ -135,15 +131,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     past_regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="past-regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
+                "Sensor IDs or sensor references to be treated only as past regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
-                " When a sensor reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings."
+                " See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on)."
             ),
             "example": [{"sensor": 2095, "exclude-source-types": ["forecaster"]}],
             "cli": {
@@ -152,15 +149,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
     regressors = fields.List(
-        SensorIdOrReferenceField(),
+        ForecastInputField(),
         data_key="regressors",
         load_default=[],
         metadata={
             "description": (
-                "Sensor IDs or source-filtered sensor references used as both past and future regressors."
+                "Sensor IDs or sensor references used as both past and future regressors."
+                " A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
-                " When a sensor reference lists multiple sources, the first listed source wins"
-                " if they contain beliefs with the same event and belief time."
+                " Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings."
+                " See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on)."
             ),
             "example": [
                 {"sensor": 2093, "sources": [12, 13]},
@@ -230,10 +228,15 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=False,
         allow_none=True,
         metadata={
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            # Meant to be deprecated in favour of the explicit `lower` bound, which says the same thing without hiding it inside the model.
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting ``lower`` to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": True,
             "cli": {
                 "option": "--ensure-positive",
+                "extra_help": (
+                    "Deprecated: set `lower` to 0 in the file passed to --config instead,"
+                    " which bounds the forecast explicitly rather than inside the model."
+                ),
             },
         },
     )
@@ -373,24 +376,36 @@ class TrainPredictPipelineConfigSchema(Schema):
         Unit compatibility with the sensor and interval semantics can only be
         checked once the output sensor is known, so those run at forecast time.
         """
-        errors: dict[str, list[str]] = {}
-        for field_name in ("lower", "upper"):
-            value = data.get(field_name)
-            if value is not None and not _is_parseable_quantity(value):
-                errors[field_name] = [
-                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
-                ]
-
-        snap_errors = [
-            f"Snap entry '{target}' must use numbers or parseable quantity strings."
-            for target, interval in (data.get("snap") or {}).items()
-            if not all(_is_parseable_quantity(v) for v in (target, *interval))
-        ]
-        if snap_errors:
-            errors["snap"] = snap_errors
-
+        errors = bound_validation_errors(
+            data.get("lower"), data.get("upper"), data.get("snap")
+        )
         if errors:
             raise ValidationError(errors)
+
+    @validates_schema
+    def refuse_several_entries_for_the_sensor_to_forecast(self, data: dict, **kwargs):
+        """Refuse a config that describes the sensor being forecast more than once.
+
+        Such an entry is taken out of the regressor lists and describes the target,
+        so two of them are two answers to one question, whichever lists they were written in.
+        Reading the last one and dropping the rest would leave a config whose recorded text does not say what the forecast did.
+        The entries are counted before the lists are merged, since `regressors` asks for both roles with one entry.
+        """
+        written_in = [
+            field_name
+            for field_name in ("past_regressors", "future_regressors", "regressors")
+            for entry in data.get(field_name) or []
+            if isinstance(entry, AutoSensorReference)
+        ]
+        if len(written_in) > 1:
+            spelled = ", ".join(
+                sorted(snake_to_kebab(field_name) for field_name in set(written_in))
+            )
+            raise ValidationError(
+                f"The sensor being forecast is described {len(written_in)} times, under {spelled}."
+                f' Describe it once: an entry naming "{AUTO_SENSOR}" says how that sensor is read, wherever it is written,'
+                " so a second one cannot say anything the first does not."
+            )
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
@@ -425,14 +440,21 @@ class ForecasterParametersSchema(Schema):
     NB cli-exclusive fields are not exposed via the API (removed by make_openapi_compatible).
     """
 
-    sensor = SensorIdField(
+    sensor = SensorIdOrReferenceField(
         data_key="sensor",
         required=True,
         metadata={
-            "description": "ID of the sensor to forecast.",
+            "description": (
+                "ID of the sensor to forecast."
+                " Which of the sources recording on it hold the truth to train on, and how to clean its readings, is said in the forecaster's config,"
+                " by an entry naming 'auto' among the regressors."
+                " Without such an entry, every source on the sensor is trained on, except forecasters,"
+                " which are left out so that the forecaster does not learn from its own forecasts."
+            ),
             "example": 2092,
             "cli": {
                 "option": "--sensor",
+                "extra_help": "Pass the ID of the sensor to forecast.",
             },
         },
     )
@@ -716,7 +738,13 @@ class ForecasterParametersSchema(Schema):
         predict_period_in_hours = int(predict_period.total_seconds() / 3600)
 
         if data.get("sensor_to_save") is None:
-            sensor_to_save = target_sensor
+            # Forecasts are recorded on a sensor, never on a source-filtered view of one,
+            # so a referenced target contributes only the sensor it wraps.
+            sensor_to_save = (
+                target_sensor.sensor
+                if isinstance(target_sensor, SensorReference)
+                else target_sensor
+            )
         else:
             sensor_to_save = data["sensor_to_save"]
 

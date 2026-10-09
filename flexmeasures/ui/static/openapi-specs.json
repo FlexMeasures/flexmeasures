@@ -315,6 +315,137 @@
         ]
       }
     },
+    "/api/v3_0/sensors/{id}/annotations": {
+      "delete": {
+        "summary": "Delete sensor annotations",
+        "description": "This endpoint deletes the annotations of a sensor. Optionally, filter by source, start time and/or until time. Only annotations that lie entirely between the start and until times are deleted. An annotation that is also registered on another sensor, an asset or an account is only removed from this sensor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteSensorAnnotations"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "integer",
+                      "description": "The number of annotations removed from the sensor."
+                    }
+                  }
+                },
+                "example": {
+                  "message": "Deleted 2 annotations.",
+                  "deleted": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sensors",
+          "Annotations"
+        ]
+      },
+      "post": {
+        "summary": "Creates a new sensor annotation.",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the sensor to register the annotation on.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sensors",
+          "Annotations"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}/data": {
       "delete": {
         "summary": "Delete sensor data",
@@ -1043,6 +1174,15 @@
               "type": "integer"
             },
             "required": true
+          },
+          {
+            "in": "query",
+            "name": "asset_id",
+            "required": false,
+            "description": "ID of the asset whose status page the sensor is reported on.\nThis asset is not necessarily the asset that the sensor belongs to; it can also be an asset that refers to the sensor in its flex-context or in the sensors shown on its graphs page.\nIt only affects the reported relation between the sensor and the asset.\nDefaults to the asset that the sensor belongs to.\n",
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -1356,64 +1496,6 @@
         },
         "tags": [
           "Sensors"
-        ]
-      }
-    },
-    "/api/v3_0/sensors/{id}/annotations": {
-      "post": {
-        "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The ID of the sensor to register the annotation on.",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AnnotationSchema"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "201": {
-            "description": "PROCESSED"
-          },
-          "400": {
-            "description": "INVALID_REQUEST"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "403": {
-            "description": "INVALID_SENDER"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Sensors",
-          "Annotations"
         ]
       }
     },
@@ -3110,7 +3192,7 @@
     "/api/v3_0/assets/{id}/copy": {
       "post": {
         "summary": "Copy an asset to a target account and/or parent.",
-        "description": "This endpoint creates a copy of an existing asset.\n\nThe asset copy will also have copies of child assets, including sensors and flex-configuration.\nNo beliefs will be copied.\n\nThe new asset can optionally be placed under a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both `target` and `account` are omitted, the copy remains in the same account and keeps the same parent as the original.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
+        "description": "This endpoint creates a copy of an existing asset.\n\nThe asset copy will also have copies of child assets, including sensors and flex-configuration.\nNo beliefs will be copied.\n\nAutomations on the copied assets are copied too, but start out inactive and with no run history,\nso they can be inspected and tested before they are switched on.\nAn automation that cannot be copied safely is skipped, and listed under `skipped-automations` with the reason;\nthe asset, its sensors and the other automations are still copied.\n\nThe new asset can optionally be placed under a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both `target` and `account` are omitted, the copy remains in the same account and keeps the same parent as the original.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3153,8 +3235,16 @@
             "content": {
               "application/json": {
                 "example": {
-                  "message": "Successfully copied asset 10 to account 2.",
-                  "asset": 99
+                  "message": "Successfully copied asset 10 to account 2. 1 automation(s) could not be copied.",
+                  "asset": 99,
+                  "skipped-automations": [
+                    {
+                      "id": 7,
+                      "name": "Day-ahead PV forecasts",
+                      "asset": 10,
+                      "reason": "It references sensor 42, which lies outside the copied assets and which the destination organisation cannot read."
+                    }
+                  ]
                 }
               }
             }
@@ -3367,10 +3457,10 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/automations/{automation_id}": {
-      "get": {
-        "summary": "Get details of one automation defined on an asset.",
-        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\ninformation about its data generator (null for schedule automations),\nthe sensors it reads from and writes to,\nand counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted.\nThe cursor is the UTC time of the most recent run the automation committed to; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+    "/api/v3_0/assets/{id}/automations/{automation-id}": {
+      "delete": {
+        "summary": "Delete an automation.",
+        "description": "Delete the automation. Any jobs it already queued are unaffected.\nRequires permission to add data under the asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3388,7 +3478,56 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "DELETED"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "get": {
+        "summary": "Get details of one automation defined on an asset.",
+        "description": "In addition to the fields shown when listing automations, the response shows\nthe automation's parameters (forecast parameters or a schedule trigger message),\nthe data source it records under, as its `source` (null for schedule automations), including the configuration its data generator was set up with,\nthe sensors it reads from and writes to,\ndurable run status, and counts of recently created jobs, per job status.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be counted, while durable run status records queueing attempts and outcomes even after those jobs expire.\nThe cursor is the time of the most recent run the automation committed to, in the automation's own timezone; runs at or before it are never queued again.\nIt advances just before queueing, so it does not indicate that queueing or the forecast itself succeeded.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation.",
             "schema": {
@@ -3406,23 +3545,29 @@
                     "summary": "Automation details",
                     "value": {
                       "id": 1,
-                      "created_at": "2026-07-11T00:00:00+00:00",
-                      "asset_id": 1,
-                      "type": "forecasts",
+                      "created-at": "2026-07-11T00:00:00+00:00",
+                      "asset": 1,
+                      "type": "forecasting",
                       "name": "Day-ahead PV forecasts",
-                      "cronstr": "0 6 * * *",
+                      "cron": "0 6 * * *",
                       "timezone": "Europe/Amsterdam",
-                      "cursor": "2026-07-11T04:00:00+00:00",
-                      "recurrence_description": "At 06:00",
+                      "cursor": "2026-07-11T06:00:00+02:00",
+                      "next-run": "2026-07-12T06:00:00+02:00",
+                      "recurrence-description": "At 06:00",
+                      "schedule-revision": 1,
                       "active": true,
                       "parameters": {
                         "sensor": 2092
                       },
-                      "generator": {
+                      "source": {
                         "id": 6,
-                        "description": "forecaster 'TrainPredictPipeline' (v1)"
+                        "description": "forecaster 'TrainPredictPipeline' (v1)",
+                        "config": {
+                          "model": "CustomLGBM",
+                          "train-period": "P30D"
+                        }
                       },
-                      "input_sensors": [
+                      "input-sensors": [
                         {
                           "id": 2092,
                           "name": "power"
@@ -3432,25 +3577,112 @@
                           "name": "irradiance"
                         }
                       ],
-                      "output_sensors": [
+                      "output-sensors": [
                         {
                           "id": 2092,
                           "name": "power"
                         }
                       ],
-                      "job_stats": {
+                      "job-stats": {
                         "finished": 3,
                         "failed": 1
                       },
-                      "redis_connection_err": null
+                      "run-stats": {
+                        "total": 1,
+                        "dispatch": {
+                          "queued": 1
+                        },
+                        "execution": {
+                          "succeeded": 1
+                        },
+                        "latest-run": {
+                          "id": 12,
+                          "scheduled-at": "2026-07-11T04:00:00+00:00",
+                          "schedule-revision": 1,
+                          "dispatch-state": "queued",
+                          "execution-state": "succeeded",
+                          "attempt-count": 1,
+                          "intended-job-count": 2,
+                          "queued-job-count": 2,
+                          "last-error": null
+                        },
+                        "recent-runs": []
+                      },
+                      "redis-connection-err": null
                     }
                   }
                 }
               }
             }
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "patch": {
+        "summary": "Update an automation's name, cron string, timezone or activation status.",
+        "description": "Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.\nChanging the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,\nso runs from before it are not caught up on, while a run due in that very minute still is.\nOther automation fields cannot be updated; instead, create a new automation.\nRequires permission to add data under the asset.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "automation-id",
+            "required": true,
+            "description": "ID of the automation.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationUpdateSchema"
+              },
+              "examples": {
+                "deactivate": {
+                  "summary": "Deactivate the automation",
+                  "value": {
+                    "active": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -3476,7 +3708,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring forecasting or scheduling tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted, and its cursor.\n",
+        "description": "The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,\nand both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).\nThe next run excludes pending catch-up work.\n\nBy default, the automations of the assets below it are included as well, at any depth, so that a site asset reports everything that runs below it.\nPass `include-child-assets=false` to list only the automations defined on the asset itself.\nOnly the assets below it which you may read are included.\nEach entry names the asset it is defined on, in `asset` and `asset-name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3490,6 +3722,15 @@
             "description": "ID of the asset to get the automations for.",
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include-child-assets",
+            "required": false,
+            "description": "Whether to also list the automations of the assets below it, at any depth (default true).",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -3505,25 +3746,119 @@
                       "automations": [
                         {
                           "id": 1,
-                          "created_at": "2026-07-11T00:00:00+00:00",
-                          "asset_id": 1,
-                          "type": "forecasts",
+                          "created-at": "2026-07-11T00:00:00+00:00",
+                          "asset": 1,
+                          "asset-name": "Solar panels",
+                          "type": "forecasting",
                           "name": "Day-ahead PV forecasts",
-                          "cronstr": "0 6 * * *",
+                          "cron": "0 6 * * *",
                           "timezone": "Europe/Amsterdam",
-                          "cursor": "2026-07-11T04:00:00+00:00",
-                          "recurrence_description": "At 06:00",
-                          "active": true
+                          "cursor": "2026-07-11T06:00:00+02:00",
+                          "next-run": "2026-07-12T06:00:00+02:00",
+                          "recurrence-description": "At 06:00",
+                          "schedule-revision": 1,
+                          "active": true,
+                          "job-stats": {
+                            "finished": 3
+                          }
                         }
-                      ]
+                      ],
+                      "redis-connection-err": null
                     }
                   }
                 }
               }
             }
           },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "post": {
+        "summary": "Create an automation on an asset.",
+        "description": "Create a recurring forecasting, scheduling, reporting or plugin-defined task on the asset.\nThe parameters are validated by the schema matching the automation type:\nforecast parameters for type `forecasting`,\na schedule trigger message (without the asset id) for type `scheduling`,\nreport parameters for type `reporting`, or the registered plugin schema.\nRequires permission to add data under the asset.\n\nAn automation runs again and again, so its parameters cannot fix a moment in time:\na `start`, `end` or `prior` among them is refused.\nSay instead how the period each run covers relates to that run,\nwith two of `start-offset`, `end-offset` and `duration`.\nThe offsets are chains of comma-separated Pandas offsets, plus `DB` (day begin) and `HB` (hour begin),\napplied to the time the run was due, on the automation's own clock.\nLeave the timing out to start at the time of each run,\nor, for a report, to cover the period since the last successful report.\n\nThe automation can only involve sensors that you have access to yourself:\nread access to the sensors it reads data from,\nand permission to record data on the sensors it writes to.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "ID of the asset to create the automation on.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationCreationSchema"
+              },
+              "examples": {
+                "daily_forecasts": {
+                  "summary": "Daily forecasts of sensor 2092",
+                  "description": "Runs every day at 06:00, read as minute-then-hour, in the automation's own timezone.",
+                  "value": {
+                    "name": "Day-ahead PV forecasts",
+                    "cron": "0 6 * * *",
+                    "type": "forecasting",
+                    "parameters": {
+                      "sensor": 2092
+                    }
+                  }
+                },
+                "day_ahead_schedules": {
+                  "summary": "Schedules for the whole of the next day",
+                  "description": "Runs every day at noon, and covers the day after the one each run was due on, read on the automation's own clock.",
+                  "value": {
+                    "name": "Day-ahead schedules",
+                    "cron": "0 12 * * *",
+                    "timezone": "Europe/Amsterdam",
+                    "type": "scheduling",
+                    "parameters": {
+                      "start-offset": "1D,DB",
+                      "duration": "P1D"
+                    }
+                  }
+                },
+                "forecasts_on_an_existing_source": {
+                  "summary": "Forecasts computed by an existing data source",
+                  "description": "Reuses the forecaster and the configuration stored on data source 6, and records the forecasts under that same source.",
+                  "value": {
+                    "name": "Day-ahead PV forecasts",
+                    "cron": "0 6 * * *",
+                    "type": "forecasting",
+                    "source": 6,
+                    "parameters": {
+                      "sensor": 2092
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "CREATED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -3931,7 +4266,7 @@
     "/api/v3_0/assets/{id}/jobs": {
       "get": {
         "summary": "Get all background jobs related to an asset.",
-        "description": "The response will be a list of jobs.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the asset's child assets are included as well, so that a site asset reports everything that happened below it.\nPass `include_child_assets=false` to list only the jobs of the asset itself and of its own sensors.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
+        "description": "The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.\nNote that jobs in Redis have a limited TTL, so not all past jobs will be listed.\n\nBy default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.\nPass `include-child-assets=false` to list only the jobs of the asset itself and of its own sensors.\nOnly the assets below it which you may read are included.\nEach job names the asset it happened on, in `asset_id` and `asset_name`.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3949,11 +4284,57 @@
           },
           {
             "in": "query",
-            "name": "include_child_assets",
+            "name": "include-child-assets",
             "required": false,
-            "description": "Whether to also list the jobs of the asset's child assets (default true).",
+            "description": "Whether to also list the jobs of the assets below it, at any depth (default true).",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "description": "One-based page number. Omit to return all jobs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "per-page",
+            "required": false,
+            "description": "Jobs per page when page is provided (default 10).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-by",
+            "required": false,
+            "description": "Sort paginated jobs by enqueue time or queue (default enqueued_at).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enqueued_at",
+                "queue"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort-dir",
+            "required": false,
+            "description": "Sort direction for paginated jobs (default desc).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
             }
           }
         ],
@@ -3981,7 +4362,7 @@
                           "metadata_hash": "abc123"
                         }
                       ],
-                      "redis_connection_err": null
+                      "redis-connection-err": null
                     }
                   }
                 }
@@ -4103,7 +4484,7 @@
     "/api/v3_0/assets": {
       "get": {
         "summary": "List assets accessible by the user.",
-        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter decides whether public assets are included in the response. It defaults to `true` when `all_accessible` or `root` is used, and to `false` otherwise, so pass `false` explicitly to leave public assets out of a listing across accounts.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4221,10 +4602,13 @@
           {
             "in": "query",
             "name": "include_public",
-            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "description": "Whether to include public assets. Leave out to let `all_accessible` and `root` decide: those include public assets, while a listing of a single account does not. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "schema": {
-              "type": "boolean",
-              "default": false,
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null,
               "example": false
             },
             "required": false
@@ -4503,7 +4887,7 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/automations/{automation_id}/trigger": {
+    "/api/v3_0/assets/{id}/automations/{automation-id}/trigger": {
       "post": {
         "summary": "Trigger a single run of an automation.",
         "description": "Run one automation now, once, in addition to its recurring runs.\nThis is useful to try out a new automation, to re-run one after fixing what made it fail,\nor to refresh its results after late input data arrived.\n\nThe automation runs with the parameters it was created with,\nand the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.\n\nAn on-demand run does not affect the automation's recurrence: its cursor stays where it was,\nso the next recurring run still happens as scheduled, and a missed run is still caught up.\nInactive automations can be triggered, too, which is how you can try one out before activating it.\n",
@@ -4524,7 +4908,7 @@
           },
           {
             "in": "path",
-            "name": "automation_id",
+            "name": "automation-id",
             "required": true,
             "description": "ID of the automation to run.",
             "schema": {
@@ -4545,7 +4929,7 @@
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "n_jobs": 2,
+                      "n-jobs": 2,
                       "message": "Request has been accepted for processing."
                     }
                   }
@@ -4857,254 +5241,6 @@
         ]
       }
     },
-    "/api/v3_0/assets/default_asset_view": {
-      "post": {
-        "summary": "Update the default asset view for the current user",
-        "description": "Update which asset page is shown to the current user per default. For instance, the user would see graphs per default when clicking on an asset (now the default is the Context page).\n\nThis endpoint sets the default asset view for the current user session if `use_as_default` is true.\nIf `use_as_default` is `false`, it clears the session variable for the default asset view.\n\n## Example values for `default_asset_view`:\n- \"Audit Log\"\n- \"Context\"\n- \"Graphs\"\n- \"Properties\"\n- \"Status\"\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DefaultAssetViewJSONSchema"
-              },
-              "examples": {
-                "default_asset_view": {
-                  "summary": "Setting the user's default asset view to \"Graphs\"",
-                  "value": {
-                    "default_asset_view": "Graphs",
-                    "use_as_default": true
-                  }
-                },
-                "resetting_default_view": {
-                  "summary": "resetting the user's default asset view (will return to use system default)",
-                  "value": {
-                    "use_as_default": false
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Default asset view updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "403": {
-            "description": "INVALID_SENDER"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/keep_legends_below_graphs": {
-      "post": {
-        "summary": "Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.",
-        "description": "This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "keep_legends_below_graphs": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "keep_legends_below_graphs"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Legend position preference updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/status_page_child_jobs": {
-      "post": {
-        "summary": "Remember whether the current user wants the asset status page to list the jobs of child assets, too.",
-        "description": "The jobs tab of the status page lists the jobs of the asset's child assets as well, so that a site asset shows what happened anywhere below it.\nThis endpoint records the user's choice in their session, so their next visit to a status page keeps to it.\nWithout a recorded choice, the jobs of child assets are included.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusPageChildJobsJSONSchema"
-              },
-              "examples": {
-                "status_page_child_jobs": {
-                  "summary": "Listing only the asset's own jobs from now on",
-                  "value": {
-                    "include_child_assets": false
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Preferred status page job scope updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
-    "/api/v3_0/assets/status_page_tab": {
-      "post": {
-        "summary": "Remember which tab of the asset status page the current user last opened.",
-        "description": "The status page shows a sensor data tab and a jobs tab, of which only the opened one loads its data.\nThis endpoint records the user's choice in their session, so their next visit to a status page opens the same tab.\nWithout a recorded choice, the jobs tab opens.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusPageTabJSONSchema"
-              },
-              "examples": {
-                "status_page_tab": {
-                  "summary": "Opening the sensor data tab from now on",
-                  "value": {
-                    "status_page_tab": "sensors"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "PROCESSED",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "message": {
-                    "summary": "Message",
-                    "value": {
-                      "message": "Preferred status page tab updated successfully."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          },
-          "429": {
-            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
-          }
-        },
-        "tags": [
-          "Assets"
-        ]
-      }
-    },
     "/api/v3_0/assets/types": {
       "get": {
         "summary": "Get list of available asset types",
@@ -5386,7 +5522,7 @@
     "/api/v3_0/sources/{id}": {
       "get": {
         "summary": "Get one data source.",
-        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nThe access rules are the same as for listing data sources.\n",
+        "description": "Returns the full record of one data source, including the attributes in which\ndata generators (such as forecasters, schedulers and reporters) store their\nconfiguration.\n\nA source is readable when it belongs to an organisation the user may read,\nwhen an automation they may read computes under it,\nor when it has recorded data on a sensor they may read, so that they can ask what computed a number they see.\n\nThe <code>attributes</code>, which hold the configuration a data generator was set up with, are only included for the first two:\na configuration names the sensors it runs on, which can be sensors the user cannot see at all.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5449,7 +5585,7 @@
     "/api/v3_0/sources": {
       "get": {
         "summary": "List accessible data sources and defined source types.",
-        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\nThe <code>filter</code> parameter searches the sources by name, by model and by id prefix,\nthe <code>type</code> parameter narrows the list to one source type, such as <code>forecaster</code>,\nand the <code>limit</code> parameter returns only the most recently created ones.\n\nThe <code>types</code> in the response are those of every source this listing can hold,\nrather than only those of the sources this call returns,\nso that one call can both search the sources and offer the types to search by.\n\n<strong>Access rules:</strong>\n\nThis lists the sources which are the user's to work with, which is what a source has to be to be reused.\nThat is a stricter rule than the one for reading one source with <code>GET /api/v3_0/sources/<id></code>,\nwhich also covers a source that recorded data on a sensor the user may read.\n\n- Admins see all data sources.\n- Everyone else sees the sources of their own organisation, of any organisation they consult for,\n  and the sources an automation they may read computes under.\n- A source which belongs to no organisation is not listed for that reason alone.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5463,6 +5599,37 @@
             "schema": {
               "type": "boolean",
               "default": true
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "description": "Search terms, separated by spaces, matched against the source's name, its model and its id prefix. A source matching any of the terms is returned.",
+            "schema": {
+              "type": "string",
+              "example": "TrainPredictPipeline"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "description": "Only return sources of this type, such as forecaster, scheduler or reporter.",
+            "schema": {
+              "type": "string",
+              "example": "forecaster"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "description": "Maximum number of sources to return, the most recently created ones first. Without it, every accessible source is returned. Note that `only_latest` collapses the sources which this limit let through, so the response can hold fewer sources than the limit allows.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 25
             },
             "required": false
           }
@@ -5513,11 +5680,6 @@
       }
     },
     "/api/v3_0/docs/{path}": {},
-    "/api/dev/sensor/{id}": {},
-    "/api/dev/sensor/{id}/chart": {},
-    "/api/dev/sensor/{id}/chart_annotations": {},
-    "/api/dev/sensor/{id}/chart_data": {},
-    "/api/dev/asset/{id}": {},
     "/api/v2_0/user/{id}/password-reset": {},
     "/": {}
   },
@@ -5590,6 +5752,36 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -5744,6 +5936,36 @@
             "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values, on variable-quantity flex-model and flex-context fields (such as soc-minima, soc-maxima, the capacity fields and the price fields). Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained. Take particular care with a fallback of 0 on a consumption-capacity or production-capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device and enforced strictly, rather than as a limit that may be breached at a price. This field is not (yet) applied to inflexible-device references or to forecaster regressors.",
             "example": "0 kWh"
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for the readings taken from this sensor, applied before they are used, so that a sensor with implausible readings can be cleaned up without correcting it at the source. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for the readings taken from this sensor, applied before they are used. Unitless values are interpreted in the sensor's own unit. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals, applied to the readings taken from this sensor. Readings inside an interval are replaced by the target, which must lie within the interval. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead. Applied by forecasters to their regressors and target, and by schedulers to the flex-model and flex-context references they read.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "0.5 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "required": [
@@ -6014,7 +6236,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only forecasts recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2093,
@@ -6036,6 +6258,12 @@
                   "type": "integer"
                 },
                 {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
                   "$ref": "#/components/schemas/SensorReference"
                 }
               ]
@@ -6044,7 +6272,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references to be treated only as past regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if only realizations recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2095,
@@ -6059,6 +6287,12 @@
                   "type": "integer"
                 },
                 {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
                   "$ref": "#/components/schemas/SensorReference"
                 }
               ]
@@ -6067,7 +6301,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
+            "description": "Sensor IDs or sensor references used as both past and future regressors. A reference can filter by source, and can carry lower, upper and snap bounds that clean this sensor's readings before the model trains on them. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. Write 'auto' in place of a sensor ID to mean the sensor being forecast, as in {'sensor': 'auto', 'lower': '0 kW'}, which says which of its sources to train on and how to clean its readings. See [choosing which data sources to train on](https://flexmeasures.readthedocs.io/latest/features/forecasting.html#choosing-which-data-sources-to-train-on).",
             "example": [
               {
                 "sensor": 2093,
@@ -6087,6 +6321,12 @@
               "oneOf": [
                 {
                   "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
                 },
                 {
                   "$ref": "#/components/schemas/SensorReference"
@@ -6121,7 +6361,7 @@
               "null"
             ],
             "default": false,
-            "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
+            "description": "Whether to clip negative values in forecasts. Defaults to false (disabled). Prefer setting <code>lower</code> to 0, which bounds the forecast explicitly; this field is meant to be deprecated.",
             "example": true
           },
           "lower": {
@@ -6299,9 +6539,12 @@
             "example": false
           },
           "include_public": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Whether to include public assets. Leave out to let `all_accessible` and `root` decide: those include public assets, while a listing of a single account does not. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "example": false
           },
           "asset_type": {
@@ -6507,7 +6750,7 @@
           "end": {
             "type": "string",
             "format": "date-time",
-            "description": "End time in ISO 8601 format.",
+            "description": "End time in ISO 8601 format. An end equal to the start makes an instantaneous annotation.",
             "example": "2026-02-11T19:00:00+01:00"
           },
           "type": {
@@ -6538,6 +6781,91 @@
           "end",
           "start"
         ],
+        "additionalProperties": false
+      },
+      "AutomationCreationSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "default": "forecasting",
+            "description": "Registered automation type: forecasting, scheduling, reporting, or a type provided by an installed plugin."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "cron": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "IANA timezone in which the cron expression is interpreted. Defaults to the asset's own timezone, taken from its timezone attribute or one of its sensors, and to the server's FLEXMEASURES_TIMEZONE if the asset has neither.",
+            "example": "Europe/Amsterdam"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "data-generator": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Class of the data generator that computes this automation's results, reported back as the automation's `source`. A forecast automation defaults to TrainPredictPipeline, a report automation has to name its reporter (such as PandasReporter), a plugin type declares its generator, and a schedule automation's generator follows from the asset and the flex config.",
+            "example": "TrainPredictPipeline"
+          },
+          "config": {
+            "type": "object",
+            "description": "Configuration stored on the data generator, as opposed to the `parameters` it runs with. Used by forecast, report and plugin automation types.",
+            "example": {},
+            "additionalProperties": {}
+          },
+          "source": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "ID of an existing data source to reuse, instead of naming a `data-generator` and its `config`.",
+            "example": 6
+          }
+        },
+        "required": [
+          "cron",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AutomationUpdateSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "cron": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone in which the cron expression is interpreted.",
+            "example": "Europe/Amsterdam"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
         "additionalProperties": false
       },
       "ReportTriggerSchema": {
@@ -6575,61 +6903,6 @@
             "example": 482
           }
         },
-        "additionalProperties": false
-      },
-      "DefaultAssetViewJSONSchema": {
-        "type": "object",
-        "properties": {
-          "default_asset_view": {
-            "type": "string",
-            "enum": [
-              "Audit Log",
-              "Context",
-              "Graphs",
-              "Properties",
-              "Status"
-            ],
-            "description": "The default asset view to show."
-          },
-          "use_as_default": {
-            "type": "boolean",
-            "default": true,
-            "description": "Whether to use this view as default."
-          }
-        },
-        "required": [
-          "default_asset_view"
-        ],
-        "additionalProperties": false
-      },
-      "StatusPageTabJSONSchema": {
-        "type": "object",
-        "properties": {
-          "status_page_tab": {
-            "type": "string",
-            "enum": [
-              "jobs",
-              "sensors"
-            ],
-            "description": "The tab to open on the asset's status page."
-          }
-        },
-        "required": [
-          "status_page_tab"
-        ],
-        "additionalProperties": false
-      },
-      "StatusPageChildJobsJSONSchema": {
-        "type": "object",
-        "properties": {
-          "include_child_assets": {
-            "type": "boolean",
-            "description": "Whether the asset's status page should list the jobs of its child assets, too."
-          }
-        },
-        "required": [
-          "include_child_assets"
-        ],
         "additionalProperties": false
       },
       "AccountRole": {
@@ -6829,6 +7102,26 @@
           "email",
           "password"
         ],
+        "additionalProperties": false
+      },
+      "DeleteSensorAnnotations": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "integer",
+            "description": "ID of the data source whose annotations to delete. If not provided, annotations from all sources are deleted."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete annotations starting at or after this datetime (ISO 8601)."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete annotations ending at or before this datetime (ISO 8601)."
+          }
+        },
         "additionalProperties": false
       },
       "DeleteSensorData": {

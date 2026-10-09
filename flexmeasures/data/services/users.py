@@ -21,6 +21,12 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
+from flexmeasures.auth.policy import (
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
+)
+from flexmeasures.data.services.accounts import create_account
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -121,17 +127,9 @@ def create_user(  # noqa: C901
         active_user_id, active_user_name = current_user.id, current_user.username
     if account is None:
         print(f"Creating account {account_name} ...")
-        account = Account(name=account_name)
-        db.session.add(account)
-        db.session.flush()
-        account_audit_log = AuditLog(
-            event_datetime=server_now(),
-            event=f"Account {account_name} created while creating user {username}",
-            active_user_id=active_user_id,
-            active_user_name=active_user_name,
-            affected_account_id=account.id,
+        account = create_account(
+            name=account_name, context=f"while creating user {username}"
         )
-        db.session.add(account_audit_log)
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
@@ -143,6 +141,21 @@ def create_user(  # noqa: C901
     user.tf_totp_secret = jsonified_totp
 
     user.account = account
+
+    # A new user's implicit home-account rights are represented by account-member.
+    # Account-reader and account-data-integrator are narrower alternatives.
+    if not user_roles:
+        user_roles = [ACCOUNT_MEMBER_ROLE]
+    elif user_roles:
+        if not isinstance(user_roles, list):
+            user_roles = [user_roles]
+        names = {
+            role["name"] if isinstance(role, dict) else role for role in user_roles
+        }
+        if not names.intersection(
+            {ACCOUNT_READER_ROLE, ACCOUNT_DATA_INTEGRATOR_ROLE, ACCOUNT_MEMBER_ROLE}
+        ):
+            user_roles = [ACCOUNT_MEMBER_ROLE, *user_roles]
 
     # add roles to user (creating new roles if necessary)
     if user_roles:

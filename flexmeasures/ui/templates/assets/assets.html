@@ -39,8 +39,10 @@
       if (latitude !=  null && longitude != null) this.location = `LAT: ${latitude}, LONG: ${longitude}`;
   };
 
-  $(document).ready(function() {  
-    $("#assetTable").dataTable({
+  $(document).ready(function() {
+    let topLevelAssetsOnly = $("#topLevelAssetsOnlyCheckbox").is(":checked");
+    let includePublicAssets = $("#includePublicAssetsCheckbox").is(":checked");
+    const assetsTable = $("#assetTable").dataTable({
       order: [[0, "asc"]],
       serverSide: true,
       columns: [
@@ -65,11 +67,19 @@
 
         url += "&fields=id|name|generic_asset_type|owner|latitude|longitude|sensors";
 
+        if (topLevelAssetsOnly) {
+          // depth=0 keeps the descendants of top-level assets out of the list
+          url += "&depth=0";
+        }
+
         {% if account %}
           url += "&account_id={{ account.id }}";
         {% else %}
           url += "&all_accessible=true";
         {% endif %}
+
+        // all_accessible would include public assets on its own, so we always state the choice.
+        url += `&include_public=${includePublicAssets}`;
 
         if (filter.length > 0) {
           url = `${url}&filter=${filter}`;
@@ -95,6 +105,18 @@
         });
       }
     });
+
+    // Event listener for the checkbox to toggle the topLevelAssetsOnly state
+    $("#topLevelAssetsOnlyCheckbox").change(function () {
+      topLevelAssetsOnly = this.checked;
+      assetsTable.api().ajax.reload();
+    });
+
+    // Event listener for the checkbox to toggle the includePublicAssets state
+    $("#includePublicAssetsCheckbox").change(function () {
+      includePublicAssets = this.checked;
+      assetsTable.api().ajax.reload();
+    });
   })
 
 </script>
@@ -117,6 +139,29 @@
             for account {{ account.name }}
           {% endif %}
         </h3>
+        <div class="d-flex flex-wrap">
+          <div class="form-check form-check-inline">
+            <label class="form-check-label">
+              <input
+                id="topLevelAssetsOnlyCheckbox"
+                name="top_level_assets_only"
+                type="checkbox"
+                checked
+              />
+              Top-level only
+            </label>
+          </div>
+          <div class="form-check form-check-inline">
+            <label class="form-check-label">
+              <input
+                id="includePublicAssetsCheckbox"
+                name="include_public_assets"
+                type="checkbox"
+              />
+              Include public assets
+            </label>
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="table table-striped paginate nav-on-click" title="View this asset" id="assetTable"></table>
         </div>

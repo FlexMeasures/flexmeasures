@@ -538,7 +538,7 @@ SECURITY_TWO_FACTOR_LOGIN_VALIDITY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 How long a successful 2FA validation remains valid when ``SECURITY_TWO_FACTOR_ALWAYS_VALIDATE`` is ``False``.
-Uses a human-readable duration string (as understood by Flask-Security).
+A duration such as ``"1 week"`` or ``"7 days"``, or an ISO 8601 duration such as ``"P1W"`` (in units of a fixed length, so no months or years).
 
 Default: ``"1 week"``
 

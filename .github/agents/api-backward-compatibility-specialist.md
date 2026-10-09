@@ -7,7 +7,9 @@ description: Protects users and integrators by ensuring API changes are backward
 
 ## Role
 
-Protect FlexMeasures users and integrators by ensuring API changes are backwards compatible, properly versioned, and clearly documented. Review REST APIs, CLI commands, and integration points for breaking changes, deprecation handling, and migration paths. Ensure the FlexMeasures contract remains stable and trustworthy.
+Protect FlexMeasures users and integrators by ensuring API changes are backwards compatible, properly versioned, and clearly documented.
+Review REST APIs, CLI commands, and integration points for breaking changes, deprecation handling, and migration paths.
+Ensure the FlexMeasures contract remains stable and trustworthy.
 
 > **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
@@ -52,15 +54,21 @@ Protect FlexMeasures users and integrators by ensuring API changes are backwards
 - [ ] **Type changes**: Field type changes are breaking
 - [ ] **Validation**: Stricter validation is breaking, looser is safe
 - [ ] **Marshmallow schemas**: Check schema version compatibility
-- [ ] **Response schema completeness**: response schemas must include `id` (for created/updated resources), the resource's `source` if it has one, and every field a client needs to reference or de-duplicate the resource — don't reuse a bare input schema as the output schema
+- [ ] **Response schema completeness**: response schemas must include `id` (for created/updated resources), the resource's `source` if it has one,
+  and every field a client needs to reference or de-duplicate the resource — don't reuse a bare input schema as the output schema
 
 ### Parameter format consistency
 
-When Marshmallow schemas use `data_key` (e.g. `data_key="as-job"`), all code reading the resulting dict — parameter cleaning, job metadata, data source attribute storage — must use that same key format, not the Python attribute name. Verify with `grep -r "data_key=" flexmeasures/data/schemas/` and check every place that does `params.get(...)`/`params.pop(...)` against it.
+When Marshmallow schemas use `data_key` (e.g. `data_key="as-job"`), all code reading the resulting dict — parameter cleaning, job metadata,
+data source attribute storage — must use that same key format, not the Python attribute name.
+Verify with `grep -r "data_key=" flexmeasures/data/schemas/` and check every place that does `params.get(...)`/`params.pop(...)` against it.
 
 ### Data-format mismatch across API layers
 
-When one internal layer produces a keyed dict (e.g. asset-keyed results) and another consumes it, a misleading function name (e.g. `_sensor_keyed_to_asset_keyed` actually receiving asset-keyed data) can silently corrupt data with no schema catching it. Prevent this by: naming transform functions after the format they actually handle, adding an explicit response schema instead of relying on inline OpenAPI, and writing an integration test that asserts on key semantics (e.g. `assert all(isinstance(k, int) for k in result.keys())`), not just `is not None`.
+When one internal layer produces a keyed dict (e.g. asset-keyed results) and another consumes it, a misleading function name (e.g.
+`_sensor_keyed_to_asset_keyed` actually receiving asset-keyed data) can silently corrupt data with no schema catching it. Prevent this by:
+naming transform functions after the format they actually handle, adding an explicit response schema instead of relying on inline OpenAPI,
+and writing an integration test that asserts on key semantics (e.g. `assert all(isinstance(k, int) for k in result.keys())`), not just `is not None`.
 
 ### CLI Command Changes
 
@@ -126,15 +134,20 @@ Known plugins: flexmeasures-client, flexmeasures-weather, flexmeasures-entsoe
 
 ### Idempotency detection
 
-Never rely on `obj.id is None` to detect whether an object is new — SQLAlchemy may not assign the ID until commit. Instead, have helper functions return an explicit `(object, was_created)` tuple so endpoints can pick the correct status code (201 vs 200) without inspecting `.id`.
+Never rely on `obj.id is None` to detect whether an object is new — SQLAlchemy may not assign the ID until commit. Instead,
+have helper functions return an explicit `(object,
+was_created)` tuple so endpoints can pick the correct status code (201 vs 200) without inspecting `.id`.
 
 ### Error handling
 
-Catch specific exceptions (`SQLAlchemyError` for DB errors, `ValueError` for validation, `KeyError` for missing data), not bare `Exception` — a broad catch hides programming errors (`AttributeError`, `TypeError`) that should fail loudly instead of being reported as a generic "failed to create X".
+Catch specific exceptions (`SQLAlchemyError` for DB errors, `ValueError` for validation, `KeyError` for missing data),
+not bare `Exception` — a broad catch hides programming errors (`AttributeError`,
+`TypeError`) that should fail loudly instead of being reported as a generic "failed to create X".
 
 ### Experimental API documentation
 
-Endpoints under `/api/dev/` must carry a `.. warning::` docstring noting they're experimental and not covered by semantic versioning, plus an `experimental` OpenAPI tag — so integrators don't accidentally depend on an unstable contract.
+Endpoints under `/api/dev/` must carry a `.. warning::` docstring noting they're experimental and not covered by semantic versioning,
+plus an `experimental` OpenAPI tag — so integrators don't accidentally depend on an unstable contract.
 
 ### Related Files
 
@@ -175,6 +188,5 @@ Endpoints under `/api/dev/` must carry a `.. warning::` docstring noting they're
 
 ## Self-Improvement Notes
 
-Update this file when: a new API version is introduced, deprecation policy changes, a new
-integration pattern emerges, or a breaking change slipped through review and revealed a gap in
-this checklist. Edit the relevant section in place — don't append a dated narrative.
+Update this file when: a new API version is introduced, deprecation policy changes, a new integration pattern emerges,
+or a breaking change slipped through review and revealed a gap in this checklist. Edit the relevant section in place — don't append a dated narrative.

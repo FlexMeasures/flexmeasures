@@ -4,9 +4,12 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
-from copy import copy
+from contextlib import contextmanager
+from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import os
+import socket
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -14,21 +17,59 @@ from cron_descriptor import get_description, Options
 from croniter import croniter
 from croniter.croniter import CroniterError
 import isodate
+import pandas as pd
 from isodate.isoerror import ISO8601Error
 from flask import current_app
 from marshmallow import ValidationError
-from sqlalchemy import select, update
+from rq.job import Job
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
-from flexmeasures import Forecaster
+from flexmeasures import Forecaster, Reporter
 from flexmeasures.data import db
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import (
+    Automation,
+    AutomationRun,
+    AutomationRunAttempt,
+    AutomationRunJob,
+    get_default_automation_timezone,
+    get_initial_cursor,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.queries.generic_assets import (
     asset_and_ancestor_ids,
     asset_is_in_subtree,
+    descendants_cte,
 )
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.data_generators import (
+    check_sensor_access,
+    resolve_data_generator_sensors,
+)
+from flexmeasures.utils.time_utils import apply_offset_chain, get_timezone, server_now
+
+AUTOMATION_RUN_CLAIM_LEASE = timedelta(minutes=10)
+# How often a runner may attempt one run's dispatch, and how long it waits between attempts.
+# A dispatch which keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
+# so the attempts are spaced further apart each time, and run out.
+# Without either, a stuck run would be re-dispatched every minute for as long as its automation stays active,
+# recording an attempt and an error each time.
+AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS = 5
+AUTOMATION_RUN_FIRST_RETRY_DELAY = timedelta(minutes=1)
+AUTOMATION_RUN_MAX_RETRY_DELAY = timedelta(hours=1)
+# How many of an automation's most recent runs its status summary describes in full.
+AUTOMATION_RUN_STATS_RECENT_LIMIT = 10
+# Dispatch is only finished once `dispatch_completed_at` is set, so every other dispatch state is resumable.
+# A run in one of these states is nevertheless off limits while another runner still holds a live claim on it.
+AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
+    "pending",
+    "claimed",
+    "partially_queued",
+    "queued",
+    "failed",
+)
 
 
 @dataclass(frozen=True)
@@ -42,7 +83,508 @@ class DueAutomation:
     expected_timezone: str
 
 
-# Fields naming sensors on which a scheduler records generated schedules.
+@dataclass(frozen=True)
+class ClaimedAutomationRun:
+    """An automation run and the attempt which currently owns its dispatch."""
+
+    run: AutomationRun
+    attempt: AutomationRunAttempt
+
+
+class AutomationRunClaimError(Exception):
+    """Raised when an automation occurrence cannot be claimed."""
+
+
+def _runner_owner() -> str:
+    """Return a short owner string for an automation-run claim lease."""
+    return f"{socket.gethostname()}:{os.getpid()}"
+
+
+def _now_utc() -> datetime:
+    """Return the current database-facing time as timezone-aware UTC."""
+    return server_now().astimezone(timezone.utc)
+
+
+def _claim_expires_at(now: datetime, lease: timedelta) -> datetime:
+    """Return the UTC timestamp at which a claim becomes stale."""
+    return now + lease
+
+
+def _retry_delay(attempt_count: int) -> timedelta:
+    """How long to wait before a run may be dispatched again, after this many attempts.
+
+    The delay doubles with each attempt, up to a ceiling, so that a run which fails for a passing reason is retried soon,
+    while one which fails for a lasting reason stops taking a runner's minute.
+    """
+    if attempt_count <= 1:
+        # A first failure is often a passing one, such as a runner that lost Redis, so the next runner picks the run straight up.
+        return timedelta(0)
+    doubling = attempt_count - 2
+    delay = AUTOMATION_RUN_FIRST_RETRY_DELAY * (2**doubling)
+    return min(delay, AUTOMATION_RUN_MAX_RETRY_DELAY)
+
+
+def _claim_is_available(now: datetime):
+    """Return the criterion for a run whose claim is free to take at ``now``.
+
+    A claim is free when no runner holds it, or when the runner holding it let its lease expire,
+    which is how a runner that died mid-dispatch releases its occurrence.
+    """
+    return or_(
+        AutomationRun.claim_expires_at.is_(None),
+        AutomationRun.claim_expires_at <= now,
+    )
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert values from an RQ job payload to JSON-compatible diagnostics."""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat()
+    if isinstance(value, timedelta):
+        return isodate.duration_isoformat(value)
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
+def _run_snapshot(automation: Automation, scheduled_at: datetime) -> dict[str, Any]:
+    """Snapshot automation configuration for an immutable run plan."""
+    return {
+        "automation_id": automation.id,
+        "automation_type": automation.type,
+        "automation_name": automation.name,
+        "asset_id": automation.asset_id,
+        "scheduled_at": scheduled_at.astimezone(timezone.utc).isoformat(),
+        "schedule_revision": automation.schedule_revision,
+        "cronstr": automation.cronstr,
+        "timezone": automation.timezone,
+        "generator_id": automation.generator_id,
+    }
+
+
+def _new_attempt(run: AutomationRun, owner: str, now: datetime) -> AutomationRunAttempt:
+    """Append a durable dispatch attempt to a claimed automation run."""
+    attempt = AutomationRunAttempt(
+        run=run,
+        attempt_no=run.attempt_count,
+        owner=owner,
+        started_at=now,
+        queued_job_count=run.queued_job_count,
+    )
+    db.session.add(attempt)
+    return attempt
+
+
+def _finish_attempt(
+    attempt: AutomationRunAttempt | None,
+    outcome: str,
+    queued_job_count: int,
+    error: BaseException | None = None,
+) -> None:
+    """Record the result of a dispatch attempt."""
+    if attempt is None:
+        return
+    attempt.finished_at = _now_utc()
+    attempt.outcome = outcome
+    attempt.queued_job_count = queued_job_count
+    if error is not None:
+        attempt.error_type = error.__class__.__name__
+        attempt.error_message = str(error)
+
+
+def claim_due_automation_run(
+    due_automation: DueAutomation,
+    owner: str | None = None,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> ClaimedAutomationRun | None:
+    """Atomically claim a newly due occurrence and create its durable run."""
+    owner = owner or _runner_owner()
+    now = _now_utc()
+    if due_automation.expected_cursor is None:
+        cursor_matches = Automation.cursor.is_(None)
+    else:
+        cursor_matches = Automation.cursor == due_automation.expected_cursor
+    result = db.session.execute(
+        update(Automation)
+        .where(
+            Automation.id == due_automation.automation.id,
+            Automation.active.is_(True),
+            Automation.cronstr == due_automation.expected_cronstr,
+            Automation.timezone == due_automation.expected_timezone,
+            Automation.schedule_revision == due_automation.automation.schedule_revision,
+            cursor_matches,
+        )
+        .values(cursor=due_automation.scheduled_at)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return None
+
+    automation = due_automation.automation
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=due_automation.scheduled_at,
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        claim_owner=owner,
+        claimed_at=now,
+        claim_expires_at=_claim_expires_at(now, lease),
+        attempt_count=1,
+        parameters=dict(automation.parameters or {}),
+        plan=_run_snapshot(automation, due_automation.scheduled_at),
+    )
+    db.session.add(run)
+    db.session.flush()
+    attempt = _new_attempt(run, owner, now)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return None
+    return ClaimedAutomationRun(run=run, attempt=attempt)
+
+
+def claim_existing_automation_run(
+    run: AutomationRun,
+    owner: str | None = None,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> ClaimedAutomationRun | None:
+    """Claim a durable automation run whose dispatch is unfinished and unclaimed.
+
+    A run is only up for grabs once no other runner holds a live claim on it,
+    because the dispatch state turns to 'partially_queued' while the owning runner is still queueing the rest of its jobs.
+    A runner which fails releases its own claim, so its run is immediately retryable.
+    """
+    owner = owner or _runner_owner()
+    now = _now_utc()
+    result = db.session.execute(
+        update(AutomationRun)
+        .where(
+            AutomationRun.id == run.id,
+            AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
+            AutomationRun.dispatch_completed_at.is_(None),
+            AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
+            _claim_is_available(now),
+        )
+        .values(
+            dispatch_state="claimed",
+            claim_owner=owner,
+            claimed_at=now,
+            claim_expires_at=_claim_expires_at(now, lease),
+            attempt_count=AutomationRun.attempt_count + 1,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return None
+    db.session.flush()
+    claimed_run = db.session.get(AutomationRun, run.id)
+    assert claimed_run is not None
+    db.session.refresh(claimed_run)
+    attempt = _new_attempt(claimed_run, owner, now)
+    db.session.commit()
+    return ClaimedAutomationRun(run=claimed_run, attempt=attempt)
+
+
+def get_dispatchable_automation_runs(
+    now: datetime | None = None,
+    owner: str | None = None,
+) -> list[ClaimedAutomationRun]:
+    """Claim new due occurrences and resumable durable runs for dispatch."""
+    if now is None:
+        now = _now_utc()
+    now = floor_to_minute(now)
+    claimed_runs: list[ClaimedAutomationRun] = []
+    for due_automation in get_due_automations(now):
+        claimed = claim_due_automation_run(due_automation, owner=owner)
+        if claimed is not None:
+            claimed_runs.append(claimed)
+
+    resumable_runs = db.session.scalars(
+        select(AutomationRun)
+        .join(Automation)
+        .where(
+            Automation.active.is_(True),
+            # Only a forecast run can be dispatched a second time safely.
+            # Its jobs carry IDs derived from the run, so a retry recognizes the ones it already queued.
+            # A schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules,
+            # which is why such a run is recorded and reported, but left where it failed.
+            AutomationRun.automation_type == "forecasting",
+            AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
+            AutomationRun.dispatch_completed_at.is_(None),
+            # A run which used up its attempts is left as it is, rather than dispatched again every minute.
+            AutomationRun.attempt_count < AUTOMATION_RUN_MAX_DISPATCH_ATTEMPTS,
+            _claim_is_available(now),
+        )
+        .order_by(AutomationRun.scheduled_at, AutomationRun.id)
+    ).all()
+    claimed_ids = {claimed.run.id for claimed in claimed_runs}
+    for run in resumable_runs:
+        if run.id in claimed_ids:
+            continue
+        claimed = claim_existing_automation_run(run, owner=owner)
+        if claimed is not None:
+            claimed_runs.append(claimed)
+    return claimed_runs
+
+
+def ensure_automation_run_job_intents(
+    run_id: int, job_specs: list[dict[str, Any]]
+) -> list[AutomationRunJob]:
+    """Persist immutable logical job intents before any Redis enqueue."""
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    existing_intents = {intent.logical_job_key: intent for intent in run.job_intents}
+    if existing_intents:
+        planned = {spec["logical_job_key"] for spec in job_specs}
+        if planned != set(existing_intents):
+            # The jobs a retry plans have to be the jobs the run was planned with, or its deterministic IDs say nothing.
+            # Configuration that decides how many jobs a run has, such as a forecaster's retrain frequency,
+            # can be edited between two attempts, which is what this catches.
+            # A plan that leaves one of them out is refused too: those jobs would stay pending for good,
+            # while the run reports itself as fully queued.
+            raise AutomationRunPlanChanged(
+                f"Automation run {run_id} was planned with jobs {sorted(existing_intents)},"
+                f" but this attempt plans {sorted(planned)}."
+                " The automation was edited in a way that changes the jobs of a run that was already dispatched."
+            )
+        return [existing_intents[spec["logical_job_key"]] for spec in job_specs]
+
+    run.plan = {
+        **dict(run.plan or {}),
+        "jobs": [_json_safe(spec) for spec in job_specs],
+    }
+    intents = []
+    for spec in job_specs:
+        intent = AutomationRunJob(
+            run=run,
+            logical_job_key=spec["logical_job_key"],
+            rq_job_id=spec["rq_job_id"],
+            queue=spec.get("queue", "forecasting"),
+            kind=spec["kind"],
+            status="pending",
+            depends_on=list(spec.get("depends_on", [])),
+            payload=_json_safe(spec.get("payload", {})),
+        )
+        db.session.add(intent)
+        intents.append(intent)
+    db.session.commit()
+    return intents
+
+
+def mark_automation_job_queued(
+    run_id: int, logical_job_key: str, rq_job_id: str
+) -> None:
+    """Mark one logical job intent as queued in Redis."""
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one()
+    intent.status = "queued"
+    intent.rq_job_id = rq_job_id
+    intent.enqueued_at = intent.enqueued_at or now
+    run = intent.run
+    run.first_enqueued_at = run.first_enqueued_at or now
+    queued_count = run.queued_job_count
+    run.dispatch_state = (
+        "queued" if queued_count == run.intended_job_count else "partially_queued"
+    )
+    db.session.commit()
+
+
+def mark_automation_run_dispatch_queued(
+    run_id: int, attempt: AutomationRunAttempt | None = None
+) -> None:
+    """Mark an automation run as fully queued and release its dispatch claim."""
+    now = _now_utc()
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    run.dispatch_state = "queued"
+    run.dispatch_completed_at = now
+    run.claim_owner = None
+    run.claim_expires_at = None
+    _finish_attempt(attempt, "queued", run.queued_job_count)
+    db.session.commit()
+
+
+def mark_automation_run_dispatch_failed(
+    run_id: int,
+    attempt: AutomationRunAttempt | None,
+    error: BaseException,
+) -> None:
+    """Record a failed dispatch attempt and release the claim, so the run stays retryable.
+
+    The failure may have come from the database itself, so roll back first to get a usable session,
+    then re-read the run and the attempt through it.
+    """
+    db.session.rollback()
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    if attempt is not None:
+        attempt = db.session.get(AutomationRunAttempt, attempt.id)
+    queued_count = run.queued_job_count
+    run.dispatch_state = "partially_queued" if queued_count else "failed"
+    run.last_error_type = error.__class__.__name__
+    run.last_error_message = str(error)
+    # Hand the occurrence back rather than making the next runner wait out this attempt's lease,
+    # but not before the delay this attempt earned (see `_retry_delay`).
+    run.claim_owner = None
+    run.claim_expires_at = _now_utc() + _retry_delay(run.attempt_count)
+    _finish_attempt(attempt, run.dispatch_state, queued_count, error)
+    db.session.commit()
+
+
+def record_automation_job_started(
+    run_id: int | None, logical_job_key: str | None
+) -> None:
+    """Record that a worker started an automation-created job."""
+    if run_id is None or logical_job_key is None:
+        return
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one_or_none()
+    if intent is None:
+        return
+    intent.status = "running"
+    intent.started_at = intent.started_at or now
+    if intent.run.execution_state != "failed":
+        intent.run.execution_state = "running"
+    intent.run.execution_started_at = intent.run.execution_started_at or now
+    db.session.commit()
+
+
+def _refresh_run_execution_state(run: AutomationRun, now: datetime) -> None:
+    """Derive a run's execution state from the state of all the jobs it created.
+
+    A failed job keeps the whole run failed:
+    a later job succeeding, as the wrap-up job does whatever became of the cycle jobs it reports on,
+    must not put the run back to 'running' and bury the failure.
+    """
+    statuses = [job.status for job in run.job_intents]
+    finished = all(status in ("succeeded", "failed", "canceled") for status in statuses)
+    if "failed" in statuses:
+        run.execution_state = "failed"
+    elif finished and all(status == "succeeded" for status in statuses):
+        run.execution_state = "succeeded"
+    else:
+        run.execution_state = "running"
+    if finished or (
+        run.execution_state == "failed"
+        and not any(status == "running" for status in statuses)
+    ):
+        # A failed run is over once nothing of it is running any more:
+        # the jobs it has left are a wrap-up that reports on a job which failed, or cycles a failed job blocks.
+        # While a sibling job is still computing, though, the run has not ended, whatever became of its first failure.
+        run.execution_completed_at = run.execution_completed_at or now
+
+
+def record_automation_job_succeeded(
+    run_id: int | None, logical_job_key: str | None
+) -> None:
+    """Record that a worker finished an automation-created job successfully."""
+    if run_id is None or logical_job_key is None:
+        return
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one_or_none()
+    if intent is None:
+        return
+    intent.status = "succeeded"
+    intent.finished_at = now
+    _refresh_run_execution_state(intent.run, now)
+    db.session.commit()
+
+
+def record_automation_job_failed(
+    run_id: int | None,
+    logical_job_key: str | None,
+    error: BaseException,
+) -> None:
+    """Record that a worker failed an automation-created job.
+
+    The job may well have failed on the database itself,
+    which leaves the session in an aborted transaction where every further statement is refused.
+    Roll back first, so that the failure is still recorded.
+    The job's own uncommitted work is lost either way, since it is failing.
+    """
+    if run_id is None or logical_job_key is None:
+        return
+    db.session.rollback()
+    now = _now_utc()
+    intent = db.session.scalars(
+        select(AutomationRunJob).filter_by(
+            run_id=run_id, logical_job_key=logical_job_key
+        )
+    ).one_or_none()
+    if intent is None:
+        return
+    if intent.status == "failed":
+        # A job's failure reaches this twice:
+        # the job says so itself, and the queue's exception handler (see `handle_forecasting_exception`) says so for a job that could not.
+        # The first of them is the one that counts, so that the moment recorded is the moment the job failed.
+        db.session.rollback()
+        return
+    intent.status = "failed"
+    intent.finished_at = now
+    intent.last_error_type = error.__class__.__name__
+    intent.last_error_message = str(error)
+    run = intent.run
+    _refresh_run_execution_state(run, now)
+    run.last_error_type = error.__class__.__name__
+    run.last_error_message = str(error)
+    db.session.commit()
+
+
+def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
+    """Return whether an earlier attempt at this run already created the job this intent describes.
+
+    The record of the run says so for every job that was queued: those are the intents past 'pending'.
+    Redis is asked only about an intent that was never queued, because a job that was queued may have left Redis since,
+    where a job's hash is dropped once it has run (after ``FLEXMEASURES_PLANNING_TTL``) or expired unstarted (after ``FLEXMEASURES_JOB_TTL``).
+    Asking Redis about those, too, would have a retry create them again, under the same IDs, and so compute the same results twice.
+    """
+    if intent.status != "pending":
+        return True
+    connection = current_app.queues[intent.queue].connection
+    if Job.exists(intent.rq_job_id, connection=connection):
+        mark_automation_job_queued(
+            intent.run_id, intent.logical_job_key, intent.rq_job_id
+        )
+        return True
+    return False
+
+
+# Fields naming a sensor that a scheduler records its results on, rather than reads from.
+# A scheduler hands its results to `make_schedule` as (sensor, data) pairs, and these are the fields that decide which sensors those are:
+# besides the power sensor of each device in the flex-model, its state of charge and its consumption and production sensors,
+# plus the aggregates over all devices, which are defined in the flex-context.
+#
+# NB this list restates at set-up time what a scheduler decides at run time, so the two can drift apart.
+# Extend it whenever a flex-model or flex-context field starts naming somewhere results are recorded.
+# A field this list misses is not left unchecked so much as checked for the wrong thing:
+# the sensor is read as an input, so its creator needs only read access where recording data calls for create-children access.
+# A schedule job created by an automation is therefore held to the sensors predicted here (see `sensors_automation_job_may_record_on`),
+# so that drift shows up as a refusal rather than a quiet downgrade.
 OUTPUT_SENSOR_FIELDS = (
     "consumption",
     "production",
@@ -61,7 +603,13 @@ def collect_sensors(
     only_under_output_field: bool = False,
     _under_output_field: bool = False,
 ) -> list[Sensor]:
-    """Collect sensor objects and references from a nested scheduling structure."""
+    """Collect the sensors referenced anywhere in a (possibly nested) structure.
+
+    Both deserialized sensors and the sensor references that survive deserialization as raw data are picked up,
+    the latter being the flex-context and each device's flex-model, which schedulers deserialize themselves.
+
+    :param only_under_output_field: only collect the sensors that are referenced under one of the OUTPUT_SENSOR_FIELDS, at any depth.
+    """
     if sensors is None:
         sensors = {}
 
@@ -75,6 +623,7 @@ def collect_sensors(
         for key, item in value.items():
             under_output_field = _under_output_field or key in OUTPUT_SENSOR_FIELDS
             if key == "sensor" and isinstance(item, (int, str)):
+                # a sensor reference that was not deserialized, e.g. {"sensor": 12}
                 if str(item).isdigit():
                     sensor = db.session.get(Sensor, int(item))
                     if sensor is not None and (
@@ -92,9 +641,15 @@ def collect_sensors(
 
 
 def collect_schedule_output_sensors(message: dict) -> list[Sensor]:
-    """Collect sensors on which the prepared schedule trigger records results."""
+    """The sensors that scheduling with this trigger message would record data on.
+
+    That is the power sensor of each device in the flex-model,
+    plus any sensor named by a field that defines where generated data goes (see OUTPUT_SENSOR_FIELDS),
+    both per device and, for the aggregates, in the flex-context.
+    """
     sensors: dict[int, Sensor] = {}
     for device in message.get("flex_model") or []:
+        # each device's power sensor is what its schedule is recorded on
         collect_sensors(device.get("sensor"), sensors)
         collect_sensors(
             device.get("sensor_flex_model", device),
@@ -250,6 +805,26 @@ def get_latest_scheduled_run(automation: Automation, now: datetime) -> datetime:
     return scheduled_at
 
 
+def get_next_scheduled_run(automation: Automation, now: datetime) -> datetime | None:
+    """Return the next canonical run after ``now``, or none while inactive.
+
+    Use the same wall-clock and DST rules as the dispatcher.
+    The cursor is not consulted: this is the next scheduled clock time, not a pending catch-up run.
+    """
+    if not automation.active:
+        return None
+    now = floor_to_minute(now)
+    try:
+        timezone_info = ZoneInfo(automation.timezone)
+        evaluation_time = _cron_evaluation_time(now, timezone_info)
+        nominal_run = croniter(automation.cronstr, evaluation_time).get_next(datetime)
+        scheduled_at = _canonical_run_time(nominal_run, timezone_info)
+        return scheduled_at if scheduled_at > now else None
+    except (CroniterError, ValueError, ZoneInfoNotFoundError):
+        # A stale or invalid stored recurrence should not break the listing API.
+        return None
+
+
 def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     """Return the newest unhandled run for each active automation."""
     if now is None:
@@ -287,29 +862,215 @@ def get_due_automations(now: datetime | None = None) -> list[DueAutomation]:
     return due_automations
 
 
-def claim_due_automation(due_automation: DueAutomation) -> bool:
-    """Persist a run claim if its scheduling configuration is unchanged."""
-    if due_automation.expected_cursor is None:
-        cursor_matches = Automation.cursor.is_(None)
-    else:
-        cursor_matches = Automation.cursor == due_automation.expected_cursor
-    result = db.session.execute(
-        update(Automation)
-        .where(
-            Automation.id == due_automation.automation.id,
-            Automation.active.is_(True),
-            Automation.cronstr == due_automation.expected_cronstr,
-            Automation.timezone == due_automation.expected_timezone,
-            cursor_matches,
+class RecurringAutomationFixesAMoment(ValueError):
+    """Raised when an automation's parameters, or a schedule automation's flex config, pin a moment in time.
+
+    Such a value would be stale on the automation's next run, so it cannot configure a recurring automation.
+    In a schedule automation's flex config, it would also resolve to a different flex config every run,
+    and so to a different data source each time, leaving the sensor with an unbounded number of them, one per run.
+    """
+
+
+# Fields in an automation's parameters that pin a moment in time, with what pinning each does to the automation's runs.
+# A forecast automation's "train-start" is not among them: it is part of the forecaster's config, not of the parameters,
+# and a fixed start of the training data is a legitimate choice for a recurring forecast.
+FIXED_MOMENT_FIELDS = {
+    "start": "compute the same period",
+    "end": "compute the same period",
+    "prior": "ignore the data recorded since then",
+    "belief_time": "ignore the data recorded since then",  # a report's legacy name for "prior"
+}
+
+
+WINDOW_FIELDS = ("start-offset", "end-offset", "duration")
+
+
+def validate_automation_window(parameters: dict, automation_type: str) -> None:
+    """Check that an automation's parameters describe its window in a way every run can resolve.
+
+    Two of "start-offset", "end-offset" and "duration" describe a window; all three at once are refused.
+    One field alone describes a window too, where the automation type has a default for the other end:
+    a forecast or schedule automation takes a "start-offset" or a "duration" alone, as it starts at the run time by default,
+    and a report automation takes a "start-offset" or an "end-offset" alone,
+    as it ends at the run time, or starts where the last successful report ended, by default.
+    So a forecast or schedule automation needs a "start-offset" or a "duration" with its "end-offset",
+    as it would otherwise start at the run time but end relative to the claimed cron occurrence,
+    and a report automation needs an offset with its "duration", as without one it has nothing to measure the duration from.
+
+    :raises marshmallow.ValidationError: if the offsets or their combination are invalid.
+    """
+    given = [field for field in WINDOW_FIELDS if field in parameters]
+    for offset_field in ("start-offset", "end-offset"):
+        if offset_field in given:
+            try:
+                validate_offset_chain(parameters[offset_field])
+            except ValueError as e:
+                raise ValidationError(f"Invalid {offset_field}: {e}")
+    if len(given) == 3:
+        raise ValidationError(
+            "Give two of 'start-offset', 'end-offset' and 'duration', not all three, as any two of them already fix the third."
         )
-        .values(cursor=due_automation.scheduled_at)
-        .execution_options(synchronize_session=False)
+    if (
+        automation_type in ("forecasting", "scheduling")
+        and "end-offset" in given
+        and len(given) == 1
+    ):
+        raise ValidationError(
+            "Give a 'start-offset' or a 'duration' along with an 'end-offset'."
+        )
+    if automation_type == "reporting" and given == ["duration"]:
+        raise ValidationError(
+            "Give a 'start-offset' or an 'end-offset' along with a report automation's 'duration'."
+        )
+    if "duration" in given:
+        try:
+            duration = isodate.parse_duration(parameters["duration"])
+        except (ISO8601Error, TypeError) as e:
+            raise ValidationError(f"Invalid duration: {e}")
+        reference = pd.Timestamp("2000-01-01", tz="UTC")
+        if _add_duration(reference, duration) <= reference:
+            raise ValidationError(
+                "The duration must be positive, or every run would cover an empty or inverted window."
+            )
+
+
+def _check_window_is_positive(start: pd.Timestamp, end: pd.Timestamp) -> None:
+    """Refuse a window that its offsets and duration resolve to ending before it starts, which no run can cover."""
+    if pd.Timestamp(end) <= pd.Timestamp(start):
+        raise ValidationError(
+            f"The offsets resolve to a window from {pd.Timestamp(start).isoformat()} to {pd.Timestamp(end).isoformat()},"
+            " which does not end after it starts."
+        )
+
+
+def _window_anchor(
+    automation_timezone: str, scheduled_at: datetime | None
+) -> pd.Timestamp:
+    """The moment an automation's offsets apply to: the run's claimed cron occurrence, or now for a run on demand, on the automation's clock."""
+    if scheduled_at is None:
+        scheduled_at = server_now()
+    return pd.Timestamp(floor_to_minute(scheduled_at)).tz_convert(
+        ZoneInfo(automation_timezone)
     )
-    if result.rowcount != 1:
-        db.session.rollback()
-        return False
-    db.session.commit()
-    return True
+
+
+def _add_duration(moment: pd.Timestamp, duration, sign: int = 1) -> pd.Timestamp:
+    """Add (or, with a negative sign, subtract) an ISO 8601 duration, keeping calendar durations such as a month calendar-aware.
+
+    Other durations count real time, as elsewhere in FlexMeasures, so a day across a daylight saving time transition lasts 24 hours.
+    """
+    # A datetime would count wall-clock time when both sides share a timezone, where a Timestamp counts real time.
+    moment = pd.Timestamp(moment)
+    if isinstance(duration, str):
+        duration = isodate.parse_duration(duration)
+    if isinstance(duration, isodate.Duration):
+        offset = pd.DateOffset(
+            years=int(duration.years),
+            months=int(duration.months),
+            days=duration.tdelta.days,
+            seconds=duration.tdelta.seconds,
+            microseconds=duration.tdelta.microseconds,
+        )
+        return moment + offset if sign > 0 else moment - offset
+    return moment + duration if sign > 0 else moment - duration
+
+
+def resolve_automation_window(
+    parameters: dict,
+    automation_type: str,
+    automation_timezone: str,
+    scheduled_at: datetime | None = None,
+) -> dict:
+    """Turn a forecast or schedule automation's offsets into the start, end or duration its data generator takes.
+
+    The offsets apply to the run's claimed cron occurrence, or to now for a run on demand, on the automation's own clock,
+    so a delayed run still covers the window it was due for.
+    Without offsets, the parameters are passed on as they are, so the data generator's defaults apply,
+    such as starting at the run time, which keeps a caught-up run current.
+    Report automations resolve their window in `prepare_report_parameters`, which also knows where the last report ended.
+    """
+    message = dict(parameters)
+    start_offset = message.pop("start-offset", None)
+    end_offset = message.pop("end-offset", None)
+    if start_offset is None and end_offset is None:
+        return message
+    anchor = _window_anchor(automation_timezone, scheduled_at)
+    # As Timestamps, which count real time when subtracted, rather than as datetimes,
+    # which count wall-clock time when they share a timezone, so that the day the clocks go forward lasts 23 hours.
+    end = (
+        pd.Timestamp(apply_offset_chain(anchor, end_offset))
+        if end_offset is not None
+        else None
+    )
+    if start_offset is not None:
+        start = pd.Timestamp(apply_offset_chain(anchor, start_offset))
+    elif "duration" in message:
+        start = _add_duration(end, message["duration"], sign=-1)
+    else:
+        # Refused on creation (see `validate_automation_window`), so this is a stored automation from before that check.
+        raise ValidationError(
+            "An 'end-offset' needs a 'start-offset' or a 'duration' to say where the window starts."
+        )
+    if end is not None:
+        _check_window_is_positive(start, end)
+    message["start"] = start.isoformat()
+    if end is not None and "duration" not in message:
+        if automation_type == "scheduling":
+            message["duration"] = isodate.duration_isoformat(end - start)
+        else:
+            message["end"] = end.isoformat()
+    if automation_type == "forecasting":
+        # A forecast with an explicit start is believed at that start unless told otherwise,
+        # while an automation's forecast should be believed when it is computed, as it would be without offsets.
+        message["prior"] = server_now().isoformat()
+    return message
+
+
+def refuse_fixed_moments(parameters: dict, automation_type: str) -> None:
+    """Refuse parameters that pin a moment in time, which every run of the automation would share.
+
+    An automation runs again and again on the server clock,
+    so a fixed start or end has every run compute the same period,
+    and a fixed prior has every run ignore the data recorded since then.
+    Left out, each is resolved from the time of the run.
+
+    :raises RecurringAutomationFixesAMoment: if any of those fields is given.
+    """
+    from flexmeasures.data.automations import get_automation_handler
+    from flexmeasures.utils import flexmeasures_inflection
+
+    fixed_fields = [field for field in FIXED_MOMENT_FIELDS if field in parameters]
+    if not fixed_fields:
+        return
+    consequences = list(
+        dict.fromkeys(FIXED_MOMENT_FIELDS[field] for field in fixed_fields)
+    )
+    if {"start", "end"} & set(fixed_fields):
+        hint = (
+            " Describe the window with two of 'start-offset', 'end-offset' and 'duration' instead,"
+            " where the offsets are Pandas offsets applied to each run's scheduled time in the automation's timezone,"
+        )
+        hint += (
+            " or leave the timing out to report on the period since the last successful report."
+            if automation_type == "reporting"
+            else " or leave the timing out to start at the time of each run."
+        )
+    else:
+        hint = " Leave it out to take into account the data recorded up to each run."
+    raise RecurringAutomationFixesAMoment(
+        f"{flexmeasures_inflection.join_words_into_a_list([repr(field) for field in fixed_fields])}"
+        f" {'fixes' if len(fixed_fields) == 1 else 'fix'} a moment in time,"
+        f" so every run of this {get_automation_handler(automation_type).result_noun} automation would {' and '.join(consequences)}."
+        + hint
+    )
+
+
+class AutomationRunClaimLost(Exception):
+    """Raised when a runner's claim on a run has gone before it got to dispatching it."""
+
+
+class AutomationRunPlanChanged(Exception):
+    """Raised when a retry of a durable automation run plans other jobs than the run was planned with."""
 
 
 class AutomationSensorsUnknown(Exception):
@@ -321,25 +1082,41 @@ class AutomationSensorsUnknown(Exception):
 
 
 def resolve_schedule_automation_sensors(
-    parameters: dict, asset_id: int
+    parameters: dict, asset_id: int, automation_timezone: str | None = None
 ) -> dict[str, list[Sensor]]:
-    """Resolve the sensors declared by a prepared schedule trigger."""
+    """Resolve the sensors declared by a prepared schedule trigger.
+
+    The trigger message is loaded for its timing and its asset only.
+    The flex config goes to the scheduler as it was written, because a data generator deserializes its own config:
+    `collect_flex_config` merges what the asset tree holds with what the message carries, reading sensors by id,
+    so handing it an already-deserialized config gives it `Sensor` objects where it expects ids.
+
+    A `ValidationError` is left to the caller, which reports it against the parameters the user sent.
+    A scheduler that cannot work out its config raises `NotImplementedError`, `ValueError` or an `SQLAlchemyError`,
+    which says only that these sensors cannot be determined, so it is reported as such rather than reaching the caller as an unexpected failure.
+
+    :raises marshmallow.ValidationError: if the parameters do not form a valid schedule trigger.
+    :raises AutomationSensorsUnknown: if the scheduler cannot work out the config the sensors follow from.
+    """
+    from sqlalchemy.exc import SQLAlchemyError
+
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import find_scheduler_class
     from flexmeasures.data.services.utils import get_scheduler_instance
 
+    message = prepare_schedule_trigger_message(
+        parameters, asset_id, automation_timezone
+    )
+    trigger_data = AssetTriggerSchema().load(deepcopy(message))
     try:
-        trigger_data = AssetTriggerSchema().load(
-            prepare_schedule_trigger_message(parameters, asset_id)
-        )
         start = trigger_data["start_of_schedule"]
         scheduler_params = {
             "start": start,
             "end": start + trigger_data["duration"],
             "belief_time": trigger_data.get("belief_time"),
             "resolution": trigger_data.get("resolution"),
-            "flex_model": trigger_data["flex_model"],
-            "flex_context": trigger_data["flex_context"],
+            "flex_model": message.get("flex-model"),
+            "flex_context": message.get("flex-context", {}),
         }
         scheduler_class = find_scheduler_class(trigger_data["asset"])
         scheduler = get_scheduler_instance(
@@ -348,7 +1125,12 @@ def resolve_schedule_automation_sensors(
             scheduler_params=scheduler_params,
         )
         scheduler.collect_flex_config()
-    except (NotImplementedError, ValidationError, ValueError) as exc:
+        scheduler.deserialize_config()
+    except (NotImplementedError, ValueError, SQLAlchemyError) as exc:
+        if isinstance(exc, SQLAlchemyError):
+            # The session is unusable until the failed transaction is rolled back,
+            # and the caller goes on to render a response through it.
+            db.session.rollback()
         raise AutomationSensorsUnknown(
             f"Could not determine the sensors of schedule automation on asset {asset_id}: {exc}"
         ) from exc
@@ -373,32 +1155,46 @@ def resolve_schedule_automation_sensors(
 def resolve_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
     """Work out which sensors an automation reads from and writes to on each run.
 
-    Forecast sensors are derived from the data generator, while schedule sensors are
-    derived from the same prepared trigger message used to queue the scheduling job.
+    Forecast and report sensors are derived from the data generator,
+    while schedule sensors are derived from the same prepared trigger message used to queue the scheduling job.
     Raises `AutomationSensorsUnknown` if that cannot be done, e.g. because a forecast automation has no data generator,
     because its generator is not registered in this FlexMeasures instance,
     or because its parameters no longer load (say, after a sensor was deleted).
     Use this wherever the answer decides whether something is permitted; use `get_automation_sensors` for display.
     """
     if automation.type == "scheduling":
-        return resolve_schedule_automation_sensors(
-            dict(automation.parameters or {}), automation.asset_id
-        )
+        try:
+            return resolve_schedule_automation_sensors(
+                dict(automation.parameters or {}),
+                automation.asset_id,
+                automation.timezone,
+            )
+        except (NotImplementedError, ValidationError, ValueError) as exc:
+            raise AutomationSensorsUnknown(
+                f"Could not determine the sensors of schedule automation {automation.id}: {exc}"
+            ) from exc
     if automation.generator is None:
         raise AutomationSensorsUnknown(
             f"Automation {automation.id} has no data generator, so the sensors it involves are unknown."
         )
     try:
-        # Work on a copy, as the data generator is cached on the data source,
-        # which may be shared by several automations.
-        data_generator = copy(automation.generator.data_generator)
-        data_generator._parameters = data_generator._parameters_schema.load(
-            dict(automation.parameters or {})
+        data_generator = automation.generator.data_generator
+        parameters = dict(automation.parameters or {})
+        if automation.type == "reporting":
+            parameters = prepare_report_parameters(
+                parameters,
+                automation.cronstr,
+                automation.timezone,
+                automation_id=automation.id,
+            )
+        else:
+            parameters = resolve_automation_window(
+                parameters, automation.type, automation.timezone
+            )
+        return resolve_data_generator_sensors(
+            data_generator,
+            data_generator._parameters_schema.load(parameters),
         )
-        return {
-            "input_sensors": data_generator.input_sensors,
-            "output_sensors": data_generator.output_sensors,
-        }
     except (NotImplementedError, ValidationError) as e:
         raise AutomationSensorsUnknown(
             f"Could not determine the sensors of automation {automation.id}: {e}"
@@ -420,14 +1216,54 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
         return {"input_sensors": [], "output_sensors": []}
 
 
+def automation_id_of_job(rq_job) -> int | None:
+    """Return the id of the automation that triggered a job, or None if no automation did."""
+    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
+    if trigger.get("origin") != "automation":
+        return None
+    return trigger.get("automation_id")
+
+
+def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
+    """Return the sensor ids an automation-triggered job was cleared to record on, or None if it is not one.
+
+    An automation's output sensors are checked against its creator's permissions when the automation is created,
+    which is the only moment a user is present.
+    A data generator decides at run time which sensors it returns results for, though,
+    so a job holds it to the sensors that were checked, turning a write on anything else into a refusal.
+    For a schedule this matters because its output sensors are predicted from the fields that name them (see `OUTPUT_SENSOR_FIELDS`),
+    so a sensor named by some other field was only ever checked for read access, as the prediction reads it as an input.
+    For a report, the output sensors are named in its parameters, but the reporter is free to return results for others.
+
+    Returns None where there is nothing to hold the job to: a job that is not an automation's,
+    or an automation deleted since the job was queued.
+    An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
+    a guard that cannot work out what is allowed should not conclude that everything is.
+    """
+    automation_id = automation_id_of_job(rq_job)
+    if automation_id is None:
+        return None
+
+    automation = db.session.get(Automation, automation_id)
+    if automation is None:
+        return None
+    try:
+        sensors = resolve_automation_sensors(automation)["output_sensors"]
+    except AutomationSensorsUnknown as exc:
+        current_app.logger.error(
+            f"Cannot check which sensors automation {automation_id} may record on, so it records nothing: {exc}"
+        )
+        return set()
+    return {sensor.id for sensor in sensors}
+
+
 def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     """Find the automations that write data to the given sensor.
 
-    Only automations on the sensor's own asset or on one of its ancestors are
-    considered, as an automation may only write to its asset's subtree
-    (see `validate_forecast_output_scope`). Working out the output sensors requires
-    setting up each candidate's data generator, so this keeps the work proportional
-    to the number of automations that could feed this sensor.
+    Only automations on the sensor's own asset or on one of its ancestors are considered,
+    as an automation may only write to its asset's subtree (see `validate_automation_output_scope`).
+    Working out the output sensors requires setting up each candidate's data generator,
+    so this keeps the work proportional to the number of automations that could feed this sensor.
 
     Note that this does not filter by permission: callers showing these to a user
     should check read access on each automation (e.g. with `user_can_read`).
@@ -444,14 +1280,26 @@ def get_automations_feeding_sensor(sensor: Sensor) -> list[Automation]:
     ]
 
 
-def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
+def prepare_schedule_trigger_message(
+    parameters: dict,
+    asset_id: int,
+    automation_timezone: str | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict:
     """Complete stored schedule parameters into a message for the AssetTriggerSchema.
 
-    The asset id is injected, and the (required) schedule start defaults to now,
+    Any offsets are resolved into a start and a duration (see `resolve_automation_window`),
+    on the automation's clock, or the platform's where no automation timezone is given.
+    The asset id is injected, and without offsets the (required) schedule start defaults to now,
     floored to the message's resolution (if given, otherwise to the minute),
     so recurring automations produce fresh schedules on each run.
     """
-    message = dict(parameters)
+    message = resolve_automation_window(
+        parameters,
+        "scheduling",
+        automation_timezone or str(get_timezone()),
+        scheduled_at,
+    )
     message["id"] = asset_id
     if "start" not in message:
         start = server_now()
@@ -477,12 +1325,211 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     return message
 
 
-def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
+def validate_offset_chain(offset_chain: str):
+    """Raise a ValueError on any offset that apply_offset_chain would silently skip.
+
+    Valid offsets are Pandas offset strings, plus "DB" (day begin) and "HB" (hour begin).
+    """
+    from pandas.tseries.frequencies import to_offset
+
+    for offset in str(offset_chain).split(","):
+        offset = offset.strip()
+        if offset.lower() in ("db", "hb"):
+            continue
+        try:
+            to_offset(offset)
+        except ValueError:
+            raise ValueError(
+                f"'{offset}' is not a valid Pandas offset string (nor 'DB'/'HB')."
+            )
+
+
+def _last_run_redis_key(automation_id: int) -> str:
+    return f"automation-last-run:{automation_id}"
+
+
+def record_automation_run(automation_id: int, now: datetime | None = None) -> bool:
+    """Remember (in Redis) until when a report automation's reports reach, so its next default window starts there.
+
+    The reporting job records the end of its report window once it has succeeded (see run_report_job),
+    so a failed report job does not leave a permanent gap in the reported periods.
+    Only report automations use this: forecasts and schedules do not continue from where the previous run ended.
+    """
+    from redis.exceptions import WatchError
+
+    if now is None:
+        now = server_now()
+    candidate = floor_to_minute(now)
+    key = _last_run_redis_key(automation_id)
+    connection = current_app.redis_connection
+    while True:
+        with connection.pipeline() as pipeline:
+            try:
+                pipeline.watch(key)
+                value = pipeline.get(key)
+                if value:
+                    if isinstance(value, bytes):
+                        value = value.decode()
+                    try:
+                        current = floor_to_minute(datetime.fromisoformat(value))
+                    except ValueError:
+                        current = None
+                    if current is not None and current >= candidate:
+                        pipeline.unwatch()
+                        return False
+                pipeline.multi()
+                pipeline.set(key, candidate.isoformat())
+                pipeline.execute()
+                return True
+            except WatchError:
+                # Another worker updated the coverage after our read.
+                # Re-read it, and only advance from the new value.
+                continue
+
+
+def get_automation_last_run(automation_id: int) -> datetime | None:
+    """Until when this automation's work is covered, if known (the record lives in Redis)."""
+    from flask import current_app
+
+    value = current_app.redis_connection.get(_last_run_redis_key(automation_id))
+    if not value:
+        return None
+    if isinstance(value, bytes):
+        value = value.decode()
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def prepare_report_parameters(
+    parameters: dict,
+    cronstr: str,
+    automation_timezone: str,
+    now: datetime | None = None,
+    automation_id: int | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict:
+    """Complete stored report parameters into a message for the ReporterParametersSchema.
+
+    The (required) start and end of the report are resolved on each run:
+
+    - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets, such as "-1D,DB" for the start of the previous day,
+      applied to the run time in the automation's timezone.
+      A "duration" can take the place of either one.
+    - Without offsets, the window runs since the end of the automation's last successfully covered window,
+      falling back to the last cron period, from the previous cron fire time until the run time, when none is known, such as on the first run.
+    """
+    message = dict(parameters)
+    if scheduled_at is None:
+        scheduled_at = now if now is not None else server_now()
+    scheduled_at = floor_to_minute(scheduled_at)
+
+    # Offsets are applied on the automation's own clock, the one its cron string is read in,
+    # so that "DB" means midnight where the user who set up the automation expects it.
+    tz = ZoneInfo(automation_timezone)
+    now = scheduled_at.astimezone(tz)
+
+    # A report automation cannot fix its window (see `refuse_fixed_moments`), so offsets apply to the run time.
+    start_offset = message.pop("start-offset", None)
+    end_offset = message.pop("end-offset", None)
+    duration = message.pop("duration", None)
+    start = (
+        apply_offset_chain(pd.Timestamp(now), start_offset)
+        if start_offset is not None
+        else None
+    )
+    end = (
+        apply_offset_chain(pd.Timestamp(now), end_offset)
+        if end_offset is not None
+        else None
+    )
+    # A duration goes with one of the offsets (see `validate_automation_window`), and fixes the other end of the window.
+    if duration is not None:
+        if start is not None and end is None:
+            end = _add_duration(start, duration)
+        elif end is not None and start is None:
+            start = _add_duration(end, duration, sign=-1)
+    # Where the offsets (and duration) fix both ends, the window has to be one a run can cover.
+    # A start carried over from the last successful report is not checked here: it is not the automation's to fix.
+    if start is not None and end is not None:
+        _check_window_is_positive(start, end)
+
+    # Default to the window since the last covered window's end,
+    # falling back to the last cron period, from the previous cron fire time until the run time.
+    if start is None:
+        last_run = (
+            get_automation_last_run(automation_id)
+            if automation_id is not None
+            else None
+        )
+        if last_run is not None:
+            start = last_run
+        else:
+            nominal_scheduled_at = _as_nominal_wall_time(scheduled_at.astimezone(tz))
+            previous_nominal = croniter(cronstr, nominal_scheduled_at).get_prev(
+                datetime
+            )
+            start = _canonical_run_time(previous_nominal, tz)
+            # A skipped wall time can canonicalize to the first valid instant after the gap, which may be the current run.
+            # Step back once more, so the first report still covers a non-empty cron period.
+            if start >= scheduled_at:
+                previous_nominal = croniter(cronstr, previous_nominal).get_prev(
+                    datetime
+                )
+                start = _canonical_run_time(previous_nominal, tz)
+            if end is not None:
+                # An "end-offset" moves the end of the window away from the run time, so the cron period moves along with it.
+                # Otherwise, a first report ending before the previous cron fire time would have no period to cover.
+                # The period is taken on the wall clock, so that a daily report still starts at midnight across a clock change.
+                cron_period = nominal_scheduled_at - previous_nominal
+                end_nominal = _as_nominal_wall_time(
+                    pd.Timestamp(end).to_pydatetime().astimezone(tz)
+                )
+                start = _canonical_run_time(end_nominal - cron_period, tz)
+    if end is None:
+        end = now
+
+    # A start carried over from the last successful report can sit at or after the end,
+    # where an "end-offset" alone reaches back no further than what was already covered,
+    # for instance when an hourly automation reports up to midnight, or after its "end-offset" was moved back.
+    # Such a window is left empty (see `_run_report_automation`, which then queues no job).
+    if pd.Timestamp(start) > pd.Timestamp(end):
+        current_app.logger.warning(
+            f"Report automation {automation_id} reaches back to {pd.Timestamp(end).isoformat()},"
+            f" which the last successful report already covered, up to {pd.Timestamp(start).isoformat()}."
+            " Nothing is reported until its window reaches past that moment."
+        )
+        start = end
+
+    message["start"] = pd.Timestamp(start).isoformat()
+    message["end"] = pd.Timestamp(end).isoformat()
+    return message
+
+
+def _relevant_sensor_ids(automation: Automation, parameter_values: list) -> set[int]:
+    """The asset's sensor ids, plus any (castable) sensor ids among the given parameter values."""
+    sensor_ids = {sensor.id for sensor in automation.asset.sensors}
+    for value in parameter_values:
+        sensor_id = _stored_sensor_id(value)
+        if sensor_id is not None:
+            sensor_ids.add(sensor_id)
+    return sensor_ids
+
+
+def resolve_schedule_generator(
+    asset_id: int,
+    parameters: dict,
+    automation_timezone: str | None = None,
+    scheduled_at: datetime | None = None,
+) -> DataSource:
     """The data source describing the scheduler a schedule automation runs, and the flex config it runs with.
 
     The scheduler class follows from the asset, and the config is the trigger message merged with what the asset tree stores,
     so both can change without the automation changing.
     That is why this is resolved afresh on every run, rather than only when the automation is created.
+    The window is resolved on the same clock, and for the same run, as the schedule this describes,
+    so that the two cannot drift apart if the window ever reaches the data source.
     """
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import (
@@ -490,7 +1537,9 @@ def resolve_schedule_generator(asset_id: int, parameters: dict) -> DataSource:
         get_scheduler_instance,
     )
 
-    message = prepare_schedule_trigger_message(dict(parameters or {}), asset_id)
+    message = prepare_schedule_trigger_message(
+        dict(parameters or {}), asset_id, automation_timezone, scheduled_at
+    )
     trigger_data = AssetTriggerSchema().load(message)
     asset = trigger_data["asset"]
     scheduler = get_scheduler_instance(
@@ -528,45 +1577,685 @@ def get_automations_involving_sensor(sensor: Sensor) -> list[Automation]:
     return involved
 
 
-def get_automation_job_stats(automation: Automation) -> dict[str, int]:
-    """Count the jobs created by this automation, per job status.
+def _asset_subtree_sensor_ids(asset_id: int) -> set[int]:
+    """Return all sensor IDs on an asset and its descendants."""
+    tree = descendants_cte(root_asset_id=asset_id, max_depth=None)
+    return set(
+        db.session.scalars(
+            select(Sensor.id).where(Sensor.generic_asset_id.in_(select(tree.c.id)))
+        ).all()
+    )
 
-    Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
+
+def _job_map_refs(
+    automation: Automation, schedule_sensor_ids: set[int] | None = None
+) -> set[tuple[int, str, str]]:
+    """The job-map entries in which an automation's jobs may live.
+
+    Forecasting and reporting jobs are indexed under their target/output sensor(s),
+    which may belong to a different asset than the automation's own asset.
     """
-    # Determine the job cache entries to scan.
-    if automation.type == "scheduling":
+    from flexmeasures.data.automations import get_automation_types
+
+    handler = get_automation_types().get(automation.type)
+    if handler is None:
+        return set()
+    # Determine the job map entries to scan.
+    parameters = automation.parameters or {}
+    if handler.generator_class is not None:
+        # A plugin type's jobs are indexed under the automation's own asset, on the queue its handler names.
+        return {(automation.asset_id, handler.queue, "asset")}
+    elif automation.type == "scheduling":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
-        # and under individual sensors (per-device jobs).
-        assets = [automation.asset, *automation.asset.offspring]
-        cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
-            (sensor.id, "scheduling", "sensor")
-            for asset in assets
-            for sensor in asset.sensors
-        ]
+        # and under individual device sensors (per-device jobs), which may belong
+        # to child assets rather than the automation's own (site) asset.
+        if schedule_sensor_ids is None:
+            schedule_sensor_ids = _asset_subtree_sensor_ids(automation.asset_id)
+        return {(automation.asset_id, "scheduling", "asset")} | {
+            (sensor_id, "scheduling", "sensor") for sensor_id in schedule_sensor_ids
+        }
+    elif automation.type == "reporting":
+        # Reporting jobs are cached under their output sensor(s),
+        # which may belong to a different asset than the automation's own asset.
+        sensor_ids = _relevant_sensor_ids(
+            automation,
+            [
+                output.get("sensor")
+                for output in parameters.get("output", []) or []
+                if isinstance(output, dict)
+            ],
+        )
+        return {(sensor_id, "reporting", "sensor") for sensor_id in sensor_ids}
     else:
         # Forecasting jobs are cached under the forecast target sensor(s),
         # which may belong to a different asset than the automation's own asset.
-        sensor_ids = {sensor.id for sensor in automation.asset.sensors}
-        for key in ("sensor", "sensor-to-save"):
-            value = (automation.parameters or {}).get(key)
-            if value is not None:
-                try:
-                    sensor_ids.add(int(value))
-                except (TypeError, ValueError):
-                    pass
-        cache_refs = [(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids]
+        sensor_ids = _relevant_sensor_ids(
+            automation,
+            [parameters.get("sensor"), parameters.get("sensor-to-save")],
+        )
+        return {(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids}
 
-    counts: dict[str, int] = {}
+
+def _count_automation_jobs(
+    index_refs: set[tuple[int, str, str]], automation_ids: set[int]
+) -> dict[int, dict[str, int]]:
+    """Count jobs per automation and status in one pass over the index entries."""
+    counts: dict[int, dict[str, int]] = {
+        automation_id: {} for automation_id in automation_ids
+    }
     seen_job_ids: set[str] = set()
-    for entity_id, queue, asset_or_sensor_type in cache_refs:
-        for job in current_app.job_cache.get(entity_id, queue, asset_or_sensor_type):
+    for entity_id, queue, asset_or_sensor_type in index_refs:
+        for job in current_app.job_map.get(entity_id, queue, asset_or_sensor_type):
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
-            if job.meta.get("trigger", {}).get("automation_id") == automation.id:
+            automation_id = job.meta.get("trigger", {}).get("automation_id")
+            if automation_id in counts:
                 status = str(job.get_status().value)
-                counts[status] = counts.get(status, 0) + 1
+                counts[automation_id][status] = counts[automation_id].get(status, 0) + 1
     return counts
+
+
+def get_automation_job_stats(automation: Automation) -> dict[str, int]:
+    """Count the recent jobs created by this automation, per job status."""
+    return _count_automation_jobs(_job_map_refs(automation), {automation.id})[
+        automation.id
+    ]
+
+
+def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
+    """Count recent jobs for all of an asset's automations in one index pass."""
+    automations = asset.automations
+    if not automations:
+        return {}
+    schedule_sensor_ids = (
+        _asset_subtree_sensor_ids(asset.id)
+        if any(automation.type == "scheduling" for automation in automations)
+        else None
+    )
+    index_refs: set[tuple[int, str, str]] = set()
+    for automation in automations:
+        index_refs |= _job_map_refs(automation, schedule_sensor_ids)
+    return _count_automation_jobs(
+        index_refs, {automation.id for automation in automations}
+    )
+
+
+def refuse_fields_a_schedule_automation_cannot_use(
+    config: dict | None, generator_class: str | None
+) -> None:
+    """Refuse a schedule automation's config or data generator, which it has no use for.
+
+    A schedule automation's scheduler, and the flex config it runs under, follow from the asset and its flex context.
+    Accepting either field here would record a choice that nothing goes on to read,
+    leaving the caller to believe it applied.
+
+    :raises marshmallow.ValidationError: keyed by the field(s) given, if either was.
+    """
+    unsupported = {}
+    if config:
+        unsupported["config"] = [
+            "A schedule automation configures no data generator of its own:"
+            " its scheduler and flex config follow from the asset and its flex context."
+        ]
+    if generator_class:
+        unsupported["data-generator"] = [
+            "A schedule automation does not choose a data generator:"
+            " its scheduler follows from the asset."
+        ]
+    if unsupported:
+        raise ValidationError(unsupported)
+
+
+@contextmanager
+def errors_reported_for(section: str):
+    """Name the part of the request a validation error came from, so the caller can say which one to fix.
+
+    Both `config` and `parameters` are validated against schemas of the data generator's choosing,
+    and either can raise. Without this, one is indistinguishable from the other by the time it surfaces.
+    """
+    try:
+        yield
+    except ValidationError as error:
+        raise ValidationError({section: error.messages}) from error
+
+
+def _refuse_target_qualifiers(sensor: Any) -> None:
+    """Refuse a forecast automation whose parameters qualify the sensor to forecast.
+
+    Source filters and cleaning bounds on that sensor belong in the forecaster's config, as an entry naming ``"auto"``.
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so an automation created with them would be accepted now and then fail on every run.
+
+    :raises ValidationError: naming the qualifiers and where they belong.
+    """
+    from flexmeasures.data.models.forecasting.inputs import target_qualifiers
+    from flexmeasures.data.schemas.forecasting.references import AUTO_SENSOR
+
+    qualifiers = target_qualifiers(sensor) if sensor is not None else {}
+    if not qualifiers:
+        return
+    raise ValidationError(
+        {
+            "sensor": [
+                f"The sensor to forecast is qualified with {', '.join(sorted(qualifiers))}, which belong in the forecaster's config,"
+                f' as an entry naming "{AUTO_SENSOR}" among the past-regressors, such as {{"sensor": "{AUTO_SENSOR}", "lower": "0 kW"}}.'
+                " Name the sensor to forecast by its ID."
+            ]
+        }
+    )
+
+
+def _stored_sensor_id(sensor_reference: Any) -> int | None:
+    """Return the sensor ID from a stored automation parameter naming a sensor.
+
+    A parameter may name a sensor by ID, or as a source-filtered sensor reference,
+    whose source filters say which beliefs to read and not which sensor is meant.
+    """
+    if isinstance(sensor_reference, Sensor):
+        return sensor_reference.id
+    if isinstance(sensor_reference, dict):
+        sensor_reference = sensor_reference.get("sensor")
+    try:
+        return int(sensor_reference)
+    except (TypeError, ValueError):
+        return None
+
+
+def _prepare_forecast_automation(
+    asset, parameters: dict, generator_class: str | None, config: dict | None, source
+) -> tuple[Forecaster, dict, list[str]]:
+    """Validate forecast automation parameters and set up the forecaster, without creating a data source."""
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        ForecasterParametersSchema,
+    )
+    from flexmeasures.data.services.data_sources import get_data_generator
+
+    warnings = []
+    with errors_reported_for("parameters"):
+        deserialized_parameters = ForecasterParametersSchema().load(parameters)
+    sensor = deserialized_parameters.get("sensor")
+    with errors_reported_for("parameters"):
+        _refuse_target_qualifiers(sensor)
+    if isinstance(sensor, SensorReference):
+        sensor = sensor.sensor
+    if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
+        warnings.append(
+            f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
+        )
+    model = generator_class or "TrainPredictPipeline"
+    with errors_reported_for("config"):
+        forecaster = get_data_generator(
+            source=source,
+            model=model,
+            config=config or {},
+            save_config=True,
+            data_generator_type=Forecaster,
+        )
+    if forecaster is None:
+        # With a source, the class and its config come from the source, so the source is what failed.
+        if source is not None:
+            raise ValueError(f"Data source {source.id} does not store a forecaster.")
+        raise ValueError(f"Could not set up forecaster '{model}'.")
+    return forecaster, deserialized_parameters, warnings
+
+
+def _prepare_report_automation(
+    parameters: dict,
+    cronstr: str,
+    automation_timezone: str,
+    generator_class: str | None,
+    config: dict | None,
+    source,
+) -> tuple[Reporter, dict, list[str]]:
+    """Validate report automation parameters without creating a data source."""
+    from flexmeasures.data.services.data_sources import get_data_generator
+
+    warnings: list[str] = []
+    if generator_class is None and source is None:
+        raise ValidationError(
+            {
+                "data-generator": [
+                    "A reporter is required for report automations (e.g. PandasReporter)."
+                ]
+            }
+        )
+    with errors_reported_for("config"):
+        reporter = get_data_generator(
+            source=source,
+            model=generator_class,
+            config=config or {},
+            save_config=True,
+            data_generator_type=Reporter,
+        )
+    if reporter is None:
+        # With a source, the class and its config come from the source, so the source is what failed.
+        if source is not None:
+            raise ValueError(f"Data source {source.id} does not store a reporter.")
+        raise ValueError(f"Could not set up reporter '{generator_class}'.")
+    # Validate with the chosen reporter's own parameters schema,
+    # which may extend the base ReporterParametersSchema.
+    with errors_reported_for("parameters"):
+        deserialized_parameters = reporter._parameters_schema.load(
+            prepare_report_parameters(parameters, cronstr, automation_timezone)
+        )
+    return reporter, deserialized_parameters, warnings
+
+
+def create_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    timezone: str | None = None,
+    automation_type: str = "forecasting",
+    active: bool = True,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source: DataSource | None = None,
+    origin: str = "API",
+    check_permissions: bool = False,
+) -> tuple[Automation, list[str]]:
+    """Create an automation through its registered handler, without committing."""
+    from flask_security import current_user
+    from flexmeasures.data.automations import (
+        get_automation_handler,
+        validate_automation_type,
+    )
+
+    validate_automation_type(automation_type)
+    automation, warnings = get_automation_handler(automation_type).create(
+        asset=asset,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        automation_type=automation_type,
+        active=active,
+        source=source,
+        generator_class=generator_class,
+        config=config,
+        parameters=parameters,
+        origin=origin,
+        check_permissions=check_permissions,
+    )
+    if check_permissions:
+        if current_user.is_anonymous:
+            from werkzeug.exceptions import Unauthorized
+
+            raise Unauthorized()
+        automation.execution_user_id = current_user.id
+    return automation, warnings
+
+
+def _create_builtin_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    timezone: str | None = None,
+    automation_type: str = "forecasting",
+    active: bool = True,
+    parameters: dict | None = None,
+    generator_class: str | None = None,
+    config: dict | None = None,
+    source=None,
+    origin: str = "API",
+    check_permissions: bool = False,
+) -> tuple[Automation, list[str]]:
+    """Create an automation (not committed yet), validating its parameters by type.
+
+    For forecasts and reports, the data generator config is stored on a data source.
+    An audit log record is added to the asset.
+
+    :param check_permissions: whether to require that the current user may read the sensors that the automation reads from,
+                              record data on the sensors it writes to, and read the data source they name, if they name one.
+                              Set this for automations created by a user (through the API or the UI);
+                              the CLI runs without a user, and is trusted.
+    :raises marshmallow.ValidationError: if the parameters are invalid.
+    :raises ValueError: if the data generator cannot be set up.
+    :raises werkzeug.exceptions.Forbidden: if a sensor, or the named data source, is not accessible to the user.
+    :returns: the automation and a list of warnings.
+    """
+    from werkzeug.exceptions import Forbidden
+
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+    from flexmeasures.data.services.data_sources import user_may_use_source
+
+    # A named source hands over whatever configuration it stores, and the automation's results are recorded under it,
+    # so naming one takes more than being allowed to read what it computed: it has to be a source the user may work with.
+    if check_permissions and source is not None and not user_may_use_source(source):
+        exception = Forbidden()
+        exception.api_message = f"You cannot define an automation on data source {source.id}, which is not yours to work with."
+        raise exception
+
+    parameters = parameters or {}
+    timezone = timezone or get_default_automation_timezone(asset)
+    warnings: list[str] = []
+    generator_id = None
+    data_generator = None
+    input_sensors: list[Sensor] = []
+    output_sensors: list[Sensor] = []
+    if automation_type in Automation.SUPPORTED_TYPES:
+        # An automation runs again and again, so a moment fixed in its parameters would be shared by every run.
+        refuse_fixed_moments(parameters, automation_type)
+        with errors_reported_for("parameters"):
+            validate_automation_window(parameters, automation_type)
+    if automation_type == "forecasting":
+        with errors_reported_for("parameters"):
+            forecast_window = resolve_automation_window(
+                parameters, automation_type, timezone
+            )
+        forecaster, deserialized_parameters, forecast_warnings = (
+            _prepare_forecast_automation(
+                asset,
+                forecast_window,
+                generator_class,
+                config,
+                source,
+            )
+        )
+        warnings.extend(forecast_warnings)
+        data_generator = forecaster
+
+        # A forecast reads the history of the sensor to forecast, plus its regressors,
+        # and records the forecast on the sensor to save to (the same sensor by default).
+        # The forecaster works this out from the same config and parameters it will run with.
+        forecast_sensors = resolve_data_generator_sensors(
+            forecaster, deserialized_parameters
+        )
+        input_sensors = forecast_sensors["input_sensors"]
+        output_sensors = forecast_sensors["output_sensors"]
+    elif automation_type == "scheduling":
+        from flexmeasures.utils import flexmeasures_inflection
+        from flexmeasures.data.schemas.scheduling import (
+            find_momentary_flex_config_fields,
+        )
+
+        refuse_fields_a_schedule_automation_cannot_use(config, generator_class)
+
+        # The flex config has to describe the site and its devices, rather than one moment:
+        # the automation computes a fresh schedule on every run,
+        # so a value tied to a fixed moment would be stale on the next one.
+        with errors_reported_for("parameters"):
+            trigger_message = prepare_schedule_trigger_message(
+                dict(parameters), asset.id, timezone
+            )
+        momentary_fields = find_momentary_flex_config_fields(trigger_message)
+        if momentary_fields:
+            raise RecurringAutomationFixesAMoment(
+                f"{flexmeasures_inflection.join_words_into_a_list(momentary_fields)} fixes a moment in time,"
+                " so it cannot configure a recurring schedule automation, which computes a fresh schedule on every run."
+                " Refer to a sensor instead of a fixed value, or leave the field out."
+            )
+
+        # A schedule is recorded on the sensors that the scheduler returns its results for,
+        # and reads whatever other sensors the flex-model and flex-context refer to,
+        # such as price sensors and the sensors of inflexible devices.
+        with errors_reported_for("parameters"):
+            schedule_sensors = resolve_schedule_automation_sensors(
+                parameters, asset.id, timezone
+            )
+        input_sensors = schedule_sensors["input_sensors"]
+        output_sensors = schedule_sensors["output_sensors"]
+    elif automation_type == "reporting":
+        reporter, deserialized_parameters, report_warnings = _prepare_report_automation(
+            parameters, cronstr, timezone, generator_class, config, source
+        )
+        warnings.extend(report_warnings)
+        data_generator = reporter
+        report_sensors = resolve_data_generator_sensors(
+            reporter, deserialized_parameters
+        )
+        input_sensors = report_sensors["input_sensors"]
+        output_sensors = report_sensors["output_sensors"]
+    else:
+        raise ValidationError(
+            {
+                "type": [
+                    f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
+                ]
+            }
+        )
+
+    if check_permissions:
+        check_sensor_access(input_sensors, output_sensors)
+
+    # Only once the sensors are known to be the user's to involve do we say anything about them,
+    # so that this does not reveal where a sensor sits to someone who may not read it.
+    if automation_type in ("forecasting", "reporting"):
+        for output_sensor in output_sensors:
+            validate_automation_output_scope(asset.id, output_sensor, automation_type)
+
+    if data_generator is not None:
+        # The automation hangs off an asset, so what it computes is that asset's organisation's own data,
+        # which its data source says by belonging to that organisation.
+        data_generator.set_source_account(asset.owner)
+        # Look up or create the data source storing the generator config only now that the automation is going ahead,
+        # so that a refused request leaves nothing behind, whatever the caller does with the session afterwards.
+        generator = data_generator.data_source
+        db.session.flush()
+        generator_id = generator.id
+    elif automation_type == "scheduling":
+        # The scheduler and its configuration make up the automation's data generator,
+        # the same way a forecaster and its configuration do for a forecast automation.
+        # It is resolved here, rather than above, for the same reason as the forecaster's.
+        generator_id = resolve_schedule_generator(asset.id, parameters, timezone).id
+        db.session.flush()
+
+    automation_fields = dict(
+        asset_id=asset.id,
+        type=automation_type,
+        name=name,
+        cronstr=cronstr,
+        active=active,
+        generator_id=generator_id,
+        parameters=parameters,
+    )
+    automation_fields["timezone"] = timezone
+    automation = Automation(**automation_fields)
+    db.session.add(automation)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created automation '{name}' ({automation.id}) via {origin}."
+    )
+    return automation, warnings
+
+
+def update_automation(
+    automation: Automation,
+    name: str | None = None,
+    cronstr: str | None = None,
+    timezone: str | None = None,
+    active: bool | None = None,
+    origin: str = "API",
+) -> list[str]:
+    """Update an automation's name, cron string, timezone and/or activation status (not committed yet).
+
+    Anything that changes which runs are due, namely the recurrence, the timezone and reactivation,
+    also resets the cursor to just before the minute of the change, so that runs from before it are not caught up on,
+    while a run due in that very minute still is.
+    An audit log record is added to the asset.
+
+    :returns: a list of (human-readable) changes; empty if nothing changed.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    changes = []
+    reset_cursor = False
+    if name is not None and name != automation.name:
+        changes.append(f"name: '{automation.name}' → '{name}'")
+        automation.name = name
+    if cronstr is not None and cronstr != automation.cronstr:
+        changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
+        automation.cronstr = cronstr
+        reset_cursor = True
+    if timezone is not None and timezone != automation.timezone:
+        changes.append(f"timezone: '{automation.timezone}' → '{timezone}'")
+        automation.timezone = timezone
+        reset_cursor = True
+    if active is not None and active != automation.active:
+        changes.append("activated" if active else "deactivated")
+        if active:
+            reset_cursor = True
+        automation.active = active
+    if reset_cursor:
+        # A new revision keeps the durable runs of the old and the new schedule apart,
+        # even where they fall on the same scheduled UTC time.
+        automation.schedule_revision += 1
+        automation.cursor = get_initial_cursor()
+    if changes:
+        AssetAuditLog.add_record(
+            automation.asset,
+            f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via {origin}.",
+        )
+    return changes
+
+
+def delete_automation(automation: Automation, origin: str = "API"):
+    """Delete an automation (not committed yet), recording it in the asset's audit log."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Deleted automation '{automation.name}' ({automation.id}) via {origin}.",
+    )
+    db.session.delete(automation)
+
+
+def serialize_automation_run(run: AutomationRun) -> dict[str, Any]:
+    """Return operator-facing durable status for one automation run."""
+    latest_attempt = run.attempts[-1] if run.attempts else None
+    return {
+        "id": run.id,
+        "scheduled-at": run.scheduled_at.isoformat(),
+        "schedule-revision": run.schedule_revision,
+        "dispatch-state": run.dispatch_state,
+        "execution-state": run.execution_state,
+        "attempt-count": run.attempt_count,
+        "intended-job-count": run.intended_job_count,
+        "queued-job-count": run.queued_job_count,
+        "first-enqueued-at": (
+            run.first_enqueued_at.isoformat() if run.first_enqueued_at else None
+        ),
+        "dispatch-completed-at": (
+            run.dispatch_completed_at.isoformat() if run.dispatch_completed_at else None
+        ),
+        "execution-completed-at": (
+            run.execution_completed_at.isoformat()
+            if run.execution_completed_at
+            else None
+        ),
+        "claim-owner": run.claim_owner,
+        "claim-expires-at": (
+            run.claim_expires_at.isoformat() if run.claim_expires_at else None
+        ),
+        "last-error": (
+            {
+                "type": run.last_error_type,
+                "message": run.last_error_message,
+            }
+            if run.last_error_type or run.last_error_message
+            else None
+        ),
+        "latest-attempt": (
+            {
+                "attempt-no": latest_attempt.attempt_no,
+                "owner": latest_attempt.owner,
+                "started-at": latest_attempt.started_at.isoformat(),
+                "finished-at": (
+                    latest_attempt.finished_at.isoformat()
+                    if latest_attempt.finished_at
+                    else None
+                ),
+                "outcome": latest_attempt.outcome,
+                "queued-job-count": latest_attempt.queued_job_count,
+                "error": (
+                    {
+                        "type": latest_attempt.error_type,
+                        "message": latest_attempt.error_message,
+                    }
+                    if latest_attempt.error_type or latest_attempt.error_message
+                    else None
+                ),
+            }
+            if latest_attempt is not None
+            else None
+        ),
+        "jobs": [
+            {
+                "logical-job-key": intent.logical_job_key,
+                "rq-job-id": intent.rq_job_id,
+                "queue": intent.queue,
+                "kind": intent.kind,
+                "status": intent.status,
+                "depends-on": list(intent.depends_on or []),
+                "enqueued-at": (
+                    intent.enqueued_at.isoformat() if intent.enqueued_at else None
+                ),
+                "started-at": (
+                    intent.started_at.isoformat() if intent.started_at else None
+                ),
+                "finished-at": (
+                    intent.finished_at.isoformat() if intent.finished_at else None
+                ),
+                "last-error": (
+                    {
+                        "type": intent.last_error_type,
+                        "message": intent.last_error_message,
+                    }
+                    if intent.last_error_type or intent.last_error_message
+                    else None
+                ),
+            }
+            for intent in run.job_intents
+        ],
+    }
+
+
+def _count_automation_runs_per_state(
+    automation_id: int, state_column
+) -> dict[str, int]:
+    """Count an automation's runs per value of one state column, in the database."""
+    rows = db.session.execute(
+        select(state_column, func.count())
+        .where(AutomationRun.automation_id == automation_id)
+        .group_by(state_column)
+    ).all()
+    return {state: count for state, count in rows}
+
+
+def get_automation_run_stats(automation: Automation) -> dict[str, Any]:
+    """Summarize durable automation runs for API and UI status displays.
+
+    An automation keeps a run record per scheduled run, so its history grows without bound,
+    while this summary only ever shows counts and the most recent few.
+    Count in the database and read only those few in full, rather than loading a year of runs to render a panel.
+    """
+    dispatch_counts = _count_automation_runs_per_state(
+        automation.id, AutomationRun.dispatch_state
+    )
+    execution_counts = _count_automation_runs_per_state(
+        automation.id, AutomationRun.execution_state
+    )
+    recent_runs = db.session.scalars(
+        select(AutomationRun)
+        .where(AutomationRun.automation_id == automation.id)
+        .order_by(AutomationRun.scheduled_at.desc(), AutomationRun.id.desc())
+        .limit(AUTOMATION_RUN_STATS_RECENT_LIMIT)
+        .options(
+            # The serialization reads both of these for every run, so fetch them in one query each, not per run.
+            selectinload(AutomationRun.attempts),
+            selectinload(AutomationRun.job_intents),
+        )
+    ).all()
+    serialized_runs = [serialize_automation_run(run) for run in recent_runs]
+    return {
+        "total": sum(dispatch_counts.values()),
+        "dispatch": dispatch_counts,
+        "execution": execution_counts,
+        "latest-run": serialized_runs[0] if serialized_runs else None,
+        "recent-runs": serialized_runs,
+    }
 
 
 def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
@@ -579,10 +2268,9 @@ def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
 
     if isinstance(sensor_reference, Sensor):
         return sensor_reference
-    try:
-        sensor_id = int(sensor_reference)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Forecast automation has no valid output sensor.") from exc
+    sensor_id = _stored_sensor_id(sensor_reference)
+    if sensor_id is None:
+        raise ValueError("Forecast automation has no valid output sensor.")
 
     sensor = db.session.get(Sensor, sensor_id)
     if sensor is None:
@@ -592,65 +2280,234 @@ def get_forecast_output_sensor(parameters: dict[str, Any]) -> Sensor:
     return sensor
 
 
-def validate_forecast_output_scope(asset_id: int, output_sensor: Sensor) -> None:
-    """Require forecast output on the automation asset or a descendant."""
+def validate_automation_output_scope(
+    asset_id: int, output_sensor: Sensor, automation_type: str
+) -> None:
+    """Require generated output on the automation asset or a descendant."""
     if not asset_is_in_subtree(asset_id, output_sensor.generic_asset_id):
         raise ValueError(
-            f"Forecast automation output sensor {output_sensor.id} must belong to asset "
+            f"{automation_type.capitalize()} automation output sensor {output_sensor.id} must belong to asset "
             f"{asset_id} or one of its descendants."
         )
 
 
-def run_automation(automation: Automation) -> dict[str, Any] | None:
+def renew_automation_run_claim(
+    run_id: int,
+    owner: str,
+    lease: timedelta = AUTOMATION_RUN_CLAIM_LEASE,
+) -> bool:
+    """Extend this runner's claim on a run, and say whether it still holds it.
+
+    A runner claims every run it is about to work on at once, and then dispatches them one after the other,
+    so the claim on the last of them may be older than the lease by the time its turn comes.
+    Renewing it just before dispatching keeps the lease describing the dispatch that is actually happening.
+    """
+    now = _now_utc()
+    result = db.session.execute(
+        update(AutomationRun)
+        .where(
+            AutomationRun.id == run_id,
+            AutomationRun.claim_owner == owner,
+            AutomationRun.claim_expires_at > now,
+        )
+        .values(claim_expires_at=_claim_expires_at(now, lease))
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    return result.rowcount == 1
+
+
+def dispatch_automation_run(
+    claimed_run: ClaimedAutomationRun,
+) -> dict[str, Any]:
+    """Dispatch an already claimed automation run and record its attempt outcome.
+
+    :raises AutomationRunClaimLost: if another runner took the run over while this one was working through its batch.
+    """
+    run = claimed_run.run
+    # The attempt says which runner is dispatching, where the run itself says who holds it now, which may be another runner.
+    owner = claimed_run.attempt.owner if claimed_run.attempt is not None else None
+    if owner is not None and not renew_automation_run_claim(run.id, owner):
+        # Say so on the attempt, so that the record shows why this runner queued nothing.
+        _finish_attempt(claimed_run.attempt, "claim_lost", 0)
+        db.session.commit()
+        raise AutomationRunClaimLost(
+            f"Automation run {run.id} is no longer claimed by {owner}, so another runner is dispatching it."
+        )
+    try:
+        returns = run_automation(run.automation, automation_run=run)
+    except Exception as exc:
+        mark_automation_run_dispatch_failed(run.id, claimed_run.attempt, exc)
+        raise
+    mark_automation_run_dispatch_queued(run.id, claimed_run.attempt)
+    return {
+        "run_id": run.id,
+        "job_id": returns.get("job_id") if returns else None,
+        "n_jobs": returns.get("n_jobs") if returns else 0,
+        "dispatch_state": "queued",
+    }
+
+
+def run_automation(
+    automation: Automation,
+    automation_run: AutomationRun | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict[str, Any] | None:
     """Queue the jobs for one run of an automation.
+
+    A durable run (see `dispatch_automation_run`) carries the time it was scheduled for; a run on demand has none.
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
-    if automation.type == "forecasting":
-        return _run_forecast_automation(automation)
-    elif automation.type == "scheduling":
-        return _run_schedule_automation(automation)
-    raise NotImplementedError(
-        f"Automations of type '{automation.type}' cannot be run yet."
+    from flexmeasures.data.automations import (
+        check_execution_access,
+        get_automation_handler,
+    )
+
+    if scheduled_at is None and automation_run is not None:
+        scheduled_at = automation_run.scheduled_at
+    handler = get_automation_handler(automation.type)
+    if automation.execution_user_id is not None:
+        check_execution_access(automation, resolve_automation_sensors(automation))
+    return handler.run(
+        automation, automation_run=automation_run, scheduled_at=scheduled_at
     )
 
 
-def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
-    if automation.generator is None:
+def _run_forecast_automation(
+    automation: Automation,
+    automation_run: AutomationRun | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict[str, Any] | None:
+    # A run records the data generator it was claimed with,
+    # so a retry forecasts with the configuration the run was planned with,
+    # also when the automation has been pointed at another one since.
+    # That configuration decides how many jobs a run has,
+    # so re-planning it with another one would plan jobs the run's intents do not describe (see `ensure_automation_run_job_intents`).
+    generator = automation.generator
+    if automation_run is not None and automation_run.generator_id is not None:
+        generator = db.session.get(DataSource, automation_run.generator_id) or generator
+    if generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
         )
     # Work on a copy, as the data generator is cached on the data source,
     # which may be shared by several automations (as in `resolve_automation_sensors`).
-    forecaster = copy(automation.generator.data_generator)
+    forecaster = copy(generator.data_generator)
     if not isinstance(forecaster, Forecaster):
         raise ValueError(
-            f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
+            f"Data source {generator.id} of automation {automation.id} does not store a Forecaster."
         )
-    output_sensor = get_forecast_output_sensor(automation.parameters or {})
-    validate_forecast_output_scope(automation.asset_id, output_sensor)
+    parameters = (
+        dict(automation_run.parameters)
+        if automation_run is not None
+        else dict(automation.parameters)
+    )
+    output_sensor = get_forecast_output_sensor(parameters)
+    validate_automation_output_scope(
+        automation.asset_id, output_sensor, automation.type
+    )
     # Wipe any parameter state the copy inherited from a previous run.
     forecaster._parameters = None
-    forecaster.set_job_trigger("automation", automation_id=automation.id)
-    return forecaster.compute(as_job=True, parameters=dict(automation.parameters))
+    forecaster.set_job_trigger(
+        "automation",
+        automation_id=automation.id,
+        automation_run_id=automation_run.id if automation_run is not None else None,
+    )
+    return forecaster.compute(
+        as_job=True,
+        parameters=resolve_automation_window(
+            parameters,
+            automation.type,
+            automation.timezone,
+            scheduled_at,
+        ),
+    )
 
 
-def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
+def _run_report_automation(
+    automation: Automation,
+    automation_run: AutomationRun | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict[str, Any] | None:
+    if automation.generator is None:
+        raise ValueError(
+            f"Automation {automation.id} has no data generator to run (generator_id is not set)."
+        )
+    reporter = automation.generator.data_generator
+    if not isinstance(reporter, Reporter):
+        raise ValueError(
+            f"Data source {automation.generator_id} of automation {automation.id} does not store a Reporter."
+        )
+    # A retried run reports with the parameters it was planned with, rather than whatever the automation says now.
+    parameters = prepare_report_parameters(
+        (
+            dict(automation_run.parameters)
+            if automation_run is not None
+            else dict(automation.parameters)
+        ),
+        automation.cronstr,
+        automation.timezone,
+        automation_id=automation.id,
+        scheduled_at=scheduled_at,
+    )
+    if pd.Timestamp(parameters["start"]) >= pd.Timestamp(parameters["end"]):
+        # Not every reporter can compute a report on an empty window, and a failing job would not record coverage either,
+        # so an empty window queues no job at all.
+        current_app.logger.info(
+            f"Report automation {automation.id} has nothing new to report on, up to {parameters['end']}, so it queues no job."
+        )
+        return {
+            "job_id": None,
+            "n_jobs": 0,
+            "message": f"Automation {automation.id} has nothing new to report on, as its reports already cover its window, which ends at {parameters['end']}.",
+        }
+    report_sensors = resolve_data_generator_sensors(
+        reporter, reporter._parameters_schema.load(parameters)
+    )
+    for output_sensor in report_sensors["output_sensors"]:
+        validate_automation_output_scope(
+            automation.asset_id, output_sensor, automation.type
+        )
+    # The data generator instance is cached on the data source, which may be shared by several automations,
+    # so wipe any parameter state from a previous run.
+    reporter._parameters = None
+    reporter.set_job_trigger(
+        "automation",
+        automation_id=automation.id,
+        automation_run_id=automation_run.id if automation_run is not None else None,
+    )
+    return reporter.compute(as_job=True, parameters=parameters)
+
+
+def _run_schedule_automation(
+    automation: Automation,
+    automation_run: AutomationRun | None = None,
+    scheduled_at: datetime | None = None,
+) -> dict[str, Any]:
     from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
     from flexmeasures.data.services.scheduling import (
         create_sequential_scheduling_job,
         create_simultaneous_scheduling_job,
     )
 
+    # A retried run re-queues the jobs it was planned with, rather than whatever the automation says now.
+    parameters = (
+        dict(automation_run.parameters)
+        if automation_run is not None
+        else dict(automation.parameters)
+    )
     # The scheduler and the flex config it merges in can both change between runs,
     # so record which data source this run actually computes under.
-    generator = resolve_schedule_generator(automation.asset_id, automation.parameters)
+    generator = resolve_schedule_generator(
+        automation.asset_id, parameters, automation.timezone, scheduled_at
+    )
     if automation.generator_id != generator.id:
         automation.generator_id = generator.id
         db.session.commit()
 
     message = prepare_schedule_trigger_message(
-        dict(automation.parameters), automation.asset_id
+        parameters, automation.asset_id, automation.timezone, scheduled_at
     )
     trigger_data = AssetTriggerSchema().load(message)
     start = trigger_data["start_of_schedule"]
@@ -663,6 +2520,9 @@ def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
     )
     if trigger_data.get("resolution") is not None:
         scheduler_kwargs["resolution"] = trigger_data["resolution"]
+    trigger = {"origin": "automation", "automation_id": automation.id}
+    if automation_run is not None:
+        trigger["automation_run_id"] = automation_run.id
     if trigger_data["sequential"]:
         f = create_sequential_scheduling_job
     else:
@@ -671,7 +2531,7 @@ def _run_schedule_automation(automation: Automation) -> dict[str, Any]:
         asset=trigger_data["asset"],
         enqueue=True,
         force_new_job_creation=trigger_data.get("force_new_job_creation", False),
-        trigger={"origin": "automation", "automation_id": automation.id},
+        trigger=trigger,
         **scheduler_kwargs,
     )
     n_jobs = len(job.args[0]) + 1 if trigger_data["sequential"] else 1

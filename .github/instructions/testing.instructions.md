@@ -53,6 +53,39 @@ test_utils_fresh_db.py      ← uses `fresh_db`
 test_utils.py               ← uses `db` AND `fresh_db`  ← CI will hang
 ```
 
+## Running two suites at once
+
+Two pytest processes need a database *and* a Redis database of their own. Pointing them at
+separate Postgres databases is not enough: `FLEXMEASURES_REDIS_DB_NR` defaults to `0` for
+every run, and the `clean_redis` fixtures call `flushdb()`, so each run erases the other's
+keys and both hang. Set both:
+
+```python
+# a pytest plugin on PYTHONPATH, run with `pytest -p <plugin>`
+from flexmeasures.utils import config_defaults
+
+config_defaults.TestingConfig.SQLALCHEMY_DATABASE_URI = "postgresql://...:5432/fm_test_<name>"
+config_defaults.TestingConfig.FLEXMEASURES_REDIS_DB_NR = <n>  # one per concurrent run
+```
+
+Redis offers databases 0-15 per default, so there are plenty to hand out.
+
+### After killing a stalled run
+
+A pytest process that is killed leaves its Postgres backends behind, `idle in transaction`,
+holding the locks that the next run's `drop_all()` waits for. Before terminating anything,
+look at what is actually blocking:
+
+```sql
+SELECT pid, state, pg_blocking_pids(pid), backend_start, now() - state_change AS idle_for
+FROM pg_stat_activity WHERE datname LIKE 'fm_test%';
+```
+
+A blocked pair usually belongs to the *running* suite rather than a dead one, and terminating
+a live backend kills the connection a fixture is using, so a test errors with `server closed
+the connection unexpectedly`. Terminate only where the owning pytest is gone and the session
+has been idle for minutes.
+
 ## API test isolation
 
 ```python

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
+import isodate
 import pytest
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
-from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.models.automations import Automation, AutomationRun
 from flexmeasures.data.services.automations import resolve_schedule_generator
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -28,7 +29,7 @@ def build_schedule_automation(asset, **kwargs) -> Automation:
     """
     automation = Automation(asset=asset, type="scheduling", **kwargs)
     automation.generator_id = resolve_schedule_generator(
-        asset.id, automation.parameters
+        asset.id, automation.parameters, automation.timezone
     ).id
     return automation
 
@@ -83,6 +84,21 @@ def test_referenced_automation_generator_cannot_be_deleted(
 def test_automation_requires_generator(fresh_db, automation_with_generator):
     automation, _ = automation_with_generator
     automation.generator = None
+
+    with pytest.raises(IntegrityError):
+        fresh_db.session.commit()
+
+
+def test_report_automation_requires_generator(fresh_db, automation_with_generator):
+    forecast_automation, _ = automation_with_generator
+    report_automation = Automation(
+        asset=forecast_automation.asset,
+        type="reporting",
+        name="generator-free report",
+        cronstr="0 1 * * *",
+        parameters={},
+    )
+    fresh_db.session.add(report_automation)
 
     with pytest.raises(IntegrityError):
         fresh_db.session.commit()
@@ -149,6 +165,157 @@ def test_run_schedule_automation(
         "origin": "automation",
         "automation_id": automation.id,
     }
+
+
+def test_a_durable_run_schedules_what_it_was_planned_with(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A run dispatched from its own record schedules its stored parameters, and names itself on the job.
+
+    The automation's parameters may have moved on since the run was planned,
+    so a retry must re-queue the run's plan rather than today's settings.
+    """
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    planned_parameters = {**message, "flex-model": [flex_model]}
+
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters=planned_parameters,
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+    run = AutomationRun(
+        automation=automation,
+        scheduled_at=datetime(2026, 8, 5, 1, 0, tzinfo=timezone.utc),
+        schedule_revision=automation.schedule_revision,
+        automation_type=automation.type,
+        generator_id=automation.generator_id,
+        dispatch_state="claimed",
+        execution_state="pending",
+        parameters=planned_parameters,
+        plan={},
+    )
+    fresh_db.session.add(run)
+    fresh_db.session.flush()
+    # The automation is edited after the run was planned, to a duration the run must not pick up.
+    automation.parameters = {**planned_parameters, "duration": "PT6H"}
+    fresh_db.session.flush()
+
+    returns = run_automation(automation, automation_run=run)
+
+    job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
+    assert job.meta["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+        "automation_run_id": run.id,
+    }
+    assert job.kwargs["end"] - job.kwargs["start"] == isodate.parse_duration(
+        planned_parameters["duration"]
+    )
+
+
+def test_run_day_ahead_schedule_automation(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A schedule automation's offsets place the queued job's window relative to the run it was due for, on its own clock."""
+    from datetime import datetime, timezone
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    message.pop("start")
+    message.pop("duration")
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+
+    automation = build_schedule_automation(
+        battery,
+        name="Day-ahead schedules",
+        cronstr="0 12 * * *",
+        timezone="Europe/Amsterdam",
+        parameters={
+            **message,
+            "flex-model": [flex_model],
+            "start-offset": "1D,DB",
+            "duration": "P1D",
+        },
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    # due at noon in Amsterdam.
+    returns = run_automation(
+        automation, scheduled_at=datetime(2026, 3, 27, 11, 0, tzinfo=timezone.utc)
+    )
+    job = Job.fetch(returns["job_id"], connection=app.queues["scheduling"].connection)
+    assert job.meta["scheduler_kwargs"]["start"] == "2026-03-28T00:00:00+01:00"
+    assert job.meta["scheduler_kwargs"]["end"] == "2026-03-29T00:00:00+01:00"
+
+
+def test_a_schedule_automations_generator_is_resolved_on_its_own_clock(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    mocker,
+):
+    """The data source a run records under is resolved for the same window as the run itself.
+
+    The platform clock (Asia/Seoul here) would put "1D,DB" eight hours from where the automation's own clock does,
+    and, without the run's own time, a day entirely elsewhere,
+    so a generator resolved that way describes a different window than the schedule it belongs to.
+    """
+    from datetime import datetime, timezone
+
+    import pandas as pd
+
+    from flexmeasures.data.services import scheduling
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    message.pop("start")
+    message.pop("duration")
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+
+    automation = build_schedule_automation(
+        battery,
+        name="Day-ahead schedules",
+        cronstr="0 12 * * *",
+        timezone="Europe/Amsterdam",
+        parameters={
+            **message,
+            "flex-model": [flex_model],
+            "start-offset": "1D,DB",
+            "duration": "P1D",
+        },
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    get_scheduler_instance = mocker.spy(scheduling, "get_scheduler_instance")
+    run_automation(
+        automation, scheduled_at=datetime(2026, 3, 27, 11, 0, tzinfo=timezone.utc)
+    )
+    # The schedulers are handed a start as a datetime here and as its ISO string there, so compare the moments.
+    starts = {
+        pd.Timestamp(call.kwargs["scheduler_params"]["start"])
+        for call in get_scheduler_instance.call_args_list
+    }
+    assert starts == {pd.Timestamp("2026-03-28T00:00:00+01:00")}
 
 
 @pytest.mark.parametrize("sequential", (False, True))
@@ -318,8 +485,19 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     job.save_meta()
     queue.enqueue_job(job)
-    app.job_cache.add(root.id, job.id, "scheduling", "asset")
-    app.job_cache.add(child_sensor.id, job.id, "scheduling", "sensor")
+    app.job_map.add(root.id, job.id, "scheduling", "asset")
+    app.job_map.add(child_sensor.id, job.id, "scheduling", "sensor")
+
+    child_job = Job.create(
+        "flexmeasures.utils.time_utils.server_now", connection=queue.connection
+    )
+    child_job.meta["trigger"] = {
+        "origin": "automation",
+        "automation_id": schedule_automation.id,
+    }
+    child_job.save_meta()
+    queue.enqueue_job(child_job)
+    app.job_map.add(child_sensor.id, child_job.id, "scheduling", "sensor")
 
     other_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -330,9 +508,9 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     other_job.save_meta()
     queue.enqueue_job(other_job)
-    app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
-    assert get_automation_job_stats(schedule_automation) == {"queued": 1}
+    assert get_automation_job_stats(schedule_automation) == {"queued": 2}
 
 
 def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generator):
@@ -348,3 +526,299 @@ def test_automation_rejects_invalid_timezone(automation_with_generator):
 
     with pytest.raises(ValueError, match="does not exist"):
         automation.timezone = "Europe/NotAmsterdam"
+
+
+def test_a_scheduler_that_cannot_work_out_its_config_says_the_sensors_are_unknown(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A failure while collecting the flex config is reported as unknown sensors, not raised raw.
+
+    Callers handle `AutomationSensorsUnknown`,
+    so letting a scheduler's own `ValueError` through would reach the API as an unexpected failure instead.
+    A `ValidationError` is deliberately not wrapped: it says the parameters are wrong, which the caller reports as such.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.automations import (
+        AutomationSensorsUnknown,
+        resolve_schedule_automation_sensors,
+    )
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    parameters = {**message, "flex-model": [flex_model]}
+
+    mocker.patch(
+        "flexmeasures.data.models.planning.Scheduler.collect_flex_config",
+        side_effect=ValueError("no flex config to be had"),
+    )
+    with pytest.raises(AutomationSensorsUnknown, match="no flex config to be had"):
+        resolve_schedule_automation_sensors(parameters, battery.id)
+
+    # Parameters that do not form a schedule trigger at all stay a ValidationError.
+    with pytest.raises(ValidationError):
+        resolve_schedule_automation_sensors({"duration": "not a duration"}, battery.id)
+
+
+def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A scheduler returning results for an undeclared sensor is refused, rather than recording on it.
+
+    An automation's output sensors are checked against its creator's permissions when it is created,
+    and those are predicted from the fields that name them.
+    A sensor the prediction misses is read as an input instead,
+    so it is checked for read access where recording data calls for create-children access.
+    """
+    import pandas as pd
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+    from flexmeasures.data.services.scheduling import make_schedule
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    # A sensor of another asset, which the automation never declared and nobody was checked against.
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    job = mocker.Mock()
+    job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
+    mocker.patch(
+        "flexmeasures.data.services.scheduling.get_current_job", return_value=job
+    )
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(other_sensor.id)):
+        make_schedule(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        )
+
+
+def test_a_refused_schedule_job_keeps_its_meta(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A schedule job refused for an unchecked sensor keeps its meta readable, and records the refusal in it.
+
+    The scheduling queue's exception handler stores the refusal itself in the job's meta, which RQ pickles.
+    A refusal that cannot be unpickled makes RQ replace the whole meta on the next fetch,
+    losing the trigger, the scheduler info and everything else the API and failure attribution read from it.
+    Calling make_schedule directly, as the test above does, never pickles anything, so this one runs a worker.
+    """
+    import pandas as pd
+    from rq.job import Job
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+    from flexmeasures.data.services.scheduling import (
+        handle_scheduling_exception,
+        make_schedule,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+    queue = app.queues["scheduling"]
+    job = Job.create(
+        make_schedule,
+        kwargs=dict(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        ),
+        connection=queue.connection,
+        meta={"trigger": {"origin": "automation", "automation_id": automation.id}},
+    )
+    queue.enqueue_job(job)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception, job=job)
+
+    fetched = Job.fetch(job.id, connection=queue.connection)
+    assert fetched.is_failed
+    assert "unserialized" not in fetched.meta, "RQ could not read the meta back"
+    assert fetched.meta["trigger"]["automation_id"] == automation.id
+    # The refusal is stored as a summary that keeps its facts, so that a reader need not parse the message.
+    refusal = fetched.meta["exception"]
+    assert refusal["type"] == GeneratorWritesUncheckedSensor.__name__
+    assert refusal["refused_sensor_ids"] == [other_sensor.id]
+    assert refusal["automation_id"] == automation.id
+    assert str(other_sensor.id) in refusal["message"]
+
+
+def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):
+    """Only an automation's jobs are held to a declared set; everything else keeps its existing freedom.
+
+    A schedule triggered through the API or the CLI has its sensors checked against the requester
+    at trigger time, so there is nothing for this guard to add there.
+    """
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
+
+    assert sensors_automation_job_may_record_on(None) is None
+
+    api_job = mocker.Mock()
+    api_job.meta = {"trigger": {"origin": "API"}}
+    assert sensors_automation_job_may_record_on(api_job) is None
+
+    # An automation deleted since its job was queued leaves nothing to hold the job to.
+    gone = mocker.Mock()
+    gone.meta = {"trigger": {"origin": "automation", "automation_id": 999999}}
+    assert sensors_automation_job_may_record_on(gone) is None
+
+
+def test_an_automation_whose_sensors_are_unknown_records_nothing(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A guard that cannot work out what is permitted permits nothing, rather than everything.
+
+    The alternative, proceeding unchecked, is what the run-time check exists to stop.
+    """
+    from flexmeasures.data.services.automations import AutomationSensorsUnknown
+    from flexmeasures.data.services.automations import (
+        sensors_automation_job_may_record_on,
+    )
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = battery.sensors[0].id
+    automation = build_schedule_automation(
+        battery,
+        name="Unknowable sensors",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch(
+        "flexmeasures.data.services.automations.resolve_automation_sensors",
+        side_effect=AutomationSensorsUnknown("cannot tell"),
+    )
+    job = mocker.Mock()
+    job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
+
+    assert sensors_automation_job_may_record_on(job) == set()
+
+
+@pytest.mark.parametrize(
+    "target, refused",
+    [
+        ({"sensor": "{id}", "lower": "0 kW"}, True),
+        ({"sensor": "{id}", "sources": [1]}, True),
+        ("{id}", False),
+    ],
+)
+def test_a_forecast_automation_refuses_a_qualified_sensor_to_forecast(
+    setup_fresh_test_forecast_data, fresh_db, target, refused
+):
+    """Qualifiers on the sensor to forecast are refused when the automation is created, not on every run after.
+
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so accepting them here would store an automation that can never run.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.automations import create_automation
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    if isinstance(target, dict):
+        target = {**target, "sensor": sensor.id}
+    else:
+        target = sensor.id
+    parameters = {
+        "sensor": target,
+        "max-forecast-horizon": "PT24H",
+        "forecast-frequency": "PT24H",
+    }
+
+    if not refused:
+        automation, _ = create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts naming their sensor by ID",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+        assert automation.parameters["sensor"] == sensor.id
+        return
+
+    with pytest.raises(ValidationError) as refusal:
+        create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts qualifying their sensor in the parameters",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+    assert '"auto"' in str(refusal.value.messages["parameters"]["sensor"])

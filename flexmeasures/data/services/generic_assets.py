@@ -3,15 +3,81 @@ from typing import Any
 from flask import current_app
 from sqlalchemy import delete
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONPATH
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import (
+    GenericAssetAnnotationRelationship,
+    SensorAnnotationRelationship,
+)
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 
 """Services for managing assets"""
+
+
+def asset_contains_data(asset: GenericAsset, lock: bool = True) -> bool:
+    """Return whether an asset subtree holds beliefs or annotations."""
+    from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+    subtree = (
+        sa.select(GenericAsset.id)
+        .where(GenericAsset.id == asset.id)
+        .cte(recursive=True)
+    )
+    subtree = subtree.union_all(
+        sa.select(GenericAsset.id).where(GenericAsset.parent_asset_id == subtree.c.id)
+    )
+    asset_ids = sa.select(subtree.c.id)
+    sensor_ids = sa.select(Sensor.id).where(Sensor.generic_asset_id.in_(asset_ids))
+    if lock:
+        db.session.scalars(
+            sa.select(GenericAsset.id)
+            .where(GenericAsset.id.in_(asset_ids))
+            .with_for_update()
+        ).all()
+        db.session.scalars(
+            sa.select(Sensor.id).where(Sensor.id.in_(sensor_ids)).with_for_update()
+        ).all()
+    for model, condition in (
+        (TimedBelief, TimedBelief.sensor_id.in_(sensor_ids)),
+        (
+            GenericAssetAnnotationRelationship,
+            GenericAssetAnnotationRelationship.generic_asset_id.in_(asset_ids),
+        ),
+        (
+            SensorAnnotationRelationship,
+            SensorAnnotationRelationship.sensor_id.in_(sensor_ids),
+        ),
+    ):
+        if db.session.scalar(
+            sa.select(sa.literal(True)).select_from(model).where(condition).limit(1)
+        ):
+            return True
+    return False
+
+
+def get_readable_offspring(asset: GenericAsset) -> list[GenericAsset]:
+    """The assets below this one, at any depth, which the current user may read.
+
+    Being below a readable asset grants nothing by itself: a child asset can belong to another account than its parent,
+    so each one is checked on its own.
+    """
+    from werkzeug.exceptions import Forbidden, Unauthorized
+
+    from flexmeasures.auth.policy import check_access
+
+    readable = []
+    for descendant in asset.offspring:
+        try:
+            check_access(descendant, "read")
+        except (Forbidden, Unauthorized):
+            continue
+        readable.append(descendant)
+    return readable
 
 
 def create_asset(asset_data: dict) -> GenericAsset:
@@ -380,7 +446,7 @@ def cleanup_asset_references_in_assets(
                 GenericAsset.id != asset_id,
                 sa.func.jsonb_path_exists(
                     GenericAsset.sensors_to_show,
-                    "$.**.asset ? (@ == $aid)",
+                    sa.cast("$.**.asset ? (@ == $aid)", JSONPATH),
                     vars_json,
                 ),
             )

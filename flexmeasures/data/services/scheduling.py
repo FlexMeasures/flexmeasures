@@ -40,13 +40,18 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.scheduling import MultiSensorFlexModelSchema
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.services.generator_results import (
+    check_generator_results,
+    describe_generator,
+    save_generator_results,
+)
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import (
     job_cache,
     get_asset_or_sensor_ref,
     get_asset_or_sensor_from_ref,
     get_scheduler_instance,
+    store_job_exception,
 )
 
 
@@ -138,8 +143,7 @@ def success_callback(job, connection, result, *args, **kwargs):
 def trigger_optional_fallback(job, connection, type, value, traceback):
     """Create a fallback schedule job when the error is of type InfeasibleProblemException"""
 
-    job.meta["exception"] = value
-    job.save_meta()
+    store_job_exception(job, type, value)
 
     if type is InfeasibleProblemException:
         asset_or_sensor = get_asset_or_sensor_from_ref(job.meta.get("asset_or_sensor"))
@@ -204,7 +208,7 @@ def trigger_optional_fallback(job, connection, type, value, traceback):
             job.save_meta()
             current_app.queues["scheduling"].enqueue_job(fallback_job)
             asset_or_sensor_ref = get_asset_or_sensor_ref(asset_or_sensor)
-            current_app.job_cache.add(
+            current_app.job_map.add(
                 asset_or_sensor_ref["id"],
                 fallback_job.id,
                 queue="scheduling",
@@ -337,7 +341,7 @@ def create_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset_or_sensor["id"],
             job.id,
             queue="scheduling",
@@ -552,7 +556,7 @@ def create_sequential_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset.id,
             job.id,
             queue="scheduling",
@@ -631,7 +635,7 @@ def create_simultaneous_scheduling_job(
     # with job_status=None, we ensure that only fresh new jobs are enqueued (otherwise, they should be requeued instead)
     if enqueue and not job_status:
         current_app.queues["scheduling"].enqueue_job(job)
-        current_app.job_cache.add(
+        current_app.job_map.add(
             asset.id,
             job.id,
             queue="scheduling",
@@ -865,10 +869,8 @@ def _set_output_sensor_consumption_is_positive(
             f"(expected `consumption_is_positive={intended}`). "
             f"Remove or correct the attribute before re-running the scheduler."
         )
-    # Direct attribute assignment works for both new and existing attributes.
-    # set_attribute() is intentionally not used here because it silently
-    # no-ops when the attribute does not yet exist.
-    result_sensor.attributes["consumption_is_positive"] = intended
+
+    result_sensor.set_attribute("consumption_is_positive", intended)
 
 
 def _resolve_schedule_output_sign(
@@ -1040,8 +1042,21 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
+    from flexmeasures.data.services.automations import (
+        automation_id_of_job,
+        sensors_automation_job_may_record_on,
+    )
+
+    # Judge the whole set before writing any of it, as for every data generator.
+    # A refusal should not depend on the caller's transaction discipline, and `make_schedule` is also called directly.
+    check_generator_results(
+        consumption_schedule,
+        sensors_automation_job_may_record_on(rq_job),
+        describe_generator(scheduler),
+        automation_id_of_job(rq_job),
+    )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
-    num_beliefs_created = 0
+    to_save = []
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1085,8 +1100,7 @@ def make_schedule(  # noqa: C901
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
         if not dry_run:
-            save_to_db(bdf)
-            num_beliefs_created += len(bdf)
+            to_save.append({"sensor": result["sensor"], "data": bdf})
         else:
             # Report what would have been saved, in the same terms as a forecast dry run does:
             # the sensor, the number of beliefs, and the events they cover.
@@ -1100,8 +1114,10 @@ def make_schedule(  # noqa: C901
                 f" but this is what I computed ({len(bdf)} beliefs{event_range}):\n{bdf}"
             )
 
-    # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
-    scheduling_result_dict["num-beliefs"] = num_beliefs_created
+    # Saved the way every data generator's results are: all or nothing, and counting the beliefs actually saved,
+    # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so the count is 0.
+    saved = save_generator_results(to_save) if to_save else []
+    scheduling_result_dict["num-beliefs"] = sum(entry["n_rows"] for entry in saved)
 
     if not dry_run:
         scheduler.persist_flex_model()
@@ -1146,8 +1162,7 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     )
 
     print_tb(traceback)
-    job.meta["exception"] = exc_value
-    job.save_meta()
+    store_job_exception(job, exc_type, exc_value)
 
 
 def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:

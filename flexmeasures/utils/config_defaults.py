@@ -85,6 +85,8 @@ class Config(object):
         True  # False if you want to skip validation for testing
     )
     SECURITY_TWO_FACTOR_LOGIN_VALIDITY = "1 week"  # Add this setting to validate 2FA for some time. Requires SECURITY_TWO_FACTOR_ALWAYS_VALIDATE set to False
+    # Flask-Security's default as of 5.9, set here for 5.8, which Python 3.10 still gets, and which also allows GET.
+    SECURITY_LOGOUT_METHODS = ["POST"]
     SECURITY_TWO_FACTOR_VERIFY_CODE_TEMPLATE = "admin/two_factor_verify_code.html"
     # this default probably is not what you want (default sender is usually a no-reply address)
     SECURITY_TWO_FACTOR_RESCUE_MAIL = (
@@ -309,6 +311,13 @@ class TestingConfig(Config):
     # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
     SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES: list[str] = []
+    # Flask-Security's default password hash is argon2, which costs about 50 ms per hash, and tests create many users.
+    # Keep argon2, with the minimum cost parameters (memory_cost must be at least 8 * parallelism).
+    SECURITY_PASSWORD_HASH_PASSLIB_OPTIONS: dict[str, int] = {
+        "argon2__time_cost": 1,
+        "argon2__memory_cost": 8,
+        "argon2__parallelism": 1,
+    }
     FLEXMEASURES_MODE: str = "test"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24

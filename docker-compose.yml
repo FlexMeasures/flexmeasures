@@ -1,15 +1,31 @@
 # ------------------------------------------------------------------
 # This runs your local FlexMeasures code in a docker compose stack.
-# Two FlexMeasures instances are spun up, one for serving the web
-# UI & API, one to work on computation jobs.
+# Three FlexMeasures instances are spun up:
+# one for serving the web UI & API, one to work on computation jobs, and one to dispatch due automations.
 # The server is adding a toy account when it starts.
 # (user: toy-user@flexmeasures.io, password: toy-password)
-# 
+#
 # Instead of local code (which is useful for development purposes),
-# you can also use the official (and stable) FlexMeasures docker image
-# (lfenergy/flexmeasures). Replace the two `build` directives with
-# an `image` directive.
+# you can also use the official (and stable) FlexMeasures docker image (lfenergy/flexmeasures).
+# Replace the three `build` directives with an `image` directive.
 # ------------------------------------------------------------------
+
+# The three FlexMeasures services below run the same image against the same databases,
+# so their build and environment are defined once here and referenced with YAML anchors.
+x-flexmeasures-build: &flexmeasures-build
+  context: .
+  dockerfile: Dockerfile
+
+x-flexmeasures-environment: &flexmeasures-environment
+  SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
+  FLEXMEASURES_REDIS_URL: queue-db
+  FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
+  SECRET_KEY: notsecret
+  SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
+  FLEXMEASURES_ENV: development
+  MAIL_SERVER: mailhog   # MailHog mail server
+  MAIL_PORT: 1025        # MailHog mail port
+  LOGGING_LEVEL: INFO
 
 services:
   dev-db:
@@ -47,9 +63,7 @@ services:
       - "8025:8025"
     restart: always
   server:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: *flexmeasures-build
     ports:
       - 5000:5000
     depends_on:
@@ -64,16 +78,7 @@ services:
       interval: 20s
       timeout: 10s
       retries: 6
-    environment:
-      SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
-      SECRET_KEY: notsecret
-      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
-      FLEXMEASURES_ENV: development
-      FLEXMEASURES_REDIS_URL: queue-db
-      FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
-      MAIL_SERVER: mailhog   # MailHog mail server
-      MAIL_PORT: 1025        # MailHog mail port
-      LOGGING_LEVEL: INFO
+    environment: *flexmeasures-environment
     volumes:
       # A place for config and plugin code, and custom requirements.txt
       # The 1st mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
@@ -95,24 +100,13 @@ services:
       fi
       gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: *flexmeasures-build
     depends_on:
       - dev-db
       - queue-db
       - mailhog  
     restart: on-failure
-    environment:
-      SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
-      FLEXMEASURES_REDIS_URL: queue-db
-      FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
-      SECRET_KEY: notsecret
-      SECURITY_TOTP_SECRETS: '{"1": "something-secret"}'
-      FLEXMEASURES_ENV: development
-      MAIL_SERVER: mailhog   # MailHog mail server
-      MAIL_PORT: 1025        # MailHog mail port
-      LOGGING_LEVEL: INFO 
+    environment: *flexmeasures-environment
     volumes:
       # a place for config and plugin code, and custom requirements.txt
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
@@ -123,6 +117,28 @@ services:
         pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
       fi
       flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling\|ingestion\|reporting
+  automation-runner:
+    build: *flexmeasures-build
+    depends_on:
+      server:
+        condition: service_healthy
+      queue-db:
+        condition: service_started
+    restart: unless-stopped
+    environment: *flexmeasures-environment
+    volumes:
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+    - |
+      set -e
+      if [ -f /usr/var/flexmeasures-instance/requirements.txt ]; then
+        pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
+      fi
+      while :; do
+        sleep "$((60 - $(date +%s) % 60))"
+        flexmeasures jobs run-automations || echo "Automation dispatch failed; retrying next minute" >&2
+      done
   test-db:
     image: postgres
     expose:
