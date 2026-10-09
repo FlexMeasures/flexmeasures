@@ -297,6 +297,52 @@ def test_run_plan_snapshot_is_immutable_after_automation_edit(
     assert run.plan["cronstr"] == "0 1 * * *"
 
 
+def test_a_resumed_run_forecasts_the_window_it_started_on(
+    app, fresh_db, clean_redis, due_forecast_automation, mocker, freeze_server_now
+):
+    """A run resumed hours later queues its remaining jobs for the window its first attempt resolved.
+
+    The automation gives no start, so each dispatch attempt would resolve one from the clock,
+    and the jobs of one run would disagree about what they are forecasting.
+    """
+    from flexmeasures.cli.jobs import run_automations
+
+    queue = app.queues["forecasting"]
+    original_enqueue_job = queue.enqueue_job
+    calls: list[str] = []
+
+    def enqueue_once_then_fail(job):
+        calls.append(job.id)
+        if len(calls) == 1:
+            return original_enqueue_job(job)
+        raise RuntimeError("lost connection after first job")
+
+    patched = mocker.patch.object(
+        queue, "enqueue_job", side_effect=enqueue_once_then_fail
+    )
+    runner = app.test_cli_runner()
+    runner.invoke(run_automations)
+
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    assert run.dispatch_state == "partially_queued"
+    assert run.parameters["start"] == "2026-08-05T01:00:00+00:00"
+
+    # Resume the run two hours later, when the clock would resolve a start of 03:00.
+    patched.side_effect = lambda job: original_enqueue_job(job)
+    freeze_server_now(datetime(2026, 8, 5, 3, 0, tzinfo=timezone.utc))
+    retry_result = runner.invoke(run_automations)
+
+    assert retry_result.exit_code == 0, retry_result.output
+    fresh_db.session.refresh(run)
+    assert run.dispatch_state == "queued"
+    job_starts = {
+        intent.logical_job_key: queue.fetch_job(intent.rq_job_id).meta["start"]
+        for intent in run.job_intents
+    }
+    assert len(job_starts) > 2, "a run of one cycle cannot disagree with itself"
+    assert set(job_starts.values()) == {"2026-08-05T01:00:00+00:00"}, job_starts
+
+
 def test_live_partial_dispatch_claim_is_not_stolen(fresh_db, due_forecast_automation):
     """A runner which is still queueing keeps its claim, even while partially queued.
 
