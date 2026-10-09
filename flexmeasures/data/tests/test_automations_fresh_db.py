@@ -575,10 +575,10 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
     import pandas as pd
 
     from flexmeasures.data.models.planning.storage import StorageScheduler
-    from flexmeasures.data.services.scheduling import (
-        ScheduleWritesUncheckedSensor,
-        make_schedule,
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
     )
+    from flexmeasures.data.services.scheduling import make_schedule
 
     battery = add_battery_assets_fresh_db["Test battery"]
     scheduled_sensor = battery.sensors[0]
@@ -619,7 +619,7 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
         ],
     )
 
-    with pytest.raises(ScheduleWritesUncheckedSensor, match=str(other_sensor.id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(other_sensor.id)):
         make_schedule(
             asset_or_sensor={"class": "Asset", "id": battery.id},
             start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
@@ -628,6 +628,90 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
             flex_model=[flex_model],
             flex_context={},
         )
+
+
+def test_a_refused_schedule_job_keeps_its_meta(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A schedule job refused for an unchecked sensor keeps its meta readable, and records the refusal in it.
+
+    The scheduling queue's exception handler stores the refusal itself in the job's meta, which RQ pickles.
+    A refusal that cannot be unpickled makes RQ replace the whole meta on the next fetch,
+    losing the trigger, the scheduler info and everything else the API and failure attribution read from it.
+    Calling make_schedule directly, as the test above does, never pickles anything, so this one runs a worker.
+    """
+    import pandas as pd
+    from rq.job import Job
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+    from flexmeasures.data.services.scheduling import (
+        handle_scheduling_exception,
+        make_schedule,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+    queue = app.queues["scheduling"]
+    job = Job.create(
+        make_schedule,
+        kwargs=dict(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        ),
+        connection=queue.connection,
+        meta={"trigger": {"origin": "automation", "automation_id": automation.id}},
+    )
+    queue.enqueue_job(job)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception, job=job)
+
+    fetched = Job.fetch(job.id, connection=queue.connection)
+    assert fetched.is_failed
+    assert "unserialized" not in fetched.meta, "RQ could not read the meta back"
+    assert fetched.meta["trigger"]["automation_id"] == automation.id
+    # The refusal is stored as a summary that keeps its facts, so that a reader need not parse the message.
+    refusal = fetched.meta["exception"]
+    assert refusal["type"] == GeneratorWritesUncheckedSensor.__name__
+    assert refusal["refused_sensor_ids"] == [other_sensor.id]
+    assert refusal["automation_id"] == automation.id
+    assert str(other_sensor.id) in refusal["message"]
 
 
 def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):

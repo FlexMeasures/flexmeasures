@@ -350,6 +350,11 @@ def test_worker_rejects_undeclared_output(
     work_on_rq(app.queues["ingestion"], job=job)
     job.refresh()
     assert job.is_failed
+    # Refused the same way as any data generator's unchecked output, naming the automation and the sensor.
+    failure = job.latest_result().exc_string
+    assert "GeneratorWritesUncheckedSensor" in failure, failure
+    assert f"automation {automation.id}" in failure
+    assert str(sensors[1].id) in failure
     assert fresh_db.session.query(TimedBelief).count() == 0
 
 
