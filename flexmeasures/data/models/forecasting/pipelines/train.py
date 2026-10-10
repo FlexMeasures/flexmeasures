@@ -10,6 +10,7 @@ from darts import TimeSeries
 
 from flexmeasures import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import (
     CustomLGBM,
     DEFAULT_SEASONAL_LAGS_STEPS,
@@ -142,7 +143,7 @@ class TrainPipeline(BasePipeline):
             pickle.dump(model, file)
         logging.debug(f"Model and metadata saved successfully to {model_save_path}")
 
-    def run(self, counter: int):
+    def run(self, counter: int) -> BaseModel:
         """
         Runs the training pipeline, and returns the trained model.
 

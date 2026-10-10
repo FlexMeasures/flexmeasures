@@ -12,6 +12,7 @@ from isodate import duration_isoformat
 from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures import Sensor, Source
+from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 from flexmeasures.data.models.forecasting.utils import (
     apply_forecast_post_processing,
     data_to_bdf,
@@ -45,7 +46,7 @@ class PredictPipeline(BasePipeline):
         annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
         dry_run: bool = False,
-        model=None,
+        model: BaseModel | None = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
