@@ -851,7 +851,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n\n<strong>Constraint analysis</strong>\n\nFor detailed constraint analysis (unmet and resolved constraints), use the\n[GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint.\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n- \"use-job-result\" (read the schedule from the values kept by the scheduling job instead of querying the database; faster, but only works while the job exists)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n\n<strong>Constraint analysis</strong>\n\nFor detailed constraint analysis (unmet and resolved constraints), use the\n[GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -911,6 +911,16 @@
                 "production-positive",
                 "wysiwyg"
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "use-job-result",
+            "required": false,
+            "description": "Whether to read the schedule from the values kept by the scheduling job (in Redis), instead of querying the database.\nThis is faster, but only works for as long as the job exists (see the <code>FLEXMEASURES_PLANNING_TTL</code> configuration option).\nIf the job has no values for this sensor, the database is used instead.\nDefaults to false.\n",
+            "example": true,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],

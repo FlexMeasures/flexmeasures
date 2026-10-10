@@ -1057,6 +1057,7 @@ def make_schedule(  # noqa: C901
     )
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     to_save = []
+    schedules: list[dict] = []
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -1099,6 +1100,16 @@ def make_schedule(  # noqa: C901
             # todo: move this into save_to_db
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
+        # Remember the values as they would be saved to the database
+        schedules.append(
+            {
+                "sensor": bdf.sensor.id,
+                "start": bdf.event_starts.min().isoformat() if not bdf.empty else None,
+                "resolution": bdf.event_resolution.total_seconds(),
+                "values": bdf["event_value"].tolist(),
+            }
+        )
+
         if not dry_run:
             to_save.append({"sensor": result["sensor"], "data": bdf})
         else:
@@ -1118,6 +1129,13 @@ def make_schedule(  # noqa: C901
     # which leaves out beliefs that repeat what is already on record. On a dry run nothing is saved, so the count is 0.
     saved = save_generator_results(to_save) if to_save else []
     scheduling_result_dict["num-beliefs"] = sum(entry["n_rows"] for entry in saved)
+
+    # Keep the schedule values on the job, so they can be read without a database query.
+    # Like the commitment costs above, they need an explicit save,
+    # because RQ saves a finishing job without its meta.
+    if rq_job:
+        rq_job.meta["schedules"] = schedules
+        rq_job.save_meta()
 
     if not dry_run:
         scheduler.persist_flex_model()
@@ -1163,6 +1181,35 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
 
     print_tb(traceback)
     store_job_exception(job, exc_type, exc_value)
+
+
+def get_schedule_values_from_job(job: Job, sensor: Sensor) -> pd.Series | None:
+    """Return the schedule values that a finished job kept for a sensor, if any.
+
+    Scheduling jobs keep the values they computed in their meta (see `make_schedule`),
+    in the form in which they were saved to the database.
+    That allows reading a schedule without querying the database.
+
+    Returns None if the job kept no values for this sensor
+    (for example, if it ran before jobs kept their values),
+    so that the caller can fall back to the database.
+    """
+    for schedule in job.meta.get("schedules", []):
+        if schedule["sensor"] != sensor.id or not schedule["values"]:
+            continue
+        # Like a database lookup, use UTC and name the index `event_start`,
+        # so that either source can be used interchangeably
+        index = pd.date_range(
+            start=pd.Timestamp(schedule["start"]).tz_convert("UTC"),
+            periods=len(schedule["values"]),
+            freq=pd.Timedelta(seconds=schedule["resolution"]),
+            name="event_start",
+        )
+        # The database stores event values as floats, so do the same
+        return pd.Series(
+            schedule["values"], index=index, name="event_value", dtype=float
+        )
+    return None
 
 
 def get_data_source_for_job(job: Job, type: str = "scheduler") -> DataSource | None:

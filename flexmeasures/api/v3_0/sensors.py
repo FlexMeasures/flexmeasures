@@ -89,6 +89,7 @@ from flexmeasures.data.services.sensors import sensor_contains_data
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
+    get_schedule_values_from_job,
 )
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
@@ -1150,6 +1151,7 @@ class SensorAPI(FlaskView):
         duration: timedelta,
         unit: str | None = None,
         sign_convention: str = ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        use_job_result: bool = False,
         **kwargs,
     ):
         """
@@ -1165,6 +1167,7 @@ class SensorAPI(FlaskView):
             - "duration" (6 hours by default; can be increased to plan further into the future)
             - "unit" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)
             - "sign-convention" (controls how power values are signed in the response; see below)
+            - "use-job-result" (read the schedule from the values kept by the scheduling job instead of querying the database; faster, but only works while the job exists)
 
             **Sign convention**
 
@@ -1240,6 +1243,17 @@ class SensorAPI(FlaskView):
                   - consumption-positive
                   - production-positive
                   - wysiwyg
+            - in: query
+              name: use-job-result
+              required: false
+              description: |
+                Whether to read the schedule from the values kept by the scheduling job (in Redis), instead of querying the database.
+                This is faster, but only works for as long as the job exists (see the ``FLEXMEASURES_PLANNING_TTL`` configuration option).
+                If the job has no values for this sensor, the database is used instead.
+                Defaults to false.
+              example: true
+              schema:
+                type: boolean
           responses:
             200:
               description: PROCESSED
@@ -1387,19 +1401,34 @@ class SensorAPI(FlaskView):
             )
         schedule_start = job.kwargs["start"]
 
-        data_source = get_data_source_for_job(job)
-        if data_source is None:
-            return unknown_schedule(
-                f"{message}, but no data source could be found for {data_source}. {scheduler_info_msg}"
-            )
-
-        power_values = sensor.search_beliefs(
-            event_starts_after=schedule_start,
-            event_ends_before=schedule_start + planning_horizon,
-            source=data_source,
-            most_recent_beliefs_only=True,
-            one_deterministic_belief_per_event=True,
+        # Values kept by the job itself spare us a database query
+        stored_values = (
+            get_schedule_values_from_job(job, sensor) if use_job_result else None
         )
+        if stored_values is not None:
+            # Look at the same window as a database query would
+            stored_values = stored_values[
+                (stored_values.index >= schedule_start)
+                & (stored_values.index < schedule_start + planning_horizon)
+            ]
+            if stored_values.empty:
+                stored_values = None
+
+        if stored_values is None:
+            data_source = get_data_source_for_job(job)
+            if data_source is None:
+                return unknown_schedule(
+                    f"{message}, but no data source could be found for {data_source}. {scheduler_info_msg}"
+                )
+
+            power_values = sensor.search_beliefs(
+                event_starts_after=schedule_start,
+                event_ends_before=schedule_start + planning_horizon,
+                source=data_source,
+                most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
+            )
+            stored_values = simplify_index(power_values)["event_value"]
 
         sign = 1
         if sign_convention == ScheduleSignConvention.WYSIWYG:
@@ -1421,7 +1450,7 @@ class SensorAPI(FlaskView):
                     sign = -1
 
         # Apply sign to get the values in the requested convention
-        consumption_schedule = sign * simplify_index(power_values)["event_value"]
+        consumption_schedule = sign * stored_values
         if consumption_schedule.empty:
             # for not in-built schedulers, we are not sure if they would store time series in the db
             if scheduler_info["scheduler"] not in [
