@@ -273,19 +273,7 @@ class DataGenerator:
         if self._data_source is None:
             data_source_info = self.get_data_source_info()
 
-            attributes = {"data_generator": {}}
-
-            if self._save_config:
-                attributes["data_generator"]["config"] = self._config_schema.dump(
-                    self._config
-                )
-
-            if self._save_parameters:
-                attributes["data_generator"]["parameters"] = self._clean_parameters(
-                    self._parameters_schema.dump(self._parameters)
-                )
-
-            data_source_info["attributes"] = attributes
+            data_source_info["attributes"] = self.get_data_source_attributes()
 
             self._data_source = get_or_create_source(
                 **data_source_info, account=self.source_account
@@ -324,6 +312,19 @@ class DataGenerator:
                 sorted(account.id for account in accounts),
             )
         return None
+
+    def get_data_source_attributes(self) -> dict:
+        """Describe this generator's source without creating a database record."""
+        attributes = {"data_generator": {}}
+        if self._save_config:
+            attributes["data_generator"]["config"] = self._config_schema.dump(
+                self._config
+            )
+        if self._save_parameters:
+            attributes["data_generator"]["parameters"] = self._clean_parameters(
+                self._parameters_schema.dump(self._parameters)
+            )
+        return attributes
 
     def _clean_parameters(self, parameters: dict) -> dict:
         """Use this function to clean up the parameters dictionary from the

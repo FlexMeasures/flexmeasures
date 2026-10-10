@@ -28,6 +28,13 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
+def _count_beliefs(db, sensor_id: int) -> int:
+    """Count the beliefs recorded on the given sensor."""
+    return db.session.scalar(
+        select(func.count()).select_from(TimedBelief).filter_by(sensor_id=sensor_id)
+    )
+
+
 def test_add_annotation(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_annotation
 
@@ -1157,6 +1164,234 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data_fresh_db, caplog):
         assert all(report_sensor_2.search_beliefs() == 0)
 
 
+def _report_cli_input(tmp_path, sensor1_id, sensor2_id, report_sensor_id):
+    """Config and parameters files for a single-output aggregation report."""
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[dict(name="df_agg", sensor=report_sensor_id)],
+    )
+    config_file = tmp_path / "reporter_config.yaml"
+    config_file.write_text(yaml.safe_dump(reporter_config))
+    parameters_file = tmp_path / "parameters.json"
+    parameters_file.write_text(json.dumps(parameters))
+    return {
+        "config": str(config_file),
+        "parameters": str(parameters_file),
+        "reporter": "PandasReporter",
+        "start": "2023-04-10T00:00:00+00:00",
+        "end": "2023-04-10T10:00:00+00:00",
+    }
+
+
+def test_add_report_saves_beliefs(app, fresh_db, setup_dummy_data_fresh_db, tmp_path):
+    """A synchronous report run records beliefs for its output sensor."""
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+
+    beliefs_before = _count_beliefs(fresh_db, report_sensor_id)
+    result = runner.invoke(
+        add_report,
+        to_flags(
+            _report_cli_input(
+                tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+            )
+        ),
+    )
+    check_command_ran_without_error(result)
+    assert "Saved 5 beliefs of the report for sensor" in result.output
+
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+
+def test_add_report_says_when_a_rerun_saves_nothing_new(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A report run again over the same window says it saved nothing new, rather than claiming to have saved it again.
+
+    Its values repeat the beliefs already on record, so none of them are saved a second time.
+    """
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+    cli_input = to_flags(
+        _report_cli_input(tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id)
+    )
+
+    check_command_ran_without_error(runner.invoke(add_report, cli_input))
+    recorded = _count_beliefs(fresh_db, report_sensor_id)
+    rerun = runner.invoke(add_report, cli_input)
+
+    check_command_ran_without_error(rerun)
+    assert "repeats beliefs already on record, so nothing new was saved" in rerun.output
+    assert "Success. Saved" not in rerun.output
+    assert _count_beliefs(fresh_db, report_sensor_id) == recorded
+
+
+def test_add_report_dry_run_saves_no_beliefs(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path
+):
+    """A dry run shows the computed report without recording any belief."""
+    from flexmeasures.cli.data_add import add_report
+
+    _, _, report_sensor_id, _ = setup_dummy_data_fresh_db
+    runner = app.test_cli_runner()
+
+    beliefs_before = _count_beliefs(fresh_db, report_sensor_id)
+    result = runner.invoke(
+        add_report,
+        to_flags(
+            _report_cli_input(
+                tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+            )
+        )
+        + ["--dry-run"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Not saving report for sensor" in result.output
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before
+
+    # A real run right after does record, so the dry run skipped only persistence.
+    result = runner.invoke(
+        add_report,
+        to_flags(
+            _report_cli_input(
+                tmp_path, *setup_dummy_data_fresh_db[:2], report_sensor_id
+            )
+        ),
+    )
+    check_command_ran_without_error(result)
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before + 5
+
+
+def test_add_report_rejects_dry_run_as_job(app, setup_dummy_data_fresh_db):
+    """A dry run cannot be queued, because its results would never reach the user."""
+    from flexmeasures.cli.data_add import add_report
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_report, ["--dry-run", "--as-job"])
+
+    assert result.exit_code == 1
+    assert "The --as-job flag cannot be combined with --dry-run" in result.output
+
+
+def test_add_report_persistence_failure_saves_nothing(
+    app, fresh_db, setup_dummy_data_fresh_db, tmp_path, mocker
+):
+    """If persistence fails midway, the synchronous run records nothing (single transaction), and still shows what it computed."""
+    from flexmeasures.cli.data_add import add_report
+    from flexmeasures.data.services import (
+        generator_results as generator_results_service,
+    )
+
+    sensor1_id, sensor2_id, report_sensor_id, report_sensor_2_id = (
+        setup_dummy_data_fresh_db
+    )
+    runner = app.test_cli_runner()
+
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[
+            dict(name="df_agg", sensor=report_sensor_id),
+            dict(name="df_sub", sensor=report_sensor_2_id),
+        ],
+    )
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}, {"name": "df_sub"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+            dict(
+                df_input="sensor_1",
+                method="subtract",
+                args=["@sensor_2"],
+                df_output="df_sub",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    config_file = tmp_path / "reporter_config.yaml"
+    config_file.write_text(yaml.safe_dump(reporter_config))
+    parameters_file = tmp_path / "parameters.json"
+    parameters_file.write_text(json.dumps(parameters))
+    cli_input = to_flags(
+        {
+            "config": str(config_file),
+            "parameters": str(parameters_file),
+            "reporter": "PandasReporter",
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T10:00:00+00:00",
+        }
+    )
+
+    beliefs_before = (
+        _count_beliefs(fresh_db, report_sensor_id),
+        _count_beliefs(fresh_db, report_sensor_2_id),
+    )
+    real_save = generator_results_service.save_to_db_and_count
+    saves_attempted = []
+
+    def fail_on_second_save(data, **kwargs):
+        saves_attempted.append(data)
+        if len(saves_attempted) > 1:
+            raise RuntimeError("database gone")
+        return real_save(data, **kwargs)
+
+    mocker.patch.object(
+        generator_results_service,
+        "save_to_db_and_count",
+        side_effect=fail_on_second_save,
+    )
+    # Catch the exception, so that what the command printed before it can be read.
+    result = runner.invoke(add_report, cli_input, catch_exceptions=True)
+    assert isinstance(result.exception, RuntimeError), result.output
+    assert "database gone" in str(result.exception)
+
+    # Both outputs were announced before the save failed, so the user sees what was computed.
+    for sensor_id in (report_sensor_id, report_sensor_2_id):
+        sensor = fresh_db.session.get(Sensor, sensor_id)
+        assert f"Report computation done for sensor `{sensor}`" in result.output
+
+    # The first output really was saved before the failure,
+    # so the unchanged counts below prove the failed run rolled everything back, leaving neither output pending nor committed.
+    assert len(saves_attempted) == 2
+    assert _count_beliefs(fresh_db, report_sensor_id) == beliefs_before[0]
+    assert _count_beliefs(fresh_db, report_sensor_2_id) == beliefs_before[1]
+
+
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(
     app, process_power_sensor, process_type, add_market_prices_fresh_db, db
@@ -1625,7 +1860,6 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
 
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48
-    assert power_sensor.generic_asset.get_attribute("soc_in_mwh") == 2.5
 
     # Reload sensors from the DB after the schedule has been committed.
     consumption_output_sensor = fresh_db.session.get(
@@ -1665,3 +1899,191 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     assert (
         production_values > 0
     ).any(), "Some discharging must occur given the positive production prices"
+
+
+@pytest.mark.parametrize(
+    "n_saved, expected",
+    [
+        (3, "Successfully created 3 forecast beliefs"),
+        (
+            1,
+            "Computed 3 forecast beliefs across 1 unique belief time and saved 1 of them",
+        ),
+        (
+            0,
+            "all of which were already on record (from an earlier run, or saved by the forecaster itself), so none were added",
+        ),
+    ],
+)
+def test_add_forecast_reports_what_it_saved(
+    app, fresh_db, setup_dummy_data_fresh_db, monkeypatch, n_saved, expected
+):
+    """The command says how many forecast beliefs it saved, which can be fewer than it computed.
+
+    A forecast that repeats the belief right before it is not saved again,
+    so announcing every computed belief as created would claim beliefs that were never stored.
+    """
+    import timely_beliefs as tb
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+    sensor = fresh_db.session.get(Sensor, sensor_id)
+    source = DataSource(name="test forecaster", type="forecaster")
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+
+    def compute_three(self, *args, **kwargs):
+        self._parameters = {"sensor": sensor, "sensor_to_save": sensor}
+        bdf = tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2026-01-01T05:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2026-01-01T00:00:00+00:00"),
+                    event_value=float(i),
+                )
+                for i in range(3)
+            ]
+        )
+        return [{"data": bdf, "sensor": sensor, "n_saved": n_saved}]
+
+    monkeypatch.setattr(TrainPredictPipeline, "compute", compute_three)
+
+    result = app.test_cli_runner().invoke(add_forecast, to_flags({"sensor": sensor_id}))
+
+    assert result.exit_code == 0, result.output
+    assert expected in result.output
+
+
+@pytest.mark.parametrize(
+    "saves_itself", [False, True], ids=["only-returns", "saves-itself"]
+)
+def test_add_forecast_saves_what_a_plugin_forecaster_returns(
+    app, fresh_db, setup_dummy_data_fresh_db, saves_itself
+):
+    """A forecaster registered by a plugin has its forecasts saved, and the command reports what is in the database (#2682).
+
+    One that only returns its forecasts used to have them dropped, while the command reported them as created.
+    One that saves them itself, as the plugin docs used to ask, still has each belief recorded once.
+    """
+    import timely_beliefs as tb
+    from marshmallow import Schema
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data import db
+    from flexmeasures.data.models.forecasting import Forecaster
+    from flexmeasures.data.utils import save_to_db
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+
+    class PluginForecaster(Forecaster):
+        __version__ = "1"
+        __author__ = "test"
+        _parameters_schema = Schema(unknown="include")
+
+        def _compute_forecast(self, as_job: bool = False, **kwargs):
+            sensor = db.session.get(Sensor, sensor_id)
+            bdf = tb.BeliefsDataFrame(
+                [
+                    tb.TimedBelief(
+                        sensor=sensor,
+                        source=self.data_source,
+                        event_start=pd.Timestamp("2026-01-01T05:00:00+00:00")
+                        + i * sensor.event_resolution,
+                        belief_time=pd.Timestamp("2026-01-01T00:00:00+00:00"),
+                        event_value=float(i),
+                    )
+                    for i in range(4)
+                ]
+            )
+            if saves_itself:
+                save_to_db(bdf)
+            return [{"sensor": sensor, "data": bdf}]
+
+    app.data_generators["forecaster"]["PluginForecaster"] = PluginForecaster
+    try:
+        result = app.test_cli_runner().invoke(
+            add_forecast,
+            to_flags({"sensor": sensor_id, "forecaster": "PluginForecaster"}),
+        )
+    finally:
+        del app.data_generators["forecaster"]["PluginForecaster"]
+
+    check_command_ran_without_error(result)
+    recorded = fresh_db.session.scalar(
+        select(func.count())
+        .select_from(TimedBelief)
+        .join(DataSource)
+        .filter(TimedBelief.sensor_id == sensor_id, DataSource.type == "forecaster")
+    )
+    assert recorded == 4
+    if saves_itself:
+        assert "all of which were already on record" in result.output
+    else:
+        assert "Successfully created 4 forecast beliefs" in result.output
+
+
+def test_add_forecast_reports_a_failed_save_as_itself(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """A forecaster's results that fail to save surface as that failure, not as an error in running the pipeline.
+
+    Here the forecasts collide with stored beliefs at the same belief time, with other values,
+    which the unique constraint refuses unless the host allows data to be overwritten.
+    """
+    import timely_beliefs as tb
+    from marshmallow import Schema
+    from sqlalchemy.exc import IntegrityError
+
+    from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.data import db
+    from flexmeasures.data.models.forecasting import Forecaster
+    from flexmeasures.data.utils import save_to_db
+
+    sensor_id, *_ = setup_dummy_data_fresh_db
+
+    def beliefs(sensor, source, offset: float) -> tb.BeliefsDataFrame:
+        return tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=pd.Timestamp("2026-01-01T05:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2026-01-01T00:00:00+00:00"),
+                    event_value=float(i) + offset,
+                )
+                for i in range(2)
+            ]
+        )
+
+    class CollidingForecaster(Forecaster):
+        __version__ = "1"
+        __author__ = "test"
+        _parameters_schema = Schema(unknown="include")
+
+        def _compute_forecast(self, as_job: bool = False, **kwargs):
+            sensor = db.session.get(Sensor, sensor_id)
+            # Beliefs at the same belief time with other values are already on record.
+            save_to_db(beliefs(sensor, self.data_source, offset=100.0))
+            db.session.commit()
+            return [{"sensor": sensor, "data": beliefs(sensor, self.data_source, 0.0)}]
+
+    app.data_generators["forecaster"]["CollidingForecaster"] = CollidingForecaster
+    try:
+        result = app.test_cli_runner().invoke(
+            add_forecast,
+            to_flags({"sensor": sensor_id, "forecaster": "CollidingForecaster"}),
+            # Catch the exception, so that what the command printed before it can be read.
+            catch_exceptions=True,
+        )
+    finally:
+        del app.data_generators["forecaster"]["CollidingForecaster"]
+        fresh_db.session.rollback()
+
+    assert isinstance(result.exception, IntegrityError), result.output
+    assert "Error running" not in result.output

@@ -26,6 +26,9 @@ from werkzeug.exceptions import (
 
 from flexmeasures.app import create as create_app
 from flexmeasures.auth.policy import (
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
     ADMIN_ROLE,
     ADMIN_READER_ROLE,
     CONSULTANCY_ACCOUNT_ROLE,
@@ -313,11 +316,19 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         user_roles: dict | None = None,
     ) -> User:
         """Like `flexmeasures.data.services.users.create_user`, without the flush and lookups per user that take most of the time; the audit log entries are added after one flush for all users."""
+        # Like create_user, give account-member unless a narrower home role is given.
+        role_specs = [user_roles] if user_roles else []
+        if not {spec["name"] for spec in role_specs} & {
+            ACCOUNT_READER_ROLE,
+            ACCOUNT_DATA_INTEGRATOR_ROLE,
+            ACCOUNT_MEMBER_ROLE,
+        }:
+            role_specs.insert(0, dict(name=ACCOUNT_MEMBER_ROLE))
         user_role = []
-        if user_roles:
-            if user_roles["name"] not in roles:
-                roles[user_roles["name"]] = user_datastore.create_role(**user_roles)
-            user_role = [roles[user_roles["name"]]]
+        for spec in role_specs:
+            if spec["name"] not in roles:
+                roles[spec["name"]] = user_datastore.create_role(**spec)
+            user_role.append(roles[spec["name"]])
         user = user_datastore.create_user(
             username=username,
             email=email,
@@ -680,7 +691,6 @@ def create_assets(
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
-                soc_in_mwh=0,
                 is_producer=True,
                 can_curtail=True,
             ),
@@ -1033,10 +1043,6 @@ def create_test_battery_kWh_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the three soc_ attributes all together
-            "soc_in_mwh": 2.5,
-            "soc_datetime": "2015-01-01T00:00+01",
-            "soc_udi_event_id": 203,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1153,10 +1159,6 @@ def create_test_battery_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the three soc_ attributes all together
-            "soc_in_mwh": 2.5,
-            "soc_datetime": "2015-01-01T00:00+01",
-            "soc_udi_event_id": 203,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1242,9 +1244,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2040-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1277,7 +1276,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.0,
         ),
     )
     test_battery_dynamic_capacity_power_sensor = Sensor(
@@ -1308,9 +1306,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
-            soc_in_mwh=0.005,
-            soc_datetime="2040-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1432,9 +1427,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -1469,9 +1461,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,

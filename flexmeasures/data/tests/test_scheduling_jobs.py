@@ -52,7 +52,7 @@ def test_scheduling_a_battery(
         if s.name == "power"
     )
     tz = pytz.timezone("Europe/Amsterdam")
-    # the start time does *not* match soc_datetime attribute from conftest, soc at start will be 0
+    # the flex-model sets no soc-at-start, so soc at start will be 0
     # TODO: stop using attributes in conftest
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -307,7 +307,7 @@ def test_fallback_chain(
         job.refresh()
         assert job.kwargs["scheduler_specs"]["class"] == scheduler_class
         assert job.is_failed
-        assert isinstance(job.meta["exception"], InfeasibleProblemException)
+        assert job.meta["exception"]["type"] == InfeasibleProblemException.__name__
 
     success_job = app.queues["scheduling"].jobs[0]
     # check that success

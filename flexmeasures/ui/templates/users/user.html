@@ -24,7 +24,7 @@
         </div>
         {% endif %}
 
-        {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
+        {% if can_reset_password %}
         <div>
           <a href="/users/reset_password_for/{{ user.id }}"
              class="btn btn-sm btn-info delete-button"
@@ -93,9 +93,9 @@
                 <td>
                   Roles
                 </td>
-                <td>
-                  {% for role in user.flexmeasures_roles %}
-                  {{ role.name }}{{ "," if not loop.last }}
+                <td id="userRolesList">
+                  {% for role in user_roles %}
+                  <span data-bs-toggle="tooltip" title="{{ role_descriptions[role] or 'No description available.' }}" tabindex="0">{{ role }}</span>{{ "," if not loop.last }}
                   {% endfor %}
                 </td>
               </tr>
@@ -164,7 +164,7 @@
               <select class="form-select" id="tagsInput" aria-label="Default select example">
                 <option selected>Select Role</option>
                 {% for role in roles %}
-                <option value="{{ role }}">{{ role }}</option>
+                <option value="{{ role }}">{{ role }}{% if role_descriptions[role] %} — {{ role_descriptions[role] }}{% endif %}</option>
                 {% endfor %}
               </select>
               <button class="btn btn-outline-secondary" type="button" id="addRoleBtn">Add</button>
@@ -172,6 +172,7 @@
             <div id="rolesContainer" class="mt-2 d-flex flex-wrap gap-2">
             </div>
             <input type="hidden" name="roles" id="rolesHiddenInput">
+            <div class="form-text">Roles add permissions. Remove account-member when assigning account-reader or account-data-integrator access.</div>
           </div>
 
           <div class="mb-3 form-check">
@@ -192,6 +193,8 @@
   const editUserForm = document.getElementById('editUserForm');
   const userRoles = JSON.parse('{{ user_roles | tojson }}');
   const allRoles = JSON.parse('{{ roles | tojson }}');
+  const roleDescriptions = {{ role_descriptions | tojson }};
+  const roleRank = new Map({{ role_display_order | tojson }}.map((role, index) => [role, index]));
   let currentRoles = new Set(); // Use a Set to store unique roles easily
   const user = {
     id: '{{ user.id }}',
@@ -262,6 +265,10 @@
   });
 
   document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#userRolesList [data-bs-toggle="tooltip"]').forEach(el => {
+      new bootstrap.Tooltip(el, { container: 'body' });
+    });
+
     const tagsInput = document.getElementById('tagsInput');
     const addRoleBtn = document.getElementById('addRoleBtn');
     const rolesContainer = document.getElementById('rolesContainer');
@@ -270,14 +277,28 @@
     const initialRoles = userRoles || [];
 
     function renderTags() {
+      rolesContainer.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        bootstrap.Tooltip.getInstance(el)?.dispose();
+      });
       rolesContainer.innerHTML = ''; // Clear existing tags
-      rolesHiddenInput.value = Array.from(currentRoles).join(','); // Update hidden input
+      const sortedRoles = Array.from(currentRoles).sort((a, b) =>
+        (roleRank.get(a) ?? roleRank.size) - (roleRank.get(b) ?? roleRank.size)
+        || a.localeCompare(b)
+      );
+      rolesHiddenInput.value = sortedRoles.join(','); // Update hidden input
 
-      currentRoles.forEach(role => {
+      sortedRoles.forEach(role => {
         const tagSpan = document.createElement('span');
         tagSpan.className = 'badge bg-primary-custom text-white d-flex align-items-center me-1';
         tagSpan.style.padding = '0.5em 0.75em';
         tagSpan.style.borderRadius = '0.25rem';
+
+        const description = roleDescriptions[role];
+        if (description) {
+          tagSpan.setAttribute('data-bs-toggle', 'tooltip');
+          tagSpan.setAttribute('title', description);
+          tagSpan.setAttribute('tabindex', '0');
+        }
 
         const tagName = document.createElement('span');
         tagName.textContent = role;
@@ -293,6 +314,9 @@
         };
         tagSpan.appendChild(removeBtn);
         rolesContainer.appendChild(tagSpan);
+        if (description) {
+          new bootstrap.Tooltip(tagSpan, { container: 'body', customClass: 'user-role-tooltip' });
+        }
       });
 
     }
