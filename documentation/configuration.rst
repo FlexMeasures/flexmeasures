@@ -903,26 +903,9 @@ FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 
 How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
 than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
+It is counted per account, so all users and assets of an account share it, too.
 
 Default: ``"10 per 5 minutes"``
-
-FLEXMEASURES_API_RATE_LIMIT_KEY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
-schedule is a business decision, so you decide what shares a budget:
-
-- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
-  usually works, so it is the default.
-- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
-  that this multiplies the limit by the number of assets an account has.
-- ``"user"``: each user gets their own budget.
-
-An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
-to ``"account"`` rather than raising an error.
-
-Default: ``"account"``
-
 
 Demonstrations
 --------------
@@ -1162,3 +1145,16 @@ Overrides the default sunset link across all sunset API versions if
 API version.
 
 Default: ``None``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.1.0
+
+    Triggers are always counted per account now, so this setting is ignored.
+    FlexMeasures logs a warning at startup if it is set to anything other than ``"account"``.
+    To give accounts more room, raise ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``, or the trigger rate limit of their plan.
+
+It used to choose what ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` was counted against: ``"account"``, ``"account+asset"`` or ``"user"``.
+
+Default: ``"account"``
