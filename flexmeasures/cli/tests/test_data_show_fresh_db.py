@@ -50,7 +50,7 @@ def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
 
     assert "Account Test Prosumer Account" in result.output
     assert "No users in account" in result.output
-    assert "Plan: No plan (server defaults apply)" in result.output
+    assert "Plan: No plan (server defaults apply)\n------\n" in result.output
     assert (
         f'Default API rate limit: {app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]}'
         in result.output
