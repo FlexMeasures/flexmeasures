@@ -191,6 +191,7 @@ def show_account(account):
         else "No plan (server defaults apply)"
     )
     click.echo(f"Plan: {plan_name}")
+    click.echo("------")
     click.echo(
         "Default API rate limit: "
         + (
