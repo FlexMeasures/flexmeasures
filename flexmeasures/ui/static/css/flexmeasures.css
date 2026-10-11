@@ -982,6 +982,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     z-index: 999992 !important;
 }
 
+/* Selected-role tooltips are appended to body, outside the edit user modal. */
+.tooltip.user-role-tooltip {
+    z-index: 999994;
+}
+
 /* ---- End Modal ---- */
 
 

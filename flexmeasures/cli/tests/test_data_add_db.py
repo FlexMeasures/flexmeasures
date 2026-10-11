@@ -323,4 +323,4 @@ def test_add_user_roles(
     assert "Successfully created user" in result.output
 
     user = db.session.execute(select(User).filter_by(username=username)).scalar_one()
-    assert {role.name for role in user.roles} == expected_roles
+    assert {role.name for role in user.roles} == expected_roles | {"account-member"}

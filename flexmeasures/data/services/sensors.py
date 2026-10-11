@@ -26,6 +26,7 @@ from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import SensorAnnotationRelationship
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -1223,6 +1224,28 @@ def get_sensor_stats(
         _sensor_stats_cache[key] = result
 
     return result
+
+
+def sensor_contains_data(sensor: Sensor, lock: bool = True) -> bool:
+    """Return whether a sensor holds beliefs or annotations."""
+    if lock:
+        db.session.scalar(
+            sa.select(Sensor.id).where(Sensor.id == sensor.id).with_for_update()
+        )
+    return bool(
+        db.session.scalar(
+            sa.select(sa.literal(True))
+            .select_from(TimedBelief)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        or db.session.scalar(
+            sa.select(sa.literal(True))
+            .select_from(SensorAnnotationRelationship)
+            .where(SensorAnnotationRelationship.sensor_id == sensor.id)
+            .limit(1)
+        )
+    )
 
 
 def delete_sensor(sensor: Sensor):

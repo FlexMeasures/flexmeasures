@@ -195,7 +195,7 @@ class AccountAPI(FlaskView):
     @route("", methods=["POST"])
     @use_args(account_create_schema, arg_name="account_data")
     @permission_required_for_context(
-        "create-children",
+        "edit-account",
         ctx_loader=FlexMeasuresPlatform.init,
     )
     @as_json
@@ -301,7 +301,7 @@ class AccountAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_account_schema)
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="account")
+    @permission_required_for_context("edit-account", ctx_arg_name="account")
     @as_json
     def patch(self, account_data: dict, id: int, account: Account):
         """
@@ -507,7 +507,7 @@ class AccountAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="account")
+    @permission_required_for_context("annotate", ctx_arg_name="account")
     def post_annotation(self, annotation: Annotation, id: int, account: Account):
         """
         .. :quickref: Accounts; Add an annotation to an account.
