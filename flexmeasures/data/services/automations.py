@@ -72,6 +72,13 @@ AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES = (
 )
 
 
+# The automation types whose runs are dispatched again after a failed dispatch.
+# Their jobs carry IDs derived from the run, so a retry recognises the ones an earlier attempt queued.
+# The jobs of other types, such as reports and plugin types, take a fresh ID on every dispatch,
+# so retrying one could queue the same work twice; such a run is recorded and reported, but left where it failed.
+AUTOMATION_RUN_RETRIED_TYPES = ("forecasting", "scheduling")
+
+
 @dataclass(frozen=True)
 class DueAutomation:
     """An automation together with the canonical run it should handle."""
@@ -314,6 +321,7 @@ def get_dispatchable_automation_runs(
         .join(Automation)
         .where(
             Automation.active.is_(True),
+            AutomationRun.automation_type.in_(AUTOMATION_RUN_RETRIED_TYPES),
             AutomationRun.dispatch_state.in_(AUTOMATION_RUN_RESUMABLE_DISPATCH_STATES),
             AutomationRun.dispatch_completed_at.is_(None),
             # A run which used up its attempts is left as it is, rather than dispatched again every minute.
