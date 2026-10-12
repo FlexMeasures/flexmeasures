@@ -2553,14 +2553,19 @@ def _run_schedule_automation(
             for intent in intents
             if reconcile_automation_job_intent(intent)
         }
-    job = f(
-        asset=trigger_data["asset"],
-        enqueue=True,
-        force_new_job_creation=trigger_data.get("force_new_job_creation", False),
-        trigger=trigger,
-        **job_naming,
-        **scheduler_kwargs,
-    )
+    try:
+        job = f(
+            asset=trigger_data["asset"],
+            enqueue=True,
+            force_new_job_creation=trigger_data.get("force_new_job_creation", False),
+            trigger=trigger,
+            **job_naming,
+            **scheduler_kwargs,
+        )
+    except Exception:
+        if automation_run is not None:
+            _record_jobs_queued_before_failure(automation_run)
+        raise
     n_jobs = len(job.args[0]) + 1 if sequential else 1
     if automation_run is not None:
         # The jobs the creators found already in Redis were left alone (see `create_scheduling_job`),
@@ -2571,6 +2576,17 @@ def _run_schedule_automation(
                     automation_run.id, intent.logical_job_key, intent.rq_job_id
                 )
     return {"job_id": job.id, "n_jobs": n_jobs}
+
+
+def _record_jobs_queued_before_failure(run: AutomationRun) -> None:
+    """Mark the jobs that a failed attempt at this run did queue, so the run says what is in Redis.
+
+    Otherwise it would report nothing queued until its next attempt finds them.
+    The failure may have come from the database itself, so roll back first to get a usable session.
+    """
+    db.session.rollback()
+    for intent in run.job_intents:
+        reconcile_automation_job_intent(intent)
 
 
 def _plan_schedule_jobs(
