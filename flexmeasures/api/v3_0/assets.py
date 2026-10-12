@@ -1468,7 +1468,7 @@ class AssetAPI(FlaskView):
           description: |
             The response will be a list of automations: recurring forecasting, scheduling, reporting or plugin-defined tasks
             defined on the asset. Each entry shows the automation's ID, when it was created,
-            its type, name, activation status, and its recurrence, both as a cron string
+            its type, name, activation status, whether it is monitored, and its recurrence, both as a cron string
             and described in natural language. Each entry also shows the IANA timezone in which its cron expression is interpreted,
             and both its cursor and its next scheduled run as clock times in that same timezone (the next run is null while inactive).
             The next run excludes pending catch-up work.
@@ -1515,6 +1515,7 @@ class AssetAPI(FlaskView):
                             recurrence-description: "At 06:00"
                             schedule-revision: 1
                             active: true
+                            monitored: true
                             job-stats:
                               finished: 3
                         redis-connection-err: null
@@ -1629,6 +1630,7 @@ class AssetAPI(FlaskView):
                         recurrence-description: "At 06:00"
                         schedule-revision: 1
                         active: true
+                        monitored: true
                         parameters:
                           sensor: 2092
                         source:
@@ -1871,13 +1873,13 @@ class AssetAPI(FlaskView):
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
     ):
         """
-        .. :quickref: Assets; Update an automation's name, cron string, timezone or activation status.
+        .. :quickref: Assets; Update an automation's name, cron string, timezone, activation status or monitoring.
 
         ---
         patch:
-          summary: Update an automation's name, cron string, timezone or activation status.
+          summary: Update an automation's name, cron string, timezone, activation status or monitoring.
           description: |
-            Any subset of the fields `name`, `cronstr`, `timezone` and `active` can be sent.
+            Any subset of the fields `name`, `cronstr`, `timezone`, `active` and `monitored` can be sent.
             Changing the recurrence or the timezone, or reactivating the automation, resets its cursor to just before the minute of the change,
             so runs from before it are not caught up on, while a run due in that very minute still is.
             Other automation fields cannot be updated; instead, create a new automation.
@@ -1906,6 +1908,10 @@ class AssetAPI(FlaskView):
                     summary: Deactivate the automation
                     value:
                       active: false
+                  stop-monitoring:
+                    summary: Stop reporting the automation's failed runs
+                    value:
+                      monitored: false
           responses:
             200:
               description: PROCESSED
