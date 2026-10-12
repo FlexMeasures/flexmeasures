@@ -127,6 +127,8 @@ class Config(object):
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
     # How long an automation run may execute before `flexmeasures monitor automations` reports it as stuck.
     FLEXMEASURES_MONITOR_AUTOMATIONS_STUCK_AFTER: timedelta = timedelta(hours=6)
+    # Whether `flexmeasures monitor automations` also emails account admins and consultants about the failed runs on their organisations' assets.
+    FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS: bool = False
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
