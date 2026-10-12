@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import isodate
 import pytest
@@ -796,3 +797,127 @@ def test_dispatching_a_schedule_run_again_queues_no_second_schedule(
     assert (
         queued_after_second == queued_after_first
     ), "the second attempt queued a job the first one had already queued"
+
+
+def _two_device_schedule_run(
+    db, batteries, parameters: dict, scheduled_at: datetime
+) -> tuple[AutomationRun, list[Sensor]]:
+    """Give the building of the test battery a second battery, and a sequential schedule run over both of them."""
+    battery = batteries["Test battery"]
+    building = battery.parent_asset
+    power_sensors = [
+        next(sensor for sensor in battery.sensors if sensor.name == "power")
+    ]
+    second_battery = GenericAsset(
+        name="Second battery",
+        generic_asset_type=battery.generic_asset_type,
+        parent_asset=building,
+        owner=battery.owner,
+        attributes=dict(battery.attributes),
+        flex_context=dict(battery.flex_context or {}),
+    )
+    db.session.add(second_battery)
+    db.session.flush()
+    power_sensors.append(
+        Sensor(
+            name="power",
+            generic_asset=second_battery,
+            event_resolution=power_sensors[0].event_resolution,
+            unit=power_sensors[0].unit,
+        )
+    )
+    db.session.add(power_sensors[1])
+    db.session.flush()
+    for asset, sensor, soc_at_start in zip(
+        (battery, second_battery), power_sensors, ("2.5 MWh", "1 MWh")
+    ):
+        asset.flex_model = {
+            "consumption": {"sensor": sensor.id},
+            "soc-at-start": soc_at_start,
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "1 MW",
+        }
+    automation = build_schedule_automation(
+        building,
+        name="Two batteries",
+        cronstr="0 * * * *",
+        timezone="UTC",
+        parameters=parameters,
+    )
+    db.session.add(automation)
+    db.session.commit()
+    run = _schedule_run(db, automation, parameters)
+    run.scheduled_at = scheduled_at
+    db.session.commit()
+    return run, power_sensors
+
+
+def _dispatch_dying_after_the_first_device(run: AutomationRun):
+    """Dispatch a run whose runner loses Redis once it has queued the job of the first device."""
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.data.services.automations import (
+        ClaimedAutomationRun,
+        dispatch_automation_run,
+    )
+
+    original = scheduling.create_scheduling_job
+    calls = []
+
+    def dying(*args, **kwargs):
+        calls.append(kwargs.get("job_id"))
+        if len(calls) == 2:
+            raise ConnectionError("Lost Redis between two devices.")
+        return original(*args, **kwargs)
+
+    with patch.object(scheduling, "create_scheduling_job", dying):
+        with pytest.raises(ConnectionError):
+            dispatch_automation_run(ClaimedAutomationRun(run=run, attempt=None))
+
+
+def test_resuming_a_schedule_run_leaves_the_jobs_of_its_first_attempt_as_they_were(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A resumed run queues the devices it still owes, without touching the job a worker already finished.
+
+    Creating that job again would overwrite the meta its worker recorded,
+    after which its schedule can no longer be looked up by its job.
+    """
+    from flexmeasures.data.services.automations import (
+        ClaimedAutomationRun,
+        dispatch_automation_run,
+    )
+    from flexmeasures.data.services.scheduling import (
+        get_data_source_for_job,
+        handle_scheduling_exception,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    run, power_sensors = _two_device_schedule_run(
+        fresh_db,
+        add_battery_assets_fresh_db,
+        {"start-offset": "HB", "duration": "PT1H", "sequential": True},
+        datetime(2015, 1, 1, 10, 0, tzinfo=timezone.utc),
+    )
+    queue = app.queues["scheduling"]
+    first_job_id = f"automation-run-{run.id}-device-{power_sensors[0].id}"
+
+    _dispatch_dying_after_the_first_device(run)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception)
+    first_job = Job.fetch(first_job_id, connection=queue.connection)
+    assert first_job.is_finished
+    meta_before = dict(first_job.meta)
+    assert "data_source_info" in meta_before
+
+    dispatch_automation_run(ClaimedAutomationRun(run=run, attempt=None))
+
+    first_job = Job.fetch(first_job_id, connection=queue.connection)
+    assert first_job.meta == meta_before
+    assert get_data_source_for_job(first_job) is not None
+    work_on_rq(queue, exc_handler=handle_scheduling_exception)
+    for intent in run.job_intents:
+        assert Job.fetch(intent.rq_job_id, connection=queue.connection).is_finished
