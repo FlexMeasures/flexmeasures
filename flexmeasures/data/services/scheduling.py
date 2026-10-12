@@ -242,6 +242,7 @@ def create_scheduling_job(
     Arguments:
     :param asset_or_sensor:         Asset or sensor for which the schedule is computed.
     :param job_id:                  Optionally, set a job id explicitly.
+                                    A job that already exists under this id is returned as it is, rather than created again.
     :param enqueue:                 If True, enqueues the job in case it is new.
     :param requeue:                 If True, requeues the job in case it is not new and had previously failed
                                     (this argument is used by the @job_cache decorator).
@@ -253,6 +254,12 @@ def create_scheduling_job(
     :returns:                       The job.
 
     """
+    connection = current_app.queues["scheduling"].connection
+    if job_id is not None and Job.exists(job_id, connection=connection):
+        # An earlier attempt at the same work already created this job, so leave it as it is:
+        # creating it again would overwrite the meta its worker recorded, such as the data source of its schedule.
+        return Job.fetch(job_id, connection=connection)
+
     # We first create a scheduler and check if deserializing works, so the flex config is checked
     # and errors are raised before the job is enqueued (so users get a meaningful response right away).
     # Note: We should put only serializable scheduler_kwargs into the job!
@@ -549,10 +556,15 @@ def create_sequential_scheduling_job(
         previous_job = job
 
     # create job that triggers when the last job is done
+    wrap_up_job_id = f"{job_id_prefix}-wrap-up" if job_id_prefix is not None else job_id
+    connection = current_app.queues["scheduling"].connection
+    if wrap_up_job_id is not None and Job.exists(wrap_up_job_id, connection=connection):
+        # An earlier attempt at the same work already created the wrap-up job, so leave it as it is.
+        return Job.fetch(wrap_up_job_id, connection=connection)
     job = Job.create(
         func=cb_done_sequential_scheduling_job,
         args=([j.id for j in jobs],),
-        id=f"{job_id_prefix}-wrap-up" if job_id_prefix is not None else job_id,
+        id=wrap_up_job_id,
         depends_on=previous_job,
         ttl=int(
             current_app.config.get(
