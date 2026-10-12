@@ -303,9 +303,6 @@ No email is sent when nothing failed.
 The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
 The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.
 
-.. note:: Until schedule, report and plugin runs record how their jobs ended, only forecast runs can be reported for a failed or stuck execution.
-          A failed dispatch is reported for every type.
-
 Running one automation on demand
 --------------------------------
 
