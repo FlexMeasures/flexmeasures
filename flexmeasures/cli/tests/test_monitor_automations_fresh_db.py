@@ -351,3 +351,30 @@ def test_without_recipients_nothing_is_marked_as_reported(
     assert "Nobody to send the digest to" in result.output
     fresh_db.session.refresh(run)
     assert run.alerted_at is None
+
+
+def test_an_unmonitored_automation_is_reported_once_it_is_monitored_again(
+    app, fresh_db, forecast_automation
+):
+    """The failed runs of an automation that opted out of monitoring are left out, until it opts back in."""
+    forecast_automation.monitored = False
+    fresh_db.session.commit()
+    run = add_run(fresh_db, forecast_automation, DUE_AT, execution_state="failed")
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert outbox == []
+    fresh_db.session.refresh(run)
+    assert run.alerted_at is None
+
+    forecast_automation.monitored = True
+    fresh_db.session.commit()
+
+    result, outbox = monitor(app)
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    assert f"Automation {forecast_automation.id} " in outbox[0].body
+    fresh_db.session.refresh(run)
+    assert run.alerted_at == DUE_AT
