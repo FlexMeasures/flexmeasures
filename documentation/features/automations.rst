@@ -268,8 +268,11 @@ and the run's record says what went wrong on each attempt.
 Retrying a failed dispatch this way is what a forecast run does.
 A schedule run is recorded, claimed and reported in just the same way, but is left where it failed rather than dispatched again, because its jobs get a fresh ID on every dispatch, so a retry could not tell an already queued schedule from a missing one.
 
-A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
-A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs are not recorded individually yet.
+A run also records each job it created, and how that job ended, which is what its *execution* state describes.
+This holds for every type of automation: a schedule run records its scheduling job (or, for a sequential schedule, each device job and the job wrapping them up),
+a report run its reporting job, and a plugin run the job its plugin queued.
+A run which queued no jobs, such as a report run with nothing new to report on, has succeeded.
+A job which a schedule queues to fall back on a simpler scheduler is not one of the run's jobs, so a run whose schedule fell back has failed, with the error that made it fall back.
 
 A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
@@ -306,9 +309,6 @@ listing only the automations they can see.
 Inactive users and users without an email address are skipped.
 Automations on public assets belong to no organisation, so they only appear in your digest, which keeps listing every failed run.
 A run counts as reported once your digest is sent, so a user digest that cannot be delivered is logged, and not sent again.
-
-.. note:: Until schedule, report and plugin runs record how their jobs ended, only forecast runs can be reported for a failed or stuck execution.
-          A failed dispatch is reported for every type.
 
 Running one automation on demand
 --------------------------------
