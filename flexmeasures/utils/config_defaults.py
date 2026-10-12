@@ -192,9 +192,8 @@ class Config(object):
     )
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
-    FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
-        "account"  # what to count triggers against: "account", "account+asset" or "user"
-    )
+    # Deprecated, and ignored: triggers are always counted per account
+    FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
     FLEXMEASURES_JS_VERSIONS: dict = dict(
         vega="5.22.1",
         vegaembed="6.21.0",
