@@ -485,8 +485,8 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     job.save_meta()
     queue.enqueue_job(job)
-    app.job_cache.add(root.id, job.id, "scheduling", "asset")
-    app.job_cache.add(child_sensor.id, job.id, "scheduling", "sensor")
+    app.job_map.add(root.id, job.id, "scheduling", "asset")
+    app.job_map.add(child_sensor.id, job.id, "scheduling", "sensor")
 
     child_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -497,7 +497,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     child_job.save_meta()
     queue.enqueue_job(child_job)
-    app.job_cache.add(child_sensor.id, child_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, child_job.id, "scheduling", "sensor")
 
     other_job = Job.create(
         "flexmeasures.utils.time_utils.server_now", connection=queue.connection
@@ -508,7 +508,7 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     }
     other_job.save_meta()
     queue.enqueue_job(other_job)
-    app.job_cache.add(child_sensor.id, other_job.id, "scheduling", "sensor")
+    app.job_map.add(child_sensor.id, other_job.id, "scheduling", "sensor")
 
     assert get_automation_job_stats(schedule_automation) == {"queued": 2}
 
@@ -575,10 +575,10 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
     import pandas as pd
 
     from flexmeasures.data.models.planning.storage import StorageScheduler
-    from flexmeasures.data.services.scheduling import (
-        ScheduleWritesUncheckedSensor,
-        make_schedule,
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
     )
+    from flexmeasures.data.services.scheduling import make_schedule
 
     battery = add_battery_assets_fresh_db["Test battery"]
     scheduled_sensor = battery.sensors[0]
@@ -619,7 +619,7 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
         ],
     )
 
-    with pytest.raises(ScheduleWritesUncheckedSensor, match=str(other_sensor.id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(other_sensor.id)):
         make_schedule(
             asset_or_sensor={"class": "Asset", "id": battery.id},
             start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
@@ -628,6 +628,90 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
             flex_model=[flex_model],
             flex_context={},
         )
+
+
+def test_a_refused_schedule_job_keeps_its_meta(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A schedule job refused for an unchecked sensor keeps its meta readable, and records the refusal in it.
+
+    The scheduling queue's exception handler stores the refusal itself in the job's meta, which RQ pickles.
+    A refusal that cannot be unpickled makes RQ replace the whole meta on the next fetch,
+    losing the trigger, the scheduler info and everything else the API and failure attribution read from it.
+    Calling make_schedule directly, as the test above does, never pickles anything, so this one runs a worker.
+    """
+    import pandas as pd
+    from rq.job import Job
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+    from flexmeasures.data.services.scheduling import (
+        handle_scheduling_exception,
+        make_schedule,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+    queue = app.queues["scheduling"]
+    job = Job.create(
+        make_schedule,
+        kwargs=dict(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        ),
+        connection=queue.connection,
+        meta={"trigger": {"origin": "automation", "automation_id": automation.id}},
+    )
+    queue.enqueue_job(job)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception, job=job)
+
+    fetched = Job.fetch(job.id, connection=queue.connection)
+    assert fetched.is_failed
+    assert "unserialized" not in fetched.meta, "RQ could not read the meta back"
+    assert fetched.meta["trigger"]["automation_id"] == automation.id
+    # The refusal is stored as a summary that keeps its facts, so that a reader need not parse the message.
+    refusal = fetched.meta["exception"]
+    assert refusal["type"] == GeneratorWritesUncheckedSensor.__name__
+    assert refusal["refused_sensor_ids"] == [other_sensor.id]
+    assert refusal["automation_id"] == automation.id
+    assert str(other_sensor.id) in refusal["message"]
 
 
 def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):
@@ -685,3 +769,56 @@ def test_an_automation_whose_sensors_are_unknown_records_nothing(
     job.meta = {"trigger": {"origin": "automation", "automation_id": automation.id}}
 
     assert sensors_automation_job_may_record_on(job) == set()
+
+
+@pytest.mark.parametrize(
+    "target, refused",
+    [
+        ({"sensor": "{id}", "lower": "0 kW"}, True),
+        ({"sensor": "{id}", "sources": [1]}, True),
+        ("{id}", False),
+    ],
+)
+def test_a_forecast_automation_refuses_a_qualified_sensor_to_forecast(
+    setup_fresh_test_forecast_data, fresh_db, target, refused
+):
+    """Qualifiers on the sensor to forecast are refused when the automation is created, not on every run after.
+
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so accepting them here would store an automation that can never run.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.automations import create_automation
+
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    if isinstance(target, dict):
+        target = {**target, "sensor": sensor.id}
+    else:
+        target = sensor.id
+    parameters = {
+        "sensor": target,
+        "max-forecast-horizon": "PT24H",
+        "forecast-frequency": "PT24H",
+    }
+
+    if not refused:
+        automation, _ = create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts naming their sensor by ID",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+        assert automation.parameters["sensor"] == sensor.id
+        return
+
+    with pytest.raises(ValidationError) as refusal:
+        create_automation(
+            asset=sensor.generic_asset,
+            name="Forecasts qualifying their sensor in the parameters",
+            cronstr="0 6 * * *",
+            timezone="Europe/Amsterdam",
+            parameters=parameters,
+        )
+    assert '"auto"' in str(refusal.value.messages["parameters"]["sensor"])

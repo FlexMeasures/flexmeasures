@@ -101,96 +101,6 @@ REPLAY_RULER = {
         },
     },
 }
-SHADE_LAYER = {
-    "mark": {
-        "type": "bar",
-        "size": HEIGHT,
-    },
-    "encoding": {
-        "x": dict(
-            field="start",
-            type="temporal",
-            title=None,
-        ),
-        "x2": dict(
-            field="end",
-            type="temporal",
-            title=None,
-        ),
-        "color": {
-            "condition": [
-                {
-                    "param": "select",
-                    "empty": False,
-                    "value": "var(--secondary-color)",  # highlight color on select
-                },
-                {
-                    "param": "highlight",
-                    "empty": False,
-                    "value": "var(--secondary-hover-color)",  # highlight color on hover
-                },
-            ],
-            "value": "var(--gray)",  # default color
-        },
-        "opacity": {
-            "condition": [
-                {
-                    "param": "select",
-                    "empty": False,
-                    "value": 0.8,
-                },
-                {
-                    "param": "highlight",
-                    "empty": False,
-                    "value": 0.7,
-                },
-            ],
-            "value": 0.3,
-        },
-    },
-    "params": [
-        {
-            "name": "highlight",
-            "select": {"type": "point", "on": "mouseover"},
-        },
-        {"name": "select", "select": "point"},
-    ],
-}
-TEXT_LAYER = {
-    "mark": {
-        "type": "text",
-        "clip": False,
-        "y": HEIGHT,
-        "dy": FONT_SIZE + ANNOTATION_MARGIN,
-        "baseline": "top",
-        "align": "left",
-        "fontSize": FONT_SIZE,
-        "fontStyle": "italic",
-    },
-    "encoding": {
-        "x": dict(
-            field="start",
-            type="temporal",
-            title=None,
-        ),
-        "text": {"type": "nominal", "field": "content"},
-        "opacity": {
-            "condition": [
-                {
-                    "param": "select",
-                    "empty": False,
-                    "value": 1,
-                },
-                {
-                    "param": "highlight",
-                    "empty": False,
-                    "value": 1,
-                },
-            ],
-            "value": 0,
-        },
-    },
-}
 # Warm warning hue for 'alert' annotations, legible in both light and dark themes
 ANNOTATION_ALERT_COLOR = "#d9822b"
 ANNOTATION_DEFAULT_COLOR = "var(--gray)"
@@ -207,6 +117,24 @@ ANNOTATION_COLOR_ENCODING = {
     ],
     "value": ANNOTATION_DEFAULT_COLOR,
 }
+# Near-black annotation text, legible on the white chart background whatever the annotation's colour
+ANNOTATION_TEXT_COLOR = "#333"
+ANNOTATION_PINNED_COLOR = "var(--secondary-color)"
+ANNOTATION_HOVERED_COLOR = "var(--secondary-hover-color)"
+
+
+def _highlighted_annotation_color_encoding(pin_test: str, hover_test: str) -> dict:
+    """Colour a pinned or hovered annotation of any type in the secondary (highlight) colour, and others as usual."""
+    return {
+        "condition": [
+            {"test": pin_test, "value": ANNOTATION_PINNED_COLOR},
+            {"test": hover_test, "value": ANNOTATION_HOVERED_COLOR},
+            *ANNOTATION_COLOR_ENCODING["condition"],
+        ],
+        "value": ANNOTATION_COLOR_ENCODING["value"],
+    }
+
+
 ANNOTATION_SHARED_TRANSFORMS = [
     # Alias the event_start field, so that x-encoded selections defined in
     # sibling layers can compute their tuples from annotation datums, too
@@ -214,13 +142,18 @@ ANNOTATION_SHARED_TRANSFORMS = [
 ]
 
 
-def _hovered_time_expr(param: str) -> str:
-    """Expression yielding the event_start value captured by a point selection param.
+# How many shift-click pins per subchart are highlighted; Vega expressions cannot loop over the pinned times.
+MAX_PINNED_ANNOTATIONS = 10
+
+
+def _captured_time_exprs(param: str, captures: int = 1) -> list[str]:
+    """Expressions yielding the event_start values captured by a point selection param.
 
     Handles both scalar and array-valued selection signals.
+    An array holds one value per selected point, e.g. one per shift-click, and only its first ``captures`` values are read.
     """
     value = f"{param}['event_start']"
-    return f"(isArray({value}) ? {value}[0] : {value})"
+    return [f"(isArray({value}) ? {value}[{i}] : {value})" for i in range(captures)]
 
 
 def _time_captured_test(param: str) -> str:
@@ -228,29 +161,29 @@ def _time_captured_test(param: str) -> str:
     return f"isValid({param}) && isValid({param}['event_start'])"
 
 
-def _band_hover_test(param: str) -> str:
-    """Expression testing whether the captured time falls within the annotation band."""
-    time_expr = _hovered_time_expr(param)
-    return (
-        f"{_time_captured_test(param)}"
-        f" && {time_expr} >= datum.start && {time_expr} < datum.end"
+def _band_hover_test(param: str, captures: int = 1) -> str:
+    """Expression testing whether a captured time falls within the annotation band."""
+    inside = " || ".join(
+        f"({t} >= datum.start && {t} < datum.end)"
+        for t in _captured_time_exprs(param, captures)
     )
+    return f"{_time_captured_test(param)} && ({inside})"
 
 
-def _instant_hover_test(param: str, tolerance_ms: int) -> str:
-    """Expression testing whether the captured time is close to the instant annotation."""
-    time_expr = _hovered_time_expr(param)
-    return (
-        f"{_time_captured_test(param)}"
-        f" && abs({time_expr} - datum.start) <= {tolerance_ms}"
+def _instant_hover_test(param: str, tolerance_ms: int, captures: int = 1) -> str:
+    """Expression testing whether a captured time is close to the instant annotation."""
+    near = " || ".join(
+        f"abs({t} - datum.start) <= {tolerance_ms}"
+        for t in _captured_time_exprs(param, captures)
     )
+    return f"{_time_captured_test(param)} && ({near})"
 
 
-def _annotation_hover_test(param: str, tolerance_ms: int) -> str:
-    """Expression testing whether the captured time matches the annotation (band or instant)."""
+def _annotation_hover_test(param: str, tolerance_ms: int, captures: int = 1) -> str:
+    """Expression testing whether a captured time matches the annotation (band or instant)."""
     return (
-        f"(datum.start != datum.end && {_band_hover_test(param)})"
-        f" || (datum.start == datum.end && {_instant_hover_test(param, tolerance_ms)})"
+        f"(datum.start != datum.end && {_band_hover_test(param, captures)})"
+        f" || (datum.start == datum.end && {_instant_hover_test(param, tolerance_ms, captures)})"
     )
 
 
@@ -274,6 +207,7 @@ def create_annotation_layers(
     - background layers (drawn behind the data):
       - a full-height rect band for annotations with a non-zero duration
       - a rule for instant annotations
+      - an invisible, wider rule for pointing at instant annotations
       - a triangle marker at the top of each instant-annotation rule
     - foreground layers (drawn on top of the data):
       - a text mark showing the annotation content below the subchart
@@ -283,7 +217,7 @@ def create_annotation_layers(
     hover_param = f"annotation_hover_time_{row_index}"
     pin_param = f"annotation_pin_time_{row_index}"
     hover_test = _annotation_hover_test(hover_param, resolution_ms)
-    pin_test = _annotation_hover_test(pin_param, resolution_ms)
+    pin_test = _annotation_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS)
     start_field_definition = dict(
         field="start",
         type="temporal",
@@ -300,11 +234,14 @@ def create_annotation_layers(
         "encoding": {
             "x": start_field_definition,
             "x2": dict(field="end", title=None),
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": _highlighted_annotation_color_encoding(
+                _band_hover_test(pin_param, MAX_PINNED_ANNOTATIONS),
+                _band_hover_test(hover_param),
+            ),
             "opacity": {
                 "condition": [
                     {
-                        "test": _band_hover_test(pin_param),
+                        "test": _band_hover_test(pin_param, MAX_PINNED_ANNOTATIONS),
                         "value": ANNOTATION_SELECT_OPACITY,
                     },
                     {
@@ -330,6 +267,7 @@ def create_annotation_layers(
             },
             {
                 "name": pin_param,
+                # A click pins one annotation, and shift-click pins another, keeping the earlier pins (Vega-Lite's default toggle)
                 "select": {"type": "point", "fields": ["event_start"]},
             },
         ],
@@ -344,11 +282,16 @@ def create_annotation_layers(
         "mark": {"type": "rule", "clip": True, "strokeWidth": 2},
         "encoding": {
             "x": start_field_definition,
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": _highlighted_annotation_color_encoding(
+                _instant_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS),
+                _instant_hover_test(hover_param, resolution_ms),
+            ),
             "opacity": {
                 "condition": [
                     {
-                        "test": _instant_hover_test(pin_param, resolution_ms),
+                        "test": _instant_hover_test(
+                            pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS
+                        ),
                         "value": 1,
                     },
                     {
@@ -358,6 +301,22 @@ def create_annotation_layers(
                 ],
                 "value": 0.5,
             },
+        },
+    }
+    # Vega-Lite only makes a mark interactive when its layer has a selection or a tooltip,
+    # so an empty tooltip lets the hover and pin params capture the time of an instant annotation.
+    # The visible rule is too thin to point at, so an invisible, wider rule catches the pointer instead.
+    hit_layer = {
+        "name": f"annotation_rule_hit_{row_index}",
+        "data": {"name": annotations_dataset_name},
+        "transform": [
+            {"filter": "datum.start == datum.end"},
+            *ANNOTATION_SHARED_TRANSFORMS,
+        ],
+        "mark": {"type": "rule", "clip": True, "strokeWidth": 16, "opacity": 0},
+        "encoding": {
+            "x": start_field_definition,
+            "tooltip": {"value": None},
         },
     }
     marker_layer = {
@@ -376,12 +335,18 @@ def create_annotation_layers(
         },
         "encoding": {
             "x": start_field_definition,
+            "tooltip": {"value": None},
             "y": {"value": 7},
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": _highlighted_annotation_color_encoding(
+                _instant_hover_test(pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS),
+                _instant_hover_test(hover_param, resolution_ms),
+            ),
             "opacity": {
                 "condition": [
                     {
-                        "test": _instant_hover_test(pin_param, resolution_ms),
+                        "test": _instant_hover_test(
+                            pin_param, resolution_ms, MAX_PINNED_ANNOTATIONS
+                        ),
                         "value": 1,
                     },
                     {
@@ -413,7 +378,7 @@ def create_annotation_layers(
         "encoding": {
             "x": start_field_definition,
             "text": {"type": "nominal", "field": "content"},
-            "color": ANNOTATION_COLOR_ENCODING,
+            "color": {"value": ANNOTATION_TEXT_COLOR},
             "opacity": {
                 "condition": [
                     {"test": pin_test, "value": 1},
@@ -423,18 +388,24 @@ def create_annotation_layers(
             },
         },
     }
-    return [band_layer, rule_layer, marker_layer], [text_layer]
+    return [band_layer, rule_layer, hit_layer, marker_layer], [text_layer]
 
 
 def _row_resolution_ms(row_specs: dict, default_ms: int = 3600 * 1000) -> int:
-    """Find the time resolution (in ms) of a subchart row from its x-encoding time unit."""
+    """Find the time resolution (in ms) of a subchart row from its x-encoding time unit.
+
+    An instantaneous sensor has a zero step, which would leave no hover tolerance for instant annotations,
+    so it gets the default, as in the fast chart.
+    """
     for layer in row_specs.get("layer", []):
         time_unit = layer.get("encoding", {}).get("x", {}).get("timeUnit")
         if isinstance(time_unit, dict) and "step" in time_unit:
             try:
-                return int(float(time_unit["step"]) * 1000)
+                resolution_ms = int(float(time_unit["step"]) * 1000)
             except (TypeError, ValueError):
                 continue
+            if resolution_ms > 0:
+                return resolution_ms
     return default_ms
 
 
@@ -527,17 +498,17 @@ def apply_chart_defaults(fn):
                     chart_specs, dataset_name + "_annotations"
                 )
             elif include_annotations:
-                annotation_shades_layer = SHADE_LAYER
-                annotation_text_layer = TEXT_LAYER
-                annotation_shades_layer["data"] = {
-                    "name": dataset_name + "_annotations"
-                }
-                annotation_text_layer["data"] = {"name": dataset_name + "_annotations"}
+                # A single chart gets the same annotation layers as one subchart of a vconcat chart
+                background_layers, foreground_layers = create_annotation_layers(
+                    dataset_name + "_annotations",
+                    0,
+                    resolution_ms=_row_resolution_ms(chart_specs),
+                )
                 chart_specs = {
                     "layer": [
-                        annotation_shades_layer,
+                        *background_layers,
                         chart_specs,
-                        annotation_text_layer,
+                        *foreground_layers,
                     ]
                 }
 
