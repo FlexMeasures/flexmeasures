@@ -306,6 +306,7 @@ def test_post_automation(
     if expected_status_code == 201:
         assert response.json["name"] == "Posted schedules"
         assert response.json["active"] is True
+        assert response.json["monitored"] is True
         assert response.json["recurrence-description"] == "At 00:00"
         automation = db.session.get(Automation, response.json["id"])
         assert automation.parameters == {"duration": "PT12H"}
@@ -550,6 +551,55 @@ def test_post_and_patch_automation_timezone(
             json={"timezone": "Europe/NotAmsterdam"},
         )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_and_patch_automation_monitoring(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+):
+    """An automation can opt out of monitoring on creation, and opt back in afterwards."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Experimental schedules",
+                "cron": "0 0 * * *",
+                "type": "scheduling",
+                "parameters": {"duration": "PT12H"},
+                "monitored": False,
+            },
+        )
+    assert response.status_code == 201, response.json
+    assert response.json["monitored"] is False
+    automation = db.session.get(Automation, response.json["id"])
+    assert automation.monitored is False
+
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"monitored": True},
+        )
+    assert response.status_code == 200, response.json
+    assert response.json["monitored"] is True
+    assert automation.monitored is True
+    assert db.session.scalars(
+        select(AssetAuditLog.event).where(
+            AssetAuditLog.affected_asset_id == battery.id,
+            AssetAuditLog.event.contains("monitoring switched on"),
+        )
+    ).all()
 
 
 @pytest.mark.parametrize(
