@@ -38,6 +38,8 @@ from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
 
+from flexmeasures.data import db
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.responses import too_many_requests
 from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
@@ -95,6 +97,24 @@ def default_key_func() -> str:
     if current_user.is_authenticated:
         return f"account:{current_user.account_id}"
     return get_remote_address()
+
+
+def _asset_id_of_trigger() -> int | None:
+    """Which asset a trigger request is about.
+
+    The asset endpoint names the asset in its path, while the (deprecated) sensor endpoints name a sensor,
+    so we resolve that sensor's asset. That way, both ways of triggering the same asset share one budget.
+    Returns None if we cannot tell, which the caller reads as "count this against the account as a whole".
+    """
+    resource_id = (request.view_args or {}).get("id")
+    try:
+        resource_id = int(resource_id)
+    except (TypeError, ValueError):
+        return None  # the view is about to reject this request anyway
+    if "/assets/" in request.path:
+        return resource_id
+    sensor = db.session.get(Sensor, resource_id)
+    return sensor.generic_asset_id if sensor is not None else None
 
 
 def trigger_key_func() -> str:

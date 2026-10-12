@@ -1,10 +1,13 @@
 import logging
 
-from flask import url_for
+from unittest.mock import Mock
+from flask import Flask, request, url_for
 import pytest
 
 from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.common import rate_limiting as rate_limiting_module
 from flexmeasures.api.common.rate_limiting import (
+    _asset_id_of_trigger,
     limiter,
     warn_about_deprecated_settings,
 )
@@ -56,6 +59,27 @@ def trigger_through_deprecated_sensor_endpoint(client, sensor: Sensor):
         url_for("SensorAPI:trigger_schedule", id=sensor.id),
         json=message_for_trigger_schedule() | {"force-new-job-creation": True},
     )
+
+
+def test_asset_id_of_trigger(monkeypatch):
+    """
+    Test the util function we use to log which asset lead to 429 status.
+    Asset and sensor triggers resolve to the same asset ID.
+    """
+    app = Flask(__name__)
+    mocked_db = Mock()
+    mocked_db.session.get.return_value.generic_asset_id = 42
+    monkeypatch.setattr(rate_limiting_module, "db", mocked_db)
+
+    with app.test_request_context("/api/v3_0/assets/42/trigger_schedule"):
+        request.view_args = {"id": "42"}
+        assert _asset_id_of_trigger() == 42
+        mocked_db.session.get.assert_not_called()
+
+    with app.test_request_context("/api/v3_0/sensors/7/trigger_schedule"):
+        request.view_args = {"id": "7"}
+        assert _asset_id_of_trigger() == 42
+        mocked_db.session.get.assert_called_once_with(Sensor, 7)
 
 
 @pytest.mark.parametrize(
