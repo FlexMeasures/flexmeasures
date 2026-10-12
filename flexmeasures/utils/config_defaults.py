@@ -192,9 +192,8 @@ class Config(object):
     )
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
-    FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
-        "account"  # what to count triggers against: "account", "account+asset" or "user"
-    )
+    # Deprecated, and ignored: triggers are always counted per account
+    FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
     FLEXMEASURES_JS_VERSIONS: dict = dict(
         vega="5.22.1",
         vegaembed="6.21.0",
@@ -311,6 +310,13 @@ class TestingConfig(Config):
     # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
     SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES: list[str] = []
+    # Flask-Security's default password hash is argon2, which costs about 50 ms per hash, and tests create many users.
+    # Keep argon2, with the minimum cost parameters (memory_cost must be at least 8 * parallelism).
+    SECURITY_PASSWORD_HASH_PASSLIB_OPTIONS: dict[str, int] = {
+        "argon2__time_cost": 1,
+        "argon2__memory_cost": 8,
+        "argon2__parallelism": 1,
+    }
     FLEXMEASURES_MODE: str = "test"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24

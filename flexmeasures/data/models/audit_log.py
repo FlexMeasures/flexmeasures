@@ -45,21 +45,36 @@ class AuditLog(db.Model, AuthModelMixin):
         "User",
         primaryjoin="AuditLog.active_user_id == User.id",
         foreign_keys="[AuditLog.active_user_id]",
-        backref=db.backref("active_audit_logs", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "active_audit_logs",
+            lazy=True,
+            passive_deletes="all",
+            order_by="AuditLog.id",
+        ),
         passive_deletes="all",
     )
     affected_user = db.relationship(
         "User",
         primaryjoin="AuditLog.affected_user_id == User.id",
         foreign_keys="[AuditLog.affected_user_id]",
-        backref=db.backref("affected_audit_logs", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "affected_audit_logs",
+            lazy=True,
+            passive_deletes="all",
+            order_by="AuditLog.id",
+        ),
         passive_deletes="all",
     )
     affected_account = db.relationship(
         "Account",
         primaryjoin="AuditLog.affected_account_id == Account.id",
         foreign_keys="[AuditLog.affected_account_id]",
-        backref=db.backref("affected_audit_logs", lazy=True, passive_deletes="all"),
+        backref=db.backref(
+            "affected_audit_logs",
+            lazy=True,
+            passive_deletes="all",
+            order_by="AuditLog.id",
+        ),
         passive_deletes="all",
     )
 
