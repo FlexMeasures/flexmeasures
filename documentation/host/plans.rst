@@ -25,13 +25,21 @@ The settings themselves are documented under :ref:`rate-limiting-config`.
 How the two limits count
 -------------------------
 
-- The **default limit** counts *every* request, including the ones we refuse. The limiter runs before
-  authentication, so requests without valid credentials are counted, too (per IP address, as there is no user
-  to count them against). This is what bounds a client who keeps sending requests we refuse.
-- The **trigger limit** only counts triggers we *accepted*. It exists to protect the expensive computation which
-  a trigger sets in motion, and a request we rejected ― because its payload did not validate, or because the
-  asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
-  flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+- The **default limit** counts *every* request, including the ones we refuse.
+  The limiter runs before authentication, so requests without valid credentials are counted, too (per IP address, as there is no account to count them against).
+  This is what bounds a client who keeps sending requests we refuse.
+- The **trigger limit** only counts triggers we *accepted*.
+  It exists to protect the expensive computation which a trigger sets in motion,
+  and a request we rejected ― because its payload did not validate, or because the asset belongs to someone else ― cost us no computation.
+  In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+
+The default limit is counted per account: all users and API clients of an account share one budget, which is the budget the account's plan sets.
+That includes the UI, which fetches the data it shows from the API, so someone browsing the UI spends from the same budget as the account's integrations.
+A user of a consultancy account counts against the consultancy's own account, also when acting on a client account's assets,
+as it is the consultancy's integration which makes those requests.
+
+The trigger limit is counted per account: all users and assets of an account share one budget.
+A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
 
 .. _rate-limiting-plans:
 
@@ -46,7 +54,7 @@ Create a plan with ``flexmeasures add plan``:
 
 .. code-block:: bash
 
-    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes" --rate-limit-key account
+    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes"
 
 List the plans you created, with the limits each of them sets, using ``flexmeasures show plans``:
 
@@ -54,7 +62,7 @@ List the plans you created, with the limits each of them sets, using ``flexmeasu
 
     $ flexmeasures show plans
 
-A plan's ``default_rate_limit``, ``trigger_rate_limit`` and ``rate_limit_key`` override the server-wide settings
+A plan's ``default_rate_limit`` and ``trigger_rate_limit`` override the server-wide settings
 for the accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account
 on a plan which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the
 value ``"unlimited"`` to exempt an account from a limit altogether.
@@ -103,6 +111,7 @@ Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``, the 
 accounts a consultancy account may manage). These are not enforced yet, which is why ``flexmeasures show plans``
 leaves them out for now.
 
-.. note:: Changing an account's ``rate_limit_key`` orphans the counters it has in Redis (the old keys simply expire),
-          so the account may get a fresh budget for the remainder of the current window. Harmless, but worth knowing
-          when you wonder why a plan change handed someone a clean slate.
+.. note:: Changing an account's limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
+          because the limit's amount is part of their key (the old keys simply expire).
+          So the account may get a fresh budget for the remainder of the current window.
+          Harmless, but worth knowing when you wonder why a plan change handed someone a clean slate.

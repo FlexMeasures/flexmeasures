@@ -10,7 +10,7 @@ It's recommended to get familiar with the decorators we provide. Here are some p
 
 In short, we recommend to use the ``@permission_required_for_context`` decorator (more explanation below).
 
-FlexMeasures also supports role-based decorators, e.g. ``@account_roles_required``. These authorization decorators are more straightforward to use than the  ``@permission_required_for_context`` decorator. However, they are a bit crude as they do not distinguish on what the context is, nor do they qualify on the required permission(e.g. read versus write). [#f1]_
+FlexMeasures also supports role-based decorators, e.g. ``@account_roles_required``. These decorators do not check whether the user may perform a named action on a particular resource. [#f1]_
 
 Finally, all decorators available through `Flask-Security-Too <https://flask-security-too.readthedocs.io/en/stable/patterns.html#authentication-and-authorization>`_ can be used, e.g. ``@auth_required`` (that's technically only checking authentication) or ``@permissions_required``.
 
@@ -18,10 +18,9 @@ Finally, all decorators available through `Flask-Security-Too <https://flask-sec
 Permission-based authorization
 --------------------------------
 
-Via permissions, it's possible to define authorization access to data, distinguishing between create, read, update and delete access. It's a finer model than simply allowing per role.
+Named permissions describe actions such as ``read``, ``post-data`` and ``trigger-schedules``. The names are declared in ``flexmeasures.auth.policy``. The ``Role.permissions`` property maps built-in user roles to those names in code; there is no permissions column on ``Role`` to populate. A model's ``__acl__`` maps the same names to principals allowed to perform them on that resource.
 
-The data models codify under which conditions a user can have certain permissions to work with their data.
-You, as the endpoint author, need to make sure this is checked. Here is an example (taken from the decorator docstring):
+An endpoint must check both requirements with ``@permission_required_for_context`` or ``check_access``: the user needs an eligible role grant and must match an ACL principal for the resource. For example, ``trigger-schedules`` in an asset's ACL and in an endpoint check refers to the same permission as ``trigger-schedules`` in a role's grants. There is no separate capability identifier or ``cap:`` principal. Here is an example (taken from the decorator docstring):
 
 .. code-block:: python
 
@@ -35,7 +34,11 @@ You, as the endpoint author, need to make sure this is checked. Here is an examp
     def view(resource_id: int, resource: Resource):
         return dict(name=resource.name)
 
-As you see, there is some sorcery with ``@use_kwargs`` going on before we check the permissions. `That decorator <https://webargs.readthedocs.io>`_ is relaying to a `Marshmallow <https://marshmallow.readthedocs.io/>`_ field definition. Here, ``ResourceIdField`` is a definition which de-serializes an ID (passed in as a request parameter) into a ``Resource`` instance. This instance can then be asked if the current user may read it. That last part is what ``@permission_required_for_context`` is doing. You can find these Marshmallow fields in ``flexmeasures.api.common.schemas``. 
+``@use_kwargs`` uses a `Marshmallow <https://marshmallow.readthedocs.io/>`_ field to deserialize the ID into a ``Resource`` instance. ``@permission_required_for_context`` then checks whether the current user may read that instance. You can find these fields in ``flexmeasures.api.common.schemas``.
+
+Home roles (``account-member``, ``account-admin``, ``account-reader`` and ``account-data-integrator``) provide grants only when the matching ACL principal refers to the user's own account. The ``consultant`` role provides grants only through a matching consultancy principal on a client resource. The site-wide ``admin`` and ``admin-reader`` roles are exceptions. Grant and ACL scope must match in the same ACL alternative; having ``account-member`` in a home account does not supply permissions while acting as a consultant for a client account. Unknown user roles grant no built-in named permissions. For compatibility with existing plugins, an ACL alternative that explicitly names a custom user role still grants ``read``, ``create-children``, ``update`` or ``delete`` when the user holds that role and matches every other principal in the alternative. Custom roles do not gain the newer named permissions through this compatibility rule. Custom services can still define their own authorization behavior for their endpoints.
+
+Existing users receive the ``account-member`` role in a data migration so their previous implicit home-account access persists; that same migration creates the ``account-reader`` and ``account-data-integrator`` role rows. Newly created users receive ``account-member`` by default unless explicit roles are supplied. Roles only add grants, so remove ``account-member`` when converting a user to ``account-reader`` or ``account-data-integrator``.
 
 
 Account roles

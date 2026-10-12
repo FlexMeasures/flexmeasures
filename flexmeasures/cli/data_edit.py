@@ -9,7 +9,7 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
-from flexmeasures.data.models.user import Account, Plan, RateLimitKey
+from flexmeasures.data.models.user import Account, Plan
 from flexmeasures.data.schemas.account import AccountIdField
 from sqlalchemy import delete, select
 
@@ -128,7 +128,6 @@ def edit_automation(
 CLEARABLE_PLAN_FIELDS = [
     "default-rate-limit",
     "trigger-rate-limit",
-    "rate-limit-key",
     "max-users",
     "max-assets",
     "max-clients",
@@ -156,11 +155,6 @@ CLEARABLE_PLAN_FIELDS = [
     callback=validate_rate_limit_cli,
     help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
     " Pass 'unlimited' to exempt them.",
-)
-@click.option(
-    "--rate-limit-key",
-    type=click.Choice([key.value for key in RateLimitKey]),
-    help="What the trigger rate limit is counted against.",
 )
 @click.option(
     "--max-users", type=int, help="How many users an account on this plan may have."
@@ -192,7 +186,6 @@ def edit_plan(
     name: str | None,
     default_rate_limit: str | None,
     trigger_rate_limit: str | None,
-    rate_limit_key: str | None,
     max_users: int | None,
     max_assets: int | None,
     max_clients: int | None,
@@ -220,7 +213,6 @@ def edit_plan(
         "name": name,
         "default_rate_limit": default_rate_limit,
         "trigger_rate_limit": trigger_rate_limit,
-        "rate_limit_key": RateLimitKey(rate_limit_key) if rate_limit_key else None,
         "max_users": max_users,
         "max_assets": max_assets,
         "max_clients": max_clients,

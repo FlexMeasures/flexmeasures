@@ -377,6 +377,49 @@ SENSOR_REFERENCE_SOURCE_FILTER_KEYS = frozenset(
 SENSOR_REFERENCE_BOUND_KEYS = frozenset({"lower", "upper", "snap"})
 
 
+def sensor_reference_keys() -> frozenset[str]:
+    """Every key a sensor reference may carry, as the schema that defines them names them.
+
+    Read off the schema rather than written out again, so that a key added there is accepted here without a second list to remember.
+    """
+    return frozenset(
+        field.data_key or name for name, field in SensorReferenceSchema().fields.items()
+    )
+
+
+def refuse_unknown_sensor_reference_keys(
+    value: dict[str, Any], known: frozenset[str] | set[str] | None = None
+) -> None:
+    """Refuse a key no sensor reference has, rather than reading past it.
+
+    A sensor reference used to be read for the keys it knows, so anything else was accepted and did nothing:
+    a filter written as `source` rather than `sources` dropped the filtering it was meant to apply, silently.
+
+    Which spelling belongs where is a question of its own, recorded in issue #2659.
+
+    :param value:              A sensor reference, as given.
+    :param known:              The keys this reference may carry, where that is more than a flex-config reference takes,
+                               as for a schema which extends `SensorReferenceSchema` with fields of its own.
+    :raises FMValidationError: naming the keys it does not know, and what to write instead.
+    """
+    known = sensor_reference_keys() if known is None else frozenset(known)
+    unknown = [key for key in value if key not in known]
+    if not unknown:
+        return
+    reports = []
+    for key in unknown:
+        nearest = get_close_matches(str(key), sorted(known), n=1, cutoff=0.6)
+        reports.append(
+            f"`{key}`" + (f" (did you mean `{nearest[0]}`?)" if nearest else "")
+        )
+    raise FMValidationError(
+        f"A sensor reference does not take {', '.join(reports)}."
+        f" It takes {', '.join(f'`{key}`' for key in sorted(known))}."
+        " A sensor reference filters by source in the plural, where a data request filters in the singular:"
+        " `sources` and `source-types` here, `source` and `source-type` on `GET /sensors/<id>/data`."
+    )
+
+
 def _sets_bounds(reference: dict[str, Any]) -> bool:
     """Whether a sensor-reference dict actually sets a bound, so that an explicit null or an empty snap mapping does not count."""
     return any(
@@ -567,6 +610,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        refuse_unknown_sensor_reference_keys(value)
         if self.additional_sensor_units:
             # With additional allowed units, bypass the built-in unit check and perform our own
             sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
@@ -1184,6 +1228,21 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
 
     class Meta:
         description = "Sensor reference from which to look up a variable quantity."
+
+    @pre_load
+    def refuse_keys_no_reference_has(self, data, **kwargs):
+        """Refuse a key this reference does not have, with the same message the field reading a flex config by hand gives.
+
+        Shared so that the same reference is read the same way wherever it is written.
+        The keys come from this schema rather than from this class,
+        so that a schema extending it with fields of its own, such as a plugin's, accepts what it declares.
+        """
+        if isinstance(data, dict):
+            refuse_unknown_sensor_reference_keys(
+                data,
+                known={field.data_key or name for name, field in self.fields.items()},
+            )
+        return data
 
     source_types = fields.List(
         fields.String(),

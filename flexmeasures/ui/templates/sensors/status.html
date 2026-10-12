@@ -213,8 +213,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     jobsTable = $("#jobsTable").DataTable({
       order: [[0, "desc"]],
       searching: false,
-      paging: false,
-      info: false,
+      serverSide: true,
+      pageLength: 25,
       columns: [
         { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
         { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
@@ -227,8 +227,12 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         { data: "url", title: "URL", className: "d-none", orderable: false},
       ],
       ajax: function (data, callback) {
+        const page = Math.floor(data.start / data.length) + 1;
+        const orderedColumn = data.columns[data.order[0].column].data;
+        const sortBy = orderedColumn === "queue" ? "queue" : "enqueued_at";
+        const sortDir = data.order[0].dir;
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}&sort-by=${sortBy}&sort-dir=${sortDir}`,
           method: "GET",
           success: function (res) {
             if (res["redis-connection-err"]) {
@@ -237,7 +241,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
               $("#redis_connection_err").addClass("d-none").text("");
             }
             const jobs = res.jobs.length ? res.jobs.map(JobRow) : [];
-            callback({ data: jobs });
+            callback({ data: jobs, recordsTotal: res["num-records"], recordsFiltered: res["filtered-records"] });
 
             const lastCallTime = Date.now();
             $("#jobs_time_ago").html(`(${getTimeAgo(lastCallTime)})`);
@@ -245,7 +249,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           },
           error: function (xhr) {
             console.error("Error fetching jobs:", xhr);
-            callback({ data: [] });
+            callback({ data: [], recordsTotal: 0, recordsFiltered: 0 });
           },
         });
       },
@@ -295,7 +299,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       includeChildAssets = this.checked;
       rememberIncludeChildAssets(includeChildAssets);
       // Only reload the jobs table if it has been built, which it has not while the sensor data tab is open.
-      if (jobsTable) jobsTable.ajax.reload();
+      if (jobsTable) jobsTable.ajax.reload(null, true);
     });
 
     $(document).on("click", ".sensor_refresh", function () {

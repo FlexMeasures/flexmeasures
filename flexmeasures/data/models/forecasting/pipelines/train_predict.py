@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any
+from dataclasses import dataclass
+from timely_beliefs import BeliefsDataFrame
 
 import os
 import time
@@ -25,6 +27,10 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
+from flexmeasures.data.models.forecasting.inputs import (
+    fold_target_qualifiers_into_config,
+    resolve_forecast_inputs,
+)
 
 
 def _sensor_id(sensor: Sensor | int | None) -> int | None:
@@ -196,6 +202,9 @@ def run_train_predict_cycle_job(
     pipeline._config = _load_job_config_payload(config)
     for key, value in pipeline._config.items():
         setattr(pipeline, key, value)
+    # The config was resolved against the target before this job was queued,
+    # and the parameters name the target as that resolution left it, so this job resolves nothing.
+    pipeline._resolved_config = pipeline._config
     pipeline._parameters = _load_job_parameters_payload(parameters)
     pipeline._data_source = _get_attached_data_source(data_source_id)
     try:
@@ -233,6 +242,16 @@ def run_train_predict_wrap_up_job(
     record_automation_job_succeeded(automation_run_id, logical_job_key)
 
 
+@dataclass
+class ForecastCycleResult:
+    """Computed beliefs and file artifacts belonging to one training cycle."""
+
+    data: BeliefsDataFrame
+    runtime: float
+    output_path: str | None
+    model_path: str
+
+
 class TrainPredictPipeline(Forecaster):
 
     __version__ = "1"
@@ -255,6 +274,37 @@ class TrainPredictPipeline(Forecaster):
             setattr(self, k, v)
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
+        self._resolved_config: dict[str, Any] | None = None
+
+    @property
+    def _run_config(self) -> dict[str, Any]:
+        """The config to run with, as opposed to the one the data source records."""
+        if self._resolved_config is None:
+            self._resolved_config = self._resolve_inputs()
+        return self._resolved_config
+
+    def _resolve_inputs(self) -> dict[str, Any]:
+        """Resolve the config against the sensor being forecast, and hold on to what to run with.
+
+        The config keeps naming ``"auto"`` where it means that sensor, because it is what the data source records.
+        Running needs concrete sensors, and needs the target to carry whatever its config entry says about reading it.
+
+        Mind that this changes ``self._config`` where the parameters still carry qualifiers, by folding them in.
+        So ``_config`` — and therefore ``data_source``, which records it — says something different before and after the first resolve.
+        That is the point of the fold, since the source has to report the qualifiers the run used,
+        and it is why a forecaster set up from a source that already exists is refused rather than folded:
+        that source records its config as it was, and nothing here can change what it records.
+        """
+        if fold_target_qualifiers_into_config(
+            self._config, self._parameters, recorded_source=self._data_source
+        ):
+            for key, value in self._config.items():
+                setattr(self, key, value)
+        resolved_config, target = resolve_forecast_inputs(
+            self._config, self._target_sensor
+        )
+        self._parameters["sensor"] = target
+        return resolved_config
 
     @property
     def _target_sensor(self) -> Sensor:
@@ -269,7 +319,29 @@ class TrainPredictPipeline(Forecaster):
         """Log the status of all cycle jobs after completion."""
         run_train_predict_wrap_up_job(cycle_job_ids, queue)
 
-    def run_cycle(
+    def forecast_source(self) -> DataSource:
+        """Return source attribution without adding a new source to the session."""
+        if self._data_source is not None:
+            return self._data_source
+        info = self.get_data_source_info()
+        return DataSource(
+            name=info["source"],
+            type=info["source_type"],
+            model=info.get("model"),
+            version=info.get("version"),
+            attributes=self.get_data_source_attributes(),
+            # A source is identified by the organisation it belongs to as well, so leaving this out would
+            # look up a source belonging to nobody and create one beside this forecaster's own.
+            account=self.source_account,
+        )
+
+    def run_cycle(self, *args, **kwargs):
+        """Compute and save one cycle, retaining the legacy runtime return value."""
+        from flexmeasures.data.services.forecasting import run_forecast_cycle
+
+        return run_forecast_cycle(self, *args, **kwargs)
+
+    def compute_cycle(
         self,
         train_start: datetime,
         train_end: datetime,
@@ -278,9 +350,11 @@ class TrainPredictPipeline(Forecaster):
         counter: int,
         multiplier: int,
         **kwargs,
-    ):
-        """
-        Runs a single training and prediction cycle.
+    ) -> ForecastCycleResult:
+        """Train a model and return predictions without writing to the database.
+
+        The trained model is left on disk for the caller to clean up after consuming
+        the result. CSV export and database persistence belong to the service.
         """
         # State the training span, because it decides how much work the cycle is, and it is derived rather than configured.
         logging.info(
@@ -289,8 +363,8 @@ class TrainPredictPipeline(Forecaster):
 
         # Train model
         train_pipeline = TrainPipeline(
-            future_regressors=self._config["future_regressors"],
-            past_regressors=self._config["past_regressors"],
+            future_regressors=self._run_config["future_regressors"],
+            past_regressors=self._run_config["past_regressors"],
             target_sensor=self._parameters["sensor"],
             model_save_dir=self._parameters["model_save_dir"],
             n_steps_to_predict=(predict_start - train_start)
@@ -317,8 +391,8 @@ class TrainPredictPipeline(Forecaster):
         )
         # Make predictions
         predict_pipeline = PredictPipeline(
-            future_regressors=self._config["future_regressors"],
-            past_regressors=self._config["past_regressors"],
+            future_regressors=self._run_config["future_regressors"],
+            past_regressors=self._run_config["past_regressors"],
             target_sensor=self._parameters["sensor"],
             model_path=os.path.join(
                 self._parameters["model_save_dir"],
@@ -345,7 +419,7 @@ class TrainPredictPipeline(Forecaster):
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
-            data_source=self.data_source,
+            data_source=self.forecast_source(),
             missing_threshold=self._config.get("missing_threshold"),
             annotation_regressors=self._config.get("annotation_regressors", []),
             post_processing_config={
@@ -353,13 +427,12 @@ class TrainPredictPipeline(Forecaster):
                 "upper": self._config.get("upper"),
                 "snap": self._config.get("snap"),
             },
-            dry_run=self._parameters.get("dry_run", False),
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
         )
         predict_start_time = time.time()
-        forecasts = predict_pipeline.run(delete_model=self.delete_model)
+        forecasts = predict_pipeline.compute()
         predict_runtime = time.time() - predict_start_time
         logging.info(
             f"{inflection.ordinalize(counter)} Prediction cycle completed in {predict_runtime:.2f} seconds. "
@@ -371,8 +444,12 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"{inflection.ordinalize(counter)} Train-Predict cycle from {train_start} to {predict_end} completed in {total_runtime:.2f} seconds."
         )
-        self.return_values.append({"data": forecasts, "sensor": self._target_sensor})
-        return total_runtime
+        return ForecastCycleResult(
+            data=forecasts,
+            runtime=total_runtime,
+            output_path=predict_pipeline.output_path,
+            model_path=predict_pipeline.model_path,
+        )
 
     def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
         # DataGenerator.compute already loaded kwargs into self._parameters.
@@ -422,76 +499,18 @@ class TrainPredictPipeline(Forecaster):
         as_job: bool = False,
         queue: str = "forecasting",
     ):
-        # Only announce a pipeline run when actually running it here: with as_job, this
-        # method merely queues the cycles, and the workers running them log their own start.
-        log_start = logging.debug if as_job else logging.info
-        log_start(
-            f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
-        )
-        connection = current_app.queues[queue].connection
-        # How much to move forward to the next cycle one prediction period later
-        cycle_frequency = max(
-            self._config["retrain_frequency"],
-            self._parameters["forecast_frequency"],
-        )
+        """Run forecasting through the service, retaining the existing entrypoint."""
+        from flexmeasures.data.services.forecasting import run_forecast
 
-        predict_start = self._parameters["predict_start"]
-        predict_end = predict_start + cycle_frequency
-
-        # Determine training window (start, end)
-        train_start, train_end = self._derive_training_period()
-
-        sensor_resolution = self._parameters["sensor"].event_resolution
-        multiplier = int(
-            timedelta(hours=1) / sensor_resolution
-        )  # multiplier used to adapt n_steps_to_predict to hours from sensor resolution, e.g. 15 min sensor resolution will have 7*24*4 = 168 predictions to predict a week
-
-        # Compute number of training cycles (at least 1)
-        n_cycles = max(
-            timedelta(hours=self._parameters["predict_period_in_hours"])
-            // max(
-                self._config["retrain_frequency"],
-                self._parameters["forecast_frequency"],
-            ),
-            1,
-        )
-
-        cumulative_cycles_runtime = 0  # To track the cumulative runtime of TrainPredictPipeline cycles when not running as a job.
-        cycles_job_params = []
-        for counter in range(n_cycles):
-            predict_end = min(predict_end, self._parameters["end_date"])
-
-            train_predict_params = {
-                "train_start": train_start,
-                "train_end": train_end,
-                "predict_start": predict_start,
-                "predict_end": predict_end,
-                "counter": counter + 1,
-                "multiplier": multiplier,
-            }
-
-            if not as_job:
-                cycle_runtime = self.run_cycle(**train_predict_params)
-                cumulative_cycles_runtime += cycle_runtime
-            else:
-                cycles_job_params.append(train_predict_params)
-
-            train_end += cycle_frequency
-            predict_start += cycle_frequency
-            predict_end += cycle_frequency
-        if not as_job:
-            logging.info(
-                f"Train-Predict Pipeline completed successfully in {cumulative_cycles_runtime:.2f} seconds."
-            )
-
-        if as_job:
-            return self._queue_cycle_jobs(cycles_job_params, queue, connection)
-
-        return self.return_values
+        return run_forecast(self, as_job=as_job, queue=queue)
 
     def _persist_data_source_id(self) -> int:
         """Make sure this pipeline's data source is in the database, so that the workers can look it up."""
-        self._data_source = db.session.merge(self.data_source)
+        from flexmeasures.data.models.forecasting.utils import refresh_data_source
+
+        self._data_source = db.session.merge(
+            refresh_data_source(self.forecast_source())
+        )
         db.session.commit()
         data_source_id = self._data_source.id
         return data_source_id
@@ -541,7 +560,7 @@ class TrainPredictPipeline(Forecaster):
         so that a retry recognises the jobs it already queued instead of queueing them a second time.
         Outside an automation run there is nothing to retry, so RQ is left to make up the job IDs.
         """
-        job_config = _make_job_config_payload(self._config)
+        job_config = _make_job_config_payload(self._run_config)
         job_parameters = _make_job_parameters_payload(self._parameters)
 
         def rq_job_id_for(logical_job_key: str) -> str | None:
@@ -696,7 +715,7 @@ class TrainPredictPipeline(Forecaster):
             if reconcile_automation_job_intent(intent):
                 # This job survived an earlier attempt at this run, so leave it be.
                 if cache_for_sensor_id is not None:
-                    current_app.job_cache.add(
+                    current_app.job_map.add(
                         cache_for_sensor_id,
                         job_id=intent.rq_job_id,
                         queue=queue,
@@ -725,7 +744,7 @@ class TrainPredictPipeline(Forecaster):
                 automation_run_id, job_spec["logical_job_key"], job.id
             )
         if cache_for_sensor_id is not None:
-            current_app.job_cache.add(
+            current_app.job_map.add(
                 cache_for_sensor_id,
                 job_id=job.id,
                 queue=queue,

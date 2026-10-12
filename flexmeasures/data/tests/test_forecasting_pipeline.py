@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from darts import TimeSeries
 from marshmallow import ValidationError
 from sqlalchemy import inspect as sa_inspect, select
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 
 from flexmeasures.data.models.forecasting.custom_models import (
     base_model as base_model_module,
@@ -1689,7 +1690,7 @@ def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exc
                 "output-path": None,
                 "end": "2025-01-30T00:00+02:00",
                 "sensor-to-save": None,
-                "start": "2025-01-25T00:00+02:00",
+                "start": "2025-01-29T00:00+02:00",
                 "max-forecast-horizon": "PT1H",
                 "forecast-frequency": "PT1H",
                 "probabilistic": False,
@@ -1982,6 +1983,7 @@ def test_future_regressor_split_selects_latest_known_value_per_regressor(monkeyp
 
 
 def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypatch):
+    # The meters record 15-minute events, so their beliefs about the 09:00 event, recorded at 09:30 and 09:45, are realized.
     target_sensor = type(
         "SensorStub",
         (),
@@ -1990,12 +1992,12 @@ def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypat
     past_regressor_a = type(
         "SensorStub",
         (),
-        {"name": "meter-a", "id": 2, "event_resolution": timedelta(hours=1)},
+        {"name": "meter-a", "id": 2, "event_resolution": timedelta(minutes=15)},
     )()
     past_regressor_b = type(
         "SensorStub",
         (),
-        {"name": "meter-b", "id": 3, "event_resolution": timedelta(hours=1)},
+        {"name": "meter-b", "id": 3, "event_resolution": timedelta(minutes=15)},
     )()
 
     pipeline = BasePipeline(
@@ -2241,6 +2243,7 @@ def test_annotation_regressor_split_preserves_annotation_columns(monkeypatch):
 def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
     monkeypatch,
 ):
+    # The weather regressors record 5-minute events, so all their beliefs about the 09:00 event, recorded from 09:10, are realized.
     target_sensor = type(
         "SensorStub",
         (),
@@ -2249,12 +2252,12 @@ def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
     future_regressor_a = type(
         "SensorStub",
         (),
-        {"name": "weather-a", "id": 2, "event_resolution": timedelta(hours=1)},
+        {"name": "weather-a", "id": 2, "event_resolution": timedelta(minutes=5)},
     )()
     future_regressor_b = type(
         "SensorStub",
         (),
-        {"name": "weather-b", "id": 3, "event_resolution": timedelta(hours=1)},
+        {"name": "weather-b", "id": 3, "event_resolution": timedelta(minutes=5)},
     )()
 
     pipeline = BasePipeline(
@@ -2872,3 +2875,460 @@ def test_concurrent_horizons_forecast_exactly_as_sequential_ones():
     assert len(predictions[0]) == n_horizons
     assert list(predictions[0].time_index) == list(predictions[1].time_index)
     assert np.array_equal(predictions[0].values(), predictions[1].values())
+
+
+def _forecast_pipeline(config: dict, target_sensor) -> TrainPredictPipeline:
+    """A pipeline holding just what resolving its inputs needs."""
+    pipeline = TrainPredictPipeline(config=config)
+    pipeline._parameters = {"sensor": target_sensor}
+    return pipeline
+
+
+def test_an_auto_entry_describes_the_target_instead_of_adding_a_regressor(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """A config entry naming "auto" says how to read the sensor being forecast.
+
+    The model already learns from that sensor, as its labels and its own lags,
+    so the entry says how to read it rather than handing it to the model a second time.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    pipeline = _forecast_pipeline(
+        {
+            "past-regressors": [
+                {
+                    "sensor": "auto",
+                    "lower": "0 kW",
+                    "exclude-source-types": ["scheduler"],
+                },
+                regressor_sensor.id,
+            ]
+        },
+        target_sensor,
+    )
+
+    resolved = pipeline._resolve_inputs()
+
+    assert resolved["past_regressors"] == [regressor_sensor]
+    target = pipeline._parameters["sensor"]
+    assert isinstance(target, SensorReference)
+    assert target.sensor == target_sensor
+    assert target.lower == "0 kW"
+    assert target.exclude_source_types == ["scheduler"]
+
+
+def test_naming_the_target_by_id_keeps_it_a_regressor(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """An entry naming the sensor being forecast by its ID is a regressor, not a description of the target.
+
+    Only ``"auto"`` describes the training labels.
+    Reading an ID entry as that description would drop a column the config asked for, and would reinterpret its qualifiers:
+    the bound here cleans that regressor column, while the labels stay as the parameters give them.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = _forecast_pipeline(
+        {"past-regressors": [{"sensor": target_sensor.id, "upper": "20 kW"}]},
+        target_sensor,
+    )
+
+    resolved = pipeline._resolve_inputs()
+
+    assert len(resolved["past_regressors"]) == 1
+    regressor = resolved["past_regressors"][0]
+    assert regressor.sensor == target_sensor
+    assert regressor.upper == "20 kW"
+    assert (
+        pipeline._parameters["sensor"] == target_sensor
+    ), "the target itself was not qualified"
+
+
+def test_target_qualifiers_in_the_parameters_move_into_the_config(
+    app, setup_fresh_test_forecast_data, fresh_db, caplog
+):
+    """Qualifiers that a payload still puts on the target move to the config, where the data source records them."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._parameters = {
+        "sensor": SensorReference(sensor=target_sensor, lower="0 kW")
+    }
+
+    with caplog.at_level(logging.WARNING):
+        pipeline._resolve_inputs()
+
+    assert any("have been moved" in message for message in caplog.messages)
+    recorded = TrainPredictPipelineConfigSchema().dump(pipeline._config)
+    assert recorded["past-regressors"] == [{"sensor": "auto", "lower": "0 kW"}]
+    assert pipeline._parameters["sensor"].lower == "0 kW"
+
+
+def test_a_payload_that_qualifies_its_target_is_still_queued_rather_than_refused(
+    app, clean_redis, setup_fresh_test_forecast_data, fresh_db
+):
+    """A payload with qualifiers on its target and no source of its own folds and queues, as it always did.
+
+    Refusing one of these depends on an ordering rather than on anything written down:
+    `run` resolves the inputs before `_persist_data_source_id` reads the `data_source` property,
+    which is what creates a source and so attaches one. Were the two to swap places,
+    every such payload would arrive at the refusal with a source attached and be turned away at the front door,
+    and the refusal's own test would still pass. This is what says the fold path is still reachable.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    pipeline = TrainPredictPipeline(config={"train-start": "2025-01-01T00:00:00+00:00"})
+    assert pipeline._data_source is None, "nothing has attached a source yet"
+
+    queued = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": {"sensor": target_sensor.id, "lower": "0 kW"},
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+
+    job = app.queues["forecasting"].fetch_job(queued["job_id"])
+    assert job is not None, "the payload was queued rather than refused"
+    # The fold moved the bound off the parameters' target and into the config as an `auto` entry,
+    # which resolving then put back on the target the job runs with. Either way it travelled with the job.
+    target = job.kwargs["parameters"]["sensor_id"]
+    assert target["sensor"] == target_sensor.id
+    assert target["lower"] == "0 kW"
+
+
+def test_a_stored_forecaster_is_refused_rather_than_run_under_qualifiers_its_source_omits(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """A forecaster set up from an existing source cannot absorb qualifiers: its source already records a config without them.
+
+    Moving them in memory would compute the forecast under qualifiers, and attribute it to a source saying it ran without them,
+    which is the gap this release closes. Such a payload is stored, so it would run that way on every recurrence.
+    """
+    from flexmeasures.data.models.data_sources import DataSource
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    source = DataSource(
+        name="Seita",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        version="1",
+        attributes={"data_generator": {"config": {}}},
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.flush()
+
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._data_source = source
+    pipeline._parameters = {
+        "sensor": SensorReference(sensor=target_sensor, lower="0 kW")
+    }
+
+    with pytest.raises(ValueError) as refusal:
+        pipeline._resolve_inputs()
+
+    assert f"data source {source.id}" in str(refusal.value)
+    assert "lower" in str(refusal.value)
+    # Both ways out are named, as the same refusal reaches an automation and a one-off run reusing a source.
+    assert "leave the source out" in str(refusal.value)
+    assert "recreate the source" in str(refusal.value)
+    # Nothing was moved, so the source still describes what it always did.
+    assert TrainPredictPipelineConfigSchema().dump(pipeline._config).get(
+        "past-regressors"
+    ) in (None, [])
+
+
+def test_a_forecaster_that_cleans_nothing_records_the_config_it_always_did(
+    app, setup_fresh_test_forecast_data, fresh_db
+):
+    """Resolving must not write anything into the config of a forecaster that qualifies nothing.
+
+    The config is what identifies a forecaster's data source,
+    so a forecaster that configures no cleaning has to keep recording what it recorded before, and keep its source with it.
+    """
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    pipeline = _forecast_pipeline(
+        {"past-regressors": [regressor_sensor.id]}, target_sensor
+    )
+    recorded_before = TrainPredictPipelineConfigSchema().dump(pipeline._config)
+
+    pipeline._resolve_inputs()
+
+    assert TrainPredictPipelineConfigSchema().dump(pipeline._config) == recorded_before
+    assert pipeline._parameters["sensor"] == target_sensor
+
+
+def test_a_forecasters_transient_source_belongs_to_its_organisation(
+    app, fresh_db, setup_accounts_fresh_db, setup_generic_asset_types_fresh_db
+):
+    """The source a forecaster names before anything is saved has to belong to the organisation it computes for.
+
+    An organisation is part of what identifies a source, so a transient source without one is looked up as a source belonging to nobody:
+    it does not find the forecaster's own source, and `refresh_data_source` creates an unowned one beside it.
+    Forecasts would then be recorded under a source that says it belongs to no organisation, and a `source-account` filter would stop matching them.
+    No existing forecasting test sees this, because `setup_fresh_test_forecast_data` builds its assets without an organisation;
+    this one has to own its asset to say anything at all.
+    """
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    asset = Asset(
+        name="owned site",
+        generic_asset_type=setup_generic_asset_types_fresh_db["battery"],
+        account_id=prosumer.id,
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.flush()
+    sensor = Sensor(
+        name="owned power", generic_asset=asset, event_resolution=timedelta(hours=1)
+    )
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+
+    pipeline = TrainPredictPipeline(config={})
+    pipeline._parameters = {"sensor": sensor}
+    assert pipeline._data_source is None, "nothing has attached a source yet"
+
+    # The account rather than the account_id: the source is transient, so its foreign key is only populated on a flush.
+    assert pipeline.forecast_source().account == prosumer
+
+
+def test_instantaneous_past_regressor_is_realized_when_recorded_at_its_instant(
+    monkeypatch,
+):
+    """A reading recorded at the instant it describes counts as realized, but only for an instantaneous regressor.
+
+    For a regressor with a resolution, a belief recorded at its event's start is still a forecast.
+    """
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    instantaneous_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "thermometer", "id": 2, "event_resolution": timedelta(0)},
+    )()
+    hourly_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "meter", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[instantaneous_regressor, hourly_regressor],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    instantaneous, hourly = pipeline.past_regressors
+    event_start = pd.Timestamp("2025-01-08T09:00:00")
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": event_start,
+                "belief_time": event_start,
+                pipeline.target: None,
+                instantaneous: 5.0,
+                hourly: 7.0,
+            },
+            {
+                "event_start": event_start,
+                "belief_time": event_start + pd.Timedelta(hours=1),
+                pipeline.target: 1.0,
+                instantaneous: None,
+                hourly: None,
+            },
+        ]
+    )
+
+    captured_past_frames = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.past_regressors:
+            captured_past_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    selected = captured_past_frames[0].set_index("event_start")
+    assert selected.loc[event_start, instantaneous] == 5.0
+    assert pd.isna(selected.loc[event_start, hourly])
+
+
+@pytest.mark.parametrize(
+    [
+        "event_resolution",
+        "knowledge_horizon",
+        "recorded_after_event_start",
+        "is_realized",
+    ],
+    [
+        # Instantaneous measurements, recorded at the instant they describe
+        (timedelta(0), None, lambda event_start: timedelta(0), True),
+        # Day-ahead prices, known from noon the day before, and recorded an hour later
+        (
+            timedelta(hours=1),
+            (x_days_ago_at_y_oclock, {"x": 1, "y": 12, "z": "Europe/Amsterdam"}),
+            lambda event_start: (
+                event_start.tz_convert("Europe/Amsterdam").normalize()
+                - pd.Timedelta(hours=11)
+                - event_start
+            ),
+            True,
+        ),
+        # Hourly measurements recorded halfway through their event, which are still forecasts
+        (timedelta(hours=1), None, lambda event_start: timedelta(minutes=30), False),
+    ],
+    ids=["instantaneous", "day-ahead", "mid-event"],
+)
+def test_past_regressor_beliefs_are_realized_by_their_knowledge_horizon(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+    event_resolution,
+    knowledge_horizon,
+    recorded_after_event_start,
+    is_realized,
+):
+    """A past regressor's beliefs reach the model once they are realized, as their sensor's knowledge horizon defines it."""
+    solar = setup_fresh_test_forecast_data["solar-sensor-1"]
+    regressor = Sensor(
+        name="regressor",
+        generic_asset=solar.generic_asset,
+        unit=solar.unit,
+        event_resolution=event_resolution,
+        **({"knowledge_horizon": knowledge_horizon} if knowledge_horizon else {}),
+    )
+    fresh_db.session.add(regressor)
+    for belief in fresh_db.session.scalars(
+        select(TimedBelief).filter_by(sensor_id=solar.id)
+    ).all():
+        event_start = pd.Timestamp(belief.event_start)
+        fresh_db.session.add(
+            TimedBelief(
+                sensor=regressor,
+                source=belief.source,
+                event_start=event_start,
+                belief_time=event_start + recorded_after_event_start(event_start),
+                event_value=belief.event_value,
+            )
+        )
+    fresh_db.session.flush()
+
+    rows_and_values = []
+    fill_missing_values = BasePipeline._fill_missing_values
+
+    def count_values(self, data, sensor, sensor_name, *args, **kwargs):
+        if sensor.id == regressor.id:
+            rows_and_values.append((len(data), int(data[sensor_name].notna().sum())))
+        return fill_missing_values(self, data, sensor, sensor_name, *args, **kwargs)
+
+    monkeypatch.setattr(BasePipeline, "_fill_missing_values", count_values)
+
+    TrainPredictPipeline(
+        config={
+            "past-regressors": [regressor.id],
+            "train-start": "2025-01-01T00:00+02:00",
+        }
+    ).compute(
+        parameters={
+            "sensor": setup_fresh_test_forecast_data["solar-sensor"].id,
+            "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+            "output-path": None,
+            "start": "2025-01-08T00:00+02:00",
+            "end": "2025-01-09T00:00+02:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT24H",
+            "probabilistic": False,
+        }
+    )
+
+    assert rows_and_values
+    for rows, values in rows_and_values:
+        assert values == (rows if is_realized else 0)
+
+
+def test_future_regressor_keeps_day_ahead_prices_known_before_the_forecast(
+    app, fresh_db, setup_fresh_test_forecast_data, monkeypatch
+):
+    """Day-ahead prices are realized once published, so those published before a forecast is made are used as future values, also for events after the training window."""
+    solar = setup_fresh_test_forecast_data["solar-sensor-1"]
+    prices = Sensor(
+        name="day-ahead prices",
+        generic_asset=solar.generic_asset,
+        unit="EUR/MWh",
+        event_resolution=timedelta(hours=1),
+        knowledge_horizon=(
+            x_days_ago_at_y_oclock,
+            {"x": 1, "y": 12, "z": "Europe/Amsterdam"},
+        ),
+    )
+    fresh_db.session.add(prices)
+    beliefs = fresh_db.session.scalars(
+        select(TimedBelief).filter_by(sensor_id=solar.id)
+    ).all()
+    # Also publish the prices of the day that is forecast
+    for days_later in (0, 1):
+        for belief in beliefs:
+            event_start = pd.Timestamp(belief.event_start) + pd.Timedelta(
+                days=days_later
+            )
+            published = event_start.tz_convert(
+                "Europe/Amsterdam"
+            ).normalize() - pd.Timedelta(hours=11)
+            if days_later and event_start < pd.Timestamp("2025-01-08T00:00+00:00"):
+                continue
+            fresh_db.session.add(
+                TimedBelief(
+                    sensor=prices,
+                    source=belief.source,
+                    event_start=event_start,
+                    belief_time=published,
+                    event_value=belief.event_value,
+                )
+            )
+    fresh_db.session.flush()
+
+    future_values = []
+    fill_missing_values = BasePipeline._fill_missing_values
+
+    def collect_values(self, data, sensor, sensor_name, *args, **kwargs):
+        if sensor.id == prices.id:
+            future_values.append(data.set_index("event_start")[sensor_name])
+        return fill_missing_values(self, data, sensor, sensor_name, *args, **kwargs)
+
+    monkeypatch.setattr(BasePipeline, "_fill_missing_values", collect_values)
+
+    TrainPredictPipeline(
+        config={
+            "future-regressors": [prices.id],
+            "train-start": "2025-01-01T00:00+02:00",
+        }
+    ).compute(
+        parameters={
+            "sensor": setup_fresh_test_forecast_data["solar-sensor"].id,
+            "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+            "output-path": None,
+            "start": "2025-01-08T00:00+02:00",
+            "end": "2025-01-09T00:00+02:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT24H",
+            "probabilistic": False,
+        }
+    )
+
+    # Every event has a price, also those after 21:00 UTC, the last event the model trains on
+    assert future_values
+    for values in future_values:
+        assert values.notna().all()
+        assert values.index.max() > pd.Timestamp("2025-01-07T21:00")

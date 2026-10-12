@@ -25,6 +25,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    asset_contains_data,
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
@@ -43,7 +44,7 @@ from flexmeasures.api.common.schemas.assets import (
     AssetPaginationSchema,
     PublicAssetAPISchema,
 )
-from flexmeasures.data.services.job_cache import NoRedisConfigured
+from flexmeasures.data.services.job_map import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
@@ -325,6 +326,23 @@ class AssetAuditLogPaginationSchema(PaginationSchema):
 
 
 class AssetJobsQuerySchema(Schema):
+    page = fields.Int(required=False, validate=validate.Range(min=1))
+    per_page = fields.Int(
+        data_key="per-page",
+        required=False,
+        validate=validate.Range(min=1),
+        load_default=10,
+    )
+    sort_by = fields.Str(
+        data_key="sort-by",
+        validate=validate.OneOf(["enqueued_at", "queue"]),
+        load_default="enqueued_at",
+    )
+    sort_dir = fields.Str(
+        data_key="sort-dir",
+        validate=validate.OneOf(["asc", "desc"]),
+        load_default="desc",
+    )
     include_child_assets = fields.Bool(
         data_key="include-child-assets",
         required=False,
@@ -893,12 +911,12 @@ class AssetAPI(FlaskView):
             parent_asset = db.session.get(GenericAsset, parent_asset_id)
             if parent_asset is None:
                 abort(404, f"Parent asset with id {parent_asset_id} not found.")
-            check_access(parent_asset, "create-children")
+            check_access(parent_asset, "edit-assets")
         else:
             account_id = asset_data.get("account_id")
             if account_id is not None:
                 account = db.session.get(Account, account_id)
-                check_access(account, "create-children")
+                check_access(account, "edit-assets")
             elif not running_as_cli() and not user_has_admin_access(
                 current_user, "update"
             ):
@@ -978,7 +996,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @permission_required_for_context("update", ctx_arg_name="db_asset")
+    @permission_required_for_context("edit-assets", ctx_arg_name="db_asset")
     @as_json
     def patch(self, id: int, db_asset: GenericAsset):
         """
@@ -1042,6 +1060,8 @@ class AssetAPI(FlaskView):
         asset_data = request.get_json()
         if not asset_data:
             return unprocessable_entity("No JSON data provided.")
+        if {"flex_context", "flex_model"} & asset_data.keys():
+            check_access(db_asset, "edit-flex-config")
 
         asset_schema = AssetSchema(partial=True)
         asset_schema.context = {
@@ -1071,7 +1091,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @permission_required_for_context("delete", ctx_arg_name="asset")
+    @permission_required_for_context("edit-assets", ctx_arg_name="asset")
     @as_json
     def delete(self, id: int, asset: GenericAsset):
         """
@@ -1102,6 +1122,10 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        for descendant in asset.offspring:
+            check_access(descendant, "edit-assets")
+        if asset_contains_data(asset):
+            check_access(asset, "delete-data")
         delete_asset(asset)
         db.session.commit()
         return {}, 204
@@ -1728,7 +1752,7 @@ class AssetAPI(FlaskView):
     # Managing an automation is gated like running one:
     # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def post_automation(self, automation_data: dict, id: int, asset: GenericAsset):
         """
@@ -1848,7 +1872,7 @@ class AssetAPI(FlaskView):
     # Managing an automation is gated like running one:
     # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def patch_automation(
         self, automation_data: dict, id: int, automation_id: int, asset: GenericAsset
@@ -1925,7 +1949,7 @@ class AssetAPI(FlaskView):
     # Managing an automation is gated like running one:
     # an automation exists to write data under the asset, so the same principals that may add data there may define it.
     # The sensors it involves are checked separately, against the user's own access.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def delete_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -1985,7 +2009,7 @@ class AssetAPI(FlaskView):
     # Running an automation writes data under the asset, which is what create-children means here.
     # The sensors it writes to were checked against the same permission when the automation was created,
     # and its output scope is checked again on each run (see validate_automation_output_scope).
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("manage-automations", ctx_arg_name="asset")
     @as_json
     def trigger_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
@@ -2097,14 +2121,23 @@ class AssetAPI(FlaskView):
     @use_kwargs(AssetJobsQuerySchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_jobs(self, id: int, asset: GenericAsset, include_child_assets: bool = True):
+    def get_jobs(
+        self,
+        id: int,
+        asset: GenericAsset,
+        include_child_assets: bool = True,
+        page: int | None = None,
+        per_page: int = 10,
+        sort_by: str = "enqueued_at",
+        sort_dir: str = "desc",
+    ):
         """
         .. :quickref: Assets; Get all background jobs related to an asset.
         ---
         get:
           summary: Get all background jobs related to an asset.
           description: |
-            The response will be a list of jobs.
+            The response will be a list of jobs. Pass `page` and optionally `per-page` (default 10) to paginate the list, newest first. Use `sort-by=enqueued_at` or `sort-by=queue` with `sort-dir=asc` or `sort-dir=desc` to order paginated results. Paginated responses also contain `num-records` and `filtered-records`. Without `page`, the existing complete list and response format are preserved.
             Note that jobs in Redis have a limited TTL, so not all past jobs will be listed.
 
             By default, the jobs of the assets below it are included as well, at any depth, so that a site asset reports everything that happened below it.
@@ -2126,6 +2159,34 @@ class AssetAPI(FlaskView):
               description: Whether to also list the jobs of the assets below it, at any depth (default true).
               schema:
                 type: boolean
+            - in: query
+              name: page
+              required: false
+              description: One-based page number. Omit to return all jobs.
+              schema:
+                type: integer
+                minimum: 1
+            - in: query
+              name: per-page
+              required: false
+              description: Jobs per page when page is provided (default 10).
+              schema:
+                type: integer
+                minimum: 1
+            - in: query
+              name: sort-by
+              required: false
+              description: Sort paginated jobs by enqueue time or queue (default enqueued_at).
+              schema:
+                type: string
+                enum: [enqueued_at, queue]
+            - in: query
+              name: sort-dir
+              required: false
+              description: Sort direction for paginated jobs (default desc).
+              schema:
+                type: string
+                enum: [asc, desc]
           responses:
             200:
               description: PROCESSED
@@ -2163,22 +2224,35 @@ class AssetAPI(FlaskView):
         all_jobs_data = list()
         try:
             jobs_data = build_asset_jobs_data(
-                asset, include_child_assets=include_child_assets
+                asset,
+                include_child_assets=include_child_assets,
+                page=page,
+                per_page=per_page,
+                sort_by=sort_by,
+                sort_dir=sort_dir,
             )
         except NoRedisConfigured as e:
             redis_connection_err = e.args[0]
         else:
-            all_jobs_data = jobs_data
+            if page is None:
+                all_jobs_data = jobs_data
+            else:
+                all_jobs_data, total_jobs = jobs_data
 
-        return {
+        response = {
             "jobs": all_jobs_data,
             "redis-connection-err": redis_connection_err,
-        }, 200
+        }
+        if page is not None:
+            response["num-records"] = response["filtered-records"] = (
+                total_jobs if redis_connection_err is None else 0
+            )
+        return response, 200
 
     @route("/<id>/reports/trigger", methods=["POST"])
     @limit_triggers()
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("trigger-reports", ctx_arg_name="asset")
     @as_json
     def trigger_report(self, id: int, asset: GenericAsset):
         """
@@ -2303,7 +2377,7 @@ class AssetAPI(FlaskView):
     @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("trigger-schedules", ctx_arg_name="asset")
     @permission_required_for_context(
         "read",
         ctx_arg_name="flex_model",
@@ -2650,7 +2724,7 @@ class AssetAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context("annotate", ctx_arg_name="asset")
     def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
         """.. :quickref: Assets; Add an annotation to an asset.
         ---
@@ -2799,9 +2873,9 @@ class AssetAPI(FlaskView):
         # create-children check, which requires account-admin or consultant.
         # Special case: public-to-public copies (both None) require site admin.
         if resolved_parent is not None:
-            check_access(resolved_parent, "create-children")
+            check_access(resolved_parent, "edit-assets")
         elif resolved_account is not None:
-            check_access(resolved_account, "create-children")
+            check_access(resolved_account, "edit-assets")
         else:
             # Public asset copy (account_id=None, parent_asset_id=None).
             # Only site admins may create public assets.
