@@ -564,14 +564,7 @@ def test_alter_an_asset(
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
-    # ... or deleted ...
-    asset_delete_response = client.delete(
-        url_for("AssetAPI:delete", id=prosumer_asset.id),
-        json={},
-    )
-    print(f"Deletion Response: {asset_delete_response.json}")
-    assert asset_delete_response.status_code == 403
-    # ... but editing is allowed.
+    # Editing is allowed. Deletion of an empty asset is tested separately.
     latitude, name = prosumer_asset.latitude, prosumer_asset.name
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),

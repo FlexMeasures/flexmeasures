@@ -32,9 +32,6 @@ from flask_limiter.util import get_remote_address
 from flask_login import current_user
 
 from flexmeasures.api.common.responses import too_many_requests
-from flexmeasures.data import db
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.user import RateLimitKey
 from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
 # Endpoints under /api/ which the default limit should not apply to
@@ -43,8 +40,6 @@ EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
 # Qualified names of the views which limit_triggers() decorated, so that the OpenAPI specs
 # can tell which endpoints hit the stricter trigger limit on top of the default one.
 TRIGGER_LIMITED_VIEWS: set[str] = set()
-
-_VALID_RATE_LIMIT_KEYS = {key.value for key in RateLimitKey}
 
 
 def _plan():
@@ -87,57 +82,25 @@ def default_key_func() -> str:
     return get_remote_address()
 
 
-def _rate_limit_key_value() -> str:
-    """Determine what to count triggers against: the account's plan, or the server config.
-
-    Falls back to the server config (and ultimately to a hardcoded default) rather than raising,
-    so that a bad value never turns into a 500 on every request for an account.
-    """
-    plan = _plan()
-    if plan is not None and plan.rate_limit_key is not None:
-        return plan.rate_limit_key.value
-    key = current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
-    if key not in _VALID_RATE_LIMIT_KEYS:
-        current_app.logger.error(
-            f"Unknown FLEXMEASURES_API_RATE_LIMIT_KEY '{key}'. "
-            f"Use one of {sorted(_VALID_RATE_LIMIT_KEYS)}. Falling back to '{RateLimitKey.ACCOUNT.value}'."
-        )
-        return RateLimitKey.ACCOUNT.value
-    return key
-
-
-def _asset_id_of_trigger() -> int | None:
-    """Which asset a trigger request is about.
-
-    The asset endpoint names the asset in its path, while the (deprecated) sensor endpoints name a sensor,
-    so we resolve that sensor's asset. That way, both ways of triggering the same asset share one budget.
-    Returns None if we cannot tell, which the caller reads as "count this against the account as a whole".
-    """
-    resource_id = (request.view_args or {}).get("id")
-    try:
-        resource_id = int(resource_id)
-    except (TypeError, ValueError):
-        return None  # the view is about to reject this request anyway
-    if "/assets/" in request.path:
-        return resource_id
-    sensor = db.session.get(Sensor, resource_id)
-    return sensor.generic_asset_id if sensor is not None else None
-
-
 def trigger_key_func() -> str:
-    """Count triggers against whatever the host (or the account's plan) configured."""
+    """Count triggers against the account, or against the IP address if unauthenticated.
+
+    The account is what a plan belongs to, so its trigger budget is shared by all of its users and assets.
+    """
     if not current_user.is_authenticated:
         return get_remote_address()
-    key = _rate_limit_key_value()
-    if key == RateLimitKey.USER.value:
-        return f"user:{current_user.id}"
-    account_key = f"account:{current_user.account_id}"
-    if key == RateLimitKey.ACCOUNT.value:
-        return account_key
-    asset_id = _asset_id_of_trigger()  # "account+asset"
-    if asset_id is None:
-        return account_key
-    return f"{account_key}|asset:{asset_id}"
+    return f"account:{current_user.account_id}"
+
+
+def warn_about_deprecated_settings(app: Flask):
+    """Tell hosts who still choose what triggers are counted against that this choice is gone."""
+    key = app.config.get("FLEXMEASURES_API_RATE_LIMIT_KEY", "account")
+    if key != "account":
+        app.logger.warning(
+            f"FLEXMEASURES_API_RATE_LIMIT_KEY is deprecated and ignored (it is set to '{key}'). "
+            "Triggers are now always counted per account. "
+            "To give accounts more room, raise their plan's trigger rate limit, or FLEXMEASURES_API_TRIGGER_RATE_LIMIT."
+        )
 
 
 def _limit(limit_name: str, config_key: str) -> str:
@@ -242,5 +205,6 @@ def register_at(app: Flask):
     app.config.setdefault("RATELIMIT_SWALLOW_ERRORS", True)
     app.config.setdefault("RATELIMIT_IN_MEMORY_FALLBACK_ENABLED", True)
 
+    warn_about_deprecated_settings(app)
     limiter.init_app(app)
     app.register_error_handler(429, rate_limit_exceeded_handler)

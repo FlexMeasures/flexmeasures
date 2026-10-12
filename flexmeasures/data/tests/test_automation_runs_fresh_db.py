@@ -1128,3 +1128,93 @@ def test_a_job_failure_is_recorded_once(fresh_db, due_forecast_automation):
     fresh_db.session.refresh(intent)
     assert intent.finished_at == failed_at
     assert intent.last_error_message == error
+
+
+@pytest.mark.parametrize("checked", [True, False])
+def test_a_forecast_cycle_records_only_on_the_sensors_its_automation_was_checked_against(
+    app,
+    fresh_db,
+    clean_redis,
+    due_forecast_automation,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+    tmp_path,
+    checked,
+):
+    """A cycle job queued by a forecast automation is refused before saving, when the sensor it records on was not checked.
+
+    The computation itself is stubbed out, since what is under test is the check between computing and saving.
+    Narrowing the automation's output sensors to none stands in for a sensor nobody was checked against.
+    """
+    import pandas as pd
+    import timely_beliefs as tb
+
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+        ForecastCycleResult,
+        TrainPredictPipeline,
+    )
+    from flexmeasures.data.models.time_series import TimedBelief
+    from flexmeasures.data.services import automations as automations_service
+    from flexmeasures.data.services.forecasting import handle_forecasting_exception
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    def compute_two_beliefs(pipeline, *args, **kwargs):
+        sensor = pipeline._parameters["sensor_to_save"]
+        model_path = tmp_path / "model.pkl"
+        model_path.touch()
+        data = tb.BeliefsDataFrame(
+            [
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=pipeline.forecast_source(),
+                    event_start=pd.Timestamp("2026-08-05T01:00:00+00:00")
+                    + i * sensor.event_resolution,
+                    belief_time=pd.Timestamp("2026-08-05T01:00:00+00:00"),
+                    event_value=float(i + 1),
+                )
+                for i in range(2)
+            ]
+        )
+        return ForecastCycleResult(
+            data=data, runtime=0.0, output_path=None, model_path=str(model_path)
+        )
+
+    monkeypatch.setattr(TrainPredictPipeline, "compute_cycle", compute_two_beliefs)
+    if not checked:
+        resolve = automations_service.resolve_automation_sensors
+
+        def resolve_without_outputs(automation):
+            return {**resolve(automation), "output_sensors": []}
+
+        monkeypatch.setattr(
+            automations_service, "resolve_automation_sensors", resolve_without_outputs
+        )
+
+    assert app.test_cli_runner().invoke(run_automations).exit_code == 0
+    run = fresh_db.session.scalars(select(AutomationRun)).one()
+    cycle = next(i for i in run.job_intents if i.kind == "forecast-cycle")
+    sensor_id = setup_fresh_test_forecast_data["solar-sensor"].id
+    beliefs_before = fresh_db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == sensor_id)
+    ).all()
+
+    queue = app.queues["forecasting"]
+    work_on_rq(queue, exc_handler=handle_forecasting_exception, job=cycle.rq_job_id)
+    job = Job.fetch(cycle.rq_job_id, connection=queue.connection)
+    beliefs_after = fresh_db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == sensor_id)
+    ).all()
+
+    if checked:
+        assert job.is_finished, job.meta.get("exception")
+        assert len(beliefs_after) == len(beliefs_before) + 2
+    else:
+        assert job.is_failed
+        assert job.meta["exception"]["type"] == "GeneratorWritesUncheckedSensor"
+        assert (
+            f"automation {due_forecast_automation.id}"
+            in job.meta["exception"]["message"]
+        )
+        assert str(sensor_id) in job.meta["exception"]["message"]
+        assert len(beliefs_after) == len(beliefs_before)

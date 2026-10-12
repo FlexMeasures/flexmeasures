@@ -310,11 +310,19 @@ def test_get_sensor_data_rejects_empty_source_type(
             "test_dummy_user_3@seita.nl",
             403,
         ),  # in this case, we successfully authenticate, but fail authorization (not member of the account in which the sensor lies)
+        (
+            "test_supplier_reader@seita.nl",
+            403,
+        ),  # same account, but read permission only
     ],
     indirect=["requesting_user"],
 )
 def test_post_sensor_data_bad_auth(
-    client, setup_api_test_data, requesting_user, status_code
+    client,
+    setup_api_test_data,
+    setup_supplier_account_reader,
+    requesting_user,
+    status_code,
 ):
     """
     Attempt to post sensor data with insufficient or missing auth.
