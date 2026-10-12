@@ -1813,6 +1813,12 @@ def add_forecast(  # noqa: C901
     help="Add this flag to create the automation in deactivated state.",
 )
 @click.option(
+    "--unmonitored",
+    "unmonitored",
+    is_flag=True,
+    help="Add this flag to keep the automation's failed runs out of `flexmeasures monitor automations`.",
+)
+@click.option(
     "--data-generator",
     "--forecaster",
     "--scheduler",
@@ -1888,6 +1894,7 @@ def add_automation(  # noqa: C901
     timezone: str,
     automation_type: str,
     inactive: bool = False,
+    unmonitored: bool = False,
     generator_class: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
@@ -1986,6 +1993,7 @@ def add_automation(  # noqa: C901
             timezone=timezone,
             automation_type=automation_type,
             active=not inactive,
+            monitored=not unmonitored,
             parameters=parameters,
             generator_class=generator_class,
             config=config,

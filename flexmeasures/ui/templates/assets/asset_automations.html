@@ -243,6 +243,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   <input class="form-check-input" type="checkbox" id="automationActive" checked>
                   <label class="form-check-label" for="automationActive">Active</label>
                 </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="automationMonitored" checked>
+                  <label class="form-check-label" for="automationMonitored">Monitored
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Report this automation's failed runs in the monitoring emails. Runs that failed while it was not monitored are reported once it is monitored again." style="font-size: 16px"></i>
+                  </label>
+                </div>
                 <div class="alert alert-danger d-none" id="newAutomationErr"></div>
               </div>
               <div class="modal-footer">
@@ -284,6 +291,13 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
                   <label class="form-check-label" for="editAutomationActive">Active</label>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="editAutomationMonitored">
+                  <label class="form-check-label" for="editAutomationMonitored">Monitored
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Report this automation's failed runs in the monitoring emails. Runs that failed while it was not monitored are reported once it is monitored again." style="font-size: 16px"></i>
+                  </label>
                 </div>
                 <div class="alert alert-danger d-none" id="editAutomationErr"></div>
               </div>
@@ -510,6 +524,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationTimezone").val(values.timezone);
     $("#automationParameters").val(values.parameters);
     $("#automationActive").prop("checked", values.active);
+    $("#automationMonitored").prop("checked", values.monitored);
   }
 
   // The name column allows 80 characters, and so does the API, so a long name loses its tail rather than the suffix that marks the copy.
@@ -536,6 +551,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       timezone: automation.timezone,
       parameters: JSON.stringify(details?.parameters ?? {}, null, 4),
       active: false,
+      // Whether failures are worth hearing about is the original's call, and stays so for a variation on it.
+      monitored: automation.monitored !== false,
       sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
     };
   }
@@ -647,6 +664,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       active: sortable(
         automation.active ? 1 : 0,
         `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`
+        + (automation.monitored ? "" : ' <i class="fa fa-bell-slash text-muted" title="Not monitored: its failed runs are not reported"></i>')
       ),
       recurrence: sortable(
         automation["cron"],
@@ -972,6 +990,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#editAutomationCron").val(automation["cron"]);
       $("#editAutomationTimezone").val(automation.timezone);
       $("#editAutomationActive").prop("checked", automation.active);
+      $("#editAutomationMonitored").prop("checked", automation.monitored);
       $("#editAutomationErr").addClass("d-none").text("");
       bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
     });
@@ -1044,6 +1063,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#editAutomationCron").val(),
           timezone: $("#editAutomationTimezone").val(),
           active: $("#editAutomationActive").is(":checked"),
+          monitored: $("#editAutomationMonitored").is(":checked"),
         }),
         success: () => location.reload(),
         error: function (xhr) {
@@ -1185,6 +1205,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         cron: $("#automationCron").val(),
         timezone: $("#automationTimezone").val(),
         active: $("#automationActive").is(":checked"),
+        monitored: $("#automationMonitored").is(":checked"),
         parameters: parameters,
       };
       if (reusesSource) {

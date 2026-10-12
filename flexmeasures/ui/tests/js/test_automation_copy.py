@@ -96,6 +96,9 @@ def test_a_copy_carries_the_settings_over_and_starts_inactive(assert_js):
         eq("the type is carried over", values.type, "forecasting");
         eq("the parameters are carried over as stored", JSON.parse(values.parameters), details.parameters);
         eq("a copy of an active automation still starts inactive", values.active, false);
+        eq("a copy of a monitored automation is monitored", values.monitored, true);
+        eq("and one of an unmonitored automation is not",
+           page.automationCopyValues({{...automation, monitored: false}}, details).monitored, false);
         eq("a forecast copy reuses the original's data source", values.sourceId, 6);
     """)
 
@@ -153,7 +156,7 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
             + "\\nreturn {{ prefillNewAutomationForm, resetNewAutomationForm, automationCopyValues }};")();
 
         const values = page.automationCopyValues(
-            {{id: 7, name: "Campus forecast", type: "reporting", "cron": "30 7 * * *", timezone: "Africa/Tunis"}},
+            {{id: 7, name: "Campus forecast", type: "reporting", "cron": "30 7 * * *", timezone: "Africa/Tunis", monitored: false}},
             {{parameters: {{sensor: 2092}}, source: {{id: 6}}}});
         page.prefillNewAutomationForm(values);
 
@@ -163,6 +166,7 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
         eq("and the type", document.getElementById("automationType").value, "reporting");
         eq("and the parameters", JSON.parse(document.getElementById("automationParameters").value), {{sensor: 2092}});
         eq("and leaves the copy inactive", document.getElementById("automationActive").checked, false);
+        eq("and unmonitored, as its original is", document.getElementById("automationMonitored").checked, false);
 
         const generatorFields = () => [...document.querySelectorAll(".chooses-generator")];
         check("a report copy can still name a data generator",
@@ -187,6 +191,7 @@ def test_opening_a_blank_form_clears_what_a_copy_left_in_it(assert_js):
         eq("and the default type", document.getElementById("automationType").value, "forecasting");
         eq("and a new automation is active again, as the form is rendered",
            document.getElementById("automationActive").checked, true);
+        eq("and monitored again", document.getElementById("automationMonitored").checked, true);
         check("and the data generator fields are shown again, after a schedule copy hid them",
               generatorFields().every(field => field.style.display !== "none"), "still hidden");
         check("and the data generator fields are usable again, whatever the copy did to them",

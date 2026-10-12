@@ -300,6 +300,11 @@ Each run is reported once, so if one monitoring run is missed, the next one stil
 Repeated failures of an automation are collapsed into one entry, saying how often it failed, when it last did and with which error.
 No email is sent when nothing failed.
 
+Every automation is monitored, unless it opts out, for instance an experiment whose failures nobody needs to hear about.
+Untick *Monitored* on the Automations page, create it with ``flexmeasures add automation --unmonitored``, switch it with ``flexmeasures edit automation --monitored/--unmonitored``, or send ``"monitored": false`` to the API.
+Its runs are then left out of every digest.
+They are not marked as reported, though, so once the automation is monitored again, the next digest reports the runs that failed in the meantime.
+
 The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
 The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.
 
