@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import operator
 import re
-import copy
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -1909,21 +1909,6 @@ class MetaStorageScheduler(Scheduler):
 
         return commitments
 
-    def persist_flex_model(self):
-        """Store new soc info as GenericAsset attributes
-
-        This method should become obsolete when all SoC information is recorded on a sensor, instead.
-
-        Deprecated: get rid of this when moving to v1.0 (requiring to also remove attributes from test data assets)
-        """
-        if self.sensor is not None:
-            self.sensor.generic_asset.set_attribute(
-                "soc_datetime", self.start.isoformat()
-            )
-            self.sensor.generic_asset.set_attribute(
-                "soc_in_mwh", self.flex_model.get("soc_at_start")
-            )
-
     def resolve_flex_config(self) -> dict:
         """A storage scheduler also reads flex config from the asset tree, so merge that in before recording it.
 
@@ -2506,13 +2491,6 @@ class MetaStorageScheduler(Scheduler):
                 state_of_charge, sensor, stock_key=stock_key
             )
 
-        if sensor is not None:
-            if (
-                self.start == sensor.get_attribute("soc_datetime")
-                and sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                return sensor.get_attribute("soc_in_mwh")
-
         # Keep the historical empty-stock fallback when absolute SoC matters.
         if _has_absolute_soc_constraints(stock_model):
             return 0
@@ -2571,13 +2549,6 @@ class MetaStorageScheduler(Scheduler):
                 + "MWh"
             )
 
-        if not self.has_soc_at_start_in(flex_model) and sensor is not None:
-            # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
-            if (
-                self.start == sensor.get_attribute("soc_datetime")
-                and sensor.get_attribute("soc_in_mwh") is not None
-            ):
-                flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
         if not self.has_soc_at_start_in(flex_model) and _has_absolute_soc_constraints(
             flex_model
         ):
@@ -4015,24 +3986,17 @@ def validate_power_constraints(constraints: pd.DataFrame) -> list[dict]:
         }
     )
 
-    constraint_violations = []
-
-    # 1) derivative min <= derivative max
-    constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t)", "<=", "derivative_max(t)"
+    return validate_constraints(
+        _constraints,
+        [
+            # 1) derivative min <= derivative max
+            ("derivative_min(t)", "<=", "derivative_max(t)"),
+            # 2) derivative min <= derivative equals
+            ("derivative_min(t)", "<=", "derivative_equals(t)"),
+            # 3) derivative equals <= derivative max
+            ("derivative_equals(t)", "<=", "derivative_max(t)"),
+        ],
     )
-
-    # 2) derivative min <= derivative equals
-    constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t)", "<=", "derivative_equals(t)"
-    )
-
-    # 3) derivative equals <= derivative max
-    constraint_violations += validate_constraint(
-        _constraints, "derivative_equals(t)", "<=", "derivative_max(t)"
-    )
-
-    return constraint_violations
 
 
 def validate_storage_constraints(
@@ -4078,7 +4042,7 @@ def validate_storage_constraints(
         }
     )
 
-    constraint_violations = []
+    checks = []
 
     ########################
     # A. Global validation #
@@ -4088,9 +4052,7 @@ def validate_storage_constraints(
     if soc_min is not None:
         soc_min = (soc_min - soc_at_start) * timedelta(hours=1) / resolution
         _constraints["soc_min(t)"] = soc_min
-        constraint_violations += validate_constraint(
-            _constraints, "soc_min(t)", "<=", "min(t)"
-        )
+        checks.append(("soc_min(t)", "<=", "min(t)"))
     else:
         soc_min = np.nan
 
@@ -4098,9 +4060,7 @@ def validate_storage_constraints(
     if soc_max is not None:
         soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
         _constraints["soc_max(t)"] = soc_max
-        constraint_violations += validate_constraint(
-            _constraints, "max(t)", "<=", "soc_max(t)"
-        )
+        checks.append(("max(t)", "<=", "soc_max(t)"))
     else:
         soc_max = np.nan
 
@@ -4108,18 +4068,14 @@ def validate_storage_constraints(
     # B. Validation in the same time frame #
     ########################################
 
-    # 1) min <= max
-    constraint_violations += validate_constraint(_constraints, "min(t)", "<=", "max(t)")
-
-    # 2) min <= equals
-    constraint_violations += validate_constraint(
-        _constraints, "min(t)", "<=", "equals(t)"
-    )
-
-    # 3) equals <= max
-    constraint_violations += validate_constraint(
-        _constraints, "equals(t)", "<=", "max(t)"
-    )
+    checks += [
+        # 1) min <= max
+        ("min(t)", "<=", "max(t)"),
+        # 2) min <= equals
+        ("min(t)", "<=", "equals(t)"),
+        # 3) equals <= max
+        ("equals(t)", "<=", "max(t)"),
+    ]
 
     ##########################################
     # C. Validation in different time frames #
@@ -4132,43 +4088,30 @@ def validate_storage_constraints(
     )
     _constraints["max(t-1)"] = prepend_series(_constraints["max(t)"], soc_max)
 
-    # 1) equals(t) - equals(t-1) <= derivative_max(t)
-    constraint_violations += validate_constraint(
-        _constraints,
-        "equals(t) - equals(t-1)",
-        "<=",
-        "derivative_max(t) * factor_w_wh(t)",
-    )
+    checks += [
+        # 1) equals(t) - equals(t-1) <= derivative_max(t)
+        (
+            "equals(t) - equals(t-1)",
+            "<=",
+            "derivative_max(t) * factor_w_wh(t)",
+        ),
+        # 2) derivative_min(t) <= equals(t) - equals(t-1)
+        (
+            "derivative_min(t) * factor_w_wh(t)",
+            "<=",
+            "equals(t) - equals(t-1)",
+        ),
+        # 3) min(t) - max(t-1) <= derivative_max(t)
+        ("min(t) - max(t-1)", "<=", "derivative_max(t) * factor_w_wh(t)"),
+        # 4) max(t) - min(t-1) >= derivative_min(t)
+        ("derivative_min(t) * factor_w_wh(t)", "<=", "max(t) - min(t-1)"),
+        # 5) equals(t) - max(t-1) <= derivative_max(t)
+        ("equals(t) - max(t-1)", "<=", "derivative_max(t) * factor_w_wh(t)"),
+        # 6) derivative_min(t) <= equals(t) - min(t-1)
+        ("derivative_min(t) * factor_w_wh(t)", "<=", "equals(t) - min(t-1)"),
+    ]
 
-    # 2) derivative_min(t) <= equals(t) - equals(t-1)
-    constraint_violations += validate_constraint(
-        _constraints,
-        "derivative_min(t) * factor_w_wh(t)",
-        "<=",
-        "equals(t) - equals(t-1)",
-    )
-
-    # 3) min(t) - max(t-1) <= derivative_max(t)
-    constraint_violations += validate_constraint(
-        _constraints, "min(t) - max(t-1)", "<=", "derivative_max(t) * factor_w_wh(t)"
-    )
-
-    # 4) max(t) - min(t-1) >= derivative_min(t)
-    constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t) * factor_w_wh(t)", "<=", "max(t) - min(t-1)"
-    )
-
-    # 5) equals(t) - max(t-1) <= derivative_max(t)
-    constraint_violations += validate_constraint(
-        _constraints, "equals(t) - max(t-1)", "<=", "derivative_max(t) * factor_w_wh(t)"
-    )
-
-    # 6) derivative_min(t) <= equals(t) - min(t-1)
-    constraint_violations += validate_constraint(
-        _constraints, "derivative_min(t) * factor_w_wh(t)", "<=", "equals(t) - min(t-1)"
-    )
-
-    return constraint_violations
+    return validate_constraints(_constraints, checks)
 
 
 def get_pattern_match_word(word: str) -> str:
@@ -4189,115 +4132,92 @@ def get_pattern_match_word(word: str) -> str:
     return regex + re.escape(word) + regex
 
 
-def sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
-    """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
+INEQUALITIES = {
+    "<=": operator.le,
+    "<": operator.lt,
+    ">=": operator.ge,
+    ">": operator.gt,
+    "==": operator.eq,
+    "!=": operator.ne,
+}
 
-    :param expression:  Expression to sanitize.
-    :param columns:     List with the name of the columns of the input data for the expression.
-    :returns:           Sanitized expression and columns (variables) used in the expression.
+
+def evaluate_expression(values: dict[str, np.ndarray], expression: str) -> np.ndarray:
+    """Evaluate a single column, or the difference or product of two columns.
+
+    Supported expressions are ``column``, ``column - column`` and ``column * column``.
+    Operators must be surrounded by spaces, since column names may contain dashes.
+
+    :param values:      Float arrays by column name.
+    :param expression:  Expression to evaluate.
+    :returns:           Array with the result of the expression.
     """
-
-    _expression = copy.copy(expression)
-    columns_involved = []
-
-    for column in columns:
-        if re.search(get_pattern_match_word(column), _expression):
-            columns_involved.append(column)
-
-        _expression = re.sub(get_pattern_match_word(column), f"`{column}`", _expression)
-
-    return _expression, columns_involved
+    for symbol, function in ((" - ", np.subtract), (" * ", np.multiply)):
+        if symbol in expression:
+            left, right = expression.split(symbol)
+            return function(values[left.strip()], values[right.strip()])
+    return values[expression.strip()]
 
 
-def validate_constraint(
+def validate_constraints(
     constraints_df: pd.DataFrame,
-    lhs_expression: str,
-    inequality: str,
-    rhs_expression: str,
+    constraints: list[tuple[str, str, str]],
     round_to_decimals: int | None = 6,
 ) -> list[dict]:
-    """Validate the feasibility of a given set of constraints.
+    """Validate the feasibility of several constraints on the same dataframe.
 
-    :param constraints_df:      DataFrame with the constraints
-    :param lhs_expression:      left-hand side of the inequality expression following pd.eval format.
-                                No need to use the syntax `column` to reference
-                                column, just use the column name.
-    :param inequality:          inequality operator, one of ('<=', '<', '>=', '>', '==', '!=').
-    :param rhs_expression:      right-hand side of the inequality expression following pd.eval format.
-                                No need to use the syntax `column` to reference
-                                column, just use the column name.
+    Evaluates the constraints on numpy arrays rather than with pd.eval, which is slow on large dataframes.
+    Missing values are treated as 0 when comparing, but time steps where any involved column is missing are not reported.
+
+    :param constraints_df:      DataFrame with the constraints.
+    :param constraints:         List of (lhs, inequality, rhs) tuples.
+                                Each side is a column name, or the difference (" - ") or product (" * ") of two column names.
     :param round_to_decimals:   Number of decimals to round off to before validating constraints.
     :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
-
-    constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
-
-    constraints_df_columns = list(constraints_df.columns)
-
-    lhs_expression, columns_lhs = sanitize_expression(
-        lhs_expression, constraints_df_columns
-    )
-    rhs_expression, columns_rhs = sanitize_expression(
-        rhs_expression, constraints_df_columns
-    )
-
-    columns_involved = columns_lhs + columns_rhs
-
-    lhs = (
-        constraints_df.astype(float)
-        .fillna(0)
-        .eval(lhs_expression)
-        .round(round_to_decimals)
-    )
-    rhs = (
-        constraints_df.astype(float)
-        .fillna(0)
-        .eval(rhs_expression)
-        .round(round_to_decimals)
-    )
-
-    condition = None
-
-    inequality = inequality.strip()
-
-    if inequality == "<=":
-        condition = lhs <= rhs
-    elif inequality == "<":
-        condition = lhs < rhs
-    elif inequality == ">=":
-        condition = lhs >= rhs
-    elif inequality == ">":
-        condition = lhs > rhs
-    elif inequality == "==":
-        condition = lhs == rhs
-    elif inequality == "!=":
-        condition = lhs != rhs
-    else:
-        raise ValueError(f"Inequality `{inequality} not supported.")
-
-    time_condition_fails = constraints_df.index[
-        ~condition & ~constraints_df[columns_involved].isna().any(axis=1)
-    ]
+    float_df = constraints_df.astype(float)
+    is_missing = {
+        column: float_df[column].isna().to_numpy() for column in float_df.columns
+    }
+    values = {
+        column: float_df[column].fillna(0).to_numpy() for column in float_df.columns
+    }
 
     constraint_violations = []
+    for lhs_expression, inequality, rhs_expression in constraints:
+        inequality = inequality.strip()
+        if inequality not in INEQUALITIES:
+            raise ValueError(f"Inequality `{inequality} not supported.")
 
-    for dt in time_condition_fails:
-        value_replaced = copy.copy(constraint_expression)
+        lhs = np.round(evaluate_expression(values, lhs_expression), round_to_decimals)
+        rhs = np.round(evaluate_expression(values, rhs_expression), round_to_decimals)
+        condition_holds = INEQUALITIES[inequality](lhs, rhs)
 
-        for column in constraints_df.columns:
-            value_replaced = re.sub(
-                get_pattern_match_word(column),
-                f"{column} [{constraints_df.loc[dt, column]}] ",
-                value_replaced,
+        constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
+        columns_involved = [
+            column
+            for column in constraints_df.columns
+            if re.search(get_pattern_match_word(column), constraint_expression)
+        ]
+        any_missing = np.zeros(len(constraints_df), dtype=bool)
+        for column in columns_involved:
+            any_missing |= is_missing[column]
+
+        for dt in constraints_df.index[~condition_holds & ~any_missing]:
+            value_replaced = constraint_expression
+            for column in columns_involved:
+                value_replaced = re.sub(
+                    get_pattern_match_word(column),
+                    f"{column} [{constraints_df.loc[dt, column]}] ",
+                    value_replaced,
+                )
+            constraint_violations.append(
+                dict(
+                    dt=dt.to_pydatetime(),
+                    condition=constraint_expression,
+                    violation=value_replaced,
+                )
             )
-
-        constraint_violations.append(
-            dict(
-                dt=dt.to_pydatetime(),
-                condition=constraint_expression,
-                violation=value_replaced,
-            )
-        )
 
     return constraint_violations
 

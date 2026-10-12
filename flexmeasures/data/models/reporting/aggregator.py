@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.reporting import Reporter, read_input_beliefs
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.reporting.aggregation import (
     AggregatorConfigSchema,
@@ -62,7 +62,9 @@ class AggregatorReporter(Reporter):
             if source is not None and not isinstance(source, list):
                 source = [source]
 
-            df = sensor.search_beliefs(
+            df = read_input_beliefs(
+                sensor,
+                input_description,
                 event_starts_after=start,
                 event_ends_before=end,
                 resolution=resolution,
@@ -70,7 +72,6 @@ class AggregatorReporter(Reporter):
                 horizons_at_most=belief_horizon,
                 source=source,
                 one_deterministic_belief_per_event=True,
-                **input_description,
             )
 
             # Check for multi-sourced events (i.e. multiple sources for a single event)

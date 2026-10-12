@@ -1240,6 +1240,14 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
         return {"input_sensors": [], "output_sensors": []}
 
 
+def automation_id_of_job(rq_job) -> int | None:
+    """Return the id of the automation that triggered a job, or None if no automation did."""
+    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
+    if trigger.get("origin") != "automation":
+        return None
+    return trigger.get("automation_id")
+
+
 def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     """Return the sensor ids an automation-triggered job was cleared to record on, or None if it is not one.
 
@@ -1256,10 +1264,7 @@ def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
     a guard that cannot work out what is allowed should not conclude that everything is.
     """
-    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
-    if trigger.get("origin") != "automation":
-        return None
-    automation_id = trigger.get("automation_id")
+    automation_id = automation_id_of_job(rq_job)
     if automation_id is None:
         return None
 
@@ -1663,14 +1668,15 @@ def _count_automation_jobs(
         automation_id: {} for automation_id in automation_ids
     }
     seen_job_ids: set[str] = set()
-    for entity_id, queue, asset_or_sensor_type in index_refs:
-        for job in current_app.job_map.get(entity_id, queue, asset_or_sensor_type):
+    for jobs in current_app.job_map.get_many(index_refs).values():
+        for job in jobs:
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
             automation_id = job.meta.get("trigger", {}).get("automation_id")
             if automation_id in counts:
-                status = str(job.get_status().value)
+                # The job was just fetched with its status, so asking Redis again would cost a round trip per job.
+                status = str(job.get_status(refresh=False).value)
                 counts[automation_id][status] = counts[automation_id].get(status, 0) + 1
     return counts
 
@@ -1739,6 +1745,32 @@ def errors_reported_for(section: str):
         raise ValidationError({section: error.messages}) from error
 
 
+def _refuse_target_qualifiers(sensor: Any) -> None:
+    """Refuse a forecast automation whose parameters qualify the sensor to forecast.
+
+    Source filters and cleaning bounds on that sensor belong in the forecaster's config, as an entry naming ``"auto"``.
+    An automation runs from the data source its config is recorded on, and a run refuses qualifiers that source does not record,
+    so an automation created with them would be accepted now and then fail on every run.
+
+    :raises ValidationError: naming the qualifiers and where they belong.
+    """
+    from flexmeasures.data.models.forecasting.inputs import target_qualifiers
+    from flexmeasures.data.schemas.forecasting.references import AUTO_SENSOR
+
+    qualifiers = target_qualifiers(sensor) if sensor is not None else {}
+    if not qualifiers:
+        return
+    raise ValidationError(
+        {
+            "sensor": [
+                f"The sensor to forecast is qualified with {', '.join(sorted(qualifiers))}, which belong in the forecaster's config,"
+                f' as an entry naming "{AUTO_SENSOR}" among the past-regressors, such as {{"sensor": "{AUTO_SENSOR}", "lower": "0 kW"}}.'
+                " Name the sensor to forecast by its ID."
+            ]
+        }
+    )
+
+
 def _stored_sensor_id(sensor_reference: Any) -> int | None:
     """Return the sensor ID from a stored automation parameter naming a sensor.
 
@@ -1769,7 +1801,8 @@ def _prepare_forecast_automation(
     with errors_reported_for("parameters"):
         deserialized_parameters = ForecasterParametersSchema().load(parameters)
     sensor = deserialized_parameters.get("sensor")
-    # A target may be given as a source-filtered reference, whose filters say which beliefs to train on, and not which sensor is meant.
+    with errors_reported_for("parameters"):
+        _refuse_target_qualifiers(sensor)
     if isinstance(sensor, SensorReference):
         sensor = sensor.sensor
     if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:

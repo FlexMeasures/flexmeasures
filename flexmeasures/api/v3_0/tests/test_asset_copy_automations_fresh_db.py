@@ -264,6 +264,76 @@ def test_copied_automation_keeps_a_public_regressor(
     assert copied.generator_id == automation.generator_id
 
 
+@pytest.mark.parametrize("entry", ["auto", {"sensor": "auto", "lower": "0 kW"}])
+def test_copied_automation_keeps_an_entry_naming_the_sensor_it_forecasts(
+    fresh_db, automated_site, entry
+):
+    """An entry written as "auto" copies as it stands, naming no sensor to be pointed at a copy.
+
+    It is the one entry that is never tied to a sensor, so it needs neither remapping nor a readability check:
+    whichever sensor the copy forecasts is the sensor it describes.
+    Bare and qualified are copied separately, since one config may describe that sensor only once.
+    """
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["meter"],
+        name="Meter forecasts qualifying their own target",
+        parameters={"sensor": automated_site["temperature"].id},
+        config={"past-regressors": [entry]},
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(automated_site["site"])
+
+    assert asset_copy.skipped_automations == []
+    meter_copy = _child_of(fresh_db, asset_copy.asset)
+    copied = [
+        copied_automation
+        for copied_automation in _automations_of(fresh_db, meter_copy)
+        if copied_automation.name == automation.name
+    ][0]
+    copied_config = copied.generator.attributes["data_generator"]["config"]
+    assert copied_config["past-regressors"] == [entry]
+    # Nothing was remapped, so the copy shares the configuration rather than duplicating it.
+    assert copied.generator_id == automation.generator_id
+
+
+def test_cross_organisation_copy_checks_the_sources_an_auto_entry_filters_on(
+    fresh_db, setup_accounts_fresh_db, automated_site
+):
+    """An entry written as "auto" names no sensor, but its source filters still name data sources.
+
+    A copy into another organisation has to check those as it would on any sensor reference,
+    or an automation reading one organisation's private source would carry it into another.
+    """
+    site = automated_site["site"]
+    private_source = DataSource(
+        name="private meter", type="script", account_id=site.account_id
+    )
+    fresh_db.session.add(private_source)
+    fresh_db.session.flush()
+    automation = _add_automation(
+        fresh_db,
+        asset=automated_site["meter"],
+        name="Meter forecasts trained on a private source",
+        parameters={"sensor": automated_site["temperature"].id},
+        config={
+            "past-regressors": [{"sensor": "auto", "sources": [private_source.id]}]
+        },
+    )
+    fresh_db.session.commit()
+
+    asset_copy = copy_asset(site, account=setup_accounts_fresh_db["Supplier"])
+
+    skipped = [
+        skipped_automation
+        for skipped_automation in asset_copy.skipped_automations
+        if skipped_automation.automation_id == automation.id
+    ]
+    assert len(skipped) == 1
+    assert f"data source {private_source.id}" in skipped[0].reason
+
+
 def test_copy_within_the_same_organisation_keeps_an_external_regressor(
     fresh_db, automated_site
 ):

@@ -546,9 +546,8 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     assert len(forecasting_jobs_data) == 1
     assert scheduling_jobs_data
     assert len(reporting_jobs_data) == 1
-    assert (
-        reporting_jobs_data[0]["err"] == "Reporting job failed with str: report failed"
-    )
+    # A job that failed before every queue stored a summary holds a bare message, which is shown as is.
+    assert reporting_jobs_data[0]["err"] == "Reporting job failed with report failed"
     scheduling_job_ids = set()
     for job_data in jobs_data:
         metadata = json.loads(job_data["metadata"])
