@@ -98,20 +98,28 @@ def fm_edit_data():
     default=None,
     help="Activate or deactivate the automation.",
 )
+@click.option(
+    "--monitored/--unmonitored",
+    "monitored",
+    default=None,
+    help="Whether `flexmeasures monitor automations` reports the automation's failed runs.",
+)
 def edit_automation(
     automation: Automation,
     name: str | None = None,
     cronstr: str | None = None,
     timezone: str | None = None,
     active: bool | None = None,
+    monitored: bool | None = None,
 ):
-    """Edit the name, recurrence, timezone or activation status of an automation."""
+    """Edit the name, recurrence, timezone, activation status or monitoring of an automation."""
     changes = update_automation(
         automation,
         name=name,
         cronstr=cronstr,
         timezone=timezone,
         active=active,
+        monitored=monitored,
         origin="CLI",
     )
     if not changes:
