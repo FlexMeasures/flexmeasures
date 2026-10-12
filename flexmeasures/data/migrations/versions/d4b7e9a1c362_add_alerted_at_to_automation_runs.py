@@ -1,7 +1,7 @@
 """Record when an automation run was reported by `flexmeasures monitor automations`
 
 Revision ID: d4b7e9a1c362
-Revises: c5e1a7b94d20
+Revises: f7c2e8b1a409
 Create Date: 2026-10-07 10:00:00.000000
 
 The monitor reports each failed or stuck run once, and marks it in ``alerted_at``.
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "d4b7e9a1c362"
-down_revision = "c5e1a7b94d20"
+down_revision = "f7c2e8b1a409"
 branch_labels = None
 depends_on = None
 
