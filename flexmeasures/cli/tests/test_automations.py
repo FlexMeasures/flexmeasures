@@ -1869,6 +1869,58 @@ def test_report_automation_refuses_a_sensor_nobody_checked(
     assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
 
 
+def test_a_failed_report_run_is_reported_by_monitoring(
+    app,
+    fresh_db,
+    setup_dummy_data_fresh_db,
+    clean_redis,
+    tmp_path,
+    freeze_server_now,
+    mocker,
+):
+    """A report run whose job failed on the worker shows up in the host's monitoring digest, with the job's error."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.cli.monitor import monitor_automations
+    from flexmeasures.data.models.reporting.pandas_reporter import PandasReporter
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data_fresh_db
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        parameters_extra={"start-offset": "DB"},
+        asset_id=report_sensor.generic_asset_id,
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    cli_input += ["--timezone", "UTC"]
+    freeze_server_now(datetime(2023, 4, 10, 10, 0, 30, tzinfo=timezone.utc))
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    result = runner.invoke(run_automations)
+    assert "queued 1 reporting job(s)" in result.output, result.output
+
+    mocker.patch.object(
+        PandasReporter, "compute", side_effect=KeyError("df_agg is missing")
+    )
+    work_on_rq(app.queues["reporting"])
+
+    with app.mail.record_messages() as outbox:
+        result = runner.invoke(monitor_automations, ["--recipient", "ops@example.test"])
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    body = outbox[0].body
+    assert f"Automation {automation.id} '{automation.name}' (reporting)" in body
+    assert "failed once (execution failed: 1)" in body
+    assert "last error: KeyError: 'df_agg is missing'" in body
+
+
 def _two_output_report_automation_cli_input(
     tmp_path,
     sensor1_id,

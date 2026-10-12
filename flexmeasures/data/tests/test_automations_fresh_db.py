@@ -330,6 +330,50 @@ def test_a_schedule_run_records_a_failed_job(
     assert run.execution_completed_at is not None
 
 
+def test_a_failed_schedule_run_is_reported_by_monitoring(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    monkeypatch,
+):
+    """A schedule run whose job failed on the worker shows up in the host's monitoring digest, with the job's error."""
+    from flexmeasures.cli.monitor import monitor_automations
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.data.services.automations import (
+        mark_automation_run_dispatch_queued,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    automation, run = _planned_schedule_run(
+        fresh_db, add_battery_assets_fresh_db["Test battery"], sequential=False
+    )
+    run_automation(automation, automation_run=run)
+    # Its dispatch went through, as a runner would record, so only its execution can fail.
+    mark_automation_run_dispatch_queued(run.id)
+
+    def refuse_to_save(*args, **kwargs):
+        raise ValueError("The database is read-only today.")
+
+    monkeypatch.setattr(scheduling, "save_generator_results", refuse_to_save)
+    work_on_rq(
+        app.queues["scheduling"], exc_handler=scheduling.handle_scheduling_exception
+    )
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_automations, ["--recipient", "ops@example.test"]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert len(outbox) == 1
+    body = outbox[0].body
+    assert f"Automation {automation.id} 'Nightly schedules' (scheduling)" in body
+    assert "failed once (execution failed: 1)" in body
+    assert "last error: ValueError: The database is read-only today." in body
+
+
 def test_a_schedule_job_queued_outside_a_run_is_not_recorded(
     fresh_db,
     app,
