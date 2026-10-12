@@ -140,18 +140,53 @@ the roof's kilowatts are converted to megawatts, and the carport's hourly values
 Adding a third installation means adding one flex-model entry with ``"group": {"asset": 2}``;
 the scheduler and this report both pick it up, with nothing to keep in sync.
 
+**Groups of groups.** A group's entry may itself join another group, which makes the groups a tree.
+A report over an outer group reaches the devices behind it, not the inner groups' own aggregate sensors:
+
+.. code-block:: text
+
+    Street (a group)                  sensor 11 "street PV", MW
+    └── House (a group of the street) sensor 21 "house total", MW
+        ├── House PV                  sensor 31 "power", kW
+        └── House heat pump           sensor 41 "power", kW
+
+.. code-block:: json
+
+    {"group" : {"asset" : <house>}}
+
+.. code-block:: json
+
+    {"group" : {"asset" : <street>}, "consumption" : {"sensor" : 21}}
+
+.. code-block:: json
+
+    {"inflexible-production" : {"sensor" : 31}, "group" : {"asset" : <house>}}
+
+.. code-block:: json
+
+    {"inflexible-consumption" : {"sensor" : 41}, "group" : {"asset" : <house>}}
+
+Reporting the street aggregates sensors 31 and 41, with the heat pump's consumption subtracted from the
+PV's production because the street records its aggregate under ``production``.
+Sensor 21 is the house's aggregate rather than a device, so it is not read, and no value is counted twice.
+
 **Narrowing a group.** A group is a piece of equipment, so it holds everything behind it.
 To report a category instead, filter its members:
 
 .. code-block:: json
 
     {
-        "group" : {"asset" : 1},
+        "group" : {"asset" : <street>},
         "members" : {"asset-type" : "solar"}
     }
 
+That reports all the PV on the street, reaching into each house.
 The asset type says what a device *is*, which does not change when the way it is modelled changes,
 so a PV installation that later becomes curtailable stays in the aggregate.
+
+**Where members may sit.** A device joins a group through its flex-model entry, not through where it sits in the tree,
+so a group's members are looked for anywhere below the site, exactly as a scheduler of that site counts them.
+A PV installation hanging directly off the site, with ``"group": {"asset": <street>}``, is part of the street's aggregate.
 
 **Units and resolutions.** Values are converted to the unit of the output sensor at each sensor's *own* resolution,
 before being resampled to the output's resolution.
@@ -161,6 +196,11 @@ Resampling then follows the quantity: an energy adds up over a longer event wher
 and a power recorded hourly holds through its hour when the output is finer.
 A sensor whose quantity the output sensor cannot express, such as a temperature onto a power sensor, is reported as an error
 rather than being added up.
+
+**Gaps.** An event is reported only when every sensor reported it, so that a gap in one of them does not quietly lower the aggregate;
+set ``skip-missing`` to aggregate whatever did report instead.
+A gap is also left as a gap when resampling: an hour with no readings is not an hour in which nothing flowed,
+and a coarser sensor is carried only across its own event, never across a missing one.
 
 
 Example: Profits & losses
