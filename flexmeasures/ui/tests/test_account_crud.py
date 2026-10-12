@@ -357,6 +357,28 @@ def test_account_audit_log_shows_acting_user_name_and_id(db, client, as_admin):
     )
 
 
+def test_account_audit_log_shows_system_for_unattributed_event(db, client, as_admin):
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    db.session.add(
+        AuditLog(
+            event_datetime=server_now(),
+            event="API rate limit breached",
+            affected_account_id=account.id,
+        )
+    )
+    db.session.commit()
+
+    audit_log_page = client.get(
+        url_for("AccountCrudUI:auditlog", account_id=account.id),
+        follow_redirects=True,
+    )
+
+    assert audit_log_page.status_code == 200
+    assert b"API rate limit breached" in audit_log_page.data
+    assert b"System" in audit_log_page.data
+    assert b"None (Id: None)" not in audit_log_page.data
+
+
 def test_account_page_forbidden_for_different_account_user(
     db, client, setup_accounts, as_dummy_user3
 ):

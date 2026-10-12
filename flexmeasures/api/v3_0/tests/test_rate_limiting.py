@@ -1,8 +1,12 @@
 import logging
+import re
 
 from unittest.mock import Mock
 from flask import Flask, request, url_for
 import pytest
+from limits.storage import RedisStorage
+from limits.strategies import FixedWindowRateLimiter
+from sqlalchemy import func, select
 
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.common import rate_limiting as rate_limiting_module
@@ -12,6 +16,7 @@ from flexmeasures.api.common.rate_limiting import (
     warn_about_deprecated_settings,
 )
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import Plan
@@ -537,6 +542,137 @@ def refusal_logs(caplog) -> list[str]:
         if record.levelno == logging.WARNING
         and record.getMessage().startswith("Refused a request for hitting")
     ]
+
+
+def new_rate_limit_audit_logs(db, previous_id: int) -> list[AuditLog]:
+    """Account audit records created after the given ID for rate-limit breaches."""
+    return db.session.scalars(
+        select(AuditLog).where(
+            AuditLog.id > previous_id,
+            AuditLog.event.contains("rate limit breached for"),
+        )
+    ).all()
+
+
+@pytest.mark.parametrize("plan_case", ["none", "fallback", "override"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_default_rate_limit_breach_is_audited_once_per_window(
+    app,
+    db,
+    undo_new_rows,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
+    plan_case,
+):
+    """Audit the first rejected request, regardless of where the account gets its limit."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    if plan_case != "none":
+        assign_temporary_account_plan(
+            name=f"audit-{plan_case}",
+            default_rate_limit="1 per minute" if plan_case == "override" else None,
+        )
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    records = new_rate_limit_audit_logs(db, previous_id)
+    assert len(records) == 1
+    record = records[0]
+    assert record.affected_account_id == requesting_user.account_id
+    assert record.active_user_id is None
+    assert record.active_user_name is None
+    assert record.event.startswith("API rate limit breached for ")
+    assert (
+        "no plan" if plan_case == "none" else f"plan 'audit-{plan_case}'"
+    ) in record.event
+    if plan_case != "none":
+        assert f"(ID {requesting_user.account.plan.id})" in record.event
+    assert (
+        "plan override" if plan_case == "override" else "server default"
+    ) in record.event
+    assert re.search(r"; \d+s into 60s window \(\d+%\)$", record.event)
+
+
+@pytest.mark.parametrize("plan_override", [False, True])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_rate_limit_breach_is_audited_once_per_window(
+    app,
+    db,
+    undo_new_rows,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
+    plan_override,
+):
+    """Trigger breaches have one account-level entry, without attributing prior work."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    if plan_override:
+        assign_temporary_account_plan(
+            name="audit-trigger", trigger_rate_limit="1 per 5 minutes"
+        )
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+    battery = add_battery_assets["Test battery"]
+
+    with app.test_client() as client:
+        assert trigger(client, battery).status_code == 202
+        assert trigger(client, battery).status_code == 429
+        assert trigger(client, battery).status_code == 429
+
+    records = new_rate_limit_audit_logs(db, previous_id)
+    assert len(records) == 1
+    record = records[0]
+    assert record.affected_account_id == requesting_user.account_id
+    assert record.active_user_id is None
+    assert record.active_user_name is None
+    assert record.event.startswith("trigger rate limit breached for ")
+    assert "asset" not in record.event
+    assert ("plan 'audit-trigger'" if plan_override else "no plan") in record.event
+    if plan_override:
+        assert f"(ID {requesting_user.account.plan.id})" in record.event
+    assert ("plan override" if plan_override else "server default") in record.event
+    assert re.search(r"; \d+s into 300s window \(\d+%\)$", record.event)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_rate_limit_audit_is_deduplicated_with_redis_storage(
+    app, db, undo_new_rows, rate_limiting, requesting_user
+):
+    """Concurrent-capable Redis storage uses the counter's own expiry for deduplication."""
+    storage = RedisStorage(
+        "redis://",
+        connection_pool=app.redis_connection.connection_pool,
+        key_prefix="TEST-AUDIT-RATE-LIMIT",
+    )
+    rate_limiting.setattr(limiter, "_storage", storage)
+    rate_limiting.setattr(limiter, "_limiter", FixedWindowRateLimiter(storage))
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert len(new_rate_limit_audit_logs(db, previous_id)) == 1
 
 
 @pytest.mark.parametrize("through_deprecated_sensor_endpoint", [False, True])
