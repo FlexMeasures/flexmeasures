@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import isodate
 import pytest
-from rq.job import Job
+from rq.job import Job, JobStatus
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
@@ -513,6 +514,71 @@ def test_schedule_automation_stats_include_descendant_jobs_once(
     assert get_automation_job_stats(schedule_automation) == {"queued": 2}
 
 
+def test_automation_stats_take_a_fixed_number_of_redis_round_trips(
+    fresh_db, app, automation_with_generator, clean_scheduling_redis
+):
+    """Counting an automation's jobs costs the same few Redis round trips, however many sensors and jobs it covers.
+
+    The automations page asks for these counts every minute, so a round trip per sensor or per job adds up.
+    Commands sent in a pipeline share one round trip, so only direct commands and pipelines are counted.
+    """
+    forecast_automation, _ = automation_with_generator
+    root = forecast_automation.asset
+    child = GenericAsset(
+        name="automation child",
+        generic_asset_type=root.generic_asset_type,
+        parent_asset=root,
+    )
+    child_sensors = [
+        Sensor(
+            name=f"child power {i}",
+            generic_asset=child,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        for i in range(3)
+    ]
+    schedule_automation = build_schedule_automation(
+        root,
+        name="schedules over many sensors",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT1H"},
+    )
+    fresh_db.session.add_all([*child_sensors, schedule_automation])
+    fresh_db.session.flush()
+
+    queue = app.queues["scheduling"]
+    statuses = [JobStatus.FINISHED] * 4 + [JobStatus.FAILED] * 2 + [None] * 3
+    for i, status in enumerate(statuses):
+        job = Job.create(
+            "flexmeasures.utils.time_utils.server_now", connection=queue.connection
+        )
+        job.meta["trigger"] = {
+            "origin": "automation",
+            "automation_id": schedule_automation.id,
+        }
+        job.save_meta()
+        queue.enqueue_job(job)
+        if status is not None:
+            job.set_status(status)
+        sensor = child_sensors[i % len(child_sensors)]
+        app.job_cache.add(sensor.id, job.id, "scheduling", "sensor")
+
+    connection = app.redis_connection
+    with (
+        patch.object(
+            connection, "execute_command", wraps=connection.execute_command
+        ) as direct_commands,
+        patch.object(connection, "pipeline", wraps=connection.pipeline) as pipelines,
+    ):
+        stats = get_automation_job_stats(schedule_automation)
+
+    assert stats == {"finished": 4, "failed": 2, "queued": 3}
+    # One ping, then one pipeline for the job IDs of all sensors and one for all jobs.
+    assert direct_commands.call_count == 1
+    assert pipelines.call_count == 2
+
+
 def test_automation_has_valid_timezone_and_aware_cursor(automation_with_generator):
     automation, _ = automation_with_generator
 
@@ -575,10 +641,10 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
     import pandas as pd
 
     from flexmeasures.data.models.planning.storage import StorageScheduler
-    from flexmeasures.data.services.scheduling import (
-        ScheduleWritesUncheckedSensor,
-        make_schedule,
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
     )
+    from flexmeasures.data.services.scheduling import make_schedule
 
     battery = add_battery_assets_fresh_db["Test battery"]
     scheduled_sensor = battery.sensors[0]
@@ -619,7 +685,7 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
         ],
     )
 
-    with pytest.raises(ScheduleWritesUncheckedSensor, match=str(other_sensor.id)):
+    with pytest.raises(GeneratorWritesUncheckedSensor, match=str(other_sensor.id)):
         make_schedule(
             asset_or_sensor={"class": "Asset", "id": battery.id},
             start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
@@ -628,6 +694,90 @@ def test_an_automations_schedule_refuses_a_sensor_nobody_checked(
             flex_model=[flex_model],
             flex_context={},
         )
+
+
+def test_a_refused_schedule_job_keeps_its_meta(
+    fresh_db, app, add_battery_assets_fresh_db, add_market_prices_fresh_db, mocker
+):
+    """A schedule job refused for an unchecked sensor keeps its meta readable, and records the refusal in it.
+
+    The scheduling queue's exception handler stores the refusal itself in the job's meta, which RQ pickles.
+    A refusal that cannot be unpickled makes RQ replace the whole meta on the next fetch,
+    losing the trigger, the scheduler info and everything else the API and failure attribution read from it.
+    Calling make_schedule directly, as the test above does, never pickles anything, so this one runs a worker.
+    """
+    import pandas as pd
+    from rq.job import Job
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+    from flexmeasures.data.services.generator_results import (
+        GeneratorWritesUncheckedSensor,
+    )
+    from flexmeasures.data.services.scheduling import (
+        handle_scheduling_exception,
+        make_schedule,
+    )
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    battery = add_battery_assets_fresh_db["Test battery"]
+    scheduled_sensor = battery.sensors[0]
+    other_sensor = add_battery_assets_fresh_db["Test small battery"].sensors[0]
+
+    message = message_for_trigger_schedule()
+    flex_model = message.pop("flex-model")
+    flex_model["sensor"] = scheduled_sensor.id
+    automation = build_schedule_automation(
+        battery,
+        name="Nightly schedules",
+        cronstr="0 0 * * *",
+        parameters={**message, "flex-model": [flex_model]},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.commit()
+
+    mocker.patch.object(
+        StorageScheduler,
+        "compute",
+        return_value=[
+            {
+                "name": "unchecked_schedule",
+                "sensor": other_sensor,
+                "data": pd.Series(
+                    [1.0],
+                    index=pd.date_range(
+                        "2015-01-01T00:00:00+01:00", periods=1, freq="15min"
+                    ),
+                ),
+            }
+        ],
+    )
+    queue = app.queues["scheduling"]
+    job = Job.create(
+        make_schedule,
+        kwargs=dict(
+            asset_or_sensor={"class": "Asset", "id": battery.id},
+            start=pd.Timestamp("2015-01-01T00:00:00+01:00").to_pydatetime(),
+            end=pd.Timestamp("2015-01-02T00:00:00+01:00").to_pydatetime(),
+            resolution=timedelta(minutes=15),
+            flex_model=[flex_model],
+            flex_context={},
+        ),
+        connection=queue.connection,
+        meta={"trigger": {"origin": "automation", "automation_id": automation.id}},
+    )
+    queue.enqueue_job(job)
+    work_on_rq(queue, exc_handler=handle_scheduling_exception, job=job)
+
+    fetched = Job.fetch(job.id, connection=queue.connection)
+    assert fetched.is_failed
+    assert "unserialized" not in fetched.meta, "RQ could not read the meta back"
+    assert fetched.meta["trigger"]["automation_id"] == automation.id
+    # The refusal is stored as a summary that keeps its facts, so that a reader need not parse the message.
+    refusal = fetched.meta["exception"]
+    assert refusal["type"] == GeneratorWritesUncheckedSensor.__name__
+    assert refusal["refused_sensor_ids"] == [other_sensor.id]
+    assert refusal["automation_id"] == automation.id
+    assert str(other_sensor.id) in refusal["message"]
 
 
 def test_a_job_that_is_not_an_automations_is_held_to_nothing(app, fresh_db, mocker):

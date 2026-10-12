@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import delete, select
 
 from flexmeasures import Sensor, Source, User, UserRole
+from flexmeasures.auth.policy import ACCOUNT_READER_ROLE
 from flexmeasures.data.models.automations import (
     Automation,
     AutomationRun,
@@ -35,6 +36,27 @@ def setup_api_test_data(
         db, db.session.get(User, setup_roles_users["Test Supplier User"])
     )
     return sensors
+
+
+@pytest.fixture(scope="module")
+def setup_supplier_account_reader(db, setup_api_test_data, setup_roles_users) -> User:
+    """Set up a reader in the account that owns the API test gas sensor."""
+    datastore = SQLAlchemySessionUserDatastore(db.session, User, UserRole)
+    role = datastore.find_role(ACCOUNT_READER_ROLE) or datastore.create_role(
+        name=ACCOUNT_READER_ROLE
+    )
+    reader = datastore.create_user(
+        username="Test Supplier Account Reader",
+        email="test_supplier_reader@seita.nl",
+        password=hash_password("testtest"),
+        account_id=db.session.get(
+            User, setup_roles_users["Test Supplier User"]
+        ).account_id,
+        roles=[role],
+    )
+    db.session.add(DataSource(user=reader))
+    db.session.commit()
+    return reader
 
 
 @pytest.fixture(scope="function")

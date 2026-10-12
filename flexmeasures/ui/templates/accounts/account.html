@@ -310,7 +310,7 @@
                         data-bs-placement="right"
                         data-bs-html="true"
                         tabindex="0"
-                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}<br>Trigger rate-limit scope: {{ effective_rate_limit_key }}"
+                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}"
                       >
                         {% if account.plan %}{{ account.plan.name }}{% if
                         account.plan.legacy %} (legacy){% endif %}{% else %}No

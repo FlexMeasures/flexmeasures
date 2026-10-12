@@ -15,7 +15,7 @@ from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataGenerator
-from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES
+from flexmeasures.utils.job_utils import KNOWN_JOB_QUEUES, job_result_ttl
 
 
 class AutomationPayloadValidationError(ValidationError):
@@ -226,11 +226,7 @@ class AutomationHandler:
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
                 ).total_seconds()
             ),
-            result_ttl=int(
-                current_app.config.get(
-                    "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
-                ).total_seconds()
-            ),
+            result_ttl=job_result_ttl(self.queue),
             meta={
                 "trigger": {"origin": "automation", "automation_id": automation.id},
                 "data_source_info": {"id": source_id},
@@ -398,7 +394,11 @@ def check_execution_access(automation, sensors):
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.utils import save_to_db
+    from flexmeasures.data.services.generator_results import (
+        check_generator_results,
+        describe_generator,
+        save_generator_results,
+    )
 
     automation = db.session.get(Automation, automation_id, populate_existing=True)
     if automation is None:
@@ -416,15 +416,10 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
     check_execution_access(automation, sensors)
     output_ids = {sensor.id for sensor in sensors["output_sensors"]}
     results = generator.compute(parameters=parameters)
-    # Validate every result before saving any, so undeclared outputs cannot be persisted.
-    for result in results:
-        if result["sensor"].id not in output_ids:
-            raise Forbidden(
-                f"The generator returned undeclared output sensor {result['sensor'].id}."
-            )
-    saved = []
-    for result in results:
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": len(result["data"])})
+    # The declared outputs are the ones the automation was checked against, so judge every result by them before saving any.
+    check_generator_results(
+        results, output_ids, describe_generator(generator), automation.id
+    )
+    saved = save_generator_results(results)
     db.session.commit()
     return saved

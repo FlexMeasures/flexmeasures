@@ -3,11 +3,17 @@ import logging
 from flask import url_for
 import pytest
 
-from flexmeasures.api.common.rate_limiting import limiter
+import logging
+
+from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.common.rate_limiting import (
+    limiter,
+    warn_about_deprecated_settings,
+)
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.user import Plan, RateLimitKey
+from flexmeasures.data.models.user import Plan
 
 
 @pytest.fixture
@@ -93,6 +99,51 @@ def test_default_rate_limit(app, rate_limiting, requesting_user):
     assert response.json["status"] == "TOO_MANY_REQUESTS"
     assert "2 per 1 minute" in response.json["message"]
     assert "Retry-After" in response.headers
+
+
+def list_sensors_as(app, auth_token: str):
+    """List sensors as the user the token belongs to, like a separate API client would.
+
+    Each request gets an app context and a client of its own.
+    The tests run inside one app context, whose ``g`` would otherwise hand the user loaded by one request to the next,
+    and a session cookie would do the same, so that the limiter would count each request against the previous request's user.
+    """
+    path = url_for("SensorAPI:index")
+    with app.app_context(), app.test_client() as client:
+        return client.get(path, headers={"Authorization": auth_token})
+
+
+@pytest.mark.parametrize(
+    "other_user_email, expected_status_code_for_other_user",
+    [
+        # Users of the same account share one budget ...
+        ("test_prosumer_user_2@seita.nl", 429),
+        # ... while users of another account have a budget of their own
+        ("test_dummy_user_3@seita.nl", 200),
+    ],
+)
+def test_default_rate_limit_is_counted_per_account(
+    app,
+    setup_roles_users,
+    rate_limiting,
+    other_user_email,
+    expected_status_code_for_other_user,
+):
+    """The default limit is one budget per account, which is what the account's plan sets."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "2 per minute"
+    )
+    with app.test_client() as client:
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        other_auth_token = get_auth_token(client, other_user_email, "testtest")
+    limiter.reset()  # start counting afresh, so that logging in spent nothing
+
+    for _ in range(2):
+        assert list_sensors_as(app, auth_token).status_code == 200
+    assert list_sensors_as(app, auth_token).status_code == 429
+    response = list_sensors_as(app, other_auth_token)
+
+    assert response.status_code == expected_status_code_for_other_user
 
 
 @pytest.mark.parametrize(
@@ -221,30 +272,27 @@ def test_rejected_triggers_do_not_spend_the_trigger_budget(
 
 
 @pytest.mark.parametrize(
-    "rate_limit_key, expected_status_code_for_other_asset",
-    [
-        # Each asset gets its own budget ...
-        (RateLimitKey.ACCOUNT_PLUS_ASSET.value, 202),
-        # ... unless the whole account or user shares one budget
-        (RateLimitKey.ACCOUNT.value, 429),
-        (RateLimitKey.USER.value, 429),
-    ],
+    # The deprecated setting no longer chooses what triggers are counted against
+    "deprecated_rate_limit_key",
+    [None, "account", "account+asset", "user"],
 )
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_rate_limit_key(
+def test_assets_of_an_account_share_one_trigger_budget(
     app,
     add_market_prices,
     add_battery_assets,
     keep_scheduling_queue_empty,
     rate_limiting,
     requesting_user,
-    rate_limit_key,
-    expected_status_code_for_other_asset,
+    deprecated_rate_limit_key,
 ):
-    """The host decides whether the trigger limit is counted per asset, per account or per user."""
-    rate_limiting.setitem(app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY", rate_limit_key)
+    """Triggers are counted per account, so spending the budget on one asset leaves none for another."""
+    if deprecated_rate_limit_key is not None:
+        rate_limiting.setitem(
+            app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY", deprecated_rate_limit_key
+        )
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
@@ -254,15 +302,13 @@ def test_trigger_rate_limit_key(
     with app.test_client() as client:
         assert trigger(client, battery).status_code == 202  # spends the budget
         assert trigger(client, battery).status_code == 429
-        response = trigger(client, other_battery)
-
-    assert response.status_code == expected_status_code_for_other_asset
+        assert trigger(client, other_battery).status_code == 429
 
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_deprecated_sensor_endpoint_shares_the_asset_budget(
+def test_deprecated_sensor_endpoint_shares_the_trigger_budget(
     app,
     add_market_prices,
     add_battery_assets,
@@ -270,22 +316,17 @@ def test_deprecated_sensor_endpoint_shares_the_asset_budget(
     rate_limiting,
     requesting_user,
 ):
-    """Triggering an asset's sensor through the deprecated endpoint spends that asset's budget.
+    """Triggering an asset's sensor through the deprecated endpoint spends the same budget as the asset endpoint.
 
     Otherwise, a client could double their budget by alternating between the two endpoints.
     """
-    rate_limiting.setitem(
-        app.config,
-        "FLEXMEASURES_API_RATE_LIMIT_KEY",
-        RateLimitKey.ACCOUNT_PLUS_ASSET.value,
-    )
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
     battery = add_battery_assets["Test battery"]
 
     with app.test_client() as client:
-        assert trigger(client, battery).status_code == 202  # spends the asset's budget
+        assert trigger(client, battery).status_code == 202  # spends the budget
         response = trigger_through_deprecated_sensor_endpoint(
             client, battery.sensors[0]
         )
@@ -374,66 +415,31 @@ def test_account_can_be_exempt_from_default_rate_limit(
 
 
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+    "deprecated_rate_limit_key, expect_warning",
+    [
+        (None, False),
+        ("account", False),
+        ("account+asset", True),
+        ("user", True),
+        ("not-a-real-key", True),
+    ],
 )
-def test_plan_rate_limit_key_overrides_config(
-    db,
-    app,
-    add_market_prices,
-    add_battery_assets,
-    keep_scheduling_queue_empty,
-    rate_limiting,
-    requesting_user,
+def test_deprecated_rate_limit_key_is_warned_about(
+    app, rate_limiting, caplog, deprecated_rate_limit_key, expect_warning
 ):
-    """A plan's rate_limit_key takes precedence over the server-wide config setting."""
-    rate_limiting.setitem(
-        app.config,
-        "FLEXMEASURES_API_RATE_LIMIT_KEY",
-        RateLimitKey.ACCOUNT_PLUS_ASSET.value,
-    )
-    rate_limiting.setitem(
-        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
-    )
-    requesting_user.account.plan = Plan(
-        name="test-plan-key", rate_limit_key=RateLimitKey.ACCOUNT
-    )
-    db.session.commit()
-    battery = add_battery_assets["Test battery"]
-    other_battery = add_battery_assets["Test small battery"]
+    """Hosts who still choose what triggers are counted against hear that this setting is ignored now."""
+    if deprecated_rate_limit_key is None:
+        rate_limiting.delitem(app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY")
+    else:
+        rate_limiting.setitem(
+            app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY", deprecated_rate_limit_key
+        )
 
-    with app.test_client() as client:
-        assert trigger(client, battery).status_code == 202  # spends the budget
-        # The account-level key means the other asset shares the same budget
-        assert trigger(client, other_battery).status_code == 429
+    with caplog.at_level(logging.WARNING):
+        warn_about_deprecated_settings(app)
 
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_invalid_rate_limit_key_falls_back_instead_of_erroring(
-    app,
-    add_market_prices,
-    add_battery_assets,
-    keep_scheduling_queue_empty,
-    rate_limiting,
-    requesting_user,
-):
-    """A bad FLEXMEASURES_API_RATE_LIMIT_KEY must not turn every request into a 500.
-
-    We fall back to counting against the account, which is what we count against by default.
-    """
-    rate_limiting.setitem(
-        app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY", "not-a-real-key"
-    )
-    rate_limiting.setitem(
-        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
-    )
-    battery = add_battery_assets["Test battery"]
-    other_battery = add_battery_assets["Test small battery"]
-
-    with app.test_client() as client:
-        assert trigger(client, battery).status_code == 202
-        assert trigger(client, other_battery).status_code == 429
+    warned = "FLEXMEASURES_API_RATE_LIMIT_KEY is deprecated" in caplog.text
+    assert warned is expect_warning
 
 
 def test_openapi_specs_document_the_429_response():
