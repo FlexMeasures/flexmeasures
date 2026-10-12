@@ -416,3 +416,183 @@ def setup_pv_group(db, app):
     db.session.commit()
 
     yield farm, pv_group, aggregate_sensor, roof_power, carport_power, temperature, roof, carport
+
+
+@pytest.fixture(scope="module")
+def setup_nested_groups(db, app):
+    """A street whose houses are groups, so that a group of groups has to be resolved to the devices behind it.
+
+    Street (a group, recording on "street PV")
+    └── House (a group of its own, member of the street, recording on "house total")
+        ├── House PV   "pv power", kW, 15 min   (inflexible production, member of the house)
+        └── House heat "hp power", kW, 15 min   (inflexible consumption, member of the house)
+    Elsewhere PV        "far power", kW, 15 min (member of the street, sitting outside the street's subtree)
+    """
+    site_type = GenericAssetType(name="NestedSite")
+    solar_type = GenericAssetType(name="NestedSolar")
+    heat_type = GenericAssetType(name="NestedHeat")
+    db.session.add_all([site_type, solar_type, heat_type])
+
+    region = GenericAsset(name="Region", generic_asset_type=site_type)
+    db.session.add(region)
+    db.session.flush()
+
+    street = GenericAsset(
+        name="Street", generic_asset_type=site_type, parent_asset=region
+    )
+    db.session.add(street)
+    db.session.flush()
+
+    house = GenericAsset(
+        name="House", generic_asset_type=site_type, parent_asset=street
+    )
+    db.session.add(house)
+    db.session.flush()
+
+    house_pv = GenericAsset(
+        name="House PV", generic_asset_type=solar_type, parent_asset=house
+    )
+    house_heat = GenericAsset(
+        name="House heat", generic_asset_type=heat_type, parent_asset=house
+    )
+    # sits outside the street's subtree, but joins the street group
+    far_pv = GenericAsset(
+        name="Far PV", generic_asset_type=solar_type, parent_asset=region
+    )
+    db.session.add_all([house_pv, house_heat, far_pv])
+    db.session.flush()
+
+    def sensor(name, asset, unit="kW", resolution=timedelta(minutes=15)):
+        s = Sensor(
+            name,
+            generic_asset=asset,
+            event_resolution=resolution,
+            unit=unit,
+            timezone="UTC",
+        )
+        db.session.add(s)
+        return s
+
+    street_total = sensor("street PV", street, unit="MW")
+    house_total = sensor("house total", house, unit="MW")
+    pv_power = sensor("pv power", house_pv)
+    hp_power = sensor("hp power", house_heat)
+    far_power = sensor("far power", far_pv)
+    db.session.flush()
+
+    street.flex_model = {"production": {"sensor": street_total.id}}
+    house.flex_model = {
+        "group": {"asset": street.id},
+        "consumption": {"sensor": house_total.id},
+    }
+    house_pv.flex_model = {
+        "inflexible-production": {"sensor": pv_power.id},
+        "group": {"asset": house.id},
+    }
+    house_heat.flex_model = {
+        "inflexible-consumption": {"sensor": hp_power.id},
+        "group": {"asset": house.id},
+    }
+    far_pv.flex_model = {
+        "inflexible-production": {"sensor": far_power.id},
+        "group": {"asset": street.id},
+    }
+
+    source = DataSource("nested meter", type="A")
+    db.session.add(source)
+    db.session.flush()
+
+    start = datetime(2026, 7, 1, tzinfo=utc)
+
+    def save(sens, value, skip_events=()):
+        db.session.add_all(
+            [
+                TimedBelief(
+                    event_start=start + event * sens.event_resolution,
+                    belief_horizon=timedelta(0),
+                    event_value=value,
+                    sensor=sens,
+                    source=source,
+                )
+                for event in range(int(timedelta(days=1) / sens.event_resolution))
+                if event not in skip_events
+            ]
+        )
+
+    save(pv_power, 100)  # 100 kW of production
+    save(hp_power, 40)  # 40 kW of consumption
+    save(far_power, 60)  # 60 kW of production, from elsewhere
+    db.session.commit()
+
+    yield region, street, house, street_total, house_total, pv_power, hp_power, far_power
+
+
+@pytest.fixture
+def temp_assets(db):
+    """Collects assets a test creates, and removes them afterwards even when the test fails.
+
+    The group fixtures are module-scoped, so an asset left behind by a failing test would
+    change what every later test in the module sees.
+    """
+    created: list = []
+
+    yield created
+
+    for asset in reversed(created):
+        db.session.delete(asset)
+    db.session.commit()
+
+
+@pytest.fixture
+def restore_flex_models(db):
+    """Restores the flex-models a test changes, even when the test fails.
+
+    Call the yielded function with each asset before changing its flex-model.
+    """
+    originals: list = []
+
+    def remember(asset):
+        originals.append((asset, asset.flex_model))
+        return asset
+
+    yield remember
+
+    for asset, flex_model in reversed(originals):
+        asset.flex_model = flex_model
+    db.session.commit()
+
+
+@pytest.fixture
+def restore_beliefs(db):
+    """Puts back the beliefs a test deletes, even when the test fails.
+
+    Call the yielded function with the beliefs to delete; they are recreated afterwards.
+    """
+    removed: list = []
+
+    def drop(sensor, event_start):
+        beliefs = (
+            db.session.query(TimedBelief)
+            .filter(
+                TimedBelief.sensor_id == sensor.id,
+                TimedBelief.event_start == event_start,
+            )
+            .all()
+        )
+        for belief in beliefs:
+            removed.append(
+                dict(
+                    event_start=belief.event_start,
+                    belief_horizon=belief.belief_horizon,
+                    event_value=belief.event_value,
+                    sensor=sensor,
+                    source=belief.source,
+                )
+            )
+            db.session.delete(belief)
+        db.session.commit()
+
+    yield drop
+
+    db.session.add_all([TimedBelief(**spec) for spec in removed])
+    db.session.commit()
