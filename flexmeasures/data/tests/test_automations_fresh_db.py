@@ -921,3 +921,43 @@ def test_resuming_a_schedule_run_leaves_the_jobs_of_its_first_attempt_as_they_we
     work_on_rq(queue, exc_handler=handle_scheduling_exception)
     for intent in run.job_intents:
         assert Job.fetch(intent.rq_job_id, connection=queue.connection).is_finished
+
+
+def test_a_resumed_schedule_run_schedules_the_window_it_started_on(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+    freeze_server_now,
+):
+    """A schedule without offsets starts when it is dispatched, so a resumed run keeps the start of its first attempt.
+
+    Otherwise the devices it still owes would be scheduled for a later window than the devices already queued.
+    """
+    from flexmeasures.data.services.automations import (
+        ClaimedAutomationRun,
+        dispatch_automation_run,
+    )
+
+    first_attempt = datetime(2015, 1, 1, 10, 0, 30, tzinfo=timezone.utc)
+    run, power_sensors = _two_device_schedule_run(
+        fresh_db,
+        add_battery_assets_fresh_db,
+        {"duration": "PT1H", "sequential": True},
+        first_attempt.replace(second=0),
+    )
+    connection = app.queues["scheduling"].connection
+
+    freeze_server_now(first_attempt)
+    _dispatch_dying_after_the_first_device(run)
+    freeze_server_now(first_attempt + timedelta(minutes=7))
+    dispatch_automation_run(ClaimedAutomationRun(run=run, attempt=None))
+
+    starts = {
+        Job.fetch(
+            f"automation-run-{run.id}-device-{sensor.id}", connection=connection
+        ).kwargs["start"]
+        for sensor in power_sensors
+    }
+    assert starts == {first_attempt.replace(second=0)}
