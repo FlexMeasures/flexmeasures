@@ -29,6 +29,27 @@ def rate_limiting(app, monkeypatch):
     limiter.reset()
 
 
+@pytest.fixture
+def assign_temporary_account_plan(db, requesting_user):
+    """Assign a new plan to the shared account, then remove that plan after the test."""
+    original_plan = requesting_user.account.plan
+    created_plans = []
+
+    def assign(**plan_fields):
+        plan = Plan(**plan_fields)
+        requesting_user.account.plan = plan
+        db.session.commit()
+        created_plans.append(plan)
+
+    yield assign
+
+    requesting_user.account.plan = original_plan
+    db.session.flush()
+    for plan in created_plans:
+        db.session.delete(plan)
+    db.session.commit()
+
+
 def message_for_trigger_asset_schedule(sensor: Sensor) -> dict:
     """A message the asset trigger endpoint accepts, scheduling the given power sensor.
 
@@ -360,22 +381,21 @@ def test_deprecated_sensor_endpoint_shares_the_trigger_budget(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_account_can_override_trigger_rate_limit(
-    db,
     app,
     add_market_prices,
     add_battery_assets,
     keep_scheduling_queue_empty,
     rate_limiting,
     requesting_user,
+    assign_temporary_account_plan,
 ):
     """An account's own limit takes precedence over the configured default."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
-    requesting_user.account.plan = Plan(
+    assign_temporary_account_plan(
         name="test-plan-override", trigger_rate_limit="2 per 5 minutes"
     )
-    db.session.commit()
     battery = add_battery_assets["Test battery"]
 
     with app.test_client() as client:
@@ -388,22 +408,21 @@ def test_account_can_override_trigger_rate_limit(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_account_can_be_exempt_from_trigger_rate_limit(
-    db,
     app,
     add_market_prices,
     add_battery_assets,
     keep_scheduling_queue_empty,
     rate_limiting,
     requesting_user,
+    assign_temporary_account_plan,
 ):
     """An account can be exempted from a limit altogether."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
-    requesting_user.account.plan = Plan(
+    assign_temporary_account_plan(
         name="test-plan-unlimited", trigger_rate_limit="unlimited"
     )
-    db.session.commit()
     battery = add_battery_assets["Test battery"]
 
     with app.test_client() as client:
@@ -415,7 +434,7 @@ def test_account_can_be_exempt_from_trigger_rate_limit(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_account_can_be_exempt_from_default_rate_limit(
-    db, app, rate_limiting, requesting_user
+    app, rate_limiting, requesting_user, assign_temporary_account_plan
 ):
     """An account can be exempted from the default limit, too.
 
@@ -426,10 +445,9 @@ def test_account_can_be_exempt_from_default_rate_limit(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
-    requesting_user.account.plan = Plan(
+    assign_temporary_account_plan(
         name="test-plan-default-unlimited", default_rate_limit="unlimited"
     )
-    db.session.commit()
 
     with app.test_client() as client:
         for _ in range(3):
