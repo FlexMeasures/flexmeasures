@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from flexmeasures.auth.policy import (
     ACCOUNT_ADMIN_ROLE,
     CONSULTANT_ROLE,
-    user_matches_principals,
+    user_has_scoped_permission,
 )
 from flexmeasures.data import db
 from flexmeasures.data.models.automations import Automation, AutomationRun
@@ -209,7 +209,9 @@ def get_users_to_notify(
             failure
             for failure in failures
             if failure.automation.asset.owner is not None
-            and user_matches_principals(user, failure.automation.__acl__()["read"])
+            and user_has_scoped_permission(
+                user, "read", failure.automation.__acl__()["read"]
+            )
         ]
         if readable_failures:
             users_to_notify.append((user, readable_failures))
