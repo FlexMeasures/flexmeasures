@@ -961,3 +961,30 @@ def test_a_resumed_schedule_run_schedules_the_window_it_started_on(
         for sensor in power_sensors
     }
     assert starts == {first_attempt.replace(second=0)}
+
+
+def test_a_failed_schedule_dispatch_records_the_jobs_it_did_queue(
+    fresh_db,
+    app,
+    add_battery_assets_fresh_db,
+    add_market_prices_fresh_db,
+    clean_scheduling_redis,
+):
+    """A dispatch that dies halfway says what it queued, rather than nothing until its next attempt."""
+    run, power_sensors = _two_device_schedule_run(
+        fresh_db,
+        add_battery_assets_fresh_db,
+        {"start-offset": "HB", "duration": "PT1H", "sequential": True},
+        datetime(2015, 1, 1, 10, 0, tzinfo=timezone.utc),
+    )
+
+    _dispatch_dying_after_the_first_device(run)
+
+    fresh_db.session.refresh(run)
+    assert run.dispatch_state == "partially_queued"
+    assert run.queued_job_count == 1
+    assert {intent.logical_job_key: intent.status for intent in run.job_intents} == {
+        f"device-{power_sensors[0].id}": "queued",
+        f"device-{power_sensors[1].id}": "pending",
+        "wrap-up": "pending",
+    }
