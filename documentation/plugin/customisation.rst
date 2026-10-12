@@ -419,30 +419,97 @@ A custom automation type combines a :class:`DataGenerator` with an automation ha
 The generator declares its inputs, outputs and strict configuration and parameter schemas.
 The handler gives the type a stable identifier, display name and worker queue.
 
-Declare handlers in the plugin module's ``__automation_types__`` list:
+A complete example
+^^^^^^^^^^^^^^^^^^
 
-.. code-block:: python
+This is the whole of a small plugin which adds an ingestion automation type.
+It is the plugin FlexMeasures' own tests run, so it is known to work with this version:
 
-    from flexmeasures.data.automations import AutomationHandler
-    from .ingestion import SiteIngestor
+.. literalinclude:: ../../flexmeasures/data/tests/plugins/mock_ingestion/__init__.py
+    :language: python
 
-    __automation_types__ = [
-        AutomationHandler(
-            type_id="site-ingestion",
-            display_name="Site measurements",
-            generator_class=SiteIngestor,
-            queue="ingestion",
-            result_noun="measurement",
-        ),
-    ]
+Going through it from top to bottom:
 
-``SiteIngestor`` must subclass ``flexmeasures.data.models.data_sources.DataGenerator``.
-Set ``__data_generator_base__ = "ingestor"`` and a stable ``__version__`` on the generator class.
-Define ``_config_schema`` and ``_parameters_schema`` as Marshmallow schemas with ``unknown=RAISE``.
-Expose ``input_sensors`` and ``output_sensors`` as properties returning lists of ``Sensor`` objects.
-Implement ``_compute`` to return a list of dictionaries with ``sensor`` and ``data`` keys, where ``data`` is a ``BeliefsDataFrame``.
-The output declarations must cover every sensor returned by the computation.
-The worker rejects undeclared outputs, records results with the generator's data source and version, and attaches automation provenance to the job.
+- ``__version__`` and ``blueprint`` belong to the plugin module.
+  FlexMeasures only registers a plugin that has at least one Flask Blueprint, so a plugin which only adds an automation type still declares one.
+- ``IngestionConfigSchema`` loads the generator's configuration, which is stored once, on the automation's data source.
+  Here, it names the sensor to write to and, optionally, a sensor to read from.
+- ``IngestionParametersSchema`` loads the parameters, which are stored on the automation and passed to every run.
+  Unknown fields are refused in both, whatever the schema's own ``unknown`` setting is.
+- ``MockIngestionGenerator`` subclasses ``DataGenerator`` and points ``_config_schema`` and ``_parameters_schema`` at the two schemas.
+- ``input_sensors`` and ``output_sensors`` list every sensor the generator reads from and writes to.
+  FlexMeasures checks that the output sensors belong to the automation's asset or one of its descendants, and, for an automation created through the API, that its creator may read the input sensors and write to the output sensors.
+  ``_resolve_sensors`` turns optional values, sensor IDs and lists into a list of sensors.
+- ``_compute`` receives the loaded parameters as keyword arguments, and returns a list of dictionaries with ``sensor`` and ``data`` keys, where ``data`` is a ``BeliefsDataFrame`` recorded under ``self.data_source``.
+  The example writes the value it is given; a real ingestion plugin would fetch measurements from an external service here.
+  The worker refuses results for any sensor that ``output_sensors`` does not list.
+- ``__automation_types__`` registers the type under its identifier, with the name shown in the UI, the worker queue its jobs go to, and the word FlexMeasures uses for one of its results in messages.
+
+Data source type and version
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An automation records its results under a data source, which stores the generator's class name, its configuration, and the two class attributes below.
+
+``__data_generator_base__`` is the kind of data generator, such as ``"ingestor"``, and becomes the data source's type.
+FlexMeasures registers the generator class under it, so the class name must be unique within that kind.
+
+``__version__`` is the version of the generator's code, and is recorded on the data source when the automation is created.
+A run only goes ahead when the installed generator still has that version.
+After raising ``__version__``, existing automations fail with an error asking you to recreate them, so that results computed by different code never share a data source.
+Raise it when a change alters what the generator computes, and leave it alone for changes that do not.
+
+Enabling the plugin
+^^^^^^^^^^^^^^^^^^^
+
+An automation passes through three processes, and each of them needs the plugin listed in ``FLEXMEASURES_PLUGINS`` (see :ref:`plugin-config`):
+
+- the web app (and CLI), which validates and stores new automations, and shows them in the UI,
+- the dispatcher, ``flexmeasures jobs run-automations``, which queues each run,
+- the worker, which computes the run.
+
+Install the same version of the plugin for all three, and run a worker for the queue the handler names:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-worker --queue ingestion
+
+A process without the plugin reports that the automation type is unavailable, and asks to install or enable its plugin.
+
+Creating and trying out an automation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Put the configuration and the parameters in YAML (or JSON) files, using the keys of the two schemas.
+For the example above, ``ingestion-config.yml`` names the sensor to write to:
+
+.. code-block:: yaml
+
+    sensor: 12
+
+and ``ingestion-parameters.yml`` holds the value each run writes:
+
+.. code-block:: yaml
+
+    value: 17.5
+
+Create the automation inactive, so you can try one run before its recurrence starts:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Import site measurements" \
+        --type mock-ingestion --cron "*/15 * * * *" --timezone Europe/Amsterdam \
+        --config ingestion-config.yml --parameters ingestion-parameters.yml --inactive
+
+Then queue one run of it, using the ID that command printed, and check the worker's output:
+
+.. code-block:: bash
+
+    flexmeasures jobs run-automation --automation ID
+
+Once that run has recorded what you expect, activate the automation in the UI or through the API.
+See :ref:`automations` for the other ways to create one.
+
+Rules for automation types
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Type identifiers must be unique across built-in types and installed plugins.
 The built-in identifiers ``forecasting``, ``scheduling`` and ``reporting`` are reserved.
@@ -452,6 +519,4 @@ Do not store credentials in generator configuration or automation parameters; re
 For app extensions that do not use plugin discovery, register a handler during app initialization with ``register_automation_handler(app, handler)`` from ``flexmeasures.data.automations``.
 Registration belongs to each Flask application, allowing separate applications to load different handlers.
 
-Create an automation using the CLI example in :ref:`automations`.
-Run a worker for the handler's queue and invoke ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
 The execution user's permissions and the output sensors' asset scope are checked again when queueing and computing a run.
