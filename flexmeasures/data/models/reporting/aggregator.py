@@ -25,21 +25,53 @@ from flexmeasures.utils.unit_utils import convert_units, is_energy_unit
 
 
 class GroupMember:
-    """One device of a group, as the flex-config describes it.
+    """One reading of one device of a group, as the flex-config describes it.
 
-    Only what aggregating needs is read off the entry: the sensor recording the device,
-    whether positive values on it mean consumption, and the asset it sits on, so that members can be filtered by type.
+    A device that records its consumption and its production on two sensors contributes two of these.
+    `source_filters` carries the provenance the flex-config states for the device, so that a report reads
+    the same beliefs the scheduler would.
     """
 
     def __init__(
         self,
         sensor: Sensor,
-        asset: GenericAsset,
-        consumption_is_positive: bool | None,
+        asset: GenericAsset | None,
+        consumption_is_positive: bool,
+        source_filters: dict[str, Any] | None = None,
     ) -> None:
         self.sensor = sensor
         self.asset = asset
         self.consumption_is_positive = consumption_is_positive
+        self.source_filters = source_filters or {}
+
+
+def _sensor_is_consumption_positive(sensor: Sensor) -> bool:
+    """Return whether positive values on a sensor mean consumption.
+
+    The platform's default is production-positive, as `_resolve_schedule_output_sign` and the profit reporter also read it.
+    """
+    return bool(sensor.get_attribute("consumption_is_positive", False))
+
+
+def _source_filters_of(reference: Any) -> dict[str, Any]:
+    """Return the belief-search filters a flex-config sensor reference states, if any.
+
+    The flex-config's provenance belongs to the topology, so a member's filters are inherited rather than restated in the report.
+    """
+    if reference is None:
+        return {}
+    filters: dict[str, Any] = {}
+    if getattr(reference, "sources", None):
+        filters["sources"] = list(reference.sources)
+    if getattr(reference, "source_types", None):
+        filters["source_types"] = list(reference.source_types)
+    if getattr(reference, "exclude_source_types", None):
+        filters["exclude_source_types"] = list(reference.exclude_source_types)
+    if getattr(reference, "source_account", None):
+        filters["source_account_ids"] = [
+            account.id for account in reference.source_account
+        ]
+    return filters
 
 
 class AggregatorReporter(Reporter):
@@ -66,14 +98,16 @@ class AggregatorReporter(Reporter):
     weights: dict
     method: str
 
+    #: The site's classified flex-config, built once per reporter and reused.
+    _cached_inventory: Any = None
+    #: The report's window, used only so the inventory is built the way a scheduler of this site would build it.
+    _window_start: datetime | None = None
+    _window_end: datetime | None = None
+
     # ------------------------------------------------------------------ groups
 
-    def _group_root_asset(self) -> GenericAsset:
-        """Return the asset whose subtree holds the group and its members.
-
-        A group referenced by asset is that asset; one referenced by sensor is the asset the sensor sits on.
-        Members are looked for in that asset's subtree, which is where the equipment a group stands for puts them.
-        """
+    def _group_asset(self) -> GenericAsset | None:
+        """Return the asset (or the asset of the sensor) the configured group refers to."""
         from flexmeasures.data import db
 
         group = self._config["group"]
@@ -88,53 +122,112 @@ class AggregatorReporter(Reporter):
         sensor = (
             sensor if isinstance(sensor, Sensor) else db.session.get(Sensor, sensor)
         )
-        return sensor.generic_asset
+        return sensor.generic_asset if sensor is not None else None
 
-    def _group_members(self) -> list[GroupMember]:
-        """Resolve the members of the configured group from the flex-models in its subtree.
+    def _site_root(self) -> GenericAsset:
+        """Return the top-level ancestor of the group's asset.
 
-        Membership is read from the same `group` field, through the same resolver, that the scheduler reads it from,
-        so that adding a device to a group adds it to this report as well, with nothing to keep in sync.
+        A device may join a group from anywhere below the site, so the flex-config has to be gathered
+        from the site root, which is the asset a scheduler of this site would be given.
         """
-        group_key = resolve_group_reference(self._config["group"])
-        root = self._group_root_asset()
-        if root is None:
+        asset = self._group_asset()
+        if asset is None:
             raise ValueError(
                 "The AggregatorReporter cannot find the asset of the group it was asked to aggregate."
             )
+        while asset.parent_asset is not None:
+            asset = asset.parent_asset
+        return asset
+
+    def _inventory(self):
+        """Classify the site's flex-config the way a scheduler of that site would.
+
+        Going through the scheduler's own device inventory is what keeps one description of the site:
+        it resolves a group to its leaf devices, follows groups nested inside groups,
+        finds members wherever they sit below the site, and classifies each device's role and sign convention.
+        The window does not affect membership, so a nominal one is enough when the report has not named one yet.
+        The result is cached, because building it costs a query per asset.
+        """
+        if self._cached_inventory is not None:
+            return self._cached_inventory
+
+        from flexmeasures.data.models.planning.storage import StorageScheduler
+
+        root = self._site_root()
+        start = self._window_start or server_now()
+        end = self._window_end or (start + timedelta(hours=1))
+        scheduler = StorageScheduler(
+            asset_or_sensor=root,
+            start=start,
+            end=end,
+            resolution=root.sensors[0].event_resolution if root.sensors else None,
+        )
+        scheduler.deserialize_config()
+        self._cached_inventory = scheduler.device_inventory
+        return self._cached_inventory
+
+    def _group_members(self) -> list[GroupMember]:
+        """Resolve the readings that make up the configured group's aggregate.
+
+        Membership comes from the scheduler's device inventory, so adding a device to a group adds it to this report,
+        and a group of groups is resolved to the devices behind it rather than to the inner groups' own output sensors.
+        """
+        group_key = resolve_group_reference(self._config["group"])
+        inventory = self._inventory()
+        group_to_devices = inventory.group_to_devices
+
+        if group_key not in group_to_devices:
+            raise ValueError(
+                f"Nothing in the flex-config of this site joins the group {group_key_label(group_key) if group_key else 'that was configured'}."
+                " A device joins a group through the `group` field of its flex-model entry, which is also what makes the group count for scheduling."
+            )
+
+        by_index = {
+            device.index: device
+            for device in (*inventory.devices, *inventory.inflexible_devices)
+            if device.index is not None
+        }
 
         members: list[GroupMember] = []
-        for asset_id, entry in root.get_flex_model().items():
-            if resolve_group_reference(entry.get("group")) != group_key:
-                continue
-            member_asset = self._asset(asset_id)
-            for field, consumption_is_positive in (
-                ("inflexible-consumption", True),
-                ("inflexible-production", False),
-                ("consumption", True),
-                ("production", False),
-            ):
-                sensor = self._referenced_sensor(entry.get(field))
-                if sensor is not None:
-                    members.append(
-                        GroupMember(sensor, member_asset, consumption_is_positive)
-                    )
-                    break
-            else:
-                sensor = self._referenced_sensor(entry.get("sensor"))
-                if sensor is not None:
-                    # a plain power sensor follows the platform convention unless the sensor says otherwise
-                    members.append(
-                        GroupMember(
-                            sensor,
-                            member_asset,
-                            not sensor.get_attribute("consumption_is_positive", True)
-                            is False,
-                        )
-                    )
+        for index in group_to_devices[group_key]:
+            device = by_index.get(index)
+            if device is not None:
+                members.extend(self._member_readings(device))
 
         members = self._filter_members(members)
         return sorted(members, key=lambda member: member.sensor.id)
+
+    @staticmethod
+    def _member_readings(device) -> list[GroupMember]:
+        """Return the readings of one member device: one per sensor it records on.
+
+        A device that records its consumption and its production separately contributes both,
+        each with the sign convention of the field it was named under, so neither half is lost.
+        """
+        source_filters = _source_filters_of(device.sensor_reference)
+        readings = []
+        for sensor, consumption_is_positive in (
+            (device.consumption_sensor, True),
+            (device.production_sensor, False),
+        ):
+            if sensor is not None:
+                readings.append(
+                    GroupMember(
+                        sensor, device.asset, consumption_is_positive, source_filters
+                    )
+                )
+        if readings:
+            return readings
+
+        sensor = device.power_sensor
+        if sensor is None:
+            return []
+        consumption_is_positive = device.consumption_is_positive
+        if consumption_is_positive is None:
+            consumption_is_positive = _sensor_is_consumption_positive(sensor)
+        return [
+            GroupMember(sensor, device.asset, consumption_is_positive, source_filters)
+        ]
 
     def _filter_members(self, members: list[GroupMember]) -> list[GroupMember]:
         """Narrow the group's members down with the `members` filter, if one is configured."""
@@ -153,32 +246,19 @@ class AggregatorReporter(Reporter):
     def _group_entry(self) -> dict | None:
         """Return the flex-model entry of the group itself, which says where its aggregate is recorded."""
         group_key = resolve_group_reference(self._config["group"])
-        root = self._group_root_asset()
-        if root is None:
-            return None
-        for asset_id, entry in root.get_flex_model().items():
-            if group_key == ("asset", asset_id):
-                return entry
-            own_sensor = self._referenced_sensor(entry.get("sensor"))
-            if own_sensor is not None and group_key == ("sensor", own_sensor.id):
-                return entry
-        return None
-
-    @staticmethod
-    def _asset(asset_id: int) -> GenericAsset | None:
-        from flexmeasures.data import db
-
-        return db.session.get(GenericAsset, asset_id)
+        return self._inventory().group_entries.get(group_key)
 
     @staticmethod
     def _referenced_sensor(reference: Any) -> Sensor | None:
-        """Resolve a serialized sensor reference, which may be an id, a `{"sensor": id}` dict, or a Sensor."""
+        """Resolve a sensor reference, which may be a Sensor, a SensorReference, an id, or a `{"sensor": ...}` dict."""
         from flexmeasures.data import db
 
         if reference is None:
             return None
         if isinstance(reference, Sensor):
             return reference
+        if isinstance(getattr(reference, "sensor", None), Sensor):
+            return reference.sensor
         if isinstance(reference, dict):
             return AggregatorReporter._referenced_sensor(reference.get("sensor"))
         if isinstance(reference, bool):
@@ -243,14 +323,23 @@ class AggregatorReporter(Reporter):
         )
 
     def _group_sign(self) -> bool:
-        """Return whether positive values on the output sensor mean consumption.
+        """Return whether positive values on the sensor the aggregate is recorded on mean consumption.
 
-        The group's own entry decides: an aggregate recorded under `production` is production-positive,
-        one recorded under `consumption` is consumption-positive.
+        A group referenced by asset says so through the field its own entry records under:
+        an aggregate under `production` is production-positive, one under `consumption` is consumption-positive.
+        A group referenced by a sensor has no such field, so that sensor's own convention decides,
+        which is production-positive unless the sensor says otherwise.
         """
+        group_key = resolve_group_reference(self._config["group"])
         entry = self._group_entry() or {}
         if self._referenced_sensor(entry.get("production")) is not None:
             return False
+        if self._referenced_sensor(entry.get("consumption")) is not None:
+            return True
+        if group_key is not None and group_key[0] == "sensor":
+            sensor = self._referenced_sensor(group_key[1])
+            if sensor is not None:
+                return _sensor_is_consumption_positive(sensor)
         return True
 
     # ------------------------------------------------------------------ input
@@ -277,15 +366,72 @@ class AggregatorReporter(Reporter):
                     continue
                 described_sensor_ids.add(member.sensor.id)
                 description: dict[str, Any] = {"sensor": member.sensor}
+                # the provenance the flex-config states for this member is inherited, not restated in the report
+                description.update(member.source_filters)
                 # a member whose sign convention differs from the aggregate's is negated
-                if (
-                    member.consumption_is_positive is not None
-                    and member.consumption_is_positive != group_is_consumption_positive
-                ):
+                if member.consumption_is_positive != group_is_consumption_positive:
                     description["_sign"] = -1.0
                 input_descriptions.append(description)
 
         return input_descriptions
+
+    # --------------------------------------------------------- accountability
+
+    def _record_membership(self, members: list[GroupMember]) -> None:
+        """Record which sensors the group resolved to, and note it in the asset's audit log when it changed.
+
+        A member filter means the set of aggregated devices can change without the report's configuration changing,
+        so the resolved membership becomes part of the data source: adding a device to a group records the next report
+        under a different source, and the change is traceable. The one thing the flex-config does not cover is an asset's type,
+        which is why a change is also written to the group asset's audit log.
+        """
+        from flexmeasures.data.models.audit_log import AssetAuditLog
+
+        resolved = sorted(member.sensor.id for member in members)
+        if self._config.get("resolved_members") == resolved:
+            return
+
+        previous = self._previously_recorded_members()
+        self._config["resolved_members"] = resolved
+        # the membership is part of the source's identity, so the cached source no longer describes this run
+        self._data_source = None
+
+        if previous is not None and previous != resolved:
+            asset = self._group_asset()
+            if asset is not None:
+                added = sorted(set(resolved) - set(previous))
+                dropped = sorted(set(previous) - set(resolved))
+                AssetAuditLog.add_record(
+                    asset,
+                    f"AggregatorReporter membership of group {group_key_label(resolve_group_reference(self._config['group']))} changed:"
+                    f" added sensors {added or 'none'}, dropped sensors {dropped or 'none'}",
+                )
+
+    def _previously_recorded_members(self) -> list[int] | None:
+        """Return the membership the most recent data source of this reporter recorded for this group, if any."""
+        from flexmeasures.data import db
+        from flexmeasures.data.models.data_sources import DataSource
+
+        group = self._config_schema.dump(self._config).get("group")
+        sources = (
+            db.session.query(DataSource)
+            .filter(
+                DataSource.type == self.__data_generator_base__,
+                DataSource.model == type(self).__name__,
+            )
+            .order_by(DataSource.id.desc())
+            .all()
+        )
+        for source in sources:
+            config = ((source.attributes or {}).get("data_generator") or {}).get(
+                "config"
+            ) or {}
+            if config.get("group") != group:
+                continue
+            recorded = config.get("resolved-members")
+            if recorded is not None:
+                return sorted(recorded)
+        return None
 
     # ------------------------------------------------------------------ units
 
@@ -343,7 +489,8 @@ class AggregatorReporter(Reporter):
 
         if resolution > sensor_resolution:
             resampler = values.resample(resolution)
-            return resampler.sum() if is_stock else resampler.mean()
+            # min_count keeps an event with no data missing, rather than reporting it as zero energy
+            return resampler.sum(min_count=1) if is_stock else resampler.mean()
 
         # A finer resolution than the sensor records at: carry each value across its own event.
         # The series is extended by one sensor event first, because resampling stops at the last index value,
@@ -356,7 +503,10 @@ class AggregatorReporter(Reporter):
                 ),
             ]
         )
-        upsampled = extended.resample(resolution).ffill().iloc[:-1]
+        # The fill is limited to one of the sensor's own events, so a gap in the data stays a gap
+        # instead of being filled with the last value before it.
+        fill_limit = max(int(sensor_resolution / resolution) - 1, 0)
+        upsampled = extended.resample(resolution).ffill(limit=fill_limit).iloc[:-1]
         if is_stock:
             upsampled = upsampled * (resolution / sensor_resolution)
         return upsampled
@@ -378,11 +528,16 @@ class AggregatorReporter(Reporter):
         method: str = self._config.get("method", "sum")
         weights: dict = self._config.get("weights", {})
 
+        self._window_start, self._window_end = start, end
+
         output = self._resolve_output(output or [])
         output_sensor: Sensor = output[0]["sensor"]
 
         if resolution is None:
             resolution = output_sensor.event_resolution
+
+        if self._config.get("group"):
+            self._record_membership(self._group_members())
 
         input_descriptions = self._collect_input_descriptions(
             input or [], output_sensor=output_sensor
@@ -434,7 +589,12 @@ class AggregatorReporter(Reporter):
             # a unique name per column, so that two entries for the same sensor both survive the concat
             columns.append(values.rename(f"{column_name}_{index}"))
 
-        aggregated = pd.concat(columns, axis=1).aggregate(method, axis=1)
+        frame = pd.concat(columns, axis=1)
+        aggregated = frame.aggregate(method, axis=1)
+        if not self._config.get("skip_missing", False):
+            # Pandas skips missing values, so a member with a gap would quietly count as zero
+            # and the aggregate would come out too low. An event is reported only when every member reported it.
+            aggregated = aggregated.where(~frame.isna().any(axis=1))
 
         # Built explicitly, because resampling the inputs with pandas leaves plain Series behind,
         # and the report has to come back as a BeliefsDataFrame of the output sensor.

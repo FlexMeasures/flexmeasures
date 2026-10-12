@@ -76,6 +76,25 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         ),
     )
 
+    resolved_members = fields.List(
+        fields.Int(),
+        required=False,
+        data_key="resolved-members",
+        metadata=dict(
+            description="Filled in by the reporter with the sensors the group resolved to, so that a report can be traced to the devices it aggregated, and a changed membership is recorded by a different data source. Anything given here is overwritten.",
+        ),
+    )
+
+    skip_missing = fields.Bool(
+        required=False,
+        dump_default=False,
+        load_default=False,
+        data_key="skip-missing",
+        metadata=dict(
+            description="By default an event is reported only when every sensor reported it, so that a gap in one of them does not quietly lower the aggregate. Set this to true to aggregate whatever did report.",
+        ),
+    )
+
     @validates_schema
     def check_members_needs_group(self, data: dict, **kwargs):
         if data.get("members") and not data.get("group"):
