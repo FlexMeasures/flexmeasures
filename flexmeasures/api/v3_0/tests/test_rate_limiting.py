@@ -3,8 +3,6 @@ import logging
 from flask import url_for
 import pytest
 
-import logging
-
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.common.rate_limiting import (
     limiter,
