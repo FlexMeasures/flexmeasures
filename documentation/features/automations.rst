@@ -253,6 +253,8 @@ A forecast run and a schedule run are both retried this way.
 Each names its jobs after the run it belongs to, rather than letting them take a fresh identity on every dispatch,
 which is what lets a second attempt tell the jobs the first one queued from the ones it still owes:
 a schedule run that queued two of its three devices queues the third, and schedules no device twice.
+A schedule start the automation left to the run time is resolved on the first attempt and stored with the run's parameters,
+so the devices a resumed run still owes are scheduled for the same window as the devices it already queued.
 
 A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
 A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs do not report back individually yet.
