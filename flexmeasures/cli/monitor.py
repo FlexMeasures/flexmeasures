@@ -24,6 +24,7 @@ from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.services.automation_monitoring import (
     AutomationFailures,
     get_unalerted_failed_automation_runs,
+    get_users_to_notify,
     group_failed_runs_by_automation,
 )
 from flexmeasures.data.models.user import Account, User
@@ -556,6 +557,66 @@ def describe_automation_failures(failures: AutomationFailures) -> str:
     return "\n".join(lines)
 
 
+def compose_automation_digest(
+    failures: list[AutomationFailures], stuck_after: timedelta, for_host: bool = True
+) -> tuple[str, str]:
+    """Return the subject and body of a digest about these failed automations.
+
+    :param for_host:    Whether the digest goes to the host, who can check the logs, rather than to a user of the assets' organisations.
+    """
+    subject = f"Failed runs of {len(failures)} automation(s)"
+    automations = (
+        "These automations"
+        if for_host
+        else "These automations on assets you look after"
+    )
+    closing = (
+        "Each automation's runs are listed on the Automations page of its asset.\nWe suggest to check the logs."
+        if for_host
+        else "Each automation's runs are listed on the Automations page of its asset."
+    )
+    body = (
+        f"{automations} have runs that failed, or that have been executing for longer than {_format_duration(stuck_after)}, which were not reported before:\n\n"
+        + "\n\n".join(describe_automation_failures(f) for f in failures)
+        + f"\n\n{closing}"
+    )
+    return subject, body
+
+
+def send_automation_digests_to_users(
+    failures: list[AutomationFailures], stuck_after: timedelta
+):
+    """Email each account admin and consultant a digest of the failed automations they may read.
+
+    The runs are already marked as reported, so a digest that cannot be sent is logged rather than tried again.
+    """
+    users_to_notify = get_users_to_notify(failures)
+    undelivered = []
+    for user, user_failures in users_to_notify:
+        subject, body = compose_automation_digest(
+            user_failures, stuck_after, for_host=False
+        )
+        email = Message(subject=subject, recipients=[user.email])
+        email.body = body
+        try:
+            app.mail.send(email)
+        except OSError as exc:  # SMTP errors are OSErrors, too
+            app.logger.error(
+                f"Could not email user {user.id} about failed automation runs: {exc}"
+            )
+            undelivered.append(user.email)
+    delivered = len(users_to_notify) - len(undelivered)
+    click.secho(
+        f"Sent a digest of failed automation runs to {delivered} user(s).",
+        **MsgStyle.WARN,
+    )
+    if undelivered:
+        click.secho(
+            f"Could not send a digest to {', '.join(undelivered)}.",
+            **MsgStyle.ERROR,
+        )
+
+
 @fm_monitor.command("automations")
 @with_appcontext
 @click.option(
@@ -582,6 +643,10 @@ def monitor_automations(
     Each run is reported once, so a monitoring run that was missed is made up for by the next one.
     Repeated failures are collapsed per automation, and no email is sent when nothing failed.
 
+    With FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS switched on, the admins of each asset's organisation and its consultants also receive a digest,
+    listing only the automations they may read.
+    A run counts as reported once the host's digest is sent.
+
     Meant to be run regularly, for instance hourly from cron.
     """
     email_recipients = get_monitoring_email_recipients(recipient)
@@ -605,12 +670,7 @@ def monitor_automations(
         return
     failures = group_failed_runs_by_automation(failed_runs)
 
-    subject = f"Failed runs of {len(failures)} automation(s)"
-    body = (
-        f"These automations have runs that failed, or that have been executing for longer than {_format_duration(stuck_after)}, which were not reported before:\n\n"
-        + "\n\n".join(describe_automation_failures(f) for f in failures)
-        + "\n\nEach automation's runs are listed on the Automations page of its asset.\nWe suggest to check the logs."
-    )
+    subject, body = compose_automation_digest(failures, stuck_after)
     capture_message_for_sentry(subject)
     email = Message(subject=subject, bcc=email_recipients)
     email.body = body
@@ -625,6 +685,8 @@ def monitor_automations(
         f"Reported {len(failed_runs)} failed run(s) of {len(failures)} automation(s) to {', '.join(email_recipients)}.",
         **MsgStyle.WARN,
     )
+    if app.config["FLEXMEASURES_MONITOR_AUTOMATIONS_NOTIFY_USERS"]:
+        send_automation_digests_to_users(failures, stuck_after)
 
 
 app.cli.add_command(fm_monitor)

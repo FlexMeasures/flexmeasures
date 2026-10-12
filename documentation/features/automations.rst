@@ -303,6 +303,13 @@ No email is sent when nothing failed.
 The digest goes to :ref:`default_monitoring_mail_recipients`, or to whoever you name with ``--recipient`` (a user ID or an email address, as often as needed).
 The command stays out of ``flexmeasures jobs run-automations``, so that a problem with monitoring, such as an unreachable mail server, never holds up the automations themselves.
 
+The people responsible for the assets can receive a digest of their own, once you switch on :ref:`monitor_automations_notify_users`.
+Each user with the ``account-admin`` role in an asset's organisation, and each user with the ``consultant`` role in its consultancy organisation, then receives one email per monitoring run,
+listing only the automations they can see.
+Inactive users and users without an email address are skipped.
+Automations on public assets belong to no organisation, so they only appear in your digest, which keeps listing every failed run.
+A run counts as reported once your digest is sent, so a user digest that cannot be delivered is logged, and not sent again.
+
 Running one automation on demand
 --------------------------------
 
