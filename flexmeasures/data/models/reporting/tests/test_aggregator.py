@@ -5,6 +5,7 @@ from flexmeasures.data.models.reporting.aggregator import AggregatorReporter
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.utils import save_to_db
 from datetime import datetime, timedelta
 from pytz import utc, timezone
 
@@ -936,6 +937,7 @@ def test_a_gap_in_one_member_is_not_counted_as_zero(
     missing_start = datetime(2026, 7, 1, 10, 0, tzinfo=utc)
     restore_beliefs(hp_power, missing_start)
 
+    # a group report is strict by default: the members were resolved for the caller
     strict = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
@@ -1069,11 +1071,14 @@ def test_resolved_membership_is_recorded_on_the_data_source(
     from flexmeasures.data.models.audit_log import AssetAuditLog
 
     reporter = AggregatorReporter(config={"group": {"asset": street.id}})
-    reporter.compute(
+    first = reporter.compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
         belief_horizon=timedelta(0),
     )
+    # the membership of the last *stored* report is what the next run compares against
+    save_to_db(first[0]["data"])
+    db.session.commit()
     first_source = reporter.data_source
     recorded = first_source.attributes["data_generator"]["config"]["resolved-members"]
     assert sorted(recorded) == sorted([pv_power.id, hp_power.id, far_power.id])
@@ -1124,7 +1129,7 @@ def test_resolved_membership_is_recorded_on_the_data_source(
     later.compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
-        belief_horizon=timedelta(0),
+        belief_horizon=timedelta(hours=1),
     )
     second_source = later.data_source
 
@@ -1204,3 +1209,153 @@ def test_a_bound_an_input_sensor_cannot_take_is_refused(setup_dummy_data, db):
 
     assert "lower" in str(refusal.value)
     assert "sensor 2" in str(refusal.value)
+
+
+def test_an_input_report_still_aggregates_what_reported(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A report over sensors the caller named keeps aggregating what reported, as such reports always have.
+
+    Only a report whose members were resolved for it is strict by default: there the caller cannot see
+    which sensors went in, so a silently low aggregate is the worse failure.
+    """
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+
+    missing_start = datetime(2026, 7, 1, 11, 0, tzinfo=utc)
+    restore_beliefs(hp_power, missing_start)
+
+    result = AggregatorReporter(config={"method": "sum"}).compute(
+        input=[dict(sensor=pv_power), dict(sensor=hp_power)],
+        output=[dict(sensor=street_total)],
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    starts = result.index.get_level_values("event_start")
+    at_gap = result[starts == pd.Timestamp(missing_start)]
+    # the PV alone, in MW: 100 kW
+    assert at_gap["event_value"].values == pytest.approx(0.1)
+
+    # and a group report over the same two sensors blanks it instead
+    strict = AggregatorReporter(config={"group": {"asset": house.id}}).compute(
+        output=[dict(sensor=street_total)],
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+    strict_starts = strict.index.get_level_values("event_start")
+    assert pd.isna(
+        strict[strict_starts == pd.Timestamp(missing_start)]["event_value"]
+    ).all()
+
+
+def test_an_invalid_flex_model_on_the_site_names_the_asset(
+    setup_nested_groups, db, restore_flex_models
+):
+    """A report fails on a flex-config a scheduler would fail on too, and says which asset's entry is at fault."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+
+    # a device outside the group, with a capacity that is not a quantity
+    restore_flex_models(far_power.generic_asset)
+    far_power.generic_asset.flex_model = {
+        "sensor": far_power.id,
+        "power-capacity": "not a power",
+    }
+    db.session.commit()
+
+    reporter = AggregatorReporter(config={"group": {"asset": house.id}})
+    with pytest.raises(ValueError) as error:
+        reporter.compute(
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_horizon=timedelta(0),
+        )
+
+    message = str(error.value)
+    assert "flex-config of site" in message
+    assert f"{far_power.generic_asset.id} ({far_power.generic_asset.name})" in message
+
+
+def test_a_device_with_a_power_sensor_is_read_from_it(
+    setup_nested_groups, db, temp_assets
+):
+    """A device that has its own power sensor is read from that sensor, not from where its schedule is written.
+
+    A battery may name a power sensor holding its measurements and, separately, `consumption` and `production`
+    sensors the scheduler writes to. Reading the latter would find nothing for a realized report,
+    and with the every-member-must-report rule the whole aggregate would come out empty.
+    """
+    region, street, house, street_total, *_ = setup_nested_groups
+
+    battery = GenericAsset(
+        name="Split battery",
+        generic_asset_type=street.generic_asset_type,
+        parent_asset=house,
+    )
+    db.session.add(battery)
+    temp_assets.append(battery)
+    db.session.flush()
+
+    def sensor(name):
+        s = Sensor(
+            name,
+            generic_asset=battery,
+            event_resolution=timedelta(minutes=15),
+            unit="kW",
+            timezone="UTC",
+        )
+        db.session.add(s)
+        return s
+
+    measured = sensor("battery power")
+    scheduled_consumption = sensor("battery consumption")
+    scheduled_production = sensor("battery production")
+    db.session.flush()
+    battery.flex_model = {
+        "sensor": measured.id,
+        "consumption": {"sensor": scheduled_consumption.id},
+        "production": {"sensor": scheduled_production.id},
+        "group": {"asset": house.id},
+        "power-capacity": "100 kW",
+    }
+    source = db.session.execute(
+        db.select(DataSource).filter_by(name="nested meter")
+    ).scalar_one()
+    # only the power sensor holds measurements; the two output sensors are empty
+    db.session.add_all(
+        [
+            TimedBelief(
+                event_start=datetime(2026, 7, 1, tzinfo=utc)
+                + event * timedelta(minutes=15),
+                belief_horizon=timedelta(0),
+                event_value=20,
+                sensor=measured,
+                source=source,
+            )
+            for event in range(96)
+        ]
+    )
+    db.session.commit()
+
+    reporter = AggregatorReporter(config={"group": {"asset": house.id}})
+    read = [s.id for s in reporter.input_sensors]
+    assert measured.id in read
+    assert scheduled_consumption.id not in read
+    assert scheduled_production.id not in read
+
+    result = reporter.compute(
+        output=[dict(sensor=street_total)],
+        start=datetime(2026, 7, 1, tzinfo=utc),
+        end=datetime(2026, 7, 2, tzinfo=utc),
+        belief_horizon=timedelta(0),
+    )[0]["data"]
+
+    # The house records its aggregate under `consumption`, so this aggregate is consumption-positive:
+    # the heat pump's 40 kW counts positive, while the PV's 100 kW and the battery's 20 kW are production
+    # and count negative. 40 - 100 - 20 = -80 kW.
+    assert result["event_value"].values == pytest.approx(-0.08)
