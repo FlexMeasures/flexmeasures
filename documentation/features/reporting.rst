@@ -209,10 +209,16 @@ and a power recorded hourly holds through its hour when the output is finer.
 A sensor whose quantity the output sensor cannot express, such as a temperature onto a power sensor, is reported as an error
 rather than being added up.
 
-**Gaps.** An event is reported only when every sensor reported it, so that a gap in one of them does not quietly lower the aggregate;
-set ``skip-missing`` to aggregate whatever did report instead.
-A gap is also left as a gap when resampling: an hour with no readings is not an hour in which nothing flowed,
-and a coarser sensor is carried only across its own event, never across a missing one.
+**Gaps.** A report over a ``group`` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,
+and it logs which sensors left the gaps.
+A report over sensors named in ``input`` aggregates what reported, which is what such reports have always done.
+``skip-missing`` sets this either way.
+An event that *no* sensor reported is missing in both cases, because an hour nothing was measured in is not an hour in which nothing flowed.
+A gap is also left as a gap when resampling: a coarser sensor is carried only across its own event, never across a missing one.
+
+**A flex-config the report cannot read.** Resolving a group means reading the whole site's flex-config, so an invalid flex-model entry
+anywhere on the site stops the report, even on a device outside the group — a scheduler of that site would fail on it too.
+The error says so, and names the asset whose entry does not validate.
 
 
 Example: Profits & losses
