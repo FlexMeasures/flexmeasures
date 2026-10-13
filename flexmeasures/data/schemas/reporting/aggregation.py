@@ -87,11 +87,13 @@ class AggregatorConfigSchema(ReporterConfigSchema):
 
     skip_missing = fields.Bool(
         required=False,
-        dump_default=False,
-        load_default=False,
+        allow_none=True,
+        load_default=None,
         data_key="skip-missing",
         metadata=dict(
-            description="By default an event is reported only when every sensor reported it, so that a gap in one of them does not quietly lower the aggregate. Set this to true to aggregate whatever did report.",
+            description="Whether to aggregate whatever reported, leaving out the sensors that did not."
+            " Left unset, a report over a `group` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,"
+            " while a report over sensors named in `input` aggregates what reported, which is what such reports have always done.",
         ),
     )
 

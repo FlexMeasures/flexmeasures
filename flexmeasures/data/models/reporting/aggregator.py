@@ -7,6 +7,7 @@ import pandas as pd
 import pint
 import timely_beliefs as tb
 from flask import current_app
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import (
@@ -162,9 +163,50 @@ class AggregatorReporter(Reporter):
             end=end,
             resolution=root.sensors[0].event_resolution if root.sensors else None,
         )
-        scheduler.deserialize_config()
+        try:
+            scheduler.deserialize_config()
+        except (ValidationError, ValueError) as e:
+            raise ValueError(
+                f"The report could not read the flex-config of site {root.id} ({root.name}),"
+                f" which it needs to resolve the group's members."
+                f"{self._name_invalid_entry(root, start, end)}"
+                f" A scheduler of this site would fail on it too. The flex-config says: {e}"
+            )
         self._cached_inventory = scheduler.device_inventory
         return self._cached_inventory
+
+    def _name_invalid_entry(self, root: GenericAsset, start, end) -> str:
+        """Return a phrase naming the asset whose flex-model entry the site's flex-config fails on, if one can be pinned down.
+
+        Only reached once the site's flex-config has already failed, so the cost of probing each asset's own entry is paid
+        on the way to an error message rather than on every report.
+        """
+        from flexmeasures.data.models.planning.storage import StorageScheduler
+
+        offenders = []
+        for asset_id in root.get_flex_model():
+            asset = self._asset_by_id(asset_id)
+            if asset is None:
+                continue
+            try:
+                StorageScheduler(
+                    asset_or_sensor=asset, start=start, end=end
+                ).deserialize_config()
+            except (ValidationError, ValueError):
+                offenders.append(f"{asset.id} ({asset.name})")
+        if not offenders:
+            return ""
+        if len(offenders) == 1:
+            return (
+                f" The entry on asset {offenders[0]} is the one that does not validate."
+            )
+        return f" The entries on assets {', '.join(offenders)} do not validate."
+
+    @staticmethod
+    def _asset_by_id(asset_id: int) -> GenericAsset | None:
+        from flexmeasures.data import db
+
+        return db.session.get(GenericAsset, asset_id)
 
     def _group_members(self) -> list[GroupMember]:
         """Resolve the readings that make up the configured group's aggregate.
@@ -199,35 +241,43 @@ class AggregatorReporter(Reporter):
 
     @staticmethod
     def _member_readings(device) -> list[GroupMember]:
-        """Return the readings of one member device: one per sensor it records on.
+        """Return the readings of one member device: one per sensor its measurements are on.
 
-        A device that records its consumption and its production separately contributes both,
-        each with the sign convention of the field it was named under, so neither half is lost.
+        A device that names its own power sensor is read from that sensor, because that is where its measurements are.
+        Its `consumption` and `production` references are where a schedule is written, so reading those instead would
+        leave a realized report with nothing for this device.
+        An entry that names no power sensor of its own records its two directions separately,
+        and then contributes both, each with the sign convention of the field it was named under.
         """
         source_filters = _source_filters_of(device.sensor_reference)
-        readings = []
-        for sensor, consumption_is_positive in (
-            (device.consumption_sensor, True),
-            (device.production_sensor, False),
-        ):
-            if sensor is not None:
-                readings.append(
-                    GroupMember(
-                        sensor, device.asset, consumption_is_positive, source_filters
-                    )
-                )
+
+        def reading(sensor, consumption_is_positive) -> GroupMember:
+            if consumption_is_positive is None:
+                consumption_is_positive = _sensor_is_consumption_positive(sensor)
+            return GroupMember(
+                sensor, device.asset, consumption_is_positive, source_filters
+            )
+
+        own_sensor = AggregatorReporter._referenced_sensor(
+            (device.flex_model or {}).get("sensor")
+        )
+        if own_sensor is not None:
+            return [reading(own_sensor, device.consumption_is_positive)]
+
+        readings = [
+            reading(sensor, consumption_is_positive)
+            for sensor, consumption_is_positive in (
+                (device.consumption_sensor, True),
+                (device.production_sensor, False),
+            )
+            if sensor is not None
+        ]
         if readings:
             return readings
 
-        sensor = device.power_sensor
-        if sensor is None:
+        if device.power_sensor is None:
             return []
-        consumption_is_positive = device.consumption_is_positive
-        if consumption_is_positive is None:
-            consumption_is_positive = _sensor_is_consumption_positive(sensor)
-        return [
-            GroupMember(sensor, device.asset, consumption_is_positive, source_filters)
-        ]
+        return [reading(device.power_sensor, device.consumption_is_positive)]
 
     def _filter_members(self, members: list[GroupMember]) -> list[GroupMember]:
         """Narrow the group's members down with the `members` filter, if one is configured."""
@@ -377,7 +427,9 @@ class AggregatorReporter(Reporter):
 
     # --------------------------------------------------------- accountability
 
-    def _record_membership(self, members: list[GroupMember]) -> None:
+    def _record_membership(
+        self, members: list[GroupMember], output_sensor: Sensor
+    ) -> None:
         """Record which sensors the group resolved to, and note it in the asset's audit log when it changed.
 
         A member filter means the set of aggregated devices can change without the report's configuration changing,
@@ -391,47 +443,55 @@ class AggregatorReporter(Reporter):
         if self._config.get("resolved_members") == resolved:
             return
 
-        previous = self._previously_recorded_members()
+        previous = self._membership_of_last_report(output_sensor)
         self._config["resolved_members"] = resolved
         # the membership is part of the source's identity, so the cached source no longer describes this run
         self._data_source = None
 
-        if previous is not None and previous != resolved:
-            asset = self._group_asset()
-            if asset is not None:
-                added = sorted(set(resolved) - set(previous))
-                dropped = sorted(set(previous) - set(resolved))
-                AssetAuditLog.add_record(
-                    asset,
-                    f"AggregatorReporter membership of group {group_key_label(resolve_group_reference(self._config['group']))} changed:"
-                    f" added sensors {added or 'none'}, dropped sensors {dropped or 'none'}",
-                )
+        if previous is None or previous == resolved:
+            return
 
-    def _previously_recorded_members(self) -> list[int] | None:
-        """Return the membership the most recent data source of this reporter recorded for this group, if any."""
+        asset = self._group_asset()
+        if asset is None:
+            return
+        added = sorted(set(resolved) - set(previous))
+        dropped = sorted(set(previous) - set(resolved))
+        AssetAuditLog.add_record(
+            asset,
+            f"AggregatorReporter membership of group {group_key_label(resolve_group_reference(self._config['group']))}"
+            f" recorded on sensor {output_sensor.id} changed:"
+            f" added sensors {added or 'none'}, dropped sensors {dropped or 'none'}",
+        )
+
+    def _membership_of_last_report(self, output_sensor: Sensor) -> list[int] | None:
+        """Return the membership recorded by the report that last wrote to this output sensor, if that was this reporter.
+
+        Comparing against the last report on the same sensor compares like with like:
+        two reports over one group, one of them filtered, each follow their own output sensor,
+        and a membership that changes back to what it was is recognized as unchanged.
+        """
         from flexmeasures.data import db
         from flexmeasures.data.models.data_sources import DataSource
+        from flexmeasures.data.models.time_series import TimedBelief
 
-        group = self._config_schema.dump(self._config).get("group")
-        sources = (
-            db.session.query(DataSource)
+        source = db.session.scalar(
+            db.select(DataSource)
+            .join(TimedBelief, TimedBelief.source_id == DataSource.id)
             .filter(
+                TimedBelief.sensor_id == output_sensor.id,
                 DataSource.type == self.__data_generator_base__,
                 DataSource.model == type(self).__name__,
             )
-            .order_by(DataSource.id.desc())
-            .all()
+            .order_by(TimedBelief.belief_horizon.asc(), DataSource.id.desc())
+            .limit(1)
         )
-        for source in sources:
-            config = ((source.attributes or {}).get("data_generator") or {}).get(
-                "config"
-            ) or {}
-            if config.get("group") != group:
-                continue
-            recorded = config.get("resolved-members")
-            if recorded is not None:
-                return sorted(recorded)
-        return None
+        if source is None:
+            return None
+        config = ((source.attributes or {}).get("data_generator") or {}).get(
+            "config"
+        ) or {}
+        recorded = config.get("resolved-members")
+        return sorted(recorded) if recorded is not None else None
 
     # ------------------------------------------------------------------ units
 
@@ -537,7 +597,7 @@ class AggregatorReporter(Reporter):
             resolution = output_sensor.event_resolution
 
         if self._config.get("group"):
-            self._record_membership(self._group_members())
+            self._record_membership(self._group_members(), output_sensor)
 
         input_descriptions = self._collect_input_descriptions(
             input or [], output_sensor=output_sensor
@@ -592,10 +652,24 @@ class AggregatorReporter(Reporter):
 
         frame = pd.concat(columns, axis=1)
         aggregated = frame.aggregate(method, axis=1)
-        if not self._config.get("skip_missing", False):
-            # Pandas skips missing values, so a member with a gap would quietly count as zero
-            # and the aggregate would come out too low. An event is reported only when every member reported it.
-            aggregated = aggregated.where(~frame.isna().any(axis=1))
+
+        skip_missing = self._config.get("skip_missing")
+        if skip_missing is None:
+            # Where the members were resolved for the caller, a silently low aggregate is the worse failure,
+            # so an event is reported only when every member reported it. Where the caller named the sensors itself,
+            # leaving out what did not report is what these reports have always done.
+            skip_missing = not bool(self._config.get("group"))
+
+        # An event no sensor reported is missing, whichever mode this is: Pandas sums an all-missing row to zero,
+        # which would report an hour nothing was measured in as an hour nothing flowed in.
+        nothing_reported = frame.isna().all(axis=1)
+        aggregated = aggregated.where(~nothing_reported)
+
+        if not skip_missing:
+            incomplete = frame.isna().any(axis=1) & ~nothing_reported
+            if incomplete.any():
+                self._warn_about_gaps(frame, incomplete)
+                aggregated = aggregated.where(~incomplete)
 
         # Built explicitly, because resampling the inputs with pandas leaves plain Series behind,
         # and the report has to come back as a BeliefsDataFrame of the output sensor.
@@ -623,6 +697,20 @@ class AggregatorReporter(Reporter):
                 "data": output_df,
             }
         ]
+
+    @staticmethod
+    def _warn_about_gaps(frame: pd.DataFrame, incomplete: pd.Series) -> None:
+        """Say which sensors left gaps, and how many events they cost, because a blank aggregate is otherwise hard to place."""
+        gaps = {
+            column: int(frame[column].isna().sum())
+            for column in frame.columns
+            if frame[column].isna().any()
+        }
+        current_app.logger.warning(
+            f"{int(incomplete.sum())} event(s) are left out of the aggregate because not every sensor reported them."
+            f" Sensors with gaps, and the number of events each is missing: {gaps}."
+            f" Set `skip-missing` to aggregate whatever reported instead."
+        )
 
     def _resolve_output(self, output: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Settle which sensor the aggregate is recorded on.
