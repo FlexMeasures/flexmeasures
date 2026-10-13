@@ -155,6 +155,9 @@ class AccountCrudUI(FlaskView):
             if plan is not None and plan.trigger_rate_limit is not None
             else current_app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
         )
+        rate_limits_disabled_in_play_mode = (
+            current_app.config.get("FLEXMEASURES_MODE") == "play"
+        )
 
         return render_flexmeasures_template(
             "accounts/account.html",
@@ -167,6 +170,7 @@ class AccountCrudUI(FlaskView):
             selected_account_roles=selected_account_roles,
             effective_default_rate_limit=effective_default_rate_limit,
             effective_trigger_rate_limit=effective_trigger_rate_limit,
+            rate_limits_disabled_in_play_mode=rate_limits_disabled_in_play_mode,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
