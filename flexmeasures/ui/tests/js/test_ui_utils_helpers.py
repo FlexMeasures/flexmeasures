@@ -346,6 +346,8 @@ def test_an_asset_which_is_gone_has_no_account_to_name(assert_js):
         eq("an asset which is gone names no account", await getAccountOfAsset(null), null);
         eq("and is not asked about", asked, 0);
         eq("an asset that is there names its own", (await getAccountOfAsset({id: 2, account_id: 3}))["name"], "Acme");
+        eq("a public asset names none", await getAccountOfAsset({id: 4, account_id: null}), null);
+        eq("without asking the API about it", asked, 1);
         localStorage.clear();
         """)
 
@@ -360,7 +362,54 @@ def test_a_rendered_sensor_which_is_gone_names_the_reference(assert_js):
         const holder = document.createElement("div");
         holder.innerHTML = await renderSensor(536);
         check("the reference is named", holder.textContent.includes("536"), holder.textContent);
-        check("and said to be gone", holder.textContent.includes(missingSensorLabel(536)), holder.textContent);
+        check("and said to be gone", holder.textContent.includes(missingSensorLabel(536, true)), holder.textContent);
+
+        window.fetch = async () => ({ok: false, status: 500, json: async () => ({message: "Internal error"})});
+        holder.innerHTML = await renderSensor(537);
+        check("a sensor the API failed on is said to be unloaded", holder.textContent.includes(missingSensorLabel(537, false)), holder.textContent);
+        check("rather than deleted", !holder.textContent.includes("deleted"), holder.textContent);
+        localStorage.clear();
+        """)
+
+
+def test_a_lookup_tells_a_resource_which_is_gone_apart_from_one_it_could_not_load(
+    assert_js,
+):
+    """Only a 404 means a resource is gone; a server error or network failure only means we could not tell."""
+    assert_js("""
+        import { lookUpSensor, lookUpAsset } from "/js/ui-utils.js";
+        localStorage.clear();
+        let answer;
+        window.fetch = async () => {
+            if (answer instanceof Error) { throw answer; }
+            return answer;
+        };
+
+        answer = {ok: false, status: 404, json: async () => ({message: "No sensor found with ID 404."})};
+        eq("a 404 says the sensor is gone", await lookUpSensor(404), {resource: null, gone: true});
+        eq("and the asset", await lookUpAsset(404), {resource: null, gone: true});
+
+        answer = {ok: false, status: 500, json: async () => ({message: "Internal error"})};
+        eq("a server error does not", await lookUpSensor(500), {resource: null, gone: false});
+
+        answer = {ok: false, status: 403, json: async () => ({message: "Not yours"})};
+        eq("nor does a sensor we may not read", await lookUpSensor(403), {resource: null, gone: false});
+
+        answer = new Error("Failed to fetch");
+        eq("nor a network failure", await lookUpSensor(7), {resource: null, gone: false});
+
+        // A remembered copy of a sensor deleted since stands in for it, until the API is asked again.
+        localStorage.setItem("sensor_8", JSON.stringify({id: 8, name: "Old"}));
+        answer = {ok: false, status: 404, json: async () => ({message: "No sensor found with ID 8."})};
+        eq("a remembered copy answers from the cache", (await lookUpSensor(8)).resource["name"], "Old");
+        eq("until the API is asked, and says the sensor is gone", await lookUpSensor(8, false), {resource: null, gone: true});
+        eq("after which the copy is forgotten", localStorage.getItem("sensor_8"), null);
+
+        // A failure which says nothing about the sensor keeps what we remember.
+        localStorage.setItem("sensor_9", JSON.stringify({id: 9, name: "Kept"}));
+        answer = {ok: false, status: 500, json: async () => ({message: "Internal error"})};
+        await lookUpSensor(9, false);
+        check("a server error forgets nothing", localStorage.getItem("sensor_9") !== null, "");
         localStorage.clear();
         """)
 
