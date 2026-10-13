@@ -406,7 +406,7 @@
 <!-- Graph editing support -->
 <script type="module">
     import {
-        getFlexFieldTitle, renderSensor, getAsset, getAccountOfAsset, getSensor, createReactiveState,
+        getFlexFieldTitle, renderSensor, getAsset, lookUpAsset, getAccountOfAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, moveArrayItem, escapeHtml, unitHtml
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
@@ -554,12 +554,17 @@
                 configTypeSelect.innerHTML = '<option value="null" selected>Select Config Type</option>';
                 flexConfigField.innerHTML = '<option value="null" selected>Select Field</option>';
                 flexConfigFieldDetail.value = "";
-                const selectedAsset = await getAsset(selectedValue, false);
+                const { resource: selectedAsset, gone: selectedAssetIsGone } = await lookUpAsset(selectedValue, false);
 
                 // The asset list is built once per page load, so an asset deleted since then is still offered here,
                 // and it has no flex-config left to refer to.
                 if (selectedAsset === null) {
-                    showToast("That asset is not available anymore, as it has been deleted.", "warning");
+                    showToast(
+                        selectedAssetIsGone
+                            ? "That asset is not available anymore, as it has been deleted."
+                            : "That asset could not be loaded just now. Please try again.",
+                        "warning",
+                    );
                     configTypeSelect.disabled = true;
                     return;
                 }
@@ -1056,27 +1061,31 @@
                     plotContainer.appendChild(sensorContent.element);
                     childComponents.push({
                         element: plotContainer,
-                        uniqueUnits: sensorContent.missing ? [] : [sensorContent.unit],
+                        uniqueUnits: sensorContent.unit === null ? [] : [sensorContent.unit],
                     });
                 } else if ("asset" in plot) {
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "pt-2 fs-[1rem]";
-                    let asset = null;
-                    try {
-                        asset = await getAsset(plot.asset);
-                    } catch (_error) {
-                        asset = null;
-                    }
-                    if (!asset || !asset.name) {
-                        unavailableReferenceCount += 1;
-                        plotHeader.innerHTML = `<b>Asset ${escapeHtml(plot.asset)}: ${escapeHtml(plot["flex-model"] || plot["flex-context"])} (Not available)</b>`;
+                    const { resource: asset, gone: assetIsGone } = await lookUpAsset(plot.asset);
+                    const configField = escapeHtml(plot["flex-model"] || plot["flex-context"]);
+                    if (asset === null) {
+                        // Only an asset the API says does not exist counts as a reference to remove;
+                        // one we could not look up just now may well still be there.
+                        if (assetIsGone) {
+                            unavailableReferenceCount += 1;
+                        }
+                        plotHeader.innerHTML = `<b>Asset ${escapeHtml(plot.asset)}: ${configField} (${assetIsGone ? "Not available" : "Could not be loaded"})</b>`;
                         plotHeader.classList.add("text-warning");
                     } else {
-                        plotHeader.innerHTML = `<b>${escapeHtml(asset.name)}: ${escapeHtml(plot["flex-model"] || plot["flex-context"])}</b>`;
+                        plotHeader.innerHTML = `<b>${escapeHtml(asset.name)}: ${configField}</b>`;
                     }
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
+                    // The asset can be there while the sensor its flex config refers to is gone.
+                    if (assetPlotContent.missing) {
+                        unavailableReferenceCount += 1;
+                    }
                     plotContainer.appendChild(plotHeader);
-                    plotContainer.appendChild(assetPlotContent);
+                    plotContainer.appendChild(assetPlotContent.element);
                     childComponents.push({ element: plotContainer, uniqueUnits: [] });
                 }
             }
@@ -1526,6 +1535,11 @@
 
         async function showAssetChartSelection() {
             let asset = await getAsset("{{ asset.id }}", false)
+            // Without the asset there are no chargepoints to offer a chart for,
+            // and the rest of the page should still load.
+            if (asset === null) {
+                return false;
+            }
             for (let child of asset.child_assets) {
                 if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint') {
                     return true;

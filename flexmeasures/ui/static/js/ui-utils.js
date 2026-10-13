@@ -31,19 +31,21 @@ export function unitHtml(unit) {
 }
 
 /**
- * Fetch one resource from the API, remembering it in localStorage.
+ * Look up one resource in the API, remembering it in localStorage.
  *
  * A configuration can still refer to a sensor or an asset which is gone,
  * for instance one deleted directly in the database, where our cleanup on deletion never ran.
- * A lookup the API does not answer with a resource therefore yields null, rather than raising,
- * and nothing is remembered, so a resource that is there is picked up on the next lookup.
+ * A lookup the API does not answer with a resource therefore yields no resource, rather than raising,
+ * and says whether that is because the resource is gone:
+ * only a 404 means it is, while a server error or a network failure only means we could not tell just now.
+ * A resource which is gone is forgotten, so that a copy remembered earlier does not stand in for it.
  *
  * @param {string} path - The resource's path within the API.
  * @param {string} cacheKey - Where to remember the resource in localStorage.
  * @param {boolean} [useCache=true] - Whether a remembered resource may be handed out.
- * @returns {Promise<Object|null>} - The resource, or null if the API did not hand one out.
+ * @returns {Promise<{resource: Object|null, gone: boolean}>} - The resource (or null), and whether the API says it does not exist.
  */
-async function fetchResource(path, cacheKey, useCache = true) {
+async function lookUpResource(path, cacheKey, useCache = true) {
   const cachedData = useCache ? localStorage.getItem(cacheKey) : null;
 
   if (cachedData) {
@@ -51,75 +53,119 @@ async function fetchResource(path, cacheKey, useCache = true) {
     // Earlier versions remembered whatever the API answered,
     // which for a resource that is gone is an error payload rather than a resource.
     if (cached !== null && cached.id !== undefined) {
-      return cached;
+      return { resource: cached, gone: false };
     }
     localStorage.removeItem(cacheKey);
   }
 
+  let response;
+  try {
+    response = await fetch(apiBasePath + path);
+  } catch (error) {
+    // A network failure says nothing about whether the resource is there.
+    return { resource: null, gone: false };
+  }
+  if (response.status === 404) {
+    localStorage.removeItem(cacheKey);
+    return { resource: null, gone: true };
+  }
+  if (!response.ok) {
+    return { resource: null, gone: false };
+  }
+
   let resource;
   try {
-    const response = await fetch(apiBasePath + path);
-    if (!response.ok) {
-      return null;
-    }
     resource = await response.json();
   } catch (error) {
-    // A resource we cannot ask about is as good as missing here;
-    // whoever renders it says so, rather than leaving a dialogue half-built.
-    return null;
+    return { resource: null, gone: false };
   }
 
   localStorage.setItem(cacheKey, JSON.stringify(resource));
 
-  return resource;
+  return { resource, gone: false };
 }
 
 // Fetch Account Details
 export async function getAccount(accountId) {
-  return fetchResource(
+  const { resource } = await lookUpResource(
     "/api/v3_0/accounts/" + accountId,
     `account_${accountId}`,
   );
+  return resource;
 }
 
-// Fetch Asset Details
-export async function getAsset(assetId, useCache = true) {
-  return fetchResource(
+/**
+ * Look up an asset, saying whether one we could not hand out is gone.
+ *
+ * @param {number|string} assetId - The asset's id.
+ * @param {boolean} [useCache=true] - Whether a remembered asset may be handed out.
+ * @returns {Promise<{resource: Object|null, gone: boolean}>} - See lookUpResource.
+ */
+export async function lookUpAsset(assetId, useCache = true) {
+  return lookUpResource(
     "/api/v3_0/assets/" + assetId,
     `asset_${assetId}`,
     useCache,
   );
 }
 
+// Fetch Asset Details
+export async function getAsset(assetId, useCache = true) {
+  return (await lookUpAsset(assetId, useCache)).resource;
+}
+
+/**
+ * Look up a sensor, saying whether one we could not hand out is gone.
+ *
+ * @param {number|string} sensorId - The sensor's id.
+ * @param {boolean} [useCache=true] - Whether a remembered sensor may be handed out.
+ * @returns {Promise<{resource: Object|null, gone: boolean}>} - See lookUpResource.
+ */
+export async function lookUpSensor(sensorId, useCache = true) {
+  return lookUpResource(
+    "/api/v3_0/sensors/" + sensorId,
+    `sensor_${sensorId}`,
+    useCache,
+  );
+}
+
 // Fetch Sensor Details
-export async function getSensor(id) {
-  return fetchResource("/api/v3_0/sensors/" + id, `sensor_${id}`);
+export async function getSensor(id, useCache = true) {
+  return (await lookUpSensor(id, useCache)).resource;
 }
 
 /**
  * The account an asset belongs to, for an asset which may not be there.
  *
  * Every place that names a sensor also names the account its asset belongs to,
- * and an asset we could not look up has no account to name.
+ * and an asset we could not look up, or a public asset, has no account to name.
  *
  * @param {Object|null} asset - The asset, or null if it could not be looked up.
  * @returns {Promise<Object|null>} - The account, or null if there is none to name.
  */
 export async function getAccountOfAsset(asset) {
-  return asset === null ? null : getAccount(asset.account_id);
+  if (asset === null || asset.account_id === null || asset.account_id === undefined) {
+    return null;
+  }
+  return getAccount(asset.account_id);
 }
 
 /**
- * How both dialogues word a reference to a sensor which is no longer there.
+ * How both dialogues word a reference to a sensor we could not look up.
  *
  * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,
  * so the flex-config and graph dialogues have to name such a reference rather than fail on it.
+ * Only a sensor the API says does not exist is called gone;
+ * a lookup which failed for another reason, such as a server error, says no more than that.
  *
  * @param {number|string} sensorId - The id the configuration still refers to.
+ * @param {boolean} gone - Whether the API says the sensor does not exist.
  * @returns {string} - The text to show, for the caller to escape if it builds markup from it.
  */
-export function missingSensorLabel(sensorId) {
-  return `Sensor ${sensorId} is not available anymore (it may have been deleted).`;
+export function missingSensorLabel(sensorId, gone) {
+  return gone
+    ? `Sensor ${sensorId} is not available anymore (it may have been deleted).`
+    : `Sensor ${sensorId} could not be loaded just now.`;
 }
 
 /**
@@ -226,9 +272,9 @@ export async function renderSensor(sensorId) {
     return `<div class="text-info">No sensor data available</div>`;
   }
 
-  const sensorData = await getSensor(sensorId);
+  const { resource: sensorData, gone } = await lookUpSensor(sensorId);
   if (sensorData === null) {
-    return `<div class="text-warning">${escapeHtml(missingSensorLabel(sensorId))}</div>`;
+    return `<div class="text-warning">${escapeHtml(missingSensorLabel(sensorId, gone))}</div>`;
   }
   const Asset = await getAsset(sensorData.generic_asset_id);
   const Account = await getAccountOfAsset(Asset);

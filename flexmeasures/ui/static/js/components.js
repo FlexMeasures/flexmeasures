@@ -10,7 +10,7 @@
 import {
   getAsset,
   getAccountOfAsset,
-  getSensor,
+  lookUpSensor,
   apiBasePath,
   missingSensorLabel,
 } from "./ui-utils.js";
@@ -81,7 +81,7 @@ const removeSensorIcon = (
  *                             Expected structure: { asset: <id>, "flex-context"?: <string>, "flex-model"?: <string> }
  * @param {number} graphIndex - The index of the parent graph in the sensors_to_show array.
  * @param {number} plotIndex - The index of this specific plot within the graph's plots array.
- * @returns {Promise<HTMLElement>} The constructed HTML element representing the card.
+ * @returns {Promise<{element: HTMLElement, missing: boolean}>} The card, and whether the sensor its flex config refers to is gone.
  */
 export async function renderAssetPlotCard(
   assetPlot,
@@ -165,7 +165,7 @@ export async function renderAssetPlotCard(
     flexDiv.appendChild(infoDiv);
     flexDiv.appendChild(closeIcon);
     container.appendChild(flexDiv);
-    return container;
+    return { element: container, missing: false };
   }
   const isSensorReference =
     typeof valueToDisplay === "object" &&
@@ -174,8 +174,12 @@ export async function renderAssetPlotCard(
     Object.prototype.hasOwnProperty.call(valueToDisplay, "sensor") &&
     Number.isInteger(valueToDisplay.sensor);
 
+  let missing = false;
   if (isSensorReference) {
     try {
+      // The asset is looked up afresh on every render, so the sensor its flex config refers to is too:
+      // the editor only forgets the sensors a plot names itself when it opens,
+      // and this one could otherwise still show as the sensor it was when we last looked.
       const sensorReference = await renderSensorCard(
         valueToDisplay.sensor,
         graphIndex,
@@ -183,7 +187,9 @@ export async function renderAssetPlotCard(
         null,
         null,
         true,
+        false,
       );
+      missing = sensorReference.missing;
       const sensorElement = sensorReference.element;
       sensorElement.classList.remove("mb-3");
       infoDiv.appendChild(sensorElement);
@@ -205,7 +211,7 @@ export async function renderAssetPlotCard(
   flexDiv.appendChild(closeIcon);
   container.appendChild(flexDiv);
 
-  return container;
+  return { element: container, missing };
 }
 
 /**
@@ -220,7 +226,8 @@ export async function renderAssetPlotCard(
  * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraph is provided.
  * @param {number} [sensorIndex=null] - The index of this sensor within the plot's sensors array, required if removeAssetPlotFromGraph is provided.
  * @param {boolean} [childRender=false] - Internal flag to indicate if this render is part of a nested call (e.g., rendering a sensor reference within an asset plot card).
- * @returns {Promise<{element: HTMLElement, unit: string|null, missing: boolean}>} An object containing the card element, the sensor's unit (null if the sensor is gone), and whether the sensor is gone.
+ * @param {boolean} [useCache=true] - Whether a remembered copy of the sensor may be shown.
+ * @returns {Promise<{element: HTMLElement, unit: string|null, missing: boolean}>} An object containing the card element, the sensor's unit (null if the sensor could not be looked up), and whether the API says the sensor is gone.
  */
 export async function renderSensorCard(
   sensorId,
@@ -229,8 +236,9 @@ export async function renderSensorCard(
   plotIndex = null,
   sensorIndex = null,
   childRender = false,
+  useCache = true,
 ) {
-  const Sensor = await getSensor(sensorId);
+  const { resource: Sensor, gone } = await lookUpSensor(sensorId, useCache);
   const Asset = Sensor === null ? null : await getAsset(Sensor.generic_asset_id);
   const Account = await getAccountOfAsset(Asset);
 
@@ -244,10 +252,12 @@ export async function renderSensorCard(
 
   // A graph can still refer to a sensor which is gone, so name the reference and leave the card removable,
   // rather than letting the whole dialogue fail to render.
+  // Only a sensor the API says does not exist is called gone; any other failed lookup only says it could not be loaded.
+  // Either card keeps the remove control every sensor card has, as a reference the user cannot read is one they may want gone too.
   if (Sensor === null) {
     const missingInfo = document.createElement("div");
     missingInfo.className = "text-warning";
-    missingInfo.textContent = missingSensorLabel(sensorId);
+    missingInfo.textContent = missingSensorLabel(sensorId, gone);
     infoDiv.appendChild(missingInfo);
     flexDiv.appendChild(infoDiv);
     if (!childRender) {
@@ -261,7 +271,7 @@ export async function renderSensorCard(
       );
     }
     container.appendChild(flexDiv);
-    return { element: container, unit: null, missing: true };
+    return { element: container, unit: null, missing: gone };
   }
 
   addInfo(
@@ -352,8 +362,8 @@ export async function renderSensorsList(
 
   results.forEach((res) => {
     listContainer.appendChild(res.element);
-    // A sensor which is gone has no unit to compare, and so cannot make the units of a graph mixed.
-    if (!res.missing) {
+    // A sensor we could not look up has no unit to compare, and so cannot make the units of a graph mixed.
+    if (res.unit !== null) {
       units.push(res.unit);
     }
   });
