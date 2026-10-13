@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import isodate
 from datetime import datetime, timedelta
 
@@ -1469,7 +1471,14 @@ class SensorAPI(FlaskView):
         )
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor: Sensor):
@@ -1532,6 +1541,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
