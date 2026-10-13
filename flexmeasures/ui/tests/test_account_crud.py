@@ -99,6 +99,32 @@ def test_account_page_lets_admin_change_the_plan(
     assert b"Retired plan" not in account_page.data
 
 
+@pytest.mark.parametrize("mode, note_visible", [("play", True), ("development", False)])
+def test_account_plan_tooltip_explains_play_mode(
+    app,
+    client,
+    setup_accounts,
+    setup_roles_users,
+    as_admin,
+    monkeypatch,
+    mode,
+    note_visible,
+):
+    """Admins see when the configured API and trigger limits are not enforced."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_MODE", mode)
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=setup_accounts["Prosumer"].id)
+    )
+
+    assert account_page.status_code == 200
+    assert b"Default API rate limit:" in account_page.data
+    assert b"Trigger rate limit:" in account_page.data
+    assert (
+        b"Neither limit is enforced in play mode" in account_page.data
+    ) is note_visible
+
+
 def _set_consultant_account_role(db, enable: bool):
     consultant_account = find_user_by_email("test_consultant@seita.nl").account
     role = db.session.execute(
