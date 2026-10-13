@@ -751,7 +751,7 @@ def test_building_solver_day_2(
     assert soc_schedule.iloc[-1] == soc_min_value
 
 
-def test_soc_bounds_timeseries(db, add_battery_assets):
+def test_soc_bounds_timeseries(db, add_battery_assets, add_market_prices):
     """Check that the maxima and minima timeseries alter the result
     of the optimization.
 
@@ -1248,7 +1248,7 @@ def test_validate_constraints(
     assert set(expected_constraint_type_violations) == constraint_type_violations_output
 
 
-def test_infeasible_problem_error(db, add_battery_assets):
+def test_infeasible_problem_error(db, add_battery_assets, add_market_prices):
     """Try to create a schedule with infeasible constraints. soc-max is 4.5 and soc-target is 8.0
 
     Note that this only yields an infeasible problem when constraint relaxation is off;
@@ -1303,7 +1303,9 @@ def test_infeasible_problem_error(db, add_battery_assets):
         compute_schedule(flex_model)
 
 
-def test_unreachable_soc_target_is_relaxed_by_default(db, add_battery_assets):
+def test_unreachable_soc_target_is_relaxed_by_default(
+    db, add_battery_assets, add_market_prices
+):
     """An unreachable soc-target no longer makes the problem infeasible.
 
     Same setup as ``test_infeasible_problem_error`` (soc-max 4.5, soc-target 8.0), but
@@ -2234,6 +2236,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
 def test_battery_power_capacity_as_sensor(
     db,
     add_battery_assets,
+    add_market_prices,
     add_inflexible_device_forecasts,
     capacity_sensors,
     battery_name,
@@ -2315,7 +2318,11 @@ def test_battery_power_capacity_as_sensor(
 
 
 def test_battery_bothways_power_capacity_as_sensor(
-    db, add_battery_assets, add_inflexible_device_forecasts, capacity_sensors
+    db,
+    add_battery_assets,
+    add_market_prices,
+    add_inflexible_device_forecasts,
+    capacity_sensors,
 ):
     """Check that the charging and discharging power capacities are limited by the power capacity."""
     epex_da, battery = get_sensors_from_db(
@@ -2422,7 +2429,7 @@ def test_dis_charging_efficiency_as_sensor(
     ["delta fails", "delta", "delta hourly", "delta 5min", None],
 )
 def test_battery_stock_delta_sensor(
-    add_battery_assets, add_stock_delta, stock_delta_sensor, db
+    add_battery_assets, add_market_prices, add_stock_delta, stock_delta_sensor, db
 ):
     """
     Test the SOC delta feature using sensors.
@@ -2516,7 +2523,7 @@ def test_battery_stock_delta_sensor(
     ],
 )
 def test_battery_stock_delta_quantity(
-    add_battery_assets, gain, usage, expected_delta, db
+    add_battery_assets, add_market_prices, gain, usage, expected_delta, db
 ):
     """
     Test the stock gain field when a constant value is provided.
@@ -2573,7 +2580,7 @@ def test_battery_stock_delta_quantity(
     ],
 )
 def test_battery_efficiency_quantity(
-    add_battery_assets, efficiency, expected_efficiency, db
+    add_battery_assets, add_market_prices, efficiency, expected_efficiency, db
 ):
     """
     Test to ensure correct handling of storage efficiency quantities in the StorageScheduler.
@@ -2627,6 +2634,7 @@ def test_battery_efficiency_quantity(
 )
 def test_battery_storage_efficiency_sensor(
     add_battery_assets,
+    add_market_prices,
     add_storage_efficiency,
     efficiency_sensor_name,
     expected_efficiency,
@@ -2714,6 +2722,7 @@ def test_battery_storage_efficiency_sensor(
 )
 def test_add_storage_constraint_from_sensor(
     add_battery_assets,
+    add_market_prices,
     add_soc_targets,
     sensor_name,
     expected_start,
@@ -2799,7 +2808,9 @@ def test_add_storage_constraint_from_sensor(
     ), "the device constraint values should be 1/4th of the actual SoC values, due to the 15-minute resolution of the battery's power sensor"
 
 
-def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
+def test_soc_maxima_minima_targets(
+    db, add_battery_assets, add_market_prices, soc_sensors
+):
     """
     Check that the SOC maxima, minima and targets can be defined as sensors in the StorageScheduler.
 
@@ -2876,6 +2887,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
 @pytest.mark.parametrize("power_sensor_name", ["power", "power (kW)"])
 def test_battery_storage_different_units(
     add_battery_assets,
+    add_market_prices,
     db,
     power_sensor_name,
     soc_unit,
@@ -3004,6 +3016,7 @@ def test_battery_storage_different_units(
 )
 def test_battery_storage_with_time_series_in_flex_model(
     add_battery_assets,
+    add_market_prices,
     db,
     ts_field,
     ts_specs,
