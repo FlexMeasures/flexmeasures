@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from functools import wraps
 from numpy import pi
-from typing import Callable, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import altair as alt  # noqa: F401
+from typing import Callable
 
 FONT_SIZE = 16
 STROKE_WIDTH = 2
@@ -471,7 +468,7 @@ def apply_chart_defaults(fn):
         """:returns: dict with vega-lite specs, even when applied to an Altair chart."""
         # Deferred: altair is only needed here (and is otherwise unused at import
         # time), so we keep it out of FlexMeasures' eager app-boot import chain.
-        import altair as alt  # noqa: F811
+        import altair as alt
 
         dataset_name = kwargs.pop("dataset_name", None)
         include_annotations = kwargs.pop("include_annotations", None)
