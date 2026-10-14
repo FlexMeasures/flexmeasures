@@ -41,7 +41,7 @@ class TrainPipeline(BasePipeline):
         self,
         future_regressors: list[Sensor | SensorReference],
         past_regressors: list[Sensor | SensorReference],
-        target_sensor: Sensor,
+        target_sensor: Sensor | SensorReference,
         model_save_dir: str,
         n_steps_to_predict: int,
         max_forecast_horizon: int,

@@ -13,7 +13,7 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     """find an show existing asset or raise NotFound"""
     if not str(asset_id).isdigit():
         raise NotFound
-    asset = db.session.query(GenericAsset).filter_by(id=asset_id).first()
+    asset = db.session.get(GenericAsset, int(asset_id))
     if asset is None:
         raise NotFound
     return asset

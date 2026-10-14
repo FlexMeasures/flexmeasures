@@ -20,8 +20,8 @@ This pulls the images you need, and re-builds the FlexMeasures ones from code. I
 
 This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes). For instance, you might want to not build the FlexMeasures image from code, but simply pull the image from DockerHub.
 
-If you wanted, you could stop building from source, and directly use the official flexmeasures image for the server and worker container
-(set ``image: lfenergy/flexmeasures`` in the file ``docker-compose.yml``).
+If you wanted, you could stop building from source, and directly use the official flexmeasures image for the FlexMeasures services
+(set ``image: lfenergy/flexmeasures`` for the server, worker and automation-runner services in ``docker-compose.yml``).
 
 
 Run the compose stack
@@ -51,6 +51,10 @@ Check ``docker ps`` or ``docker compose ps`` to see if your containers are runni
 
 
 The FlexMeasures server container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
+The ``automation-runner`` container starts when that health check passes and calls ``flexmeasures jobs run-automations`` at each minute boundary.
+It only queues due automation jobs; the worker executes them.
+You can follow the dispatcher's output with ``docker compose logs -f automation-runner``.
+Do not also schedule a host cron job for the same deployment.
 
 You can use the terminal or ``docker compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
 We'll see the latter more in this tutorial.

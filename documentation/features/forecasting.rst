@@ -91,6 +91,41 @@ Snapping runs first and clipping runs afterwards, so ``lower``/``upper`` always 
 
 Pass the same object as the API ``config`` payload, or place it in a JSON or YAML file and pass it to ``flexmeasures add forecasts`` with ``--config``.
 
+.. _cleaning_forecaster_inputs:
+
+Cleaning the data a forecaster trains on
+-----------------------------------------
+
+The bounds above shape the forecast on its way out. The same ``lower``, ``upper`` and ``snap`` fields can also be set on a sensor the forecaster reads, whether a regressor or the sensor being forecast, where they clean that sensor's readings on the way *in*, before the model trains on them.
+This is for a sensor whose recorded data is not trustworthy as it stands — an occasional implausible spike, or an error sentinel such as ``-9999`` — that you would rather not have to correct upstream.
+
+Put the bounds on the sensor reference itself, in the forecaster config, alongside the regressors. A bare sensor ID keeps working, and so does a reference that only filters by source:
+
+.. code-block:: json
+
+    {
+      "past-regressors": [
+        2094,
+        {"sensor": 2095, "lower": "0 kW", "snap": {"0 kW": ["0 kW", "0.5 kW"]}},
+        {"sensor": "auto", "upper": "20 kW"}
+      ]
+    }
+
+Here sensor 2095 is cleaned as a regressor, and ``"auto"`` cleans the sensor being forecast, which the model learns from.
+Only an ``"auto"`` entry says how to read the sensor being forecast.
+An entry naming that same sensor by its ID stays an ordinary regressor, which puts its readings in the model as a column of their own:
+the training labels leave out what forecasters recorded, while a regressor column does not,
+so such an entry adds the sensor's own history including its earlier forecasts.
+
+Each sensor's bounds are read in that sensor's own unit, not the unit of the sensor being forecast, so a regressor recording watts takes its bounds in watts unless you say otherwise.
+Snapping and clipping behave exactly as they do on the output, including the ``[first, second)`` interval rule described above.
+
+Bounding runs after missing values are filled, so a value interpolated across a gap is bounded too. [#interpolation]_
+
+These three fields belong to the sensor reference itself, rather than to forecasting, so a flex-model or flex-context reference takes them too, and the scheduler cleans what it reads in the same way: see :ref:`cleaning_referenced_data`.
+
+.. [#interpolation] Filling first also means that an out-of-range reading is used to interpolate its neighbours before it is itself corrected. Given readings of ``10``, ``-9999``, a gap, and ``14`` with ``lower: 0``, the gap interpolates from ``-9999`` and is then clipped to ``0``, rather than filling to roughly ``12``. Where readings are wrong rather than merely out of range, correcting them at the source is still the better fix.
+
 Forecasting via the UI
 -----------------------
 
@@ -171,6 +206,39 @@ If you want to take regressors into account, in addition to merely past measurem
 
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
+
+Choosing which data sources to train on
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Where several data sources record on the same sensor, you can say which of them the forecaster should read.
+Anywhere a sensor ID is accepted in the forecaster's config, you can pass a *sensor reference* instead: a small object naming the sensor plus the source filters to apply to it.
+The sensor being forecast is read as well — it is what the model learns from — so it takes filters too, named as ``"auto"`` because the config does not know which sensor a forecast will name.
+
+- ``sources``: only use beliefs from these data source IDs.
+- ``source-types``: only use beliefs from sources of these types, e.g. ``"user"``, ``"script"``, ``"forecaster"`` or ``"scheduler"``.
+- ``exclude-source-types``: leave out beliefs from sources of these types.
+- ``source-account``: only use beliefs from sources belonging to these accounts.
+
+When a reference lists multiple sources, the first listed source wins if two of them hold beliefs about the same event, recorded at the same time.
+
+.. code-block:: json
+
+    {
+      "past-regressors": [
+        {"sensor": "auto", "sources": [12]},
+        {"sensor": 43, "exclude-source-types": ["forecaster"]}
+      ]
+    }
+
+Given this config, the model is trained on the readings that source 12 recorded on the sensor being forecast, and ignores whatever else was recorded there.
+
+.. note::
+
+   Without an ``"auto"`` entry, the sensor being forecast is trained on every source recording on it, except forecasters, which are left out so that the forecaster does not learn from its own forecasts.
+   Such an entry replaces that default entirely, so add ``"exclude-source-types": ["forecaster"]`` yourself if you want forecasters kept out alongside another filter.
+
+Forecasts are always recorded on the sensor itself, never on a source-filtered view of it, so these filters only say what to train on.
+Because they live in the config, they say the same thing however a forecast is triggered, including over the API, where the sensor to forecast is named by the URL of the trigger endpoint.
 
 Annotation regressors
 ~~~~~~~~~~~~~~~~~~~~~

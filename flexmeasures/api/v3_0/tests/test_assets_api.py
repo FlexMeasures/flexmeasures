@@ -3,15 +3,17 @@ from datetime import datetime, timedelta
 
 from flask import url_for
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import select, func, event
 
 from pytz import utc
 
+from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
 from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
@@ -276,6 +278,69 @@ def test_get_assets_filtered_by_asset_type(
     )
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_does_not_scale_query_count_with_catalog_size(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """The assets-list endpoint dumps each asset's owner, generic_asset_type, sensors and child_assets.
+
+    Those relations must be eager-loaded, so the SQL statement count stays constant as the
+    catalog grows, rather than scaling with it (an N+1 query per asset per relation).
+    """
+
+    def seed_assets(num_assets: int, tag: str) -> GenericAssetType:
+        """Create num_assets assets, each with its own owner (so the identity map can't mask
+        an N+1 by reusing an already-loaded owner) and a sensor, under a shared, tagged type.
+        """
+        asset_type = GenericAssetType(name=f"n1-bench-type-{tag}")
+        db.session.add(asset_type)
+        db.session.flush()
+        for i in range(num_assets):
+            asset = GenericAsset(
+                name=f"n1-bench-asset-{tag}-{i}",
+                generic_asset_type=asset_type,
+                owner=Account(name=f"n1-bench-account-{tag}-{i}"),
+            )
+            db.session.add(asset)
+            db.session.flush()
+            db.session.add(
+                Sensor(
+                    name=f"n1-bench-sensor-{tag}-{i}",
+                    generic_asset=asset,
+                    event_resolution="PT15M",
+                    unit="MW",
+                )
+            )
+        db.session.commit()
+        return asset_type
+
+    def count_queries_for_index_request(asset_type: GenericAssetType) -> int:
+        count = {"n": 0}
+
+        def _count(*args, **kwargs):
+            count["n"] += 1
+
+        event.listen(db.engine, "before_cursor_execute", _count)
+        try:
+            response = client.get(
+                url_for("AssetAPI:index"),
+                query_string={"all_accessible": "true", "asset_type": asset_type.id},
+            )
+        finally:
+            event.remove(db.engine, "before_cursor_execute", _count)
+        assert response.status_code == 200
+        return count["n"]
+
+    small_count = count_queries_for_index_request(seed_assets(2, tag="small"))
+    large_count = count_queries_for_index_request(seed_assets(20, tag="large"))
+
+    # A few extra statements (auth, account lookups) are fine, but the count must not grow with catalog size.
+    assert large_count <= small_count + 5, (
+        f"SQL statement count grew with catalog size ({small_count} for 2 assets vs "
+        f"{large_count} for 20), which points to a reintroduced N+1 query pattern."
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
     [
@@ -377,6 +442,82 @@ def test_get_asset_with_children(client, add_asset_with_children, requesting_use
     assert len(get_assets_response.json["child_assets"]) == 2
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only(client, add_asset_with_children, requesting_user):
+    """
+    Listing assets with `depth=0` returns only assets without a parent asset.
+    The unfiltered listing is checked as well, to show that the children would otherwise be included.
+    """
+    parent = add_asset_with_children["parent"]
+    child_ids = {add_asset_with_children[f"child_{i}"].id for i in (1, 2)}
+
+    full_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert full_response.status_code == 200
+    full_asset_ids = {asset["id"] for asset in full_response.json}
+    assert parent.id in full_asset_ids
+    assert child_ids <= full_asset_ids
+
+    top_level_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "depth": 0},
+    )
+    print("Server responded with:\n%s" % top_level_response.json)
+    assert top_level_response.status_code == 200
+    top_level_asset_ids = {asset["id"] for asset in top_level_response.json}
+    assert parent.id in top_level_asset_ids
+    assert not child_ids & top_level_asset_ids
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_top_level_only_record_counts(
+    client, add_asset_with_children, requesting_user
+):
+    """
+    `num-records` reports the size of the scope that the search filter is applied to, so it respects `depth` just like the paginated query does.
+    Without that, a client showing the listing would report the descendants as having been filtered out by the search.
+    """
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "all_accessible": "true",
+            "depth": 0,
+            "page": 1,
+            "per_page": 100,
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert response.json["num-records"] == len(response.json["data"])
+    assert response.json["num-records"] == response.json["filtered-records"]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_can_exclude_public(client, setup_api_test_data, requesting_user):
+    """An explicit include_public=false leaves public assets out of a listing across accounts, where they come along per default.
+
+    The default listing is checked as well, to show that the public asset would otherwise be included.
+    """
+    default_response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true"},
+    )
+    assert default_response.status_code == 200
+    assert "troposphere" in {asset["name"] for asset in default_response.json}
+
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={"all_accessible": "true", "include_public": "false"},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    names = {asset["name"] for asset in response.json}
+    assert "troposphere" not in names
+    assert names, "excluding public assets should not empty the listing"
+
+
 @pytest.mark.parametrize("requesting_user", [None], indirect=True)
 def test_get_public_assets_noauth(
     client, setup_api_test_data, setup_accounts, requesting_user
@@ -423,14 +564,7 @@ def test_alter_an_asset(
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
-    # ... or deleted ...
-    asset_delete_response = client.delete(
-        url_for("AssetAPI:delete", id=prosumer_asset.id),
-        json={},
-    )
-    print(f"Deletion Response: {asset_delete_response.json}")
-    assert asset_delete_response.status_code == 403
-    # ... but editing is allowed.
+    # Editing is allowed. Deletion of an empty asset is tested separately.
     latitude, name = prosumer_asset.latitude, prosumer_asset.name
     asset_edit_response = client.patch(
         url_for("AssetAPI:patch", id=prosumer_asset.id),
@@ -903,7 +1037,7 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
     db.session.flush()
 
     # 1. Neither given → sibling copy (same account, same parent)
-    copy1 = copy_asset(battery)
+    copy1 = copy_asset(battery).asset
     assert copy1.name == f"{battery.name} (Copy)"
     assert copy1.account_id == battery.account_id
     assert copy1.parent_asset_id == battery.parent_asset_id  # None
@@ -920,19 +1054,19 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
 
     # 2. Only account given → top-level in target account
     # Use the turbine so the name doesn't clash with copy1 (parent_asset_id is None for both).
-    copy2 = copy_asset(turbine, account=prosumer_account)
+    copy2 = copy_asset(turbine, account=prosumer_account).asset
     assert copy2.name == f"{turbine.name} (Copy)"
     assert copy2.account_id == prosumer_account.id
     assert copy2.parent_asset_id is None
 
     # 3. Only parent given → under parent, inherits parent's account
-    copy3 = copy_asset(battery, parent_asset=parent)
+    copy3 = copy_asset(battery, parent_asset=parent).asset
     assert copy3.name == f"{battery.name} (Copy)"
     assert copy3.account_id == parent.account_id  # Supplier account
     assert copy3.parent_asset_id == parent.id
 
     # 4. Both given → under parent, in explicitly given account (cross-account)
-    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent)
+    copy4 = copy_asset(turbine, account=prosumer_account, parent_asset=parent).asset
     assert copy4.name == f"{turbine.name} (Copy)"
     assert copy4.account_id == prosumer_account.id
     assert copy4.parent_asset_id == parent.id
@@ -968,16 +1102,16 @@ def test_copy_asset_increments_name_under_same_parent(
     db.session.flush()
 
     # First copy under the parent.
-    first_copy = copy_asset(battery, parent_asset=parent)
+    first_copy = copy_asset(battery, parent_asset=parent).asset
     assert first_copy.parent_asset_id == parent.id
     assert first_copy.name == f"{battery.name} (Copy)"
 
     # Second and third copies increment the suffix.
-    second_copy = copy_asset(battery, parent_asset=parent)
+    second_copy = copy_asset(battery, parent_asset=parent).asset
     assert second_copy.parent_asset_id == parent.id
     assert second_copy.name == f"{battery.name} (Copy 2)"
 
-    third_copy = copy_asset(battery, parent_asset=parent)
+    third_copy = copy_asset(battery, parent_asset=parent).asset
     assert third_copy.parent_asset_id == parent.id
     assert third_copy.name == f"{battery.name} (Copy 3)"
 
@@ -1021,7 +1155,7 @@ def test_copy_template_asset_drops_template_metadata(
     assert template_asset.attributes["template"]["key"] == "battery-template"
     assert "Copy this" in template_asset.description
 
-    copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_asset = copy_asset(template_asset, account=prosumer_account).asset
     copied_sensor = db.session.scalars(
         select(Sensor).filter_by(generic_asset_id=copied_asset.id)
     ).one()
@@ -1129,7 +1263,7 @@ def test_copy_asset_to_another_account_preserves_config(
     original_flex_context = house.flex_context.copy()
 
     # --- Act ---
-    house_copy = copy_asset(house, account=supplier_account)
+    house_copy = copy_asset(house, account=supplier_account).asset
 
     # 1. Correct account and name.
     assert house_copy.account_id == supplier_account.id
@@ -1290,7 +1424,7 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     db.session.flush()
 
     # --- Act ---
-    battery_copy = copy_asset(battery, account=prosumer_account)
+    battery_copy = copy_asset(battery, account=prosumer_account).asset
 
     # Locate the new copied sensor.
     copied_sensors = db.session.scalars(
@@ -1719,14 +1853,20 @@ def test_get_asset_chart_with_annotation_layers(
     annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
     subcharts = chart_specs["vconcat"]
     assert len(subcharts) > 0
-    for subchart in subcharts:
+    for row_index, subchart in enumerate(subcharts):
         annotation_layers = [
             layer
             for layer in subchart["layer"]
             if layer.get("data", {}).get("name") == annotations_dataset_name
         ]
-        # band + rule + marker + text layers
-        assert len(annotation_layers) == 4
+        # band, rule, invisible hit area for pointing at the rule, marker and text layers
+        assert [layer["name"] for layer in annotation_layers] == [
+            f"annotation_band_{row_index}",
+            f"annotation_rule_{row_index}",
+            f"annotation_rule_hit_{row_index}",
+            f"annotation_marker_{row_index}",
+            f"annotation_text_{row_index}",
+        ]
     # hover params are unique per subchart, so that hovering one subchart
     # does not darken the annotation bands in the other subcharts
     all_param_names = [
@@ -2221,32 +2361,163 @@ def test_kpi_counts_each_event_under_one_day_only(
     ), "each event counts once across neighbouring days, not twice"
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-@pytest.mark.parametrize("tab", ["jobs", "sensors"])
-def test_update_status_page_tab(client, setup_api_test_data, requesting_user, tab):
-    """Posting a status page tab records it in the session, for the next status page the user opens."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_tab"),
-        json={"status_page_tab": tab},
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_of_child_assets(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """A parent asset lists the jobs of its children, unless the caller opts out."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    child_job = app.queues["scheduling"].enqueue(sum, [1, 2])
+    app.job_map.add(
+        child.id,
+        child_job.id,
+        queue="scheduling",
+        asset_or_sensor_type="asset",
+    )
+
+    response = client.get(url_for("AssetAPI:get_jobs", id=parent.id))
+    assert response.status_code == 200
+    assert child_job.id in [job["job_id"] for job in response.json["jobs"]]
+    assert f"asset: {child.name} (Id: {child.id})" in [
+        job["entity"] for job in response.json["jobs"]
+    ], "the job is reported against the child asset it was triggered on"
+    reported_job = [
+        job for job in response.json["jobs"] if job["job_id"] == child_job.id
+    ][0]
+    assert (reported_job["asset_id"], reported_job["asset_name"]) == (
+        child.id,
+        child.name,
+    ), "the job names the asset it happened on, rather than the asset that was asked about"
+
+    response = client.get(
+        url_for("AssetAPI:get_jobs", id=parent.id),
+        query_string={"include-child-assets": "false"},
     )
     assert response.status_code == 200
-    with client.session_transaction() as session:
-        assert session["status_page_tab"] == tab
+    assert child_job.id not in [job["job_id"] for job in response.json["jobs"]]
+
+    app.queues["scheduling"].empty()
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_update_status_page_tab_rejects_unknown_tab(
-    client, setup_api_test_data, requesting_user
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination(
+    client, app, add_asset_with_children, clean_redis, requesting_user
 ):
-    """Only the two tabs the status page actually has are accepted."""
-    response = client.post(
-        url_for("AssetAPI:update_status_page_tab"),
-        json={"status_page_tab": "automations"},
+    """Paged jobs are newest first, while requests without a page stay compatible."""
+    parent = add_asset_with_children["parent"]
+    child = add_asset_with_children["child_1"]
+    jobs = [app.queues["scheduling"].enqueue(sum, [n]) for n in range(4)]
+    for job in jobs:
+        app.job_map.add(
+            child.id, job.id, queue="scheduling", asset_or_sensor_type="asset"
+        )
+
+    url = url_for("AssetAPI:get_jobs", id=parent.id)
+    legacy = client.get(url)
+    assert legacy.status_code == 200
+    assert set(legacy.json) == {"jobs", "redis-connection-err", "status"}
+    assert {job["job_id"] for job in legacy.json["jobs"]} == {job.id for job in jobs}
+
+    first = client.get(url, query_string={"page": 1, "per-page": 2})
+    second = client.get(url, query_string={"page": 2, "per-page": 2})
+    empty = client.get(url, query_string={"page": 3, "per-page": 2})
+    for response in (first, second, empty):
+        assert response.status_code == 200
+        assert response.json["num-records"] == 4
+        assert response.json["filtered-records"] == 4
+    assert [job["job_id"] for job in first.json["jobs"]] == [
+        job.id for job in reversed(jobs[2:])
+    ]
+    assert [job["job_id"] for job in second.json["jobs"]] == [
+        job.id for job in reversed(jobs[:2])
+    ]
+    assert empty.json["jobs"] == []
+
+    excluded = client.get(
+        url, query_string={"page": 1, "include-child-assets": "false"}
     )
-    assert response.status_code == 422
-    with client.session_transaction() as session:
-        assert "status_page_tab" not in session
+    assert excluded.json["num-records"] == 0
+    assert excluded.json["jobs"] == []
+    assert client.get(url, query_string={"page": 0}).status_code == 422
+
+    app.queues["scheduling"].empty()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_jobs_pagination_sorts_across_pages(
+    client, app, add_asset_with_children, clean_redis, requesting_user
+):
+    """Queue and time ordering apply to all jobs before selecting a page."""
+    # Use a new cache key without reattaching module-scoped ORM objects.
+    existing_asset = add_asset_with_children["child_1"]
+    asset = GenericAsset(
+        name="job sorting asset",
+        account_id=existing_asset.account_id,
+        generic_asset_type_id=existing_asset.generic_asset_type_id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    sensor = Sensor(
+        name="job sorting sensor",
+        generic_asset_id=asset.id,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+    jobs_by_queue = {}
+    for queue in ("scheduling", "forecasting"):
+        jobs_by_queue[queue] = [
+            app.queues[queue].enqueue(sum, [number]) for number in range(2)
+        ]
+        for job in jobs_by_queue[queue]:
+            app.job_map.add(sensor.id, job.id, queue, "sensor")
+
+    url = url_for("AssetAPI:get_jobs", id=asset.id)
+    ascending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "asc",
+        },
+    )
+    descending_queues = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "queue",
+            "sort-dir": "desc",
+        },
+    )
+    oldest_jobs = client.get(
+        url,
+        query_string={
+            "page": 1,
+            "per-page": 2,
+            "sort-by": "enqueued_at",
+            "sort-dir": "asc",
+        },
+    )
+
+    assert [job["queue"] for job in ascending_queues.json["jobs"]] == [
+        "forecasting",
+        "forecasting",
+    ]
+    assert [job["queue"] for job in descending_queues.json["jobs"]] == [
+        "scheduling",
+        "scheduling",
+    ]
+    assert [job["job_id"] for job in oldest_jobs.json["jobs"]] == [
+        job.id for job in jobs_by_queue["scheduling"]
+    ]
+    assert (
+        client.get(url, query_string={"page": 1, "sort-by": "status"}).status_code
+        == 422
+    )
+
+    app.queues["scheduling"].empty()
+    app.queues["forecasting"].empty()

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from functools import wraps
-import json
 import os
 import subprocess
 
+from jinja2.utils import htmlsafe_json_dumps
 from sqlalchemy import select
 from flask import render_template, request, session, current_app
 from flask_security.core import current_user
@@ -110,7 +110,8 @@ def render_flexmeasures_template(html_filename: str, **variables):
     elif "asset" in variables:
         asset = variables["asset"]
         options["downloadFileName"] = f"asset-{asset.id}-{asset.name}"
-    variables["chart_options"] = json.dumps(options)
+    # HTML-safe, as templates embed it in a script element, and the file name carries the asset's name.
+    variables["chart_options"] = htmlsafe_json_dumps(options)
 
     account: Account | None = (
         current_user.account if current_user.is_authenticated else None

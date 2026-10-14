@@ -11,7 +11,10 @@ Percentages can be converted to units of some physical capacity if a capacity is
 
 from __future__ import annotations
 
+import numbers
+import tokenize
 from datetime import timedelta
+from typing import Any
 
 from moneyed import list_all_currencies, Currency
 import numpy as np
@@ -34,6 +37,38 @@ ur.load_definitions(custom_template)
 ur.formatter.default_format = "~P"  # short pretty
 ur.define("percent = 1 / 100 = %")
 ur.define("permille = 1 / 1000 = ‰")
+
+
+#: What pint's string parser raises for input it cannot turn into a quantity.
+#: Besides pint's own errors, its expression parser surfaces the tokenizer's errors,
+#: and Python's own errors for things like an empty string or a division by zero.
+QUANTITY_PARSE_ERRORS = (
+    pint.PintError,
+    tokenize.TokenError,
+    ValueError,
+    TypeError,
+    ArithmeticError,
+)
+
+
+def is_parseable_quantity(value: Any) -> bool:
+    """Whether a value is a number, or a string pint can read as a quantity.
+
+    Used to reject a badly written bound while a schema is still being loaded,
+    rather than letting it fail much later, when the data it bounds is read.
+    """
+    if isinstance(value, bool):
+        # A bool is a numbers.Real, but true or false is no quantity.
+        return False
+    if isinstance(value, numbers.Real):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        ur.Quantity(value)
+    except QUANTITY_PARSE_ERRORS:
+        return False
+    return True
 
 
 PREFERRED_UNITS = [
@@ -424,12 +459,12 @@ def split_into_magnitude_and_unit(value: str) -> tuple[str | None, str | None]:
     try:
         # ur.Quantity parses the number and unit automatically
         qty = ur.Quantity(value)
-        value = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
+        magnitude = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
 
         # We return the units formatted with "~P" (short pretty format)
         # to match the registry settings.
-        return value, f"{qty.units:~P}"
-    except Exception:
+        return magnitude, f"{qty.units:~P}"
+    except QUANTITY_PARSE_ERRORS:
         return None, None
 
 

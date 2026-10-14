@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from flask import current_app
+from rq import get_current_job
 from rq.job import Job
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.services.generator_results import (
+    check_generator_results,
+    describe_generator,
+    save_generator_results,
+)
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.reporting import Reporter
@@ -61,7 +66,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     )
     current_app.queues[queue].enqueue_job(job)
     for sensor_id in output_sensor_ids:
-        current_app.job_cache.add(
+        current_app.job_map.add(
             sensor_id,
             job_id=job.id,
             queue=queue,
@@ -70,7 +75,7 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     return job
 
 
-def _count_persistable_values(data) -> int:
+def count_persistable_values(data) -> int:
     """Count computed values that will not be dropped as NaN before persistence.
 
     This does not account for valid values that ``save_to_db`` may skip because
@@ -83,8 +88,62 @@ def _count_persistable_values(data) -> int:
     return len(data.dropna(subset=["event_value"]))
 
 
+def compute_report(
+    reporter: "Reporter",
+    parameters: dict,
+    permitted_output_sensor_ids: set[int] | None = None,
+    automation_id: int | None = None,
+) -> list[dict]:
+    """Compute a report, and refuse it if it would record on a sensor outside the permitted ones.
+
+    The outputs are judged before they are handed back, so that no caller receives results for unchecked sensors,
+    also one that only shows them, as a dry run does.
+
+    :param reporter: the reporter computing the report.
+    :param parameters: the reporter parameters to compute with.
+    :param permitted_output_sensor_ids: if given, every computed result must record on one of these sensors,
+        or a GeneratorWritesUncheckedSensor error is raised.
+        Pass None where no such check applies (e.g. the CLI).
+    :param automation_id: named in the GeneratorWritesUncheckedSensor error, if raised.
+    """
+    results = reporter.compute(parameters=parameters)
+    check_generator_results(
+        results,
+        permitted_output_sensor_ids,
+        describe_generator(reporter),
+        automation_id,
+    )
+    return results
+
+
+def compute_and_save_report(
+    reporter: "Reporter",
+    parameters: dict,
+    permitted_output_sensor_ids: set[int] | None = None,
+    automation_id: int | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Compute a report, check it as `compute_report` does, and save it, as the synchronous CLI and the background worker both do.
+
+    It is saved the way every data generator's results are, by `save_generator_results`:
+    within a savepoint, so a report that fails halfway leaves none of its results staged,
+    and without committing, which is left to the caller.
+
+    :returns: the computed results, and per result a summary of what was saved:
+        the sensor id and the number of beliefs saved, which leaves out NaN values and beliefs that were already on record.
+    """
+    results = compute_report(
+        reporter, parameters, permitted_output_sensor_ids, automation_id
+    )
+    return results, save_generator_results(results)
+
+
 def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
-    """Compute and store a report in a reporting worker."""
+    """Compute and store a report in a reporting worker.
+
+    If the report was triggered by an automation, the end of the report window is recorded upon success,
+    so the automation's next default window starts where this one ended.
+    A failed report job therefore leaves no permanent gap in the reported periods.
+    """
     from flexmeasures.data.models.data_sources import DataSource
     from flexmeasures.data.models.reporting import Reporter
 
@@ -95,12 +154,23 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     if not isinstance(reporter, Reporter):
         raise ValueError(f"Data source {data_source_id} does not store a Reporter.")
     reporter._parameters = None
-    results = reporter.compute(parameters=parameters)
-    saved = []
-    for result in results:
-        n_rows = _count_persistable_values(result["data"])
-        save_to_db(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_rows})
+
+    # An automation's job may only record on the sensors its creator was checked against.
+    # Judge the whole set before writing any of it.
+    from flexmeasures.data.services.automations import (
+        automation_id_of_job,
+        sensors_automation_job_may_record_on,
+    )
+
+    rq_job = get_current_job()
+    permitted_output_sensor_ids = sensors_automation_job_may_record_on(rq_job)
+    automation_id = automation_id_of_job(rq_job)
+    results, saved = compute_and_save_report(
+        reporter,
+        parameters,
+        permitted_output_sensor_ids=permitted_output_sensor_ids,
+        automation_id=automation_id,
+    )
     db.session.commit()
 
     summary = ", ".join(
@@ -110,10 +180,31 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
         current_app.logger.info(
             "Report by %s ran successfully, producing %s.", source, summary
         )
+    elif any(count_persistable_values(result["data"]) for result in results):
+        # Saving nothing is not the same as computing nothing: these values were all on record already.
+        current_app.logger.info(
+            "Report by %s ran successfully, but every value it computed was already on record (%s).",
+            source,
+            summary,
+        )
     else:
         current_app.logger.warning(
             "Report by %s produced no persistable values (%s). This can happen when its inputs do not align on source and belief time.",
             source,
             summary,
         )
+
+    # The job's trigger says whether an automation created it, as it does for the guard above.
+    # An automation deleted since the job was queued has no permitted set, and no next run to continue from.
+    if (
+        automation_id is not None
+        and permitted_output_sensor_ids is not None
+        and parameters.get("end")
+    ):
+        from flexmeasures.data.services.automations import record_automation_run
+
+        record_automation_run(
+            automation_id, now=datetime.fromisoformat(parameters["end"])
+        )
+
     return saved

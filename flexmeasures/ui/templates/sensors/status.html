@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set active_page = "assets" %}
 {% set status_page_tab = session.get("status_page_tab") if session.get("status_page_tab") in ["jobs", "sensors"] else "jobs" %}
+{% set include_child_assets = session.get("status_page_include_child_assets", True) %}
 
 {% block title %} {{ asset.name }} - Status {% endblock %}
 
@@ -36,6 +37,16 @@
                 </small>
               </span>
             </h4>
+
+            {% if asset.child_assets %}
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="includeChildAssets" {{ 'checked' if include_child_assets }}>
+              <label class="form-check-label" for="includeChildAssets">
+                Include jobs of sub-assets
+                <span class="fa fa-info-circle" title="Jobs are often triggered on a sub-asset rather than on the asset you are looking at. Keep this on to see everything that happened below this asset, too."></span>
+              </label>
+            </div>
+            {% endif %}
 
             <div class="table-responsive">
               <!-- Neither the "paginate" nor the "nav-on-click" class: both make flexmeasures.js build the table on page load, and this page builds each table itself, when its tab is first shown. -->
@@ -80,6 +91,21 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
 <script>
   const assetId = "{{ asset.id }}";
   const sensors = {{ sensors | tojson }};
+  let includeChildAssets = {{ 'true' if include_child_assets else 'false' }};
+
+  // Cells below are rendered as HTML and carry user-defined names, so escape what goes into them.
+  function escapeHtml(text) {
+    return String(text ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // escape, as these cells are rendered as HTML and may contain user-defined names
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
 
   function SensorStatusRow(sensor) {
     const lastCallTime = Date.now();
@@ -88,9 +114,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     const refreshIcon = `<i class="fa fa-refresh sensor_refresh" id="sensor_refresh_${sensor.id}"></i>`;
 
     return {
-      sensor_info: `${sensor.name} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
-        <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
-      source_type: sensor.source_type || "None",
+      sensor_info: `${escapeHtml(sensor.name)} (<a href="/sensors/${sensor.id}">${sensor.id}</a>)
+        <span class="fa fa-info" title="Resolution: ${escapeHtml(sensor.resolution)}, Relation: ${escapeHtml(sensor.relation)}" style="margin-left: 10px;"></span>`,
+      asset: `${escapeHtml(sensor.asset_name)} (<a href="/assets/${sensor.asset_id}">${sensor.asset_id}</a>)`,
+      source_type: escapeHtml(sensor.source_type || "None"),
       staleness_since: `
         <span title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
           ${
@@ -100,7 +127,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           }
         </span>
       `,
-      status: `${statusIcon}<br><span class="time-ago" data-timestamp="${lastCallTime}">
+      status: `<span title="${escapeHtml(sensor.reason)}">${statusIcon}</span><br><span class="time-ago" data-timestamp="${lastCallTime}">
           <small>${refreshIcon} <span class="time-text">(${timeAgo})</span></small></span>`,
       url: `/sensors/${sensor.id}`
     };
@@ -123,12 +150,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         </span>
       `,
       queue: job.queue,
-      entity: job.entity,
-      // escape, as this cell is rendered as HTML and may contain a user-defined automation name
-      created_via: String(job.created_via || "").replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-      }[c])),
-      status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
+      asset: `${escapeHtml(job.asset_name)} (<a href="/assets/${job.asset_id}">${job.asset_id}</a>)`,
+      entity: escapeHtml(job.entity),
+      created_via: escapeHtml(job.created_via),
+      status: `<span title="${escapeHtml(jobStatusMessage)}">${jobStatusIcon}</span>`,
       info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
         <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">
           <div class="modal-dialog"><div class="modal-content">
@@ -155,6 +180,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       ordering: false,
       columns: [
         { data: "sensor_info", title: "Sensor" },
+        { data: "asset", title: "Asset" },
         { data: "source_type", title: "Data source type" },
         { data: "staleness_since", title: "Time of latest record" },
         { data: "status", title: "Status", className: "text-right" },
@@ -164,16 +190,16 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         import("{{ url_for('flexmeasures_ui.static', filename='js/sensor-status-utils.js') }}?v={{ flexmeasures_version }}")
           .then(({ fetchSensorStatuses }) => fetchSensorStatuses(
             sensors.map(sensor => sensor.id),
-            sensorId => $.ajax({ url: `/api/v3_0/sensors/${sensorId}/status`, method: "GET" }),
+            sensorId => $.ajax({ url: `/api/v3_0/sensors/${sensorId}/status?asset_id=${assetId}`, method: "GET" }),
             (sensorId, error) => console.error("Error fetching status for sensor:", sensorId, error)
           ))
           .then(sensorsData => callback({ data: sensorsData.map(SensorStatusRow) }));
       },
       headerCallback: function (thead, data, start, end, display) {
-        // target the 3rd column header (index 2)
+        // target the "Time of latest record" header
         $(thead)
         .find("th")
-        .eq(2)
+        .eq(3)
         .attr(
             "title",
             "This is the knowledge time of the most recent event recorded (potentially in the future, for forecasts and schedules)."
@@ -187,12 +213,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     jobsTable = $("#jobsTable").DataTable({
       order: [[0, "desc"]],
       searching: false,
-      paging: false,
-      info: false,
+      serverSide: true,
+      pageLength: 25,
       columns: [
         { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
         { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
         { data: "queue", title: "Queue", orderable: true},
+        { data: "asset", title: "Asset", orderable: false},
         { data: "entity", title: "Entity", orderable: false},
         { data: "created_via", title: "Created Via", orderable: false},
         { data: "status", title: "Status", className: "text-right", orderable: false},
@@ -200,17 +227,21 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         { data: "url", title: "URL", className: "d-none", orderable: false},
       ],
       ajax: function (data, callback) {
+        const page = Math.floor(data.start / data.length) + 1;
+        const orderedColumn = data.columns[data.order[0].column].data;
+        const sortBy = orderedColumn === "queue" ? "queue" : "enqueued_at";
+        const sortDir = data.order[0].dir;
         $.ajax({
-          url: `/api/v3_0/assets/${assetId}/jobs`,
+          url: `/api/v3_0/assets/${assetId}/jobs?include-child-assets=${includeChildAssets}&page=${page}&per-page=${data.length}&sort-by=${sortBy}&sort-dir=${sortDir}`,
           method: "GET",
           success: function (res) {
-            if (res.redis_connection_err) {
-              $("#redis_connection_err").removeClass("d-none").text(res.redis_connection_err);
+            if (res["redis-connection-err"]) {
+              $("#redis_connection_err").removeClass("d-none").text(res["redis-connection-err"]);
             } else {
               $("#redis_connection_err").addClass("d-none").text("");
             }
             const jobs = res.jobs.length ? res.jobs.map(JobRow) : [];
-            callback({ data: jobs });
+            callback({ data: jobs, recordsTotal: res["num-records"], recordsFiltered: res["filtered-records"] });
 
             const lastCallTime = Date.now();
             $("#jobs_time_ago").html(`(${getTimeAgo(lastCallTime)})`);
@@ -218,7 +249,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           },
           error: function (xhr) {
             console.error("Error fetching jobs:", xhr);
-            callback({ data: [] });
+            callback({ data: [], recordsTotal: 0, recordsFiltered: 0 });
           },
         });
       },
@@ -236,12 +267,22 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
   }
 
   function rememberStatusPageTab(tabName) {
-    fetch(`${window.location.origin}/api/v3_0/assets/status_page_tab`, {
+    fetch(`${window.location.origin}/api/ui/session/status-page-tab`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status_page_tab: tabName }),
+      body: JSON.stringify({ "status-page-tab": tabName }),
     }).catch((error) => {
       console.error("Error remembering the preferred status page tab:", error);
+    });
+  }
+
+  function rememberIncludeChildAssets(include) {
+    fetch(`${window.location.origin}/api/ui/session/status-page-child-jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ "include-child-assets": include }),
+    }).catch((error) => {
+      console.error("Error remembering whether to include the jobs of sub-assets:", error);
     });
   }
 
@@ -254,6 +295,13 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       rememberStatusPageTab(tabName);
     });
 
+    $("#includeChildAssets").on("change", function () {
+      includeChildAssets = this.checked;
+      rememberIncludeChildAssets(includeChildAssets);
+      // Only reload the jobs table if it has been built, which it has not while the sensor data tab is open.
+      if (jobsTable) jobsTable.ajax.reload(null, true);
+    });
+
     $(document).on("click", ".sensor_refresh", function () {
       const sensorId = $(this).attr("id").split("_")[2];
       const refreshBtn = $(this);
@@ -261,7 +309,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       console.log("Refreshing sensor:", sensorId);
 
       $.ajax({
-        url: `/api/v3_0/sensors/${sensorId}/status`,
+        url: `/api/v3_0/sensors/${sensorId}/status?asset_id=${assetId}`,
         method: "GET",
         success: function (res) {
           if (!res.sensors_data || !res.sensors_data.length) return;
@@ -279,11 +327,8 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
           if (rowIndexes.length > 0) {
             const idx = rowIndexes[0];
 
-            // Update only the cells we need (0..3)
-            sensorTable.cell(idx, 0).data(newRowData.sensor_info).invalidate(); // sensor_info
-            sensorTable.cell(idx, 1).data(newRowData.source_type).invalidate(); // source_type
-            sensorTable.cell(idx, 2).data(newRowData.staleness_since).invalidate(); // staleness_since
-            sensorTable.cell(idx, 3).data(newRowData.status).invalidate(); // status
+            // Replace the row by its keys rather than cell by cell, so that adding a column cannot silently write to the wrong one.
+            sensorTable.row(idx).data(newRowData).invalidate();
 
             // redraw once, without resetting paging/order
             sensorTable.draw(false);

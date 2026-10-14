@@ -7,8 +7,10 @@ from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
 from marshmallow import ValidationError
+from pytz import all_timezones
 
 from flexmeasures.data import db
+from flexmeasures.data.automations import get_automation_types
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.schemas import StartEndTimeSchema
@@ -16,6 +18,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    get_readable_offspring,
 )
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
@@ -89,7 +92,7 @@ class AssetCrudUI(FlaskView):
         """GET /assets/owned_by/<account_id>"""
         msg = ""
         account: Account | None = (
-            db.session.query(Account).filter_by(id=account_id).one_or_none()
+            db.session.get(Account, int(account_id)) if account_id.isdigit() else None
         )
         if account is None:
             assets = []
@@ -190,7 +193,7 @@ class AssetCrudUI(FlaskView):
             {
                 "name": sensor.name,
                 "resolution": duration_isoformat(sensor.event_resolution),
-                "unit": sensor._ui_unit,
+                "unit": sensor.unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
@@ -222,7 +225,7 @@ class AssetCrudUI(FlaskView):
     def create_sensor(self, id: str):
         """GET to /assets/<id>/sensors/new"""
         asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "create-children")
+        check_access(asset, "edit-sensors")
 
         return render_flexmeasures_template(
             "sensors/sensor_new.html",
@@ -252,10 +255,28 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id>/automations to show the automations defined on the asset."""
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
+        # The page's tabs cover every type it can come to list, rather than the types its current scope holds:
+        # the scope is widened on the page itself, which refreshes the listing without rendering the tabs again,
+        # and an automation of a type without a tab would have nowhere to be listed.
+        assets_it_can_list = [asset] + get_readable_offspring(asset)
+        registered_types = get_automation_types()
 
         return render_flexmeasures_template(
             "assets/asset_automations.html",
             asset=asset,
+            available_timezones=all_timezones,
+            automation_types={
+                type_id: handler.display_name
+                for type_id, handler in registered_types.items()
+            }
+            | {
+                automation.type: f"{automation.type} (plugin unavailable)"
+                for asset_it_can_list in assets_it_can_list
+                for automation in asset_it_can_list.automations
+                if automation.type not in registered_types
+            },
+            # Managing an automation is gated like running one, so both follow create-children.
+            user_can_manage_automations=user_can_create_children(asset),
             user_can_create_children=user_can_create_children(asset),
             current_page="Automations",
         )
@@ -275,7 +296,7 @@ class AssetCrudUI(FlaskView):
             account, account_error = asset_form.set_account()
             asset_type, asset_type_error = asset_form.set_asset_type()
 
-            check_access(account, "create-children")
+            check_access(account, "edit-assets")
 
             form_valid = asset_form.validate_on_submit()
 
@@ -319,7 +340,7 @@ class AssetCrudUI(FlaskView):
 
         else:
             asset = get_asset_by_id_or_raise_notfound(id)
-            check_access(asset, "update")
+            check_access(asset, "edit-assets")
             asset_form = AssetForm()
             asset_form.with_options()
             if not asset_form.validate_on_submit():
@@ -496,7 +517,7 @@ class AssetCrudUI(FlaskView):
             account_assets=account_assets,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
-            asset_flexmodel=json.dumps(asset.flex_model),
+            asset_flexmodel=asset.flex_model,
             available_units=available_units(),
             asset_summary=asset_summary,
             asset_form=asset_form,

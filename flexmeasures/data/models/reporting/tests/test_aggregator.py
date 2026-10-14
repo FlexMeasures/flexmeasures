@@ -6,6 +6,7 @@ from datetime import datetime
 from pytz import utc, timezone
 
 import pandas as pd
+from marshmallow import ValidationError
 
 
 @pytest.mark.parametrize(
@@ -286,3 +287,69 @@ def test_source_transition(setup_dummy_data, db):
     assert len(result) == 6
     assert (result[:5] == -1).all().event_value  # beliefs from the older version
     assert (result[5:] == 3).all().event_value  # belief from the latest version
+
+
+def test_an_input_cleans_the_readings_it_asks_for(setup_dummy_data, db):
+    """An input entry may bound the readings it reads, the way a forecaster's regressors and a scheduler's references can.
+
+    Sensor 1 records 1 and sensor 2 records -1, so their sum is 0.
+    Holding the second at or above zero makes the same report add 1 and 0.
+    """
+    s1, s2, _, _, report_sensor, _ = setup_dummy_data
+    source_1 = db.session.get(DataSource, 1)
+    source_2 = db.session.get(DataSource, 2)
+
+    def summed(second_input: dict):
+        return AggregatorReporter(method="sum").compute(
+            input=[dict(sensor=s1, source=source_1), second_input],
+            output=[dict(sensor=report_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+        )[0]["data"]
+
+    unbounded = summed(dict(sensor=s2, source=source_2))
+    # Sensor 2 records no unit, so a bare number says what its own readings are bounded by.
+    bounded = summed(dict(sensor=s2, source=source_2, lower=0))
+
+    assert (unbounded == 0).all().event_value
+    assert (bounded == 1).all().event_value
+
+
+def test_an_input_snaps_the_readings_it_asks_for(setup_dummy_data, db):
+    """Snapping runs before clipping here too, so a reading inside an interval is replaced by its target."""
+    s1, _, _, _, report_sensor, _ = setup_dummy_data
+    source_1 = db.session.get(DataSource, 1)
+
+    result = AggregatorReporter(method="sum").compute(
+        input=[
+            dict(
+                sensor=s1,
+                source=source_1,
+                snap={"1.5 kW": ["0.5 kW", "1.5 kW"]},
+            )
+        ],
+        output=[dict(sensor=report_sensor)],
+        start=datetime(2023, 5, 10, tzinfo=utc),
+        end=datetime(2023, 5, 11, tzinfo=utc),
+    )[0]["data"]
+
+    # Sensor 1 records 1 kW, which the interval [0.5, 1.5) covers, so it reads as its target.
+    assert (result == 1.5).all().event_value
+
+
+def test_a_bound_an_input_sensor_cannot_take_is_refused(setup_dummy_data, db):
+    """A bound is checked against the sensor it applies to while the report is being set up, not once its data is read."""
+    _, s2, _, _, report_sensor, _ = setup_dummy_data
+    source_2 = db.session.get(DataSource, 2)
+
+    with pytest.raises(ValidationError) as refusal:
+        AggregatorReporter(method="sum").compute(
+            # Sensor 2 records no unit, so a bound in kW cannot be read in it.
+            input=[dict(sensor=s2, source=source_2, lower="0 kW")],
+            output=[dict(sensor=report_sensor)],
+            start=datetime(2023, 5, 10, tzinfo=utc),
+            end=datetime(2023, 5, 11, tzinfo=utc),
+        )
+
+    assert "lower" in str(refusal.value)
+    assert "sensor 2" in str(refusal.value)

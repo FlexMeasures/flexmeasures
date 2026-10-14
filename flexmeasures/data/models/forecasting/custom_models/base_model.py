@@ -149,6 +149,8 @@ class BaseModel(ABC):
                 **optional_params,
             )
             if self.ensure_positive:
+                # Meant to be deprecated in favour of the forecaster's `lower` bound,
+                # which says the same thing in config instead of hiding it inside the model.
                 y_pred = y_pred.map(negative_to_zero)
             return y_pred
 

@@ -469,7 +469,7 @@ When fetching sensor data through chart endpoints, you can control which annotat
 
 .. code-block:: bash
 
-    GET /api/dev/sensor/42/chart?include_sensor_annotations=true&include_asset_annotations=true&include_account_annotations=true
+    GET /api/ui/sensor/42/chart?include_sensor_annotations=true&include_asset_annotations=true&include_account_annotations=true
 
 This allows you to:
 
@@ -477,7 +477,7 @@ This allows you to:
 - Add broader context from asset and account annotations  
 - Customize which annotation layers are visible
 
-See :ref:`dev` for complete API documentation for sensor charts.
+See :ref:`ui_support_api` for the documentation of the sensor chart endpoints.
 
 
 See also

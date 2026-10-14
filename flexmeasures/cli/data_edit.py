@@ -9,7 +9,7 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
-from flexmeasures.data.models.user import Account, Plan, RateLimitKey
+from flexmeasures.data.models.user import Account, Plan
 from flexmeasures.data.schemas.account import AccountIdField
 from sqlalchemy import delete, select
 
@@ -19,19 +19,18 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.automations import (
-    Automation,
-    get_initial_cursor,
-)
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.schemas.automations import (
     AutomationIdField,
     CronField,
     TimezoneField,
 )
+from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
+    LoggedClickExceptionGroup,
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
@@ -58,7 +57,7 @@ def _resolve_secret_path(
     return secret
 
 
-@click.group("edit")
+@click.group("edit", cls=LoggedClickExceptionGroup)
 def fm_edit_data():
     """FlexMeasures: Edit data."""
 
@@ -107,33 +106,17 @@ def edit_automation(
     active: bool | None = None,
 ):
     """Edit the name, recurrence, timezone or activation status of an automation."""
-    changes = []
-    rebase_schedule = False
-    if name is not None and name != automation.name:
-        changes.append(f"name: '{automation.name}' → '{name}'")
-        automation.name = name
-    if cronstr is not None and cronstr != automation.cronstr:
-        changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
-        automation.cronstr = cronstr
-        rebase_schedule = True
-    if timezone is not None and timezone != automation.timezone:
-        changes.append(f"timezone: '{automation.timezone}' → '{timezone}'")
-        automation.timezone = timezone
-        rebase_schedule = True
-    if active is not None and active != automation.active:
-        changes.append("activated" if active else "deactivated")
-        if active:
-            rebase_schedule = True
-        automation.active = active
+    changes = update_automation(
+        automation,
+        name=name,
+        cronstr=cronstr,
+        timezone=timezone,
+        active=active,
+        origin="CLI",
+    )
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
-    if rebase_schedule:
-        automation.cursor = get_initial_cursor()
-    AssetAuditLog.add_record(
-        automation.asset,
-        f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via CLI.",
-    )
     db.session.commit()
     click.secho(
         f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
@@ -145,7 +128,6 @@ def edit_automation(
 CLEARABLE_PLAN_FIELDS = [
     "default-rate-limit",
     "trigger-rate-limit",
-    "rate-limit-key",
     "max-users",
     "max-assets",
     "max-clients",
@@ -173,11 +155,6 @@ CLEARABLE_PLAN_FIELDS = [
     callback=validate_rate_limit_cli,
     help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
     " Pass 'unlimited' to exempt them.",
-)
-@click.option(
-    "--rate-limit-key",
-    type=click.Choice([key.value for key in RateLimitKey]),
-    help="What the trigger rate limit is counted against.",
 )
 @click.option(
     "--max-users", type=int, help="How many users an account on this plan may have."
@@ -209,7 +186,6 @@ def edit_plan(
     name: str | None,
     default_rate_limit: str | None,
     trigger_rate_limit: str | None,
-    rate_limit_key: str | None,
     max_users: int | None,
     max_assets: int | None,
     max_clients: int | None,
@@ -237,7 +213,6 @@ def edit_plan(
         "name": name,
         "default_rate_limit": default_rate_limit,
         "trigger_rate_limit": trigger_rate_limit,
-        "rate_limit_key": RateLimitKey(rate_limit_key) if rate_limit_key else None,
         "max_users": max_users,
         "max_assets": max_assets,
         "max_clients": max_clients,

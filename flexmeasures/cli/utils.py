@@ -5,6 +5,7 @@ Utils for FlexMeasures CLI
 from __future__ import annotations
 
 import ast
+import logging
 from typing import Any
 from datetime import datetime, timedelta
 
@@ -37,6 +38,58 @@ class MsgStyle(object):
     SUCCESS: dict[str, Any] = {"fg": "green"}
     WARN: dict[str, Any] = {"fg": "yellow"}
     ERROR: dict[str, Any] = {"fg": "red"}
+
+
+class LogsClickExceptions:
+    """Mixin that logs a Click error before Click reports it on stderr.
+
+    Click writes usage errors to stderr only, so a cron job that captures just the log file records nothing about why a command failed.
+    A single line goes to the app logger instead, which reaches the handlers the host has configured.
+    The exception is re-raised untouched, so Click's own output and its exit code are unchanged.
+
+    One line, rather than the usage block Click prints, keeps a command that fails on every run from filling the log.
+    """
+
+    def _log_click_exception(self, ctx: click.Context, exc: click.ClickException):
+        # A command's error passes through its group on the way out, so each exception is logged by the first handler to see it, and skipped by the rest.
+        if getattr(exc, "_flexmeasures_logged", False):
+            return
+        exc._flexmeasures_logged = True  # type: ignore[attr-defined]
+
+        from flask import current_app, has_app_context
+
+        logger = (
+            current_app.logger if has_app_context() else logging.getLogger(__name__)
+        )
+        # An error raised while resolving a subcommand names that subcommand's context, which is the path worth reporting.
+        error_ctx = getattr(exc, "ctx", None) or ctx
+        logger.error(
+            "Click error in `%s`: %s",
+            error_ctx.command_path,
+            exc.format_message(),
+        )
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, args)  # type: ignore[misc]
+        except click.ClickException as exc:
+            self._log_click_exception(ctx, exc)
+            raise
+
+    def invoke(self, ctx: click.Context):
+        try:
+            return super().invoke(ctx)  # type: ignore[misc]
+        except click.ClickException as exc:
+            self._log_click_exception(ctx, exc)
+            raise
+
+
+class LoggedClickExceptionGroup(LogsClickExceptions, click.Group):
+    """A group whose own errors, and those of every command in it, are logged before Click reports them.
+
+    A command's error passes through its group on the way out, so putting this on the group covers every command in it,
+    including the ones that pass a ``cls`` of their own, and any group nested inside it.
+    """
 
 
 class DeprecatedOption(click.Option):
@@ -493,7 +546,11 @@ def split_commas(ctx, param, value):
 
 
 def add_cli_options_from_schema(
-    schema, *, hidden: bool = False, force_optional: bool = False
+    schema,
+    *,
+    hidden: bool = False,
+    force_optional: bool = False,
+    exclude: tuple[str, ...] = (),
 ):
     """Decorator to add CLI options based on a Marshmallow schema's fields.
 
@@ -501,10 +558,13 @@ def add_cli_options_from_schema(
     while still accepting the schema's options.
     Set force_optional to let a field that the schema requires be omitted on the command line,
     so it can be supplied by another route (such as a parameters file) and be validated by the schema itself.
+    Set exclude to leave out the fields with these names, such as a field the command declares an option for itself.
     """
 
     def decorator(command):
         for field_name, field in reversed(schema.fields.items()):
+            if field_name in exclude:
+                continue
             cli = field.metadata.get("cli")
             if not cli:
                 continue

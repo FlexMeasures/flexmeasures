@@ -3,26 +3,11 @@ from __future__ import annotations
 import inspect
 from functools import lru_cache
 
+from typing import TYPE_CHECKING
+
 from flask import current_app
 import pandas as pd
 import numpy as np
-from pyomo.core import (
-    ConcreteModel,
-    Var,
-    RangeSet,
-    Set,
-    Param,
-    Reals,
-    NonNegativeReals,
-    NonPositiveReals,
-    Binary,
-    Constraint,
-    Objective,
-    minimize,
-)
-from pyomo.environ import UnknownSolver  # noqa F401
-from pyomo.environ import value
-from pyomo.opt import SolverFactory, SolverResults
 
 from flexmeasures.data.models.planning import (
     Commitment,
@@ -33,12 +18,19 @@ from flexmeasures.data.models.planning.scheduling_problem import (  # noqa F401
     aggregate_commodity_costs,
     aggregate_subcommitment_costs,
     convert_commitments_to_subcommitments,
+    deviation_price,
     loss_coefficients,
     planned_power_per_device,
     prepare_scheduling_problem,
     solver_options,
     validate_highs_options,
 )
+
+if TYPE_CHECKING:
+    # Only named in annotations, which are strings under "from __future__ import annotations",
+    # so importing them here keeps pyomo off the import path at runtime.
+    from pyomo.core import ConcreteModel
+    from pyomo.opt import SolverResults
 
 infinity = float("inf")
 
@@ -230,6 +222,24 @@ def device_scheduler(  # noqa C901
 
         return device_scheduler_highspy(**highspy_arguments)
 
+    # Imported here rather than at module level to reduce module import time and because it is only needed once a schedule is actually built with this backend.
+    from pyomo.core import (
+        ConcreteModel,
+        Var,
+        RangeSet,
+        Set,
+        Param,
+        Reals,
+        NonNegativeReals,
+        NonPositiveReals,
+        Binary,
+        Constraint,
+        Objective,
+        minimize,
+    )
+    from pyomo.environ import value
+    from pyomo.opt import SolverFactory, SolverResults
+
     model = ConcreteModel()
 
     # If the EMS has no devices, don't bother
@@ -263,6 +273,7 @@ def device_scheduler(  # noqa C901
     commitment_mapping = problem.commitment_mapping
     device_group_lookup = problem.device_group_lookup
     convex_cost_curve = problem.convex_cost_curve
+    merged_constituents = problem.merged_constituents
     Md, Mc = problem.Md, problem.Mc
     band_lookup = problem.band_lookup
     _initial_stock_of = problem.initial_stock_of
@@ -296,20 +307,10 @@ def device_scheduler(  # noqa C901
 
     # Add parameters
     def price_down_select(m, c):
-        if "downwards deviation price" not in commitments[c].columns:
-            return 0
-        price = commitments[c]["downwards deviation price"].iloc[0]
-        if np.isnan(price):
-            return 0
-        return price
+        return deviation_price(commitments[c], "downwards deviation price")
 
     def price_up_select(m, c):
-        if "upwards deviation price" not in commitments[c].columns:
-            return 0
-        price = commitments[c]["upwards deviation price"].iloc[0]
-        if np.isnan(price):
-            return 0
-        return price
+        return deviation_price(commitments[c], "upwards deviation price")
 
     def commitment_quantity_select(m, c, j):
         quantity = commitments[c][commitments[c]["j"] == j]["quantity"].values[0]
@@ -822,8 +823,17 @@ def device_scheduler(  # noqa C901
         resolution,
     )
 
+    # A merged sub-commitment stands for several commitments, so its cost is shared out
+    # by their own prices against the deviation they share.
+    deviations = {
+        c: (
+            value(model.commitment_upwards_deviation[c]),
+            value(model.commitment_downwards_deviation[c]),
+        )
+        for c in model.c
+    }
     model.commitment_costs = aggregate_subcommitment_costs(
-        subcommitment_costs, commitment_mapping
+        subcommitment_costs, commitment_mapping, merged_constituents, deviations
     )
     model.commodity_costs = aggregate_commodity_costs(commitments, subcommitment_costs)
 

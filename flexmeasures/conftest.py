@@ -3,18 +3,18 @@ from __future__ import annotations
 import sys
 import builtins
 import warnings
-from contextlib import contextmanager
 import pytest
 from random import random, seed
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import Integer, delete, func, or_, select, text
+from sqlalchemy.exc import ProgrammingError
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from flask import request, jsonify, Flask, g
+from flask import Flask, request, jsonify, g
 from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
-from flask_security import roles_accepted
+from flask_security import roles_accepted, SQLAlchemySessionUserDatastore, hash_password
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 from werkzeug.exceptions import (
     InternalServerError,
@@ -26,18 +26,22 @@ from werkzeug.exceptions import (
 
 from flexmeasures.app import create as create_app
 from flexmeasures.auth.policy import (
+    ACCOUNT_DATA_INTEGRATOR_ROLE,
+    ACCOUNT_MEMBER_ROLE,
+    ACCOUNT_READER_ROLE,
     ADMIN_ROLE,
     ADMIN_READER_ROLE,
     CONSULTANCY_ACCOUNT_ROLE,
 )
-from flexmeasures.data.services.users import create_user
+from passlib.totp import TOTP
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import User, Account, AccountRole
+from flexmeasures.data.models.user import User, Role, Account, AccountRole
 
-from flexmeasures.utils.time_utils import as_server_time
+from flexmeasures.utils.time_utils import as_server_time, server_now
 
 from flexmeasures import Asset
 
@@ -50,7 +54,7 @@ One application is made per test session.
 
 # Database
 
-Database recreation and cleanup can happen per test (use fresh_db) or per module (use db).
+The schema is created once per session (see get_test_schema); the tables are emptied per test (use fresh_db) or per module (use db).
 Having tests inside a module share a database makes those tests faster.
 Tests that use fresh_db should be put in a separate module to avoid clashing with the module scoped test db.
 For example:
@@ -106,26 +110,19 @@ def clear_flask_login_cache(app):
         g.pop(key, None)
 
 
-@pytest.fixture(scope="module")
-def db(app):
-    """Fresh test db per module."""
-    with create_test_db(app) as test_db:
-        yield test_db
+test_schema_key = pytest.StashKey[SQLAlchemy]()
 
 
-@pytest.fixture(scope="function")
-def fresh_db(app):
-    """Fresh test db per function."""
-    with create_test_db(app) as test_db:
-        yield test_db
+def get_test_schema(app: Flask, request: pytest.FixtureRequest) -> SQLAlchemy:
+    """Create the database schema the first time a test session asks for it, and drop it when the session ends.
 
-
-@contextmanager
-def create_test_db(app: Flask):
+    `db` and `fresh_db` empty its tables, which is cheaper than recreating the schema per module or per test.
+    This is a function rather than a session fixture of its own,
+    so that plugins which import only `db` and `fresh_db` from this module keep working.
     """
-    Provide a db object with the structure freshly created.
-    It cleans up before it starts and after it's done (drops everything).
-    """
+    if test_schema_key in request.config.stash:
+        return request.config.stash[test_schema_key]
+
     print("DB FIXTURE")
     # _db is a SQLAlchemy DB instance
     from flexmeasures.data import db as _db
@@ -135,18 +132,89 @@ def create_test_db(app: Flask):
         _db.drop_all()
         _db.create_all()
 
-    yield _db
+    def drop_test_schema():
+        print("DB FIXTURE CLEANUP")
+        with app.app_context():
+            # Explicitly close DB connection
+            _db.session.close()
+            _db.drop_all()
 
-    print("DB FIXTURE CLEANUP")
-    # Explicitly close DB connection
-    _db.session.close()
+    request.config.add_cleanup(drop_test_schema)
+    request.config.stash[test_schema_key] = _db
+    return _db
 
-    _db.drop_all()
+
+@pytest.fixture(scope="module")
+def db(app, request):
+    """Empty test db per module."""
+    return truncate_test_db(get_test_schema(app, request))
+
+
+@pytest.fixture(scope="function")
+def fresh_db(app, request):
+    """Empty test db per function."""
+    return truncate_test_db(get_test_schema(app, request))
+
+
+def truncate_test_db(_db: SQLAlchemy) -> SQLAlchemy:
+    """Empty all tables, restart their sequences and clear the session, so that the next test starts from a blank database."""
+    _db.session.rollback()
+    tables = ", ".join(
+        _db.engine.dialect.identifier_preparer.format_table(table)
+        for table in _db.metadata.sorted_tables
+    )
+    _db.session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+    _db.session.commit()
+    _db.session.expunge_all()
+    return _db
+
+
+@pytest.fixture(scope="function")
+def undo_new_rows(db):
+    """Delete the rows a test adds to the database its module shares, also when the test fails halfway.
+
+    Modules whose tests share one database (through `db`) and add rows to it can opt in with `pytestmark = pytest.mark.usefixtures("undo_new_rows")`.
+    A row is new if its id is higher than its table's highest id before the test.
+    Rows of tables without an id (such as beliefs and association tables) are deleted with the new rows they refer to.
+    Changes to existing rows are left for the test itself to undo.
+    """
+    tables_with_ids = [
+        table
+        for table in db.metadata.sorted_tables
+        if "id" in table.c
+        and table.c.id.primary_key
+        and isinstance(table.c.id.type, Integer)
+    ]
+    last_ids = {
+        table: db.session.scalar(select(func.max(table.c.id))) or 0
+        for table in tables_with_ids
+    }
+
+    yield
+
+    db.session.rollback()
+    for table in reversed(db.metadata.sorted_tables):
+        if table in last_ids:
+            new_rows = table.c.id > last_ids[table]
+        else:
+            references_to_new_rows = [
+                foreign_key.parent > last_ids[foreign_key.column.table]
+                for foreign_key in table.foreign_keys
+                if foreign_key.column.table in last_ids
+                and foreign_key.column.name == "id"
+            ]
+            if not references_to_new_rows:
+                continue
+            new_rows = or_(*references_to_new_rows)
+        db.session.execute(delete(table).where(new_rows))
+    db.session.commit()
 
 
 @pytest.fixture(scope="module")
 def setup_accounts(db) -> dict[str, Account]:
-    return create_test_accounts(db)
+    accounts = create_test_accounts(db)
+    db.session.commit()
+    return accounts
 
 
 @pytest.fixture(scope="function")
@@ -224,7 +292,9 @@ def create_test_accounts(db) -> dict[str, Account]:
 
 @pytest.fixture(scope="module")
 def setup_roles_users(db, setup_accounts) -> dict[str, User]:
-    return create_roles_users(db, setup_accounts)
+    users = create_roles_users(db, setup_accounts)
+    db.session.commit()
+    return users
 
 
 @pytest.fixture(scope="function")
@@ -234,10 +304,45 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, U
 
 def create_roles_users(db, test_accounts) -> dict[str, User]:
     """Create a minimal set of roles and users"""
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    roles: dict[str, Role] = {}
     new_users: list[User] = []
+
+    def add_user(
+        username: str,
+        email: str,
+        account_name: str,
+        password: str,
+        user_roles: dict | None = None,
+    ) -> User:
+        """Like `flexmeasures.data.services.users.create_user`, without the flush and lookups per user that take most of the time; the audit log entries are added after one flush for all users."""
+        # Like create_user, give account-member unless a narrower home role is given.
+        role_specs = [user_roles] if user_roles else []
+        if not {spec["name"] for spec in role_specs} & {
+            ACCOUNT_READER_ROLE,
+            ACCOUNT_DATA_INTEGRATOR_ROLE,
+            ACCOUNT_MEMBER_ROLE,
+        }:
+            role_specs.insert(0, dict(name=ACCOUNT_MEMBER_ROLE))
+        user_role = []
+        for spec in role_specs:
+            if spec["name"] not in roles:
+                roles[spec["name"]] = user_datastore.create_role(**spec)
+            user_role.append(roles[spec["name"]])
+        user = user_datastore.create_user(
+            username=username,
+            email=email,
+            password=hash_password(password),
+            roles=user_role,
+            account=next(a for a in test_accounts.values() if a.name == account_name),
+            tf_totp_secret=TOTP.new().to_json(),
+        )
+        db.session.add(DataSource(user=user))
+        return user
+
     # 3 Prosumer users: 2 plain ones, 1 account admin
     new_users.append(
-        create_user(
+        add_user(
             username="Test Prosumer User",
             email="test_prosumer_user@seita.nl",
             account_name=test_accounts["Prosumer"].name,
@@ -247,7 +352,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Prosumer User 2",
             email="test_prosumer_user_2@seita.nl",
             account_name=test_accounts["Prosumer"].name,
@@ -256,7 +361,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Another Plain Prosumer User",
             email="test_prosumer_user_3@seita.nl",
             account_name=test_accounts["Prosumer"].name,
@@ -265,7 +370,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # A user on an account without any special rights
     new_users.append(
-        create_user(
+        add_user(
             username="Test Dummy User",
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
@@ -274,7 +379,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # Account admin on dummy account
     new_users.append(
-        create_user(
+        add_user(
             username="Test Dummy Account Admin",
             email="test_dummy_account_admin@seita.nl",
             account_name=test_accounts["Dummy"].name,
@@ -284,7 +389,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # A supplier user
     new_users.append(
-        create_user(
+        add_user(
             username="Test Supplier User",
             email="test_supplier_user_4@seita.nl",
             account_name=test_accounts["Supplier"].name,
@@ -293,7 +398,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # One platform admin
     new_users.append(
-        create_user(
+        add_user(
             username="Test Admin User",
             email="test_admin_user@seita.nl",
             account_name=test_accounts[
@@ -307,7 +412,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # One platform admin reader
     new_users.append(
-        create_user(
+        add_user(
             username="Test Admin Reader User",
             email="test_admin_reader_user@seita.nl",
             account_name=test_accounts[
@@ -320,7 +425,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Consultant User",
             email="test_consultant@seita.nl",
             account_name=test_accounts["Consultancy"].name,
@@ -329,7 +434,7 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
         )
     )
     new_users.append(
-        create_user(
+        add_user(
             username="Test Consultant User without consultant role",
             email="test_consultancy_user_without_consultant_access@seita.nl",
             account_name=test_accounts["Consultancy"].name,
@@ -338,19 +443,32 @@ def create_roles_users(db, test_accounts) -> dict[str, User]:
     )
     # Consultancy client account user
     new_users.append(
-        create_user(
+        add_user(
             username="Test Consultancy Client User",
             email="test_consultant_client@seita.nl",
             account_name=test_accounts["ConsultancyClient"].name,
             password="testtest",
         )
     )
+    # one flush gives the users and accounts their ids for the audit log entries
+    db.session.flush()
+    for user in new_users:
+        db.session.add(
+            AuditLog(
+                event_datetime=server_now(),
+                event=f"User {user.username} created",
+                affected_user_id=user.id,
+                affected_account_id=user.account_id,
+            )
+        )
     return {user.username: user.id for user in new_users}
 
 
 @pytest.fixture(scope="module")
 def setup_markets(db) -> dict[str, Sensor]:
-    return create_test_markets(db)
+    markets = create_test_markets(db)
+    db.session.commit()
+    return markets
 
 
 @pytest.fixture(scope="function")
@@ -393,7 +511,9 @@ def create_test_markets(db) -> dict[str, Sensor]:
 
 @pytest.fixture(scope="module")
 def setup_sources(db) -> dict[str, DataSource]:
-    return create_sources(db)
+    sources = create_sources(db)
+    db.session.commit()
+    return sources
 
 
 @pytest.fixture(scope="function")
@@ -426,7 +546,11 @@ def setup_generic_assets(
     db, setup_generic_asset_types, setup_accounts
 ) -> dict[str, GenericAsset]:
     """Make some generic assets used throughout."""
-    return create_generic_assets(db, setup_generic_asset_types, setup_accounts)
+    generic_assets = create_generic_assets(
+        db, setup_generic_asset_types, setup_accounts
+    )
+    db.session.commit()
+    return generic_assets
 
 
 @pytest.fixture(scope="function")
@@ -477,7 +601,9 @@ def create_generic_assets(
 @pytest.fixture(scope="module")
 def setup_generic_asset_types(db) -> dict[str, GenericAssetType]:
     """Make some generic asset types used throughout."""
-    return create_generic_asset_types(db)
+    generic_asset_types = create_generic_asset_types(db)
+    db.session.commit()
+    return generic_asset_types
 
 
 @pytest.fixture(scope="function")
@@ -565,7 +691,6 @@ def create_assets(
             attributes=dict(
                 min_soc_in_mwh=0,
                 max_soc_in_mwh=0,
-                soc_in_mwh=0,
                 is_producer=True,
                 can_curtail=True,
             ),
@@ -665,7 +790,9 @@ def setup_beliefs(db, setup_markets, setup_sources) -> int:
 
     :returns: the number of beliefs set up
     """
-    return create_beliefs(db, setup_markets, setup_sources)
+    n_beliefs = create_beliefs(db, setup_markets, setup_sources)
+    db.session.commit()
+    return n_beliefs
 
 
 @pytest.fixture(scope="function")
@@ -916,10 +1043,6 @@ def create_test_battery_kWh_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the three soc_ attributes all together
-            "soc_in_mwh": 2.5,
-            "soc_datetime": "2015-01-01T00:00+01",
-            "soc_udi_event_id": 203,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -950,7 +1073,9 @@ def create_test_battery_kWh_assets(
         ),
     )
 
-    db.session.add(test_battery_consumption_sensor, test_battery_inflexible_sensor)
+    db.session.add_all(
+        [test_battery_consumption_sensor, test_battery_inflexible_sensor]
+    )
 
     data_source = DataSource("source1")
 
@@ -1034,10 +1159,6 @@ def create_test_battery_assets(
         attributes={
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
-            # TODO: stop using the three soc_ attributes all together
-            "soc_in_mwh": 2.5,
-            "soc_datetime": "2015-01-01T00:00+01",
-            "soc_udi_event_id": 203,
             "soc-usage": "0 kW",
             "is_consumer": True,
             "is_producer": True,
@@ -1123,9 +1244,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2040-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1158,7 +1276,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=20,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.0,
         ),
     )
     test_battery_dynamic_capacity_power_sensor = Sensor(
@@ -1189,9 +1306,6 @@ def create_test_battery_assets(
         attributes=dict(
             max_soc_in_mwh=0.01,
             min_soc_in_mwh=0,
-            soc_in_mwh=0.005,
-            soc_datetime="2040-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1313,9 +1427,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -1350,9 +1461,6 @@ def create_charging_station_assets(
         attributes=dict(
             max_soc_in_mwh=5,
             min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime="2015-01-01T00:00+01",
-            soc_udi_event_id=203,
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -1567,6 +1675,13 @@ def error_endpoints(app):
                 raise Unauthorized("Unauthorized Test Message")
             if request.args.get("type") == "forbidden":
                 raise Forbidden("Forbidden Test Message")
+            if request.args.get("type") == "database_error":
+                # Not an HTTPException, and its code ("f405") is not an HTTP status.
+                raise ProgrammingError(
+                    "SELECT secret FROM account WHERE id = %(id)s",
+                    {"id": "5"},
+                    Exception("operator does not exist: integer = character varying"),
+                )
         return jsonify({"message": "Nothing bad happened."}), 200
 
     @app.route("/protected-endpoint-only-for-admins")

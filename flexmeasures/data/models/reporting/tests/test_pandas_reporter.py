@@ -346,3 +346,72 @@ def test_pandas_reporter_valid_range(app, setup_dummy_data, shortcut):
     # Check that all values are now inside the range
     assert (result.event_value.values > range[0]).all()
     assert (result.event_value.values < range[1]).all()
+
+
+def _copy_reporter_with_droplevels() -> PandasReporter:
+    return PandasReporter(
+        config=dict(
+            required_input=[{"name": "sensor_3"}],
+            required_output=[{"name": "sensor_3_copy"}],
+            transformations=[
+                {"df_input": "sensor_3", "method": "copy", "df_output": "sensor_3_copy"}
+            ],
+            droplevels=True,
+        )
+    )
+
+
+def test_pandas_reporter_droplevels_with_several_sources(app, setup_dummy_data):
+    """Check that dropping levels keeps one belief per event where several sources report it.
+
+    On 2023-04-24, sensor 3 moves from source 1 to source 2 at noon,
+    and both sources report the noon event.
+    Such an overlap happens when a job reporting on a rolling window gets a new data source.
+    """
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+
+    start = datetime(2023, 4, 24, tzinfo=utc)
+    end = datetime(2023, 4, 25, tzinfo=utc)
+    noon = datetime(2023, 4, 24, 12, tzinfo=utc)
+
+    # Both sources believe the noon event at the same time, so the highest source id wins.
+    noon_beliefs = s3.search_beliefs(
+        event_starts_after=noon, event_ends_before=noon + timedelta(hours=1)
+    )
+    assert noon_beliefs.lineage.number_of_sources == 2
+    expected_noon_value = noon_beliefs.xs(
+        max(noon_beliefs.sources, key=lambda source: source.id), level="source"
+    ).event_value.iloc[0]
+
+    report = _copy_reporter_with_droplevels().compute(
+        start=start,
+        end=end,
+        input=[dict(name="sensor_3", sensor=s3)],
+        output=[dict(name="sensor_3_copy", sensor=report_sensor)],
+    )
+    result = report[0]["data"]
+
+    assert len(result) == 24
+    assert result.event_starts.is_unique
+    assert (
+        result.xs(noon, level="event_start").event_value.iloc[0] == expected_noon_value
+    )
+
+
+def test_pandas_reporter_droplevels_respects_input_override(app, setup_dummy_data):
+    """Check that an input can still ask for all beliefs, and then trips the check on unique events."""
+    s1, s2, s3, s4, report_sensor, daily_report_sensor = setup_dummy_data
+
+    with pytest.raises(AssertionError, match="more than one row per event"):
+        _copy_reporter_with_droplevels().compute(
+            start=datetime(2023, 4, 24, tzinfo=utc),
+            end=datetime(2023, 4, 25, tzinfo=utc),
+            input=[
+                dict(
+                    name="sensor_3",
+                    sensor=s3,
+                    one_deterministic_belief_per_event=False,
+                )
+            ],
+            output=[dict(name="sensor_3_copy", sensor=report_sensor)],
+        )
