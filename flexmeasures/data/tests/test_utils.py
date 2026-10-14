@@ -97,6 +97,15 @@ def test_schema_mismatch_log_record_is_deduplicated(
         "flexmeasures.data.utils.get_database_schema_revision_status",
         lambda app: revision_status,
     )
+    # register_at() stores what it finds on the app, which the whole session shares,
+    # so let monkeypatch restore those attributes rather than leak the mocked status into later tests.
+    monkeypatch.setattr(app, "database_schema_revision_status", None, raising=False)
+    monkeypatch.setattr(
+        app,
+        "database_schema_is_migrated_to_head",
+        getattr(app, "database_schema_is_migrated_to_head", True),
+        raising=False,
+    )
 
     with caplog.at_level(logging.ERROR):
         register_at(app)
