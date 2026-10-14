@@ -466,8 +466,8 @@ def apply_chart_defaults(fn):
     @wraps(fn)
     def decorated_chart_specs(*args, **kwargs) -> dict:
         """:returns: dict with vega-lite specs, even when applied to an Altair chart."""
-        # Deferred: altair is only needed here (and is otherwise unused at import
-        # time), so we keep it out of FlexMeasures' eager app-boot import chain.
+        # Deferred, because altair is only needed here,
+        # so we keep it out of FlexMeasures' eager app-boot import chain.
         import altair as alt
 
         dataset_name = kwargs.pop("dataset_name", None)

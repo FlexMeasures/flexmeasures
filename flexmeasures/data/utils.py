@@ -98,8 +98,8 @@ def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
 def database_schema_has_revision(app, required_revision: str) -> bool:
     """Return whether the connected database includes a specific Alembic revision.
 
-    Reuses the revision status cached on `app` by `register_at()`, avoiding a second
-    database round trip during startup.
+    Reuses the revision status cached on `app` by `register_at()`,
+    avoiding a second database round trip during startup.
     """
     revision_status = getattr(app, "database_schema_revision_status", None)
     if revision_status is None:
