@@ -23,12 +23,16 @@ def public_asset(db, setup_generic_asset_types):
     return asset
 
 
-def test_graph_does_not_lookup_sensors(client, public_asset, as_admin):
+def test_context_does_not_lookup_sensors(client, public_asset, as_admin):
     with patch("flexmeasures.ui.views.assets.scheduling.schedule_options") as lookup:
-        response = client.get(url_for("AssetCrudUI:graphs", id=public_asset.id))
+        response = client.get(url_for("AssetCrudUI:context", id=public_asset.id))
     assert response.status_code == 200
     assert b'id="runScheduleModal"' in response.data
+    assert b"Assets/post_api_v3_0_assets__id__schedules_trigger" in response.data
     lookup.assert_not_called()
+
+    graph = client.get(url_for("AssetCrudUI:graphs", id=public_asset.id))
+    assert b'id="runScheduleModal"' not in graph.data
 
 
 def test_reader_cannot_open_wizard(client, public_asset, as_prosumer_user1):
@@ -39,7 +43,7 @@ def test_reader_cannot_open_wizard(client, public_asset, as_prosumer_user1):
         )
     assert response.status_code == 403
     lookup.assert_not_called()
-    page = client.get(url_for("AssetCrudUI:graphs", id=public_asset.id))
+    page = client.get(url_for("AssetCrudUI:context", id=public_asset.id))
     assert page.status_code == 200
     assert b'id="runScheduleModal"' not in page.data
 

@@ -244,6 +244,7 @@ class AssetCrudUI(FlaskView):
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),
+            user_can_trigger_schedules=user_can_access(asset, "trigger-schedules"),
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
@@ -443,7 +444,6 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
-            user_can_trigger_schedules=user_can_access(asset, "trigger-schedules"),
             site_asset=site_asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,

@@ -35,15 +35,6 @@
                     </button>
                 </div>
             </div>
-            {% if user_can_trigger_schedules %}
-            <div class="header-action-button mt-2">
-                <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#runScheduleModal">Run schedule</button>
-                <button class="btn btn-link" type="button" data-bs-toggle="tooltip" aria-label="About manual scheduling"
-                    title="For regular operation, automate scheduling and configure flex-config on the asset beforehand. A power sensor and price data are prerequisites. This dialogue can help choose basic missing settings for a proof of concept or manual test.">
-                    <i class="bi bi-info-circle" aria-hidden="true"></i>
-                </button>
-            </div>
-            {% endif %}
             <div class="sidepanel">
                 <div class="sidepanel-container">
                     <div class="sidepanel-label">Select dates</div>
@@ -229,18 +220,6 @@
             });
         </script>
     </div>
-    {% if user_can_trigger_schedules %}
-    {% include "assets/run_schedule.html" %}
-    <script type="module">
-        import { initializeRunSchedule } from {{ url_for('flexmeasures_ui.static', filename='js/run-schedule.js') | tojson }};
-        initializeRunSchedule(document.getElementById('runScheduleModal'), {
-            optionsUrl: {{ url_for('AssetCrudUI:schedule_options', id=asset.id) | tojson }},
-            defaultsUrl: {{ url_for('AssetCrudUI:schedule_defaults', id=asset.id) | tojson }},
-            triggerUrl: {{ ('/api/v3_0/assets/' ~ asset.id ~ '/schedules/trigger') | tojson }},
-            jobsUrl: {{ '/api/v3_0/jobs' | tojson }}
-        });
-    </script>
-    {% endif %}
     <!-- Modal -->
     <div class="modal fade modal-xl" id="sensorsToShowModal" tabindex="-1" aria-labelledby="sensorsToShowModalLabel"
         aria-hidden="true">
