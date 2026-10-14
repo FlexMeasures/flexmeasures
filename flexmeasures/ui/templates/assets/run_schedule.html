@@ -22,12 +22,11 @@
                             </div>
                         </div>
                         <p data-role="power"></p>
-                        <div data-role="warnings" class="alert alert-warning d-none" aria-live="polite"></div>
                         <button data-role="retry" type="button" class="btn btn-sm btn-outline-primary d-none mb-3">Check prerequisites again</button>
                         <div data-role="price-group" class="mb-3 d-none">
                             <label for="schedulePrice" class="form-label">Consumption price sensor</label>
                             <select id="schedulePrice" data-role="price" class="form-select"></select>
-                            <small class="text-muted">Available data may cover only part of this period. Check that prices cover the whole schedule.</small>
+                            <small class="text-muted">Only price sensors with data covering the full schedule are listed.</small>
                         </div>
                         <div data-role="capacity-group" class="mb-3 d-none">
                             <label for="scheduleCapacity" class="form-label">Power capacity (kW)</label>
@@ -45,7 +44,7 @@
                                     <option value="kWh">kWh</option><option value="MWh">MWh</option>
                                 </select>
                             </div>
-                            <small class="text-muted">Only set this for storage devices. Suggested readings may be old; check their timestamp.</small>
+                            <small class="text-muted">Only set this for storage devices. Suggested readings are at most one week old; check their timestamp.</small>
                         </div>
                         <div class="form-check mb-3">
                             <input id="scheduleForce" data-role="force" class="form-check-input" type="checkbox">
@@ -60,6 +59,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <div data-role="warnings" class="alert alert-warning d-none w-100 mb-2" aria-live="polite"></div>
                     <span data-role="spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button data-role="run" type="submit" class="btn btn-success" disabled>Run schedule</button>

@@ -25,12 +25,46 @@ def sensor_option(sensor):
     )
 
 
+def price_covers_schedule(sensor, start_time, end_time):
+    """Check that price intervals cover the complete half-open schedule period."""
+    resolution = sensor.event_resolution
+    if resolution <= timedelta(0):
+        return False
+    event_starts = db.session.scalars(
+        select(TimedBelief.event_start)
+        .where(
+            TimedBelief.sensor_id == sensor.id,
+            TimedBelief.event_start > start_time - resolution,
+            TimedBelief.event_start < end_time,
+        )
+        .distinct()
+        .order_by(TimedBelief.event_start)
+    )
+    covered_until = start_time
+    for event_start in event_starts:
+        if event_start > covered_until:
+            return False
+        covered_until = max(covered_until, event_start + resolution)
+        if covered_until >= end_time:
+            return True
+    return False
+
+
 def schedule_options(asset, start_time, end_time):
     """Find readable candidates only when the dialog requests them."""
     context = asset.get_flex_context()
     consumption_price = context.get("consumption-price")
     if consumption_price is None and context.get("consumption-price-sensor"):
         consumption_price = {"sensor": context["consumption-price-sensor"]}
+    price_available = True
+    if isinstance(consumption_price, dict) and "sensor" in consumption_price:
+        sensor = db.session.get(Sensor, consumption_price["sensor"])
+        price_available = bool(
+            sensor
+            and user_can_access(sensor, "read")
+            and sensor.measures_energy_price
+            and price_covers_schedule(sensor, start_time, end_time)
+        )
     power_sensors = [
         sensor_option(sensor)
         for sensor in asset.sensors
@@ -41,11 +75,7 @@ def schedule_options(asset, start_time, end_time):
         for sensor in db.session.scalars(select(Sensor).order_by(Sensor.id)):
             if not sensor.measures_energy_price or not user_can_access(sensor, "read"):
                 continue
-            if sensor.search_data_sources(
-                event_starts_after=start_time,
-                event_starts_before=end_time,
-                check_exists=True,
-            ):
+            if price_covers_schedule(sensor, start_time, end_time):
                 prices.append(sensor_option(sensor))
                 if len(prices) == 10:
                     break
@@ -55,6 +85,7 @@ def schedule_options(asset, start_time, end_time):
         power_sensors=power_sensors,
         price_sensors=prices,
         consumption_price=consumption_price,
+        price_available=price_available,
         power_capacity=model.get(
             "power-capacity",
             model.get(
@@ -91,6 +122,7 @@ def soc_options(asset, start_time):
             select(TimedBelief)
             .where(
                 TimedBelief.sensor_id == sensor.id,
+                TimedBelief.event_start >= start_time - timedelta(days=7),
                 TimedBelief.event_start <= start_time,
             )
             .order_by(TimedBelief.event_start.desc(), TimedBelief.belief_horizon.asc())

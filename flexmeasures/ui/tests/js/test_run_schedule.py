@@ -81,6 +81,7 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("run waits for lookup", field("run").disabled);
         check("loading is announced", notices.some(item => item[0].includes("Checking prerequisites")));
         await answer(available);
+        eq("power sensor name links to its page", field("power").querySelector("a").getAttribute("href"), "/sensors/7");
         check("price field is ready", !field("price").disabled);
         check("missing defaults still prevent running", field("run").disabled);
         chooseDefaults();
@@ -187,10 +188,28 @@ def test_missing_power_sensor_blocks_schedule_and_escapes_warnings(assert_js):
         await answer({...available, power_sensors: [], warnings: ["<img src=x onerror=alert(1)>"]});
         chooseDefaults();
         check("missing power sensor blocks run", field("run").disabled);
-        check("prerequisite is explained", field("warnings").textContent.includes("No power sensor exists"));
+        check("asset is explicitly unsupported", field("warnings").textContent.includes("This asset has no power sensor, so it is not supported"));
+        check("warnings are beside the action buttons", field("warnings").parentElement.classList.contains("modal-footer"));
         check("server-provided notes are text", field("warnings").querySelector("img") === null);
         submit();
         eq("no job is submitted", requests.length, 1);
+    """)
+
+
+def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, power_sensors: [available.power_sensors[0],
+            {id: 8, name: "Other power", unit: "kW", url: "/sensors/8"}]});
+        chooseDefaults();
+        check("multiple power sensors block the action", field("run").disabled);
+        check("warning says the asset is unsupported", field("warnings").textContent.includes("This asset has multiple power sensors, so it is not supported"));
+        change("duration");
+        await answer({...available, consumption_price: {sensor: 12}, price_available: false});
+        field("capacity").value = "10";
+        change("capacity");
+        check("missing configured price coverage blocks the action", field("run").disabled);
+        check("price coverage is explained", field("warnings").textContent.includes("no data covering the full schedule"));
     """)
 
 

@@ -77,7 +77,7 @@ def test_suggestions_use_requested_period_and_latest_soc(
     )
     db.session.add_all([power, price, empty_price, soc])
     for sensor, instant, value in [
-        (price, START, 50),
+        *((price, START + timedelta(hours=hour), 50) for hour in range(24)),
         (soc, START - timedelta(hours=1), 4),
         (soc, START, 5),
         (soc, START + timedelta(hours=1), 6),
@@ -100,6 +100,77 @@ def test_suggestions_use_requested_period_and_latest_soc(
     assert empty_price.id not in [s["id"] for s in data["price_sensors"]]
     assert data["soc_sensors"][0]["value"] == 5
     assert data["soc_sensors"][0]["event_start"] == START.isoformat()
+
+
+def test_price_suggestions_require_every_interval_and_allow_overlap_at_start(
+    db, client, schedule_assets, setup_sources, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    price = Sensor(
+        name="hourly price",
+        unit="EUR/MWh",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add(price)
+    for hour in range(-1, 24):
+        if hour == 6:
+            continue
+        db.session.add(
+            TimedBelief(
+                sensor=price,
+                source=setup_sources["Seita"],
+                event_start=START + timedelta(minutes=30, hours=hour),
+                event_value=50,
+                belief_horizon=timedelta(0),
+            )
+        )
+    db.session.commit()
+    assert price.id not in [
+        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+    ]
+
+    db.session.add(
+        TimedBelief(
+            sensor=price,
+            source=setup_sources["Seita"],
+            event_start=START + timedelta(hours=6, minutes=30),
+            event_value=50,
+            belief_horizon=timedelta(0),
+        )
+    )
+    db.session.commit()
+    assert price.id in [
+        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+    ]
+
+
+def test_configured_price_sensor_without_full_coverage_is_reported(
+    db, client, schedule_assets, setup_sources, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    price = Sensor(
+        name="partial price",
+        unit="EUR/MWh",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add(price)
+    db.session.flush()
+    asset.flex_context = {"consumption-price": {"sensor": price.id}}
+    db.session.add(
+        TimedBelief(
+            sensor=price,
+            source=setup_sources["Seita"],
+            event_start=START,
+            event_value=50,
+            belief_horizon=timedelta(0),
+        )
+    )
+    db.session.commit()
+    data = options(client, asset).get_json()
+    assert data["consumption_price"] == {"sensor": price.id}
+    assert data["price_available"] is False
 
 
 def test_inherited_settings_avoid_redundant_suggestions(
@@ -176,6 +247,41 @@ def test_percentage_soc_needs_energy_capacity(
     suggestion = options(client, asset).get_json()["soc_sensors"][0]
     assert suggestion["value"] == 10
     assert suggestion["unit"] == "kWh"
+
+
+def test_soc_suggestions_are_no_more_than_one_week_old(
+    db, client, schedule_assets, setup_sources, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    soc = Sensor(
+        name="stored energy",
+        unit="kWh",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+    )
+    db.session.add(soc)
+    db.session.add(
+        TimedBelief(
+            sensor=soc,
+            source=setup_sources["Seita"],
+            event_start=START - timedelta(days=7, seconds=1),
+            event_value=4,
+            belief_horizon=timedelta(0),
+        )
+    )
+    db.session.commit()
+    assert options(client, asset).get_json()["soc_sensors"] == []
+    db.session.add(
+        TimedBelief(
+            sensor=soc,
+            source=setup_sources["Seita"],
+            event_start=START - timedelta(days=7),
+            event_value=5,
+            belief_horizon=timedelta(0),
+        )
+    )
+    db.session.commit()
+    assert options(client, asset).get_json()["soc_sensors"][0]["value"] == 5
 
 
 def test_unreadable_price_sensor_cannot_be_suggested_or_saved(

@@ -39,6 +39,7 @@ export function initializeRunSchedule(root, config) {
             validPeriod = checkedPeriod && range.start === checkedPeriod.start && range.duration === checkedPeriod.duration;
         } catch { validPeriod = false; }
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
+            options.price_available !== false &&
             (!missing(options.consumption_price) || el('price').value) &&
             (!missing(options.power_capacity) || Number(el('capacity').value) > 0);
         el('run').disabled = loading || running || !ready;
@@ -76,9 +77,16 @@ export function initializeRunSchedule(root, config) {
             checkedPeriod = range;
             const warnings = [...(data.warnings || [])];
             const powers = data.power_sensors;
-            el('power').textContent = powers.length === 1 ? `Power sensor: ${powers[0].name} (${powers[0].unit})` : '';
-            if (!powers.length) warnings.push('No power sensor exists. Add a power sensor to this asset before running a schedule.');
-            else if (powers.length > 1) warnings.push('This simple dialogue supports one power sensor. Configure multi-device scheduling in flex-config and use the scheduling API.');
+            el('power').replaceChildren();
+            if (powers.length === 1) {
+                el('power').append('Power sensor: ');
+                const link = document.createElement('a');
+                link.href = powers[0].url;
+                link.textContent = powers[0].name;
+                el('power').append(link, ` (${powers[0].unit})`);
+            }
+            if (!powers.length) warnings.push('This asset has no power sensor, so it is not supported by this Run schedule dialogue. Add a power sensor to this asset to use it.');
+            else if (powers.length > 1) warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue. Configure multi-device scheduling in flex-config and use the scheduling API.');
             const previousPrice = el('price').value;
             el('price').replaceChildren();
             addOption(el('price'), '', 'Choose a price sensor');
@@ -86,8 +94,9 @@ export function initializeRunSchedule(root, config) {
             el('price').value = previousPrice;
             show('price-group', missing(data.consumption_price));
             if (missing(data.consumption_price)) {
-                warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with data were found for this period. Create a price sensor and upload a CSV on its sensor page, then check prerequisites again.');
+                warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with data covering the full schedule were found. Create a price sensor and upload a CSV on its sensor page, then check prerequisites again.');
             }
+            if (data.price_available === false) warnings.push('The configured consumption price sensor has no data covering the full schedule. Add price data or update the asset’s flex-config before running.');
             show('capacity-group', missing(data.power_capacity));
             if (missing(data.power_capacity)) warnings.push('No power capacity is configured. Enter the device’s power limit for this run.');
             el('capacity').required = missing(data.power_capacity);
