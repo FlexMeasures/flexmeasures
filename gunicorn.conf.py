@@ -7,6 +7,8 @@ forked workers inherit its file descriptors,
 and without disposing of it here they'd share live connections across processes,
 corrupting query results under concurrent load.
 Disposing in ``post_fork`` forces each worker to open its own connections on first use.
+It passes ``close=False``, so the worker drops the inherited connections without closing them,
+which would also end them for the parent process that still holds them.
 """
 
 
@@ -18,4 +20,4 @@ def post_fork(_server, _worker):
     from wsgi import application
 
     with application.app_context():
-        db.engine.dispose()
+        db.engine.dispose(close=False)
