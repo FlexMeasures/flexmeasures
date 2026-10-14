@@ -244,6 +244,31 @@ def test_database_schema_has_revision_when_revision_is_in_current_history(
     assert database_schema_has_revision(app, "required-a") is True
 
 
+def test_database_schema_has_revision_reuses_the_status_found_at_boot(app, monkeypatch):
+    """The revision status that register_at() stored on the app is reused, without another round trip to the database."""
+
+    def connect():
+        raise AssertionError("The database was queried again.")
+
+    monkeypatch.setattr(db.engine, "connect", connect)
+    monkeypatch.setattr(
+        app,
+        "database_schema_revision_status",
+        DatabaseSchemaRevisionStatus(
+            current_heads=("head-a",), expected_heads=("head-a",)
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "flexmeasures.data.utils.ScriptDirectory.from_config",
+        lambda config: _DummyScriptDirectoryWithRevisionMap(
+            heads=("head-a",), revisions=("head-a", "required-a")
+        ),
+    )
+
+    assert database_schema_has_revision(app, "required-a") is True
+
+
 def test_database_schema_has_revision_false_when_revision_is_not_in_current_history(
     app, monkeypatch
 ):
