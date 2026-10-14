@@ -5,6 +5,8 @@ Index RQ jobs by asset or sensor, and look them up again.
 from __future__ import annotations
 
 from datetime import datetime
+from itertools import chain
+from typing import Iterable
 
 import redis
 
@@ -73,22 +75,60 @@ class JobMap:
         self, asset_or_sensor_id: int, queue: str, asset_or_sensor_type: str
     ) -> list[Job]:
         """Fetch the current jobs from the Redis ID index."""
+        entry = (asset_or_sensor_id, queue, asset_or_sensor_type)
+        return self.get_many([entry])[entry]
+
+    def get_many(
+        self, entries: Iterable[tuple[int, str, str]]
+    ) -> dict[tuple[int, str, str], list[Job]]:
+        """Fetch the jobs indexed under several assets or sensors, in a fixed number of Redis round trips.
+
+        Each entry is an asset or sensor id, a queue and an asset or sensor type, as passed to get().
+        However many entries and jobs there are, this pings Redis once, reads every index in one pipeline
+        and every job in another, so that a page listing the jobs of many sensors does not pay a round trip per sensor.
+        A job indexed under several entries is fetched once.
+        An ID whose job can no longer be found, because its RQ job expired, is removed from its index.
+        """
+        entries = list(dict.fromkeys(entries))
         self._check_redis_connection()
-        index_key = self._redis_index_key(
-            asset_or_sensor_id, queue, asset_or_sensor_type
+        index_keys = [self._redis_index_key(*entry) for entry in entries]
+
+        with self.connection.pipeline(transaction=False) as pipeline:
+            for index_key in index_keys:
+                pipeline.smembers(index_key)
+            job_ids_per_entry = [
+                [job_id.decode("utf-8") for job_id in job_ids]
+                for job_ids in pipeline.execute()
+            ]
+
+        unique_job_ids = list(dict.fromkeys(chain.from_iterable(job_ids_per_entry)))
+        jobs_by_id = (
+            dict(
+                zip(
+                    unique_job_ids,
+                    Job.fetch_many(unique_job_ids, connection=self.connection),
+                )
+            )
+            if unique_job_ids
+            else {}
         )
-        job_ids_to_remove, jobs = list(), list()
-        job_ids = self._get_job_ids(index_key)
-        for job_id, job in zip(
-            job_ids, Job.fetch_many(job_ids, connection=self.connection)
-        ):
-            # Remove the ID from the Redis index when its RQ job has expired.
-            if job is None:
-                job_ids_to_remove.append(job_id)
-                continue
-            jobs.append(job)
-        if job_ids_to_remove:
-            self.connection.srem(index_key, *job_ids_to_remove)
+
+        jobs: dict[tuple[int, str, str], list[Job]] = {}
+        expired_job_ids: dict[str, list[str]] = {}
+        for entry, index_key, job_ids in zip(entries, index_keys, job_ids_per_entry):
+            jobs[entry] = [
+                jobs_by_id[job_id]
+                for job_id in job_ids
+                if jobs_by_id[job_id] is not None
+            ]
+            expired = [job_id for job_id in job_ids if jobs_by_id[job_id] is None]
+            if expired:
+                expired_job_ids[index_key] = expired
+        if expired_job_ids:
+            with self.connection.pipeline(transaction=False) as pipeline:
+                for index_key, job_ids in expired_job_ids.items():
+                    pipeline.srem(index_key, *job_ids)
+                pipeline.execute()
         return jobs
 
     def get_enqueued_at(

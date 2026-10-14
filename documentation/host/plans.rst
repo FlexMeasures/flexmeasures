@@ -25,16 +25,47 @@ The settings themselves are documented under :ref:`rate-limiting-config`.
 How the two limits count
 -------------------------
 
-- The **default limit** counts *every* request, including the ones we refuse. The limiter runs before
-  authentication, so requests without valid credentials are counted, too (per IP address, as there is no user
-  to count them against). This is what bounds a client who keeps sending requests we refuse.
-- The **trigger limit** only counts triggers we *accepted*. It exists to protect the expensive computation which
-  a trigger sets in motion, and a request we rejected ― because its payload did not validate, or because the
-  asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
-  flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+- The **default limit** counts *every* request, including the ones we refuse.
+  The limiter runs before authentication, so requests without valid credentials are counted, too (per IP address, as there is no account to count them against).
+  This is what bounds a client who keeps sending requests we refuse.
+- The **trigger limit** only counts triggers we *accepted*.
+  It exists to protect the expensive computation which a trigger sets in motion,
+  and a request we rejected ― because its payload did not validate, or because the asset belongs to someone else ― cost us no computation.
+  In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+
+The default limit is counted per account: all users and API clients of an account share one budget, which is the budget the account's plan sets.
+That includes the UI, which fetches the data it shows from the API, so someone browsing the UI spends from the same budget as the account's integrations.
+A user of a consultancy account counts against the consultancy's own account, also when acting on a client account's assets,
+as it is the consultancy's integration which makes those requests.
 
 The trigger limit is counted per account: all users and assets of an account share one budget.
 A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
+
+
+Finding out who hit a limit
+----------------------------
+
+A budget is shared by everyone it counts (an account's users and integrations, for instance),
+so a ``429`` alone does not tell you which of them used it up.
+That is why each refused request is logged as a warning, saying which limit was hit (and what it allows),
+who made the request (their account and user, or their IP address if they were not logged in),
+and which endpoint they called (and, for the trigger limit, about which asset).
+For example:
+
+.. code-block:: text
+
+    Refused a request for hitting the trigger rate limit (10 per 5 minute): account 3, user 12, asset 41, POST /api/v3_0/assets/41/schedules/trigger (AssetAPI:trigger_schedule).
+
+These warnings only show up when ``LOGGING_LEVEL`` is ``"WARNING"`` or lower (see :ref:`configuration`).
+Note that a production server only logs errors by default, so you need to set it explicitly there.
+
+To see what spent a budget before it ran out, set ``LOGGING_LEVEL`` to ``"DEBUG"``:
+each trigger which counts against the trigger limit is then logged, with the same details.
+
+.. note:: The recurring runs of automations queue their jobs from within FlexMeasures, rather than calling the API,
+          so they are not rate-limited, and do not show up in these logs.
+          Running an automation on demand (``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger``) is a trigger like any other,
+          and is logged as one.
 
 .. _rate-limiting-plans:
 
