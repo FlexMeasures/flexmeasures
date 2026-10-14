@@ -37,6 +37,7 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
 from flexmeasures.ui.utils.auth_utils import (
+    user_can_access,
     user_can_create_assets,
     user_can_create_children,
     user_can_delete,
@@ -70,6 +71,35 @@ class AssetCrudUI(FlaskView):
 
     route_base = "/assets"
     trailing_slash = False
+
+    @login_required
+    @route("/<id>/schedule-options")
+    @use_kwargs(StartEndTimeSchema, location="query")
+    def schedule_options(self, id: str, start_time=None, end_time=None):
+        """Return lazy, permission-filtered scheduling suggestions."""
+        from flexmeasures.ui.views.assets.scheduling import schedule_options
+
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+        check_access(asset, "trigger-schedules")
+        if start_time is None or end_time is None:
+            return {"message": "Provide start_time and end_time."}, 422
+        return schedule_options(asset, start_time, end_time)
+
+    @login_required
+    @route("/<id>/schedule-defaults", methods=["POST"])
+    def schedule_defaults(self, id: str):
+        """Save only the missing basics offered by the scheduling dialog."""
+        from flexmeasures.ui.views.assets.scheduling import save_schedule_defaults
+
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+        check_access(asset, "edit-flex-config")
+        try:
+            return save_schedule_defaults(asset, request.get_json())
+        except ValidationError as exc:
+            db.session.rollback()
+            return {"message": exc.messages}, 422
 
     @login_required
     def index(self, msg="", **kwargs):
@@ -413,6 +443,7 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
+            user_can_trigger_schedules=user_can_access(asset, "trigger-schedules"),
             site_asset=site_asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,

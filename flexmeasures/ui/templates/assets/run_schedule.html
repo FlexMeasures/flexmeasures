@@ -1,0 +1,70 @@
+<div class="modal fade" id="runScheduleModal" tabindex="-1" aria-labelledby="runScheduleTitle" aria-describedby="runScheduleHelp" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="runScheduleTitle">Run schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form data-role="form">
+                <div class="modal-body">
+                    <p id="runScheduleHelp">Try a schedule for a proof of concept or manual testing. For regular operation, automate scheduling and configure the asset’s flex-config beforehand. Price data and a power sensor are prerequisites. This dialogue helps you choose a few missing settings; other constraints may still need configuring.</p>
+                    <p><a href="{{ url_for('AssetCrudUI:context', id=asset.id) }}">Review flex-config</a></p>
+                    <fieldset data-role="inputs">
+                        <div class="row">
+                            <div class="col-sm-8 mb-3">
+                                <label for="scheduleStart" class="form-label">Start time</label>
+                                <input id="scheduleStart" data-role="start" type="datetime-local" class="form-control" required>
+                                <small data-role="timezone" class="text-muted"></small>
+                            </div>
+                            <div class="col-sm-4 mb-3">
+                                <label for="scheduleDuration" class="form-label">Duration (hours)</label>
+                                <input id="scheduleDuration" data-role="duration" type="number" class="form-control" min="0.01" step="any" value="24" required>
+                            </div>
+                        </div>
+                        <p data-role="power"></p>
+                        <div data-role="warnings" class="alert alert-warning d-none" aria-live="polite"></div>
+                        <button data-role="retry" type="button" class="btn btn-sm btn-outline-primary d-none mb-3">Check prerequisites again</button>
+                        <div data-role="price-group" class="mb-3 d-none">
+                            <label for="schedulePrice" class="form-label">Consumption price sensor</label>
+                            <select id="schedulePrice" data-role="price" class="form-select"></select>
+                            <small class="text-muted">Available data may cover only part of this period. Check that prices cover the whole schedule.</small>
+                        </div>
+                        <div data-role="capacity-group" class="mb-3 d-none">
+                            <label for="scheduleCapacity" class="form-label">Power capacity (kW)</label>
+                            <input id="scheduleCapacity" data-role="capacity" type="number" min="0.000001" step="any" class="form-control">
+                            <small class="text-muted">Maximum power for this device. Used temporarily for this run.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="scheduleSocSource" class="form-label">Starting state of charge</label>
+                            <select id="scheduleSocSource" data-role="soc-source" class="form-select">
+                                <option value="">Use configured value or enter a value below</option>
+                            </select>
+                            <div class="input-group mt-2">
+                                <input id="scheduleSoc" data-role="soc" aria-label="Starting state of charge value" type="number" min="0" step="any" class="form-control" placeholder="Optional">
+                                <select data-role="soc-unit" aria-label="State of charge unit" class="form-select">
+                                    <option value="kWh">kWh</option><option value="MWh">MWh</option>
+                                </select>
+                            </div>
+                            <small class="text-muted">Only set this for storage devices. Suggested readings may be old; check their timestamp.</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input id="scheduleForce" data-role="force" class="form-check-input" type="checkbox">
+                            <label for="scheduleForce" class="form-check-label">Force a new job, even if this schedule was already requested</label>
+                        </div>
+                    </fieldset>
+                    <p data-role="status" role="status" aria-live="polite"></p>
+                    <div data-role="results" class="d-none mb-3"></div>
+                    <div data-role="save-group" class="alert alert-info d-none">
+                        <p data-role="save-summary"></p>
+                        <button data-role="save" type="button" class="btn btn-outline-primary">Save these defaults to flex-config</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <span data-role="spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button data-role="run" type="submit" class="btn btn-success" disabled>Run schedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
