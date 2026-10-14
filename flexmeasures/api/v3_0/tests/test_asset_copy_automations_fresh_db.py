@@ -756,3 +756,53 @@ def test_a_copy_keeps_no_reference_its_maker_cannot_read(
     ]
     assert len(skipped) == 1
     assert str(client_power.id) in skipped[0].reason
+
+
+def test_a_copy_waits_for_the_copies_of_what_its_original_waits_for(
+    fresh_db, automated_site
+):
+    """Within the copied subtree, a dependency points at the copied automation; outside it, at the very automation the original waits for."""
+    from flexmeasures.data.models.automations import AutomationDependency
+
+    neighbouring_automation = _add_automation(
+        fresh_db,
+        asset=automated_site["neighbour"],
+        name="Neighbouring power forecasts",
+        parameters={"sensor": automated_site["neighbouring_power"].id},
+    )
+    site_automation = automated_site["site_automation"]
+    fresh_db.session.add_all(
+        [
+            AutomationDependency(
+                automation=site_automation,
+                upstream=automated_site["meter_automation"],
+            ),
+            AutomationDependency(
+                automation=site_automation,
+                upstream=neighbouring_automation,
+                allow_failure=True,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+
+    site_copy = copy_asset(automated_site["site"]).asset
+
+    copied_site_automation = _automations_of(fresh_db, site_copy)[0]
+    copied_meter_automation = _automations_of(fresh_db, _child_of(fresh_db, site_copy))[
+        0
+    ]
+    assert sorted(
+        (dependency.upstream_id, dependency.allow_failure)
+        for dependency in copied_site_automation.dependencies
+    ) == sorted(
+        [
+            (copied_meter_automation.id, False),
+            (neighbouring_automation.id, True),
+        ]
+    )
+    # The original keeps waiting for what it waited for.
+    assert {dependency.upstream_id for dependency in site_automation.dependencies} == {
+        automated_site["meter_automation"].id,
+        neighbouring_automation.id,
+    }
