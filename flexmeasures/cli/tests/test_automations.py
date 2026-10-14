@@ -2970,3 +2970,99 @@ def test_show_automations_shows_a_schedule_automation(
     assert result.exit_code == 0, result.output
     assert re.search(r"^Type\s+scheduling$", result.output, re.MULTILINE)
     assert automation.parameters["duration"] in result.output
+
+
+def _add_hourly_automation(runner, sensor_id: int, name: str, *extra_args):
+    from flexmeasures.cli.data_add import add_automation
+
+    return runner.invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            name,
+            "--cron",
+            "0 * * * *",
+            "--timezone",
+            "UTC",
+            "--sensor",
+            str(sensor_id),
+            *extra_args,
+        ],
+    )
+
+
+def test_add_edit_and_show_automation_dependencies(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    """An automation can be told to wait for another with --depends-on, which edit replaces or clears, and show lists."""
+    from flexmeasures.cli.data_edit import edit_automation
+    from flexmeasures.cli.data_show import list_automations
+
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+
+    result = _add_hourly_automation(
+        runner,
+        sensor_id,
+        "Downstream",
+        "--depends-on",
+        str(upstream.id),
+        "--allow-failure-of",
+        str(upstream.id),
+    )
+    assert result.exit_code == 0, result.output
+    downstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Downstream")
+    ).one()
+    assert [
+        (dependency.upstream_id, dependency.allow_failure)
+        for dependency in downstream.dependencies
+    ] == [(upstream.id, True)]
+
+    shown = runner.invoke(list_automations, ["--id", downstream.id])
+    assert shown.exit_code == 0, shown.output
+    assert f"Upstream (ID: {upstream.id}), also when it fails" in shown.output
+
+    # The upstream automation keeps its schedule while another one waits for it.
+    refused = runner.invoke(
+        edit_automation, ["--id", str(upstream.id), "--cron", "5 * * * *"]
+    )
+    assert refused.exit_code != 0
+    assert str(downstream.id) in refused.output
+
+    cleared = runner.invoke(
+        edit_automation, ["--id", str(downstream.id), "--no-dependencies"]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    fresh_db.session.expire_all()
+    assert fresh_db.session.get(Automation, downstream.id).dependencies == []
+
+
+def test_add_automation_allow_failure_of_needs_depends_on(
+    app, fresh_db, setup_dummy_data_fresh_db
+):
+    runner = app.test_cli_runner()
+    sensor_id = setup_dummy_data_fresh_db[0]
+    assert _add_hourly_automation(runner, sensor_id, "Upstream").exit_code == 0
+    upstream = fresh_db.session.scalars(
+        select(Automation).filter_by(name="Upstream")
+    ).one()
+
+    result = _add_hourly_automation(
+        runner, sensor_id, "Downstream", "--allow-failure-of", str(upstream.id)
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "which --depends-on does not" in result.output
+    assert (
+        fresh_db.session.scalars(
+            select(Automation).filter_by(name="Downstream")
+        ).one_or_none()
+        is None
+    )

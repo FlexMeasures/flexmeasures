@@ -579,6 +579,15 @@ def _show_automation(automation: Automation):
                     ),
                 ),
                 ("Parameters", json.dumps(automation.parameters, indent=4)),
+                (
+                    "Depends on",
+                    "\n".join(
+                        f"{dependency.upstream.name} (ID: {dependency.upstream_id})"
+                        + (", also when it fails" if dependency.allow_failure else "")
+                        for dependency in automation.dependencies
+                    )
+                    or "none",
+                ),
             ],
             headers=["Field", "Value"],
         )

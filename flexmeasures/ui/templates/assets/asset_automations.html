@@ -192,6 +192,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                   </label>
                   <input type="text" class="form-control" id="automationTimezone" list="automationTimezones" value="{{ asset.timezone }}" required>
                 </div>
+                <div class="mb-3">
+                  <label for="automationDependsOn" class="form-label">Waits for
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Optional. Automations whose results this one uses. Each run waits for their runs scheduled for the same time, and queues its jobs once those ended, or is skipped if one of them failed. They have to recur on the same schedule. Picking one copies its schedule into the fields above." style="font-size: 16px"></i>
+                  </label>
+                  <select class="form-select" id="automationDependsOn" multiple size="3"></select>
+                  <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset.</div>
+                  <div class="form-check mt-1">
+                    <input class="form-check-input" type="checkbox" id="automationAllowFailure">
+                    <label class="form-check-label" for="automationAllowFailure">Run even when a run it waits for failed</label>
+                  </div>
+                </div>
                 <!-- A schedule automation's generator follows from the asset and its flex config, so it is not chosen here. -->
                 <div class="mb-3 chooses-generator">
                   <label for="automationSourceSearch" class="form-label">Existing data source
@@ -280,6 +292,18 @@ An active automation follows its cron recurrence in the timezone shown below. Th
                      title="The cron time follows this local clock, including daylight-saving changes. For example, choose Europe/Amsterdam to run at 06:00 Amsterdam time year-round." style="font-size: 16px"></i>
                   </label>
                   <input type="text" class="form-control" id="editAutomationTimezone" list="automationTimezones" required>
+                </div>
+                <div class="mb-3">
+                  <label for="editAutomationDependsOn" class="form-label">Waits for
+                    <i class="fa fa-info-circle ps-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                     title="Optional. Automations whose results this one uses. Each run waits for their runs scheduled for the same time, and queues its jobs once those ended, or is skipped if one of them failed. They have to recur on the same schedule." style="font-size: 16px"></i>
+                  </label>
+                  <select class="form-select" id="editAutomationDependsOn" multiple size="3"></select>
+                  <div class="form-text">Lists the automations on this page. Use the API or the CLI to wait for an automation on another asset.</div>
+                  <div class="form-check mt-1">
+                    <input class="form-check-input" type="checkbox" id="editAutomationAllowFailure">
+                    <label class="form-check-label" for="editAutomationAllowFailure">Run even when a run it waits for failed</label>
+                  </div>
                 </div>
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="editAutomationActive">
@@ -492,8 +516,55 @@ An active automation follows its cron recurrence in the timezone shown below. Th
   /* Empty the creation form, so that the next automation starts from the defaults the form was rendered with.
      The form is shared with the Copy action, which leaves the previous automation's settings in it,
      so opening it blank has to clear them rather than trust that they were never there. */
+  /* Fill a "Waits for" picker with the automations on this page, leaving out the one being edited, as it cannot wait for itself.
+     An automation it already waits for that is not on this page, such as one on another asset, is kept as an option of its own,
+     so that saving the form does not drop it. */
+  function fillDependsOnPicker(selector, excludedId = null, selected = []) {
+    const picker = $(selector).empty();
+    const selectedIds = new Set(selected.map((dependency) => dependency.automation));
+    const onPage = [...automationsById.values()].filter((automation) => automation.id !== excludedId);
+    for (const automation of onPage) {
+      picker.append(new Option(
+        `${automation.id}: ${automation.name} (${automation["cron"]}, ${automation.timezone})`,
+        automation.id,
+        false,
+        selectedIds.has(automation.id),
+      ));
+    }
+    for (const dependency of selected) {
+      if (!automationsById.has(dependency.automation)) {
+        picker.append(new Option(`${dependency.automation} (not on this page)`, dependency.automation, false, true));
+      }
+    }
+  }
+
+  // Whether to allow for failure, as the checkbox says it, or for each dependency as it was, while the checkbox still says "some of them".
+  function dependsOnValues(selector, allowFailureSelector, previous = []) {
+    const allowFailureBox = document.querySelector(allowFailureSelector);
+    const previouslyAllowed = new Map(previous.map((dependency) => [dependency.automation, dependency["allow-failure"]]));
+    return ($(selector).val() || []).map((id) => {
+      const automationId = Number(id);
+      return {
+        automation: automationId,
+        "allow-failure": allowFailureBox.indeterminate
+          ? Boolean(previouslyAllowed.get(automationId))
+          : allowFailureBox.checked,
+      };
+    });
+  }
+
+  // One checkbox stands for every dependency, so where they differ, it says neither, until it is clicked.
+  function showAllowFailure(allowFailureSelector, dependencies) {
+    const allowFailureBox = document.querySelector(allowFailureSelector);
+    const allowed = dependencies.filter((dependency) => dependency["allow-failure"]).length;
+    allowFailureBox.checked = dependencies.length > 0 && allowed === dependencies.length;
+    allowFailureBox.indeterminate = allowed > 0 && allowed < dependencies.length;
+  }
+
   function resetNewAutomationForm() {
     document.getElementById("newAutomationForm").reset();
+    fillDependsOnPicker("#automationDependsOn");
+    showAllowFailure("#automationAllowFailure", []);
     // Resetting restores the type the form was rendered with, and the generator fields follow whichever type that is.
     clearSelectedSource();
     showGeneratorFields();
@@ -510,6 +581,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     $("#automationTimezone").val(values.timezone);
     $("#automationParameters").val(values.parameters);
     $("#automationActive").prop("checked", values.active);
+    fillDependsOnPicker("#automationDependsOn", null, values.dependsOn);
+    showAllowFailure("#automationAllowFailure", values.dependsOn);
   }
 
   // The name column allows 80 characters, and so does the API, so a long name loses its tail rather than the suffix that marks the copy.
@@ -537,6 +610,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       parameters: JSON.stringify(details?.parameters ?? {}, null, 4),
       active: false,
       sourceId: SOURCE_TYPE_PER_AUTOMATION_TYPE[automation.type] && sourceId ? sourceId : null,
+      // A copy computes from the same input as its original, so it waits for the same automations.
+      dependsOn: automation["depends-on"] || [],
     };
   }
 
@@ -689,6 +764,17 @@ An active automation follows its cron recurrence in the timezone shown below. Th
     return `/api/v3_0/assets/${encodeURIComponent(owningAssetId)}/automations/${encodeURIComponent(automationId)}${suffix}`;
   }
 
+  function dependsOnText(dependencies) {
+    if (!dependencies || !dependencies.length) {
+      return "No other automations";
+    }
+    return dependencies.map((dependency) => {
+      const upstream = automationsById.get(dependency.automation);
+      const name = upstream ? `${dependency.automation}: ${upstream.name}` : `${dependency.automation}`;
+      return esc(name + (dependency["allow-failure"] ? " (also when it fails)" : ""));
+    }).join("<br>");
+  }
+
   function loadAutomationInfo(automationId) {
     $.ajax({
       url: automationUrl(automationId),
@@ -715,6 +801,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
               "attempt-count": latestRun["attempt-count"],
               "intended-job-count": latestRun["intended-job-count"],
               "queued-job-count": latestRun["queued-job-count"],
+              "upstream-runs": latestRun["upstream-runs"],
               "last-error": latestRun["last-error"],
             }
           : null;
@@ -742,6 +829,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           <p>${sensorLinks(res["output-sensors"], res.source)}</p>
           <h6>Parameters</h6>
           <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
+          <h6 title="Each run waits for the runs of these automations that are scheduled for the same time.">Waits for</h6>
+          <p>${dependsOnText(res["depends-on"])}</p>
           <h6>Durable runs</h6>
           <pre>${esc(JSON.stringify({ total: runStats.total || 0, dispatch: runStats.dispatch || {}, execution: runStats.execution || {}, "latest-run": latestRunSummary }, null, 4))}</pre>
           <h6>Recently created jobs
@@ -972,6 +1061,8 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       $("#editAutomationCron").val(automation["cron"]);
       $("#editAutomationTimezone").val(automation.timezone);
       $("#editAutomationActive").prop("checked", automation.active);
+      fillDependsOnPicker("#editAutomationDependsOn", automation.id, automation["depends-on"] || []);
+      showAllowFailure("#editAutomationAllowFailure", automation["depends-on"] || []);
       $("#editAutomationErr").addClass("d-none").text("");
       bootstrap.Modal.getOrCreateInstance(document.getElementById("editAutomationModal")).show();
     });
@@ -1029,6 +1120,16 @@ An active automation follows its cron recurrence in the timezone shown below. Th
       });
     });
 
+    /* A run waits for the upstream runs scheduled for the very same time, so an automation has to recur on the schedule of those it waits for.
+       Picking one therefore copies its schedule into the form, rather than leaving a mismatch for the server to refuse. */
+    $("#automationDependsOn").on("change", function () {
+      const picked = ($(this).val() || []).map((id) => automationsById.get(Number(id))).filter(Boolean);
+      if (picked.length) {
+        $("#automationCron").val(picked[0]["cron"]);
+        $("#automationTimezone").val(picked[0].timezone);
+      }
+    });
+
     // Opening the form from the New automation button starts from the defaults, not from whatever a copy left in it.
     $("#newAutomationButton").on("click", () => resetNewAutomationForm());
 
@@ -1044,6 +1145,11 @@ An active automation follows its cron recurrence in the timezone shown below. Th
           cron: $("#editAutomationCron").val(),
           timezone: $("#editAutomationTimezone").val(),
           active: $("#editAutomationActive").is(":checked"),
+          "depends-on": dependsOnValues(
+            "#editAutomationDependsOn",
+            "#editAutomationAllowFailure",
+            automationsById.get(Number(automationId))?.["depends-on"] || [],
+          ),
         }),
         success: () => location.reload(),
         error: function (xhr) {
@@ -1186,6 +1292,7 @@ An active automation follows its cron recurrence in the timezone shown below. Th
         timezone: $("#automationTimezone").val(),
         active: $("#automationActive").is(":checked"),
         parameters: parameters,
+        "depends-on": dependsOnValues("#automationDependsOn", "#automationAllowFailure"),
       };
       if (reusesSource) {
         automationData.source = selectedAutomationSource.id;

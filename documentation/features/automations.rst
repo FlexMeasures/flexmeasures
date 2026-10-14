@@ -223,6 +223,41 @@ It runs every night at 1 AM, an hour after midnight, so that the day's last read
 
 .. _running_automations:
 
+.. _automation_dependencies:
+
+Waiting for other automations
+-----------------------------
+
+Some automations use what another automation produces.
+For example, a report that computes flows from a stock is only correct once another report has snapped the raw meter readings of that stock to a regular grid.
+Rather than staggering their cron strings and hoping the first one finishes in time, let the second automation wait for the first:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Flows" --cron "*/5 * * * *" --timezone UTC \
+        --type reporting --reporter PandasReporter --config flows-config.yml --parameters flows-parameters.yml \
+        --depends-on 7
+
+Each run of the waiting automation then waits for the run of automation 7 that is scheduled for the same time.
+It queues its jobs as soon as that run has ended successfully, and is *skipped* if it failed, so that it never computes on input that was never produced.
+A skipped run says which upstream run it was skipped for, and anything waiting for a skipped run is skipped, too.
+To have a run go ahead even when the run it waits for failed, also pass ``--allow-failure-of 7``.
+
+An automation can wait for several others (repeat ``--depends-on``), and these can be on any asset you can read.
+They have to recur on the same schedule, that is, with the same cron string in the same timezone, as a run waits for the upstream run scheduled for the very same time.
+That is also why an automation that others wait for cannot change its schedule, and an automation that waits for others can only change its schedule together with its dependencies (see ``flexmeasures edit automation --help``).
+A dependency that would have an automation end up waiting for itself is refused.
+
+Some cases where the upstream run does not happen:
+
+- If the upstream automation was due at that time but moved past it without a run, for instance because missed runs were coalesced while the runner was down, the waiting run is skipped (unless failure is allowed for).
+- If the upstream automation was never going to run at that time, because it is inactive or did not exist yet, the waiting run goes ahead without it. Its run record says so.
+
+The API takes the same as ``depends-on``, a list like ``[{"automation": 7, "allow-failure": false}]``, and on the asset's *Automations* page the creation and edit forms let you pick the automations to wait for among those listed there.
+Picking one copies its schedule into the creation form.
+
+When assets are copied along with their automations, a copy waits for the copy of the automation its original waited for, if that was copied too, and for the original one otherwise.
+
 Running automations
 -------------------
 
@@ -274,7 +309,8 @@ a report run its reporting job, and a plugin run the job its plugin queued.
 A run which queued no jobs, such as a report run with nothing new to report on, has succeeded.
 A job which a schedule queues to fall back on a simpler scheduler is not one of the run's jobs, so a run whose schedule fell back has failed, with the error that made it fall back.
 
-A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
+A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``waiting``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed``, ``canceled`` or ``skipped``).
+A run is ``waiting`` while the runs it depends on have not ended yet, and ``skipped`` if one of them failed (see :ref:`automation_dependencies`).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
 This is what an operator needs to tell a run which failed before queueing anything, one which queued half its work, and one which queued everything but then failed while computing, apart from each other.
 
@@ -303,6 +339,7 @@ That menu also lets you edit, copy, deactivate (or activate) and delete the auto
 The automation runs with the parameters it was created with, and the jobs it queues are recorded as its jobs, just like the jobs of a recurring run.
 An on-demand run does not affect the automation's recurrence: its cursor (see :ref:`automation_cursor`) stays where it was, so the next recurring run still happens as scheduled, and a run missed while the runner was down is still caught up.
 Inactive automations can be run this way, too, which is how you can try one out before activating it.
+An on-demand run does not wait for the automations this one depends on, as it is meant to run now.
 
 Unlike a recurring run, an on-demand run is not protected against being started twice: asking for two runs in a row queues two runs.
 

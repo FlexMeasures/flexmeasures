@@ -77,6 +77,36 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
         return automation.id
 
 
+class AutomationDependencySchema(Schema):
+    """One automation whose runs another automation's runs wait for."""
+
+    # The loaded names are the ones `set_automation_dependencies` takes.
+    upstream = AutomationIdField(
+        required=True,
+        data_key="automation",
+        metadata={
+            "description": "ID of the automation to wait for. It has to recur on the same schedule (the same cron string, in the same timezone).",
+            "example": 4,
+        },
+    )
+    allow_failure = fields.Bool(
+        load_default=False,
+        data_key="allow-failure",
+        metadata={
+            "description": "Whether a run goes ahead when the upstream run failed or did not happen, rather than being skipped.",
+            "example": False,
+        },
+    )
+
+
+DEPENDS_ON_DESCRIPTION = (
+    "The automations whose runs each run of this automation waits for: the runs scheduled for the same time."
+    " A run queues its jobs once these have ended, and is skipped if one of them failed, unless its dependency allows for failure."
+    " Upstream automations can be on any asset you can read, and have to recur on the same schedule."
+    " A run on demand does not wait."
+)
+
+
 class AutomationCreationSchema(Schema):
     """Request schema for creating an automation (the asset comes from the URL path).
 
@@ -132,6 +162,15 @@ class AutomationCreationSchema(Schema):
             "example": 6,
         },
     )
+    dependencies = fields.List(
+        fields.Nested(AutomationDependencySchema),
+        data_key="depends-on",
+        load_default=list,
+        metadata={
+            "description": DEPENDS_ON_DESCRIPTION,
+            "example": [{"automation": 4, "allow-failure": False}],
+        },
+    )
 
     @validates_schema
     def validate_generator_is_named_once(self, data: dict, **kwargs):
@@ -161,7 +200,7 @@ class AutomationCreationSchema(Schema):
 
 
 class AutomationUpdateSchema(Schema):
-    """Request schema for updating an automation's name, recurrence, timezone and/or activation status.
+    """Request schema for updating an automation's name, recurrence, timezone, activation status and/or dependencies.
 
     The parameters cannot be updated, so the sensors an automation involves stay the ones its creator was checked against.
     """
@@ -175,6 +214,15 @@ class AutomationUpdateSchema(Schema):
         }
     )
     active = fields.Bool()
+    dependencies = fields.List(
+        fields.Nested(AutomationDependencySchema),
+        data_key="depends-on",
+        metadata={
+            "description": DEPENDS_ON_DESCRIPTION
+            + " Replaces the automations it depended on; send an empty list to have its runs wait for none.",
+            "example": [{"automation": 4, "allow-failure": True}],
+        },
+    )
 
 
 class AutomationSchema(ma.SQLAlchemySchema):
@@ -221,6 +269,15 @@ class AutomationSchema(ma.SQLAlchemySchema):
         },
     )
     active = ma.auto_field()
+    depends_on = fields.Method(
+        serialize="dump_depends_on",
+        data_key="depends-on",
+        dump_only=True,
+        metadata={
+            "description": DEPENDS_ON_DESCRIPTION,
+            "example": [{"automation": 4, "allow-failure": False}],
+        },
+    )
 
     @staticmethod
     def _in_automation_timezone(
@@ -246,6 +303,14 @@ class AutomationSchema(ma.SQLAlchemySchema):
     def dump_cursor(self, automation: Automation) -> str | None:
         """Render the cursor in the automation's own timezone."""
         return self._in_automation_timezone(automation, automation.cursor)
+
+    def dump_depends_on(self, automation: Automation) -> list[dict]:
+        """Render the automations this automation's runs wait for."""
+        from flexmeasures.data.services.automations import (
+            serialize_automation_dependencies,
+        )
+
+        return serialize_automation_dependencies(automation)
 
     @validates("type")
     def validate_type(self, type: str, **kwargs):

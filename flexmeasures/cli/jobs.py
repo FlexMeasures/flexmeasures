@@ -94,6 +94,10 @@ def run_automations():
 
     Durable automation run records claim each scheduled run and make queueing resumable.
     Failed dispatch attempts are retried safely by reusing the original run plan and deterministic job IDs.
+
+    A run of an automation that depends on other automations waits for their runs scheduled for the same time,
+    and queues its jobs as soon as the last of them ended, or is skipped if one of them failed.
+    This command also dispatches the waiting runs whose upstream runs ended without them being released.
     """
     now = floor_to_minute(server_now())
     claimed_runs = get_dispatchable_automation_runs(now)
@@ -108,6 +112,17 @@ def run_automations():
         try:
             returns = dispatch_automation_run(claimed_run)
             n_jobs = returns["n_jobs"]
+            if returns.get("dispatch_state") in ("waiting", "skipped"):
+                click.secho(
+                    f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id}, scheduled for {claimed_run.run.scheduled_at}, queued no jobs. {returns['message']}",
+                    **(
+                        MsgStyle.WARN
+                        if returns["dispatch_state"] == "skipped"
+                        else MsgStyle.SUCCESS
+                    ),
+                )
+                n_run += 1
+                continue
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') run {claimed_run.run.id} queued {n_jobs} {automation.type} job(s) for asset {automation.asset_id}, scheduled for {claimed_run.run.scheduled_at}.",
                 **MsgStyle.SUCCESS,
@@ -153,6 +168,7 @@ def run_one_automation(automation: Automation):
     This does not affect the automation's recurrence: its cursor stays where it was,
     so the next recurring run still happens as scheduled (see `flexmeasures jobs run-automations`).
     Inactive automations can be run this way, too, which is how you can try one out before activating it.
+    A run on demand does not wait for the automations this one depends on, as it is meant to run now.
     """
     try:
         returns = run_automation(automation)
