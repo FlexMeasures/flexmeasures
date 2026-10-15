@@ -20,7 +20,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Run a schedule from an asset's data page, with prerequisite checks, temporary price and power-capacity choices, job progress, and an option to save the chosen defaults
+* Run a schedule from an asset's context page, with checks for prices known at job time, temporary price and power-capacity choices, job progress, and an option to save the chosen defaults
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
 * Both tabs of an asset's status page now name the asset each row belongs to, and the jobs tab also lists the jobs of the asset's sub-assets, so a site asset shows what happened anywhere below it, which you can switch off per session [see `PR #2500 <https://www.github.com/FlexMeasures/flexmeasures/pull/2500>`_]

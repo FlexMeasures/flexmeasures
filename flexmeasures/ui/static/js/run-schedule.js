@@ -126,9 +126,9 @@ export function initializeRunSchedule(root, config) {
                     ? String(data.consumption_price) : 'Configured price sensor unavailable';
             updateSelectedPrice();
             if (missing(data.consumption_price)) {
-                warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with data covering the full schedule were found. Create a price sensor and upload a CSV on its sensor page, then check prerequisites again.');
+                warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with prices known now and covering the full schedule were found. A chart may show future values whose belief times are later than now. Check the price sensor data and its belief horizon, or create a price sensor and upload a CSV, then check prerequisites again.');
             }
-            if (data.price_available === false) warnings.push('The configured consumption price sensor has no data covering the full schedule. Add price data (for example, via the sensor page), or update the asset’s flex-config to use a different sensor.');
+            if (data.price_available === false) warnings.push('The configured consumption price sensor has no prices known now covering the full schedule. A chart may show future values whose belief times are later than now. Check its belief horizon or add price data, or update the asset’s flex-config to use a different sensor.');
             show('capacity-group', missing(data.power_capacity));
             if (missing(data.power_capacity)) warnings.push('No power capacity is configured. Enter the device’s power limit for this run.');
             el('capacity').required = missing(data.power_capacity);

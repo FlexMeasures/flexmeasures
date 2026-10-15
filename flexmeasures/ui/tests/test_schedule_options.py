@@ -7,6 +7,7 @@ import pytest
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.ui.views.assets import scheduling
 from sqlalchemy import delete
 
 START = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -143,6 +144,52 @@ def test_price_suggestions_require_every_interval_and_allow_overlap_at_start(
     assert price.id in [
         sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
     ]
+
+
+def test_future_price_events_are_not_available_before_their_belief_time(
+    db, client, schedule_assets, setup_sources, as_admin, monkeypatch
+):
+    asset = schedule_assets["test_battery"]
+    price = Sensor(
+        name="day-ahead price",
+        unit="EUR/MWh",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add(price)
+    db.session.flush()
+    monkeypatch.setattr(scheduling, "server_now", lambda: START - timedelta(hours=1))
+    for hour in range(24):
+        db.session.add(
+            TimedBelief(
+                sensor=price,
+                source=setup_sources["Seita"],
+                event_start=START + timedelta(hours=hour),
+                event_value=50,
+                belief_horizon=timedelta(0),
+            )
+        )
+    db.session.commit()
+    assert price.id not in [
+        sensor["id"] for sensor in options(client, asset).get_json()["price_sensors"]
+    ]
+
+    asset.flex_context = {"consumption-price": {"sensor": price.id}}
+    db.session.commit()
+    assert options(client, asset).get_json()["price_available"] is False
+
+    for hour in range(24):
+        db.session.add(
+            TimedBelief(
+                sensor=price,
+                source=setup_sources["Seita"],
+                event_start=START + timedelta(hours=hour),
+                event_value=50,
+                belief_horizon=timedelta(days=2),
+            )
+        )
+    db.session.commit()
+    assert options(client, asset).get_json()["price_available"] is True
 
 
 def test_configured_price_sensor_without_full_coverage_is_reported(

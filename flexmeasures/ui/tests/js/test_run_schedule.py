@@ -231,7 +231,8 @@ def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_
         field("capacity").value = "10";
         change("capacity");
         check("missing configured price coverage blocks the action", field("run").disabled);
-        check("price coverage is explained", field("warnings").textContent.includes("no data covering the full schedule"));
+        check("price knowledge is explained", field("warnings").textContent.includes("no prices known now covering the full schedule"));
+        check("future beliefs are explained", field("warnings").textContent.includes("belief times are later than now"));
     """)
 
 

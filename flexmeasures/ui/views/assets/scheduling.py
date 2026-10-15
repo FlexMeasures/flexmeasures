@@ -15,6 +15,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.generic_assets import patch_asset
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.ui.utils.auth_utils import user_can_access
+from flexmeasures.utils.time_utils import server_now
 
 
 def sensor_option(sensor):
@@ -26,8 +27,8 @@ def sensor_option(sensor):
     )
 
 
-def price_covers_schedule(sensor, start_time, end_time):
-    """Check that price intervals cover the complete half-open schedule period."""
+def price_covers_schedule(sensor, start_time, end_time, belief_time):
+    """Check that prices known by belief_time cover the half-open schedule period."""
     resolution = sensor.event_resolution
     if resolution <= timedelta(0):
         return False
@@ -37,6 +38,8 @@ def price_covers_schedule(sensor, start_time, end_time):
             TimedBelief.sensor_id == sensor.id,
             TimedBelief.event_start > start_time - resolution,
             TimedBelief.event_start < end_time,
+            TimedBelief.event_start + resolution - TimedBelief.belief_horizon
+            <= belief_time,
         )
         .distinct()
         .order_by(TimedBelief.event_start)
@@ -53,6 +56,7 @@ def price_covers_schedule(sensor, start_time, end_time):
 
 def schedule_options(asset, start_time, end_time):
     """Find readable candidates only when the dialog requests them."""
+    belief_time = server_now()
     context = asset.get_flex_context()
     consumption_price = context.get("consumption-price")
     if consumption_price is None and context.get("consumption-price-sensor"):
@@ -65,7 +69,7 @@ def schedule_options(asset, start_time, end_time):
             consumption_price_sensor = sensor_option(sensor)
         price_available = bool(
             consumption_price_sensor
-            and price_covers_schedule(sensor, start_time, end_time)
+            and price_covers_schedule(sensor, start_time, end_time, belief_time)
         )
     power_sensors = [
         sensor_option(sensor)
@@ -77,7 +81,7 @@ def schedule_options(asset, start_time, end_time):
         for sensor in db.session.scalars(select(Sensor).order_by(Sensor.id)):
             if not sensor.measures_energy_price or not user_can_access(sensor, "read"):
                 continue
-            if price_covers_schedule(sensor, start_time, end_time):
+            if price_covers_schedule(sensor, start_time, end_time, belief_time):
                 prices.append(sensor_option(sensor))
                 if len(prices) == 10:
                     break
