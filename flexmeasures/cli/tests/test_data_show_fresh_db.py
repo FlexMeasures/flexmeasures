@@ -3,14 +3,13 @@ from flexmeasures.cli.tests.utils import check_command_ran_without_error
 
 def test_list_plans(app, fresh_db):
     from flexmeasures.cli.data_show import list_plans
-    from flexmeasures.data.models.user import Plan, RateLimitKey
+    from flexmeasures.data.models.user import Plan
 
     db = fresh_db
     db.session.add(
         Plan(
             name="Pro",
             trigger_rate_limit="60 per 5 minutes",
-            rate_limit_key=RateLimitKey.ACCOUNT,
             max_assets=200,
             legacy=True,
         )
@@ -22,7 +21,7 @@ def test_list_plans(app, fresh_db):
 
     check_command_ran_without_error(result)
     assert "All plans on this" in result.output
-    for expected in ("Pro", "60 per 5 minutes", "account"):
+    for expected in ("Pro", "60 per 5 minutes"):
         assert expected in result.output
     # Quotas are not enforced yet, so we do not list them
     for not_expected in ("Max assets", "200"):
@@ -51,4 +50,14 @@ def test_show_accounts(app, fresh_db, setup_accounts_fresh_db):
 
     assert "Account Test Prosumer Account" in result.output
     assert "No users in account" in result.output
+    assert "Plan: No plan (server defaults apply)\n------\n" in result.output
+    assert (
+        f'Default API rate limit: {app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]}'
+        in result.output
+    )
+    assert (
+        f'Trigger rate limit: {app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]}'
+        in result.output
+    )
+    assert result.output.index("Plan:") < result.output.index("No users in account")
     check_command_ran_without_error(result)
