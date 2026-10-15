@@ -1,18 +1,25 @@
-from flask import url_for
-import pytest
-from sqlalchemy import select
-
 import logging
+import re
+
+from unittest.mock import Mock
+from flask import Flask, request, url_for
+import pytest
+from limits.storage import RedisStorage
+from limits.strategies import FixedWindowRateLimiter
+from sqlalchemy import func, select
 
 from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.common import rate_limiting as rate_limiting_module
 from flexmeasures.api.common.rate_limiting import (
+    _asset_id_of_trigger,
     limiter,
     warn_about_deprecated_settings,
 )
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.user import Plan, User
+from flexmeasures.data.models.user import Plan
 
 
 @pytest.fixture
@@ -25,6 +32,27 @@ def rate_limiting(app, monkeypatch):
     limiter.reset()
     yield monkeypatch
     limiter.reset()
+
+
+@pytest.fixture
+def assign_temporary_account_plan(db, requesting_user):
+    """Assign a new plan to the shared account, then remove that plan after the test."""
+    original_plan = requesting_user.account.plan
+    created_plans = []
+
+    def assign(**plan_fields):
+        plan = Plan(**plan_fields)
+        requesting_user.account.plan = plan
+        db.session.commit()
+        created_plans.append(plan)
+
+    yield assign
+
+    requesting_user.account.plan = original_plan
+    db.session.flush()
+    for plan in created_plans:
+        db.session.delete(plan)
+    db.session.commit()
 
 
 def message_for_trigger_asset_schedule(sensor: Sensor) -> dict:
@@ -77,6 +105,27 @@ def auth_token_of(app, email: str) -> str:
         auth_token = get_auth_token(client, email, "testtest")
     limiter.reset()  # start counting afresh, so that logging in spent nothing
     return auth_token
+
+
+def test_asset_id_of_trigger(monkeypatch):
+    """
+    Test the util function we use to log which asset lead to 429 status.
+    Asset and sensor triggers resolve to the same asset ID.
+    """
+    app = Flask(__name__)
+    mocked_db = Mock()
+    mocked_db.session.get.return_value.generic_asset_id = 42
+    monkeypatch.setattr(rate_limiting_module, "db", mocked_db)
+
+    with app.test_request_context("/api/v3_0/assets/42/trigger_schedule"):
+        request.view_args = {"id": "42"}
+        assert _asset_id_of_trigger() == 42
+        mocked_db.session.get.assert_not_called()
+
+    with app.test_request_context("/api/v3_0/sensors/7/trigger_schedule"):
+        request.view_args = {"id": "7"}
+        assert _asset_id_of_trigger() == 42
+        mocked_db.session.get.assert_called_once_with(Sensor, 7)
 
 
 @pytest.mark.parametrize(
@@ -213,26 +262,24 @@ def test_ui_requests_do_not_spend_the_account_budget(
 )
 @pytest.mark.parametrize("plan_default_rate_limit", ["unlimited", "1 per minute"])
 def test_plans_do_not_change_the_ui_budget(
-    db, app, setup_roles_users, rate_limiting, requesting_user, plan_default_rate_limit
+    app,
+    setup_roles_users,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
+    plan_default_rate_limit,
 ):
     """A plan sets the budget of the account's integrations, so it neither exempts nor limits the UI."""
     rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "2 per minute")
-    account = requesting_user.account
-    account.plan = Plan(
+    assign_temporary_account_plan(
         name=f"test-plan-ui-{plan_default_rate_limit}",
         default_rate_limit=plan_default_rate_limit,
     )
-    db.session.commit()
-    try:
-        with app.test_client() as client:
-            for _ in range(2):
-                assert client.get(url_for("SensorAPI:index")).status_code == 200
-            assert client.get(url_for("SensorAPI:index")).status_code == 429
-    finally:
-        # Take the account off the plan again, also when this test fails,
-        # because later tests in this module would otherwise be limited by it.
-        account.plan = None
-        db.session.commit()
+
+    with app.test_client() as client:
+        for _ in range(2):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
 
 
 @pytest.mark.parametrize(
@@ -422,22 +469,21 @@ def test_deprecated_sensor_endpoint_shares_the_trigger_budget(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_account_can_override_trigger_rate_limit(
-    db,
     app,
     add_market_prices,
     add_battery_assets,
     keep_scheduling_queue_empty,
     rate_limiting,
     requesting_user,
+    assign_temporary_account_plan,
 ):
     """An account's own limit takes precedence over the configured default."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
-    requesting_user.account.plan = Plan(
+    assign_temporary_account_plan(
         name="test-plan-override", trigger_rate_limit="2 per 5 minutes"
     )
-    db.session.commit()
     battery = add_battery_assets["Test battery"]
 
     with app.test_client() as client:
@@ -450,22 +496,21 @@ def test_account_can_override_trigger_rate_limit(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_account_can_be_exempt_from_trigger_rate_limit(
-    db,
     app,
     add_market_prices,
     add_battery_assets,
     keep_scheduling_queue_empty,
     rate_limiting,
     requesting_user,
+    assign_temporary_account_plan,
 ):
     """An account can be exempted from a limit altogether."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
-    requesting_user.account.plan = Plan(
+    assign_temporary_account_plan(
         name="test-plan-unlimited", trigger_rate_limit="unlimited"
     )
-    db.session.commit()
     battery = add_battery_assets["Test battery"]
 
     with app.test_client() as client:
@@ -473,8 +518,15 @@ def test_account_can_be_exempt_from_trigger_rate_limit(
             assert trigger(client, battery).status_code == 202
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_account_can_be_exempt_from_default_rate_limit(
-    db, app, setup_roles_users, rate_limiting
+    app,
+    setup_roles_users,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
 ):
     """An account can be exempted from the default limit, too.
 
@@ -485,15 +537,12 @@ def test_account_can_be_exempt_from_default_rate_limit(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
-    user = db.session.execute(
-        select(User).filter_by(email="test_prosumer_user@seita.nl")
-    ).scalar_one()
-    user.account.plan = Plan(
+    assign_temporary_account_plan(
         name="test-plan-default-unlimited", default_rate_limit="unlimited"
     )
-    db.session.commit()
 
-    auth_token = auth_token_of(app, user.email)
+    # Through a token, as the plan sets the budget of the account's integrations (not of the UI)
+    auth_token = auth_token_of(app, requesting_user.email)
     for _ in range(3):
         assert get_as(app, auth_token).status_code == 200
 
@@ -571,3 +620,261 @@ def test_trigger_limited_views_are_registered():
         "SensorAPI.trigger_schedule",
         "SensorAPI.trigger_forecast",
     } <= TRIGGER_LIMITED_VIEWS
+
+
+def refusal_logs(caplog) -> list[str]:
+    """The warnings we logged for requests refused by a rate limit."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+        and record.getMessage().startswith("Refused a request for hitting")
+    ]
+
+
+def new_rate_limit_audit_logs(db, previous_id: int) -> list[AuditLog]:
+    """Account audit records created after the given ID for rate-limit breaches."""
+    return db.session.scalars(
+        select(AuditLog).where(
+            AuditLog.id > previous_id,
+            AuditLog.event.contains("rate limit breached for"),
+        )
+    ).all()
+
+
+@pytest.mark.parametrize("plan_case", ["none", "fallback", "override"])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_default_rate_limit_breach_is_audited_once_per_window(
+    app,
+    db,
+    setup_roles_users,
+    undo_new_rows,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
+    plan_case,
+):
+    """Audit the first rejected request, regardless of where the account gets its limit."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    if plan_case != "none":
+        assign_temporary_account_plan(
+            name=f"audit-{plan_case}",
+            default_rate_limit="1 per minute" if plan_case == "override" else None,
+        )
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+
+    # Through a token, as the default limit is the budget of the account's integrations (the UI has its own)
+    auth_token = auth_token_of(app, requesting_user.email)
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+    assert get_as(app, auth_token).status_code == 429
+
+    records = new_rate_limit_audit_logs(db, previous_id)
+    assert len(records) == 1
+    record = records[0]
+    assert record.affected_account_id == requesting_user.account_id
+    assert record.active_user_id is None
+    assert record.active_user_name is None
+    assert record.event.startswith("API rate limit breached for ")
+    assert (
+        "no plan" if plan_case == "none" else f"plan 'audit-{plan_case}'"
+    ) in record.event
+    if plan_case != "none":
+        assert f"(ID {requesting_user.account.plan.id})" in record.event
+    assert (
+        "plan override" if plan_case == "override" else "server default"
+    ) in record.event
+    assert re.search(r"; \d+s into 60s window \(\d+%\)$", record.event)
+
+
+@pytest.mark.parametrize("plan_override", [False, True])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_rate_limit_breach_is_audited_once_per_window(
+    app,
+    db,
+    undo_new_rows,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
+    plan_override,
+):
+    """Trigger breaches have one account-level entry, without attributing prior work."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    if plan_override:
+        assign_temporary_account_plan(
+            name="audit-trigger", trigger_rate_limit="1 per 5 minutes"
+        )
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+    battery = add_battery_assets["Test battery"]
+
+    with app.test_client() as client:
+        assert trigger(client, battery).status_code == 202
+        assert trigger(client, battery).status_code == 429
+        assert trigger(client, battery).status_code == 429
+
+    records = new_rate_limit_audit_logs(db, previous_id)
+    assert len(records) == 1
+    record = records[0]
+    assert record.affected_account_id == requesting_user.account_id
+    assert record.active_user_id is None
+    assert record.active_user_name is None
+    assert record.event.startswith("trigger rate limit breached for ")
+    assert "asset" not in record.event
+    assert ("plan 'audit-trigger'" if plan_override else "no plan") in record.event
+    if plan_override:
+        assert f"(ID {requesting_user.account.plan.id})" in record.event
+    assert ("plan override" if plan_override else "server default") in record.event
+    assert re.search(r"; \d+s into 300s window \(\d+%\)$", record.event)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_rate_limit_audit_is_deduplicated_with_redis_storage(
+    app, db, setup_roles_users, undo_new_rows, rate_limiting, requesting_user
+):
+    """Concurrent-capable Redis storage uses the counter's own expiry for deduplication."""
+    storage = RedisStorage(
+        "redis://",
+        connection_pool=app.redis_connection.connection_pool,
+        key_prefix="TEST-AUDIT-RATE-LIMIT",
+    )
+    rate_limiting.setattr(limiter, "_storage", storage)
+    rate_limiting.setattr(limiter, "_limiter", FixedWindowRateLimiter(storage))
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+
+    auth_token = auth_token_of(app, requesting_user.email)
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+    assert get_as(app, auth_token).status_code == 429
+
+    assert len(new_rate_limit_audit_logs(db, previous_id)) == 1
+
+
+@pytest.mark.parametrize("through_deprecated_sensor_endpoint", [False, True])
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_hitting_the_trigger_rate_limit_is_logged(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    caplog,
+    through_deprecated_sensor_endpoint,
+):
+    """A host can tell from the logs who spent an account's trigger budget, on which asset and endpoint.
+
+    The deprecated sensor endpoint names a sensor rather than an asset, and we still log the asset.
+    """
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    battery = add_battery_assets["Test battery"]
+
+    with app.test_client() as client:
+        assert trigger(client, battery).status_code == 202  # spends the budget
+        if through_deprecated_sensor_endpoint:
+            response = trigger_through_deprecated_sensor_endpoint(
+                client, battery.sensors[0]
+            )
+            endpoint = "SensorAPI:trigger_schedule"
+            path = url_for(endpoint, id=battery.sensors[0].id)
+        else:
+            response = trigger(client, battery)
+            endpoint = "AssetAPI:trigger_schedule"
+            path = url_for(endpoint, id=battery.id)
+
+    assert response.status_code == 429
+    assert refusal_logs(caplog) == [
+        f"Refused a request for hitting the trigger rate limit (1 per 5 minute): "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, asset {battery.id}, "
+        f"POST {path} ({endpoint})."
+    ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_hitting_the_default_rate_limit_is_logged(
+    app, setup_roles_users, rate_limiting, requesting_user, caplog
+):
+    """The default limit spans the whole API, so we log the endpoint, but no asset."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    auth_token = auth_token_of(app, requesting_user.email)
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+
+    assert refusal_logs(caplog) == [
+        f"Refused a request for hitting the default rate limit (1 per 1 minute): "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, "
+        f"GET {url_for('SensorAPI:index')} (SensorAPI:index)."
+    ]
+
+
+def test_hitting_the_default_rate_limit_unauthenticated_is_logged(
+    app, rate_limiting, caplog
+):
+    """Without a user to attribute a request to, we log the IP address it was counted against."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    with app.test_client() as client:
+        client.get(url_for("SensorAPI:index"))
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert refusal_logs(caplog) == [
+        "Refused a request for hitting the default rate limit (1 per 1 minute): "
+        f"unauthenticated caller 127.0.0.1, GET {url_for('SensorAPI:index')} (SensorAPI:index)."
+    ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_counted_triggers_are_logged_at_debug_level(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    rate_limiting,
+    requesting_user,
+    caplog,
+):
+    """Each trigger which spends budget is logged at debug level, and a trigger we refuse is not."""
+    battery = add_battery_assets["Test battery"]
+
+    with caplog.at_level(logging.DEBUG, logger=app.logger.name):
+        with app.test_client() as client:
+            assert trigger(client, battery, message={}).status_code == 422
+            assert trigger(client, battery).status_code == 202
+
+    counted = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.DEBUG
+        and record.getMessage().startswith("Counted a trigger")
+    ]
+    assert counted == [
+        f"Counted a trigger against the trigger rate limit: "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, asset {battery.id}, "
+        f"POST {url_for('AssetAPI:trigger_schedule', id=battery.id)} (AssetAPI:trigger_schedule)."
+    ]
