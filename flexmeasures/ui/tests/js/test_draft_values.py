@@ -8,6 +8,8 @@ document.body.insertAdjacentHTML("beforeend", `
     <div data-draft-unavailable class="d-none"></div>
     <div data-draft-controls>
       <button data-draft-record type="button">Record</button>
+      <input data-draft-start type="datetime-local" />
+      <input data-draft-duration type="text" />
       <input data-draft-value type="number" />
       <button data-draft-add type="button">Add</button>
       <div data-draft-selection></div>
@@ -39,6 +41,10 @@ const panel = wireDraftValuesPanel(root, {
 });
 const selectOnChart = (start, end) =>
   target.dispatchEvent(new CustomEvent("chartrangeselected", { detail: { start: new Date(start), end: new Date(end) } }));
+const typeIn = (name, text) => {
+  button(name).value = text;
+  button(name).dispatchEvent(new Event("change"));
+};
 const typeValue = (text) => {
   button("value").value = text;
   button("value").dispatchEvent(new Event("input"));
@@ -247,4 +253,88 @@ def test_a_selection_too_large_is_refused(assert_js):
         eq("the user is told why", toasts.length, 1);
         selectOnChart(T0, T0 + MAX_DRAFT_SLOTS * QUARTER);
         eq("the maximum itself is allowed", panel.slots.length, MAX_DRAFT_SLOTS);
+        """)
+
+
+def test_durations_are_read_as_the_api_reads_them(assert_js):
+    assert_js("""
+        import { parseIsoDuration, formatIsoDuration } from "/js/draft-values.js";
+        const HOUR = 3600000;
+        eq("hours", parseIsoDuration("PT2H"), { months: 0, ms: 2 * HOUR });
+        eq("minutes", parseIsoDuration("PT15M"), { months: 0, ms: 15 * 60000 });
+        eq("a day is a fixed 24 hours", parseIsoDuration("P1D"), { months: 0, ms: 24 * HOUR });
+        eq("a week is seven fixed days", parseIsoDuration("P1W"), { months: 0, ms: 7 * 24 * HOUR });
+        eq("days and time combine", parseIsoDuration("P1DT1H30M"), { months: 0, ms: 25.5 * HOUR });
+        eq("a fraction that makes whole minutes is accepted", parseIsoDuration("PT1.5H"), { months: 0, ms: 1.5 * HOUR });
+        eq("months stay on the calendar", parseIsoDuration("P1Y2M"), { months: 14, ms: 0 });
+        eq("lower case is forgiven", parseIsoDuration(" pt2h "), { months: 0, ms: 2 * HOUR });
+        eq("a zero duration is a duration", parseIsoDuration("PT0M"), { months: 0, ms: 0 });
+        eq("seconds that make no whole minute are refused, as by the API", parseIsoDuration("PT30S"), null);
+        eq("a bare P is refused", parseIsoDuration("P"), null);
+        eq("a T without time is refused", parseIsoDuration("P1DT"), null);
+        eq("plain words are refused", parseIsoDuration("2 hours"), null);
+        eq("nothing is refused", parseIsoDuration(""), null);
+
+        eq("two hours are written as PT2H", formatIsoDuration(2 * HOUR), "PT2H");
+        eq("a quarter as PT15M", formatIsoDuration(15 * 60000), "PT15M");
+        eq("24 hours as P1D", formatIsoDuration(24 * HOUR), "P1D");
+        eq("25 hours as P1DT1H", formatIsoDuration(25 * HOUR), "P1DT1H");
+        eq("nothing as PT0M", formatIsoDuration(0), "PT0M");
+        """)
+
+
+def test_start_and_duration_over_dst_transitions(assert_js):
+    """A day is 24 hours, as in the API, and months keep the start's UTC offset, as the API does."""
+    assert_js(
+        """
+        import { rangeFromStartAndDuration, parseIsoDuration, toDatetimeLocalValue } from "/js/draft-values.js";
+        const range = (start, text) => rangeFromStartAndDuration(new Date(start), parseIsoDuration(text));
+
+        const autumn = range("2026-10-25T00:00", "P1D");
+        eq("P1D from midnight on the 25-hour day ends at 23:00 local time", toDatetimeLocalValue(autumn.end), "2026-10-25T23:00");
+        eq("which is 24 hours later", autumn.end - autumn.start, 24 * 3600000);
+
+        const spring = range("2026-03-29T00:00", "PT3H");
+        eq("three hours over the spring transition end at 04:00 local time", toDatetimeLocalValue(spring.end), "2026-03-29T04:00");
+
+        const month = range("2026-03-15T10:00", "P1M");
+        eq("a month from winter time ends on the same day of the next month", month.end.toISOString(), "2026-04-15T09:00:00.000Z");
+        eq("at the start's UTC offset, as the API counts it", toDatetimeLocalValue(month.end), "2026-04-15T11:00");
+        eq("the start is a local time", toDatetimeLocalValue(new Date("2026-10-25T01:30")), "2026-10-25T01:30");
+        """,
+        timezone="Europe/Amsterdam",
+    )
+
+
+def test_a_typed_start_and_duration_select_slots(assert_js):
+    """Typing a start and a duration selects the slots they cover, and a selection on the chart fills both in."""
+    assert_js(PANEL + """
+        import { toDatetimeLocalValue } from "/js/draft-values.js";
+        check("the fields wait for Record", button("start").disabled && button("duration").disabled, "");
+        await panel.record();
+        check("Record enables them", !button("start").disabled && !button("duration").disabled, "");
+
+        const start = new Date(T0 + 2 * 3600000 + 7 * 60000);
+        typeIn("start", toDatetimeLocalValue(start));
+        eq("a start alone selects nothing", panel.slots.length, 0);
+        typeIn("duration", "PT1H");
+        eq("start and duration select the slots they touch", panel.slots.length, 5);
+        eq("from the slot the start lies in", panel.slots[0].start.getTime(), T0 + 2 * 3600000);
+        check("which shows on the chart", chart.selection && chart.selection.start.getTime() === T0 + 2 * 3600000, "");
+        eq("the fields show the snapped start", button("start").value, toDatetimeLocalValue(new Date(T0 + 2 * 3600000)));
+        eq("and the duration it covers", button("duration").value, "PT1H15M");
+
+        typeIn("duration", "two hours");
+        check("an unreadable duration is pointed out", button("duration").classList.contains("is-invalid"), "");
+        eq("and keeps the previous selection", panel.slots.length, 5);
+
+        selectOnChart(T0, T0 + 30 * 60000);
+        eq("a selection on the chart fills in the start", button("start").value, toDatetimeLocalValue(new Date(T0)));
+        eq("and the duration", button("duration").value, "PT30M");
+        check("and clears the complaint", !button("duration").classList.contains("is-invalid"), "");
+
+        typeValue("4");
+        panel.add();
+        eq("adding fills the slots", panel.drafts.length, 2);
+        eq("and clears the fields for the next range", [button("start").value, button("duration").value], ["", ""]);
         """)

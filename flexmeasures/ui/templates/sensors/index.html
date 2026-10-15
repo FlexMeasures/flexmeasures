@@ -244,6 +244,15 @@ For the data, note the following:
                                       <button data-draft-record type="button" class="btn btn-sm btn-responsive btn-success create-button"
                                           aria-pressed="false" style="border: 1px solid var(--light-gray);">Record</button>
                                   </div>
+                                  <label for="draftStart" class="form-label fw-bold mt-3">Start</label>
+                                  <input id="draftStart" data-draft-start class="form-control form-control-sm" type="datetime-local" step="60" disabled />
+                                  <label for="draftDuration" class="form-label fw-bold mt-2">Duration</label>
+                                  <input id="draftDuration" data-draft-duration class="form-control form-control-sm" type="text" placeholder="PT2H"
+                                      aria-describedby="draftDurationHelp" autocomplete="off" disabled />
+                                  <div class="invalid-feedback">Please use an ISO 8601 duration in whole minutes, e.g. PT15M, PT2H or P1D.</div>
+                                  <div id="draftDurationHelp" class="form-text text-white">
+                                      As in the API: an ISO 8601 duration, e.g. PT15M, PT2H or P1D (always 24 hours).
+                                  </div>
                                   <label for="draftValue" class="form-label fw-bold mt-3">Value{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
                                   <div class="input-group input-group-sm">
                                       <input id="draftValue" data-draft-value class="form-control" type="number" step="any"

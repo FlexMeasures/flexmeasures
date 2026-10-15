@@ -98,6 +98,78 @@ export function parseDraftValue(text) {
   return isFinite(value) ? value : null;
 }
 
+const ISO_DURATION = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)W)?(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/;
+
+/**
+ * Read an ISO 8601 duration as the sensor data API does, or null when it is not one the API accepts.
+ *
+ * Weeks, days, hours, minutes and seconds make a fixed span of time, so P1D is 24 hours, even on a day with a DST transition.
+ * Only years and months have no fixed length; they are kept apart, to be counted on the calendar (see rangeFromStartAndDuration).
+ * Like the API, only whole minutes are accepted.
+ *
+ * @param {string} text - The duration, e.g. "PT2H" or "P1D".
+ * @returns {{months: number, ms: number}|null} The calendar months and the fixed span, in milliseconds.
+ */
+export function parseIsoDuration(text) {
+  const trimmed = String(text == null ? "" : text).trim().toUpperCase();
+  const match = ISO_DURATION.exec(trimmed);
+  if (!match || trimmed === "P" || trimmed.endsWith("T")) return null;
+  const n = (i) => (match[i] ? Number(match[i]) : 0);
+  const ms = (((n(3) * 7 + n(4)) * 24 + n(5)) * 60 + n(6)) * 60000 + n(7) * 1000;
+  if (Math.abs(ms % 60000) > 1e-6) return null;
+  return { months: n(1) * 12 + n(2), ms: Math.round(ms) };
+}
+
+/**
+ * Write a span of time as an ISO 8601 duration, in days, hours and minutes.
+ *
+ * Days are fixed spans of 24 hours here, as in the API, so 25 hours is P1DT1H.
+ *
+ * @param {number} ms - The span, in milliseconds.
+ * @returns {string} The duration, e.g. "PT2H".
+ */
+export function formatIsoDuration(ms) {
+  const minutes = Math.round(ms / 60000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  const time = (hours ? hours + "H" : "") + (rest ? rest + "M" : "");
+  if (!days && !time) return "PT0M";
+  return "P" + (days ? days + "D" : "") + (time ? "T" + time : "");
+}
+
+/**
+ * The time range a start and a duration describe, as the sensor data API reads them.
+ *
+ * The fixed span is added as is; calendar months are added at the start's UTC offset,
+ * as the API does with a timezone-aware start.
+ *
+ * @param {Date} start - The start.
+ * @param {{months: number, ms: number}} duration - A duration from parseIsoDuration.
+ * @returns {{start: Date, end: Date}} The range.
+ */
+export function rangeFromStartAndDuration(start, duration) {
+  let end = new Date(start);
+  if (duration.months) {
+    const offsetMs = -start.getTimezoneOffset() * 60000;
+    const wallClock = new Date(start.getTime() + offsetMs);
+    wallClock.setUTCMonth(wallClock.getUTCMonth() + duration.months);
+    end = new Date(wallClock.getTime() - offsetMs);
+  }
+  return { start: new Date(start), end: new Date(end.getTime() + duration.ms) };
+}
+
+/**
+ * A time as the value of a datetime-local field, in local time, to the minute.
+ *
+ * @param {Date} date - The time.
+ * @returns {string} The field value, e.g. "2026-10-25T01:00".
+ */
+export function toDatetimeLocalValue(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 /**
  * Why draft values cannot be created for this sensor here, or null when they can.
  *
@@ -122,11 +194,13 @@ function defaultFormatTime(date) {
  * Wire the "Draft values" side panel.
  *
  * The panel's elements are found by their data attributes inside the root:
- * data-draft-record (the Record/Stop button), data-draft-value (the value field), data-draft-add,
- * data-draft-selection (describes the selection), data-draft-list, data-draft-empty, data-draft-cancel
- * and data-draft-unavailable (a note shown instead of the controls).
+ * data-draft-record (the Record/Stop button), data-draft-start and data-draft-duration (a datetime-local and a text field),
+ * data-draft-value (the value field), data-draft-add, data-draft-selection (describes the selection),
+ * data-draft-list, data-draft-empty, data-draft-cancel and data-draft-unavailable (a note shown instead of the controls).
  *
- * While recording, a "chartrangeselected" event on the target selects the slots its range covers.
+ * While recording, a "chartrangeselected" event on the target selects the slots its range covers,
+ * and so does a start and an ISO 8601 duration typed in, as the sensor data API takes them.
+ * Each fills in the other: a selection on the chart shows as a start and a duration, and a typed one shows on the chart.
  *
  * @param {HTMLElement} root - The panel.
  * @param {Object} options
@@ -159,6 +233,8 @@ export function wireDraftValuesPanel(root, options) {
   const el = (name) => root.querySelector("[data-draft-" + name + "]");
   const recordButton = el("record");
   const valueInput = el("value");
+  const startInput = el("start");
+  const durationInput = el("duration");
   const addButton = el("add");
   const selectionInfo = el("selection");
   const list = el("list");
@@ -186,11 +262,12 @@ export function wireDraftValuesPanel(root, options) {
     recordButton.classList.toggle("btn-danger", recording);
     recordButton.classList.toggle("btn-success", !recording);
     addButton.disabled = !recording || slots.length === 0 || parseDraftValue(valueInput.value) === null;
+    startInput.disabled = durationInput.disabled = !recording;
     cancelButton.disabled = !recording && drafts.length === 0;
     if (!recording) {
-      selectionInfo.textContent = "Press Record, then select a time range on the chart, or click a slot.";
+      selectionInfo.textContent = "Press Record, then select a time range on the chart, click a slot, or enter a start and duration.";
     } else if (slots.length === 0) {
-      selectionInfo.textContent = "Select a time range on the chart, or click a slot.";
+      selectionInfo.textContent = "Select a time range on the chart, click a slot, or enter a start and duration.";
     } else {
       const count = slots.length === 1 ? "1 slot" : slots.length + " slots";
       selectionInfo.textContent =
@@ -224,6 +301,9 @@ export function wireDraftValuesPanel(root, options) {
   function clearSelection() {
     slots = [];
     opts.chart.showSelection(null);
+    startInput.value = "";
+    durationInput.value = "";
+    durationInput.classList.remove("is-invalid");
   }
 
   const controller = {
@@ -279,9 +359,24 @@ export function wireDraftValuesPanel(root, options) {
         clearSelection();
       } else {
         slots = selected;
-        opts.chart.showSelection(slots.length > 0 ? { start: slots[0].start, end: slots[slots.length - 1].end } : null);
+        const covered = slots.length > 0 ? { start: slots[0].start, end: slots[slots.length - 1].end } : null;
+        opts.chart.showSelection(covered);
+        if (covered) {
+          startInput.value = toDatetimeLocalValue(covered.start);
+          durationInput.value = formatIsoDuration(covered.end - covered.start);
+          durationInput.classList.remove("is-invalid");
+        }
       }
       render();
+    },
+    // Select the slots that the typed start and duration cover, once both are filled in.
+    selectTyped() {
+      if (!recording) return;
+      const start = new Date(startInput.value);
+      const duration = parseIsoDuration(durationInput.value);
+      durationInput.classList.toggle("is-invalid", durationInput.value.trim() !== "" && duration === null);
+      if (!isFinite(start.getTime()) || duration === null) return;
+      controller.select(rangeFromStartAndDuration(start, duration));
     },
     // Give the selected slots the typed value, then clear the selection (the value stays, to be used again).
     add() {
@@ -310,6 +405,8 @@ export function wireDraftValuesPanel(root, options) {
   addButton.addEventListener("click", () => controller.add());
   cancelButton.addEventListener("click", () => controller.cancel());
   valueInput.addEventListener("input", render);
+  startInput.addEventListener("change", () => controller.selectTyped());
+  durationInput.addEventListener("change", () => controller.selectTyped());
   valueInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
