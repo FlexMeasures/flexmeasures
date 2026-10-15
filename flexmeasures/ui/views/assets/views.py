@@ -87,6 +87,34 @@ class AssetCrudUI(FlaskView):
         return schedule_options(asset, start_time, end_time)
 
     @login_required
+    @route("/<id>/demo-prices", methods=["POST"])
+    @use_kwargs(StartEndTimeSchema, location="json")
+    def demo_prices(self, id: str, start_time=None, end_time=None):
+        """Create explicit demo price data for a manual scheduling run."""
+        from flexmeasures.data.services.demo_prices import create_demo_price_sensor
+        from flexmeasures.ui.views.assets.scheduling import sensor_option
+
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+        check_access(asset, "trigger-schedules")
+        check_access(asset, "edit-sensors")
+        if start_time is None or end_time is None:
+            return {"message": "Provide start_time and end_time."}, 422
+        context = asset.get_flex_context()
+        if (
+            context.get("consumption-price") is not None
+            or context.get("consumption-price-sensor") is not None
+        ):
+            return {"message": "A consumption price is already configured."}, 422
+        try:
+            sensor = create_demo_price_sensor(asset, start_time, end_time)
+            db.session.commit()
+        except ValidationError as exc:
+            db.session.rollback()
+            return {"message": exc.messages}, 422
+        return sensor_option(sensor), 201
+
+    @login_required
     @route("/<id>/schedule-defaults", methods=["POST"])
     def schedule_defaults(self, id: str):
         """Save only the missing basics offered by the scheduling dialog."""

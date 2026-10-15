@@ -107,6 +107,7 @@ def schedule_options(asset, start_time, end_time):
         ),
         timezone=asset.timezone,
         can_save=user_can_access(asset, "edit-flex-config"),
+        can_create_demo_prices=user_can_access(asset, "edit-sensors"),
     )
 
 

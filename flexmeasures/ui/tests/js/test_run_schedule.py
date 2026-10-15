@@ -44,6 +44,7 @@ def modal_setup():
         initializeRunSchedule(root, {{
             optionsUrl: "/assets/3/scheduling-options",
             defaultsUrl: "/assets/3/scheduling-defaults",
+            demoPricesUrl: "/assets/3/demo-prices",
             triggerUrl: "/api/v3_0/assets/3/schedules/trigger",
             jobsUrl: "/api/v3_0/jobs",
             configUrl: "/assets/3/context",
@@ -103,6 +104,23 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         eq("manual SoC field prompts for a value", field("soc").placeholder, "Enter value");
         check("force checkbox keeps an associated label", root.querySelector('label[for="scheduleForce"]').classList.contains("form-check-label"));
         eq("nothing is saved just by choosing", requests.length, 1);
+    """)
+
+
+def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, price_sensors: [], can_create_demo_prices: true});
+        check("demo action appears when no prices are available", !field("demo-price-group").classList.contains("d-none"));
+        eq("lookup does not create data", requests.length, 1);
+        field("demo-price").click();
+        eq("click posts demo prices", requests[1].url, "/assets/3/demo-prices");
+        check("demo action is disabled during creation", field("demo-price").disabled);
+        await answer({id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}, 201);
+        await answer({...available, price_sensors: [{id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}], can_create_demo_prices: true});
+        eq("new price is selected", field("price").value, "20");
+        eq("new price links to its sensor page", field("selected-price").querySelector("a").getAttribute("href"), "/sensors/20");
+        check("action hides once a price is available", field("demo-price-group").classList.contains("d-none"));
     """)
 
 

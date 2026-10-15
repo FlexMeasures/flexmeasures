@@ -48,6 +48,83 @@ def options(client, asset):
     )
 
 
+def test_demo_prices_create_reusable_sensor_with_known_full_period(
+    db, client, schedule_assets, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    start = START + timedelta(minutes=30)
+    end = START + timedelta(hours=2, minutes=15)
+    response = client.post(
+        url_for("AssetCrudUI:demo_prices", id=asset.id),
+        json={"start_time": start.isoformat(), "end_time": end.isoformat()},
+    )
+    assert response.status_code == 201
+    sensor = db.session.get(Sensor, response.get_json()["id"])
+    assert sensor.generic_asset_id == asset.id
+    assert sensor.attributes["demo_data"] is True
+    assert sensor.unit == "EUR/MWh"
+    beliefs = (
+        db.session.query(TimedBelief)
+        .filter(TimedBelief.sensor_id == sensor.id)
+        .order_by(TimedBelief.event_start)
+        .all()
+    )
+    assert [b.event_start for b in beliefs] == [
+        START,
+        START + timedelta(hours=1),
+        START + timedelta(hours=2),
+    ]
+    assert all(b.event_value == 100 for b in beliefs)
+    assert all(b.belief_time <= datetime.now(timezone.utc) for b in beliefs)
+    assert all(b.source.type == "demo" for b in beliefs)
+    assert scheduling.price_covers_schedule(
+        sensor, start, end, datetime.now(timezone.utc)
+    )
+
+
+def test_demo_prices_refuses_configured_price_and_overlong_period(
+    db, client, schedule_assets, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    endpoint = url_for("AssetCrudUI:demo_prices", id=asset.id)
+    response = client.post(
+        endpoint,
+        json={
+            "start_time": START.isoformat(),
+            "end_time": (START + timedelta(days=32)).isoformat(),
+        },
+    )
+    assert response.status_code == 422
+    asset.flex_context = {"consumption-price": "100 EUR/MWh"}
+    db.session.commit()
+    response = client.post(
+        endpoint,
+        json={
+            "start_time": START.isoformat(),
+            "end_time": (START + timedelta(hours=1)).isoformat(),
+        },
+    )
+    assert response.status_code == 422
+    assert not db.session.query(Sensor).filter_by(generic_asset_id=asset.id).count()
+
+
+def test_demo_prices_requires_asset_sensor_edit_permission(
+    db, client, schedule_assets, setup_accounts, as_prosumer_user1
+):
+    asset = schedule_assets["test_battery"]
+    asset.owner = setup_accounts["Supplier"]
+    db.session.commit()
+    response = client.post(
+        url_for("AssetCrudUI:demo_prices", id=asset.id),
+        json={
+            "start_time": START.isoformat(),
+            "end_time": (START + timedelta(hours=1)).isoformat(),
+        },
+    )
+    assert response.status_code == 403
+    assert not db.session.query(Sensor).filter_by(generic_asset_id=asset.id).count()
+
+
 def test_suggestions_use_requested_period_and_latest_soc(
     db, client, schedule_assets, setup_sources, as_admin
 ):

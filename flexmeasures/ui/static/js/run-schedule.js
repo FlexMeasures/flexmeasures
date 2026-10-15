@@ -61,6 +61,7 @@ export function initializeRunSchedule(root, config) {
         el('run-tooltip').title = el('run').disabled ? 'Disable, check prerequisites warnings.' : '';
         el('run-tooltip').tabIndex = el('run').disabled ? 0 : -1;
         el('price').disabled = loading || running;
+        el('demo-price').disabled = loading || running;
         el('capacity').disabled = loading || running;
         el('soc-source').disabled = loading || running;
         el('soc').disabled = running || Boolean(el('soc-source').value);
@@ -129,6 +130,7 @@ export function initializeRunSchedule(root, config) {
             for (const sensor of data.price_sensors) addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, ID: ${sensor.id})`);
             el('price').value = previousPrice;
             show('price-group', missing(data.consumption_price));
+            show('demo-price-group', missing(data.consumption_price) && !data.price_sensors.length && Boolean(data.can_create_demo_prices));
             show('configured-price-group', !missing(data.consumption_price));
             el('configured-price').replaceChildren();
             if (data.consumption_price_sensor) showSensorLink(el('configured-price'), data.consumption_price_sensor);
@@ -201,6 +203,27 @@ export function initializeRunSchedule(root, config) {
     el('retry').addEventListener('click', event => {
         event.preventDefault();
         lookup();
+    });
+    el('demo-price').addEventListener('click', async () => {
+        loading = true;
+        updateReady();
+        try {
+            const range = period();
+            notify('Creating a demo price sensor and prices for this period…');
+            const sensor = await jsonResponse(await fetch(config.demoPricesUrl, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({start_time: range.start, end_time: range.end})
+            }));
+            notify(`Demo price sensor ${sensor.name} (ID: ${sensor.id}) is ready.`, 'success');
+            await lookup();
+            el('price').value = String(sensor.id);
+            updateSelectedPrice();
+        } catch (error) {
+            notify(`Could not create demo prices: ${error.message}`, 'error');
+        } finally {
+            loading = false;
+            updateReady();
+        }
     });
     el('form').addEventListener('submit', async event => {
         event.preventDefault();
