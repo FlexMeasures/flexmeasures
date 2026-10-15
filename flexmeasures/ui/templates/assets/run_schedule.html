@@ -3,26 +3,30 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="runScheduleTitle">Run schedule</h5>
-                <i class="bi bi-info-circle ms-2" aria-label="About manual scheduling" title="For regular use, automate scheduling and configure the asset's flex-config. This dialogue helps with basic choices for one power sensor." tabindex="0"></i>
+                <i class="bi bi-info-circle ms-2" aria-label="About manual scheduling" title="This dialogue lets you try out scheduling for a proof of concept or manual testing. Price data and a power sensor are prerequisites. It helps you choose a few missing settings; other constraints may need configuring in the flex-context and flex-model editors." tabindex="0"></i>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form data-role="form">
                 <div class="modal-body">
-                    <p id="runScheduleHelp">Try a schedule for a proof of concept or manual testing. For regular operation, automate scheduling and configure the asset’s flex-config beforehand. Price data and a power sensor are prerequisites. This dialogue helps you choose a few missing settings; other constraints may still need configuring. For more scheduling options, <a href="/api/v3_0/docs/#/Assets/post_api_v3_0_assets__id__schedules_trigger" target="_blank" rel="noopener noreferrer">see the scheduling API <i class="fa fa-external-link ms-1" aria-hidden="true"></i></a>.</p>
+                    <p id="runScheduleHelp">Trigger a schedule for this asset. This works for simpler use cases, see also the info icon above. For more scheduling options, <a href="/api/v3_0/docs/#/Assets/post_api_v3_0_assets__id__schedules_trigger" target="_blank" rel="noopener noreferrer">see the scheduling API <i class="fa fa-external-link ms-1" aria-hidden="true"></i></a>.</p>
                     <fieldset data-role="inputs">
                         <div class="row">
                             <div class="col-sm-8 mb-3">
                                 <label for="scheduleStart" class="form-label">Start time</label>
                                 <input id="scheduleStart" data-role="start" type="datetime-local" class="form-control" required>
-                                <small data-role="timezone" class="text-muted"></small>
                             </div>
                             <div class="col-sm-4 mb-3">
                                 <label for="scheduleDuration" class="form-label">Duration (hours)</label>
                                 <input id="scheduleDuration" data-role="duration" type="number" class="form-control" min="0.01" step="any" value="24" required>
                             </div>
+                            <div class="col-12 mb-3">
+                                <small data-role="timezone" class="text-muted"></small>
+                            </div>
                         </div>
-                        <p data-role="power"></p>
-                        <button data-role="retry" type="button" class="btn btn-sm btn-outline-primary d-none mb-3">Check prerequisites again</button>
+                        <div class="mb-3">
+                            <label for="schedulePower" class="form-label">Power sensor</label>
+                            <output id="schedulePower" data-role="power" class="d-block"></output>
+                        </div>
                         <div data-role="price-group" class="mb-3 d-none">
                             <label for="schedulePrice" class="form-label">Consumption price sensor</label>
                             <select id="schedulePrice" data-role="price" class="form-select"></select>
@@ -51,7 +55,7 @@
                             <label for="scheduleForce" class="form-check-label">Force a new job, even if this schedule was already requested</label>
                         </div>
                     </fieldset>
-                    <p data-role="status" role="status" aria-live="polite"></p>
+                    <div data-role="status" class="alert alert-info d-none" role="status" aria-live="polite"></div>
                     <div data-role="results" class="d-none mb-3"></div>
                     <div data-role="save-group" class="alert alert-info d-none">
                         <p data-role="save-summary"></p>
@@ -60,6 +64,7 @@
                 </div>
                 <div class="modal-footer">
                     <div data-role="warnings" class="alert alert-warning d-none w-100 mb-2" aria-live="polite"></div>
+                    <a data-role="retry" href="#" class="d-none me-auto">Check prerequisites again</a>
                     <span data-role="spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button data-role="run" type="submit" class="btn btn-success" disabled>Run schedule</button>

@@ -11,6 +11,8 @@ export function initializeRunSchedule(root, config) {
     const show = (name, visible) => el(name).classList.toggle('d-none', !visible);
     const notify = (message, type = 'info') => {
         el('status').textContent = message;
+        el('status').classList.remove('d-none', 'alert-info', 'alert-success', 'alert-danger');
+        el('status').classList.add(type === 'error' ? 'alert-danger' : `alert-${type}`);
         window.showToast(message, type);
     };
     const missing = value => value === null || value === undefined;
@@ -79,7 +81,6 @@ export function initializeRunSchedule(root, config) {
             const powers = data.power_sensors;
             el('power').replaceChildren();
             if (powers.length === 1) {
-                el('power').append('Power sensor: ');
                 const link = document.createElement('a');
                 link.href = powers[0].url;
                 link.textContent = powers[0].name;
@@ -96,7 +97,7 @@ export function initializeRunSchedule(root, config) {
             if (missing(data.consumption_price)) {
                 warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with data covering the full schedule were found. Create a price sensor and upload a CSV on its sensor page, then check prerequisites again.');
             }
-            if (data.price_available === false) warnings.push('The configured consumption price sensor has no data covering the full schedule. Add price data or update the asset’s flex-config before running.');
+            if (data.price_available === false) warnings.push('The configured consumption price sensor has no data covering the full schedule. Add price data (for example, via the sensor page), or update the asset’s flex-config to use a different sensor.');
             show('capacity-group', missing(data.power_capacity));
             if (missing(data.power_capacity)) warnings.push('No power capacity is configured. Enter the device’s power limit for this run.');
             el('capacity').required = missing(data.power_capacity);
@@ -141,7 +142,10 @@ export function initializeRunSchedule(root, config) {
         el(name).addEventListener('input', updateReady);
     }
     for (const name of ['price', 'capacity', 'soc-source']) el(name).addEventListener('change', updateReady);
-    el('retry').addEventListener('click', lookup);
+    el('retry').addEventListener('click', event => {
+        event.preventDefault();
+        lookup();
+    });
     el('form').addEventListener('submit', async event => {
         event.preventDefault();
         if (el('run').disabled || !el('form').reportValidity()) return;

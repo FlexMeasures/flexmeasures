@@ -82,6 +82,9 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("loading is announced", notices.some(item => item[0].includes("Checking prerequisites")));
         await answer(available);
         eq("power sensor name links to its page", field("power").querySelector("a").getAttribute("href"), "/sensors/7");
+        check("power sensor value has a label", root.querySelector('label[for="schedulePower"]').textContent.includes("Power sensor"));
+        check("timing help spans both inputs", field("timezone").parentElement.classList.contains("col-12"));
+        check("checked message is in an info box", field("status").classList.contains("alert-info") && !field("status").classList.contains("d-none"));
         check("price field is ready", !field("price").disabled);
         check("missing defaults still prevent running", field("run").disabled);
         chooseDefaults();
@@ -108,6 +111,7 @@ def test_period_lookup_ignores_stale_responses_and_can_retry_failure(assert_js):
         check("failed lookup prevents running", field("run").disabled);
         check("failure is explained", field("status").textContent.includes("Price lookup unavailable"));
         check("retry is offered", !field("retry").classList.contains("d-none"));
+        check("retry is a link in the footer", field("retry").tagName === "A" && field("retry").parentElement.classList.contains("modal-footer"));
         field("retry").click();
         await answer(available);
         chooseDefaults();

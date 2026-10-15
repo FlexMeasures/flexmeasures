@@ -2207,3 +2207,9 @@ body.touched [title]:hover:after {
   width: 100% !important;
   box-sizing: border-box;
 }
+
+#runScheduleModal label {
+  color: var(--primary-color);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
