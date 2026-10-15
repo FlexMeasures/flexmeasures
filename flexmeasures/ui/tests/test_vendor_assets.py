@@ -122,6 +122,18 @@ def test_login_page_loads_vendored_assets(client):
     assert b"/ui/static/vendor/bootstrap/" in page.data
 
 
+def test_asset_type_icons_are_served(client):
+    """The asset tree and asset lists show icons which FlexMeasures serves itself, rather than fetching them from iconify."""
+    from flexmeasures.ui.utils.view_utils import FALLBACK_SVG_ICON, SVG_ICON_MAPPING
+
+    for icon in sorted({*SVG_ICON_MAPPING.values(), FALLBACK_SVG_ICON}):
+        assert icon.startswith("/ui/static/vendor/iconify/"), icon
+        response = client.get(icon)
+        assert response.status_code == 200, icon
+        assert response.mimetype == "image/svg+xml", icon
+        response.close()
+
+
 def test_versioned_vendor_files_are_cached_long(client):
     """Browsers keep versioned vendor files for a year, so a page view on a poor connection does not re-check about 30 files."""
     from flexmeasures.ui.utils.vendor_versions import JS_VERSIONS

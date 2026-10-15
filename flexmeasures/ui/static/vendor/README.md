@@ -3,6 +3,7 @@
 Third-party JS, CSS, fonts and images which the FlexMeasures UI serves itself, so it works without internet access.
 Each library lives in `<lib>/<version>/`, where `<lib>` is its key in `flexmeasures/ui/utils/vendor_versions.py`.
 Templates load them only through the macros in `flexmeasures/ui/templates/includes/vendor.html`.
+The exception is `iconify/`: unversioned asset type icons from iconify.design, which `SVG_ICON_MAPPING` in `flexmeasures/ui/utils/view_utils.py` refers to by path.
 
 ## Bumping a library
 
@@ -18,4 +19,4 @@ Update those too when bumping DataTables.
 ## Sources
 
 Files are unmodified copies of the npm packages on cdn.jsdelivr.net,
-except DataTables (cdn.datatables.net) and Poppins (fonts.gstatic.com).
+except DataTables (cdn.datatables.net), Poppins (fonts.gstatic.com) and the icons (api.iconify.design).
