@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import isodate
-from datetime import datetime, timedelta
+import json
+from datetime import date, datetime, timedelta
+
+import pandas as pd
 
 from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
@@ -37,6 +40,7 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     GetSensorDataQuerySchema,
     PostSensorDataSchema,
     PostSensorDataRequestSchema,
+    RecurrencePreviewSchema,
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -90,6 +94,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
+from flexmeasures.utils.recurrence import RecurrenceError, expand_wall_clock_recurrence
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
@@ -795,6 +800,170 @@ class SensorAPI(FlaskView):
             force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
+
+    @route("/<id>/data/preview-recurrence", methods=["POST"])
+    @use_args(
+        RecurrencePreviewSchema(),
+        location="combined_sensor_data_description",
+        as_kwargs=True,
+    )
+    @permission_required_for_context(
+        "post-data",
+        ctx_arg_name="sensor",
+    )
+    def preview_recurrence(
+        self,
+        id: int,
+        sensor: Sensor,
+        pattern: pd.Series,
+        unit: str,
+        repeat: str,
+        until: date,
+        belief_timing: dict,
+    ):
+        """
+        .. :quickref: Data; Preview a repeated pattern of sensor data
+        ---
+        post:
+          summary: Preview a repeated pattern of sensor data
+          description: |
+            Repeat a pattern of sensor values daily, or on the same weekday only, until a given date, and return the repeats without saving them.
+            To save them, post the returned `data` to [POST /sensors/{id}/data](#/Sensors/post_api_v3_0_sensors__id__data) as it is.
+
+            The pattern is sent in the shape of posted sensor data, and is checked in the same way:
+            the unit has to be convertible to the sensor's unit, and the resolution has to fit the sensor's resolution.
+            It may be coarser than the sensor's resolution (its values are then upsampled), but not finer.
+            It may be at most one day long when repeated daily, or one week long when repeated on the same weekday.
+            The list of values may include null values, which are repeated as null values.
+
+            Each repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:
+            values whose local time is skipped (spring forward) are left out, as that time has no slot,
+            and values whose local time occurs twice (fall back) are repeated to both instants.
+            The `report` counts the values to be saved, and says which values each transition left out or repeated twice.
+            If the sensor resolution cannot follow a clock change (such as hourly data where clocks shift by 30 minutes),
+            the pattern is repeated every 24 hours (or 168 hours) instead, and the report says so.
+
+            Repeating is limited to one year after the pattern starts,
+            and to as many values as can be posted in one request (FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES, 3 MiB by default).
+            Requires the same permission as posting data to the sensor.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              required: true
+              schema: SensorId
+          requestBody:
+            content:
+              application/json:
+                schema: RecurrencePreviewSchema
+                examples:
+                  repeat_daily:
+                    summary: Repeat two hourly SoC minima daily, for two days
+                    value:
+                      "values": [80, 90]
+                      "start": "2026-11-02T06:00:00+01:00"
+                      "duration": "PT2H"
+                      "unit": "kWh"
+                      "repeat": "daily"
+                      "until": "2026-11-04"
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      data:
+                        type: object
+                        description: The repeated values, in the shape of posted sensor data, with null values for slots without a value.
+                      report:
+                        type: object
+                        description: |
+                          Counts of the values to be saved (`n_values`), and of the values left out (`n_omitted`) or repeated twice (`n_duplicated`) by daylight saving time transitions,
+                          plus the transitions themselves, and whether repeats follow the local time (`mode` is `wall_clock`) or fall back to fixed steps of 24 hours (`absolute`).
+                  example:
+                    data:
+                      start: "2026-11-03T06:00:00+01:00"
+                      duration: "PT26H"
+                      values: [80, 90, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 80, 90]
+                      unit: "kWh"
+                    report:
+                      n_values: 4
+                      n_omitted: 0
+                      n_duplicated: 0
+                      mode: "wall_clock"
+                      period: "daily"
+                      n_occurrences: 2
+                      transitions: []
+                      fallback_reason: null
+                    status: PROCESSED
+                    message: Request has been processed.
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            413:
+              description: PAYLOAD_TOO_LARGE
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Sensors
+        """
+        resolution = sensor.event_resolution
+        try:
+            expanded, report = expand_wall_clock_recurrence(
+                pattern,
+                until=until,
+                tz=sensor.timezone,
+                resolution=resolution,
+                same_weekday_only=repeat == "same-weekday",
+            )
+        except RecurrenceError as exc:
+            return unprocessable_entity(str(exc))
+        if expanded.empty:
+            return unprocessable_entity(
+                f"The pattern is not repeated before {until.isoformat()} ends; repeat it until a later date."
+            )
+        data = dict(
+            start=isodate.datetime_isoformat(expanded.index[0]),
+            duration=duration_isoformat(len(expanded) * resolution),
+            values=expanded.astype(object).where(expanded.notna(), None).tolist(),
+            unit=unit,
+            **belief_timing,
+        )
+        # Posted values are laid out in fixed steps from the start's UTC offset (see PostSensorDataSchema.load_bdf),
+        # which a resolution of a day or more cannot keep across a clock change, so check they would be saved where they are previewed.
+        posted_index = pd.date_range(
+            pd.Timestamp(data["start"]), periods=len(expanded), freq=resolution
+        )
+        if not (posted_index == expanded.index).all():
+            return unprocessable_entity(
+                f"The repeats cross a daylight saving time transition in {sensor.timezone}, "
+                f"which posted data cannot follow at a resolution of {duration_isoformat(resolution)}, as it is laid out in fixed steps; "
+                "preview the ranges before and after the transition separately."
+            )
+        max_size = current_app.config.get(
+            "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"
+        )
+        size = len(json.dumps(data, separators=(",", ":")).encode())
+        if max_size is not None and size > max_size:
+            return unprocessable_entity(
+                f"The repeats take {size} bytes, more than can be posted in one request ({int(max_size)} bytes); repeat until an earlier date, and preview the rest in another part."
+            )
+
+        report_dict = dict(
+            n_values=int(expanded.notna().sum()),
+            n_omitted=sum(t.n_omitted for t in report.transitions),
+            n_duplicated=sum(t.n_duplicated for t in report.transitions),
+            **report.to_dict(),
+        )
+        d, s = request_processed()
+        return dict(data=data, report=report_dict, **d), s
 
     @route("/<id>/data", methods=["GET"])
     @use_args(
