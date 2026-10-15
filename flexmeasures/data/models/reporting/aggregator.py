@@ -24,6 +24,10 @@ from flexmeasures.data.schemas.reporting.aggregation import (
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, is_energy_unit
 
+#: Sensor attribute under which a report records the membership it last aggregated onto that sensor,
+#: keyed by the group and member filter it was asked for.
+MEMBERSHIP_ATTRIBUTE = "aggregator-membership"
+
 
 class GroupMember:
     """One reading of one device of a group, as the flex-config describes it.
@@ -183,7 +187,7 @@ class AggregatorReporter(Reporter):
         """
         from flexmeasures.data.models.planning.storage import StorageScheduler
 
-        offenders = []
+        failing = []
         for asset_id in root.get_flex_model():
             asset = self._asset_by_id(asset_id)
             if asset is None:
@@ -193,7 +197,18 @@ class AggregatorReporter(Reporter):
                     asset_or_sensor=asset, start=start, end=end
                 ).deserialize_config()
             except (ValidationError, ValueError):
-                offenders.append(f"{asset.id} ({asset.name})")
+                failing.append(asset)
+
+        # A scheduler on an asset reads its subtree's flex-model as well, so an asset whose descendant is at fault
+        # fails along with it. Only the deepest assets that fail are named.
+        offenders = [
+            f"{asset.id} ({asset.name})"
+            for asset in failing
+            if not any(
+                other is not asset and self._is_ancestor_of(asset, other)
+                for other in failing
+            )
+        ]
         if not offenders:
             return ""
         if len(offenders) == 1:
@@ -201,6 +216,16 @@ class AggregatorReporter(Reporter):
                 f" The entry on asset {offenders[0]} is the one that does not validate."
             )
         return f" The entries on assets {', '.join(offenders)} do not validate."
+
+    @staticmethod
+    def _is_ancestor_of(asset: GenericAsset, other: GenericAsset) -> bool:
+        """Tell whether `asset` sits above `other` in the asset tree."""
+        parent = other.parent_asset
+        while parent is not None:
+            if parent.id == asset.id:
+                return True
+            parent = parent.parent_asset
+        return False
 
     @staticmethod
     def _asset_by_id(asset_id: int) -> GenericAsset | None:
@@ -440,13 +465,17 @@ class AggregatorReporter(Reporter):
         from flexmeasures.data.models.audit_log import AssetAuditLog
 
         resolved = sorted(member.sensor.id for member in members)
-        if self._config.get("resolved_members") == resolved:
+        if (
+            self._config.get("resolved_members") == resolved
+            and self._membership_of_last_report(output_sensor) == resolved
+        ):
             return
 
         previous = self._membership_of_last_report(output_sensor)
         self._config["resolved_members"] = resolved
         # the membership is part of the source's identity, so the cached source no longer describes this run
         self._data_source = None
+        self._remember_membership(output_sensor, resolved)
 
         if previous is None or previous == resolved:
             return
@@ -464,34 +493,35 @@ class AggregatorReporter(Reporter):
         )
 
     def _membership_of_last_report(self, output_sensor: Sensor) -> list[int] | None:
-        """Return the membership recorded by the report that last wrote to this output sensor, if that was this reporter.
+        """Return the membership this report resolved to the last time it ran on this output sensor.
 
-        Comparing against the last report on the same sensor compares like with like:
-        two reports over one group, one of them filtered, each follow their own output sensor,
-        and a membership that changes back to what it was is recognized as unchanged.
+        It is read from the output sensor rather than worked out from the beliefs there.
+        Beliefs cannot answer it: a run that recomputes the same values stores nothing,
+        so it leaves no trace to compare the next run against, and the comparison would stay
+        stuck on the last run whose numbers happened to change.
         """
-        from flexmeasures.data import db
-        from flexmeasures.data.models.data_sources import DataSource
-        from flexmeasures.data.models.time_series import TimedBelief
+        recorded = (output_sensor.attributes or {}).get(MEMBERSHIP_ATTRIBUTE) or {}
+        previous = recorded.get(self._membership_key())
+        return sorted(previous) if previous is not None else None
 
-        source = db.session.scalar(
-            db.select(DataSource)
-            .join(TimedBelief, TimedBelief.source_id == DataSource.id)
-            .filter(
-                TimedBelief.sensor_id == output_sensor.id,
-                DataSource.type == self.__data_generator_base__,
-                DataSource.model == type(self).__name__,
-            )
-            .order_by(TimedBelief.belief_horizon.asc(), DataSource.id.desc())
-            .limit(1)
-        )
-        if source is None:
-            return None
-        config = ((source.attributes or {}).get("data_generator") or {}).get(
-            "config"
-        ) or {}
-        recorded = config.get("resolved-members")
-        return sorted(recorded) if recorded is not None else None
+    def _remember_membership(self, output_sensor: Sensor, resolved: list[int]) -> None:
+        """Record on the output sensor which sensors this report aggregated, for the next run to compare against."""
+        attributes = dict(output_sensor.attributes or {})
+        recorded = dict(attributes.get(MEMBERSHIP_ATTRIBUTE) or {})
+        recorded[self._membership_key()] = resolved
+        attributes[MEMBERSHIP_ATTRIBUTE] = recorded
+        output_sensor.attributes = attributes
+
+    def _membership_key(self) -> str:
+        """Return a key identifying this report among those recording on one sensor.
+
+        Two reports over one group, one of them narrowed by a filter, each follow their own membership.
+        """
+        group_key = resolve_group_reference(self._config["group"])
+        label = group_key_label(group_key) if group_key else "unknown"
+        member_filter = self._config.get("members") or {}
+        asset_type = member_filter.get("asset_type") or ""
+        return f"{label}|{asset_type}"
 
     # ------------------------------------------------------------------ units
 
