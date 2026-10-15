@@ -16,7 +16,8 @@ The two limits count differently. The default limit counts every request, includ
 triggers we accepted, because it exists to protect the expensive computation which those set in motion:
 a client whose payload we rejected did not cost us a schedule, and should not pay for one.
 
-The default limit is counted per account, so that all users and API clients of an account share one budget (set in the account's plan).
+The default limit is counted per account, so that all users and integrations of an account share one budget (set in the account's plan).
+By an integration, we mean anything which calls the API with an auth token, rather than through the UI.
 A user of a consultancy account counts against the consultancy's account, also when acting on a client account's assets.
 The UI is the exception: its pages call the API with the session of the user who is logged in, rather than with a token,
 and those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``), which plans do not touch.
@@ -112,9 +113,9 @@ def _is_play_mode() -> bool:
 
 
 def _is_ui_request() -> bool:
-    """Whether the request comes from the UI, rather than from an API client.
+    """Whether the request comes from the UI, rather than from an integration.
 
-    API clients authenticate with a token in a request header,
+    Integrations authenticate with a token in a request header,
     while the UI's pages call the API with the session cookie of the user who is logged in.
     """
     if not current_user.is_authenticated:
@@ -128,7 +129,7 @@ def _is_ui_request() -> bool:
 def default_key_func() -> str:
     """Count requests against the user's account, or against the IP address if unauthenticated.
 
-    All users and API clients of an account share one budget, which is what the account's plan sets.
+    All users and integrations of an account share one budget, which is what the account's plan sets.
     A consultant counts against their own account, also when acting on a client account's assets,
     because it is the consultancy's integration which makes the requests.
     Requests from the UI count against the user instead, in a budget of their own (see default_limit).

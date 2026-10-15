@@ -894,7 +894,7 @@ FLEXMEASURES_API_DEFAULT_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 How often a client may call the API. This is one budget for the whole API, counted per account (or per IP address,
-if unauthenticated), so that all users and API clients of an account share it. A consultant counts against their own
+if unauthenticated), so that all users and integrations of an account share it. A consultant counts against their own
 account, also when acting on a client account's assets. The health endpoints are exempt, so that monitoring cannot lock
 itself out.
 The calls which the UI makes with a user's session do not spend this budget, but ``FLEXMEASURES_UI_RATE_LIMIT``.

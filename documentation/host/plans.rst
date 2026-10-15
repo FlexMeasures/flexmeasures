@@ -33,7 +33,9 @@ How the two limits count
   and a request we rejected ― because its payload did not validate, or because the asset belongs to someone else ― cost us no computation.
   In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
 
-The default limit is counted per account: all users and API clients of an account share one budget, which is the budget the account's plan sets.
+The default limit is counted per account: all users and integrations of an account share one budget, which is the budget the account's plan sets.
+By an integration, we mean anything which calls the API with an auth token rather than through the UI, such as a customer's EMS connector, a gateway pushing meter data, or a script built on the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_.
+FlexMeasures has no such entity: every token belongs to a user, so to the server, an integration is a user's token being used by a machine.
 The UI is the exception. Its pages fetch the data they show from the API, using the session of the user who is logged in rather than an API token,
 and those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``, see :ref:`rate-limiting-config`), which plans do not change.
 That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
