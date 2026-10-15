@@ -1060,6 +1060,12 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
             transition: transform 0.3s, visibility 0s;
         }
     }
+    /* Kept open while the user works on the chart, e.g. comparing a preview with the data, whatever the pointer. */
+    .sidepanel-container.sidepanel-pinned > .sidepanel-content {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform 0.3s, visibility 0s;
+    }
     @media (hover: none) {
         .sidepanel-container > .sidepanel-content.sidepanel-show {
             transform: translateX(0);

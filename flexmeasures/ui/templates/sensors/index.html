@@ -238,7 +238,7 @@ For the data, note the following:
                               <div data-draft-unavailable class="form-text text-white d-none"></div>
                               <div data-draft-controls>
                                   <div class="form-text text-white mb-2">
-                                      Sketch values on the chart before saving them. Nothing is saved from this panel.
+                                      Sketch values on the chart, then click Stop to preview them, possibly repeated, before saving.
                                   </div>
                                   <div>
                                       <button data-draft-record type="button" class="btn btn-sm btn-responsive btn-success create-button"
@@ -265,6 +265,54 @@ For the data, note the following:
                                   <ul data-draft-list class="list-group list-group-flush overflow-auto text-dark" style="max-height: 240px;"></ul>
                                   <button data-draft-cancel type="button" class="btn btn-sm btn-responsive btn-secondary mt-3" disabled
                                       style="border: 1px solid var(--light-gray);">Cancel</button>
+                              </div>
+                              <div id="draftPreviewStep" data-preview-step class="d-none">
+                                  <div class="fw-bold">Save draft values</div>
+                                  <div data-preview-summary class="form-text text-white mb-2"></div>
+                                  <fieldset>
+                                      <legend class="form-label fw-bold fs-6 mt-2 mb-1">Repeat</legend>
+                                      <div class="form-check">
+                                          <input id="draftRepeatNone" data-preview-repeat class="form-check-input" type="radio" name="draftRepeat" value="none" checked />
+                                          <label for="draftRepeatNone" class="form-check-label fw-normal">Do not repeat</label>
+                                      </div>
+                                      <div class="form-check">
+                                          <input id="draftRepeatDaily" data-preview-repeat class="form-check-input" type="radio" name="draftRepeat" value="daily" />
+                                          <label for="draftRepeatDaily" class="form-check-label fw-normal">Daily</label>
+                                      </div>
+                                      <div class="form-check">
+                                          <input id="draftRepeatWeekday" data-preview-repeat class="form-check-input" type="radio" name="draftRepeat" value="same-weekday" />
+                                          <label for="draftRepeatWeekday" class="form-check-label fw-normal">On the same weekday</label>
+                                      </div>
+                                  </fieldset>
+                                  <label for="draftRepeatUntil" class="form-label fw-bold mt-2">Until</label>
+                                  <div class="input-group input-group-sm">
+                                      <input id="draftRepeatUntil" data-preview-until class="form-control" type="date"
+                                          aria-describedby="draftRepeatUntilHelp" disabled />
+                                      <button data-preview-run type="button" class="btn btn-sm btn-light">Preview</button>
+                                  </div>
+                                  <div id="draftRepeatUntilHelp" class="form-text text-white">
+                                      At most one year after the draft values start. Repeats keep the local time in {{ sensor.timezone }}.
+                                  </div>
+                                  <div data-preview-error class="alert alert-danger small py-1 px-2 mt-2 mb-0 d-none" role="alert"></div>
+                                  <div data-preview-result class="d-none mt-3" aria-live="polite">
+                                      <dl class="small mb-1">
+                                          <div class="d-flex justify-content-between"><dt class="fw-normal">To create</dt><dd data-preview-create class="mb-0"></dd></div>
+                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Omitted (clock skips)</dt><dd data-preview-omitted class="mb-0"></dd></div>
+                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Written twice (clock repeats)</dt><dd data-preview-duplicated class="mb-0"></dd></div>
+                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Existing values superseded</dt><dd data-preview-superseded class="mb-0"></dd></div>
+                                      </dl>
+                                      <ul data-preview-warnings class="alert alert-warning small py-1 ps-4 pe-2 mb-1 d-none"></ul>
+                                      <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Chart range">
+                                          <button data-preview-show-all type="button" class="btn btn-light">Show all</button>
+                                          <button data-preview-show-drafts type="button" class="btn btn-light">Show drafts</button>
+                                      </div>
+                                  </div>
+                                  <div class="d-flex flex-wrap gap-1 mt-3">
+                                      <button data-preview-back type="button" class="btn btn-sm btn-secondary" style="border: 1px solid var(--light-gray);">Back to edit</button>
+                                      <button data-preview-discard type="button" class="btn btn-sm btn-secondary" style="border: 1px solid var(--light-gray);">Discard</button>
+                                      <button data-preview-confirm type="button" class="btn btn-sm btn-success ms-auto" disabled
+                                          style="border: 1px solid var(--light-gray);">Confirm</button>
+                                  </div>
                               </div>
                           </div>
                       </div>
