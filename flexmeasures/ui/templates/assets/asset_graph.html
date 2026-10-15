@@ -406,7 +406,7 @@
 <!-- Graph editing support -->
 <script type="module">
     import {
-        getFlexFieldTitle, renderSensor, getAsset, lookUpAsset, getAccountOfAsset, getSensor, createReactiveState,
+        getFlexFieldTitle, renderSensor, getAsset, lookUpAsset, getAccountOfAsset, getSensor, createReactiveState, unavailableReferencesWarning,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, moveArrayItem, escapeHtml, unitHtml
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
@@ -1192,11 +1192,8 @@
                 graphList.appendChild(graphCard);
             }
 
-            if (unavailableReferenceCount > 0) {
-                const warning = document.createElement("div");
-                warning.className = "alert alert-warning mt-2";
-                warning.setAttribute("role", "alert");
-                warning.textContent = `${unavailableReferenceCount} saved reference${unavailableReferenceCount > 1 ? "s are" : " is"} not available anymore, as the asset or sensor it points at has been deleted. You can remove or update these references.`;
+            const warning = unavailableReferencesWarning(unavailableReferenceCount);
+            if (warning !== null) {
                 graphList.prepend(warning);
             }
 

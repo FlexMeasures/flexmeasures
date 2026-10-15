@@ -322,7 +322,7 @@
     import {
         getFlexFieldTitle, renderSensor, getAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
-        extractApiErrorMessage
+        extractApiErrorMessage, countSensorsGone, unavailableReferencesWarning
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import * as flexContextUtils from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
     const {
@@ -940,6 +940,15 @@
             for (const key of inheritedToShow) {
                 flexContextFormEle.appendChild(await renderInheritedFlexContextCard(key));
             }
+        }
+
+        // Count the dangling references across the whole flex-context, not just the commodity on show,
+        // as one on another tab is out of sight. Inherited fields are left out, as they are not edited here.
+        const warning = unavailableReferencesWarning(
+            await countSensorsGone(flexConfigSensorIds(assetFlexContext)), "sensor", "sensors"
+        );
+        if (warning !== null) {
+            flexContextFormEle.prepend(warning);
         }
 
         if (storedActiveCard && activeCard()) {

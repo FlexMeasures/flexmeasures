@@ -440,7 +440,7 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
             getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON,
-            escapeHtml
+            escapeHtml, countSensorsGone, unavailableReferencesWarning
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
         import { flexConfigSensorIds } from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
 
@@ -1350,6 +1350,13 @@
                             const card = await renderFlexModelFieldCard(key, null);
                         }
                     }
+                }
+
+                const warning = unavailableReferencesWarning(
+                    await countSensorsGone(flexConfigSensorIds(assetFlexModel)), "sensor", "sensors"
+                );
+                if (warning !== null) {
+                    flexmodelContainer.prepend(warning);
                 }
             };
 

@@ -151,6 +151,50 @@ export async function getAccountOfAsset(asset) {
 }
 
 /**
+ * How many of the given sensors the API says are gone.
+ *
+ * A sensor which merely failed to load is not counted,
+ * as it may well still be there.
+ *
+ * @param {Array<number>} sensorIds - The sensors to look up, each one once.
+ * @returns {Promise<number>} - How many of them the API says do not exist.
+ */
+export async function countSensorsGone(sensorIds) {
+  const lookups = await Promise.all(sensorIds.map((id) => lookUpSensor(id)));
+  return lookups.filter((lookup) => lookup.gone).length;
+}
+
+/**
+ * The warning a dialogue shows above its configuration when some of its references point at something gone.
+ *
+ * Each dangling reference is also named where it sits,
+ * but that can be out of sight, such as on another commodity's tab,
+ * so the dialogue as a whole says how many there are, in the same words in each dialogue.
+ *
+ * @param {number} count - How many references point at something gone.
+ * @param {string} [thing="asset or sensor"] - What one reference points at.
+ * @param {string} [things="assets or sensors"] - What several references point at.
+ * @returns {HTMLElement|null} - The warning, or null if there is nothing to warn about.
+ */
+export function unavailableReferencesWarning(
+  count,
+  thing = "asset or sensor",
+  things = "assets or sensors",
+) {
+  if (count === 0) {
+    return null;
+  }
+  const warning = document.createElement("div");
+  warning.className = "alert alert-warning mt-2";
+  warning.setAttribute("role", "alert");
+  warning.textContent =
+    count === 1
+      ? `1 saved reference is not available anymore, as the ${thing} it points at has been deleted. You can remove or update it.`
+      : `${count} saved references are not available anymore, as the ${things} they point at have been deleted. You can remove or update them.`;
+  return warning;
+}
+
+/**
  * How both dialogues word a reference to a sensor we could not look up.
  *
  * Configurations hold sensor ids, and a sensor can be deleted without those references being cleaned up,
