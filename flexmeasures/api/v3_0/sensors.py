@@ -915,6 +915,27 @@ class SensorAPI(FlaskView):
             - Sensors
         """
         resolution = sensor.event_resolution
+        max_size = current_app.config.get(
+            "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"
+        )
+
+        def too_large(size: str):
+            return unprocessable_entity(
+                f"The repeats take {size} bytes, more than can be posted in one request ({int(max_size)} bytes); repeat until an earlier date, and preview the rest in another part."
+            )
+
+        # Refuse a range that cannot fit before expanding it, as each slot takes 2 bytes at the least (such as "0,").
+        # The first and last periods may be partly empty, and a clock change may take away up to two hours (as in Antarctica/Troll).
+        period = timedelta(days=7 if repeat == "same-weekday" else 1)
+        end_of_until = pd.Timestamp(until + timedelta(days=1)).tz_localize(
+            sensor.timezone, ambiguous=True, nonexistent="shift_forward"
+        )
+        min_slots = (
+            end_of_until - pattern.index[0] - 2 * period - timedelta(hours=2)
+        ) // resolution
+        if max_size is not None and 2 * min_slots > max_size:
+            return too_large(f"at least {2 * min_slots}")
+
         try:
             expanded, report = expand_wall_clock_recurrence(
                 pattern,
@@ -947,14 +968,9 @@ class SensorAPI(FlaskView):
                 f"which posted data cannot follow at a resolution of {duration_isoformat(resolution)}, as it is laid out in fixed steps; "
                 "preview the ranges before and after the transition separately."
             )
-        max_size = current_app.config.get(
-            "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"
-        )
         size = len(json.dumps(data, separators=(",", ":")).encode())
         if max_size is not None and size > max_size:
-            return unprocessable_entity(
-                f"The repeats take {size} bytes, more than can be posted in one request ({int(max_size)} bytes); repeat until an earlier date, and preview the rest in another part."
-            )
+            return too_large(str(size))
 
         report_dict = dict(
             n_values=int(expanded.notna().sum()),
