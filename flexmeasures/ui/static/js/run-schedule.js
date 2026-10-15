@@ -34,14 +34,24 @@ export function initializeRunSchedule(root, config) {
         const end = new Date(start.getTime() + hours * 3600000);
         return {start: start.toISOString(), end: end.toISOString(), duration: `PT${Math.round(hours * 3600)}S`};
     }
+    function hasStartingSoc() {
+        return Boolean(el('soc-source').value) ||
+            (el('soc').value !== '' && el('soc').checkValidity());
+    }
+    function updateSocWarning() {
+        const warning = el('soc-warning');
+        if (warning) warning.classList.toggle('d-none', hasStartingSoc());
+        const hasWarnings = [...el('warnings').children].some(note => !note.classList.contains('d-none'));
+        show('warnings', hasWarnings);
+        return hasWarnings;
+    }
     function updateReady() {
         let validPeriod = true;
         try {
             const range = period();
             validPeriod = checkedPeriod && range.start === checkedPeriod.start && range.duration === checkedPeriod.duration;
         } catch { validPeriod = false; }
-        const hasSoc = Boolean(el('soc-source').value) ||
-            (el('soc').value !== '' && el('soc').checkValidity());
+        const hasSoc = hasStartingSoc();
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
             options.price_available !== false &&
             (!missing(options.consumption_price) || el('price').value) &&
@@ -56,6 +66,7 @@ export function initializeRunSchedule(root, config) {
         el('soc').disabled = running || Boolean(el('soc-source').value);
         el('soc-unit').disabled = el('soc').disabled;
         show('spinner', loading || running);
+        updateSocWarning();
     }
     function addOption(select, value, text) {
         const option = document.createElement('option');
@@ -132,13 +143,14 @@ export function initializeRunSchedule(root, config) {
             show('capacity-group', missing(data.power_capacity));
             if (missing(data.power_capacity)) warnings.push('No power capacity is configured. Enter the device’s power limit for this run.');
             el('capacity').required = missing(data.power_capacity);
+            const previousSocSource = el('soc-source').value;
             el('soc-source').replaceChildren();
             show('soc-source', data.soc_sensors.length > 0);
             addOption(el('soc-source'), '', 'Choose an existing SoC reading');
             for (const sensor of data.soc_sensors) {
                 addOption(el('soc-source'), sensor.id, `${sensor.name}: ${sensor.value} ${sensor.unit} at ${sensor.event_start}`);
             }
-            if (data.requires_soc) warnings.push('A starting state of charge is required for this storage asset. Choose an existing SoC reading or enter a value before running.');
+            el('soc-source').value = previousSocSource;
             el('warnings').replaceChildren();
             for (const warning of warnings) {
                 const p = document.createElement('p');
@@ -146,9 +158,16 @@ export function initializeRunSchedule(root, config) {
                 p.textContent = warning;
                 el('warnings').append(p);
             }
-            show('warnings', warnings.length > 0);
+            if (data.requires_soc) {
+                const p = document.createElement('p');
+                p.dataset.role = 'soc-warning';
+                p.className = 'mb-1';
+                p.textContent = 'A starting state of charge is required for this storage asset. Choose an existing SoC reading or enter a value before running.';
+                el('warnings').append(p);
+            }
+            const hasWarnings = updateSocWarning();
             show('retry', true);
-            notify(warnings.length ? 'Prerequisites checked. Review the notes before running.' : 'Prerequisites checked.', 'info');
+            notify(hasWarnings ? 'Prerequisites checked. Review the notes before running.' : 'Prerequisites checked.', 'info');
         } catch (error) {
             if (currentGeneration !== generation || error.name === 'AbortError') return;
             notify(`Could not check prerequisites: ${error.message}`, 'error');

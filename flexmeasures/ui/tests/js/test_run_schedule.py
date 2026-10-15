@@ -231,7 +231,7 @@ def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_
         field("capacity").value = "10";
         change("capacity");
         check("missing configured price coverage blocks the action", field("run").disabled);
-        check("price knowledge is explained", field("warnings").textContent.includes("no prices known now covering the full schedule"));
+        check("price knowledge is explained", field("warnings").textContent.includes("known now") && field("warnings").textContent.includes("covering the full schedule"));
         check("future beliefs are explained", field("warnings").textContent.includes("belief times are later than now"));
     """)
 
@@ -288,16 +288,30 @@ def test_storage_requires_a_starting_soc_but_non_storage_does_not(assert_js):
         await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
         check("storage without SoC cannot run", field("run").disabled);
         check("missing SoC is explained", field("warnings").textContent.includes("starting state of charge"));
+        check("SoC warning is visible while missing", !field("soc-warning").classList.contains("d-none"));
         field("soc").value = "0";
         field("soc").dispatchEvent(new Event("input"));
         check("zero SoC is valid", !field("run").disabled);
+        check("custom SoC hides its warning", field("soc-warning").classList.contains("d-none"));
+        check("warning box is hidden when it has no other notes", field("warnings").classList.contains("d-none"));
+        field("retry").click();
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
+        check("rechecking keeps the custom SoC warning hidden", field("soc-warning").classList.contains("d-none") && field("warnings").classList.contains("d-none"));
         field("soc").value = "-1";
         field("soc").dispatchEvent(new Event("input"));
         check("negative SoC is invalid", field("run").disabled);
+        check("invalid SoC restores its warning", !field("soc-warning").classList.contains("d-none"));
         field("soc").value = "";
         field("soc-source").value = "13";
         change("soc-source");
         check("choosing a reading provides SoC", !field("run").disabled);
+        check("chosen reading hides its warning", field("soc-warning").classList.contains("d-none"));
+        field("retry").click();
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
+        eq("rechecking keeps the chosen reading", field("soc-source").value, "13");
+        check("rechecking keeps its warning hidden", field("soc-warning").classList.contains("d-none"));
+        field("soc-source").value = "";
+        change("soc-source");
         change("duration");
         await answer({...available, consumption_price: 0, power_capacity: "10 kW", requires_soc: false});
         check("non-storage asset can run without SoC", !field("run").disabled);
