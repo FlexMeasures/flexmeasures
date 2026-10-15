@@ -1359,3 +1359,130 @@ def test_a_device_with_a_power_sensor_is_read_from_it(
     # the heat pump's 40 kW counts positive, while the PV's 100 kW and the battery's 20 kW are production
     # and count negative. 40 - 100 - 20 = -80 kW.
     assert result["event_value"].values == pytest.approx(-0.08)
+
+
+def test_membership_changing_back_is_recognized(
+    setup_nested_groups, db, temp_assets, restore_flex_models
+):
+    """Taking a member out and putting it back logs one entry each way, and nothing for the runs between.
+
+    A membership that returns to an earlier set is recorded by that set's own, older data source again,
+    so the comparison cannot follow data sources by id. It cannot follow the stored beliefs either:
+    a run that recomputes the same values stores nothing, so runs 3 and 4 here leave no belief behind.
+    Each run is still given its own belief time, as successive reports in practice have,
+    to show the answer does not depend on them.
+    """
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    in_group = {
+        "inflexible-production": {"sensor": far_power.id},
+        "group": {"asset": street.id},
+    }
+    out_of_group = {"inflexible-production": {"sensor": far_power.id}}
+    restore_flex_models(far_power.generic_asset)
+
+    def run(membership: dict, horizon_hours: int) -> int:
+        """Set the membership, run a report, store it, and return the number of audit entries so far."""
+        far_power.generic_asset.flex_model = membership
+        db.session.commit()
+        reporter = AggregatorReporter(config={"group": {"asset": street.id}})
+        result = reporter.compute(
+            output=[dict(sensor=street_total)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            # a smaller horizon is a later belief, so each run is the newest one when it runs
+            belief_horizon=timedelta(hours=horizon_hours),
+        )
+        save_to_db(result[0]["data"])
+        db.session.commit()
+        return db.session.query(AssetAuditLog).count()
+
+    # The first run has nothing to compare against, so it records a membership without logging a change.
+    base = run(in_group, 10)
+
+    counts = [
+        run(out_of_group, 9) - base,  # the far PV leaves: one change
+        run(in_group, 8) - base,  # and comes back: a second change
+        run(in_group, 7) - base,  # unchanged
+        run(in_group, 6) - base,  # unchanged
+        run(out_of_group, 5) - base,  # leaves again: a third change
+        run(out_of_group, 4) - base,  # unchanged
+    ]
+
+    assert counts == [1, 2, 2, 2, 3, 3]
+
+
+def test_an_invalid_flex_model_names_only_the_faulty_asset(
+    setup_nested_groups, db, restore_flex_models
+):
+    """The asset at fault is named, and not every ancestor that fails along with it.
+
+    A scheduler on an asset reads its subtree too, so probing the street and the house both fail
+    when the fault is on a device below them.
+    """
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+
+    restore_flex_models(pv_power.generic_asset)
+    pv_power.generic_asset.flex_model = {
+        "inflexible-production": {"sensor": pv_power.id},
+        "group": {"asset": house.id},
+        "power-capacity": "not a power",
+    }
+    db.session.commit()
+
+    reporter = AggregatorReporter(config={"group": {"asset": house.id}})
+    with pytest.raises(ValueError) as error:
+        reporter.compute(
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_horizon=timedelta(0),
+        )
+
+    message = str(error.value)
+    assert f"{pv_power.generic_asset.id} ({pv_power.generic_asset.name})" in message
+    # the street and the house fail only because the fault sits below them
+    assert f"{street.id} ({street.name})" not in message
+    assert f"{house.id} ({house.name})" not in message
+
+
+def test_two_reports_on_one_group_do_not_log_each_other(setup_nested_groups, db):
+    """A filtered and an unfiltered report over one group each follow their own membership.
+
+    Run alternately, neither may read the other's membership as a change of its own,
+    even when both record on the same sensor.
+    """
+    region, street, house, street_total, *_ = setup_nested_groups
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    everything = AggregatorReporter(config={"group": {"asset": street.id}})
+    solar_only = AggregatorReporter(
+        config={
+            "group": {"asset": street.id},
+            "members": {"asset-type": "NestedSolar"},
+        }
+    )
+
+    def run(reporter, horizon_hours):
+        reporter.compute(
+            output=[dict(sensor=street_total)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_horizon=timedelta(hours=horizon_hours),
+        )
+        db.session.commit()
+
+    # the first run of each records its own membership without logging anything
+    run(everything, 6)
+    run(solar_only, 5)
+    baseline = db.session.query(AssetAuditLog).count()
+
+    for horizon in (4, 3, 2, 1):
+        run(everything, horizon)
+        run(solar_only, horizon)
+
+    assert db.session.query(AssetAuditLog).count() == baseline
