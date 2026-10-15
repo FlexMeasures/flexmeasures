@@ -78,7 +78,7 @@ dependencies = [
     "flask-migrate>=4.1.0",
     "flask-wtf>=1.2.2",
     "flask-mail>=0.10.0",
-    # No mfa extra: it installs webauthn and qrcode, for passkey and authenticator-app sign-in, neither of which FlexMeasures supports.
+    # No mfa extra: it installs webauthn, qrcode and phonenumberslite, for passkey, authenticator-app and SMS sign-in, none of which FlexMeasures supports.
     # Email-based 2FA needs cryptography only, which is a direct dependency below.
     "Flask-Security-Too[fsqla]>=5.0",
     "flask-login>=0.6.3",
