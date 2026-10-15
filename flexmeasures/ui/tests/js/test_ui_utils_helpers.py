@@ -429,3 +429,44 @@ def test_a_rendered_sensor_survives_an_asset_which_is_gone(assert_js):
         check("with an unknown asset", holder.textContent.includes("unknown"), holder.textContent);
         localStorage.clear();
         """)
+
+
+def test_only_sensors_which_are_gone_are_counted(assert_js):
+    """A dialogue's banner counts the sensors the API says are gone, not the ones it failed to load."""
+    assert_js("""
+        import { countSensorsGone } from "/js/ui-utils.js";
+        localStorage.clear();
+        window.fetch = async (url) => {
+            if (url.endsWith("/404") || url.endsWith("/405")) {
+                return {ok: false, status: 404, json: async () => ({message: "not found"})};
+            }
+            if (url.endsWith("/500")) {
+                return {ok: false, status: 500, json: async () => ({message: "Internal error"})};
+            }
+            return {ok: true, json: async () => ({id: 1, name: "Power", unit: "MW"})};
+        };
+
+        eq("sensors which are gone are counted", await countSensorsGone([404, 405]), 2);
+        eq("ones that are there are not", await countSensorsGone([1, 404]), 1);
+        eq("nor ones the API failed on", await countSensorsGone([500, 404]), 1);
+        eq("no sensors, nothing to count", await countSensorsGone([]), 0);
+        localStorage.clear();
+        """)
+
+
+def test_the_unavailable_references_warning(assert_js):
+    """Each dialogue warns about its dangling references in the same words."""
+    assert_js("""
+        import { unavailableReferencesWarning } from "/js/ui-utils.js";
+
+        eq("nothing to warn about, no warning", unavailableReferencesWarning(0), null);
+
+        const one = unavailableReferencesWarning(1);
+        eq("one reference is warned about in the singular", one.textContent,
+           "1 saved reference is not available anymore, as the asset or sensor it points at has been deleted. You can remove or update it.");
+        eq("as an alert", one.getAttribute("role"), "alert");
+
+        const some = unavailableReferencesWarning(3, "sensor", "sensors");
+        eq("several in the plural, naming what they point at", some.textContent,
+           "3 saved references are not available anymore, as the sensors they point at have been deleted. You can remove or update them.");
+        """)
