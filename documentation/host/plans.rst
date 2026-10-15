@@ -53,10 +53,10 @@ Reset its rate limits with ``flexmeasures edit reset-rate-limit``:
 
     $ flexmeasures edit reset-rate-limit --account 3
 
-This resets both limits. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
-Both limits are counted per account, so a reset gives the account a fresh budget for each of them.
+This resets the account's default limit and its trigger limit (see above).
+Pass ``--limit default`` or ``--limit trigger`` to reset just the one.
+Each limit is counted per account, so a reset gives the account a fresh budget.
 
-A reset clears the counters of the limits in effect for the account, which are its plan's or the server-wide ones.
 A limit the account is exempt from (``"unlimited"``) has nothing to reset, and the command says so.
 
 Finding out who hit a limit
