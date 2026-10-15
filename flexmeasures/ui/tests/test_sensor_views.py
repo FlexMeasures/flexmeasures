@@ -321,6 +321,28 @@ def test_draft_values_panel_visible_for_account_member(
     )
 
 
+def test_draft_values_panel_has_a_preview_step(
+    db, client, setup_assets, as_prosumer_user1
+):
+    """Stop leads to a second step, which previews the draft values before saving them, and draws the preview on the chart."""
+    _, response = _get_sensor_page(client, db)
+    assert response.status_code == 200
+    assert b"data-preview-step" in response.data
+    for choice in (b'value="none"', b'value="daily"', b'value="same-weekday"'):
+        assert choice in response.data
+    for button in (
+        b"data-preview-back",
+        b"data-preview-discard",
+        b"data-preview-confirm",
+    ):
+        assert button in response.data
+    assert (
+        b"wirePreviewStep(document.querySelector('#draftValuesPanel [data-preview-step]')"
+        in response.data
+    )
+    assert b"previewValues: draftPreview" in response.data
+
+
 def test_draft_values_panel_visible_for_data_integrator(
     db, client, setup_prosumer_restricted_users
 ):
@@ -338,4 +360,5 @@ def test_draft_values_panel_hidden_for_reader(
     assert response.status_code == 200
     assert b'id="draftValuesPanel"' not in response.data
     assert b"wireDraftValuesPanel(" not in response.data
+    assert b"wirePreviewStep(" not in response.data
     assert b"draftValues:" not in response.data

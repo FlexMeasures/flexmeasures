@@ -29,8 +29,9 @@
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, setFastChartSelectMode, refreshFastChartDraftValues } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, setFastChartSelectMode, refreshFastChartDraftValues, refreshFastChartPreview } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
     import { wireDraftValuesPanel } from "{{ url_for('flexmeasures_ui.static', filename='js/draft-values.js') }}?v={{ flexmeasures_version }}";
+    import { wirePreviewStep, requestJson } from "{{ url_for('flexmeasures_ui.static', filename='js/draft-values-preview.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -40,6 +41,8 @@
 
     // Global variables (Module scoped)
     let picker;
+    // What the preview step of the Draft values panel would save, drawn over the data ({points, superseded}, or null).
+    let draftPreview = null;
     let vegaView;
     let previousResult;
     // Holds the widest contiguous span fetched so far,
@@ -383,6 +386,48 @@
         item.addEventListener('click', function () {
             if (item.dataset.chartType !== 'bar_chart') draftValuesPanel.endRecording();
         });
+    });
+
+    // Stop opens the panel's second step, which previews the draft values, possibly repeated, and saves them on Confirm.
+    // While it shows, the panel stays open, so the preview can be compared with the data on the chart.
+    const sensorDataPath = apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data';
+    const jsonRequest = function (body) {
+        return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+    };
+    wirePreviewStep(document.querySelector('#draftValuesPanel [data-preview-step]'), {
+        sensorId: {{ sensor.id }},
+        resolutionMs: sensorResolutionMs,
+        unit: {{ sensor.unit | tojson }},
+        timeZone: {{ sensor.timezone | tojson }},
+        api: {
+            preview: function (body) { return requestJson(sensorDataPath + '/preview-recurrence', jsonRequest(body)); },
+            fetchExisting: function (query) { return requestJson(sensorDataPath + '?' + query.toString()); },
+            save: function (payload) { return requestJson(sensorDataPath, jsonRequest(payload)); },
+        },
+        chart: {
+            showPreview: function (preview) {
+                draftPreview = preview;
+                refreshFastChartPreview(fastChartElementId, preview);
+            },
+            getWindow: function () { return { start: new Date(storeStartDate), end: new Date(storeEndDate) }; },
+            // The date picker selects whole local days, with an inclusive end date.
+            setWindow: function (range) {
+                const start = new Date(range.start);
+                start.setHours(0, 0, 0, 0);
+                const lastDay = new Date(range.end.getTime() - 1);
+                lastDay.setHours(0, 0, 0, 0);
+                picker.setDateRange(start, lastDay);
+                picker.gotoDate(lastDay);
+            },
+            reload: function () { document.dispatchEvent(new CustomEvent('newDataAvailable')); },
+        },
+        drafts: draftValuesPanel,
+        setVisible: function (visible) {
+            const panel = document.getElementById('draftValuesPanel');
+            panel.querySelector('[data-draft-controls]').classList.toggle('d-none', visible);
+            panel.querySelector('[data-preview-step]').classList.toggle('d-none', !visible);
+            panel.closest('.sidepanel-container').classList.toggle('sidepanel-pinned', visible);
+        },
     });
     {% endif %}
 
@@ -1095,6 +1140,7 @@
             selectable: {{ 'true' if active_page == "sensors" and user_can_create_children_sensor else 'false' }},
             {% if active_page == "sensors" and user_can_create_children_sensor %}
             draftValues: draftValuesPanel.drafts,
+            previewValues: draftPreview,
             {% endif %}
         };
     }

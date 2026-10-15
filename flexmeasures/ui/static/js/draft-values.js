@@ -395,6 +395,10 @@ export function wireDraftValuesPanel(root, options) {
       if (drafts.length > 0 && !opts.confirm("Discard all " + drafts.length + " draft values? They have not been saved.")) {
         return;
       }
+      controller.discard();
+    },
+    // Discard all draft values without asking, and end recording, e.g. once they are saved, or after the preview asked.
+    discard() {
       controller.endRecording();
       setDrafts([]);
       render();
