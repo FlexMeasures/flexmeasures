@@ -66,7 +66,7 @@ class AccountCrudUI(FlaskView):
     @login_required
     def new(self):
         """/accounts/new"""
-        check_access(FlexMeasuresPlatform.init(), "create-children")
+        check_access(FlexMeasuresPlatform.init(), "edit-account")
         user_is_admin = user_has_admin_access(current_user, "read")
         potential_consultant_accounts = get_accounts() if user_is_admin else []
         selected_consultancy_account_id = request.args.get(
@@ -125,13 +125,13 @@ class AccountCrudUI(FlaskView):
 
         user_can_update_account = True
         try:
-            check_access(account, "update")
+            check_access(account, "edit-account")
         except (Forbidden, Unauthorized):
             user_can_update_account = False
 
         user_can_create_children = True
         try:
-            check_access(account, "create-children")
+            check_access(account, "manage-users")
         except (Forbidden, Unauthorized):
             user_can_create_children = False
 

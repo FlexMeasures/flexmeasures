@@ -184,6 +184,28 @@ def save_to_db(
 ) -> str:
     """Save the timed beliefs to the database.
 
+    See `save_to_db_and_count`, which this wraps, for the full description.
+
+    :returns: status string, one of the following:
+              - SAVE_TO_DB_SUCCESS: all beliefs were saved
+              - SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED: not all beliefs represented a state change
+              - SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW: no beliefs represented a state change
+    """
+    status, _ = save_to_db_and_count(
+        data,
+        bulk_save_objects=bulk_save_objects,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
+    return status
+
+
+def save_to_db_and_count(
+    data: BeliefsDataFrame | BeliefsSeries | list[BeliefsDataFrame | BeliefsSeries],
+    bulk_save_objects: bool = True,
+    save_changed_beliefs_only: bool = True,
+) -> tuple[str, int]:
+    """Save the timed beliefs to the database, and count how many were saved.
+
     Note: This function does not commit. It does, however, flush the session. Best to keep transactions short.
 
     We make the distinction between updating beliefs and replacing beliefs.
@@ -209,7 +231,8 @@ def save_to_db(
                               https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
     :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
                                       if False, all updated beliefs are stored
-    :returns: status string, one of the following:
+    :returns: a status string and the number of beliefs saved, which excludes NaN values and skipped unchanged beliefs.
+              The status is one of the following:
               - SAVE_TO_DB_SUCCESS: all beliefs were saved
               - SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED: not all beliefs represented a state change
               - SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW: no beliefs represented a state change
@@ -245,10 +268,6 @@ def save_to_db(
             if len_after < len_before:
                 status = SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED
 
-            # Work around bug in which groupby still introduces an index level, even though we asked it not to
-            if None in timed_values.index.names:
-                timed_values.index = timed_values.index.droplevel(None)
-
             if timed_values.empty:
                 # No state changes among the beliefs
                 current_app.logger.info("No changes needing to be saved to DB.")
@@ -270,7 +289,7 @@ def save_to_db(
 
     if values_saved == 0:
         status = SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
-    return status
+    return status, values_saved
 
 
 def get_downsample_function_and_value(kpi: dict, sensor: Sensor, values) -> tuple:

@@ -184,6 +184,32 @@ def show_account(account):
         click.secho("Account has no roles.", **MsgStyle.WARN)
     click.echo()
 
+    plan = account.plan
+    plan_name = (
+        f"{plan.name}{' (legacy)' if plan.legacy else ''}"
+        if plan is not None
+        else "No plan (server defaults apply)"
+    )
+    click.echo(f"Plan: {plan_name}")
+    click.echo("------")
+    click.echo(
+        "Default API rate limit: "
+        + (
+            plan.default_rate_limit
+            if plan is not None and plan.default_rate_limit is not None
+            else app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
+        )
+    )
+    click.echo(
+        "Trigger rate limit: "
+        + (
+            plan.trigger_rate_limit
+            if plan is not None and plan.trigger_rate_limit is not None
+            else app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
+        )
+    )
+    click.echo()
+
     users = db.session.scalars(
         select(User).filter_by(account_id=account.id).order_by(User.username)
     ).all()
