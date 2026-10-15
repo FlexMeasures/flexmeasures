@@ -33,8 +33,13 @@
                             <output data-role="selected-price" class="d-block mt-2"></output>
                             <small class="text-muted">Only price sensors with data covering the full schedule are listed.</small>
                             <div data-role="demo-price-group" class="d-none mt-2">
+                                <label for="scheduleDemoPriceProfile" class="form-label">Demo price profile</label>
+                                <select id="scheduleDemoPriceProfile" data-role="demo-profile" class="form-select mb-2">
+                                    <option value="nl_october_day" selected>NL October Day (repeating daily)</option>
+                                    <option value="uniform">Uniform (100 EUR/MWh)</option>
+                                </select>
                                 <button data-role="demo-price" type="button" class="btn btn-outline-primary btn-sm">Create demo price sensor</button>
-                                <small class="d-block text-muted">Adds a persistent sensor with fixed 100 EUR/MWh prices for this period. These are sample prices, not a real tariff.</small>
+                                <small class="d-block text-muted">Adds a persistent sensor with sample prices for this period. These are not a real tariff.</small>
                             </div>
                         </div>
                         <div data-role="configured-price-group" class="mb-3 d-none">

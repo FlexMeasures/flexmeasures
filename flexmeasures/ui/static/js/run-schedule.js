@@ -62,6 +62,7 @@ export function initializeRunSchedule(root, config) {
         el('run-tooltip').tabIndex = el('run').disabled ? 0 : -1;
         el('price').disabled = loading || running;
         el('demo-price').disabled = loading || running;
+        el('demo-profile').disabled = loading || running;
         el('capacity').disabled = loading || running;
         el('soc-source').disabled = loading || running;
         el('soc').disabled = running || Boolean(el('soc-source').value);
@@ -212,7 +213,7 @@ export function initializeRunSchedule(root, config) {
             notify('Creating a demo price sensor and prices for this period…');
             const sensor = await jsonResponse(await fetch(config.demoPricesUrl, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({start_time: range.start, end_time: range.end})
+                body: JSON.stringify({start_time: range.start, end_time: range.end, profile: el('demo-profile').value})
             }));
             notify(`Demo price sensor ${sensor.name} (ID: ${sensor.id}) is ready.`, 'success');
             await lookup();

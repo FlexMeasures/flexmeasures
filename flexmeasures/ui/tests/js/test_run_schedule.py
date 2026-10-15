@@ -112,15 +112,30 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
         open();
         await answer({...available, price_sensors: [], can_create_demo_prices: true});
         check("demo action appears when no prices are available", !field("demo-price-group").classList.contains("d-none"));
+        eq("dynamic daily prices are the default", field("demo-profile").value, "nl_october_day");
         eq("lookup does not create data", requests.length, 1);
         field("demo-price").click();
         eq("click posts demo prices", requests[1].url, "/assets/3/demo-prices");
+        eq("chosen profile is submitted", JSON.parse(requests[1].options.body).profile, "nl_october_day");
         check("demo action is disabled during creation", field("demo-price").disabled);
         await answer({id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}, 201);
         await answer({...available, price_sensors: [{id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}], can_create_demo_prices: true});
         eq("new price is selected", field("price").value, "20");
         eq("new price links to its sensor page", field("selected-price").querySelector("a").getAttribute("href"), "/sensors/20");
         check("action hides once a price is available", field("demo-price-group").classList.contains("d-none"));
+    """)
+
+
+def test_demo_price_creation_can_choose_uniform_profile(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, price_sensors: [], can_create_demo_prices: true});
+        field("demo-profile").value = "uniform";
+        field("demo-price").click();
+        eq("uniform profile is submitted", JSON.parse(requests[1].options.body).profile, "uniform");
+        await answer({id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}, 201);
+        await answer({...available, price_sensors: [{id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}]});
+        eq("uniform price sensor is selected", field("price").value, "21");
     """)
 
 

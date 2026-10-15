@@ -7,6 +7,7 @@ import pytest
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.services.sensors import create_demo_price_sensor
 from flexmeasures.ui.views.assets import scheduling
 from sqlalchemy import delete
 
@@ -62,6 +63,7 @@ def test_demo_prices_create_reusable_sensor_with_known_full_period(
     sensor = db.session.get(Sensor, response.get_json()["id"])
     assert sensor.generic_asset_id == asset.id
     assert sensor.attributes["demo_data"] is True
+    assert sensor.attributes["demo_profile"] == "nl_october_day"
     assert sensor.unit == "EUR/MWh"
     beliefs = (
         db.session.query(TimedBelief)
@@ -74,12 +76,58 @@ def test_demo_prices_create_reusable_sensor_with_known_full_period(
         START + timedelta(hours=1),
         START + timedelta(hours=2),
     ]
-    assert all(b.event_value == 100 for b in beliefs)
+    assert [b.event_value for b in beliefs] == [80, 75, 70]
     assert all(b.belief_time <= datetime.now(timezone.utc) for b in beliefs)
     assert all(b.source.type == "demo" for b in beliefs)
     assert scheduling.price_covers_schedule(
         sensor, start, end, datetime.now(timezone.utc)
     )
+
+
+def test_demo_price_profiles_repeat_by_dutch_clock_and_offer_uniform_option(
+    db, schedule_assets
+):
+    asset = schedule_assets["test_battery"]
+    start = datetime(2025, 10, 25, 23, tzinfo=timezone.utc)
+    end = start + timedelta(days=2)
+    dynamic = create_demo_price_sensor(asset, start, end)
+    uniform = create_demo_price_sensor(asset, start, end, profile="uniform")
+    db.session.commit()
+    dynamic_values = [
+        belief.event_value
+        for belief in db.session.query(TimedBelief)
+        .filter_by(sensor_id=dynamic.id)
+        .order_by(TimedBelief.event_start)
+    ]
+    uniform_values = [
+        belief.event_value
+        for belief in db.session.query(TimedBelief)
+        .filter_by(sensor_id=uniform.id)
+        .order_by(TimedBelief.event_start)
+    ]
+    assert dynamic_values[:4] == [80, 75, 75, 70]
+    assert dynamic_values[25:28] == [80, 75, 70]
+    assert len(set(dynamic_values)) > 10
+    assert uniform_values == [100] * 48
+
+
+def test_demo_prices_accepts_uniform_profile(db, client, schedule_assets, as_admin):
+    asset = schedule_assets["test_battery"]
+    response = client.post(
+        url_for("AssetCrudUI:demo_prices", id=asset.id),
+        json={
+            "start_time": START.isoformat(),
+            "end_time": (START + timedelta(hours=2)).isoformat(),
+            "profile": "uniform",
+        },
+    )
+    assert response.status_code == 201
+    sensor = db.session.get(Sensor, response.get_json()["id"])
+    assert sensor.attributes["demo_profile"] == "uniform"
+    assert [
+        belief.event_value
+        for belief in db.session.query(TimedBelief).filter_by(sensor_id=sensor.id)
+    ] == [100, 100]
 
 
 def test_demo_prices_refuses_configured_price_and_overlong_period(
