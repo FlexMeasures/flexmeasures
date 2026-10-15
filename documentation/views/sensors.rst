@@ -64,7 +64,7 @@ Histogram and heatmap charts have no time axis to select on, so there the fields
 Drafting sensor values
 ----------------------
 
-Users with permission to record data on a sensor can sketch values on its chart from the **Draft values** panel, before anything is saved. Nothing is written to the database from this panel.
+Users with permission to record data on a sensor can sketch values on its chart from the **Draft values** panel, before anything is saved. Nothing is written to the database until you confirm a preview of them (see :ref:`saving_draft_values`).
 
 Click **Record**. This turns on the fast chart and its select tool (switching to the bar chart if a histogram or heatmap was shown). Then choose the time range to fill:
 
@@ -73,9 +73,38 @@ Click **Record**. This turns on the fast chart and its select tool (switching to
 
 Either way, the range is widened to whole events of the sensor, and a range chosen on the chart fills in the **Start** and **Duration** fields. Type a value in the sensor's unit and click **Add** (or press Enter), and every event in the range gets that value. Adding over an existing draft value replaces it.
 
-Draft values show on the chart as a dashed line, with their own legend entry, and are listed in the panel, where each can be removed. Click **Stop** to end recording and keep the draft values. **Cancel** discards them, after asking. Since draft values only live in the page, leaving or reloading it asks for confirmation first.
+Draft values show on the chart as a dashed line, with their own legend entry, and are listed in the panel, where each can be removed. Click **Stop** to end recording and move on to saving them. **Cancel** discards them, after asking. Since draft values only live in the page, leaving or reloading it asks for confirmation first.
 
 Draft values are not offered on touch devices, nor on sensors that record instantaneous values.
+
+.. _saving_draft_values:
+
+Repeating and saving draft values
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+After **Stop**, the panel shows what will be saved before anything is, and stays open while you look at the chart.
+
+Under **Repeat**, choose to save the draft values as they are, or to repeat them **Daily** or **On the same weekday**, until a date. That date is at most one year after the draft values start, and one week after by default. Repeats keep the local time in the sensor's timezone: a value at 07:00 is repeated at 07:00, also after a daylight saving time transition. Draft values repeated daily may span at most one day, and those repeated on the same weekday at most one week.
+
+Click **Preview**. The chart zooms out to everything that will be saved, drawn as a solid line. **Show drafts** zooms back in to the draft values, and **Show all** out again. The panel counts:
+
+- the values to create, the draft values included;
+- the values omitted because the clock skips their local time (spring forward), and those written twice because their local time occurs twice (fall back), each with a warning such as "On 28 Mar 2027 the clock skips 02:00–03:00: 4 values will not be written.". These warnings do not keep you from saving;
+- the existing values that the new ones supersede, which are circled on the chart. Existing values are not deleted: they stay in the sensor's history, while the chart, and schedules that read the sensor, use the newest value for each time.
+
+Changing the repetition or the date asks for a new preview. **Back to edit** returns to the draft values as they were, and **Discard** throws them away, after asking.
+
+**Confirm** saves exactly what the preview showed, as the sensor data API's ``POST /sensors/<id>/data`` would, with the time of saving as their belief time, and you as their data source. Large saves may take a moment to appear on the chart.
+
+A sensor of saved limits can then be used in a flex-model, by referring to the sensor rather than giving values (see :ref:`variable_quantities`). For instance, to use drafted state-of-charge minima in a storage schedule:
+
+.. code-block:: json
+
+    {
+        "soc-minima": {"sensor": 42}
+    }
+
+where 42 is the ID of the sensor the values were saved on, in a unit of stored energy such as kWh.
 
 Deleting annotations
 --------------------
