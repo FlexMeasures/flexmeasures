@@ -80,19 +80,26 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("price selection waits for lookup", field("price").disabled);
         check("SoC selection waits for lookup", field("soc-source").disabled);
         check("run waits for lookup", field("run").disabled);
-        check("disabled button explains prerequisites", field("run").title.includes("disabled") && field("run").title.includes("prerequisites"));
+        eq("disabled button wrapper has a hoverable explanation", field("run-tooltip").title, "Disable, check prerequisites warnings.");
+        check("disabled button wrapper can receive focus", field("run-tooltip").tabIndex === 0);
         check("loading is announced", notices.some(item => item[0].includes("Checking prerequisites")));
         await answer(available);
         eq("power sensor name links to its page", field("power").querySelector("a").getAttribute("href"), "/sensors/7");
+        check("power sensor ID is visible", field("power").textContent.includes("ID: 7"));
         check("power sensor value has a label", root.querySelector('label[for="schedulePower"]').textContent.includes("Power sensor"));
         check("timing help spans both inputs", field("timezone").parentElement.classList.contains("col-12"));
         check("checked message is in an info box", field("status").classList.contains("alert-info") && !field("status").classList.contains("d-none"));
         check("price field is ready", !field("price").disabled);
+        check("price choices include sensor IDs", field("price").options[1].textContent.includes("ID: 12"));
         check("missing defaults still prevent running", field("run").disabled);
         chooseDefaults();
         check("explicit defaults allow running", !field("run").disabled);
-        eq("ready button has no disabled explanation", field("run").title, "");
+        eq("ready button has no disabled explanation", field("run-tooltip").title, "");
         eq("selected price sensor links to its page", field("selected-price").querySelector("a").getAttribute("href"), "/sensors/12");
+        check("selected price sensor ID is visible", field("selected-price").textContent.includes("ID: 12"));
+        check("SoC option describes an existing reading", field("soc-source").options[0].textContent.includes("existing SoC reading"));
+        eq("manual SoC field prompts for a value", field("soc").placeholder, "Enter value");
+        check("force checkbox keeps an associated label", root.querySelector('label[for="scheduleForce"]').classList.contains("form-check-label"));
         eq("nothing is saved just by choosing", requests.length, 1);
     """)
 
@@ -211,6 +218,8 @@ def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_
             {id: 8, name: "Other power", unit: "kW", url: "/sensors/8"}]});
         chooseDefaults();
         check("multiple power sensors block the action", field("run").disabled);
+        check("power field explains the multiplicity", field("power").textContent.includes("More than one") && field("power").textContent.includes("see info below"));
+        eq("power field links each sensor ID", [...field("power").querySelectorAll("a")].map(link => link.textContent), ["7", "8"]);
         check("warning says the asset is unsupported", field("warnings").textContent.includes("This asset has multiple power sensors, so it is not supported"));
         check("warning mentions upcoming support", field("warnings").textContent.includes("coming soon"));
         change("duration");
@@ -255,4 +264,14 @@ def test_configured_price_sensor_is_linked(assert_js):
         check("configured price is visible", !field("configured-price-group").classList.contains("d-none"));
         eq("configured price links to its sensor", field("configured-price").querySelector("a").getAttribute("href"), "/sensors/12");
         eq("configured sensor name is shown", field("configured-price").querySelector("a").textContent, "Inherited day-ahead");
+        check("configured price sensor ID is visible", field("configured-price").textContent.includes("ID: 12"));
+    """)
+
+
+def test_soc_selector_is_hidden_without_existing_readings(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, soc_sensors: []});
+        check("no empty SoC chooser is shown", field("soc-source").classList.contains("d-none"));
+        eq("manual value is still offered", field("soc").placeholder, "Enter value");
     """)

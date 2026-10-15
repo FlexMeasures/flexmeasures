@@ -2213,3 +2213,13 @@ body.touched [title]:hover:after {
   font-size: 1.1rem;
   font-weight: 600;
 }
+
+#runScheduleModal label.form-check-label {
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+#runScheduleModal .run-schedule-button-wrapper button:disabled {
+  pointer-events: none;
+}

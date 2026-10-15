@@ -45,7 +45,8 @@ export function initializeRunSchedule(root, config) {
             (!missing(options.consumption_price) || el('price').value) &&
             (!missing(options.power_capacity) || Number(el('capacity').value) > 0);
         el('run').disabled = loading || running || !ready;
-        el('run').title = el('run').disabled ? 'Run schedule is disabled. Check the prerequisites before running.' : '';
+        el('run-tooltip').title = el('run').disabled ? 'Disable, check prerequisites warnings.' : '';
+        el('run-tooltip').tabIndex = el('run').disabled ? 0 : -1;
         el('price').disabled = loading || running;
         el('capacity').disabled = loading || running;
         el('soc-source').disabled = loading || running;
@@ -63,7 +64,7 @@ export function initializeRunSchedule(root, config) {
         const link = document.createElement('a');
         link.href = sensor.url;
         link.textContent = sensor.name;
-        output.replaceChildren(link, ` (${sensor.unit})`);
+        output.replaceChildren(link, ` (${sensor.unit}, ID: ${sensor.id})`);
     }
     function updateSelectedPrice() {
         const sensor = options?.price_sensors.find(item => String(item.id) === el('price').value);
@@ -93,12 +94,25 @@ export function initializeRunSchedule(root, config) {
             const powers = data.power_sensors;
             el('power').replaceChildren();
             if (powers.length === 1) showSensorLink(el('power'), powers[0]);
-            if (!powers.length) warnings.push('This asset has no power sensor, so it is not supported by this Run schedule dialogue. Add a power sensor to this asset to use it.');
-            else if (powers.length > 1) warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue yet. Support for scheduling multiple power sensors here is coming soon. For now, configure multi-device scheduling in flex-config and use the scheduling API.');
+            if (!powers.length) {
+                el('power').textContent = 'None; see info below.';
+                warnings.push('This asset has no power sensor, so it is not supported by this Run schedule dialogue. Add a power sensor to this asset to use it.');
+            } else if (powers.length > 1) {
+                el('power').append('More than one (IDs: ');
+                for (const [index, sensor] of powers.entries()) {
+                    if (index) el('power').append(', ');
+                    const link = document.createElement('a');
+                    link.href = sensor.url;
+                    link.textContent = String(sensor.id);
+                    el('power').append(link);
+                }
+                el('power').append('); see info below.');
+                warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue yet. Support for scheduling multiple power sensors here is coming soon. For now, configure multi-device scheduling in flex-config and use the scheduling API.');
+            }
             const previousPrice = el('price').value;
             el('price').replaceChildren();
             addOption(el('price'), '', 'Choose a price sensor');
-            for (const sensor of data.price_sensors) addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, #${sensor.id})`);
+            for (const sensor of data.price_sensors) addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, ID: ${sensor.id})`);
             el('price').value = previousPrice;
             show('price-group', missing(data.consumption_price));
             show('configured-price-group', !missing(data.consumption_price));
@@ -116,7 +130,8 @@ export function initializeRunSchedule(root, config) {
             if (missing(data.power_capacity)) warnings.push('No power capacity is configured. Enter the device’s power limit for this run.');
             el('capacity').required = missing(data.power_capacity);
             el('soc-source').replaceChildren();
-            addOption(el('soc-source'), '', 'Use configured value or enter a value below');
+            show('soc-source', data.soc_sensors.length > 0);
+            addOption(el('soc-source'), '', 'Choose an existing SoC reading');
             for (const sensor of data.soc_sensors) {
                 addOption(el('soc-source'), sensor.id, `${sensor.name}: ${sensor.value} ${sensor.unit} at ${sensor.event_start}`);
             }

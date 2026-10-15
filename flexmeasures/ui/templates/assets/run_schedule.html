@@ -44,11 +44,10 @@
                         </div>
                         <div class="mb-3">
                             <label for="scheduleSocSource" class="form-label">Starting state of charge</label>
-                            <select id="scheduleSocSource" data-role="soc-source" class="form-select">
-                                <option value="">Use configured value or enter a value below</option>
+                            <select id="scheduleSocSource" data-role="soc-source" class="form-select d-none">
                             </select>
                             <div class="input-group mt-2">
-                                <input id="scheduleSoc" data-role="soc" aria-label="Starting state of charge value" type="number" min="0" step="any" class="form-control" placeholder="Optional">
+                                <input id="scheduleSoc" data-role="soc" aria-label="Starting state of charge value" type="number" min="0" step="any" class="form-control" placeholder="Enter value">
                                 <select data-role="soc-unit" aria-label="State of charge unit" class="form-select">
                                     <option value="kWh">kWh</option><option value="MWh">MWh</option>
                                 </select>
@@ -72,7 +71,9 @@
                     <a data-role="retry" href="#" class="d-none me-auto">Check prerequisites again</a>
                     <span data-role="spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button data-role="run" type="submit" class="btn btn-success" disabled title="Run schedule is disabled until prerequisites have been checked.">Run schedule</button>
+                    <span data-role="run-tooltip" class="run-schedule-button-wrapper d-inline-block" tabindex="0" title="Disable, check prerequisites warnings.">
+                        <button data-role="run" type="submit" class="btn btn-success" disabled>Run schedule</button>
+                    </span>
                 </div>
             </form>
         </div>
