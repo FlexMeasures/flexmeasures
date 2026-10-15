@@ -54,7 +54,7 @@ def modal_setup():
 OPTIONS = """
     const available = {
         power_sensors: [{id: 7, name: "Battery power", unit: "kW", url: "/sensors/7"}],
-        consumption_price: null, power_capacity: null,
+        consumption_price: null, power_capacity: null, requires_soc: true,
         price_sensors: [{id: 12, name: "Day-ahead", unit: "EUR/MWh", url: "/sensors/12"}],
         soc_sensors: [{id: 13, name: "Battery charge", value: 4.5, unit: "kWh",
                        event_start: "2026-10-14T09:00:00Z"}],
@@ -68,6 +68,8 @@ OPTIONS = """
         change("price");
         field("capacity").value = "10";
         change("capacity");
+        field("soc").value = "0";
+        field("soc").dispatchEvent(new Event("input"));
     };
 """
 
@@ -164,7 +166,9 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         await answer({status: "FINISHED"});
         const link = field("results").querySelector("a");
         eq("completed result links to the power sensor", new URL(link.href).pathname, "/sensors/7");
-        eq("result carries chosen period", new URL(link.href).searchParams.get("end_time"), "2026-10-14T10:00:00.000Z");
+        eq("success link says See it here", link.textContent, "See it here");
+        eq("result shows five hours before the schedule", new URL(link.href).searchParams.get("start_time"), "2026-10-14T03:00:00.000Z");
+        eq("result shows five hours after the schedule", new URL(link.href).searchParams.get("end_time"), "2026-10-14T15:00:00.000Z");
         check("save is offered after success", !field("save-group").classList.contains("d-none"));
         eq("success does not save automatically", requests.length, 4);
         field("save").click();
@@ -234,7 +238,7 @@ def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_
 def test_existing_defaults_are_preserved_and_period_edits_require_lookup(assert_js):
     assert_js(modal_setup() + OPTIONS + """
         open();
-        const configured = {...available, consumption_price: 0, power_capacity: "20 kW"};
+        const configured = {...available, consumption_price: 0, power_capacity: "20 kW", requires_soc: false};
         await answer(configured);
         check("configured zero price is valid", !field("run").disabled);
         eq("fixed price is displayed", field("configured-price").textContent, "0");
@@ -274,4 +278,26 @@ def test_soc_selector_is_hidden_without_existing_readings(assert_js):
         await answer({...available, soc_sensors: []});
         check("no empty SoC chooser is shown", field("soc-source").classList.contains("d-none"));
         eq("manual value is still offered", field("soc").placeholder, "Enter value");
+    """)
+
+
+def test_storage_requires_a_starting_soc_but_non_storage_does_not(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW"});
+        check("storage without SoC cannot run", field("run").disabled);
+        check("missing SoC is explained", field("warnings").textContent.includes("starting state of charge"));
+        field("soc").value = "0";
+        field("soc").dispatchEvent(new Event("input"));
+        check("zero SoC is valid", !field("run").disabled);
+        field("soc").value = "-1";
+        field("soc").dispatchEvent(new Event("input"));
+        check("negative SoC is invalid", field("run").disabled);
+        field("soc").value = "";
+        field("soc-source").value = "13";
+        change("soc-source");
+        check("choosing a reading provides SoC", !field("run").disabled);
+        change("duration");
+        await answer({...available, consumption_price: 0, power_capacity: "10 kW", requires_soc: false});
+        check("non-storage asset can run without SoC", !field("run").disabled);
     """)

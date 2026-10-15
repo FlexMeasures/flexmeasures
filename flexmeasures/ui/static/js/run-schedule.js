@@ -40,10 +40,13 @@ export function initializeRunSchedule(root, config) {
             const range = period();
             validPeriod = checkedPeriod && range.start === checkedPeriod.start && range.duration === checkedPeriod.duration;
         } catch { validPeriod = false; }
+        const hasSoc = Boolean(el('soc-source').value) ||
+            (el('soc').value !== '' && el('soc').checkValidity());
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
             options.price_available !== false &&
             (!missing(options.consumption_price) || el('price').value) &&
-            (!missing(options.power_capacity) || Number(el('capacity').value) > 0);
+            (!missing(options.power_capacity) || Number(el('capacity').value) > 0) &&
+            (!options.requires_soc || hasSoc);
         el('run').disabled = loading || running || !ready;
         el('run-tooltip').title = el('run').disabled ? 'Disable, check prerequisites warnings.' : '';
         el('run-tooltip').tabIndex = el('run').disabled ? 0 : -1;
@@ -135,6 +138,7 @@ export function initializeRunSchedule(root, config) {
             for (const sensor of data.soc_sensors) {
                 addOption(el('soc-source'), sensor.id, `${sensor.name}: ${sensor.value} ${sensor.unit} at ${sensor.event_start}`);
             }
+            if (data.requires_soc) warnings.push('A starting state of charge is required for this storage asset. Choose an existing SoC reading or enter a value before running.');
             el('warnings').replaceChildren();
             for (const warning of warnings) {
                 const p = document.createElement('p');
@@ -174,6 +178,7 @@ export function initializeRunSchedule(root, config) {
         if (name === 'price') updateSelectedPrice();
         updateReady();
     });
+    el('soc').addEventListener('input', updateReady);
     el('retry').addEventListener('click', event => {
         event.preventDefault();
         lookup();
@@ -220,11 +225,12 @@ export function initializeRunSchedule(root, config) {
                     notify('Schedule finished. The schedule data is ready.', 'success');
                     const link = document.createElement('a');
                     const url = new URL(sensor.url, window.location.origin);
-                    url.searchParams.set('start_time', range.start);
-                    url.searchParams.set('end_time', range.end);
+                    const contextHours = 5 * 3600000;
+                    url.searchParams.set('start_time', new Date(new Date(range.start).getTime() - contextHours).toISOString());
+                    url.searchParams.set('end_time', new Date(new Date(range.end).getTime() + contextHours).toISOString());
                     link.href = url.toString();
                     link.className = 'btn btn-primary';
-                    link.textContent = 'View schedule data';
+                    link.textContent = 'See it here';
                     el('results').replaceChildren(link);
                     show('results', true);
                     if (Object.keys(choices).length && options.can_save) {

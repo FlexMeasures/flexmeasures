@@ -10,6 +10,7 @@ from sqlalchemy import select
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.planning.storage import storage_asset_types
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.generic_assets import patch_asset
 from flexmeasures.data.schemas.units import QuantityField
@@ -96,6 +97,10 @@ def schedule_options(asset, start_time, end_time):
             ),
         ),
         soc_sensors=soc_sensors,
+        requires_soc=(
+            asset.asset_type.name in storage_asset_types
+            and model.get("soc-at-start") is None
+        ),
         timezone=asset.timezone,
         can_save=user_can_access(asset, "edit-flex-config"),
     )

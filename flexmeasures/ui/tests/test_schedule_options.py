@@ -228,6 +228,22 @@ def test_inherited_price_sensor_is_identified_and_checked_for_coverage(
     assert data["price_sensors"] == []
 
 
+def test_starting_soc_is_required_only_for_storage_without_a_configured_value(
+    db, client, schedule_assets, setup_generic_asset_types, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    assert options(client, asset).get_json()["requires_soc"] is True
+
+    asset.flex_model = {"soc-at-start": "0 kWh"}
+    db.session.commit()
+    assert options(client, asset).get_json()["requires_soc"] is False
+
+    asset.flex_model = {}
+    asset.generic_asset_type = setup_generic_asset_types["wind"]
+    db.session.commit()
+    assert options(client, asset).get_json()["requires_soc"] is False
+
+
 def test_defaults_preserve_config_and_refuse_overwrite(
     db, client, schedule_assets, as_admin
 ):
