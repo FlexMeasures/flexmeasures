@@ -194,18 +194,6 @@ class Config(object):
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
     # Deprecated, and ignored: triggers are always counted per account
     FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
-    FLEXMEASURES_JS_VERSIONS: dict = dict(
-        vega="5.22.1",
-        vegaembed="6.21.0",
-        vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
-        echarts="5.6.0",  # used for the fast (canvas-based) chart mode
-        currencysymbolmap="5.1.0",
-        jsoneditor="2.15.2",
-        leaflet="1.9.4",
-        leafletmarkercluster="1.5.3",
-        leafletmarkerclusterlayersupport="2.0.1",
-        # todo: expand with other js versions used in FlexMeasures
-    )
     FLEXMEASURES_JSON_COMPACT = False
     OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False

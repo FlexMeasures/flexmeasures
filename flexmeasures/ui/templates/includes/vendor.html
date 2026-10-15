@@ -1,0 +1,73 @@
+{#- Tags for the third-party assets which the UI serves itself, from static/vendor/<lib>/<version>/.
+    Versions live in flexmeasures/ui/utils/vendor_versions.py, see static/vendor/README.md.
+    Import with {% import "includes/vendor.html" as vendor %}. -#}
+
+{% macro _url(lib, path) -%}
+    {{- url_for("flexmeasures_ui.static", filename="vendor/" ~ lib ~ "/" ~ js_versions[lib] ~ "/" ~ path) -}}
+{%- endmacro %}
+
+{#- Stylesheets, and JSON-Editor, which templates use before the end of <body>. -#}
+{% macro head() %}
+    <script src="{{ _url('jsoneditor', 'jsoneditor.min.js') }}"></script>
+    <link href="{{ _url('leaflet', 'leaflet.css') }}" rel="stylesheet" />
+    <link href="{{ _url('leafletmarkercluster', 'MarkerCluster.css') }}" rel="stylesheet" />
+    <link href="{{ _url('leafletmarkercluster', 'MarkerCluster.Default.css') }}" rel="stylesheet" />
+    <link href="{{ _url('bootstrapicons', 'bootstrap-icons.css') }}" rel="stylesheet" />
+    <link href="{{ _url('bootstrap', 'css/bootstrap.min.css') }}" rel="stylesheet" />
+    <link href="{{ _url('fontawesome', 'css/font-awesome.min.css') }}" rel="stylesheet" />
+    <link href="{{ _url('ionrangeslider', 'ion.rangeSlider.css') }}" rel="stylesheet" />
+{% endmacro %}
+
+{% macro datatables_css() %}
+    <link href="{{ _url('datatables', 'css/jquery.dataTables.min.css') }}" rel="stylesheet" />
+{% endmacro %}
+
+{#- Early in <body>, as inline scripts in page content use jQuery. -#}
+{% macro jquery() %}
+    <script src="{{ _url('jquery', 'jquery.min.js') }}"></script>
+    <script src="{{ _url('floatthead', 'jquery.floatThead.min.js') }}"></script>
+{% endmacro %}
+
+{% macro bootstrap_js() %}
+    <script src="{{ _url('bootstrap', 'js/bootstrap.bundle.min.js') }}"></script>
+{% endmacro %}
+
+{% macro echarts() %}
+    <script src="{{ _url('echarts', 'echarts.min.js') }}"></script>
+{% endmacro %}
+
+{#- Chart and widget libraries, in the order base.html loaded them from CDNs. -#}
+{% macro scripts() %}
+    <script src="{{ _url('ionrangeslider', 'ion.rangeSlider.min.js') }}"></script>
+    <script src="{{ _url('d3', 'd3.min.js') }}"></script>
+    <script src="{{ _url('vega', 'vega.min.js') }}"></script>
+    <script src="{{ _url('vegalite', 'vega-lite.min.js') }}"></script>
+    <script src="{{ _url('vegaembed', 'vega-embed.min.js') }}"></script>
+    {{ echarts() }}
+    {# Workaround for loading a NodeJS module without NodeJS #}
+    <script>var module = { exports: {} };</script>
+    <script src="{{ _url('currencysymbolmap', 'map.js') }}"></script>
+    <script>const currencySymbolMap = module.exports;</script>
+{% endmacro %}
+
+{% macro datatables_js() %}
+    <script src="{{ _url('datatables', 'js/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ _url('datatables', 'plug-ins/dataTables.conditionalPaging.js') }}"></script>
+{% endmacro %}
+
+{% macro leaflet_js() %}
+    <script src="{{ _url('leaflet', 'leaflet-src.min.js') }}"></script>
+{% endmacro %}
+
+{% macro markercluster_js() %}
+    <script src="{{ _url('leafletmarkercluster', 'leaflet.markercluster.js') }}"></script>
+    <script src="{{ _url('leafletmarkerclusterlayersupport', 'leaflet.markercluster.layersupport.js') }}"></script>
+{% endmacro %}
+
+{#- Date range picker on the asset graph, asset properties and sensor pages. -#}
+{% macro litepicker() %}
+    <script src="{{ _url('jstimezonedetect', 'jstz.js') }}"></script>
+    <script src="{{ _url('litepicker', 'litepicker.js') }}"></script>
+    <script src="{{ _url('litepicker', 'plugins/ranges.js') }}"></script>
+    <script src="{{ _url('litepicker', 'plugins/keyboardnav.js') }}"></script>
+{% endmacro %}
