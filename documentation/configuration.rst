@@ -267,7 +267,9 @@ Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_e
 FLEXMEASURES_JS_VERSIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
+.. deprecated:: 1.1.0
+   This setting is ignored.
+   The UI serves its own copies of its JavaScript and CSS libraries, at the versions listed in ``flexmeasures/ui/utils/vendor_versions.py``.
 
 
 Timing

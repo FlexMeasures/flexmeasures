@@ -32,9 +32,28 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
+from flexmeasures.ui.utils.vendor_versions import JS_VERSIONS
+
+
+class UIBlueprint(Blueprint):
+    """A blueprint whose vendored files, under static/vendor/<lib>/<version>/, browsers may keep for a year."""
+
+    def send_static_file(self, filename: str):
+        response = super().send_static_file(filename)
+        parts = filename.split("/")
+        # A new version of a library gets a new path, so a cached copy is never stale.
+        if (
+            len(parts) > 3
+            and parts[0] == "vendor"
+            and JS_VERSIONS.get(parts[1]) == parts[2]
+        ):
+            response.cache_control.max_age = 31536000
+            response.cache_control.immutable = True
+        return response
+
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
-flexmeasures_ui = Blueprint(
+flexmeasures_ui = UIBlueprint(
     "flexmeasures_ui",
     __name__,
     static_folder="static",
@@ -83,6 +102,17 @@ def register_at(app: Flask):
     add_html_error_views(app)
     add_jinja_filters(app)
     add_jinja_variables(app)
+    warn_about_deprecated_js_versions(app)
+
+
+def warn_about_deprecated_js_versions(app: Flask):
+    """Tell hosts who still pin UI library versions that FlexMeasures now serves its own copies."""
+    if app.config.get("FLEXMEASURES_JS_VERSIONS") is not None:
+        app.logger.warning(
+            "FLEXMEASURES_JS_VERSIONS is deprecated and ignored. "
+            "The UI now serves its own copies of its JavaScript and CSS libraries, "
+            "at the versions listed in flexmeasures/ui/utils/vendor_versions.py."
+        )
 
 
 def _tolerate_non_json_job_data():
@@ -221,6 +251,8 @@ def add_jinja_variables(app):
         ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)
+    # A global rather than a per-render variable, so pages rendered without render_flexmeasures_template (e.g. login, errors) also get it.
+    app.jinja_env.globals["js_versions"] = JS_VERSIONS
     app.jinja_env.globals["sphinx_docs_exist"] = (
         True
         if os.path.exists(

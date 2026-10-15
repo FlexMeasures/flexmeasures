@@ -101,7 +101,6 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""
     )
-    variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
 
     # Chart options passed to vega-embed
     options = chart_options.copy()
