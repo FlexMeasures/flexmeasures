@@ -199,6 +199,7 @@ def test_preview_requires_permission_to_post_data(
         ("hours", dict(duration="PT1H", values=[80, 90]), "or coarser"),
         ("hours", dict(unit="°C"), "Required unit"),
         ("hours", dict(repeat="weekly"), "Must be one of"),
+        ("hours", dict(duration="P1M"), "rather than in months or years"),
         ("temperature", dict(unit="°C"), "instantaneous values"),
         # A daily sensor cannot keep fixed steps of 24 hours across the transition on October 25.
         (
@@ -246,7 +247,7 @@ def test_preview_refuses_invalid_patterns(
 def test_preview_refuses_more_than_can_be_posted(
     client, soc_sensors, requesting_user, monkeypatch
 ):
-    """Refuse repeats that would not fit in one request to post them."""
+    """Refuse repeats that would not fit in one request to post them, before expanding them where possible."""
     monkeypatch.setitem(
         current_app.config, "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES", 2000
     )
@@ -261,8 +262,20 @@ def test_preview_refuses_more_than_can_be_posted(
     response = preview(client, soc_sensors["hours"], until="2026-06-03", **pattern)
     assert response.status_code == 200
 
+    # Too large once expanded, but not to tell beforehand.
     response = preview(client, soc_sensors["hours"], until="2026-06-30", **pattern)
     assert response.status_code == 422
-    assert "more than can be posted in one request (2000 bytes)" in str(
-        response.json["message"]
+    message = str(response.json["message"])
+    assert "more than can be posted in one request (2000 bytes)" in message
+    assert "at least" not in message
+
+    # Too large to expand at all.
+    def fail(*args, **kwargs):
+        raise AssertionError("The pattern should not have been expanded.")
+
+    monkeypatch.setattr(
+        "flexmeasures.api.v3_0.sensors.expand_wall_clock_recurrence", fail
     )
+    response = preview(client, soc_sensors["hours"], until="2026-08-31", **pattern)
+    assert response.status_code == 422
+    assert "take at least" in str(response.json["message"])
