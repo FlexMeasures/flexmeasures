@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask_login import current_user
 from isodate import datetime_isoformat
@@ -517,6 +517,21 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             bdf = bdf.resample_events(required_resolution)
         return bdf
 
+    @staticmethod
+    def align_start_to_sensor(start: datetime, sensor: Sensor) -> datetime:
+        """Align the start of posted data to the sensor's grid of events, as configured on the sensor.
+
+        By default, the start is floored to the sensor resolution;
+        an instantaneous sensor may instead round it to its configured frequency.
+        """
+        if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
+            "floor_datetimes_to_resolution", True
+        ):
+            return pd.Timestamp(start).floor(sensor.event_resolution)
+        elif frequency := sensor.get_attribute("frequency"):
+            return pd.Timestamp(start).round(frequency)
+        return start
+
     def load_bdf(self, sensor_data: dict) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
@@ -524,15 +539,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         source = get_or_create_source(self.source_user or current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
-        start = sensor_data["start"]
-        sensor = sensor_data["sensor"]
-
-        if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
-            "floor_datetimes_to_resolution", True
-        ):
-            start = pd.Timestamp(start).floor(sensor.event_resolution)
-        elif frequency := sensor.get_attribute("frequency"):
-            start = pd.Timestamp(start).round(frequency)
+        start = self.align_start_to_sensor(sensor_data["start"], sensor_data["sensor"])
 
         if event_resolution == timedelta(hours=0):
             dt_index = pd.date_range(
