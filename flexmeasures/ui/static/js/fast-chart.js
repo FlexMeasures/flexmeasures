@@ -882,6 +882,16 @@ function setSelectMode(elementId) {
   applyChartMode(instance);
 }
 
+// Turn the select tool on, as its toolbox button does, or back off to zooming.
+// Returns whether the chart offers the select tool at all (it does not on touch devices, nor on charts without a time axis).
+export function setFastChartSelectMode(elementId, on) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed() || !instance._selectable) return false;
+  if (on) setSelectMode(elementId);
+  else setChartMode(elementId, true);
+  return true;
+}
+
 function resetChartZoom(elementId) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
@@ -1094,6 +1104,21 @@ export function singlePointTooltip(meta, value, options) {
   return tooltipTable(rows);
 }
 
+// How far, in pixels, the pointer is from an axis-trigger param's data point (Infinity when that cannot be told).
+function paramPixelDistance(p, instance) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  if (!pointer || !chart || !p.value) return Infinity;
+  let px;
+  try {
+    px = chart.convertToPixel({ seriesIndex: p.seriesIndex }, [p.value[0], p.value[1]]);
+  } catch (e) {
+    px = null;
+  }
+  if (!px) return Infinity;
+  return Math.hypot(px[0] - pointer[0], px[1] - pointer[1]);
+}
+
 // Choose, among the axis-trigger params (one point per series at the ruler), the
 // one whose data point is closest to the cursor. Since every series shares the
 // ruler's x, the distance is dominated by the vertical gap to each line, so the
@@ -1106,15 +1131,7 @@ function pickNearestParam(params, instance) {
     let best = null;
     let bestDist = Infinity;
     for (const p of params) {
-      if (!p.value) continue;
-      let px;
-      try {
-        px = chart.convertToPixel({ seriesIndex: p.seriesIndex }, [p.value[0], p.value[1]]);
-      } catch (e) {
-        px = null;
-      }
-      if (!px) continue;
-      const dist = (px[0] - pointer[0]) ** 2 + (px[1] - pointer[1]) ** 2;
+      const dist = paramPixelDistance(p, instance);
       if (dist < bestDist) {
         bestDist = dist;
         best = p;
@@ -1186,7 +1203,15 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       if (params.length === 0) {
         return "";
       }
-      const best = pickNearestParam(params, instance);
+      // The chart offers the series whose point lies closest in time to the pointer, which often leaves out the draft values,
+      // so they are looked up at the pointer instead, and win when the pointer is closer to them than to the data.
+      const dataParams = params.filter((p) => !(seriesMeta[p.seriesIndex] && seriesMeta[p.seriesIndex].isDraft));
+      const best = dataParams.length > 0 ? pickNearestParam(dataParams, instance) : null;
+      const draftHit = draftUnderPointer(instance, seriesMeta);
+      if (draftHit && (!best || draftHit.distance <= paramPixelDistance(best, instance))) {
+        return draftTooltip(draftHit.meta, draftHit.draft);
+      }
+      if (!best) return "";
       const meta = seriesMeta[best.seriesIndex];
       if (instance) syncEmphasis(instance, best.seriesIndex, best.dataIndex);
       return singlePointTooltip(meta, nearestRealPoint(meta, best.value), tooltipOptions());
@@ -1195,8 +1220,70 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
     const meta = seriesMeta[params.seriesIndex];
+    if (meta && meta.isDraft) {
+      const draftHit = draftUnderPointer(instance, seriesMeta);
+      return draftHit ? draftTooltip(meta, draftHit.draft) : "";
+    }
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
   };
+}
+
+/* ============================== draft values ============================== */
+
+// Draft values are not saved yet, so they stand apart from the data: their own colour, a dashed line, and a legend entry.
+const DRAFT_VALUES_NAME = "Draft values";
+const DRAFT_VALUES_COLOR = "#d6336c";
+
+// The overlay for draft values ({start, end, value}, sorted by start): a level line across each slot.
+// Neighbouring slots join with a step, and a gap between slots breaks the line.
+export function buildDraftValuesSeries(drafts, axisIndex) {
+  const data = [];
+  drafts.forEach((draft, k) => {
+    const start = draft.start.getTime();
+    if (k > 0 && drafts[k - 1].end.getTime() !== start) data.push([start, null]);
+    data.push([start, draft.value], [draft.end.getTime(), draft.value]);
+  });
+  return {
+    name: DRAFT_VALUES_NAME,
+    type: "line",
+    xAxisIndex: axisIndex,
+    yAxisIndex: axisIndex,
+    data: data,
+    color: DRAFT_VALUES_COLOR,
+    lineStyle: { width: 3, type: "dashed" },
+    // Hovering the data fades the other series, but draft values are what the user is working on.
+    blur: { lineStyle: { opacity: 1 } },
+    showSymbol: false,
+    connectNulls: false,
+    z: 5, // above the data
+    animation: false,
+  };
+}
+
+// The draft value of the slot at the given time, if any.
+export function draftValueAt(drafts, time) {
+  return drafts.find((d) => d.start.getTime() <= time && time < d.end.getTime()) ||
+    drafts.find((d) => d.end.getTime() === time) || null;
+}
+
+// The draft value in the slot under the pointer, and how far the pointer is from its line, in pixels.
+function draftUnderPointer(instance, seriesMeta) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  const seriesIndex = seriesMeta.findIndex((m) => m && m.isDraft);
+  if (!pointer || !chart || chart.isDisposed() || seriesIndex < 0) return null;
+  const time = chart.convertFromPixel({ seriesIndex: seriesIndex }, pointer)[0];
+  const draft = isFinite(time) ? draftValueAt(seriesMeta[seriesIndex].drafts, time) : null;
+  if (!draft) return null;
+  const y = chart.convertToPixel({ seriesIndex: seriesIndex }, [time, draft.value])[1];
+  return { meta: seriesMeta[seriesIndex], draft: draft, distance: Math.abs(y - pointer[1]) };
+}
+
+function draftTooltip(meta, draft) {
+  return tooltipTable([
+    ["Draft value", formatQuantity(draft.value, meta.unit)],
+    ["Time and date", formatFullDate(draft.start)],
+  ]);
 }
 
 /* ============================== annotations ============================== */
@@ -1676,6 +1763,11 @@ function buildLineBarOption(elementId, groups, opts) {
         roundedList.push({ seriesIndex: series.length - 1, points: s.points, gridIndex: i });
       }
     });
+    // Draft values (see draft-values.js) overlay the first subplot, which on the sensor page shows the sensor they are for.
+    if (i === 0 && Array.isArray(opts.draftValues) && opts.draftValues.length > 0) {
+      series.push(buildDraftValuesSeries(opts.draftValues, i));
+      seriesMeta.push({ isDraft: true, name: DRAFT_VALUES_NAME, unit: group.units[0] || "", drafts: opts.draftValues });
+    }
   });
 
   // Title above the bottom legend: "Sensor" for multi-sensor (asset) charts,
@@ -2655,11 +2747,20 @@ export function getFastChartVisibleTimeRange(elementId) {
 
 // Refresh annotation marks without discarding the user's current zoom.
 export function refreshFastChartAnnotations(elementId, annotations) {
+  rerenderKeepingZoom(elementId, { annotations });
+}
+
+// Show draft values (see draft-values.js) on the chart, without discarding the user's current zoom.
+export function refreshFastChartDraftValues(elementId, draftValues) {
+  rerenderKeepingZoom(elementId, { draftValues });
+}
+
+function rerenderKeepingZoom(elementId, changedOptions) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed() || !instance.lastArgs) return;
   const zoom = (instance.chart.getOption().dataZoom || [])[0];
   const { data, options } = instance.lastArgs;
-  renderFastChart(elementId, data, { ...options, annotations });
+  renderFastChart(elementId, data, { ...options, ...changedOptions });
   if (zoom && typeof zoom.start === "number" && typeof zoom.end === "number") {
     instance.chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: zoom.start, end: zoom.end });
   }
@@ -2817,6 +2918,19 @@ function wirePointerTracking(instance) {
     instance._pointerPixel = [e.offsetX, e.offsetY];
   };
   zr.on("mousemove", instance.onPointerMove);
+  // The tooltip is drawn while the chart handles a move, before the handler above runs,
+  // so also record the pointer from the container, in the capture phase, which comes first.
+  const container = instance.chart.getDom();
+  if (instance.onPointerMoveEarly) {
+    container.removeEventListener("mousemove", instance.onPointerMoveEarly, true);
+  }
+  instance.onPointerMoveEarly = (e) => {
+    const root = instance.chart.isDisposed() ? null : instance.chart.getZr().painter.getViewportRoot();
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    instance._pointerPixel = [e.clientX - rect.left, e.clientY - rect.top];
+  };
+  container.addEventListener("mousemove", instance.onPointerMoveEarly, true);
   // Record the press position too, so a touch tap's tooltip has a pointer to snap to
   // (there's no mousemove before a tap).
   if (instance.onPointerDown) {
@@ -3164,6 +3278,9 @@ export function disposeFastChart(elementId) {
     }
     if (instance.onAnnotZoom && !instance.chart.isDisposed()) {
       instance.chart.off("datazoom", instance.onAnnotZoom);
+    }
+    if (instance.onPointerMoveEarly && !instance.chart.isDisposed()) {
+      instance.chart.getDom().removeEventListener("mousemove", instance.onPointerMoveEarly, true);
     }
     window.removeEventListener("resize", instance.onResize);
     // These are document-level listeners, so chart.dispose() won't remove them.

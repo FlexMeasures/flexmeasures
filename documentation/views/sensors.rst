@@ -61,6 +61,22 @@ A range selected on the chart, or followed from the visible chart, is widened to
 
 Histogram and heatmap charts have no time axis to select on, so there the fields follow the date range selected on the left.
 
+Drafting sensor values
+----------------------
+
+Users with permission to record data on a sensor can sketch values on its chart from the **Draft values** panel, before anything is saved. Nothing is written to the database from this panel.
+
+Click **Record**. This turns on the fast chart and its select tool (switching to the bar chart if a histogram or heatmap was shown). Then choose the time range to fill:
+
+- Drag across the chart, or click once to choose a single event.
+- Or enter a **Start** and a **Duration**. The duration is an ISO 8601 duration, read as the sensor data API reads it: ``PT15M``, ``PT2H``, or ``P1D``, which is always 24 hours, also on a day with a daylight saving time transition.
+
+Either way, the range is widened to whole events of the sensor, and a range chosen on the chart fills in the **Start** and **Duration** fields. Type a value in the sensor's unit and click **Add** (or press Enter), and every event in the range gets that value. Adding over an existing draft value replaces it.
+
+Draft values show on the chart as a dashed line, with their own legend entry, and are listed in the panel, where each can be removed. Click **Stop** to end recording and keep the draft values. **Cancel** discards them, after asking. Since draft values only live in the page, leaving or reloading it asks for confirmation first.
+
+Draft values are not offered on touch devices, nor on sensors that record instantaneous values.
+
 Deleting annotations
 --------------------
 

@@ -502,3 +502,37 @@ def test_shift_click_pins_several_annotations(assert_js):
         click(250, false);
         eq("a plain click outside releases all pins", pinnedTexts(), []);
         """)
+
+
+def test_draft_values_overlay_a_level_line_per_slot(assert_js):
+    """Neighbouring slots join with a step, and a gap between slots breaks the line."""
+    assert_js("""
+        import { buildDraftValuesSeries } from "/js/fast-chart.js";
+        const HOUR = 3600 * 1000;
+        const draft = (h, value) => ({ start: new Date(h * HOUR), end: new Date((h + 1) * HOUR), value });
+        const series = buildDraftValuesSeries([draft(0, 1), draft(1, 2), draft(3, 4)], 0);
+        eq("each slot is drawn from its start to its end, with a break before the gap", series.data, [
+            [0, 1], [HOUR, 1],
+            [HOUR, 2], [2 * HOUR, 2],
+            [3 * HOUR, null],
+            [3 * HOUR, 4], [4 * HOUR, 4],
+        ]);
+        eq("draft values have their own legend entry", series.name, "Draft values");
+        eq("and a dashed line", series.lineStyle.type, "dashed");
+        eq("a gap is not bridged", series.connectNulls, false);
+        """)
+
+
+def test_draft_value_tooltip_reads_the_slot_under_the_pointer(assert_js):
+    assert_js("""
+        import { draftValueAt } from "/js/fast-chart.js";
+        const HOUR = 3600 * 1000;
+        const drafts = [
+            { start: new Date(0), end: new Date(HOUR), value: 1 },
+            { start: new Date(HOUR), end: new Date(2 * HOUR), value: 2 },
+        ];
+        eq("inside a slot, that slot's value", draftValueAt(drafts, HOUR / 2).value, 1);
+        eq("where two slots meet, the later slot's value", draftValueAt(drafts, HOUR).value, 2);
+        eq("at the end of the last slot, its value", draftValueAt(drafts, 2 * HOUR).value, 2);
+        eq("outside the draft values, none", draftValueAt(drafts, 3 * HOUR), null);
+        """)
