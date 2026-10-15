@@ -882,6 +882,16 @@ function setSelectMode(elementId) {
   applyChartMode(instance);
 }
 
+// Turn the select tool on, as its toolbox button does, or back off to zooming.
+// Returns whether the chart offers the select tool at all (it does not on touch devices, nor on charts without a time axis).
+export function setFastChartSelectMode(elementId, on) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed() || !instance._selectable) return false;
+  if (on) setSelectMode(elementId);
+  else setChartMode(elementId, true);
+  return true;
+}
+
 function resetChartZoom(elementId) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
@@ -1189,14 +1199,72 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       const best = pickNearestParam(params, instance);
       const meta = seriesMeta[best.seriesIndex];
       if (instance) syncEmphasis(instance, best.seriesIndex, best.dataIndex);
+      if (meta && meta.isDraft) return draftTooltip(meta, pointerTime(instance, best));
       return singlePointTooltip(meta, nearestRealPoint(meta, best.value), tooltipOptions());
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
     const meta = seriesMeta[params.seriesIndex];
+    if (meta && meta.isDraft) return draftTooltip(meta, pointerTime(instance, params));
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
   };
+}
+
+/* ============================== draft values ============================== */
+
+// Draft values are not saved yet, so they stand apart from the data: their own colour, a dashed line, and a legend entry.
+const DRAFT_VALUES_NAME = "Draft values";
+const DRAFT_VALUES_COLOR = "#d6336c";
+
+// The overlay for draft values ({start, end, value}, sorted by start): a level line across each slot.
+// Neighbouring slots join with a step, and a gap between slots breaks the line.
+export function buildDraftValuesSeries(drafts, axisIndex) {
+  const data = [];
+  drafts.forEach((draft, k) => {
+    const start = draft.start.getTime();
+    if (k > 0 && drafts[k - 1].end.getTime() !== start) data.push([start, null]);
+    data.push([start, draft.value], [draft.end.getTime(), draft.value]);
+  });
+  return {
+    name: DRAFT_VALUES_NAME,
+    type: "line",
+    xAxisIndex: axisIndex,
+    yAxisIndex: axisIndex,
+    data: data,
+    color: DRAFT_VALUES_COLOR,
+    lineStyle: { width: 3, type: "dashed" },
+    showSymbol: false,
+    connectNulls: false,
+    z: 5, // above the data
+    animation: false,
+  };
+}
+
+// The draft value of the slot at the given time, if any.
+export function draftValueAt(drafts, time) {
+  return drafts.find((d) => d.start.getTime() <= time && time < d.end.getTime()) ||
+    drafts.find((d) => d.end.getTime() === time) || null;
+}
+
+// The time under the pointer, rather than at the hovered vertex, which neighbouring slots share.
+function pointerTime(instance, param) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  if (pointer && chart && !chart.isDisposed()) {
+    const time = chart.convertFromPixel({ seriesIndex: param.seriesIndex }, pointer)[0];
+    if (isFinite(time)) return time;
+  }
+  return param.value[0];
+}
+
+function draftTooltip(meta, time) {
+  const draft = draftValueAt(meta.drafts, time);
+  if (!draft) return "";
+  return tooltipTable([
+    ["Draft value", formatQuantity(draft.value, meta.unit)],
+    ["Time and date", formatFullDate(draft.start)],
+  ]);
 }
 
 /* ============================== annotations ============================== */
@@ -1676,6 +1744,11 @@ function buildLineBarOption(elementId, groups, opts) {
         roundedList.push({ seriesIndex: series.length - 1, points: s.points, gridIndex: i });
       }
     });
+    // Draft values (see draft-values.js) overlay the first subplot, which on the sensor page shows the sensor they are for.
+    if (i === 0 && Array.isArray(opts.draftValues) && opts.draftValues.length > 0) {
+      series.push(buildDraftValuesSeries(opts.draftValues, i));
+      seriesMeta.push({ isDraft: true, name: DRAFT_VALUES_NAME, unit: group.units[0] || "", drafts: opts.draftValues });
+    }
   });
 
   // Title above the bottom legend: "Sensor" for multi-sensor (asset) charts,
@@ -2655,11 +2728,20 @@ export function getFastChartVisibleTimeRange(elementId) {
 
 // Refresh annotation marks without discarding the user's current zoom.
 export function refreshFastChartAnnotations(elementId, annotations) {
+  rerenderKeepingZoom(elementId, { annotations });
+}
+
+// Show draft values (see draft-values.js) on the chart, without discarding the user's current zoom.
+export function refreshFastChartDraftValues(elementId, draftValues) {
+  rerenderKeepingZoom(elementId, { draftValues });
+}
+
+function rerenderKeepingZoom(elementId, changedOptions) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed() || !instance.lastArgs) return;
   const zoom = (instance.chart.getOption().dataZoom || [])[0];
   const { data, options } = instance.lastArgs;
-  renderFastChart(elementId, data, { ...options, annotations });
+  renderFastChart(elementId, data, { ...options, ...changedOptions });
   if (zoom && typeof zoom.start === "number" && typeof zoom.end === "number") {
     instance.chart.dispatchAction({ type: "dataZoom", dataZoomIndex: 0, start: zoom.start, end: zoom.end });
   }
