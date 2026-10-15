@@ -830,6 +830,42 @@ def test_hitting_the_default_rate_limit_is_logged(
     ]
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_hitting_the_ui_rate_limit_is_logged_as_such(
+    app, setup_roles_users, rate_limiting, requesting_user, caplog
+):
+    """A host can tell from the logs that it was a user's UI budget that ran out, rather than their account's."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "1 per minute")
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert refusal_logs(caplog) == [
+        f"Refused a request for hitting the UI rate limit (1 per 1 minute): "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, "
+        f"GET {url_for('SensorAPI:index')} (SensorAPI:index)."
+    ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_ui_rate_limit_breach_is_not_audited(
+    app, db, setup_roles_users, undo_new_rows, rate_limiting, requesting_user
+):
+    """The account's audit log records breaches of the account's budgets, and the UI's budget is the user's."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "1 per minute")
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert new_rate_limit_audit_logs(db, previous_id) == []
+
+
 def test_hitting_the_default_rate_limit_unauthenticated_is_logged(
     app, rate_limiting, caplog
 ):

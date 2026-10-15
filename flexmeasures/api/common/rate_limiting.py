@@ -289,7 +289,12 @@ def _log_rate_limit_hit(error):
         is_trigger_limit = False
     else:
         is_trigger_limit = runtime_limit.scope == TRIGGER_SCOPE
-        limit_name = "trigger" if is_trigger_limit else "default"
+        if is_trigger_limit:
+            limit_name = "trigger"
+        elif _is_ui_request():
+            limit_name = "UI"
+        else:
+            limit_name = "default"
         limit_description = f"the {limit_name} rate limit ({runtime_limit.limit})"
     asset = f", asset {_asset_id_of_trigger()}" if is_trigger_limit else ""
     current_app.logger.warning(
@@ -310,6 +315,9 @@ def _audit_rate_limit_hit(error) -> None:
         or not current_user.is_authenticated
         or current_user.account is None
     ):
+        return
+    if runtime_limit.scope != TRIGGER_SCOPE and _is_ui_request():
+        # The user ran out of their UI budget, which is theirs rather than the account's.
         return
 
     account = current_user.account
