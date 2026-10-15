@@ -18,6 +18,15 @@ def test_something(assert_js):
     )
 ```
 
+A few files, such as `flexmeasures.js` and `map-init.js`, are classic scripts rather than modules:
+their functions become globals, and they expect libraries such as jQuery or Leaflet on the page.
+Their tests put stand-ins for those libraries on `window`, then load the script with a `<script>` element
+(see `test_flexmeasures_js.py`).
+
+Logic that lives inline in a template cannot be reached this way.
+To test it, move it into a module under `flexmeasures/ui/static/js` and import that from the template,
+as `asset-tree.js` and `flex-context-utils.js` were moved out of `_macros.html` and `assets/asset_context.html`.
+
 Run them with the rest of the suite, or on their own:
 
 ```bash

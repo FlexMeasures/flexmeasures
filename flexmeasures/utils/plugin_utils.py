@@ -175,6 +175,11 @@ def register_plugins(app: Flask):  # noqa: C901
         if plugin_schedulers:
             app.data_generators["scheduler"].update(plugin_schedulers)
 
+        from flexmeasures.data.automations import register_automation_handler
+
+        for handler in getattr(module, "__automation_types__", []):
+            register_automation_handler(app, handler)
+
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))

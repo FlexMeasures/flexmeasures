@@ -5,14 +5,18 @@ Reading in configuration
 from __future__ import annotations
 
 import os
+import re
 import sys
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from importlib import metadata
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
+import isodate
+from packaging.version import Version
 from dotenv import dotenv_values
 import pandas as pd
 
@@ -153,6 +157,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
 
     # TRUSTED_HOSTS can be set as an environment variable, which is always a string.
     normalize_trusted_hosts(app)
+    pin_database_driver(app)
+    normalize_security_durations(app)
 
     # Check for missing values.
     # Again, tests and documentation run fine without them.
@@ -302,6 +308,77 @@ def normalize_trusted_hosts(app: Flask) -> None:
         app.config["TRUSTED_HOSTS"] = trusted_hosts
     if trusted_hosts is not None and len(trusted_hosts) == 0:
         app.config["TRUSTED_HOSTS"] = None
+
+
+def pin_database_driver(app: Flask) -> None:
+    """Connect through psycopg 3 if the database URI names no driver.
+
+    SQLAlchemy 2.0 connects a plain postgresql:// URI through psycopg2, and SQLAlchemy 2.1 through psycopg 3,
+    so without naming the driver, which one we get would depend on the SQLAlchemy version installed.
+    An explicitly chosen driver (e.g. postgresql+psycopg2://) is left alone.
+    """
+    uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    if isinstance(uri, str) and uri.startswith("postgresql://"):
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            "postgresql+psycopg://" + uri.removeprefix("postgresql://")
+        )
+
+
+# Flask-Security settings that hold a duration.
+SECURITY_DURATION_SETTINGS = (
+    "SECURITY_LOGIN_WITHIN",
+    "SECURITY_CHANGE_EMAIL_WITHIN",
+    "SECURITY_CONFIRM_EMAIL_WITHIN",
+    "SECURITY_RESET_PASSWORD_WITHIN",
+    "SECURITY_TWO_FACTOR_SETUP_WITHIN",
+    "SECURITY_US_SETUP_WITHIN",
+    "SECURITY_WAN_REGISTER_WITHIN",
+    "SECURITY_WAN_SIGNIN_WITHIN",
+    "SECURITY_TWO_FACTOR_LOGIN_VALIDITY",
+)
+
+
+def parse_duration_setting(setting: str, value: str | timedelta) -> timedelta:
+    """Parse a duration given in a setting, such as "1 week", "7 days" or an ISO 8601 duration like "P1W".
+
+    Only units of a fixed length are accepted, so months and years are not.
+    """
+    if isinstance(value, timedelta):
+        return value
+    text = str(value).strip()
+    match = re.fullmatch(
+        r"(\d+)\s*(second|minute|hour|day|week)s?", text, flags=re.IGNORECASE
+    )
+    if match:
+        return timedelta(**{match.group(2).lower() + "s": int(match.group(1))})
+    try:
+        duration = isodate.parse_duration(text)
+    except (isodate.ISO8601Error, ValueError):
+        duration = None
+    if not isinstance(duration, timedelta):
+        raise ValueError(
+            f'Cannot read {setting} = {value!r} as a duration: use e.g. "1 week", "7 days" or "P1W" (months and years have no fixed length).'
+        )
+    return duration
+
+
+def normalize_security_durations(app: Flask) -> None:
+    """Hand Flask-Security each duration setting in the form its version reads.
+
+    Flask-Security builds a timedelta from "<amount> <unit>", using the unit as a timedelta keyword,
+    so it reads "7 days", but not "1 week" or an ISO 8601 duration.
+    As of 5.9, it does so at startup and prefers a timedelta,
+    while 5.8 (which Python 3.10 still gets) only reads a string, so it gets the duration in seconds.
+    """
+    reads_timedelta = Version(metadata.version("flask-security-too")) >= Version("5.9")
+    for setting in SECURITY_DURATION_SETTINGS:
+        value = app.config.get(setting)
+        if value is None:
+            continue
+        duration = parse_duration_setting(setting, value)
+        app.config[setting] = (
+            duration if reads_timedelta else f"{int(duration.total_seconds())} seconds"
+        )
 
 
 def get_config_warnings(app) -> tuple[list[str], list[str]]:

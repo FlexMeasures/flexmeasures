@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import copy
 import logging
+import threading
+import time
 
 import pytz
 import pytest
@@ -319,3 +321,46 @@ def test_force_new_job_creation(db, app, add_charging_station_assets, setup_test
 
     # check that `force_new_job_creation=True` actually triggers a new job creation
     assert job2.id != job3.id
+
+
+def test_concurrent_identical_calls_share_one_job(db, app):
+    """Concurrent calls with the same arguments must share one job, rather than each creating their own.
+
+    Without a lock, both calls miss the cache before either one stores its job,
+    which let two identical scheduling requests create two data sources for one schedule (#2611).
+    """
+    both_called = threading.Barrier(2)
+
+    @job_cache("scheduling")
+    def create_slow_job(arg1: int, kwarg1: int | None = None) -> Job:
+        # widen the window between checking the cache and storing the new job in it
+        time.sleep(0.2)
+        job = Job.create(
+            successful_function,
+            kwargs=dict(kwarg1=kwarg1),
+            connection=app.queues["scheduling"].connection,
+        )
+        app.queues["scheduling"].enqueue_job(job)
+        return job
+
+    jobs = []
+
+    def call():
+        with app.app_context():
+            both_called.wait()
+            jobs.append(create_slow_job(1, kwarg1=1))
+
+    threads = [threading.Thread(target=call) for _ in range(2)]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            # a stalled call should fail this test, rather than hang the test run
+            thread.join(timeout=30)
+            assert not thread.is_alive()
+
+        assert len(jobs) == 2
+        assert jobs[0].id == jobs[1].id
+    finally:
+        # keep the enqueued job(s) from leaking into later tests
+        app.queues["scheduling"].empty()

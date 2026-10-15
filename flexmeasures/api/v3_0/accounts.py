@@ -17,7 +17,11 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.audit_log import AuditLog, truncate_string
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.data.services.accounts import (
+    create_account,
+    get_accounts,
+    get_audit_log_records,
+)
 from flexmeasures.api.common.responses import unprocessable_entity
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import (
@@ -129,9 +133,7 @@ class AccountAPI(FlaskView):
                 else []
             )
 
-        query = db.session.query(Account).filter(
-            Account.id.in_([a.id for a in accounts])
-        )
+        query = select(Account).filter(Account.id.in_([a.id for a in accounts]))
 
         if role is not None:
             query = query.filter(Account.account_roles.contains(role))
@@ -186,14 +188,14 @@ class AccountAPI(FlaskView):
                 "filtered-records": select_pagination.total,
             }
         else:
-            response = accounts_schema.dump(query.all(), many=True)
+            response = accounts_schema.dump(db.session.scalars(query).all(), many=True)
 
         return response, 200
 
     @route("", methods=["POST"])
     @use_args(account_create_schema, arg_name="account_data")
     @permission_required_for_context(
-        "create-children",
+        "edit-account",
         ctx_loader=FlexMeasuresPlatform.init,
     )
     @as_json
@@ -236,8 +238,15 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        account = Account(**account_data)
-        db.session.add(account)
+        context = "via API"
+        consultancy_account_id = account_data.get("consultancy_account_id")
+        if consultancy_account_id is not None:
+            consultancy_account = db.session.get(Account, consultancy_account_id)
+            context += (
+                f" as client of organisation '{consultancy_account.name}': "
+                f"{consultancy_account.id}"
+            )
+        account = create_account(context=context, **account_data)
         db.session.commit()
 
         return account_schema.dump(account), 201
@@ -292,7 +301,7 @@ class AccountAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_account_schema)
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="account")
+    @permission_required_for_context("edit-account", ctx_arg_name="account")
     @as_json
     def patch(self, account_data: dict, id: int, account: Account):
         """
@@ -498,7 +507,7 @@ class AccountAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="account")
+    @permission_required_for_context("annotate", ctx_arg_name="account")
     def post_annotation(self, annotation: Annotation, id: int, account: Account):
         """
         .. :quickref: Accounts; Add an annotation to an account.

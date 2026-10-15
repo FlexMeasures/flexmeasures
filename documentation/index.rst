@@ -227,7 +227,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     api/introduction
     api/notation
     api/v3_0
-    api/dev
+    api/ui
     api/change_log
 
 .. toctree::

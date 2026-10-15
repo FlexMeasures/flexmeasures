@@ -251,7 +251,7 @@ class UserAPI(FlaskView):
         }
     )
     @permission_required_for_context(
-        "create-children", ctx_arg_pos=1, ctx_arg_name="account"
+        "manage-users", ctx_arg_pos=1, ctx_arg_name="account"
     )
     def post(self, user_data):
         """
@@ -322,7 +322,6 @@ class UserAPI(FlaskView):
             email=user_data["email"],
             account_name=user_data["account"].name,
             password=user_data["email"],  # This will be set to a random password below
-            user_roles=[],
         )
         set_random_password(created_user)
         send_reset_password_instructions(created_user)
@@ -386,7 +385,6 @@ class UserAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_kwargs(partial_user_schema)
     @use_kwargs(UserId, location="path")
-    @permission_required_for_context("update", ctx_arg_name="user")
     @as_json
     def patch(self, id: int, user: UserModel, **user_data):  # noqa C901
         """
@@ -451,6 +449,9 @@ class UserAPI(FlaskView):
           tags:
             - Users
         """
+        check_access(
+            user, "edit-profile" if current_user.id == user.id else "manage-users"
+        )
         allowed_fields = [
             "email",
             "username",
@@ -508,7 +509,7 @@ class UserAPI(FlaskView):
 
     @route("/<id>/password-reset", methods=["PATCH"])
     @use_kwargs(UserId, location="path")
-    @permission_required_for_context("update", ctx_arg_name="user")
+    @permission_required_for_context("reset-password", ctx_arg_name="user")
     @as_json
     def reset_user_password(self, id: int, user: UserModel):
         """

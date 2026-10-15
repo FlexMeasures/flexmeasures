@@ -9,9 +9,9 @@ from flexmeasures.data.models.time_series import Sensor
 @pytest.fixture(scope="module")
 def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
     """
-    Set up data for API dev tests.
+    Set up data for API UI-support tests.
     """
-    print("Setting up data for API dev tests on %s" % db.engine)
+    print("Setting up data for API UI-support tests on %s" % db.engine)
     add_incineration_line(
         db, db.session.get(User, setup_roles_users["Test Supplier User"])
     )
@@ -22,9 +22,9 @@ def setup_api_fresh_test_data(
     fresh_db, setup_roles_users_fresh_db, setup_generic_assets_fresh_db
 ):
     """
-    Set up fresh data for API dev tests.
+    Set up fresh data for API UI-support tests.
     """
-    print("Setting up fresh data for API dev tests on %s" % fresh_db.engine)
+    print("Setting up fresh data for API UI-support tests on %s" % fresh_db.engine)
     for sensor in fresh_db.session.scalars(select(Sensor)).all():
         fresh_db.delete(sensor)
     add_incineration_line(

@@ -1,5 +1,28 @@
 """Tests for flexmeasures/ui/static/js/fast-chart.js."""
 
+
+def test_visible_time_range_tracks_mouse_zoom(assert_js):
+    """The visible time range follows mouse zoom and resets to the full domain."""
+    assert_js("""
+        import { visibleTimeRangeFromOption } from "/js/fast-chart.js";
+        const option = {
+            xAxis: [{type: "time", min: 0, max: 1000000}],
+            dataZoom: [{start: 20, end: 30}],
+        };
+        const zoomed = visibleTimeRangeFromOption(option);
+        eq("zoom start follows the mouse selection", zoomed.start.getTime(), 200000);
+        eq("zoom end follows the mouse selection", zoomed.end.getTime(), 300000);
+
+        option.dataZoom[0] = {start: 0, end: 100};
+        const full = visibleTimeRangeFromOption(option);
+        eq("unzoomed start is the date picker start", full.start.getTime(), 0);
+        eq("unzoomed end is the date picker end", full.end.getTime(), 1000000);
+
+        option.xAxis[0].type = "category";
+        eq("a non-time chart falls back to the date picker", visibleTimeRangeFromOption(option), null);
+    """)
+
+
 # A chart as fast-chart.js lays one out: a 1200x400 canvas with one subplot and,
 # beside it, a paginated legend of 13 sensors (the case reported in issue #2513).
 SIDE_LEGEND_CHART = """
@@ -99,4 +122,383 @@ def test_export_hides_the_toolbox(assert_js):
            exported.option.backgroundColor, "#fff");
         eq("progressive rendering is off, so every series is drawn in one pass",
            exported.option.series[0].progressive, 0);
+        """)
+
+
+def test_belief_tooltip_compacts_and_expands_without_new_data(assert_js):
+    """Compact belief tooltips keep essentials; the switch reveals provenance."""
+    assert_js("""
+        import { singlePointTooltip } from "/js/fast-chart.js";
+
+        const meta = {
+            sensorDescription: "Grid power (ID: 7)",
+            sensorType: "power",
+            unit: "kW",
+            source: {
+                id: 3,
+                name: "Weather model",
+                display_type: "forecaster",
+                model: "LinearRegression",
+                version: "2.0",
+            },
+        };
+        const value = [Date.parse("2026-09-21T10:00:00Z"), 12.5, 3600000];
+        const rowCount = (html) => (html.match(/<tr>/g) || []).length;
+
+        const sensorCompact = singlePointTooltip(meta, value, {
+            showSensor: false,
+            fullBeliefInfo: false,
+        });
+        eq("sensor compact mode has value and time", rowCount(sensorCompact), 2);
+        check("compact mode includes the exact value", sensorCompact.includes("12.5 kW"));
+        check("compact mode includes time", sensorCompact.includes("Time and date"));
+        check("sensor compact mode omits the redundant sensor", !sensorCompact.includes("Sensor"));
+        check("compact mode omits provenance", !sensorCompact.includes("Horizon"));
+
+        const assetCompact = singlePointTooltip(meta, value, {
+            showSensor: true,
+            fullBeliefInfo: false,
+        });
+        eq("asset compact mode adds the sensor", rowCount(assetCompact), 3);
+        check("asset compact mode identifies the sensor", assetCompact.includes("Grid power (ID: 7)"));
+
+        const assetFull = singlePointTooltip(meta, value, {
+            showSensor: true,
+            fullBeliefInfo: true,
+        });
+        eq("full asset mode restores all eight fields", rowCount(assetFull), 8);
+        ["Horizon", "Source", "Type", "Model", "Version"].forEach((field) => {
+            check(`full mode includes ${field}`, assetFull.includes(field));
+        });
+
+        const sensorFull = singlePointTooltip(meta, value, {
+            showSensor: false,
+            fullBeliefInfo: true,
+        });
+        eq("full sensor mode has seven fields", rowCount(sensorFull), 7);
+        check("sensor identity stays omitted on its own page", !sensorFull.includes("Sensor"));
+        """)
+
+
+def test_charge_point_sessions_keep_their_own_tooltip(assert_js):
+    """The belief preference does not break purpose-built session tooltips."""
+    assert_js("""
+        const originalMatchMedia = window.matchMedia;
+        window.matchMedia = () => ({matches: true});
+        const { buildChargePointSessionsOption } = await import("/js/fast-chart.js?sessions-touch");
+        window.matchMedia = originalMatchMedia;
+
+        const container = document.createElement("div");
+        container.id = "sessions-chart";
+        document.body.appendChild(container);
+        const eventStart = Date.parse("2026-09-21T10:00:00Z");
+        const sensor = (name) => ({
+            id: name === "arrival" ? 1 : 2,
+            name,
+            unit: "s",
+            asset_id: 4,
+            asset_description: "Charger 4",
+        });
+        const option = buildChargePointSessionsOption("sessions-chart", [
+            {sensor: sensor("arrival"), event_start: eventStart, event_value: eventStart},
+            {sensor: sensor("departure"), event_start: eventStart, event_value: eventStart + 3600000},
+        ], {groupSpec: [], datasetName: "sessions", isSensorPage: false});
+
+        check("the session chart renders", option.series.length >= 2);
+        const visibleSession = option.series.find((series) => series.tooltip && series.tooltip.formatter);
+        const tooltip = visibleSession.tooltip.formatter();
+        check("session start stays visible", tooltip.includes("Arrival"));
+        check("session end stays visible", tooltip.includes("Departure"));
+        check("session asset stays visible", tooltip.includes("Charger 4"));
+        """)
+
+
+def test_annotation_hover_survives_canvas_exit_and_pin(assert_js):
+    """Pinned text stays stable while hovered text occupies a separate row."""
+    assert_js("""
+        import { normalizeAnnotations, wireAnnotationHover } from "/js/fast-chart.js";
+
+        const canvasHandlers = {};
+        const chartHandlers = {};
+        const patches = [];
+        const container = document.createElement("div");
+        const canvas = document.createElement("canvas");
+        const tooltip = document.createElement("div");
+        container.appendChild(canvas);
+        container.appendChild(tooltip);
+        document.body.appendChild(container);
+        container.getBoundingClientRect = () => ({left: 20, top: 30});
+        canvas.getBoundingClientRect = () => ({left: 35, top: 50});
+        const move = (target, x) => target.dispatchEvent(
+            new MouseEvent("mousemove", {bubbles: true, clientX: x + 35, clientY: 60})
+        );
+        const zr = {
+            on: (name, handler) => { canvasHandlers[name] = handler; },
+            off: (name) => { delete canvasHandlers[name]; },
+        };
+        const chart = {
+            getZr: () => zr,
+            getDom: () => container,
+            containPixel: (_grid, [x, y]) => x >= 0 && x < 200 && y >= 0 && y < 100,
+            convertFromPixel: (_axis, x) => x,
+            convertToPixel: (_axis, x) => x,
+            setOption: (patch) => patches.push(patch),
+            on: (name, handler) => { chartHandlers[name] = handler; },
+            off: (name) => { delete chartHandlers[name]; },
+        };
+        const instance = {
+            chart,
+            replayTime: null,
+            _annotCtx: {
+                annotations: normalizeAnnotations([
+                    {
+                        start: 0,
+                        end: 10,
+                        belief_time: 5,
+                        content: ["Pinned", "note"],
+                        source: "Test source",
+                        type: "label",
+                    },
+                    {start: 10, end: 20, content: "Hovered note", type: "label"},
+                    {start: 150, end: 170, content: "Far note", type: "label"},
+                ]),
+                grids: [{
+                    seriesIndex: 0,
+                    toleranceMs: 1,
+                    labelTop: 100,
+                    labelLeft: 0,
+                    labelRight: 200,
+                }],
+            },
+        };
+        const shown = (label) => label.style.display === "inline-block";
+
+        wireAnnotationHover(instance);
+        const pinLabel = container.querySelector('[data-annotation-label="pin"]');
+        const hoverLabel = container.querySelector('[data-annotation-label="hover"]');
+        move(canvas, 5);
+        check("hover shows the annotation", shown(hoverLabel));
+        eq("multiline content stays in one stable row", hoverLabel.textContent, "Pinned · note");
+        check("the full multiline content remains available",
+              hoverLabel.title.startsWith("Pinned\\nnote\\n"), hoverLabel.title);
+        check("the annotation context is available on label hover",
+              hoverLabel.title.includes("Source: Test source") &&
+              hoverLabel.title.includes("Belief time: ") &&
+              hoverLabel.title.includes("Start: ") &&
+              hoverLabel.title.includes("End: "), hoverLabel.title);
+        eq("the label accounts for the padded canvas origin", hoverLabel.style.left, "15px");
+        eq("the label accounts for the canvas's vertical offset", hoverLabel.style.top, "120px");
+        check("canvas annotation labels stay disabled",
+              !patches.at(-1).series[0].markArea.data[0][0].label.show);
+        const patchCount = patches.length;
+        move(canvas, 6);
+        eq("movement within one annotation does not redraw it", patches.length, patchCount);
+        move(tooltip, 6);
+        check("moving across the HTML tooltip keeps the annotation", shown(hoverLabel));
+
+        container.dispatchEvent(new MouseEvent("mouseleave"));
+        check("leaving the chart clears an unpinned annotation", !shown(hoverLabel));
+
+        canvasHandlers.click({offsetX: 5, offsetY: 10});
+        container.dispatchEvent(new MouseEvent("mouseleave"));
+        check("the annotation stays visible after a click and pointer exit", shown(pinLabel));
+        eq("the pin has the clicked content", pinLabel.textContent, "Pinned · note");
+        const pinnedPosition = pinLabel.style.cssText;
+
+        move(canvas, 15);
+        check("the pin remains visible while another annotation is hovered", shown(pinLabel));
+        eq("hover does not rewrite or move the pinned label", pinLabel.style.cssText, pinnedPosition);
+        eq("the second annotation is also visible", hoverLabel.textContent, "Hovered note");
+        check("the two labels occupy separate rows", pinLabel.style.top !== hoverLabel.style.top,
+              `${pinLabel.style.top} and ${hoverLabel.style.top}`);
+
+        move(canvas, 155);
+        eq("labels that do not overlap share one row", hoverLabel.style.top, pinLabel.style.top);
+        chartHandlers.datazoom();
+        eq("zoom keeps the pin in its stable row", pinLabel.style.cssText, pinnedPosition);
+
+        canvasHandlers.click({offsetX: 250, offsetY: 150});
+        check("clicking outside releases the pin", !shown(pinLabel));
+
+        wireAnnotationHover(instance);
+        check("rewiring removes the old label nodes", !pinLabel.isConnected && !hoverLabel.isConnected);
+        eq("rewiring creates exactly one stable pair", container.querySelectorAll(
+            "[data-annotation-label]"
+        ).length, 2);
+        """)
+
+
+def test_bar_interval_of_a_daily_sensor_with_one_data_point(assert_js):
+    """A bar stands for one event resolution, also when the series holds a single point (issue #2454).
+
+    ECharts would otherwise derive the width from the spacing between points, of which a single point has none.
+    """
+    assert_js("""
+        import { barIntervalMs } from "/js/fast-chart.js";
+        const daily = {eventResolutionSec: 86400, eventStarts: [Date.UTC(2030, 0, 15)]};
+        eq("one point of a daily sensor still spans a day", barIntervalMs(daily), 86400000);
+        const quarterly = {eventResolutionSec: 900, eventStarts: [Date.UTC(2030, 0, 15)]};
+        eq("one point of a 15-minute sensor spans 15 minutes", barIntervalMs(quarterly), 900000);
+        """)
+
+
+def test_bar_interval_falls_back_to_the_event_spacing(assert_js):
+    """Instantaneous sensors and legacy data without a resolution fall back to the spacing between events."""
+    assert_js("""
+        import { barIntervalMs } from "/js/fast-chart.js";
+        const day = 24 * 3600 * 1000;
+        const starts = [Date.UTC(2030, 0, 14), Date.UTC(2030, 0, 15), Date.UTC(2030, 0, 16)];
+        eq("an instantaneous sensor falls back to the spacing", barIntervalMs({eventResolutionSec: 0, eventStarts: starts}), day);
+        eq("legacy data without a resolution falls back too", barIntervalMs({eventResolutionSec: null, eventStarts: starts}), day);
+        eq("a single point without a resolution falls back to an hour", barIntervalMs({eventResolutionSec: 0, eventStarts: [0]}), 3600000);
+        """)
+
+
+def test_bar_width_covers_exactly_one_interval(assert_js):
+    """The width is picked so that the bar covers one interval on the axis ECharts ends up drawing.
+
+    ECharts widens a bar chart's axis by the width of its widest bar, so the width has to account for that widening.
+    """
+    assert_js("""
+        import { barWidthPx } from "/js/fast-chart.js";
+        const day = 24 * 3600 * 1000;
+        // The sensor page from issue #2454: a daily sensor shown over three days, in a 900 px wide grid.
+        const width = barWidthPx(day, 3 * day, 900);
+        eq("a day of a three-day window is a quarter of the widened axis", width, 225);
+        // ECharts widens the 3-day axis by that bar width, to 4 days, on which 225 px is exactly one day.
+        eq("the bar then covers exactly one day", (width * 4 * day) / 900, day);
+        // The other extreme, dense data: two days hold 192 fifteen-minute bars, and the widened axis holds one more.
+        // So a bar is 900 / 193 = 4.66 px.
+        eq("a 15-minute bar of a two-day window is a sliver", +barWidthPx(900000, 2 * day, 900).toFixed(2), 4.66);
+        """)
+
+
+def test_bar_width_stays_within_bounds(assert_js):
+    """Degenerate inputs yield no width at all, and a bar never shrinks away or exceeds the grid."""
+    assert_js("""
+        import { barWidthPx } from "/js/fast-chart.js";
+        const day = 24 * 3600 * 1000;
+        eq("an unknown interval yields no width", barWidthPx(0, 3 * day, 900), null);
+        eq("an empty window yields no width", barWidthPx(day, 0, 900), null);
+        eq("a collapsed grid yields no width", barWidthPx(day, 3 * day, 0), null);
+        check("a bar much narrower than a pixel still shows", barWidthPx(60000, 365 * day, 900) === 1);
+        check("a bar wider than the window stays inside the grid", barWidthPx(day, 60000, 900) < 900);
+        """)
+
+
+def test_a_bar_reports_the_event_it_covers(assert_js):
+    """A bar is drawn over the resolution following its event start, and its tooltip reports that start.
+
+    The bar is plotted half a resolution late to get there, so the lookup takes that offset back out.
+    Without that, a bar whose neighbour sits closer than half a resolution — irregularly spaced data, such as a sensor whose resolution changed — would report its neighbour's event.
+    """
+    assert_js("""
+        import { nearestRealPoint } from "/js/fast-chart.js";
+        const day = 24 * 3600 * 1000;
+        const midnight = Date.UTC(2030, 0, 15);
+        const six = midnight + 6 * 3600 * 1000;
+        // The event values are a plain 1 and 2, because this lookup is about time alone:
+        // every check below reads the event start ([0]) of the point that comes back, and never its value.
+        const meta = {points: [[midnight, 1, 0], [six, 2, 0]], xOffsetMs: day / 2};
+        eq("the first bar reports its own event", nearestRealPoint(meta, [midnight + day / 2, 1])[0], midnight);
+        eq("the second bar reports its own event", nearestRealPoint(meta, [six + day / 2, 2])[0], six);
+        const line = {points: [[midnight, 1, 0]]};
+        eq("a series drawn on its event starts is looked up as it is", nearestRealPoint(line, [midnight, 1])[0], midnight);
+        """)
+
+
+def test_selected_range_from_brush_areas(assert_js):
+    """A range drawn with the select tool is read from the brush, in either drawing direction."""
+    assert_js("""
+        import { selectedRangeFromBrushAreas } from "/js/fast-chart.js";
+        const range = selectedRangeFromBrushAreas([{brushType: "lineX", coordRange: [300000, 100000]}]);
+        eq("the start is the earlier edge", range.start.getTime(), 100000);
+        eq("the end is the later edge", range.end.getTime(), 300000);
+        eq("a removed brush selects nothing", selectedRangeFromBrushAreas([]), null);
+        eq("no areas select nothing", selectedRangeFromBrushAreas(undefined), null);
+        """)
+
+
+def test_hovered_and_pinned_annotations_take_the_highlight_colour(assert_js):
+    """As in the Vega-Lite charts, a pinned annotation takes the secondary colour and a hovered one its hover shade."""
+    assert_js("""
+        import { annotationColor } from "/js/fast-chart.js";
+        const root = document.documentElement.style;
+        root.setProperty("--gray", "#bbb");
+        root.setProperty("--secondary-color", "#f1a122");
+        root.setProperty("--secondary-hover-color", "#f5bd63");
+        const label = {type: "label"};
+        const alert = {type: "alert"};
+        eq("a resting label is grey", annotationColor(label, null), "#bbb");
+        eq("a resting alert keeps its warning hue", annotationColor(alert, null), "#d9822b");
+        eq("a hovered label takes the hover shade", annotationColor(label, "hovered"), "#f5bd63");
+        eq("a pinned label takes the secondary colour", annotationColor(label, "pinned"), "#f1a122");
+        eq("a pinned alert takes the secondary colour, too", annotationColor(alert, "pinned"), "#f1a122");
+        """)
+
+
+def test_shift_click_pins_several_annotations(assert_js):
+    """Shift-click keeps earlier pins, as in the Vega-Lite charts, and a plain click pins only the clicked annotation."""
+    assert_js("""
+        import { normalizeAnnotations, wireAnnotationHover } from "/js/fast-chart.js";
+
+        const canvasHandlers = {};
+        const patches = [];
+        const container = document.createElement("div");
+        const canvas = document.createElement("canvas");
+        container.appendChild(canvas);
+        document.body.appendChild(container);
+        container.getBoundingClientRect = () => ({left: 0, top: 0});
+        canvas.getBoundingClientRect = () => ({left: 0, top: 0});
+        const zr = {
+            on: (name, handler) => { canvasHandlers[name] = handler; },
+            off: (name) => { delete canvasHandlers[name]; },
+        };
+        const chart = {
+            getZr: () => zr,
+            getDom: () => container,
+            containPixel: (_grid, [x, y]) => x >= 0 && x < 200 && y >= 0 && y < 100,
+            convertFromPixel: (_axis, x) => x,
+            convertToPixel: (_axis, x) => x,
+            setOption: (patch) => patches.push(patch),
+            on: () => {},
+            off: () => {},
+        };
+        const instance = {
+            chart,
+            replayTime: null,
+            _annotCtx: {
+                annotations: normalizeAnnotations([
+                    {start: 0, end: 10, content: "First", type: "label"},
+                    {start: 100, end: 120, content: "Second", type: "label"},
+                    {start: 150, end: 170, content: "Third", type: "label"},
+                ]),
+                grids: [{seriesIndex: 0, toleranceMs: 1, labelTop: 100, labelLeft: 0, labelRight: 200}],
+            },
+        };
+        const click = (x, shiftKey) => canvasHandlers.click({offsetX: x, offsetY: 10, event: {shiftKey}});
+        const pinnedTexts = () => [...container.querySelectorAll('[data-annotation-label="pin"]')]
+            .filter((label) => label.style.display === "inline-block")
+            .map((label) => label.textContent);
+        const pinnedOpacities = () => patches.at(-1).series[0].markArea.data.map((band) => band[0].itemStyle.opacity);
+
+        wireAnnotationHover(instance);
+        click(5, false);
+        click(110, true);
+        eq("shift-click keeps the earlier pin", pinnedTexts(), ["First", "Second"]);
+        eq("pinned text is near-black, legible on white",
+           container.querySelector('[data-annotation-label="pin"]').style.color, "rgb(51, 51, 51)");
+        eq("both pinned bands are highlighted", pinnedOpacities(), [0.65, 0.65, 0.2]);
+
+        click(5, true);
+        eq("shift-clicking a pinned annotation releases only that one", pinnedTexts(), ["Second"]);
+
+        click(5, true);
+        click(160, false);
+        eq("a plain click pins only the clicked annotation", pinnedTexts(), ["Third"]);
+
+        click(250, true);
+        eq("shift-clicking outside any annotation keeps the pins", pinnedTexts(), ["Third"]);
+        click(250, false);
+        eq("a plain click outside releases all pins", pinnedTexts(), []);
         """)

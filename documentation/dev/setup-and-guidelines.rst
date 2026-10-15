@@ -61,14 +61,23 @@ All ``flexmeasures`` commands in this guide are prefixed with ``uv run``, which 
 
    $ uv sync --locked --group test
 
-This command will install all test dependencies.
-
-On Linux and Windows, everything will be installed using Python packages.
+This command will install all Python test dependencies.
 
 On MacOS, this will install all test dependencies, and locally install the HiGHS solver.
 For this to work, make sure you have `Homebrew <https://brew.sh/>`_ installed.
 
-Besides the HiGHS solver (as the current default), the CBC solver is required for tests as well. See `The install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries>`_ for more information.
+Besides the HiGHS solver (the current default, installed together with FlexMeasures), the tests also need the Cbc solver.
+Cbc is a system dependency, not a Python package, so ``uv sync`` does not install it.
+Without it, the Cbc variant of the solver tests (e.g. ``test_numerical_errors[cbc]``) fails with ``No executable found for solver 'cbc'``.
+Install it with your system's package manager:
+
+.. code-block:: bash
+
+   $ sudo apt-get install coinor-cbc  # Debian / Ubuntu
+   $ sudo dnf install coin-or-Cbc     # Fedora (the executable is called Cbc, which FlexMeasures also finds)
+   $ brew install cbc                 # MacOS
+
+For other platforms, see :ref:`installing-a-solver` or `the Cbc install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries>`_.
 
 Configuration
 ^^^^^^^^^^^^^

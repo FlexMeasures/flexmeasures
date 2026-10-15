@@ -4,6 +4,7 @@ import timely_beliefs as tb
 from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     QuantityOrSensor,
+    sensor_reference_keys,
     SensorReference,
     SensorReferenceSchema,
     VariableQuantityField,
@@ -257,42 +258,149 @@ def test_sensor_reference_field_rejects_null_default(setup_dummy_sensors):
     )
 
 
-@pytest.mark.parametrize(
-    "bounds",
-    [{"lower": "0 MW"}, {"upper": "1 MW"}, {"snap": {"0 MW": ["0 MW", "0.1 MW"]}}],
-)
-def test_scheduling_references_refuse_bounds_they_would_ignore(
-    setup_dummy_sensors, bounds
-):
-    """Scheduling does not apply bounds yet, so its references refuse them instead of silently dropping them."""
+def test_scheduling_references_carry_their_bounds(setup_dummy_sensors):
+    """Flex-model and flex-context references keep their bounds, so the scheduler can apply them, and dump them again."""
     *_, power_sensor = setup_dummy_sensors
+    bounds = {"lower": "0 kW", "upper": "2 MW", "snap": {"0 MW": ["0 MW", "0.1 MW"]}}
     reference = {"sensor": power_sensor.id, **bounds}
 
-    with pytest.raises(
-        ValidationError, match="do not accept `lower`, `upper` or `snap` yet"
-    ):
-        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
-            reference
-        )
+    field = VariableQuantityField(to_unit="MW", return_magnitude=False)
+    loaded = field.deserialize(reference)
+    assert isinstance(loaded, SensorReference)
+    assert (loaded.lower, loaded.upper, loaded.snap) == (
+        bounds["lower"],
+        bounds["upper"],
+        bounds["snap"],
+    )
+    assert field._serialize(loaded, None, None) == reference
 
-    with pytest.raises(
-        ValidationError, match="do not accept `lower`, `upper` or `snap` yet"
-    ):
-        InflexibleDeviceSchema().load(reference)
+    device = InflexibleDeviceSchema().load(reference)
+    assert isinstance(device, SensorReference)
+    assert (device.lower, device.upper, device.snap) == (
+        bounds["lower"],
+        bounds["upper"],
+        bounds["snap"],
+    )
 
-    # Without bounds, the same reference still loads, also when it spells out unset bounds.
+    # Without bounds or filters, both still load a plain sensor, also when the reference spells out unset bounds.
     for plain in (
         {"sensor": power_sensor.id},
         {"sensor": power_sensor.id, "lower": None, "upper": None, "snap": {}},
         {"sensor": power_sensor.id, "snap": None},
     ):
-        assert (
-            VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
-                plain
-            )
-            == power_sensor
-        )
+        assert field.deserialize(plain) == power_sensor
         assert InflexibleDeviceSchema().load(plain) == power_sensor
+
+
+@pytest.mark.parametrize(
+    "bounds, message",
+    [
+        ({"lower": "5 EUR"}, "`lower`"),
+        ({"upper": "not a quantity"}, "`upper`"),
+        ({"snap": {"2 MW": ["0 MW", "1 MW"]}}, "`snap`"),
+        ({"snap": {"0 MW": ["0 MW"]}}, "`snap`"),
+        ({"lower": "2 MW", "upper": "1 MW"}, "`lower`"),
+    ],
+)
+def test_scheduling_references_refuse_bounds_they_cannot_apply(
+    setup_dummy_sensors, bounds, message
+):
+    """A flex-model or flex-context bound the sensor cannot take fails when the flex config is loaded, not when the schedule is computed."""
+    *_, power_sensor = setup_dummy_sensors
+
+    with pytest.raises(ValidationError, match=message):
+        VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
+            {"sensor": power_sensor.id, **bounds}
+        )
+
+    # An inflexible device reference is loaded by its own schema, which refuses the same bounds.
+    with pytest.raises(ValidationError) as exc:
+        InflexibleDeviceSchema().load({"sensor": power_sensor.id, **bounds})
+    assert message.strip("`") in exc.value.messages
+
+
+@pytest.mark.parametrize(
+    "stray_key, suggestion",
+    [
+        ("source", "sources"),
+        ("source-type", "source-types"),
+        ("Lower", "lower"),
+        ("colour", None),
+    ],
+)
+def test_a_sensor_reference_refuses_a_key_it_does_not_take(
+    setup_dummy_sensors, stray_key, suggestion
+):
+    """A key a reference does not take used to be read past, so a misspelled filter silently dropped the filtering."""
+    *_, power_sensor = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MW", return_magnitude=False)
+
+    with pytest.raises(ValidationError) as refusal:
+        field.deserialize({"sensor": power_sensor.id, stray_key: "whatever"})
+
+    assert f"`{stray_key}`" in str(refusal.value)
+    if suggestion is not None:
+        assert f"did you mean `{suggestion}`" in str(refusal.value)
+    # A filter written in the singular is a spelling from another surface rather than a typo, so the message says which is which.
+    assert "a data request filters in the singular" in str(refusal.value)
+
+
+def test_a_reference_dumped_without_its_filters_loads_again(setup_dummy_sensors):
+    """A dumped reference spells out the filters it does not set, as nulls, and loads again as it was.
+
+    Queued forecasting jobs carry references this way, so refusing those keys would break every one of them.
+    """
+    *_, power_sensor = setup_dummy_sensors
+    schema = SensorReferenceSchema()
+    dumped = schema.dump(SensorReference(sensor=power_sensor))
+
+    assert dumped["source-account"] is None
+    assert schema.load(dumped)["sensor"] == power_sensor
+
+
+def test_a_schema_extending_the_reference_accepts_what_it_declares(setup_dummy_sensors):
+    """A plugin may extend the reference schema, and what it declares is read rather than refused.
+
+    The refusal reads the keys off the schema at hand, not off the class it inherits from,
+    so a field added by a subclass is accepted while anything neither of them declares is still refused.
+    """
+    from marshmallow import fields as marshmallow_fields
+
+    class ReferenceWithAPluginsOwnField(SensorReferenceSchema):
+        hint = marshmallow_fields.Str()
+
+    *_, power_sensor = setup_dummy_sensors
+    schema = ReferenceWithAPluginsOwnField()
+
+    loaded = schema.load({"sensor": power_sensor.id, "hint": "mine"})
+    assert loaded["hint"] == "mine"
+
+    with pytest.raises(ValidationError) as refusal:
+        schema.load({"sensor": power_sensor.id, "colour": "blue"})
+    assert "`colour`" in str(refusal.value)
+
+
+def test_a_sensor_reference_takes_every_key_its_schema_defines(setup_dummy_sensors):
+    """The keys a reference takes are read off the schema that defines them, so the two cannot drift apart."""
+    *_, power_sensor = setup_dummy_sensors
+    reference = {
+        "sensor": power_sensor.id,
+        "source-types": ["demo script"],
+        "exclude-source-types": ["forecaster"],
+        "sources": [],
+        "source-account": [],
+        "default": "1 MW",
+        "lower": "0 MW",
+        "upper": "2 MW",
+        "snap": {"0 MW": ["0 MW", "0.1 MW"]},
+    }
+
+    assert set(reference) == set(sensor_reference_keys())
+
+    loaded = VariableQuantityField(to_unit="MW", return_magnitude=False).deserialize(
+        reference
+    )
+    assert isinstance(loaded, SensorReference)
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):

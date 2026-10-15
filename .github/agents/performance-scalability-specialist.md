@@ -225,10 +225,10 @@ stock_changes = [
        return haversine_formula(lat1, lon1, lat2, lon2)
    ```
 
-3. **Redis caching for job results**:
-   - See `flexmeasures/data/services/job_cache.py`
-   - Cache expensive computation results
-   - Set appropriate TTL values
+3. **Redis lookup for jobs**:
+   - See `flexmeasures/data/services/job_map.py`
+   - Index RQ job IDs by asset or sensor and queue
+   - Remove stale IDs when fetching jobs or enqueue-time metadata
 
 ### When to Create Benchmarks
 
@@ -249,8 +249,9 @@ FlexMeasures provides built-in request profiling capabilities for performance an
   - `flexmeasures/data/models/planning/linear_optimization.py` - Scheduler optimization
   - `flexmeasures/data/queries/` - Database queries
   - `flexmeasures/ui/views/assets/utils.py` - Asset tree traversal
+- Job lookup:
+  - `flexmeasures/data/services/job_map.py` - Redis index of RQ job IDs
 - Caching:
-  - `flexmeasures/data/services/job_cache.py` - Redis job cache
   - `functools.cached_property` usage throughout codebase
 - Pandas usage:
   - Scheduler implementations
