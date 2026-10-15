@@ -4,7 +4,14 @@ from datetime import datetime, timedelta
 
 from flask_login import current_user
 from isodate import datetime_isoformat
-from marshmallow import fields, post_load, pre_load, validates_schema, ValidationError
+from marshmallow import (
+    fields,
+    post_load,
+    pre_load,
+    validates,
+    validates_schema,
+    ValidationError,
+)
 from marshmallow.validate import OneOf, Length
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
@@ -629,6 +636,14 @@ class RecurrencePreviewSchema(PostSensorDataSchema):
             example="2026-11-30",
         ),
     )
+
+    @validates("duration")
+    def check_duration_is_exact(self, duration, **kwargs):
+        """Refuse a calendar duration (such as P1M), whose length depends on when it starts."""
+        if not isinstance(duration, timedelta):
+            raise ValidationError(
+                "Give the duration of the pattern in weeks, days, hours or minutes (such as P1D), rather than in months or years."
+            )
 
     @validates_schema
     def check_sensor_has_a_resolution(self, data, **kwargs):
