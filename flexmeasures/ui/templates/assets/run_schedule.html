@@ -30,7 +30,12 @@
                         <div data-role="price-group" class="mb-3 d-none">
                             <label for="schedulePrice" class="form-label">Consumption price sensor</label>
                             <select id="schedulePrice" data-role="price" class="form-select"></select>
+                            <output data-role="selected-price" class="d-block mt-2"></output>
                             <small class="text-muted">Only price sensors with data covering the full schedule are listed.</small>
+                        </div>
+                        <div data-role="configured-price-group" class="mb-3 d-none">
+                            <label for="scheduleConfiguredPrice" class="form-label">Consumption price</label>
+                            <output id="scheduleConfiguredPrice" data-role="configured-price" class="d-block"></output>
                         </div>
                         <div data-role="capacity-group" class="mb-3 d-none">
                             <label for="scheduleCapacity" class="form-label">Power capacity (kW)</label>
@@ -67,7 +72,7 @@
                     <a data-role="retry" href="#" class="d-none me-auto">Check prerequisites again</a>
                     <span data-role="spinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button data-role="run" type="submit" class="btn btn-success" disabled>Run schedule</button>
+                    <button data-role="run" type="submit" class="btn btn-success" disabled title="Run schedule is disabled until prerequisites have been checked.">Run schedule</button>
                 </div>
             </form>
         </div>

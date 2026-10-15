@@ -45,6 +45,7 @@ export function initializeRunSchedule(root, config) {
             (!missing(options.consumption_price) || el('price').value) &&
             (!missing(options.power_capacity) || Number(el('capacity').value) > 0);
         el('run').disabled = loading || running || !ready;
+        el('run').title = el('run').disabled ? 'Run schedule is disabled. Check the prerequisites before running.' : '';
         el('price').disabled = loading || running;
         el('capacity').disabled = loading || running;
         el('soc-source').disabled = loading || running;
@@ -57,6 +58,17 @@ export function initializeRunSchedule(root, config) {
         option.value = value;
         option.textContent = text;
         select.append(option);
+    }
+    function showSensorLink(output, sensor) {
+        const link = document.createElement('a');
+        link.href = sensor.url;
+        link.textContent = sensor.name;
+        output.replaceChildren(link, ` (${sensor.unit})`);
+    }
+    function updateSelectedPrice() {
+        const sensor = options?.price_sensors.find(item => String(item.id) === el('price').value);
+        if (sensor) showSensorLink(el('selected-price'), sensor);
+        else el('selected-price').replaceChildren();
     }
     async function lookup() {
         if (running) return;
@@ -80,20 +92,22 @@ export function initializeRunSchedule(root, config) {
             const warnings = [...(data.warnings || [])];
             const powers = data.power_sensors;
             el('power').replaceChildren();
-            if (powers.length === 1) {
-                const link = document.createElement('a');
-                link.href = powers[0].url;
-                link.textContent = powers[0].name;
-                el('power').append(link, ` (${powers[0].unit})`);
-            }
+            if (powers.length === 1) showSensorLink(el('power'), powers[0]);
             if (!powers.length) warnings.push('This asset has no power sensor, so it is not supported by this Run schedule dialogue. Add a power sensor to this asset to use it.');
-            else if (powers.length > 1) warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue. Configure multi-device scheduling in flex-config and use the scheduling API.');
+            else if (powers.length > 1) warnings.push('This asset has multiple power sensors, so it is not supported by this Run schedule dialogue yet. Support for scheduling multiple power sensors here is coming soon. For now, configure multi-device scheduling in flex-config and use the scheduling API.');
             const previousPrice = el('price').value;
             el('price').replaceChildren();
             addOption(el('price'), '', 'Choose a price sensor');
             for (const sensor of data.price_sensors) addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, #${sensor.id})`);
             el('price').value = previousPrice;
             show('price-group', missing(data.consumption_price));
+            show('configured-price-group', !missing(data.consumption_price));
+            el('configured-price').replaceChildren();
+            if (data.consumption_price_sensor) showSensorLink(el('configured-price'), data.consumption_price_sensor);
+            else if (!missing(data.consumption_price)) el('configured-price').textContent =
+                typeof data.consumption_price === 'string' || typeof data.consumption_price === 'number'
+                    ? String(data.consumption_price) : 'Configured price sensor unavailable';
+            updateSelectedPrice();
             if (missing(data.consumption_price)) {
                 warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with data covering the full schedule were found. Create a price sensor and upload a CSV on its sensor page, then check prerequisites again.');
             }
@@ -141,7 +155,10 @@ export function initializeRunSchedule(root, config) {
         el(name).addEventListener('change', lookup);
         el(name).addEventListener('input', updateReady);
     }
-    for (const name of ['price', 'capacity', 'soc-source']) el(name).addEventListener('change', updateReady);
+    for (const name of ['price', 'capacity', 'soc-source']) el(name).addEventListener('change', () => {
+        if (name === 'price') updateSelectedPrice();
+        updateReady();
+    });
     el('retry').addEventListener('click', event => {
         event.preventDefault();
         lookup();

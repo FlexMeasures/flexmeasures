@@ -55,7 +55,7 @@ OPTIONS = """
     const available = {
         power_sensors: [{id: 7, name: "Battery power", unit: "kW", url: "/sensors/7"}],
         consumption_price: null, power_capacity: null,
-        price_sensors: [{id: 12, name: "Day-ahead", unit: "EUR/MWh"}],
+        price_sensors: [{id: 12, name: "Day-ahead", unit: "EUR/MWh", url: "/sensors/12"}],
         soc_sensors: [{id: 13, name: "Battery charge", value: 4.5, unit: "kWh",
                        event_start: "2026-10-14T09:00:00Z"}],
         warnings: [], can_save: true,
@@ -65,6 +65,7 @@ OPTIONS = """
     const submit = () => field("form").dispatchEvent(new Event("submit", {cancelable: true}));
     const chooseDefaults = () => {
         field("price").value = "12";
+        change("price");
         field("capacity").value = "10";
         change("capacity");
     };
@@ -79,6 +80,7 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("price selection waits for lookup", field("price").disabled);
         check("SoC selection waits for lookup", field("soc-source").disabled);
         check("run waits for lookup", field("run").disabled);
+        check("disabled button explains prerequisites", field("run").title.includes("disabled") && field("run").title.includes("prerequisites"));
         check("loading is announced", notices.some(item => item[0].includes("Checking prerequisites")));
         await answer(available);
         eq("power sensor name links to its page", field("power").querySelector("a").getAttribute("href"), "/sensors/7");
@@ -89,6 +91,8 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("missing defaults still prevent running", field("run").disabled);
         chooseDefaults();
         check("explicit defaults allow running", !field("run").disabled);
+        eq("ready button has no disabled explanation", field("run").title, "");
+        eq("selected price sensor links to its page", field("selected-price").querySelector("a").getAttribute("href"), "/sensors/12");
         eq("nothing is saved just by choosing", requests.length, 1);
     """)
 
@@ -208,6 +212,7 @@ def test_multiple_power_sensors_and_uncovered_configured_price_block_run(assert_
         chooseDefaults();
         check("multiple power sensors block the action", field("run").disabled);
         check("warning says the asset is unsupported", field("warnings").textContent.includes("This asset has multiple power sensors, so it is not supported"));
+        check("warning mentions upcoming support", field("warnings").textContent.includes("coming soon"));
         change("duration");
         await answer({...available, consumption_price: {sensor: 12}, price_available: false});
         field("capacity").value = "10";
@@ -223,6 +228,7 @@ def test_existing_defaults_are_preserved_and_period_edits_require_lookup(assert_
         const configured = {...available, consumption_price: 0, power_capacity: "20 kW"};
         await answer(configured);
         check("configured zero price is valid", !field("run").disabled);
+        eq("fixed price is displayed", field("configured-price").textContent, "0");
         check("price override is hidden", field("price-group").classList.contains("d-none"));
         check("capacity override is hidden", field("capacity-group").classList.contains("d-none"));
         field("duration").value = "48";
@@ -236,4 +242,17 @@ def test_existing_defaults_are_preserved_and_period_edits_require_lookup(assert_
         eq("configured device defaults are inherited", payload["flex-model"], [{sensor: 7}]);
         eq("repeat job is opt-in", payload["force-new-job-creation"], false);
         await answer({message: "Validation failed"}, 422);
+    """)
+
+
+def test_configured_price_sensor_is_linked(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, consumption_price: {sensor: 12},
+            consumption_price_sensor: {id: 12, name: "Inherited day-ahead", unit: "EUR/MWh", url: "/sensors/12"},
+            power_capacity: "20 kW"});
+        check("configured price replaces the selector", field("price-group").classList.contains("d-none"));
+        check("configured price is visible", !field("configured-price-group").classList.contains("d-none"));
+        eq("configured price links to its sensor", field("configured-price").querySelector("a").getAttribute("href"), "/sensors/12");
+        eq("configured sensor name is shown", field("configured-price").querySelector("a").textContent, "Inherited day-ahead");
     """)

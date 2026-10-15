@@ -57,12 +57,13 @@ def schedule_options(asset, start_time, end_time):
     if consumption_price is None and context.get("consumption-price-sensor"):
         consumption_price = {"sensor": context["consumption-price-sensor"]}
     price_available = True
+    consumption_price_sensor = None
     if isinstance(consumption_price, dict) and "sensor" in consumption_price:
         sensor = db.session.get(Sensor, consumption_price["sensor"])
+        if sensor and user_can_access(sensor, "read") and sensor.measures_energy_price:
+            consumption_price_sensor = sensor_option(sensor)
         price_available = bool(
-            sensor
-            and user_can_access(sensor, "read")
-            and sensor.measures_energy_price
+            consumption_price_sensor
             and price_covers_schedule(sensor, start_time, end_time)
         )
     power_sensors = [
@@ -85,6 +86,7 @@ def schedule_options(asset, start_time, end_time):
         power_sensors=power_sensors,
         price_sensors=prices,
         consumption_price=consumption_price,
+        consumption_price_sensor=consumption_price_sensor,
         price_available=price_available,
         power_capacity=model.get(
             "power-capacity",

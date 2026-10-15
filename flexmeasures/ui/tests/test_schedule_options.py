@@ -190,6 +190,44 @@ def test_inherited_settings_avoid_redundant_suggestions(
     assert data["price_sensors"] == []
 
 
+def test_inherited_price_sensor_is_identified_and_checked_for_coverage(
+    db, client, schedule_assets, setup_sources, as_admin
+):
+    asset = schedule_assets["test_battery"]
+    parent = schedule_assets["troposphere"]
+    price = Sensor(
+        name="Site day-ahead price",
+        unit="EUR/MWh",
+        generic_asset=parent,
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add(price)
+    db.session.flush()
+    parent.flex_context = {"consumption-price": {"sensor": price.id}}
+    asset.parent_asset = parent
+    for hour in range(24):
+        db.session.add(
+            TimedBelief(
+                sensor=price,
+                source=setup_sources["Seita"],
+                event_start=START + timedelta(hours=hour),
+                event_value=50,
+                belief_horizon=timedelta(0),
+            )
+        )
+    db.session.commit()
+    data = options(client, asset).get_json()
+    assert data["consumption_price"] == {"sensor": price.id}
+    assert data["consumption_price_sensor"] == {
+        "id": price.id,
+        "name": price.name,
+        "unit": price.unit,
+        "url": url_for("SensorUI:get", id=price.id),
+    }
+    assert data["price_available"] is True
+    assert data["price_sensors"] == []
+
+
 def test_defaults_preserve_config_and_refuse_overwrite(
     db, client, schedule_assets, as_admin
 ):
