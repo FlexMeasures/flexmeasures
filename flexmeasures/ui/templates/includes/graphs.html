@@ -366,11 +366,13 @@
         if (chartType !== 'bar_chart') {
             document.querySelector('#chart-type-picker .dropdown-item[data-chart-type="bar_chart"]').click();
         }
-        if (!setFastChartSelectMode(fastChartElementId, true)) {
-            showToast('The chart is still loading. Please press Record again in a moment.', 'info');
-            return false;
+        // Switching to the fast chart renders it once its data is in, which may take a moment.
+        for (let attempt = 0; attempt < 50; attempt++) {
+            if (setFastChartSelectMode(fastChartElementId, true)) return true;
+            await new Promise(function (resolve) { setTimeout(resolve, 100); });
         }
-        return true;
+        showToast('The chart is still loading. Please press Record again in a moment.', 'info');
+        return false;
     }
 
     // Leaving the fast chart, or its time axis, ends recording, and keeps the draft values.

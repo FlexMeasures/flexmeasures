@@ -240,8 +240,10 @@ For the data, note the following:
                                   <div class="form-text text-white mb-2">
                                       Sketch values on the chart before saving them. Nothing is saved from this panel.
                                   </div>
-                                  <button data-draft-record type="button" class="btn btn-sm btn-responsive btn-success create-button"
-                                      aria-pressed="false" style="border: 1px solid var(--light-gray);">Record</button>
+                                  <div>
+                                      <button data-draft-record type="button" class="btn btn-sm btn-responsive btn-success create-button"
+                                          aria-pressed="false" style="border: 1px solid var(--light-gray);">Record</button>
+                                  </div>
                                   <label for="draftValue" class="form-label fw-bold mt-3">Value{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
                                   <div class="input-group input-group-sm">
                                       <input id="draftValue" data-draft-value class="form-control" type="number" step="any"

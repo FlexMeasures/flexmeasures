@@ -111,8 +111,11 @@ export function draftValuesUnavailableReason(resolutionMs, isTouch) {
   return null;
 }
 
+// With the UTC offset, so that the two occurrences of an hour repeated at a DST transition can be told apart.
 function defaultFormatTime(date) {
-  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return date.toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+  });
 }
 
 /**
@@ -196,16 +199,15 @@ export function wireDraftValuesPanel(root, options) {
     list.replaceChildren(
       ...drafts.map((draft) => {
         const row = document.createElement("li");
-        row.className = "list-group-item d-flex justify-content-between align-items-center";
+        row.className = "list-group-item d-flex justify-content-between align-items-center py-1 small";
         row.dataset.draftStart = String(draft.start.getTime());
         const text = document.createElement("span");
         text.textContent = opts.formatTime(draft.start) + ": " + withUnit(draft.value);
         const remove = document.createElement("button");
         remove.type = "button";
-        remove.className = "btn btn-sm btn-outline-danger";
+        remove.className = "btn-close ms-2";
         remove.title = "Remove this draft value";
         remove.setAttribute("aria-label", "Remove the draft value at " + opts.formatTime(draft.start));
-        remove.textContent = "×";
         remove.addEventListener("click", () => controller.remove(draft.start.getTime()));
         row.append(text, remove);
         return row;
