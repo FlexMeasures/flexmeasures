@@ -45,6 +45,7 @@ def modal_setup():
             optionsUrl: "/assets/3/scheduling-options",
             defaultsUrl: "/assets/3/scheduling-defaults",
             demoPricesUrl: "/assets/3/demo-prices",
+            newSensorUrl: "/assets/3/sensors/new",
             triggerUrl: "/api/v3_0/assets/3/schedules/trigger",
             jobsUrl: "/api/v3_0/jobs",
             configUrl: "/assets/3/context",
@@ -112,6 +113,8 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
         open();
         await answer({...available, price_sensors: [], can_create_demo_prices: true});
         check("demo action appears when no prices are available", !field("demo-price-group").classList.contains("d-none"));
+        eq("create choice is selected when there are no sensors", field("price").value, "__create_demo__");
+        check("the create choice cannot be used as a price sensor", field("run").disabled);
         eq("dynamic daily prices are the default", field("demo-profile").value, "nl_october_day");
         eq("lookup does not create data", requests.length, 1);
         field("demo-price").click();
@@ -129,12 +132,18 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
 def test_demo_price_creation_can_choose_uniform_profile(assert_js):
     assert_js(modal_setup() + OPTIONS + """
         open();
-        await answer({...available, price_sensors: [], can_create_demo_prices: true});
+        await answer({...available, can_create_demo_prices: true});
+        eq("a public sensor remains available", field("price").options[1].value, "12");
+        eq("creation remains an option with a public sensor", field("price").options[2].value, "__create_demo__");
+        field("price").value = "__create_demo__";
+        change("price");
+        check("the create choice does not enable scheduling", field("run").disabled);
+        check("creation controls follow the dropdown choice", !field("demo-price-group").classList.contains("d-none"));
         field("demo-profile").value = "uniform";
         field("demo-price").click();
         eq("uniform profile is submitted", JSON.parse(requests[1].options.body).profile, "uniform");
         await answer({id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}, 201);
-        await answer({...available, price_sensors: [{id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}]});
+        await answer({...available, price_sensors: [available.price_sensors[0], {id: 21, name: "Demo electricity price (Uniform)", unit: "EUR/MWh", url: "/sensors/21"}]});
         eq("uniform price sensor is selected", field("price").value, "21");
     """)
 
@@ -237,14 +246,33 @@ def test_failed_job_does_not_offer_success_or_save(assert_js):
 def test_missing_power_sensor_blocks_schedule_and_escapes_warnings(assert_js):
     assert_js(modal_setup() + OPTIONS + """
         open();
-        await answer({...available, power_sensors: [], warnings: ["<img src=x onerror=alert(1)>"]});
+        await answer({...available, power_sensors: [], can_create_demo_prices: true, warnings: ["<img src=x onerror=alert(1)>"]});
         chooseDefaults();
         check("missing power sensor blocks run", field("run").disabled);
         check("asset is explicitly unsupported", field("warnings").textContent.includes("This asset has no power sensor, so it is not supported"));
+        eq("add power sensor links to the asset's sensor form", field("warnings").querySelector("a").getAttribute("href"), "/assets/3/sensors/new");
         check("warnings are beside the action buttons", field("warnings").parentElement.classList.contains("modal-footer"));
         check("server-provided notes are text", field("warnings").querySelector("img") === null);
         submit();
         eq("no job is submitted", requests.length, 1);
+    """)
+
+
+def test_capacity_warning_tracks_temporary_value_and_recheck(assert_js):
+    assert_js(modal_setup() + OPTIONS + """
+        open();
+        await answer({...available, consumption_price: 0, requires_soc: false});
+        check("missing capacity is explained", !field("capacity-warning").classList.contains("d-none"));
+        field("capacity").value = "5";
+        field("capacity").dispatchEvent(new Event("input"));
+        check("entered capacity clears the warning", field("capacity-warning").classList.contains("d-none"));
+        check("warning box closes when capacity was the only warning", field("warnings").classList.contains("d-none"));
+        field("retry").click();
+        await answer({...available, consumption_price: 0, requires_soc: false});
+        check("rechecking preserves the cleared warning", field("capacity-warning").classList.contains("d-none"));
+        field("capacity").value = "";
+        field("capacity").dispatchEvent(new Event("input"));
+        check("clearing capacity restores the warning", !field("capacity-warning").classList.contains("d-none"));
     """)
 
 

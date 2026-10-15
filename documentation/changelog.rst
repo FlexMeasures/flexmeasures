@@ -20,7 +20,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
-* Run a schedule from an asset's context page, with checks for prices known at job time, temporary price and power-capacity choices, an option to create a sensor with repeating Dutch October or uniform demo prices, job progress, and an option to save the chosen defaults
+* Run a schedule from an asset's context page, with checks for prices known at job time, temporary price and power-capacity choices, links to add missing power sensors, an option to create a sensor with repeating Dutch October or uniform demo prices, job progress, and an option to save the chosen defaults
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
 * Both tabs of an asset's status page now name the asset each row belongs to, and the jobs tab also lists the jobs of the asset's sub-assets, so a site asset shows what happened anywhere below it, which you can switch off per session [see `PR #2500 <https://www.github.com/FlexMeasures/flexmeasures/pull/2500>`_]
@@ -83,6 +83,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Avoid rendering the asset tree while its Structure tab has no measurable size, which could produce invalid SVG transforms in ECharts
 * Database migration command errors now appear in CLI output, including the error when multiple Alembic heads exist.  [see `PR #2607 <https://www.github.com/FlexMeasures/flexmeasures/pull/2607>`_]
 * A failed job now says why in the same way on every queue, in the API, the CLI and the asset page's jobs table: a failed forecasting job no longer reads ``dict: {...}`` and now shows its timeout hint, and a failed report or plugin automation no longer reads ``str: ...`` [see `PR #2698 <https://www.github.com/FlexMeasures/flexmeasures/pull/2698>`_]
 * The result of a reporting or scheduling job now counts the beliefs it saved rather than those it computed, so a report's ``n_rows`` and a schedule's ``num-beliefs`` read 0 when a rerun only repeats what is on record, and ``flexmeasures add forecasts`` no longer drops what a forecaster registered by a plugin returns [see `PR #2689 <https://www.github.com/FlexMeasures/flexmeasures/pull/2689>`_ and `PR #2571 <https://www.github.com/FlexMeasures/flexmeasures/pull/2571>`_]

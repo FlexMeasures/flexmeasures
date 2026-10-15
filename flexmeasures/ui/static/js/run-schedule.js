@@ -38,9 +38,14 @@ export function initializeRunSchedule(root, config) {
         return Boolean(el('soc-source').value) ||
             (el('soc').value !== '' && el('soc').checkValidity());
     }
-    function updateSocWarning() {
-        const warning = el('soc-warning');
-        if (warning) warning.classList.toggle('d-none', hasStartingSoc());
+    function hasPowerCapacity() {
+        return el('capacity').value !== '' && Number(el('capacity').value) > 0 && el('capacity').checkValidity();
+    }
+    function updateWarnings() {
+        const socWarning = el('soc-warning');
+        if (socWarning) socWarning.classList.toggle('d-none', hasStartingSoc());
+        const capacityWarning = el('capacity-warning');
+        if (capacityWarning) capacityWarning.classList.toggle('d-none', hasPowerCapacity());
         const hasWarnings = [...el('warnings').children].some(note => !note.classList.contains('d-none'));
         show('warnings', hasWarnings);
         return hasWarnings;
@@ -54,8 +59,8 @@ export function initializeRunSchedule(root, config) {
         const hasSoc = hasStartingSoc();
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
             options.price_available !== false &&
-            (!missing(options.consumption_price) || el('price').value) &&
-            (!missing(options.power_capacity) || Number(el('capacity').value) > 0) &&
+            (!missing(options.consumption_price) || options.price_sensors.some(sensor => String(sensor.id) === el('price').value)) &&
+            (!missing(options.power_capacity) || hasPowerCapacity()) &&
             (!options.requires_soc || hasSoc);
         el('run').disabled = loading || running || !ready;
         el('run-tooltip').title = el('run').disabled ? 'Disable, check prerequisites warnings.' : '';
@@ -68,7 +73,7 @@ export function initializeRunSchedule(root, config) {
         el('soc').disabled = running || Boolean(el('soc-source').value);
         el('soc-unit').disabled = el('soc').disabled;
         show('spinner', loading || running);
-        updateSocWarning();
+        updateWarnings();
     }
     function addOption(select, value, text) {
         const option = document.createElement('option');
@@ -86,6 +91,7 @@ export function initializeRunSchedule(root, config) {
         const sensor = options?.price_sensors.find(item => String(item.id) === el('price').value);
         if (sensor) showSensorLink(el('selected-price'), sensor);
         else el('selected-price').replaceChildren();
+        show('demo-price-group', Boolean(options && missing(options.consumption_price) && el('price').value === '__create_demo__'));
     }
     async function lookup() {
         if (running) return;
@@ -112,7 +118,6 @@ export function initializeRunSchedule(root, config) {
             if (powers.length === 1) showSensorLink(el('power'), powers[0]);
             if (!powers.length) {
                 el('power').textContent = 'None; see info below.';
-                warnings.push('This asset has no power sensor, so it is not supported by this Run schedule dialogue. Add a power sensor to this asset to use it.');
             } else if (powers.length > 1) {
                 el('power').append('More than one (IDs: ');
                 for (const [index, sensor] of powers.entries()) {
@@ -129,9 +134,9 @@ export function initializeRunSchedule(root, config) {
             el('price').replaceChildren();
             addOption(el('price'), '', 'Choose a price sensor');
             for (const sensor of data.price_sensors) addOption(el('price'), sensor.id, `${sensor.name} (${sensor.unit}, ID: ${sensor.id})`);
-            el('price').value = previousPrice;
+            if (data.can_create_demo_prices) addOption(el('price'), '__create_demo__', 'Create a demo price sensor…');
+            el('price').value = previousPrice || (!data.price_sensors.length && data.can_create_demo_prices ? '__create_demo__' : '');
             show('price-group', missing(data.consumption_price));
-            show('demo-price-group', missing(data.consumption_price) && !data.price_sensors.length && Boolean(data.can_create_demo_prices));
             show('configured-price-group', !missing(data.consumption_price));
             el('configured-price').replaceChildren();
             if (data.consumption_price_sensor) showSensorLink(el('configured-price'), data.consumption_price_sensor);
@@ -144,7 +149,6 @@ export function initializeRunSchedule(root, config) {
             }
             if (data.price_available === false) warnings.push('The configured consumption price sensor has no prices known now covering the full schedule. A chart may show future values whose belief times are later than now. Check its belief horizon or add price data, or update the asset’s flex-config to use a different sensor.');
             show('capacity-group', missing(data.power_capacity));
-            if (missing(data.power_capacity)) warnings.push('No power capacity is configured. Enter the device’s power limit for this run.');
             el('capacity').required = missing(data.power_capacity);
             const previousSocSource = el('soc-source').value;
             el('soc-source').replaceChildren();
@@ -161,6 +165,25 @@ export function initializeRunSchedule(root, config) {
                 p.textContent = warning;
                 el('warnings').append(p);
             }
+            if (!powers.length) {
+                const p = document.createElement('p');
+                p.className = 'mb-1';
+                p.append('This asset has no power sensor, so it is not supported by this Run schedule dialogue. ');
+                if (data.can_create_demo_prices) {
+                    const link = document.createElement('a');
+                    link.href = config.newSensorUrl;
+                    link.textContent = 'Add a power sensor';
+                    p.append(link, ' to this asset to use it.');
+                } else p.append('Ask someone who can edit this asset to add a power sensor.');
+                el('warnings').append(p);
+            }
+            if (missing(data.power_capacity)) {
+                const p = document.createElement('p');
+                p.dataset.role = 'capacity-warning';
+                p.className = 'mb-1';
+                p.textContent = 'No power capacity is configured. Enter the device’s power limit for this run.';
+                el('warnings').append(p);
+            }
             if (data.requires_soc) {
                 const p = document.createElement('p');
                 p.dataset.role = 'soc-warning';
@@ -168,7 +191,7 @@ export function initializeRunSchedule(root, config) {
                 p.textContent = 'A starting state of charge is required for this storage asset. Choose an existing SoC reading or enter a value before running.';
                 el('warnings').append(p);
             }
-            const hasWarnings = updateSocWarning();
+            const hasWarnings = updateWarnings();
             show('retry', true);
             notify(hasWarnings ? 'Prerequisites checked. Review the notes before running.' : 'Prerequisites checked.', 'info');
         } catch (error) {
@@ -200,6 +223,7 @@ export function initializeRunSchedule(root, config) {
         if (name === 'price') updateSelectedPrice();
         updateReady();
     });
+    el('capacity').addEventListener('input', updateReady);
     el('soc').addEventListener('input', updateReady);
     el('retry').addEventListener('click', event => {
         event.preventDefault();
