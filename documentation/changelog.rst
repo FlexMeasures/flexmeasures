@@ -83,6 +83,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* The Run schedule dialog clears its missing-price warning after a price sensor is chosen for that run, including a newly created demo sensor
 * Avoid rendering the asset tree while its Structure tab has no measurable size, which could produce invalid SVG transforms in ECharts
 * Database migration command errors now appear in CLI output, including the error when multiple Alembic heads exist.  [see `PR #2607 <https://www.github.com/FlexMeasures/flexmeasures/pull/2607>`_]
 * A failed job now says why in the same way on every queue, in the API, the CLI and the asset page's jobs table: a failed forecasting job no longer reads ``dict: {...}`` and now shows its timeout hint, and a failed report or plugin automation no longer reads ``str: ...`` [see `PR #2698 <https://www.github.com/FlexMeasures/flexmeasures/pull/2698>`_]

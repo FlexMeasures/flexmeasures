@@ -97,6 +97,7 @@ def test_lookup_is_lazy_and_disables_dependent_controls(assert_js):
         check("price choices include sensor IDs", field("price").options[1].textContent.includes("ID: 12"));
         check("missing defaults still prevent running", field("run").disabled);
         chooseDefaults();
+        check("a selected price clears its warning", field("price-warning").classList.contains("d-none"));
         check("explicit defaults allow running", !field("run").disabled);
         eq("ready button has no disabled explanation", field("run-tooltip").title, "");
         eq("selected price sensor links to its page", field("selected-price").querySelector("a").getAttribute("href"), "/sensors/12");
@@ -124,8 +125,16 @@ def test_demo_price_creation_is_explicit_and_selects_new_sensor(assert_js):
         await answer({id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}, 201);
         await answer({...available, price_sensors: [{id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}], can_create_demo_prices: true});
         eq("new price is selected", field("price").value, "20");
+        check("demo price selection clears the missing-price warning", field("price-warning").classList.contains("d-none"));
         eq("new price links to its sensor page", field("selected-price").querySelector("a").getAttribute("href"), "/sensors/20");
         check("action hides once a price is available", field("demo-price-group").classList.contains("d-none"));
+        field("retry").click();
+        await answer({...available, price_sensors: [{id: 20, name: "Demo electricity price", unit: "EUR/MWh", url: "/sensors/20"}], can_create_demo_prices: true});
+        check("rechecking keeps the selected demo price", field("price").value === "20");
+        check("rechecking keeps its warning cleared", field("price-warning").classList.contains("d-none"));
+        field("price").value = "";
+        change("price");
+        check("clearing the price choice restores its warning", !field("price-warning").classList.contains("d-none"));
     """)
 
 
@@ -201,6 +210,7 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         ]);
         await answer({job: "job-42"});
         await tick();
+        check("save is not offered while execution is pending", field("save-group").classList.contains("d-none"));
         eq("poll uses returned job id", requests[2].url, "/api/v3_0/jobs/job-42");
         await answer({status: "STARTED", message: "Schedule is running"}, 202);
         await tick();
@@ -212,6 +222,7 @@ def test_run_payload_completion_and_explicit_persistence(assert_js):
         eq("result shows five hours before the schedule", new URL(link.href).searchParams.get("start_time"), "2026-10-14T03:00:00.000Z");
         eq("result shows five hours after the schedule", new URL(link.href).searchParams.get("end_time"), "2026-10-14T15:00:00.000Z");
         check("save is offered after success", !field("save-group").classList.contains("d-none"));
+        check("save prompt names permanent flex-config", field("save-summary").textContent.includes("permanently on this asset’s flex-config"));
         eq("success does not save automatically", requests.length, 4);
         field("save").click();
         eq("save uses a separate endpoint", requests[4].url, "/assets/3/scheduling-defaults");

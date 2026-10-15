@@ -41,13 +41,21 @@ export function initializeRunSchedule(root, config) {
     function hasPowerCapacity() {
         return el('capacity').value !== '' && Number(el('capacity').value) > 0 && el('capacity').checkValidity();
     }
+    function hasSelectedPrice() {
+        return Boolean(options?.price_sensors.some(sensor => String(sensor.id) === el('price').value));
+    }
     function updateWarnings() {
         const socWarning = el('soc-warning');
         if (socWarning) socWarning.classList.toggle('d-none', hasStartingSoc());
         const capacityWarning = el('capacity-warning');
         if (capacityWarning) capacityWarning.classList.toggle('d-none', hasPowerCapacity());
+        const priceWarning = el('price-warning');
+        if (priceWarning) priceWarning.classList.toggle('d-none', hasSelectedPrice());
         const hasWarnings = [...el('warnings').children].some(note => !note.classList.contains('d-none'));
         show('warnings', hasWarnings);
+        if (el('status').textContent.startsWith('Prerequisites checked.')) {
+            el('status').textContent = hasWarnings ? 'Prerequisites checked. Review the notes before running.' : 'Prerequisites checked.';
+        }
         return hasWarnings;
     }
     function updateReady() {
@@ -59,7 +67,7 @@ export function initializeRunSchedule(root, config) {
         const hasSoc = hasStartingSoc();
         const ready = options && options.power_sensors.length === 1 && validPeriod &&
             options.price_available !== false &&
-            (!missing(options.consumption_price) || options.price_sensors.some(sensor => String(sensor.id) === el('price').value)) &&
+            (!missing(options.consumption_price) || hasSelectedPrice()) &&
             (!missing(options.power_capacity) || hasPowerCapacity()) &&
             (!options.requires_soc || hasSoc);
         el('run').disabled = loading || running || !ready;
@@ -144,9 +152,6 @@ export function initializeRunSchedule(root, config) {
                 typeof data.consumption_price === 'string' || typeof data.consumption_price === 'number'
                     ? String(data.consumption_price) : 'Configured price sensor unavailable';
             updateSelectedPrice();
-            if (missing(data.consumption_price)) {
-                warnings.push(data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with prices (that are known now) and covering the full schedule were found. A chart may show future values whose belief times are later than now. Check the price sensor data and its belief horizon, or create a price sensor and upload a CSV, then check prerequisites again.');
-            }
             if (data.price_available === false) warnings.push('The configured consumption price sensor has no prices (that are known now) covering the full schedule. A chart may show future values whose belief times are later than now. Check its belief horizon or add price data, or update the asset’s flex-config to use a different sensor.');
             show('capacity-group', missing(data.power_capacity));
             el('capacity').required = missing(data.power_capacity);
@@ -163,6 +168,13 @@ export function initializeRunSchedule(root, config) {
                 const p = document.createElement('p');
                 p.className = 'mb-1';
                 p.textContent = warning;
+                el('warnings').append(p);
+            }
+            if (missing(data.consumption_price)) {
+                const p = document.createElement('p');
+                p.dataset.role = 'price-warning';
+                p.className = 'mb-1';
+                p.textContent = data.price_sensors.length ? 'No consumption price is configured. Choose a price sensor for this run.' : 'No price sensors with prices (that are known now) and covering the full schedule were found. A chart may show future values whose belief times are later than now. Check the price sensor data and its belief horizon, or create a price sensor and upload a CSV, then check prerequisites again.';
                 el('warnings').append(p);
             }
             if (!powers.length) {
@@ -302,7 +314,7 @@ export function initializeRunSchedule(root, config) {
                     show('results', true);
                     if (Object.keys(choices).length && options.can_save) {
                         savedChoices = choices;
-                        el('save-summary').textContent = `Keep these temporary choices for future schedules? ${choices.consumption_price_sensor ? `Price sensor #${choices.consumption_price_sensor}. ` : ''}${choices.power_capacity ? `Power capacity: ${choices.power_capacity}.` : ''}`;
+                        el('save-summary').textContent = `Save these temporary choices permanently on this asset’s flex-config for future schedules? ${choices.consumption_price_sensor ? `Price sensor #${choices.consumption_price_sensor}. ` : ''}${choices.power_capacity ? `Power capacity: ${choices.power_capacity}.` : ''}`;
                         show('save-group', true);
                     }
                     return;
