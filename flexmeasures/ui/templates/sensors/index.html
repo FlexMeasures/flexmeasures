@@ -231,6 +231,33 @@ For the data, note the following:
                           </div>
                       </div>
                   {% endif %}
+                  {% if user_can_create_children_sensor %}
+                      <div class="sidepanel-container">
+                          <div class="sidepanel-label">Draft values</div>
+                          <div id="draftValuesPanel" class="sidepanel-content" style="text-align: left;">
+                              <div data-draft-unavailable class="form-text text-white d-none"></div>
+                              <div data-draft-controls>
+                                  <div class="form-text text-white mb-2">
+                                      Sketch values on the chart before saving them. Nothing is saved from this panel.
+                                  </div>
+                                  <button data-draft-record type="button" class="btn btn-sm btn-responsive btn-success create-button"
+                                      aria-pressed="false" style="border: 1px solid var(--light-gray);">Record</button>
+                                  <label for="draftValue" class="form-label fw-bold mt-3">Value{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
+                                  <div class="input-group input-group-sm">
+                                      <input id="draftValue" data-draft-value class="form-control" type="number" step="any"
+                                          aria-describedby="draftSelection" />
+                                      <button data-draft-add type="button" class="btn btn-sm btn-light" disabled>Add</button>
+                                  </div>
+                                  <div id="draftSelection" data-draft-selection class="form-text text-white"></div>
+                                  <div class="fw-bold mt-3">Draft values</div>
+                                  <div data-draft-empty class="form-text text-white">No draft values yet.</div>
+                                  <ul data-draft-list class="list-group list-group-flush overflow-auto text-dark" style="max-height: 240px;"></ul>
+                                  <button data-draft-cancel type="button" class="btn btn-sm btn-responsive btn-secondary mt-3" disabled
+                                      style="border: 1px solid var(--light-gray);">Cancel</button>
+                              </div>
+                          </div>
+                      </div>
+                  {% endif %}
 
                   {% if user_can_delete_sensor_data %}
                   <div class="sidepanel-container">
