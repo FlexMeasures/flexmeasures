@@ -26,6 +26,10 @@
                                 data-bs-target="#flexContextModal">
                                 Edit flex-context
                             </button>
+                            {% if user_can_trigger_schedules %}
+                            <button class="btn btn-sm btn-success nav-button" type="button" data-bs-toggle="modal"
+                                data-bs-target="#runScheduleModal">Run schedule</button>
+                            {% endif %}
                         </div>
                     </div>
                     <p>
@@ -113,6 +117,21 @@
             </div>
         </div>
     </div>
+
+    {% if user_can_trigger_schedules %}
+    {% include "assets/run_schedule.html" %}
+    <script type="module">
+        import { initializeRunSchedule } from {{ url_for('flexmeasures_ui.static', filename='js/run-schedule.js') | tojson }};
+        initializeRunSchedule(document.getElementById('runScheduleModal'), {
+            optionsUrl: {{ url_for('AssetCrudUI:schedule_options', id=asset.id) | tojson }},
+            defaultsUrl: {{ url_for('AssetCrudUI:schedule_defaults', id=asset.id) | tojson }},
+            demoPricesUrl: {{ url_for('AssetCrudUI:demo_prices', id=asset.id) | tojson }},
+            newSensorUrl: {{ url_for('AssetCrudUI:create_sensor', id=asset.id) | tojson }},
+            triggerUrl: {{ ('/api/v3_0/assets/' ~ asset.id ~ '/schedules/trigger') | tojson }},
+            jobsUrl: {{ '/api/v3_0/jobs' | tojson }}
+        });
+    </script>
+    {% endif %}
 
     <!-- Flex Context Modal -->
     <div class="modal fade modal-xl" id="flexContextModal" tabindex="-1" aria-labelledby="flexContextModalLabel"
