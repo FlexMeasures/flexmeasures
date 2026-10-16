@@ -343,10 +343,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         All logged-in users can read if the asset is public.
         For non-public assets, we allow reading to whoever can read the account.
-        Both creation of children (beliefs, child assets) as well as editing
-        is allowed for every user in the account or consultants.
-        Deletion is only allowed for account admins, as well as for consultants.
-
+        Creating and editing child assets, sensors and data is allowed for every user in the account or consultants.
         Members may delete an asset only if it holds no data;
         deleting an asset that holds data requires account-admin or consultant rights, which the endpoint checks.
         """
