@@ -87,6 +87,26 @@ def trigger_through_deprecated_sensor_endpoint(client, sensor: Sensor):
     )
 
 
+def get_as(app, auth_token: str, endpoint: str = "SensorAPI:index"):
+    """Call a GET endpoint as the user the token belongs to, like an API client would (by default, list sensors).
+
+    Each request gets an app context and a client of its own.
+    The tests run inside one app context, whose ``g`` would otherwise hand the user loaded by one request to the next,
+    and a session cookie would do the same, so that the limiter would count each request against the previous request's user.
+    """
+    path = url_for(endpoint)
+    with app.app_context(), app.test_client() as client:
+        return client.get(path, headers={"Authorization": auth_token})
+
+
+def auth_token_of(app, email: str) -> str:
+    """Log in as an API client would, without spending any of the budgets we test."""
+    with app.test_client() as client:
+        auth_token = get_auth_token(client, email, "testtest")
+    limiter.reset()  # start counting afresh, so that logging in spent nothing
+    return auth_token
+
+
 def test_asset_id_of_trigger(monkeypatch):
     """
     Test the util function we use to log which asset lead to 429 status.
@@ -130,35 +150,20 @@ def test_no_rate_limiting_when_disabled(
             assert trigger(client, battery).status_code != 429
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_default_rate_limit(app, rate_limiting, requesting_user):
+def test_default_rate_limit(app, setup_roles_users, rate_limiting):
     """The default limit applies to any API endpoint, and says how long to wait."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "2 per minute"
     )
-    with app.test_client() as client:
-        for _ in range(2):
-            assert client.get(url_for("SensorAPI:index")).status_code == 200
-        response = client.get(url_for("SensorAPI:index"))
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+    for _ in range(2):
+        assert get_as(app, auth_token).status_code == 200
+    response = get_as(app, auth_token)
 
     assert response.status_code == 429
     assert response.json["status"] == "TOO_MANY_REQUESTS"
     assert "2 per 1 minute" in response.json["message"]
     assert "Retry-After" in response.headers
-
-
-def list_sensors_as(app, auth_token: str):
-    """List sensors as the user the token belongs to, like a separate API client would.
-
-    Each request gets an app context and a client of its own.
-    The tests run inside one app context, whose ``g`` would otherwise hand the user loaded by one request to the next,
-    and a session cookie would do the same, so that the limiter would count each request against the previous request's user.
-    """
-    path = url_for("SensorAPI:index")
-    with app.app_context(), app.test_client() as client:
-        return client.get(path, headers={"Authorization": auth_token})
 
 
 @pytest.mark.parametrize(
@@ -181,17 +186,100 @@ def test_default_rate_limit_is_counted_per_account(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "2 per minute"
     )
-    with app.test_client() as client:
-        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
-        other_auth_token = get_auth_token(client, other_user_email, "testtest")
-    limiter.reset()  # start counting afresh, so that logging in spent nothing
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+    other_auth_token = auth_token_of(app, other_user_email)
 
     for _ in range(2):
-        assert list_sensors_as(app, auth_token).status_code == 200
-    assert list_sensors_as(app, auth_token).status_code == 429
-    response = list_sensors_as(app, other_auth_token)
+        assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+    response = get_as(app, other_auth_token)
 
     assert response.status_code == expected_status_code_for_other_user
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_ui_requests_have_a_budget_per_user(
+    app, setup_roles_users, rate_limiting, requesting_user
+):
+    """The UI calls the API with the user's session, and those requests count against the UI's budget per user."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "2 per minute")
+    with app.test_client() as client:
+        for _ in range(2):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+        response = client.get(url_for("SensorAPI:index"))
+
+    assert response.status_code == 429
+    assert "2 per 1 minute" in response.json["message"]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_an_exhausted_account_budget_does_not_lock_out_the_ui(
+    app, setup_roles_users, rate_limiting, requesting_user
+):
+    """An integration which uses up its account's budget leaves the UI usable for the account's users."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "2 per minute"
+    )
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "2 per minute")
+    # An integration of the same account
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+    for _ in range(2):
+        assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+
+    with app.test_client() as client:
+        for _ in range(2):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_ui_requests_do_not_spend_the_account_budget(
+    app, setup_roles_users, rate_limiting, requesting_user
+):
+    """Browsing the UI leaves the budget which the account's integrations need untouched."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "2 per minute"
+    )
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+    with app.test_client() as client:
+        for _ in range(3):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+
+    # An integration of the same account still has its whole budget
+    for _ in range(2):
+        assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("plan_default_rate_limit", ["unlimited", "1 per minute"])
+def test_plans_do_not_change_the_ui_budget(
+    app,
+    setup_roles_users,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
+    plan_default_rate_limit,
+):
+    """A plan sets the budget of the account's integrations, so it neither exempts nor limits the UI."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "2 per minute")
+    assign_temporary_account_plan(
+        name=f"test-plan-ui-{plan_default_rate_limit}",
+        default_rate_limit=plan_default_rate_limit,
+    )
+
+    with app.test_client() as client:
+        for _ in range(2):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
 
 
 @pytest.mark.parametrize(
@@ -210,6 +298,7 @@ def test_play_mode_is_exempt_from_both_rate_limits(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "1 per minute")
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
@@ -220,34 +309,28 @@ def test_play_mode_is_exempt_from_both_rate_limits(
             assert trigger(client, battery).status_code != 429
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
-def test_development_mode_still_rate_limits(app, rate_limiting, requesting_user):
+def test_development_mode_still_rate_limits(app, setup_roles_users, rate_limiting):
     """Only the play mode is exempt: a dev server limits like production does,
     so that the limits do not first surface once they are live."""
     rate_limiting.setitem(app.config, "FLEXMEASURES_MODE", "development")
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
-    with app.test_client() as client:
-        assert client.get(url_for("SensorAPI:index")).status_code == 200
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
-)
 def test_health_endpoint_is_exempt_from_default_rate_limit(
-    app, rate_limiting, requesting_user
+    app, setup_roles_users, rate_limiting
 ):
     """Monitoring should not be able to rate-limit itself out of checking on us."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
-    with app.test_client() as client:
-        for _ in range(3):
-            assert client.get(url_for("HealthAPI:is_ready")).status_code == 200
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+    for _ in range(3):
+        assert get_as(app, auth_token, "HealthAPI:is_ready").status_code == 200
 
 
 @pytest.mark.parametrize(
@@ -439,7 +522,11 @@ def test_account_can_be_exempt_from_trigger_rate_limit(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_account_can_be_exempt_from_default_rate_limit(
-    app, rate_limiting, requesting_user, assign_temporary_account_plan
+    app,
+    setup_roles_users,
+    rate_limiting,
+    requesting_user,
+    assign_temporary_account_plan,
 ):
     """An account can be exempted from the default limit, too.
 
@@ -454,9 +541,10 @@ def test_account_can_be_exempt_from_default_rate_limit(
         name="test-plan-default-unlimited", default_rate_limit="unlimited"
     )
 
-    with app.test_client() as client:
-        for _ in range(3):
-            assert client.get(url_for("SensorAPI:index")).status_code == 200
+    # Through a token, as the plan sets the budget of the account's integrations (not of the UI)
+    auth_token = auth_token_of(app, requesting_user.email)
+    for _ in range(3):
+        assert get_as(app, auth_token).status_code == 200
 
 
 @pytest.mark.parametrize(
@@ -561,6 +649,7 @@ def new_rate_limit_audit_logs(db, previous_id: int) -> list[AuditLog]:
 def test_default_rate_limit_breach_is_audited_once_per_window(
     app,
     db,
+    setup_roles_users,
     undo_new_rows,
     rate_limiting,
     requesting_user,
@@ -578,10 +667,11 @@ def test_default_rate_limit_breach_is_audited_once_per_window(
         )
     previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
 
-    with app.test_client() as client:
-        assert client.get(url_for("SensorAPI:index")).status_code == 200
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
+    # Through a token, as the default limit is the budget of the account's integrations (the UI has its own)
+    auth_token = auth_token_of(app, requesting_user.email)
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+    assert get_as(app, auth_token).status_code == 429
 
     records = new_rate_limit_audit_logs(db, previous_id)
     assert len(records) == 1
@@ -652,7 +742,7 @@ def test_trigger_rate_limit_breach_is_audited_once_per_window(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_rate_limit_audit_is_deduplicated_with_redis_storage(
-    app, db, undo_new_rows, rate_limiting, requesting_user
+    app, db, setup_roles_users, undo_new_rows, rate_limiting, requesting_user
 ):
     """Concurrent-capable Redis storage uses the counter's own expiry for deduplication."""
     storage = RedisStorage(
@@ -667,10 +757,10 @@ def test_rate_limit_audit_is_deduplicated_with_redis_storage(
     )
     previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
 
-    with app.test_client() as client:
-        assert client.get(url_for("SensorAPI:index")).status_code == 200
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
+    auth_token = auth_token_of(app, requesting_user.email)
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
+    assert get_as(app, auth_token).status_code == 429
 
     assert len(new_rate_limit_audit_logs(db, previous_id)) == 1
 
@@ -723,21 +813,57 @@ def test_hitting_the_trigger_rate_limit_is_logged(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_hitting_the_default_rate_limit_is_logged(
-    app, rate_limiting, requesting_user, caplog
+    app, setup_roles_users, rate_limiting, requesting_user, caplog
 ):
     """The default limit spans the whole API, so we log the endpoint, but no asset."""
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
-    with app.test_client() as client:
-        assert client.get(url_for("SensorAPI:index")).status_code == 200
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
+    auth_token = auth_token_of(app, requesting_user.email)
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
 
     assert refusal_logs(caplog) == [
         f"Refused a request for hitting the default rate limit (1 per 1 minute): "
         f"account {requesting_user.account_id}, user {requesting_user.id}, "
         f"GET {url_for('SensorAPI:index')} (SensorAPI:index)."
     ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_hitting_the_ui_rate_limit_is_logged_as_such(
+    app, setup_roles_users, rate_limiting, requesting_user, caplog
+):
+    """A host can tell from the logs that it was a user's UI budget that ran out, rather than their account's."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "1 per minute")
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert refusal_logs(caplog) == [
+        f"Refused a request for hitting the UI rate limit (1 per 1 minute): "
+        f"account {requesting_user.account_id}, user {requesting_user.id}, "
+        f"GET {url_for('SensorAPI:index')} (SensorAPI:index)."
+    ]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_ui_rate_limit_breach_is_not_audited(
+    app, db, setup_roles_users, undo_new_rows, rate_limiting, requesting_user
+):
+    """The account's audit log records breaches of the account's budgets, and the UI's budget is the user's."""
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "1 per minute")
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+
+    with app.test_client() as client:
+        assert client.get(url_for("SensorAPI:index")).status_code == 200
+        assert client.get(url_for("SensorAPI:index")).status_code == 429
+
+    assert new_rate_limit_audit_logs(db, previous_id) == []
 
 
 def test_hitting_the_default_rate_limit_unauthenticated_is_logged(
