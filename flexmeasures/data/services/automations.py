@@ -2059,6 +2059,12 @@ def _create_builtin_automation(
     AssetAuditLog.add_record(
         asset, f"Created automation '{name}' ({automation.id}) via {origin}."
     )
+    if automation_type == "reporting":
+        from flexmeasures.data.services.group_membership_audit import (
+            note_report_selection,
+        )
+
+        note_report_selection(automation, data_generator)
     return automation, warnings
 
 
