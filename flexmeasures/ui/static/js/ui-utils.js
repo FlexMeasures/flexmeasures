@@ -818,9 +818,11 @@ export function pollJobStatus(jobUuid, options = {}) {
             } catch {
                 data = null;
             }
-            // A failed job is answered with 422 and its status in the body, so only a body without a status means the endpoint could not be reached
-            if (!response.ok && !(data && data.status)) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // A failed job is answered with 422 and its status in the body, so that is the one error response to read as the job's status.
+            // Other error responses carry a status too (ERROR for a job that is gone, UNAUTHORIZED after logging out), but not a job's.
+            if (!response.ok && !(response.status === 422 && data && data.status)) {
+                const reason = data && data.message ? ` (${data.message})` : "";
+                throw new Error(`HTTP ${response.status}: ${response.statusText}${reason}`);
             }
         } catch (err) {
             stop();

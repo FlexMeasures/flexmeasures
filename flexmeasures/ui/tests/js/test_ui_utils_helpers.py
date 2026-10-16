@@ -169,6 +169,15 @@ def test_poll_job_status_reports_failure(assert_js):
         eq("a failure answered with 422 is passed on", failedWith422 && failedWith422.message, "Bad data in row 4");
         eq("and shown too", toasts.at(-1), {message: "Bad data in row 4", type: "error"});
 
+        // A job that is gone is answered with 404 and a status that is not a job's, which must end the polling rather than keep it going
+        window.fetch = async () => ({ok: false, status: 404, statusText: "NOT FOUND", json: async () => ({status: "ERROR", message: "Job x not found."})});
+        const gone = await Promise.race([
+            new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve})),
+            new Promise((resolve) => setTimeout(() => resolve("still polling"), 200)),
+        ]);
+        eq("a job that is gone counts as a failure without a job", gone, null);
+        check("and says why", toasts.at(-1).message.includes("HTTP 404") && toasts.at(-1).message.includes("Job x not found."), toasts.at(-1).message);
+
         window.fetch = async () => ({ok: false, status: 502, statusText: "Bad Gateway"});
         const unreachable = await new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve}));
         eq("an unreachable endpoint counts as a failure without a job", unreachable, null);
