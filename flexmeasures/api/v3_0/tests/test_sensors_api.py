@@ -243,6 +243,26 @@ def test_fetch_one_sensor(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_fetch_one_sensor_which_is_gone(
+    client, setup_api_test_data: dict[str, Sensor], requesting_user
+):
+    """A sensor which does not exist is not found, rather than a request the client got wrong.
+
+    A configuration can still refer to a sensor which was deleted, and the UI looks such a reference up,
+    so it has to be able to tell a sensor which is gone apart from a request that failed for another reason.
+    """
+    response = client.get(url_for("SensorAPI:fetch_one", id=10**6))
+    assert response.status_code == 404
+    assert "No sensor found with ID 1000000." in response.json["message"]
+
+    # An id which is no id at all is still a request the client got wrong.
+    response = client.get(url_for("SensorAPI:fetch_one", id="not-an-id"))
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [(None, 401), ("test_prosumer_user_2@seita.nl", 403)],
     indirect=["requesting_user"],

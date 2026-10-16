@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
 
-from flask import current_app
+from http import HTTPStatus
+
+from flask import abort, current_app
 from flask_security import current_user
 from marshmallow import (
     Schema,
@@ -305,18 +307,26 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 
 
 class SensorIdField(MarshmallowClickMixin, fields.Int):
-    """Field that deserializes to a Sensor and serializes back to an integer."""
+    """Field that deserializes to a Sensor and serializes back to an integer.
+
+    A sensor which does not exist is a validation error by default.
+    An endpoint whose path names the sensor can pass ``status_if_not_found=HTTPStatus.NOT_FOUND`` instead,
+    to answer 404, as the asset endpoints do,
+    so that a client can tell a sensor which is gone apart from a request it got wrong.
+    """
 
     def __init__(
         self,
         asset: GenericAsset | None = None,
         unit: str | ur.Quantity | None = None,
         *args,
+        status_if_not_found: HTTPStatus | None = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         self.asset = asset
+        self.status_if_not_found = status_if_not_found
 
         if isinstance(unit, str):
             self.to_unit = ur.Quantity(unit)
@@ -338,7 +348,10 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
         sensor = get_by_id(Sensor, sensor_id)
 
         if sensor is None:
-            raise FMValidationError(f"No sensor found with ID {sensor_id}.")
+            message = f"No sensor found with ID {sensor_id}."
+            if self.status_if_not_found == HTTPStatus.NOT_FOUND:
+                raise abort(404, message)
+            raise FMValidationError(message)
 
         # lazy loading now (sensor is somehow not in session after this)
         sensor.generic_asset
