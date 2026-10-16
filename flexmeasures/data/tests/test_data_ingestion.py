@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
+import pandas as pd
+
 from flexmeasures.data.services.data_ingestion import (
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
 )
-from flexmeasures.data.utils import SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
+from flexmeasures.data.utils import (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+)
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.time_utils import server_now
 
 
 def test_ingestion_service_accepts_beliefs_data_frame(setup_beliefs, db):
@@ -19,3 +27,35 @@ def test_ingestion_service_accepts_beliefs_data_frame(setup_beliefs, db):
     )
 
     assert status == SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
+
+
+def test_ingestion_job_accepts_belief_time_ahead_of_its_clock(
+    setup_beliefs_fresh_db, setup_roles_users_fresh_db, fresh_db
+):
+    """A queued upload is saved even if the server that received it ran ahead of the worker's clock."""
+    sensor = get_test_sensor(fresh_db)
+    user_id = setup_roles_users_fresh_db["Test Prosumer User"]
+    belief_time = server_now() + timedelta(minutes=1)
+
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        sensor_id=sensor.id,
+        user_id=user_id,
+        uploaded_files=[
+            dict(
+                filename="prices.csv",
+                content_type="text/csv",
+                content=b"event_start,event_value\n2030-01-01T00:00:00+00:00,10\n2030-01-01T01:00:00+00:00,20\n",
+            )
+        ],
+        upload_data={
+            "belief-time-measured-instantly": "off",
+            "belief-time": belief_time.isoformat(),
+        },
+    )
+
+    assert status == SAVE_TO_DB_SUCCESS
+    bdf = sensor.search_beliefs(
+        event_starts_after=pd.Timestamp("2030-01-01T00:00:00Z"),
+        most_recent_beliefs_only=False,
+    )
+    assert bdf.reset_index()["belief_time"].tolist() == [pd.Timestamp(belief_time)] * 2

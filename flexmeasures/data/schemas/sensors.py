@@ -942,19 +942,13 @@ class SensorDataFileDescriptionSchema(Schema):
 
     @validates_schema
     def validate_belief_time(self, data, **kwargs):
-        """Refuse a belief time that conflicts with measured-instantly or lies in the future."""
-        belief_time = data.get("belief_time")
-        if belief_time is None:
-            return
-        if data.get("belief_time_measured_instantly"):
+        """Refuse a belief time that conflicts with measured-instantly."""
+        if data.get("belief_time") is not None and data.get(
+            "belief_time_measured_instantly"
+        ):
             raise ValidationError(
                 field_name="belief_time",
                 message="A belief time cannot be combined with belief-time-measured-instantly.",
-            )
-        if belief_time > server_now():
-            raise ValidationError(
-                field_name="belief_time",
-                message=f"Belief time {belief_time.isoformat()} lies in the future.",
             )
 
 
@@ -1149,6 +1143,21 @@ def floor_bdf_event_starts(
 
 class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
+
+    @validates_schema
+    def validate_belief_time_is_not_in_the_future(self, data, **kwargs):
+        """Refuse a belief time that lies in the future.
+
+        This is checked only when the request comes in, against the clock of the server that received it.
+        A queued job validates its data again on a worker, whose clock may lag behind,
+        so checking there would refuse an upload believed at the time it was received.
+        """
+        belief_time = data.get("belief_time")
+        if belief_time is not None and belief_time > server_now():
+            raise ValidationError(
+                field_name="belief_time",
+                message=f"Belief time {belief_time.isoformat()} lies in the future.",
+            )
 
     @post_load
     def post_load(self, fields, **kwargs):
