@@ -41,6 +41,23 @@ as it is the consultancy's integration which makes those requests.
 The trigger limit is counted per account: all users and assets of an account share one budget.
 A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
 
+.. _rate-limiting-reset:
+
+Resetting an account's rate limits
+-----------------------------------
+
+When an account ran into a rate limit, and its integration has since been fixed, it need not wait out the rest of the window.
+Reset its rate limits with ``flexmeasures edit reset-rate-limit``:
+
+.. code-block:: bash
+
+    $ flexmeasures edit reset-rate-limit --account 3
+
+This resets the account's default limit and its trigger limit (see above).
+Pass ``--limit default`` or ``--limit trigger`` to reset just the one.
+Each limit is counted per account, so a reset gives the account a fresh budget.
+
+A limit the account is exempt from (``"unlimited"``) has nothing to reset, and the command says so.
 
 Finding out who hit a limit
 ----------------------------
