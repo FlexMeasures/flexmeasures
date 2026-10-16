@@ -24,10 +24,6 @@ from flexmeasures.data.schemas.reporting.aggregation import (
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units, is_energy_unit
 
-#: Sensor attribute under which a report records the membership it last aggregated onto that sensor,
-#: keyed by the group and member filter it was asked for.
-MEMBERSHIP_ATTRIBUTE = "aggregator-membership"
-
 
 class GroupMember:
     """One reading of one device of a group, as the flex-config describes it.
@@ -452,76 +448,20 @@ class AggregatorReporter(Reporter):
 
     # --------------------------------------------------------- accountability
 
-    def _record_membership(
-        self, members: list[GroupMember], output_sensor: Sensor
-    ) -> None:
-        """Record which sensors the group resolved to, and note it in the asset's audit log when it changed.
+    def _record_membership(self, members: list[GroupMember]) -> None:
+        """Record which sensors the group resolved to, as part of the report's data source.
 
-        A member filter means the set of aggregated devices can change without the report's configuration changing,
-        so the resolved membership becomes part of the data source: adding a device to a group records the next report
-        under a different source, and the change is traceable. The one thing the flex-config does not cover is an asset's type,
-        which is why a change is also written to the group asset's audit log.
+        Membership comes from the flex-config, so the set of aggregated devices can change without the report's configuration changing.
+        Recording the resolved membership on the data source traces each stored report to the devices it aggregated:
+        adding a device to a group records the next report under a different source.
+        Changes to the membership itself are noted in the group asset's audit log when they are made.
         """
-        from flexmeasures.data.models.audit_log import AssetAuditLog
-
         resolved = sorted(member.sensor.id for member in members)
-        if (
-            self._config.get("resolved_members") == resolved
-            and self._membership_of_last_report(output_sensor) == resolved
-        ):
+        if self._config.get("resolved_members") == resolved:
             return
-
-        previous = self._membership_of_last_report(output_sensor)
         self._config["resolved_members"] = resolved
         # the membership is part of the source's identity, so the cached source no longer describes this run
         self._data_source = None
-        self._remember_membership(output_sensor, resolved)
-
-        if previous is None or previous == resolved:
-            return
-
-        asset = self._group_asset()
-        if asset is None:
-            return
-        added = sorted(set(resolved) - set(previous))
-        dropped = sorted(set(previous) - set(resolved))
-        AssetAuditLog.add_record(
-            asset,
-            f"AggregatorReporter membership of group {group_key_label(resolve_group_reference(self._config['group']))}"
-            f" recorded on sensor {output_sensor.id} changed:"
-            f" added sensors {added or 'none'}, dropped sensors {dropped or 'none'}",
-        )
-
-    def _membership_of_last_report(self, output_sensor: Sensor) -> list[int] | None:
-        """Return the membership this report resolved to the last time it ran on this output sensor.
-
-        It is read from the output sensor rather than worked out from the beliefs there.
-        Beliefs cannot answer it: a run that recomputes the same values stores nothing,
-        so it leaves no trace to compare the next run against, and the comparison would stay
-        stuck on the last run whose numbers happened to change.
-        """
-        recorded = (output_sensor.attributes or {}).get(MEMBERSHIP_ATTRIBUTE) or {}
-        previous = recorded.get(self._membership_key())
-        return sorted(previous) if previous is not None else None
-
-    def _remember_membership(self, output_sensor: Sensor, resolved: list[int]) -> None:
-        """Record on the output sensor which sensors this report aggregated, for the next run to compare against."""
-        attributes = dict(output_sensor.attributes or {})
-        recorded = dict(attributes.get(MEMBERSHIP_ATTRIBUTE) or {})
-        recorded[self._membership_key()] = resolved
-        attributes[MEMBERSHIP_ATTRIBUTE] = recorded
-        output_sensor.attributes = attributes
-
-    def _membership_key(self) -> str:
-        """Return a key identifying this report among those recording on one sensor.
-
-        Two reports over one group, one of them narrowed by a filter, each follow their own membership.
-        """
-        group_key = resolve_group_reference(self._config["group"])
-        label = group_key_label(group_key) if group_key else "unknown"
-        member_filter = self._config.get("members") or {}
-        asset_type = member_filter.get("asset_type") or ""
-        return f"{label}|{asset_type}"
 
     # ------------------------------------------------------------------ units
 
@@ -627,7 +567,7 @@ class AggregatorReporter(Reporter):
             resolution = output_sensor.event_resolution
 
         if self._config.get("group"):
-            self._record_membership(self._group_members(), output_sensor)
+            self._record_membership(self._group_members())
 
         input_descriptions = self._collect_input_descriptions(
             input or [], output_sensor=output_sensor

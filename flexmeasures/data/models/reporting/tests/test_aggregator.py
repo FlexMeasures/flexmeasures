@@ -1064,26 +1064,24 @@ def test_a_missing_hour_of_energy_is_not_reported_as_zero(
 def test_resolved_membership_is_recorded_on_the_data_source(
     setup_nested_groups, db, temp_assets
 ):
-    """A report records which sensors it aggregated, so adding a device records the next report differently."""
+    """A report records which sensors it aggregated, so adding a device records the next report differently.
+
+    That the membership changed is noted in the group's audit log when the device is added, not by the report.
+    """
     region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
         setup_nested_groups
     )
-    from flexmeasures.data.models.audit_log import AssetAuditLog
-
     reporter = AggregatorReporter(config={"group": {"asset": street.id}})
     first = reporter.compute(
         start=datetime(2026, 7, 1, tzinfo=utc),
         end=datetime(2026, 7, 2, tzinfo=utc),
         belief_horizon=timedelta(0),
     )
-    # the membership of the last *stored* report is what the next run compares against
     save_to_db(first[0]["data"])
     db.session.commit()
     first_source = reporter.data_source
     recorded = first_source.attributes["data_generator"]["config"]["resolved-members"]
     assert sorted(recorded) == sorted([pv_power.id, hp_power.id, far_power.id])
-
-    audit_before = db.session.query(AssetAuditLog).count()
 
     # add a PV to the house; nothing about the report changes
     extra = GenericAsset(
@@ -1139,10 +1137,6 @@ def test_resolved_membership_is_recorded_on_the_data_source(
     )
     # the membership is part of the source's identity, so this is a different source
     assert second_source.id != first_source.id
-    # and the change is noted on the group's asset
-    assert db.session.query(AssetAuditLog).count() > audit_before
-    latest = db.session.query(AssetAuditLog).order_by(AssetAuditLog.id.desc()).first()
-    assert "membership" in latest.event and str(extra_power.id) in latest.event
 
 
 def test_an_input_cleans_the_readings_it_asks_for(setup_dummy_data, db):
@@ -1361,60 +1355,6 @@ def test_a_device_with_a_power_sensor_is_read_from_it(
     assert result["event_value"].values == pytest.approx(-0.08)
 
 
-def test_membership_changing_back_is_recognized(
-    setup_nested_groups, db, temp_assets, restore_flex_models
-):
-    """Taking a member out and putting it back logs one entry each way, and nothing for the runs between.
-
-    A membership that returns to an earlier set is recorded by that set's own, older data source again,
-    so the comparison cannot follow data sources by id. It cannot follow the stored beliefs either:
-    a run that recomputes the same values stores nothing, so runs 3 and 4 here leave no belief behind.
-    Each run is still given its own belief time, as successive reports in practice have,
-    to show the answer does not depend on them.
-    """
-    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
-        setup_nested_groups
-    )
-    from flexmeasures.data.models.audit_log import AssetAuditLog
-
-    in_group = {
-        "inflexible-production": {"sensor": far_power.id},
-        "group": {"asset": street.id},
-    }
-    out_of_group = {"inflexible-production": {"sensor": far_power.id}}
-    restore_flex_models(far_power.generic_asset)
-
-    def run(membership: dict, horizon_hours: int) -> int:
-        """Set the membership, run a report, store it, and return the number of audit entries so far."""
-        far_power.generic_asset.flex_model = membership
-        db.session.commit()
-        reporter = AggregatorReporter(config={"group": {"asset": street.id}})
-        result = reporter.compute(
-            output=[dict(sensor=street_total)],
-            start=datetime(2026, 7, 1, tzinfo=utc),
-            end=datetime(2026, 7, 2, tzinfo=utc),
-            # a smaller horizon is a later belief, so each run is the newest one when it runs
-            belief_horizon=timedelta(hours=horizon_hours),
-        )
-        save_to_db(result[0]["data"])
-        db.session.commit()
-        return db.session.query(AssetAuditLog).count()
-
-    # The first run has nothing to compare against, so it records a membership without logging a change.
-    base = run(in_group, 10)
-
-    counts = [
-        run(out_of_group, 9) - base,  # the far PV leaves: one change
-        run(in_group, 8) - base,  # and comes back: a second change
-        run(in_group, 7) - base,  # unchanged
-        run(in_group, 6) - base,  # unchanged
-        run(out_of_group, 5) - base,  # leaves again: a third change
-        run(out_of_group, 4) - base,  # unchanged
-    ]
-
-    assert counts == [1, 2, 2, 2, 3, 3]
-
-
 def test_an_invalid_flex_model_names_only_the_faulty_asset(
     setup_nested_groups, db, restore_flex_models
 ):
@@ -1448,41 +1388,3 @@ def test_an_invalid_flex_model_names_only_the_faulty_asset(
     # the street and the house fail only because the fault sits below them
     assert f"{street.id} ({street.name})" not in message
     assert f"{house.id} ({house.name})" not in message
-
-
-def test_two_reports_on_one_group_do_not_log_each_other(setup_nested_groups, db):
-    """A filtered and an unfiltered report over one group each follow their own membership.
-
-    Run alternately, neither may read the other's membership as a change of its own,
-    even when both record on the same sensor.
-    """
-    region, street, house, street_total, *_ = setup_nested_groups
-    from flexmeasures.data.models.audit_log import AssetAuditLog
-
-    everything = AggregatorReporter(config={"group": {"asset": street.id}})
-    solar_only = AggregatorReporter(
-        config={
-            "group": {"asset": street.id},
-            "members": {"asset-type": "NestedSolar"},
-        }
-    )
-
-    def run(reporter, horizon_hours):
-        reporter.compute(
-            output=[dict(sensor=street_total)],
-            start=datetime(2026, 7, 1, tzinfo=utc),
-            end=datetime(2026, 7, 2, tzinfo=utc),
-            belief_horizon=timedelta(hours=horizon_hours),
-        )
-        db.session.commit()
-
-    # the first run of each records its own membership without logging anything
-    run(everything, 6)
-    run(solar_only, 5)
-    baseline = db.session.query(AssetAuditLog).count()
-
-    for horizon in (4, 3, 2, 1):
-        run(everything, horizon)
-        run(solar_only, horizon)
-
-    assert db.session.query(AssetAuditLog).count() == baseline
