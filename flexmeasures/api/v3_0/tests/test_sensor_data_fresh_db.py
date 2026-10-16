@@ -245,3 +245,29 @@ def test_upload_sensor_data_with_belief_time(
     assert belief_times == (
         [expected_belief_time] * 2 if expected_belief_time is not None else event_ends
     )
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_refuses_replacement(
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+):
+    """Re-uploading changed values at the same belief time is refused as a replacement."""
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+
+    def upload(value: int):
+        csv_content = f"event_start,event_value\n2022-12-16T05:00:00Z,{value}\n"
+        return client.post(
+            url_for("SensorAPI:upload_data", id=sensor.id),
+            data={
+                "uploaded-files": (io.BytesIO(csv_content.encode("utf-8")), "test.csv"),
+                "belief-time": "2022-12-15T12:00:00+01:00",
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert upload(4).status_code == 200
+    response = upload(5)
+    assert response.status_code == 403
+    assert response.json["status"] == "INVALID_REPLACEMENT"
