@@ -20,6 +20,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* When uploading sensor data, you can now set the time the data was known, such as the closure time of the market that set the prices [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]
 * Both tabs of an asset's status page now name the asset each row belongs to, and the jobs tab also lists the jobs of the asset's sub-assets, so a site asset shows what happened anywhere below it, which you can switch off per session [see `PR #2500 <https://www.github.com/FlexMeasures/flexmeasures/pull/2500>`_]
@@ -39,6 +40,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* ``add_beliefs_to_db_and_enqueue_forecasting_jobs`` now raises ``BeliefReplacementNotAllowed`` rather than an ``IntegrityError`` when saving would change existing values, so plugins catching ``IntegrityError`` around it should catch the new exception instead [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * ``[GET] /sensors/(id)`` now answers a sensor which does not exist with a 404, as the asset endpoints do, rather than with a 422, so that a client can tell a sensor which is gone apart from a request it got wrong [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]
 * Speed up preparing a storage schedule by validating each device's constraints with vectorised comparisons instead of one ``DataFrame.eval`` per check (from ~25 ms to ~3 ms per device); the helpers ``validate_constraint`` and ``sanitize_expression`` in ``flexmeasures.data.models.planning.storage``, which nothing in FlexMeasures called any more, are removed, with ``validate_constraints`` replacing them [see `PR #2641 <https://www.github.com/FlexMeasures/flexmeasures/pull/2641>`_]
 * Rate-limit simplification: Triggers for schedules and forecasts are now always counted per organisation, against one budget that all of its users and assets share, so plans no longer choose what triggers are counted against, and the ``FLEXMEASURES_API_RATE_LIMIT_KEY`` setting is deprecated and ignored. Hosts who set it (or a plan's rate-limit key) to ``account+asset`` or ``user`` may want to raise the trigger rate limit of the affected plans, or ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``, before upgrading [see `PR #2679 <https://www.github.com/FlexMeasures/flexmeasures/pull/2679>`_]
@@ -86,6 +88,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
+* Keep the current-time bar visible during sensor chart playback when no data is visible yet [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * The flex-config and graph dialogues now say so when a configuration refers to a sensor which no longer exists, as a sensor deleted directly in the database leaves such references behind, where they used to show it as a sensor with an undefined name and unit: each dialogue names the dangling reference, lets you remove it, and warns above the configuration how many there are, the graph dialogue no longer reports such a sensor as having a different unit, and an asset's status page no longer fails to load over a flex-context field whose sensor is gone; a sensor that merely failed to load, for instance on a server error, is said to be just that, rather than deleted [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]
 * Database migration command errors now appear in CLI output, including the error when multiple Alembic heads exist.  [see `PR #2607 <https://www.github.com/FlexMeasures/flexmeasures/pull/2607>`_]
 * A failed job now says why in the same way on every queue, in the API, the CLI and the asset page's jobs table: a failed forecasting job no longer reads ``dict: {...}`` and now shows its timeout hint, and a failed report or plugin automation no longer reads ``str: ...`` [see `PR #2698 <https://www.github.com/FlexMeasures/flexmeasures/pull/2698>`_]

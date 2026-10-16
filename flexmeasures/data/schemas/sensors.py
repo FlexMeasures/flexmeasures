@@ -51,7 +51,7 @@ from flexmeasures.data.schemas.utils import (
     convert_to_quantity,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.utils.time_utils import get_timezone
+from flexmeasures.utils.time_utils import get_timezone, server_now
 from flexmeasures.utils.bound_utils import (
     apply_bounds_to_values,
     bound_validation_errors,
@@ -926,10 +926,30 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
+    belief_time = AwareDateTimeField(
+        required=False,
+        allow_none=True,
+        data_key="belief-time",
+        metadata=dict(
+            description="Time at which all uploaded data was known, as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly, and cannot lie in the future.",
+            example="2026-10-15T12:00:00+02:00",
+        ),
+    )
     unit = fields.String(
         required=False,
         data_key="unit",
     )
+
+    @validates_schema
+    def validate_belief_time(self, data, **kwargs):
+        """Refuse a belief time that conflicts with measured-instantly."""
+        if data.get("belief_time") is not None and data.get(
+            "belief_time_measured_instantly"
+        ):
+            raise ValidationError(
+                field_name="belief_time",
+                message="A belief time cannot be combined with belief-time-measured-instantly.",
+            )
 
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
@@ -1003,6 +1023,9 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
+        belief_time = fields.pop("belief_time", None)
+        if belief_time is None and not belief_time_measured_instantly:
+            belief_time = pd.Timestamp.utcnow()
 
         errors = {}
         for i, file in enumerate(files):
@@ -1011,11 +1034,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     file,
                     sensor,
                     source=get_or_create_source(self.source_user or current_user),
-                    belief_time=(
-                        pd.Timestamp.utcnow()
-                        if not belief_time_measured_instantly
-                        else None
-                    ),
+                    belief_time=belief_time,
                     belief_horizon=(
                         pd.Timedelta(days=0) if belief_time_measured_instantly else None
                     ),
@@ -1124,6 +1143,21 @@ def floor_bdf_event_starts(
 
 class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
+
+    @validates_schema
+    def validate_belief_time_is_not_in_the_future(self, data, **kwargs):
+        """Refuse a belief time that lies in the future.
+
+        This is checked only when the request comes in, against the clock of the server that received it.
+        A queued job validates its data again on a worker, whose clock may lag behind,
+        so checking there would refuse an upload believed at the time it was received.
+        """
+        belief_time = data.get("belief_time")
+        if belief_time is not None and belief_time > server_now():
+            raise ValidationError(
+                field_name="belief_time",
+                message=f"Belief time {belief_time.isoformat()} lies in the future.",
+            )
 
     @post_load
     def post_load(self, fields, **kwargs):
