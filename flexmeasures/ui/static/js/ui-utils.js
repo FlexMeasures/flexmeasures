@@ -807,9 +807,21 @@ export function pollJobStatus(jobUuid, options = {}) {
         signal.addEventListener("abort", stop, { once: true });
     }
 
-    async function poll() {
-        if (stopped) return;
+    // Polls are not sent while one is still waiting for its answer,
+    // or a slow endpoint would answer several of them with the same final status, each reported again.
+    let inFlight = false;
 
+    async function poll() {
+        if (stopped || inFlight) return;
+        inFlight = true;
+        try {
+            await pollOnce();
+        } finally {
+            inFlight = false;
+        }
+    }
+
+    async function pollOnce() {
         let data;
         try {
             const response = await fetch(url, { credentials: "same-origin" });

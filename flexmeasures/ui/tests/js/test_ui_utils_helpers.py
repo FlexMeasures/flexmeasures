@@ -185,6 +185,25 @@ def test_poll_job_status_reports_failure(assert_js):
         """)
 
 
+def test_poll_job_status_reports_once_when_answers_are_slow(assert_js):
+    assert_js(CAPTURE_TOASTS + """
+        import { pollJobStatus } from "/js/ui-utils.js";
+        let requests = 0;
+        // Each answer takes longer than the polling interval
+        window.fetch = async () => {
+            requests++;
+            await new Promise((resolve) => setTimeout(resolve, 40));
+            return {ok: true, json: async () => ({status: "FINISHED"})};
+        };
+        let finishedCalls = 0;
+        pollJobStatus("x", {intervalMs: 5, onFinished: () => finishedCalls++});
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        eq("a slow endpoint is asked once at a time", requests, 1);
+        eq("so the job's end is reported once", finishedCalls, 1);
+        eq("and shown once", toasts.filter((t) => t.type === "success").length, 1);
+        """)
+
+
 def test_poll_job_status_can_be_stopped(assert_js):
     assert_js(CAPTURE_TOASTS + """
         import { pollJobStatus } from "/js/ui-utils.js";
