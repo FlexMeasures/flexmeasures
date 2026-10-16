@@ -478,11 +478,43 @@
             uploadSpinner.classList.add('d-none');
             upload.disabled = false;
         }
+        let beliefTimeCustomContainer = document.querySelector('#beliefTimeCustomContainer');
+        let beliefTimeCustom = document.querySelector('#beliefTimeCustom');
+        // The picker has no timezone, so its value is read in the browser's timezone
+        document.querySelector('#beliefTimeCustomHint').textContent = "In your local time (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
+        function toDatetimeLocalValue(date) {
+            const pad = (n) => String(n).padStart(2, '0');
+            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+        }
+        document.querySelectorAll('input[name="belief-time-mode"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                const isCustom = document.querySelector('#belief-time-mode-custom').checked;
+                beliefTimeCustomContainer.classList.toggle('d-none', !isCustom);
+                if (isCustom) {
+                    beliefTimeCustom.max = toDatetimeLocalValue(new Date());
+                }
+            });
+        });
         upload.addEventListener('click', function (e) {
+            var formData = new FormData(document.getElementById('uploadForm'));
+            const beliefTimeMode = formData.get('belief-time-mode');
+            formData.delete('belief-time-mode');
+            formData.set('belief-time-measured-instantly', beliefTimeMode === 'instantly' ? 'on' : 'off');
+            if (beliefTimeMode === 'custom') {
+                if (!beliefTimeCustom.value) {
+                    showToast("Pick a belief time, or choose another option.", "error");
+                    return;
+                }
+                const beliefTime = new Date(beliefTimeCustom.value);
+                if (beliefTime > new Date()) {
+                    showToast("The belief time cannot lie in the future.", "error");
+                    return;
+                }
+                formData.set('belief-time', beliefTime.toISOString());
+            }
             upload.disabled = true;
             uploadSpinner.classList.remove('d-none');
             showToast("Uploading data...", "info");
-            var formData = new FormData(document.getElementById('uploadForm'));
             fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
             method: 'POST',
             body: formData,
