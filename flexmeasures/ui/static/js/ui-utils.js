@@ -813,10 +813,15 @@ export function pollJobStatus(jobUuid, options = {}) {
         let data;
         try {
             const response = await fetch(url, { credentials: "same-origin" });
-            if (!response.ok) {
+            try {
+                data = await response.json();
+            } catch {
+                data = null;
+            }
+            // A failed job is answered with 422 and its status in the body, so only a body without a status means the endpoint could not be reached
+            if (!response.ok && !(data && data.status)) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            data = await response.json();
         } catch (err) {
             stop();
             showToast("Could not reach job status endpoint: " + err.message, "error");

@@ -163,6 +163,12 @@ def test_poll_job_status_reports_failure(assert_js):
         eq("the failure is passed on", failed.message, "Bad data in row 3");
         eq("and shown", toasts.at(-1), {message: "Bad data in row 3", type: "error"});
 
+        // The job status endpoint answers a failed job with 422, and the job's status in the body
+        window.fetch = async () => ({ok: false, status: 422, statusText: "UNPROCESSABLE ENTITY", json: async () => ({status: "FAILED", message: "Bad data in row 4"})});
+        const failedWith422 = await new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve}));
+        eq("a failure answered with 422 is passed on", failedWith422 && failedWith422.message, "Bad data in row 4");
+        eq("and shown too", toasts.at(-1), {message: "Bad data in row 4", type: "error"});
+
         window.fetch = async () => ({ok: false, status: 502, statusText: "Bad Gateway"});
         const unreachable = await new Promise((resolve) => pollJobStatus("x", {intervalMs: 5, onFailed: resolve}));
         eq("an unreachable endpoint counts as a failure without a job", unreachable, null);
