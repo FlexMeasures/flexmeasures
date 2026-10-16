@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import enum
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
@@ -8,7 +7,7 @@ from flask_security import UserMixin, RoleMixin, current_user
 import pandas as pd
 from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey, Enum
+from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
@@ -22,7 +21,12 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.queries.annotations import filter_by_belief_time
-from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
+from flexmeasures.auth.policy import (
+    AuthModelMixin,
+    ROLE_PERMISSION_GRANTS,
+    CONSULTANT_ROLE,
+    ACCOUNT_ADMIN_ROLE,
+)
 from flexmeasures.utils.time_utils import server_now
 
 if TYPE_CHECKING:
@@ -53,17 +57,6 @@ class AccountRole(db.Model):
         return "<AccountRole:%s (ID:%s)>" % (self.name, self.id)
 
 
-class RateLimitKey(enum.Enum):
-    """What a trigger rate limit is counted against.
-
-    See flexmeasures.api.common.rate_limiting for how this is used.
-    """
-
-    ACCOUNT_PLUS_ASSET = "account+asset"
-    ACCOUNT = "account"
-    USER = "user"
-
-
 class Plan(db.Model):
     """
     A plan bundles the rate limits and quotas that apply to the accounts assigned to it.
@@ -83,8 +76,6 @@ class Plan(db.Model):
     # NULL falls back to the server-wide config setting.
     default_rate_limit = Column(String(80), nullable=True)
     trigger_rate_limit = Column(String(80), nullable=True)
-    # The enum type name is pinned to match the migration which created it
-    rate_limit_key = Column(Enum(RateLimitKey, name="ratelimitkey"), nullable=True)
 
     # Quotas, not enforced yet. NULL means no quota (falls back to server-wide behaviour).
     max_users = Column(Integer, nullable=True)
@@ -160,22 +151,29 @@ class Account(db.Model, AuthModelMixin):
             read_access.append(
                 (f"account:{self.consultancy_account_id}", f"role:{CONSULTANT_ROLE}")
             )
+        create_access = [
+            (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
+                f"account:{self.consultancy_account_id}",
+                f"role:{CONSULTANT_ROLE}",
+            ),
+        ]
+        update_access = [
+            f"account:{self.id}",
+            (
+                f"account:{self.consultancy_account_id}",
+                f"role:{CONSULTANT_ROLE}",
+            ),
+        ]
         return {
-            "create-children": [
-                (f"account:{self.id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    f"account:{self.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                ),
-            ],
             "read": read_access,
-            "update": [
-                f"account:{self.id}",
-                (
-                    f"account:{self.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                ),
-            ],
+            "edit-account": update_access,
+            "manage-users": create_access,
+            "edit-assets": create_access,
+            "annotate": create_access,
+            # Compatibility for callers still checking broad CRUD permissions.
+            "create-children": create_access,
+            "update": update_access,
         }
 
     def get_path(self, separator: str = ">"):
@@ -298,10 +296,17 @@ class RolesUsers(db.Model):
 
 
 class Role(db.Model, RoleMixin):
+    """A code-defined bundle of named permissions."""
+
     __tablename__ = "role"
     id = Column(Integer(), primary_key=True)
     name = Column(String(80), unique=True)
     description = Column(String(255))
+
+    @property
+    def permissions(self) -> frozenset[str]:
+        """Return this role's grants. Unknown roles grant no named permissions."""
+        return ROLE_PERMISSION_GRANTS.get(self.name, frozenset())
 
     def __repr__(self):
         return "<Role:%s (ID:%s)>" % (self.name, self.id)
@@ -358,6 +363,13 @@ class User(db.Model, UserMixin, AuthModelMixin):
         Check policy.can_modify_role() for special treatment of roles.
         Creation and deletion are left to site admins in CLI.
         """
+        admin_access = [
+            (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
+            (
+                f"account:{self.account.consultancy_account_id}",
+                f"role:{CONSULTANT_ROLE}",
+            ),
+        ]
         return {
             "read": [
                 f"account:{self.account_id}",
@@ -366,14 +378,11 @@ class User(db.Model, UserMixin, AuthModelMixin):
                     f"role:{CONSULTANT_ROLE}",
                 ),
             ],
-            "update": [
-                f"user:{self.id}",
-                (f"account:{self.account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-                (
-                    f"account:{self.account.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                ),
-            ],
+            "edit-profile": f"user:{self.id}",
+            "manage-users": admin_access,
+            "reset-password": [f"user:{self.id}", *admin_access],
+            # Compatibility for callers still checking broad CRUD permissions.
+            "update": [f"user:{self.id}", *admin_access],
         }
 
     @property

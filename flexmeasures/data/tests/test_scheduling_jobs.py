@@ -304,7 +304,7 @@ def test_fallback_chain(
         job.refresh()
         assert job.kwargs["scheduler_specs"]["class"] == scheduler_class
         assert job.is_failed
-        assert isinstance(job.meta["exception"], InfeasibleProblemException)
+        assert job.meta["exception"]["type"] == InfeasibleProblemException.__name__
 
     success_job = app.queues["scheduling"].jobs[0]
     # check that success

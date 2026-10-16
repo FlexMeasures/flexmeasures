@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import reduce
 
 import numpy as np
@@ -141,6 +141,11 @@ def _drop_source_types(
     if kept.all():
         return df
     return df[kept]
+
+
+def _realized_column(name: str) -> str:
+    """Name of the column that flags which of a regressor's beliefs are realized."""
+    return f"{name}__realized"
 
 
 def _resolve_source_collisions(
@@ -299,6 +304,45 @@ class BasePipeline:
         # Belief time is NaT where the annotation records none, meaning "always known".
         self._annotation_belief_times: dict[str, pd.Series] = {}
         self._annotation_values: dict[str, pd.Series] = {}
+        # Resolution of each regressor column's sensor
+        self._regressor_resolutions = {
+            name: _sensor_and_source_filters(regressor)[0].event_resolution
+            for name, regressor in zip(
+                self.future_regressors + self.past_regressors, self.future + self.past
+            )
+        }
+
+    def _regressor_frame(
+        self,
+        df: pd.DataFrame,
+        regressor_columns: list[str],
+        other_columns: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """Select regressor columns from the loaded data, each with the flags telling which of its beliefs are realized.
+
+        ``load_data_all_beliefs`` flags realized beliefs by their sensor's knowledge horizon.
+        Where a frame lacks these flags, the default knowledge horizon is assumed,
+        under which a belief is realized once its event has ended.
+
+        :param df:                  Frame with "event_start", "belief_time" and the given columns.
+        :param regressor_columns:   Regressor columns to select with their realized flags.
+        :param other_columns:       Further columns to select, without flags (such as annotation regressors).
+        :returns:                   Frame with the selected columns and a boolean realized flag per regressor column.
+        """
+        frame = df[
+            ["event_start", "belief_time"] + regressor_columns + (other_columns or [])
+        ].copy()
+        for column in regressor_columns:
+            flag = _realized_column(column)
+            if flag in df.columns:
+                # Rows holding another sensor's belief have no flag, and no value for this column either
+                frame[flag] = df[flag].eq(True)
+            else:
+                frame[flag] = (
+                    df["belief_time"]
+                    >= df["event_start"] + self._regressor_resolutions[column]
+                )
+        return frame
 
     def _annotation_values_known_at(
         self, col_name: str, event_starts: pd.Series, vantage_point: pd.Timestamp
@@ -448,6 +492,10 @@ class BasePipeline:
             logging.debug(f"Loading data for {name} (sensor ID {sensor.id})")
 
             df = beliefs_per_search[search_key]
+            # A belief is realized once its belief horizon is zero or negative,
+            # i.e. once it is recorded at or after the knowledge time that its sensor's knowledge horizon sets, as timely-beliefs defines it.
+            # This is computed before event starts are floored onto the target's slots, which would move the knowledge times.
+            df["is_realized"] = np.asarray(df.belief_horizons <= timedelta(0))
             try:
                 # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
@@ -467,8 +515,13 @@ class BasePipeline:
 
             df = df.reset_index()
             df = _resolve_source_collisions(df, regressor_or_sensor)
-            df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
-            df_filtered.rename(columns={"event_value": name}, inplace=True)
+            df_filtered = df[
+                ["event_start", "belief_time", "event_value", "is_realized"]
+            ].copy()
+            df_filtered.rename(
+                columns={"event_value": name, "is_realized": _realized_column(name)},
+                inplace=True,
+            )
 
             sensor_dfs.append(df_filtered)
 
@@ -869,16 +922,22 @@ class BasePipeline:
                 forecast_belief_time: pd.Timestamp,
                 realized_only: bool = False,
             ) -> pd.DataFrame:
-                """Select latest regressor values known at forecast belief time."""
+                """Select latest regressor values known at forecast belief time.
+
+                With ``realized_only``, only beliefs that are realized (as their sensor's knowledge horizon defines it) are selected.
+                """
                 keep = ["event_start", *regressor_columns]
                 if df_.empty:
                     return df_.iloc[0:0][keep].copy()
 
                 known = df_.loc[df_["belief_time"] <= forecast_belief_time].copy()
                 if realized_only:
-                    known = known.loc[known["belief_time"] > known["event_start"]]
-                else:
-                    known = known.loc[known["belief_time"] <= known["event_start"]]
+                    for column in regressor_columns:
+                        known[column] = known[column].where(
+                            known[_realized_column(column)]
+                        )
+                    if regressor_columns:
+                        known = known.dropna(subset=regressor_columns, how="all")
                 if known.empty:
                     return df_.iloc[0:0][keep].copy()
 
@@ -993,12 +1052,11 @@ class BasePipeline:
 
                 # Future covariates (realized up to target_end + forecasts up to forecast_end) split
                 if X_future_regressors_df is not None:
-                    # Annotation regressors are not split into realized-versus-forecast
-                    # rows. A holiday calendar is never "realized" after the fact, so
-                    # the `belief_time > event_start` test that picks realized sensor
-                    # values would hide it from the training window entirely. Its
-                    # visibility is governed solely by its own belief time, applied
-                    # below once the sensor-based frame has been assembled.
+                    # Annotation regressors are not split into realized-versus-forecast rows.
+                    # A holiday calendar is never "realized" after the fact,
+                    # so the knowledge-horizon test that picks realized sensor values would hide it from the training window entirely.
+                    # Its visibility is governed solely by its own belief time,
+                    # applied below once the sensor-based frame has been assembled.
                     future_regressor_columns = self.future_regressors
                     future_known = _latest_known_per_regressor(
                         X_future_regressors_df,
@@ -1010,17 +1068,13 @@ class BasePipeline:
                         future_known, target_start, target_end
                     )
 
-                    # forecasts strictly after target_end up to forecast_end
-                    # and ONLY those *available at the current belief_time*
-                    # (and truly forecasts: belief_time <= event_start)
+                    # beliefs strictly after target_end up to forecast_end,
+                    # and ONLY those *available at the current belief_time*:
+                    # mostly forecasts, but also beliefs already realized by then, such as day-ahead prices
                     fc_window = X_future_regressors_df.loc[
                         (X_future_regressors_df["event_start"] > target_end)
                         & (X_future_regressors_df["event_start"] <= forecast_end)
                         & (X_future_regressors_df["belief_time"] <= belief_time)
-                        & (
-                            X_future_regressors_df["belief_time"]
-                            <= X_future_regressors_df["event_start"]
-                        )
                     ].copy()
 
                     # For each future event_start, pick the latest forecast belief known
@@ -1094,16 +1148,14 @@ class BasePipeline:
 
         # With regressors
         X_past_regressors_df = (
-            df[["event_start", "belief_time"] + self.past_regressors]
+            self._regressor_frame(df, self.past_regressors)
             if self.past_regressors
             else None
         )
         X_future_regressors_df = (
-            df[
-                ["event_start", "belief_time"]
-                + self.future_regressors
-                + self.annotation_regressor_names
-            ]
+            self._regressor_frame(
+                df, self.future_regressors, self.annotation_regressor_names
+            )
             if self.future != [] or self.annotation_regressors
             else None
         )

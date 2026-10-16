@@ -66,7 +66,7 @@ class AccountCrudUI(FlaskView):
     @login_required
     def new(self):
         """/accounts/new"""
-        check_access(FlexMeasuresPlatform.init(), "create-children")
+        check_access(FlexMeasuresPlatform.init(), "edit-account")
         user_is_admin = user_has_admin_access(current_user, "read")
         potential_consultant_accounts = get_accounts() if user_is_admin else []
         selected_consultancy_account_id = request.args.get(
@@ -125,13 +125,13 @@ class AccountCrudUI(FlaskView):
 
         user_can_update_account = True
         try:
-            check_access(account, "update")
+            check_access(account, "edit-account")
         except (Forbidden, Unauthorized):
             user_can_update_account = False
 
         user_can_create_children = True
         try:
-            check_access(account, "create-children")
+            check_access(account, "manage-users")
         except (Forbidden, Unauthorized):
             user_can_create_children = False
 
@@ -155,10 +155,8 @@ class AccountCrudUI(FlaskView):
             if plan is not None and plan.trigger_rate_limit is not None
             else current_app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
         )
-        effective_rate_limit_key = (
-            plan.rate_limit_key.value
-            if plan is not None and plan.rate_limit_key is not None
-            else current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
+        rate_limits_disabled_in_play_mode = (
+            current_app.config.get("FLEXMEASURES_MODE") == "play"
         )
 
         return render_flexmeasures_template(
@@ -172,7 +170,7 @@ class AccountCrudUI(FlaskView):
             selected_account_roles=selected_account_roles,
             effective_default_rate_limit=effective_default_rate_limit,
             effective_trigger_rate_limit=effective_trigger_rate_limit,
-            effective_rate_limit_key=effective_rate_limit_key,
+            rate_limits_disabled_in_play_mode=rate_limits_disabled_in_play_mode,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,

@@ -20,6 +20,7 @@ from flexmeasures.data.services.sensors import (
     get_stalenesses,
     get_statuses,
     build_asset_jobs_data,
+    serialize_sensor_status_data,
     get_asset_sensors_metadata,
 )
 from flexmeasures.data.schemas.reporting import StatusSchema
@@ -424,6 +425,47 @@ def test_asset_sensors_metadata_skips_fixed_value_sensors(db, add_weather_sensor
     asset.flex_context = {}
 
 
+def test_sensor_status_tolerates_a_flex_context_sensor_that_is_gone(
+    db, mock_get_statuses, add_weather_sensors
+):
+    """A flex-context can refer to a sensor which no longer exists, and the status page still has to load.
+
+    References to a deleted sensor are cleaned up when the sensor is deleted through the code,
+    so a sensor removed directly in the database leaves them behind.
+    """
+    asset = add_weather_sensors["asset"]
+    wind_sensor = add_weather_sensors["wind"]
+
+    # Flush to ensure the asset and its sensors have database IDs before referring to them.
+    db.session.flush()
+
+    sensor_that_is_gone = 10**6  # No sensor has this id.
+    asset.flex_context = {
+        "consumption-price": {"sensor": sensor_that_is_gone},
+        "production-price": {"sensor": wind_sensor.id},
+    }
+    asset.sensors_to_show = [{"title": "Wind", "sensor": wind_sensor.id}]
+    db.session.add(asset)
+
+    status_data = get_asset_sensors_metadata(asset=asset)
+    sensor_ids = [sensor["id"] for sensor in status_data]
+    assert wind_sensor.id in sensor_ids
+    assert sensor_that_is_gone not in sensor_ids
+
+    # The relation of each sensor to the asset names the fields that refer to it,
+    # which is where a field without a sensor used to bring the page down.
+    mock_get_statuses.return_value = [{"staleness": None, "staleness_since": None}]
+    statuses = serialize_sensor_status_data(sensor=wind_sensor, asset=asset)
+    assert statuses, "the sensor reported no status at all"
+    for status in statuses:
+        assert "flex context (production-price)" in status["relation"]
+        assert "consumption-price" not in status["relation"]
+
+    # Reset module-scoped fixture state so later tests are not affected.
+    asset.sensors_to_show = []
+    asset.flex_context = {}
+
+
 def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):
@@ -546,9 +588,8 @@ def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     assert len(forecasting_jobs_data) == 1
     assert scheduling_jobs_data
     assert len(reporting_jobs_data) == 1
-    assert (
-        reporting_jobs_data[0]["err"] == "Reporting job failed with str: report failed"
-    )
+    # A job that failed before every queue stored a summary holds a bare message, which is shown as is.
+    assert reporting_jobs_data[0]["err"] == "Reporting job failed with report failed"
     scheduling_job_ids = set()
     for job_data in jobs_data:
         metadata = json.loads(job_data["metadata"])

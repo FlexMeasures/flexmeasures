@@ -394,7 +394,11 @@ def check_execution_access(automation, sensors):
 def execute_automation_job(automation_id: int, data_source_id: int, parameters: dict):
     """Compute and persist declared results with provenance in a plugin-enabled worker."""
     from flexmeasures.data.models.automations import Automation
-    from flexmeasures.data.utils import save_to_db_and_count
+    from flexmeasures.data.services.generator_results import (
+        check_generator_results,
+        describe_generator,
+        save_generator_results,
+    )
 
     automation = db.session.get(Automation, automation_id, populate_existing=True)
     if automation is None:
@@ -412,15 +416,10 @@ def execute_automation_job(automation_id: int, data_source_id: int, parameters: 
     check_execution_access(automation, sensors)
     output_ids = {sensor.id for sensor in sensors["output_sensors"]}
     results = generator.compute(parameters=parameters)
-    # Validate every result before saving any, so undeclared outputs cannot be persisted.
-    for result in results:
-        if result["sensor"].id not in output_ids:
-            raise Forbidden(
-                f"The generator returned undeclared output sensor {result['sensor'].id}."
-            )
-    saved = []
-    for result in results:
-        _, n_saved = save_to_db_and_count(result["data"])
-        saved.append({"sensor_id": result["sensor"].id, "n_rows": n_saved})
+    # The declared outputs are the ones the automation was checked against, so judge every result by them before saving any.
+    check_generator_results(
+        results, output_ids, describe_generator(generator), automation.id
+    )
+    saved = save_generator_results(results)
     db.session.commit()
     return saved

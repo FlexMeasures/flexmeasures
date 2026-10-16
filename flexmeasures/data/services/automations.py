@@ -1216,6 +1216,14 @@ def get_automation_sensors(automation: Automation) -> dict[str, list[Sensor]]:
         return {"input_sensors": [], "output_sensors": []}
 
 
+def automation_id_of_job(rq_job) -> int | None:
+    """Return the id of the automation that triggered a job, or None if no automation did."""
+    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
+    if trigger.get("origin") != "automation":
+        return None
+    return trigger.get("automation_id")
+
+
 def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     """Return the sensor ids an automation-triggered job was cleared to record on, or None if it is not one.
 
@@ -1232,10 +1240,7 @@ def sensors_automation_job_may_record_on(rq_job) -> set[int] | None:
     An automation whose sensors cannot be determined returns an empty set instead, which permits nothing:
     a guard that cannot work out what is allowed should not conclude that everything is.
     """
-    trigger = (rq_job.meta.get("trigger") if rq_job else None) or {}
-    if trigger.get("origin") != "automation":
-        return None
-    automation_id = trigger.get("automation_id")
+    automation_id = automation_id_of_job(rq_job)
     if automation_id is None:
         return None
 
@@ -1639,14 +1644,15 @@ def _count_automation_jobs(
         automation_id: {} for automation_id in automation_ids
     }
     seen_job_ids: set[str] = set()
-    for entity_id, queue, asset_or_sensor_type in index_refs:
-        for job in current_app.job_map.get(entity_id, queue, asset_or_sensor_type):
+    for jobs in current_app.job_map.get_many(index_refs).values():
+        for job in jobs:
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
             automation_id = job.meta.get("trigger", {}).get("automation_id")
             if automation_id in counts:
-                status = str(job.get_status().value)
+                # The job was just fetched with its status, so asking Redis again would cost a round trip per job.
+                status = str(job.get_status(refresh=False).value)
                 counts[automation_id][status] = counts[automation_id].get(status, 0) + 1
     return counts
 

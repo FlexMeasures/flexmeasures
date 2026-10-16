@@ -221,6 +221,9 @@
           "403": {
             "description": "INVALID_SENDER"
           },
+          "404": {
+            "description": "NOT_FOUND"
+          },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
           },
