@@ -40,6 +40,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* New ``FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES`` setting, with which hosts can refuse sensor data that a client records at a belief time in the future [see `PR #2737 <https://www.github.com/FlexMeasures/flexmeasures/pull/2737>`_]
 * ``add_beliefs_to_db_and_enqueue_forecasting_jobs`` now raises ``BeliefReplacementNotAllowed`` rather than an ``IntegrityError`` when saving would change existing values, so plugins catching ``IntegrityError`` around it should catch the new exception instead [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * ``[GET] /sensors/(id)`` now answers a sensor which does not exist with a 404, as the asset endpoints do, rather than with a 422, so that a client can tell a sensor which is gone apart from a request it got wrong [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]
 * Speed up preparing a storage schedule by validating each device's constraints with vectorised comparisons instead of one ``DataFrame.eval`` per check (from ~25 ms to ~3 ms per device); the helpers ``validate_constraint`` and ``sanitize_expression`` in ``flexmeasures.data.models.planning.storage``, which nothing in FlexMeasures called any more, are removed, with ``validate_constraints`` replacing them [see `PR #2641 <https://www.github.com/FlexMeasures/flexmeasures/pull/2641>`_]
@@ -88,6 +89,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Answer a sensor data upload whose file content is refused with a 422 rather than a server error, also when no ingestion worker is available [see `PR #2737 <https://www.github.com/FlexMeasures/flexmeasures/pull/2737>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * Keep the current-time bar visible during sensor chart playback when no data is visible yet [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * The flex-config and graph dialogues now say so when a configuration refers to a sensor which no longer exists, as a sensor deleted directly in the database leaves such references behind, where they used to show it as a sensor with an undefined name and unit: each dialogue names the dangling reference, lets you remove it, and warns above the configuration how many there are, the graph dialogue no longer reports such a sensor as having a different unit, and an asset's status page no longer fails to load over a flex-context field whose sensor is gone; a sensor that merely failed to load, for instance on a server error, is said to be just that, rather than deleted [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]

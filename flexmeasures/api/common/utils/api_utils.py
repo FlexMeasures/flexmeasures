@@ -220,7 +220,7 @@ def process_sensor_data_ingestion(
             refuse_belief_times_after=refuse_belief_times_after,
         )
     except ValidationError as error:
-        # Uploaded files are read only now, so refuse their content as the request's own validation would have
+        # Uploaded files are read only now, so refuse their content as the request's own validation would have.
         raise FMValidationError(message=error.messages) from error
 
     if status == SAVE_TO_DB_SUCCESS:
