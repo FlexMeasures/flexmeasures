@@ -51,6 +51,7 @@ If you host FlexMeasures yourself, :ref:`getting_started` and :ref:`cli` explain
 
 For a recurring pipeline, consider a dedicated integration user.
 FlexMeasures records the authenticated user as the data source, making the pipeline's provenance easy to recognize.
+Forecasters, schedulers and reporters can later select data by its source: see :ref:`data_source_filters`.
 
 Install version 0.9.4 or newer of the client:
 
@@ -322,3 +323,4 @@ Next: use the ingested data
 After ingesting measurements, prices and forecasts, you can ask FlexMeasures to forecast new data or compute optimized schedules.
 Current device state, such as a battery's state of charge, may be supplied in the scheduling trigger's ``flex-model``.
 See :ref:`tut_forecasting_scheduling` and :ref:`describing_flexibility` for the next steps.
+How a flex-model, a forecaster or a report refers to the ingested sensors, and how it can clean their readings, is described in :ref:`data_pipelining`.
