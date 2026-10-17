@@ -780,10 +780,14 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset = existing_sensor.generic_asset
     asset.flex_model = {
         "soc-max": {"sensor": existing_sensor_id},
+        # a reference that carries a bound is also a reference
+        "soc-min": {"sensor": existing_sensor_id, "lower": "0 kWh"},
         "static-limit": "10 kW",
     }
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
+        # a reference that carries a default is also a reference
+        "production-price": {"sensor": existing_sensor_id, "default": "10 EUR/MWh"},
         "inflexible-device-sensors": [existing_sensor_id],
         # not a valid combination with the deprecated key above, but a deleted
         # sensor should be pruned from any of the inflexible-device keys
@@ -823,8 +827,10 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
 
     asset_after = db.session.get(GenericAsset, asset.id)
     assert asset_after.flex_model.get("soc-max") is None
+    assert asset_after.flex_model.get("soc-min") is None
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
+    assert asset_after.flex_context.get("production-price") is None
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
     assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
