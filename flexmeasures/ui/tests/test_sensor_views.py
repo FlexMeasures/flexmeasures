@@ -260,3 +260,25 @@ def test_get_timerange_not_called_without_permission(
 
     assert response.status_code == 403
     mock_get_timerange.assert_not_called()
+
+
+@pytest.mark.parametrize("allow_client_belief_times", [True, False])
+def test_sensor_page_offers_client_belief_times_only_if_allowed(
+    app,
+    db,
+    client,
+    setup_assets,
+    as_prosumer_user1,
+    monkeypatch,
+    allow_client_belief_times,
+):
+    """The upload form offers to choose a belief time only on a server that lets clients choose one."""
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES", allow_client_belief_times
+    )
+    sensor = _get_prosumer_sensor(db)
+    response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
+    assert response.status_code == 200
+    assert b'id="belief-time-mode-upload"' in response.data
+    for option in (b'id="belief-time-mode-instantly"', b'id="belief-time-mode-custom"'):
+        assert (option in response.data) == allow_client_belief_times

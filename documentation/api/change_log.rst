@@ -7,6 +7,7 @@ API change log
 
 v3.0-40 | October XX, 2026
 """"""""""""""""""""""""""""
+- A host can record all sensor data at the time of the request, by setting ``FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES`` to ``False``. ``POST /api/v3_0/sensors/<id>/data`` then answers a ``prior`` or a ``horizon`` with a ``422``, and ``POST /api/v3_0/sensors/<id>/data/upload`` answers a ``prior`` or ``belief-time-measured-instantly`` likewise.
 - A host can refuse sensor data recorded at a belief time later than the time of the request, by setting ``FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES`` to ``False``. ``POST /api/v3_0/sensors/<id>/data`` then answers such a ``prior`` or ``horizon`` with a ``422``, and so does ``POST /api/v3_0/sensors/<id>/data/upload`` for such a ``prior``. An upload measured instantly is refused once its files are read, against the same time of the request: with a ``422`` when it is processed directly, or as a failed ingestion job when it is queued.
 - ``POST /api/v3_0/sensors/<id>/data/upload`` answers file content that it refuses with a ``422`` also when the upload is processed directly (with no ingestion worker available), where it used to answer with a ``500``.
 - ``POST /api/v3_0/sensors/<id>/data/upload`` now accepts ``prior``, as ``POST /api/v3_0/sensors/<id>/data`` does: all uploaded data has been recorded prior to this belief time. It cannot be combined with ``belief-time-measured-instantly``.

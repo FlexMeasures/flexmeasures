@@ -351,6 +351,22 @@ Belief times set by FlexMeasures itself (for instance, by schedulers and forecas
 Default: ``True``
 
 
+FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether clients may choose when the sensor data they send was recorded.
+When set to ``False``, sensor data is always recorded at the time the request was received,
+and the sensor data API refuses data posted with a ``prior`` or a ``horizon``, or uploaded with a ``prior`` or as measured instantly.
+The upload form then only offers to record data at the time of upload.
+
+FlexMeasures stores no separate time at which it received each belief,
+so on a server that accepts client-chosen belief times, a client can record new data as if it had been known earlier.
+That changes what replays and backtests at those earlier times get to see, which may be unwanted on a live server.
+Belief times set by FlexMeasures itself (for instance, by schedulers and forecasters) or through the CLI are not affected.
+
+Default: ``True``
+
+
 FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
