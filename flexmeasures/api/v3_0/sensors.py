@@ -699,9 +699,15 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        if belief_time_measured_instantly:
+            belief_timing = "measured instantly"
+        elif prior is not None:
+            belief_timing = f"recorded prior to {prior.isoformat()}"
+        else:
+            belief_timing = "recorded at the time of upload"
         AssetAuditLog.add_record(
             sensor.generic_asset,
-            f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
+            f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}, {belief_timing}",
         )
         # Commit the record now, as a queued upload is saved by its job, and processing it directly may fail.
         db.session.commit()
@@ -743,7 +749,13 @@ class SensorAPI(FlaskView):
         "post-data",
         ctx_arg_name="sensor",
     )
-    def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
+    def post_data(
+        self,
+        id: int,
+        sensor: Sensor,
+        sensor_data: dict,
+        client_prior: datetime | None = None,
+    ):
         """
         .. :quickref: Data; Post sensor data
         ---
@@ -800,6 +812,13 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        if client_prior is not None:
+            AssetAuditLog.add_record(
+                sensor.generic_asset,
+                f"Data for {sensor_data['duration']} from {sensor_data['start']} posted to sensor '{sensor.name}': {sensor.id}, recorded prior to {client_prior.isoformat()}",
+            )
+            # Commit the record now, as a queued post is saved by its job, and processing it directly may fail.
+            db.session.commit()
         response, code = process_sensor_data_ingestion(
             sensor_id=sensor.id,
             user_id=current_user.id,
