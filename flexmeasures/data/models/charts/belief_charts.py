@@ -951,8 +951,11 @@ def create_line_layer(
         if shared_unit != "a.u.":
             scale_values = True
 
-    # Use linear interpolation if any of the sensors shown within one row is instantaneous; otherwise, use step-after
-    if any(sensor.event_resolution == timedelta(0) for sensor in sensors):
+    # Use linear interpolation if any of the sensors shown within one row is instantaneous; otherwise, use step-after.
+    # Only real sensors determine interpolation; fixed-value/constant sensors (negative id)
+    # are always event_resolution=0 by construction and must not force a mixed row to linear (#2253).
+    real_sensors = [s for s in sensors if getattr(s, "id", None) is None or s.id >= 0]
+    if any(sensor.event_resolution == timedelta(0) for sensor in real_sensors):
         interpolate = "linear"
     else:
         interpolate = "step-after"
