@@ -9,6 +9,7 @@ from io import BytesIO
 from flask import current_app
 from rq.job import Job
 from rq.job import NoSuchJobError
+from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 
@@ -19,6 +20,35 @@ from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES,
     save_to_db,
 )
+
+UNIQUE_VIOLATION = "23505"  # SQLSTATE
+
+BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE = (
+    "Some of the data represents a replacement: existing values would be changed for the same sensor, source, event timestamp and belief time. "
+    "This is reserved for customized servers. "
+    "If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. "
+    "Alternatively, submit the data with a different prior, or check whether the same file was already uploaded with different values."
+)
+
+
+class BeliefReplacementNotAllowed(Exception):
+    """Saving would change existing beliefs, which this server does not allow."""
+
+    def __init__(self, message: str = BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE):
+        super().__init__(message)
+
+
+def is_belief_replacement(error: IntegrityError) -> bool:
+    """Tell whether an IntegrityError is a UniqueViolation on the TimedBelief primary key.
+
+    The error is recognised by its SQLSTATE rather than by its class,
+    because the class depends on the database driver:
+    psycopg2 exposes the SQLSTATE as pgcode, and psycopg 3 as sqlstate.
+    """
+    sqlstate = getattr(error.orig, "sqlstate", None) or getattr(
+        error.orig, "pgcode", None
+    )
+    return sqlstate == UNIQUE_VIOLATION and "timed_belief_pkey" in str(error.orig)
 
 
 def _get_ingestion_context(sensor_id: int, user_id: int) -> tuple[Sensor, User]:
@@ -76,6 +106,25 @@ def _load_uploaded_sensor_data(
     return SensorDataFileSchema(source_user=user).load(payload)["data"]
 
 
+def _save_and_commit(
+    data: tb.BeliefsDataFrame | list[tb.BeliefsDataFrame],
+    save_changed_beliefs_only: bool,
+) -> str:
+    """Save beliefs and commit them.
+
+    A refused replacement is raised by name, so a failed ingestion job reports it rather than the database error.
+    """
+    try:
+        status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
+        db.session.commit()
+    except IntegrityError as error:
+        if not is_belief_replacement(error):
+            raise
+        db.session.rollback()
+        raise BeliefReplacementNotAllowed() from error
+    return status
+
+
 def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     data: tb.BeliefsDataFrame | list[tb.BeliefsDataFrame] | None = None,
     sensor_id: int | None = None,
@@ -102,6 +151,7 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     :param forecasting_job_ids:         Optional list of forecasting Job ids to enqueue after saving.
     :param save_changed_beliefs_only:   If True, skip saving beliefs whose value hasn't changed.
     :returns:                           Status string as returned by ``save_to_db``.
+    :raises BeliefReplacementNotAllowed: if saving would change existing beliefs, while FLEXMEASURES_ALLOW_DATA_OVERWRITE is off.
     """
     if sensor_data is not None:
         if sensor_id is None or user_id is None:
@@ -119,8 +169,7 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     if data is None:
         raise ValueError("Expected data, sensor_data, or uploaded_files.")
 
-    status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
-    db.session.commit()
+    status = _save_and_commit(data, save_changed_beliefs_only=save_changed_beliefs_only)
 
     # Only enqueue forecasting jobs upon successfully saving new data
     if status in SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES:

@@ -523,6 +523,7 @@ SECURITY_TWO_FACTOR_ENABLED_METHODS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Which 2FA methods are enabled. FlexMeasures currently supports ``email``; authenticator-app support may be added later.
+Enabling ``authenticator`` anyway requires installing ``qrcode``.
 
 Default: ``["email"]``
 
