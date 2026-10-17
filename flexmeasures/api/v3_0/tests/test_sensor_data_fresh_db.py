@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+
 import pandas as pd
 import pytest
 from flask import url_for
@@ -199,3 +201,73 @@ def test_post_sensor_data_sets_account_id_on_data_source(
     ).scalar_one_or_none()
     assert data_source is not None
     assert data_source.account_id == setup_user_without_data_source.account_id
+
+
+@pytest.mark.parametrize(
+    "form_data, expected_belief_time",
+    [
+        (
+            {"belief-time": "2022-12-15T12:00:00+01:00"},
+            pd.Timestamp("2022-12-15T11:00:00Z"),
+        ),
+        # Measured instantly: each value is known when its event ends
+        ({"belief-time-measured-instantly": "on"}, None),
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_with_belief_time(
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    form_data,
+    expected_belief_time,
+):
+    """An uploaded file's beliefs are recorded at the requested belief time."""
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    csv_content = (
+        "event_start,event_value\n2022-12-16T05:00:00Z,4\n2022-12-16T05:10:00Z,2\n"
+    )
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file, **form_data},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+
+    bdf = sensor.search_beliefs(
+        event_starts_after=pd.Timestamp("2022-12-16T05:00:00Z"),
+        event_ends_before=pd.Timestamp("2022-12-16T05:20:00Z"),
+    )
+    belief_times = bdf.reset_index()["belief_time"].tolist()
+    event_ends = (bdf.event_starts + sensor.event_resolution).tolist()
+    assert belief_times == (
+        [expected_belief_time] * 2 if expected_belief_time is not None else event_ends
+    )
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_refuses_replacement(
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+):
+    """Re-uploading changed values at the same belief time is refused as a replacement."""
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+
+    def upload(value: int):
+        csv_content = f"event_start,event_value\n2022-12-16T05:00:00Z,{value}\n"
+        return client.post(
+            url_for("SensorAPI:upload_data", id=sensor.id),
+            data={
+                "uploaded-files": (io.BytesIO(csv_content.encode("utf-8")), "test.csv"),
+                "belief-time": "2022-12-15T12:00:00+01:00",
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert upload(4).status_code == 200
+    response = upload(5)
+    assert response.status_code == 403
+    assert response.json["status"] == "INVALID_REPLACEMENT"
