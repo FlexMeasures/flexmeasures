@@ -109,6 +109,7 @@ A plan's ``default_rate_limit`` and ``trigger_rate_limit`` override the server-w
 for the accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account
 on a plan which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the
 value ``"unlimited"`` to exempt an account from a limit altogether.
+Each field holds one limit, like ``"60 per 5 minutes"``, as do the server-wide settings.
 
 Edit a plan with ``flexmeasures edit plan``, which identifies the plan by its ID (so that ``--name`` can rename it),
 and changes only the fields you pass:

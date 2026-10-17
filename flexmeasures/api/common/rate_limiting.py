@@ -38,7 +38,7 @@ from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
-from limits import parse_many
+from limits import parse
 from limits.storage import RedisStorage
 from redis.exceptions import RedisError
 from sqlalchemy import insert
@@ -296,10 +296,12 @@ def reset_rate_limits(
         limit_string = _limit_on_plan(
             account.plan, limit_name, RATE_LIMIT_SETTINGS[limit_name]
         )
-        for item in parse_many(limit_string):
-            limiter.limiter.clear(
-                item, *key_prefix, _account_key(account.id), scopes[limit_name]
-            )
+        limiter.limiter.clear(
+            parse(limit_string),
+            *key_prefix,
+            _account_key(account.id),
+            scopes[limit_name],
+        )
         reset.append(limit_name)
     return reset
 
