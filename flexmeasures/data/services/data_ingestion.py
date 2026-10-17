@@ -9,7 +9,7 @@ from io import BytesIO
 from flask import current_app
 from rq.job import Job
 from rq.job import NoSuchJobError
-from sqlalchemy.exc import IntegrityError, StatementError
+from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 
@@ -39,21 +39,17 @@ class BeliefReplacementNotAllowed(IntegrityError):
     """
 
     def __init__(self, error: IntegrityError):
-        StatementError.__init__(
-            self,
-            BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE,
+        super().__init__(
             error.statement,
             error.params,
             error.orig,
-            error.hide_parameters,
-            code=error.__dict__.get("code"),
-            ismulti=error.ismulti,
+            hide_parameters=error.hide_parameters,
+            connection_invalidated=error.connection_invalidated,
         )
-        self.connection_invalidated = error.connection_invalidated
 
     def __str__(self) -> str:
         """Leave out the SQL statement and parameters, which IntegrityError would show."""
-        return self.args[0]
+        return BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE
 
     def __reduce__(self):
         """Pickle as IntegrityError does, but through this class's own constructor."""
@@ -61,8 +57,8 @@ class BeliefReplacementNotAllowed(IntegrityError):
             self.statement,
             self.params,
             self.orig,
-            self.hide_parameters,
-            self.connection_invalidated,
+            hide_parameters=self.hide_parameters,
+            connection_invalidated=self.connection_invalidated,
         )
         return self.__class__, (error,)
 
