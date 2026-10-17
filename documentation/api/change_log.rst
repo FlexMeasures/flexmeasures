@@ -7,6 +7,7 @@ API change log
 
 v3.0-40 | October XX, 2026
 """"""""""""""""""""""""""""
+- ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` now accepts ``use-job-result``. If set to true, the schedule is read from the values that the scheduling job kept (in Redis) instead of from the database, which is faster. This only works for as long as the job exists (see the ``FLEXMEASURES_PLANNING_TTL`` setting); if the job kept no values for the sensor, for example because it ran before jobs kept them, the database is used as before.
 - ``POST /api/v3_0/sensors/<id>/data/upload`` now accepts ``belief-time``, at which all uploaded values are recorded as known. It cannot be combined with ``belief-time-measured-instantly`` or lie in the future.
 - The default rate limit, which applies to every endpoint, is now counted per account rather than per user, so that all users and API clients of an account share one budget. Unauthenticated requests are still counted per IP address. A consultant counts against their own account, also when acting on a client account's assets. The trigger limit is unaffected.
 - ``GET /api/v3_0/assets/<id>/jobs`` now accepts ``page`` and ``per-page`` to return jobs newest first, with ``num-records`` and ``filtered-records`` counts. Paginated results can be sorted by enqueue time or queue with ``sort-by`` and ``sort-dir``. Requests without ``page`` retain the full list and previous response shape.

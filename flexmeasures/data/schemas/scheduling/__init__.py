@@ -1964,6 +1964,21 @@ class GetScheduleSchema(Schema):
         ),
     )
 
+    use_job_result = fields.Bool(
+        data_key="use-job-result",
+        load_default=False,
+        metadata=dict(
+            description=(
+                "Read the schedule from the values kept by the scheduling job (in Redis), "
+                "instead of querying the database. "
+                "This is faster, but only works for as long as the job exists "
+                "(see the ``FLEXMEASURES_PLANNING_TTL`` setting). "
+                "If the job has no values for this sensor, the database is used instead."
+            ),
+            example=False,
+        ),
+    )
+
     @post_load
     def finalize_unit_and_duration(self, data, **kwargs):
         sensor = data["sensor"]
