@@ -926,12 +926,12 @@ class SensorDataFileDescriptionSchema(Schema):
         falsy={"off", "false", "False", "0", None},
         data_key="belief-time-measured-instantly",
     )
-    belief_time = AwareDateTimeField(
+    prior = AwareDateTimeField(
         required=False,
         allow_none=True,
-        data_key="belief-time",
+        data_key="prior",
         metadata=dict(
-            description="Time at which all uploaded data was known, as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly, and cannot lie in the future.",
+            description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly, and cannot lie in the future.",
             example="2026-10-15T12:00:00+02:00",
         ),
     )
@@ -941,14 +941,12 @@ class SensorDataFileDescriptionSchema(Schema):
     )
 
     @validates_schema
-    def validate_belief_time(self, data, **kwargs):
-        """Refuse a belief time that conflicts with measured-instantly."""
-        if data.get("belief_time") is not None and data.get(
-            "belief_time_measured_instantly"
-        ):
+    def validate_prior(self, data, **kwargs):
+        """Refuse a prior that conflicts with measured-instantly."""
+        if data.get("prior") is not None and data.get("belief_time_measured_instantly"):
             raise ValidationError(
-                field_name="belief_time",
-                message="A belief time cannot be combined with belief-time-measured-instantly.",
+                field_name="prior",
+                message="A prior cannot be combined with belief-time-measured-instantly.",
             )
 
 
@@ -1023,7 +1021,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         dfs = []
         files: list[FileStorage] = fields.pop("uploaded_files")
         belief_time_measured_instantly = fields.pop("belief_time_measured_instantly")
-        belief_time = fields.pop("belief_time", None)
+        belief_time = fields.pop("prior", None)
         if belief_time is None and not belief_time_measured_instantly:
             belief_time = pd.Timestamp.utcnow()
 
@@ -1145,18 +1143,18 @@ class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
 
     @validates_schema
-    def validate_belief_time_is_not_in_the_future(self, data, **kwargs):
-        """Refuse a belief time that lies in the future.
+    def validate_prior_is_not_in_the_future(self, data, **kwargs):
+        """Refuse a prior that lies in the future.
 
         This is checked only when the request comes in, against the clock of the server that received it.
         A queued job validates its data again on a worker, whose clock may lag behind,
         so checking there would refuse an upload believed at the time it was received.
         """
-        belief_time = data.get("belief_time")
-        if belief_time is not None and belief_time > server_now():
+        prior = data.get("prior")
+        if prior is not None and prior > server_now():
             raise ValidationError(
-                field_name="belief_time",
-                message=f"Belief time {belief_time.isoformat()} lies in the future.",
+                field_name="prior",
+                message=f"Prior {prior.isoformat()} lies in the future.",
             )
 
     @post_load

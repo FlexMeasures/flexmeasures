@@ -32,7 +32,7 @@ def test_ingestion_service_accepts_beliefs_data_frame(setup_beliefs, db):
     assert status == SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
 
 
-def test_ingestion_job_accepts_belief_time_ahead_of_its_clock(
+def test_ingestion_job_accepts_prior_ahead_of_its_clock(
     setup_beliefs_fresh_db, setup_roles_users_fresh_db, fresh_db
 ):
     """A queued upload is saved even if the server that received it ran ahead of the worker's clock."""
@@ -52,7 +52,7 @@ def test_ingestion_job_accepts_belief_time_ahead_of_its_clock(
         ],
         upload_data={
             "belief-time-measured-instantly": "off",
-            "belief-time": belief_time.isoformat(),
+            "prior": belief_time.isoformat(),
         },
     )
 
@@ -83,7 +83,7 @@ def test_ingestion_refuses_replacement_by_name(
             ],
             upload_data={
                 "belief-time-measured-instantly": "off",
-                "belief-time": "2026-01-01T00:00:00+00:00",
+                "prior": "2026-01-01T00:00:00+00:00",
             },
         )
 

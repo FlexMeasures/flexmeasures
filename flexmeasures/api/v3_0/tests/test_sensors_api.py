@@ -402,13 +402,13 @@ def test_upload_csv_file_returns_accepted_job(
     [
         ({}, None),  # the time of upload
         (
-            {"belief-time": "2022-12-15T12:00:00+01:00"},
+            {"prior": "2022-12-15T12:00:00+01:00"},
             "2022-12-15T12:00:00+01:00",
         ),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_upload_csv_file_job_carries_belief_time(
+def test_upload_csv_file_job_carries_prior(
     client,
     setup_api_test_data,
     requesting_user,
@@ -437,7 +437,7 @@ def test_upload_csv_file_job_carries_belief_time(
     assert response.status_code == 202
 
     job = current_app.queues["ingestion"].fetch_job(response.json["job"])
-    belief_time = pd.Timestamp(job.kwargs["upload_data"]["belief-time"])
+    belief_time = pd.Timestamp(job.kwargs["upload_data"]["prior"])
     if expected_belief_time is None:
         assert before_request <= belief_time <= server_now()
     else:
@@ -449,17 +449,17 @@ def test_upload_csv_file_job_carries_belief_time(
     [
         (
             {
-                "belief-time": "2022-12-15T12:00:00+01:00",
+                "prior": "2022-12-15T12:00:00+01:00",
                 "belief-time-measured-instantly": "on",
             },
             "cannot be combined",
         ),
-        ({"belief-time": "2999-01-01T00:00:00+00:00"}, "lies in the future"),
-        ({"belief-time": "2022-12-15T12:00:00"}, "Not a valid aware datetime"),
+        ({"prior": "2999-01-01T00:00:00+00:00"}, "lies in the future"),
+        ({"prior": "2022-12-15T12:00:00"}, "Not a valid aware datetime"),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_upload_csv_file_rejects_invalid_belief_time(
+def test_upload_csv_file_rejects_invalid_prior(
     client, setup_api_test_data, requesting_user, form_data, expected_message
 ):
     sensor = setup_api_test_data["some gas sensor"]
