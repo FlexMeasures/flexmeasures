@@ -40,6 +40,7 @@ New features
 
 Infrastructure / Support
 -------------------------
+* New ``FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES`` setting, with which hosts can record all sensor data at the time they receive it, refusing belief times chosen by clients [see `PR #2738 <https://www.github.com/FlexMeasures/flexmeasures/pull/2738>`_]
 * New ``FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES`` setting, with which hosts can refuse sensor data that a client records at a belief time in the future [see `PR #2737 <https://www.github.com/FlexMeasures/flexmeasures/pull/2737>`_]
 * ``add_beliefs_to_db_and_enqueue_forecasting_jobs`` now raises ``BeliefReplacementNotAllowed`` rather than an ``IntegrityError`` when saving would change existing values, so plugins catching ``IntegrityError`` around it should catch the new exception instead [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * ``[GET] /sensors/(id)`` now answers a sensor which does not exist with a 404, as the asset endpoints do, rather than with a 422, so that a client can tell a sensor which is gone apart from a request it got wrong [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]
