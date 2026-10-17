@@ -271,3 +271,134 @@ def test_upload_sensor_data_refuses_replacement(
     response = upload(5)
     assert response.status_code == 403
     assert response.json["status"] == "INVALID_REPLACEMENT"
+
+
+@pytest.mark.parametrize(
+    "timing",
+    [
+        {"prior": "2200-01-01T00:00:00+00:00"},
+        # Recorded when each event ends, which lies in the future
+        {"horizon": "PT0H"},
+        # Recorded an hour before the last event ends
+        {"horizon": "PT1H"},
+    ],
+)
+@pytest.mark.parametrize("allow_future_belief_times", [True, False])
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_sensor_data_with_future_belief_time(
+    app,
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    monkeypatch,
+    timing,
+    allow_future_belief_times,
+):
+    """Posted data recorded in the future is refused only if the host does not accept future belief times."""
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES", allow_future_belief_times
+    )
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    post_data = {
+        "values": [1, 2, 3, 4, 5, 6],
+        "start": "2200-01-01T00:00:00+00:00",
+        "duration": "PT1H",
+        "unit": "m³/h",
+        **timing,
+    }
+
+    response = client.post(url_for("SensorAPI:post_data", id=sensor.id), json=post_data)
+
+    if allow_future_belief_times:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 422
+        assert "lies in the future" in str(response.json["message"])
+
+
+@pytest.mark.parametrize(
+    "timing",
+    [
+        {"prior": "2022-12-15T12:00:00+01:00"},
+        {"horizon": "PT0H"},
+        {},  # the time of the request
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_sensor_data_with_past_belief_time_while_refusing_future_ones(
+    app, client, setup_api_fresh_test_data, requesting_user, monkeypatch, timing
+):
+    """Refusing future belief times leaves data recorded in the past alone."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES", False)
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    post_data = {
+        "values": [1, 2, 3, 4, 5, 6],
+        "start": "2022-12-16T05:00:00+00:00",
+        "duration": "PT1H",
+        "unit": "m³/h",
+        **timing,
+    }
+
+    response = client.post(url_for("SensorAPI:post_data", id=sensor.id), json=post_data)
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "form_data, event_start",
+    [
+        ({"prior": "2200-01-01T00:00:00+00:00"}, "2022-12-16T05:00:00Z"),
+        # Measured instantly: each value is recorded when its event ends, which lies in the future
+        ({"belief-time-measured-instantly": "on"}, "2200-01-01T00:00:00Z"),
+    ],
+)
+@pytest.mark.parametrize("allow_future_belief_times", [True, False])
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_with_future_belief_time(
+    app,
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    monkeypatch,
+    form_data,
+    event_start,
+    allow_future_belief_times,
+):
+    """Uploaded data recorded in the future is refused only if the host does not accept future belief times."""
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES", allow_future_belief_times
+    )
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    csv_content = f"event_start,event_value\n{event_start},4\n"
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file, **form_data},
+        content_type="multipart/form-data",
+    )
+
+    if allow_future_belief_times:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 422
+        assert "lies in the future" in str(response.json["message"])
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_with_invalid_content_processed_directly(
+    client, setup_api_fresh_test_data, requesting_user
+):
+    """A file whose content is refused when it is processed directly gets a 422 naming the file, rather than a server error."""
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    csv_content = "event_start,event_value\n2022-12-16T05:00:00Z,not-a-number\n"
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 422
+    assert "Invalid content in file: test.csv" in str(response.json["message"])

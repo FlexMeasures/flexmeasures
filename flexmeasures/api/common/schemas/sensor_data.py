@@ -26,6 +26,10 @@ from flexmeasures.data.schemas import (
     ResolutionField,
     SourceIdField,
 )
+from flexmeasures.data.schemas.sensors import (
+    future_belief_time_message,
+    future_belief_times_allowed,
+)
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
@@ -564,7 +568,46 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         )
 
 
-class PostSensorDataRequestSchema(PostSensorDataSchema):
+class SensorDataIntakeChecksMixin:
+    """Checks on posted sensor data that apply when the request comes in, and not again when an ingestion worker processes it."""
+
+    @validates_schema
+    def check_belief_time_is_accepted_by_this_server(self, data, **kwargs):
+        """Refuse a belief time in the future, if this server does not accept future belief times.
+
+        With a horizon, the latest belief time is that of the last event.
+        """
+        if future_belief_times_allowed():
+            return
+        if "prior" in data:
+            field_name = "prior"
+            belief_time = data["prior"]
+        elif "horizon" in data:
+            field_name = "horizon"
+            sensor: Sensor = data["sensor"]
+            values = data["values"]
+            num_values = len(values) if isinstance(values, list) else 1
+            if num_values == 0:
+                return
+            event_resolution = data["duration"] / num_values
+            last_event_start = pd.Timestamp(
+                data["start"] + data["duration"] - event_resolution
+            )
+            belief_time = (
+                sensor.knowledge_time(last_event_start, event_resolution)
+                - data["horizon"]
+            )
+        else:
+            return
+        received_at = server_now()
+        if belief_time > received_at:
+            raise ValidationError(
+                future_belief_time_message(belief_time, received_at),
+                field_name=field_name,
+            )
+
+
+class PostSensorDataRequestSchema(SensorDataIntakeChecksMixin, PostSensorDataSchema):
     """Validate posted sensor data without building a BeliefsDataFrame."""
 
     @post_load()
@@ -595,7 +638,9 @@ class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
     )
 
 
-class PostSensorDataSchemaEntityAddress(PostSensorDataSchema):
+class PostSensorDataSchemaEntityAddress(
+    SensorDataIntakeChecksMixin, PostSensorDataSchema
+):
     """DEPRECATED, only here to support deprecated endpoints"""
 
     sensor = SensorEntityAddressField(

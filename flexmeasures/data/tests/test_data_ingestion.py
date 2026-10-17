@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from marshmallow import ValidationError
 import pandas as pd
 import pytest
 
@@ -62,6 +63,41 @@ def test_ingestion_job_accepts_prior_ahead_of_its_clock(
         most_recent_beliefs_only=False,
     )
     assert bdf.reset_index()["belief_time"].tolist() == [pd.Timestamp(belief_time)] * 2
+
+
+@pytest.mark.parametrize(
+    "event_start, refused",
+    [
+        ("2030-01-01T00:00:00+00:00", True),
+        ("2020-01-01T00:00:00+00:00", False),
+    ],
+)
+def test_ingestion_job_refuses_belief_times_after_the_request(
+    setup_beliefs_fresh_db, setup_roles_users_fresh_db, fresh_db, event_start, refused
+):
+    """A measured-instantly upload is refused if any value is recorded after the time of the request."""
+    sensor = get_test_sensor(fresh_db)
+
+    def ingest():
+        return add_beliefs_to_db_and_enqueue_forecasting_jobs(
+            sensor_id=sensor.id,
+            user_id=setup_roles_users_fresh_db["Test Prosumer User"],
+            uploaded_files=[
+                dict(
+                    filename="prices.csv",
+                    content_type="text/csv",
+                    content=f"event_start,event_value\n{event_start},10\n".encode(),
+                )
+            ],
+            upload_data={"belief-time-measured-instantly": "on"},
+            refuse_belief_times_after=server_now(),
+        )
+
+    if refused:
+        with pytest.raises(ValidationError, match="lies in the future"):
+            ingest()
+    else:
+        assert ingest() == SAVE_TO_DB_SUCCESS
 
 
 def test_ingestion_refuses_replacement_by_name(

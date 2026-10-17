@@ -449,6 +449,47 @@ def test_upload_csv_file_job_carries_prior(
         assert belief_time == pd.Timestamp(expected_belief_time)
 
 
+@pytest.mark.parametrize("allow_future_belief_times", [True, False])
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_job_carries_time_of_request_for_refusing_future_belief_times(
+    app,
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+    allow_future_belief_times,
+):
+    """A queued measured-instantly upload is checked against the time of the request, not the worker's clock."""
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES", allow_future_belief_times
+    )
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    current_app.queues["ingestion"].empty()
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (
+        io.BytesIO(b"event_start,event_value\n2022-12-16T05:11:00Z,4\n"),
+        "test.csv",
+    )
+
+    before_request = server_now()
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file, "belief-time-measured-instantly": "on"},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 202
+
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
+    refuse_belief_times_after = job.kwargs["refuse_belief_times_after"]
+    if allow_future_belief_times:
+        assert refuse_belief_times_after is None
+    else:
+        assert before_request <= refuse_belief_times_after <= server_now()
+
+
 @pytest.mark.parametrize(
     "form_data, expected_message",
     [

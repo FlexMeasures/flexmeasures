@@ -7,6 +7,8 @@ API change log
 
 v3.0-40 | October XX, 2026
 """"""""""""""""""""""""""""
+- A host can refuse sensor data recorded at a belief time later than the time of the request, by setting ``FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES`` to ``False``. ``POST /api/v3_0/sensors/<id>/data`` then answers such a ``prior`` or ``horizon`` with a ``422``, and so does ``POST /api/v3_0/sensors/<id>/data/upload`` for such a ``prior``. An upload measured instantly is refused once its files are read, against the same time of the request: with a ``422`` when it is processed directly, or as a failed ingestion job when it is queued.
+- ``POST /api/v3_0/sensors/<id>/data/upload`` answers file content that it refuses with a ``422`` also when the upload is processed directly (with no ingestion worker available), where it used to answer with a ``500``.
 - ``POST /api/v3_0/sensors/<id>/data/upload`` now accepts ``prior``, as ``POST /api/v3_0/sensors/<id>/data`` does: all uploaded data has been recorded prior to this belief time. It cannot be combined with ``belief-time-measured-instantly``.
 - The default rate limit, which applies to every endpoint, is now counted per account rather than per user, so that all users and API clients of an account share one budget. Unauthenticated requests are still counted per IP address. A consultant counts against their own account, also when acting on a client account's assets. The trigger limit is unaffected.
 - ``GET /api/v3_0/assets/<id>/jobs`` now accepts ``page`` and ``per-page`` to return jobs newest first, with ``num-records`` and ``filtered-records`` counts. Paginated results can be sorted by enqueue time or queue with ``sort-by`` and ``sort-dir``. Requests without ``page`` retain the full list and previous response shape.

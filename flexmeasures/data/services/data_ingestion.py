@@ -4,6 +4,7 @@ Logic around data ingestion (jobs)
 
 from __future__ import annotations
 
+from datetime import datetime
 from io import BytesIO
 
 from flask import current_app
@@ -92,6 +93,7 @@ def _load_uploaded_sensor_data(
     user_id: int,
     uploaded_files: list[dict],
     upload_data: dict,
+    refuse_belief_times_after: datetime | None = None,
 ) -> list[tb.BeliefsDataFrame]:
     """Validate and transform raw uploaded files into BeliefsDataFrames."""
 
@@ -103,7 +105,9 @@ def _load_uploaded_sensor_data(
     payload["uploaded-files"] = [
         _file_storage_from_payload(file_payload) for file_payload in uploaded_files
     ]
-    return SensorDataFileSchema(source_user=user).load(payload)["data"]
+    return SensorDataFileSchema(
+        source_user=user, refuse_belief_times_after=refuse_belief_times_after
+    ).load(payload)["data"]
 
 
 def _save_and_commit(
@@ -135,6 +139,7 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     forecasting_jobs: list[Job] | None = None,
     forecasting_job_ids: list[str] | None = None,
     save_changed_beliefs_only: bool = True,
+    refuse_belief_times_after: datetime | None = None,
 ) -> str:
     """Save sensor data to the database and optionally enqueue forecasting jobs.
 
@@ -150,6 +155,8 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     :param forecasting_jobs:            Optional list of forecasting Jobs to enqueue after saving.
     :param forecasting_job_ids:         Optional list of forecasting Job ids to enqueue after saving.
     :param save_changed_beliefs_only:   If True, skip saving beliefs whose value hasn't changed.
+    :param refuse_belief_times_after:   Refuse uploaded files with beliefs recorded after this time,
+                                        typically the time the request was received, on a server that does not accept future belief times.
     :returns:                           Status string as returned by ``save_to_db``.
     :raises BeliefReplacementNotAllowed: if saving would change existing beliefs, while FLEXMEASURES_ALLOW_DATA_OVERWRITE is off.
     """
@@ -165,6 +172,7 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
             user_id,
             uploaded_files,
             upload_data or {},
+            refuse_belief_times_after=refuse_belief_times_after,
         )
     if data is None:
         raise ValueError("Expected data, sensor_data, or uploaded_files.")

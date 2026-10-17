@@ -340,6 +340,17 @@ Whether to allow overwriting existing data when saving data to the database.
 Default: ``False``
 
 
+FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to accept sensor data that a client records at a belief time in the future.
+When set to ``False``, the sensor data API refuses such data, whether it is posted with a ``prior`` or a ``horizon``, or uploaded with a ``prior`` or as measured instantly.
+The belief times are compared to the time at which the request was received, also when the data is processed later by an ingestion worker.
+Belief times set by FlexMeasures itself (for instance, by schedulers and forecasters) or through the CLI are not affected.
+
+Default: ``True``
+
+
 FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

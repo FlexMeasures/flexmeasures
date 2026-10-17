@@ -7,9 +7,10 @@ import re
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask import current_app
+from marshmallow import ValidationError
 from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
@@ -48,6 +49,7 @@ from flexmeasures.api.common.responses import (
     already_received_and_successfully_processed,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
+from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.error_utils import error_handling_router
 
 
@@ -143,6 +145,7 @@ def process_sensor_data_ingestion(
     upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
+    refuse_belief_times_after: datetime | None = None,
     force_synchronous: bool = False,
 ) -> ResponseTuple:
     """Process sensor data ingestion asynchronously when possible.
@@ -177,6 +180,7 @@ def process_sensor_data_ingestion(
                 upload_data=upload_data,
                 forecasting_job_ids=forecasting_job_ids,
                 save_changed_beliefs_only=save_changed_beliefs_only,
+                refuse_belief_times_after=refuse_belief_times_after,
                 meta={"sensor_id": sensor_id},
                 ttl=current_app.config.get(
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
@@ -204,15 +208,20 @@ def process_sensor_data_ingestion(
             "No workers connected to the ingestion queue. Processing sensor data directly."
         )
 
-    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
-        sensor_id=sensor_id,
-        user_id=user_id,
-        sensor_data=sensor_data,
-        uploaded_files=uploaded_files,
-        upload_data=upload_data,
-        forecasting_jobs=forecasting_jobs,
-        save_changed_beliefs_only=save_changed_beliefs_only,
-    )
+    try:
+        status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+            sensor_id=sensor_id,
+            user_id=user_id,
+            sensor_data=sensor_data,
+            uploaded_files=uploaded_files,
+            upload_data=upload_data,
+            forecasting_jobs=forecasting_jobs,
+            save_changed_beliefs_only=save_changed_beliefs_only,
+            refuse_belief_times_after=refuse_belief_times_after,
+        )
+    except ValidationError as error:
+        # Uploaded files are read only now, so refuse their content as the request's own validation would have.
+        raise FMValidationError(message=error.messages) from error
 
     if status == SAVE_TO_DB_SUCCESS:
         return request_processed()

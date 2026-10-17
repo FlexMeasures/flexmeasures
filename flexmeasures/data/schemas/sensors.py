@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import cached_property
-from datetime import timedelta
+from datetime import datetime, timedelta
 from difflib import get_close_matches
 import numbers
 import pytz
@@ -51,7 +51,7 @@ from flexmeasures.data.schemas.utils import (
     convert_to_quantity,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.utils.time_utils import get_timezone
+from flexmeasures.utils.time_utils import get_timezone, server_now
 from flexmeasures.utils.bound_utils import (
     apply_bounds_to_values,
     bound_validation_errors,
@@ -907,6 +907,19 @@ class TimeSeriesOrSensor(VariableQuantityField):
         super().__init__(return_magnitude=True, *args, **kwargs)
 
 
+def future_belief_times_allowed() -> bool:
+    """Tell whether this server accepts sensor data that a client records at a belief time in the future."""
+    return current_app.config.get("FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES", True)
+
+
+def future_belief_time_message(belief_time: datetime, received_at: datetime) -> str:
+    """Explain the refusal of a belief time that lies after the time the request was received."""
+    return (
+        f"Belief time {belief_time.isoformat()} lies in the future (the request was received at {received_at.isoformat()}), "
+        "and this server does not accept future belief times."
+    )
+
+
 class SensorDataFileDescriptionSchema(Schema):
     """
     Schema for uploading a file with sensor data.
@@ -953,9 +966,21 @@ class SensorDataFileDescriptionSchema(Schema):
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
     sensor = SensorIdField(data_key="id")
 
-    def __init__(self, *args, source_user: User | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        source_user: User | None = None,
+        refuse_belief_times_after: datetime | None = None,
+        **kwargs,
+    ):
+        """
+        :param source_user:                 The user whose data source records the uploaded data (by default, the current user).
+        :param refuse_belief_times_after:   Refuse files with beliefs recorded after this time,
+                                            typically the time the request was received, on a server that does not accept future belief times.
+        """
         super().__init__(*args, **kwargs)
         self.source_user = source_user
+        self.refuse_belief_times_after = refuse_belief_times_after
 
     _valid_content_types = {
         "text/csv",
@@ -1011,6 +1036,18 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     field="unit",
                     message=f"Provided unit '{unit}' is not convertible to sensor unit '{sensor.unit}'",
                 )
+
+    def check_belief_times_are_not_after_the_request(self, bdf: tb.BeliefsDataFrame):
+        """Refuse data recorded after the time of the request, if this schema was given that time."""
+        if self.refuse_belief_times_after is None or bdf.empty:
+            return
+        latest_belief_time = bdf.belief_times.max()
+        if latest_belief_time > self.refuse_belief_times_after:
+            raise ValueError(
+                future_belief_time_message(
+                    latest_belief_time, self.refuse_belief_times_after
+                )
+            )
 
     @post_load
     def post_load(self, fields, **kwargs):
@@ -1093,6 +1130,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                             sensor.event_resolution,
                             keep_only_most_recent_belief=True,
                         )
+                self.check_belief_times_are_not_after_the_request(bdf)
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
@@ -1141,6 +1179,22 @@ def floor_bdf_event_starts(
 
 class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
+
+    @validates_schema
+    def validate_prior_is_accepted_by_this_server(self, data, **kwargs):
+        """Refuse a prior in the future, if this server does not accept future belief times.
+
+        A measured-instantly upload is checked once its files are read, against the time the request was received.
+        """
+        prior = data.get("prior")
+        if prior is None or future_belief_times_allowed():
+            return
+        received_at = server_now()
+        if prior > received_at:
+            raise ValidationError(
+                field_name="prior",
+                message=future_belief_time_message(prior, received_at),
+            )
 
     @post_load
     def post_load(self, fields, **kwargs):
