@@ -356,7 +356,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
 
     check_audit_log_event(
         db=db,
-        event=f"Data from test.csv uploaded to sensor '{sensor.name}': {sensor.id}",
+        event=f"Data from test.csv uploaded to sensor '{sensor.name}': {sensor.id}, recorded at the time of upload",
         user=requesting_user,
         asset=sensor.generic_asset,
     )

@@ -584,7 +584,11 @@ class PostSensorDataRequestSchema(PostSensorDataSchema):
             sensor_data["prior"] = datetime_isoformat(server_now())
         if "type" in data:
             sensor_data["type"] = data["type"]
-        return dict(sensor=data["sensor"], sensor_data=sensor_data)
+        # The prior sent by the client, if any, so that its use can be audited
+        client_prior = data.get("prior")
+        return dict(
+            sensor=data["sensor"], sensor_data=sensor_data, client_prior=client_prior
+        )
 
 
 class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
