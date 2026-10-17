@@ -276,14 +276,6 @@ def limit_triggers():
     return decorator
 
 
-def _counter_keys(account: Account, limit_name: str) -> list[str]:
-    """What an account's requests are counted against, for the given limit.
-
-    Keep this in line with the key functions above: both limits are counted against the account.
-    """
-    return [_account_key(account.id)]
-
-
 def reset_rate_limits(
     account: Account, limit_names: Iterable[str] = tuple(RATE_LIMIT_SETTINGS)
 ) -> list[str]:
@@ -305,8 +297,9 @@ def reset_rate_limits(
             account.plan, limit_name, RATE_LIMIT_SETTINGS[limit_name]
         )
         for item in parse_many(limit_string):
-            for key in _counter_keys(account, limit_name):
-                limiter.limiter.clear(item, *key_prefix, key, scopes[limit_name])
+            limiter.limiter.clear(
+                item, *key_prefix, _account_key(account.id), scopes[limit_name]
+            )
         reset.append(limit_name)
     return reset
 
