@@ -405,7 +405,7 @@ def test_upload_csv_file_returns_accepted_job(
             {"prior": "2022-12-15T12:00:00+01:00"},
             "2022-12-15T12:00:00+01:00",
         ),
-        # A prior in the future is accepted, as on POST /sensors/data
+        # A prior in the future is accepted, as on POST /sensors/<id>/data
         (
             {"prior": "2999-01-01T00:00:00+00:00"},
             "2999-01-01T00:00:00+00:00",
