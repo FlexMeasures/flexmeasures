@@ -703,6 +703,8 @@ class SensorAPI(FlaskView):
             sensor.generic_asset,
             f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
         )
+        # Commit the record now, as a queued upload is saved by its job, and processing it directly may fail.
+        db.session.commit()
         files_for_job = []
         for file in uploaded_files:
             files_for_job.append(

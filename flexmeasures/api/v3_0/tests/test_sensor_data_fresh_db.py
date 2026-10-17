@@ -4,12 +4,13 @@ import io
 
 import pandas as pd
 import pytest
-from flask import url_for
+from flask import current_app, url_for
 from timely_beliefs.tests.utils import equal_lists
 from sqlalchemy import select
 
 from flexmeasures import Source
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 
 
@@ -271,3 +272,41 @@ def test_upload_sensor_data_refuses_replacement(
     response = upload(5)
     assert response.status_code == 403
     assert response.json["status"] == "INVALID_REPLACEMENT"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_queued_upload_is_audited(
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    monkeypatch,
+    fresh_db,
+):
+    """A queued upload is recorded in the audit log, before its job runs."""
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    current_app.queues["ingestion"].empty()
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    sensor_id, sensor_name, asset_id = sensor.id, sensor.name, sensor.generic_asset_id
+    file = (
+        io.BytesIO(b"event_start,event_value\n2022-12-16T05:00:00Z,4\n"),
+        "test.csv",
+    )
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor_id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 202
+
+    # Anything the request left uncommitted is gone
+    fresh_db.session.rollback()
+    events = fresh_db.session.scalars(
+        select(AssetAuditLog.event).filter_by(affected_asset_id=asset_id)
+    ).all()
+    assert (
+        f"Data from test.csv uploaded to sensor '{sensor_name}': {sensor_id}" in events
+    )
