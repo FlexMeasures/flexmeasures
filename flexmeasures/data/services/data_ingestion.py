@@ -9,7 +9,7 @@ from io import BytesIO
 from flask import current_app
 from rq.job import Job
 from rq.job import NoSuchJobError
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, StatementError
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 
@@ -31,11 +31,40 @@ BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE = (
 )
 
 
-class BeliefReplacementNotAllowed(Exception):
-    """Saving would change existing beliefs, which this server does not allow."""
+class BeliefReplacementNotAllowed(IntegrityError):
+    """Saving would change existing beliefs, which this server does not allow.
 
-    def __init__(self, message: str = BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE):
-        super().__init__(message)
+    It is the IntegrityError that refused the replacement, renamed and with a readable message,
+    so code catching IntegrityError around saving beliefs still catches it.
+    """
+
+    def __init__(self, error: IntegrityError):
+        StatementError.__init__(
+            self,
+            BELIEF_REPLACEMENT_NOT_ALLOWED_MESSAGE,
+            error.statement,
+            error.params,
+            error.orig,
+            error.hide_parameters,
+            code=error.__dict__.get("code"),
+            ismulti=error.ismulti,
+        )
+        self.connection_invalidated = error.connection_invalidated
+
+    def __str__(self) -> str:
+        """Leave out the SQL statement and parameters, which IntegrityError would show."""
+        return self.args[0]
+
+    def __reduce__(self):
+        """Pickle as IntegrityError does, but through this class's own constructor."""
+        error = IntegrityError(
+            self.statement,
+            self.params,
+            self.orig,
+            self.hide_parameters,
+            self.connection_invalidated,
+        )
+        return self.__class__, (error,)
 
 
 def is_belief_replacement(error: IntegrityError) -> bool:
@@ -121,7 +150,7 @@ def _save_and_commit(
         if not is_belief_replacement(error):
             raise
         db.session.rollback()
-        raise BeliefReplacementNotAllowed() from error
+        raise BeliefReplacementNotAllowed(error) from error
     return status
 
 
