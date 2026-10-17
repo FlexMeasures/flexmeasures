@@ -271,3 +271,22 @@ def test_upload_sensor_data_refuses_replacement(
     response = upload(5)
     assert response.status_code == 403
     assert response.json["status"] == "INVALID_REPLACEMENT"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_with_invalid_content_processed_directly(
+    client, setup_api_fresh_test_data, requesting_user
+):
+    """A file whose content is refused when it is processed directly gets a 422 naming the file, rather than a server error."""
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    csv_content = "event_start,event_value\n2022-12-16T05:00:00Z,not-a-number\n"
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 422
+    assert "Invalid content in file: test.csv" in str(response.json["message"])
