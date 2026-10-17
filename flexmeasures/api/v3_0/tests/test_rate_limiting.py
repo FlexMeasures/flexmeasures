@@ -87,8 +87,12 @@ def trigger_through_deprecated_sensor_endpoint(client, sensor: Sensor):
     )
 
 
-def get_as(app, auth_token: str, endpoint: str = "SensorAPI:index"):
+def get_as(
+    app, auth_token: str, endpoint: str = "SensorAPI:index", token_in: str = "header"
+):
     """Call a GET endpoint as the user the token belongs to, like an API client would (by default, list sensors).
+
+    Flask-Security takes the token from a request header (by default), from the query string or from a JSON body.
 
     Each request gets an app context and a client of its own.
     The tests run inside one app context, whose ``g`` would otherwise hand the user loaded by one request to the next,
@@ -96,6 +100,10 @@ def get_as(app, auth_token: str, endpoint: str = "SensorAPI:index"):
     """
     path = url_for(endpoint)
     with app.app_context(), app.test_client() as client:
+        if token_in == "query":
+            return client.get(path, query_string={"auth_token": auth_token})
+        if token_in == "json":
+            return client.get(path, json={"auth_token": auth_token})
         return client.get(path, headers={"Authorization": auth_token})
 
 
@@ -234,6 +242,27 @@ def test_an_exhausted_account_budget_does_not_lock_out_the_ui(
     with app.test_client() as client:
         for _ in range(2):
             assert client.get(url_for("SensorAPI:index")).status_code == 200
+
+
+@pytest.mark.parametrize("token_in", ["header", "query", "json"])
+def test_a_token_counts_against_the_account_wherever_it_is_sent(
+    app, db, setup_roles_users, undo_new_rows, rate_limiting, token_in
+):
+    """A token sent in the query string or in a JSON body is an integration's, too, so it spends the account's budget, not the UI's."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    rate_limiting.setitem(app.config, "FLEXMEASURES_UI_RATE_LIMIT", "10 per minute")
+    previous_id = db.session.scalar(select(func.max(AuditLog.id))) or 0
+    auth_token = auth_token_of(app, "test_prosumer_user@seita.nl")
+
+    assert get_as(app, auth_token, token_in=token_in).status_code == 200
+    assert get_as(app, auth_token, token_in=token_in).status_code == 429
+
+    # The breach is the account's, so it is audited
+    records = new_rate_limit_audit_logs(db, previous_id)
+    assert len(records) == 1
+    assert records[0].event.startswith("API rate limit breached for ")
 
 
 @pytest.mark.parametrize(

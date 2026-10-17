@@ -42,6 +42,7 @@ from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
+from flask_security import get_request_attr
 from limits.storage import RedisStorage
 from redis.exceptions import RedisError
 from sqlalchemy import insert
@@ -115,15 +116,13 @@ def _is_play_mode() -> bool:
 def _is_ui_request() -> bool:
     """Whether the request comes from the UI, rather than from an integration.
 
-    Integrations authenticate with a token in a request header,
-    while the UI's pages call the API with the session cookie of the user who is logged in.
+    Integrations authenticate with a token, while the UI's pages call the API with the session cookie of the user who is logged in.
+    We ask Flask-Security which of the two it used to load the user, as it accepts a token in a request header,
+    in the query string and in a JSON body.
     """
     if not current_user.is_authenticated:
         return False
-    return (
-        current_app.config["SECURITY_TOKEN_AUTHENTICATION_HEADER"]
-        not in request.headers
-    )
+    return get_request_attr("fs_authn_via") == "session"
 
 
 def default_key_func() -> str:
