@@ -482,17 +482,10 @@
         let beliefTimeCustom = document.querySelector('#beliefTimeCustom');
         // The picker has no timezone, so its value is read in the browser's timezone
         document.querySelector('#beliefTimeCustomHint').textContent = "In your local time (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
-        function toDatetimeLocalValue(date) {
-            const pad = (n) => String(n).padStart(2, '0');
-            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
-        }
         document.querySelectorAll('input[name="belief-time-mode"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
                 const isCustom = document.querySelector('#belief-time-mode-custom').checked;
                 beliefTimeCustomContainer.classList.toggle('d-none', !isCustom);
-                if (isCustom) {
-                    beliefTimeCustom.max = toDatetimeLocalValue(new Date());
-                }
             });
         });
         upload.addEventListener('click', function (e) {
@@ -506,10 +499,6 @@
                     return;
                 }
                 const beliefTime = new Date(beliefTimeCustom.value);
-                if (beliefTime > new Date()) {
-                    showToast("The belief time cannot lie in the future.", "error");
-                    return;
-                }
                 formData.set('prior', beliefTime.toISOString());
             }
             upload.disabled = true;

@@ -51,7 +51,7 @@ from flexmeasures.data.schemas.utils import (
     convert_to_quantity,
 )
 from flexmeasures.data.services.data_sources import get_or_create_source
-from flexmeasures.utils.time_utils import get_timezone, server_now
+from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.bound_utils import (
     apply_bounds_to_values,
     bound_validation_errors,
@@ -931,7 +931,7 @@ class SensorDataFileDescriptionSchema(Schema):
         allow_none=True,
         data_key="prior",
         metadata=dict(
-            description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly, and cannot lie in the future.",
+            description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
             example="2026-10-15T12:00:00+02:00",
         ),
     )
@@ -1141,21 +1141,6 @@ def floor_bdf_event_starts(
 
 class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
-
-    @validates_schema
-    def validate_prior_is_not_in_the_future(self, data, **kwargs):
-        """Refuse a prior that lies in the future.
-
-        This is checked only when the request comes in, against the clock of the server that received it.
-        A queued job validates its data again on a worker, whose clock may lag behind,
-        so checking there would refuse an upload believed at the time it was received.
-        """
-        prior = data.get("prior")
-        if prior is not None and prior > server_now():
-            raise ValidationError(
-                field_name="prior",
-                message=f"Prior {prior.isoformat()} lies in the future.",
-            )
 
     @post_load
     def post_load(self, fields, **kwargs):
