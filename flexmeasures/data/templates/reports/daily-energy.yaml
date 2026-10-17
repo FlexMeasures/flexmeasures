@@ -1,0 +1,41 @@
+# Prepared report template: daily energy total.
+#
+# Totals the energy recorded by one sensor over each day of the reporting window,
+# using the PandasReporter.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: daily-energy
+description: Daily energy total from a single power or energy sensor.
+reporter: PandasReporter
+config:
+  required_input:
+    # The input is read as kWh, so a power sensor (e.g. in kW) can be totalled just as well
+    # as an energy sensor: power is converted to energy using the sensor's event resolution.
+    - name: energy
+      unit: kWh
+  required_output:
+    # The report is computed in kWh and converted to the unit of the output sensor.
+    - name: daily-energy
+      unit: kWh
+  transformations:
+    # Total the energy per day (edit "1D" to match the event resolution of your output sensor).
+    - df_input: energy
+      df_output: daily-energy
+      method: resample_events
+      args: ["1D"]
+      kwargs:
+        method: sum
+parameters:
+  input:
+    # The sensor recording the power or energy flow to total.
+    - name: energy
+      sensor: FILL_IN
+  output:
+    # The sensor to store the report; its unit must be an energy unit (e.g. kWh or MWh),
+    # and its event resolution must be the period totalled above (a day, by default).
+    - name: daily-energy
+      sensor: FILL_IN
+  # Rolling reporting window, which a report automation needs, as it refuses a fixed period:
+  # each run reports on the previous day.
+  # For a one-off report, fixed "start" and "end" datetimes can replace it.
+  start-offset: -1D,DB
+  end-offset: DB
