@@ -912,6 +912,16 @@ def future_belief_times_allowed() -> bool:
     return current_app.config.get("FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES", True)
 
 
+def client_belief_times_allowed() -> bool:
+    """Tell whether this server lets clients choose when the sensor data they send was recorded."""
+    return current_app.config.get("FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES", True)
+
+
+def client_belief_time_message(field_name: str) -> str:
+    """Explain the refusal of a client-chosen belief time."""
+    return f"This server records sensor data at the time it receives the request, and does not accept a {field_name}."
+
+
 def future_belief_time_message(belief_time: datetime, received_at: datetime) -> str:
     """Explain the refusal of a belief time that lies after the time the request was received."""
     return (
@@ -1179,6 +1189,21 @@ def floor_bdf_event_starts(
 
 class SensorDataFileRequestSchema(SensorDataFileSchema):
     """Validate a sensor data upload without parsing or resampling its files."""
+
+    @validates_schema
+    def validate_belief_timing_is_accepted_by_this_server(self, data, **kwargs):
+        """Refuse a prior, or measuring instantly, if this server does not let clients choose belief times."""
+        if client_belief_times_allowed():
+            return
+        if data.get("prior") is not None:
+            raise ValidationError(
+                field_name="prior", message=client_belief_time_message("prior")
+            )
+        if data.get("belief_time_measured_instantly"):
+            raise ValidationError(
+                field_name="belief-time-measured-instantly",
+                message=client_belief_time_message("belief time measured instantly"),
+            )
 
     @validates_schema
     def validate_prior_is_accepted_by_this_server(self, data, **kwargs):

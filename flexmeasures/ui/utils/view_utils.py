@@ -46,6 +46,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["FLEXMEASURES_ALLOW_DATA_OVERWRITE"] = current_app.config.get(
         "FLEXMEASURES_ALLOW_DATA_OVERWRITE"
     )
+    variables["FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES"] = current_app.config.get(
+        "FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES", True
+    )
     variables["FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"] = current_app.config.get(
         "FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY"
     )

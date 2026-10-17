@@ -402,3 +402,78 @@ def test_upload_sensor_data_with_invalid_content_processed_directly(
 
     assert response.status_code == 422
     assert "Invalid content in file: test.csv" in str(response.json["message"])
+
+
+@pytest.mark.parametrize(
+    "timing, refused_field",
+    [
+        ({"prior": "2022-12-15T12:00:00+01:00"}, "prior"),
+        ({"horizon": "PT0H"}, "horizon"),
+        ({}, None),  # the time of the request
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_sensor_data_while_refusing_client_belief_times(
+    app,
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    monkeypatch,
+    timing,
+    refused_field,
+):
+    """A server that does not let clients choose belief times refuses a prior or a horizon."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES", False)
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    post_data = {
+        "values": [1, 2, 3, 4, 5, 6],
+        "start": "2022-12-16T05:00:00+00:00",
+        "duration": "PT1H",
+        "unit": "m³/h",
+        **timing,
+    }
+
+    response = client.post(url_for("SensorAPI:post_data", id=sensor.id), json=post_data)
+
+    if refused_field is None:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 422
+        assert f"does not accept a {refused_field}" in str(response.json["message"])
+
+
+@pytest.mark.parametrize(
+    "form_data, refused",
+    [
+        ({"prior": "2022-12-15T12:00:00+01:00"}, True),
+        ({"belief-time-measured-instantly": "on"}, True),
+        ({}, False),  # the time of upload
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_sensor_data_while_refusing_client_belief_times(
+    app,
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    monkeypatch,
+    form_data,
+    refused,
+):
+    """A server that does not let clients choose belief times refuses a prior or measuring instantly."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES", False)
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    csv_content = "event_start,event_value\n2022-12-16T05:00:00Z,4\n"
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file, **form_data},
+        content_type="multipart/form-data",
+    )
+
+    if refused:
+        assert response.status_code == 422
+        assert "does not accept a" in str(response.json["message"])
+    else:
+        assert response.status_code == 200

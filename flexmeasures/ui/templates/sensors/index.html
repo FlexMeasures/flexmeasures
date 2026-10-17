@@ -111,24 +111,31 @@ For the data, note the following:
                                                 Belief time
                                                 <i
                                                     class="fa fa-info-circle ms-1"
+                                                    {% if FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES %}
                                                     title="When was this data recorded?
 - Measured instantly: each data point is recorded right when its event ends.
 - Time of upload: all data points are recorded at the time of upload.
 - Custom: all data points are recorded at the time you pick here, for example their original recording time when moving historical data from another system."
+                                                    {% else %}
+                                                    title="This server records uploaded data at the time of upload."
+                                                    {% endif %}
                                                     style="color: white; cursor: pointer;"
                                                 >
                                                 </i>
                                             </label>
+                                            {% if FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES %}
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-instantly" value="instantly"
                                                     {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}>
                                                 <label class="form-check-label" for="belief-time-mode-instantly">Measured instantly</label>
                                             </div>
+                                            {% endif %}
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-upload" value="upload"
-                                                    {% if not FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}>
+                                                    {% if not FLEXMEASURES_ALLOW_DATA_OVERWRITE or not FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES %} checked {% endif %}>
                                                 <label class="form-check-label" for="belief-time-mode-upload">Time of upload</label>
                                             </div>
+                                            {% if FLEXMEASURES_ALLOW_CLIENT_BELIEF_TIMES %}
                                             <div class="form-check">
                                                 <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-custom" value="custom">
                                                 <label class="form-check-label" for="belief-time-mode-custom">Custom</label>
@@ -137,6 +144,7 @@ For the data, note the following:
                                                 <input type="datetime-local" class="form-control" id="beliefTimeCustom" step="60" />
                                                 <small id="beliefTimeCustomHint"></small>
                                             </div>
+                                            {% endif %}
                                         </div>
 
                                         <div class="mb-3">

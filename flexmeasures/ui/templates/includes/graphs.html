@@ -480,14 +480,17 @@
         }
         let beliefTimeCustomContainer = document.querySelector('#beliefTimeCustomContainer');
         let beliefTimeCustom = document.querySelector('#beliefTimeCustom');
-        // The picker has no timezone, so its value is read in the browser's timezone
-        document.querySelector('#beliefTimeCustomHint').textContent = "In your local time (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
-        document.querySelectorAll('input[name="belief-time-mode"]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                const isCustom = document.querySelector('#belief-time-mode-custom').checked;
-                beliefTimeCustomContainer.classList.toggle('d-none', !isCustom);
+        // The custom picker is left out on a server that does not let clients choose belief times
+        if (beliefTimeCustomContainer) {
+            // The picker has no timezone, so its value is read in the browser's timezone
+            document.querySelector('#beliefTimeCustomHint').textContent = "In your local time (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
+            document.querySelectorAll('input[name="belief-time-mode"]').forEach(function (radio) {
+                radio.addEventListener('change', function () {
+                    const isCustom = document.querySelector('#belief-time-mode-custom').checked;
+                    beliefTimeCustomContainer.classList.toggle('d-none', !isCustom);
+                });
             });
-        });
+        }
         upload.addEventListener('click', function (e) {
             var formData = new FormData(document.getElementById('uploadForm'));
             const beliefTimeMode = formData.get('belief-time-mode');

@@ -27,6 +27,8 @@ from flexmeasures.data.schemas import (
     SourceIdField,
 )
 from flexmeasures.data.schemas.sensors import (
+    client_belief_time_message,
+    client_belief_times_allowed,
     future_belief_time_message,
     future_belief_times_allowed,
 )
@@ -570,6 +572,17 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
 class SensorDataIntakeChecksMixin:
     """Checks on posted sensor data that apply when the request comes in, and not again when an ingestion worker processes it."""
+
+    @validates_schema
+    def check_belief_timing_is_accepted_by_this_server(self, data, **kwargs):
+        """Refuse a prior or a horizon, if this server does not let clients choose belief times."""
+        if client_belief_times_allowed():
+            return
+        for field_name in ("prior", "horizon"):
+            if field_name in data:
+                raise ValidationError(
+                    client_belief_time_message(field_name), field_name=field_name
+                )
 
     @validates_schema
     def check_belief_time_is_accepted_by_this_server(self, data, **kwargs):
