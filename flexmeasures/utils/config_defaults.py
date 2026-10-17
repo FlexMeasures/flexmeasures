@@ -132,6 +132,7 @@ class Config(object):
     FLEXMEASURES_SIGNUP_PAGE: str | None = None
     FLEXMEASURES_TOS_PAGE: str | None = None
     FLEXMEASURES_ALLOW_DATA_OVERWRITE: bool = False
+    FLEXMEASURES_ALLOW_FUTURE_BELIEF_TIMES: bool = True
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: tuple | None = None

@@ -7,7 +7,7 @@ import re
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask import current_app
 from marshmallow import ValidationError
@@ -145,6 +145,7 @@ def process_sensor_data_ingestion(
     upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
+    refuse_belief_times_after: datetime | None = None,
     force_synchronous: bool = False,
 ) -> ResponseTuple:
     """Process sensor data ingestion asynchronously when possible.
@@ -179,6 +180,7 @@ def process_sensor_data_ingestion(
                 upload_data=upload_data,
                 forecasting_job_ids=forecasting_job_ids,
                 save_changed_beliefs_only=save_changed_beliefs_only,
+                refuse_belief_times_after=refuse_belief_times_after,
                 meta={"sensor_id": sensor_id},
                 ttl=current_app.config.get(
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
@@ -215,6 +217,7 @@ def process_sensor_data_ingestion(
             upload_data=upload_data,
             forecasting_jobs=forecasting_jobs,
             save_changed_beliefs_only=save_changed_beliefs_only,
+            refuse_belief_times_after=refuse_belief_times_after,
         )
     except ValidationError as error:
         # Uploaded files are read only now, so refuse their content as the request's own validation would have

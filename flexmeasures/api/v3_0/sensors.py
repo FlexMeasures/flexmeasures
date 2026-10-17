@@ -72,6 +72,7 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorIdField,
     SensorDataFileSchema,
     SensorDataFileRequestSchema,
+    future_belief_times_allowed,
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -717,9 +718,10 @@ class SensorAPI(FlaskView):
                 "on" if belief_time_measured_instantly else "off"
             ),
         }
+        received_at = server_now()
         if not belief_time_measured_instantly:
             # Fix the belief time now, so data processed by a queued job is not believed later than its upload
-            upload_data["prior"] = (prior or server_now()).isoformat()
+            upload_data["prior"] = (prior or received_at).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(
@@ -727,6 +729,9 @@ class SensorAPI(FlaskView):
             user_id=current_user.id,
             uploaded_files=files_for_job,
             upload_data=upload_data,
+            refuse_belief_times_after=(
+                None if future_belief_times_allowed() else received_at
+            ),
             force_synchronous=use_legacy_job_responses(sensor.generic_asset),
         )
         return response, code
