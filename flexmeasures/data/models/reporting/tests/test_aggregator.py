@@ -1405,6 +1405,38 @@ def test_an_input_report_still_aggregates_what_reported(
     ]
 
 
+def test_more_than_one_belief_about_an_event_is_refused(setup_nested_groups, db):
+    """An input that asks for more than the most recent belief about each event is told which event it holds several beliefs about."""
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    source = db.session.execute(
+        db.select(DataSource).filter_by(name="nested meter")
+    ).scalar_one()
+    earlier = TimedBelief(
+        event_start=datetime(2026, 7, 1, 10, tzinfo=utc),
+        belief_horizon=timedelta(hours=1),
+        event_value=1,
+        sensor=pv_power,
+        source=source,
+    )
+    db.session.add(earlier)
+    db.session.commit()
+    try:
+        with pytest.raises(ValueError, match="more than one belief about 1 event") as e:
+            AggregatorReporter(config={"method": "sum"}).compute(
+                input=[dict(sensor=pv_power, most_recent_beliefs_only=False)],
+                output=[dict(sensor=street_total)],
+                start=datetime(2026, 7, 1, tzinfo=utc),
+                end=datetime(2026, 7, 2, tzinfo=utc),
+                belief_time=datetime(2026, 7, 3, tzinfo=utc),
+            )
+        assert "2026-07-01 10:00:00+00:00" in str(e.value)
+    finally:
+        db.session.delete(earlier)
+        db.session.commit()
+
+
 def test_an_invalid_flex_model_on_the_site_names_the_asset(
     setup_nested_groups, db, restore_flex_models
 ):

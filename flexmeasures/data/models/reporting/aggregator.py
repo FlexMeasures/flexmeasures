@@ -752,15 +752,20 @@ class AggregatorReporter(Reporter):
     def _check_one_source_per_event(
         df, sensor: Sensor, source, input_description: dict
     ) -> None:
-        """Refuse data that holds several sources for one event, unless the caller narrowed the sources down.
+        """Refuse data that holds more than one belief about one event, or several sources across events unless the caller narrowed the sources down.
 
+        The search keeps one belief per event wherever several sources report it,
+        but an input that asks for more than the most recent belief of a single source still gets several beliefs about one event.
         Different versions of one source are not several sources, and neither is data a source filter has already narrowed,
         which is why a filtered search is accepted here even when more than one source remains.
         """
         if len(df.lineage.events) != len(df):
-            duplicate_events = df[df.index.get_level_values("event_start").duplicated()]
+            starts = df.index.get_level_values("event_start")
+            repeated = starts[starts.duplicated()].unique()
             raise ValueError(
-                f"{len(duplicate_events)} event(s) are duplicate. First duplicate: {duplicate_events[0]}. Consider using (more) source filters."
+                f"The data of sensor {sensor.id} ({sensor.name}) holds more than one belief about {len(repeated)} event(s), the first of which starts at {repeated[0]}."
+                " An aggregate takes one value per event, so read only the most recent belief about each event (leave out `most-recent-beliefs-only: false`),"
+                " or narrow the sources down."
             )
 
         narrowed = bool(source) or any(
