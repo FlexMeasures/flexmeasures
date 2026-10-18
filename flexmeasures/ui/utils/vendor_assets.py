@@ -39,9 +39,8 @@ NPM_CDN = "https://cdn.jsdelivr.net/npm/{name}@{version}/"
 class VendorLibrary:
     """A library's version, its files with their SHA-256 hashes, and where to download them."""
 
-    name: (
-        str  # npm package name, or the library's own name if it does not come from npm
-    )
+    # The npm package name, or the library's own name if it does not come from npm.
+    name: str
     version: str
     files: dict[str, str]  # path relative to the base URL -> SHA-256 hash
     license: str  # path relative to the base URL, or a full URL
