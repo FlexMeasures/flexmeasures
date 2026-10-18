@@ -507,6 +507,7 @@ def test_deprecated_rate_limit_key_is_warned_about(
     assert warned is expect_warning
 
 
+@pytest.mark.parametrize("key_prefix", ["", "test-reset-prefix"])
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
@@ -518,8 +519,14 @@ def test_reset_rate_limit_lets_an_account_trigger_again(
     rate_limiting,
     requesting_user,
     without_plan,
+    key_prefix,
 ):
-    """After a reset, an account that was refused can trigger again straight away, rather than wait out the window."""
+    """After a reset, an account that was refused can trigger again straight away, rather than wait out the window.
+
+    The reset builds the counter's key the way Flask-Limiter does, so we also check it with a key prefix (``RATELIMIT_KEY_PREFIX``).
+    Flask-Limiter reads that setting when the app is set up, so we set the prefix on the limiter itself.
+    """
+    rate_limiting.setattr(limiter, "_key_prefix", key_prefix)
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
