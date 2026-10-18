@@ -85,6 +85,17 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         ),
     )
 
+    missing_members = fields.List(
+        fields.Int(),
+        required=False,
+        data_key="missing-members",
+        metadata=dict(
+            description="Filled in by the reporter, on the data source of an event that some of the group's sensors did not report, with those sensors."
+            " The aggregate of such an event is recorded under a source of its own, so it can be told apart from a complete aggregate, which records no missing members."
+            " Anything given here is overwritten.",
+        ),
+    )
+
     skip_missing = fields.Bool(
         required=False,
         allow_none=True,
@@ -92,8 +103,9 @@ class AggregatorConfigSchema(ReporterConfigSchema):
         data_key="skip-missing",
         metadata=dict(
             description="Whether to aggregate whatever reported, leaving out the sensors that did not."
-            " Left unset, a report over a `group` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,"
-            " while a report over sensors named in `input` aggregates what reported, which is what such reports have always done.",
+            " Left unset (or true), a report over a `group` aggregates what reported, and records an event that some members did not report under a data source naming them in its `missing-members`,"
+            " while a report over sensors named in `input` aggregates what reported, which is what such reports have always done."
+            " Set to false, an event is reported only when every sensor reported it.",
         ),
     )
 

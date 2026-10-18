@@ -457,11 +457,47 @@ class AggregatorReporter(Reporter):
         Changes to the membership itself are noted in the group asset's audit log when they are made.
         """
         resolved = sorted(member.sensor.id for member in members)
-        if self._config.get("resolved_members") == resolved:
+        # which members were missing is filled in per event, so whatever was given here describes no event yet
+        given_missing = self._config.pop("missing_members", None)
+        if self._config.get("resolved_members") == resolved and given_missing is None:
             return
         self._config["resolved_members"] = resolved
         # the membership is part of the source's identity, so the cached source no longer describes this run
         self._data_source = None
+
+    def _label_incomplete_events(
+        self,
+        frame: pd.DataFrame,
+        incomplete: pd.Series,
+        column_sensor_ids: dict[str, int],
+        sources: pd.Series,
+    ) -> pd.Series:
+        """Record each event that some sensors did not report under a source that names them, in its `missing-members`.
+
+        The complete aggregate keeps its own source, which says nothing about missing members,
+        so a consumer can tell a partial aggregate from a complete one, and an aggregate recorded once its data is complete supersedes the partial one.
+        Which sensors are missing can differ per event, so one report may record under several sources.
+        A sensor that fails again later is recorded under the source it was recorded under before, as sources with the same attributes are shared.
+        """
+        missing = frame.loc[incomplete].isna()
+        events_by_missing_set: dict[tuple[int, ...], list] = {}
+        for event_start, row in missing.iterrows():
+            missing_ids = tuple(
+                sorted({column_sensor_ids[column] for column in row.index[row]})
+            )
+            events_by_missing_set.setdefault(missing_ids, []).append(event_start)
+
+        complete_source = self.data_source
+        sources = sources.copy()
+        try:
+            for missing_ids, event_starts in events_by_missing_set.items():
+                self._config["missing_members"] = list(missing_ids)
+                self._data_source = None
+                sources.loc[event_starts] = self.data_source
+        finally:
+            self._config.pop("missing_members", None)
+            self._data_source = complete_source
+        return sources
 
     # ------------------------------------------------------------------ units
 
@@ -582,6 +618,7 @@ class AggregatorReporter(Reporter):
             belief_time = server_now()
 
         columns = []
+        column_sensor_ids: dict[str, int] = {}
 
         for index, input_description in enumerate(input_descriptions):
             sensor: Sensor = input_description.pop("sensor")
@@ -619,27 +656,29 @@ class AggregatorReporter(Reporter):
 
             # a unique name per column, so that two entries for the same sensor both survive the concat
             columns.append(values.rename(f"{column_name}_{index}"))
+            column_sensor_ids[f"{column_name}_{index}"] = sensor.id
 
         frame = pd.concat(columns, axis=1)
         aggregated = frame.aggregate(method, axis=1)
-
-        skip_missing = self._config.get("skip_missing")
-        if skip_missing is None:
-            # Where the members were resolved for the caller, a silently low aggregate is the worse failure,
-            # so an event is reported only when every member reported it. Where the caller named the sensors itself,
-            # leaving out what did not report is what these reports have always done.
-            skip_missing = not bool(self._config.get("group"))
 
         # An event no sensor reported is missing, whichever mode this is: Pandas sums an all-missing row to zero,
         # which would report an hour nothing was measured in as an hour nothing flowed in.
         nothing_reported = frame.isna().all(axis=1)
         aggregated = aggregated.where(~nothing_reported)
+        incomplete = frame.isna().any(axis=1) & ~nothing_reported
 
-        if not skip_missing:
-            incomplete = frame.isna().any(axis=1) & ~nothing_reported
+        sources = pd.Series(self.data_source, index=aggregated.index, dtype=object)
+        if self._config.get("skip_missing") is False:
             if incomplete.any():
                 self._warn_about_gaps(frame, incomplete)
                 aggregated = aggregated.where(~incomplete)
+        elif self._config.get("group") and incomplete.any():
+            # Where the members were resolved for the caller, the caller cannot see which of them went in,
+            # so an event that some of them did not report is recorded under a source that names them.
+            # Where the caller named the sensors itself, aggregating what reported is what these reports have always done.
+            sources = self._label_incomplete_events(
+                frame, incomplete, column_sensor_ids, sources
+            )
 
         # Built explicitly, because resampling the inputs with pandas leaves plain Series behind,
         # and the report has to come back as a BeliefsDataFrame of the output sensor.
@@ -647,7 +686,7 @@ class AggregatorReporter(Reporter):
             {
                 "event_start": aggregated.index,
                 "event_value": aggregated.to_numpy(),
-                "source": self.data_source,
+                "source": sources.to_numpy(),
                 "cumulative_probability": 0.5,
             }
         )
@@ -668,6 +707,18 @@ class AggregatorReporter(Reporter):
             }
         ]
 
+    def _assign_sensors_and_source(
+        self, results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Assign each result its sensor, and keep the sources the report chose per event.
+
+        A report over a group records an event that some members did not report under a source of its own,
+        which assigning the report's own source to every event would undo.
+        """
+        for result in results:
+            result["data"].sensor = result["sensor"]
+        return results
+
     @staticmethod
     def _warn_about_gaps(frame: pd.DataFrame, incomplete: pd.Series) -> None:
         """Say which sensors left gaps, and how many events they cost, because a blank aggregate is otherwise hard to place."""
@@ -679,7 +730,7 @@ class AggregatorReporter(Reporter):
         current_app.logger.warning(
             f"{int(incomplete.sum())} event(s) are left out of the aggregate because not every sensor reported them."
             f" Sensors with gaps, and the number of events each is missing: {gaps}."
-            f" Set `skip-missing` to aggregate whatever reported instead."
+            f" Leave `skip-missing` unset to aggregate whatever reported instead."
         )
 
     def _resolve_output(self, output: list[dict[str, Any]]) -> list[dict[str, Any]]:

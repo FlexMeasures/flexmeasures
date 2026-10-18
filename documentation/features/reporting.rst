@@ -209,10 +209,15 @@ and a power recorded hourly holds through its hour when the output is finer.
 A sensor whose quantity the output sensor cannot express, such as a temperature onto a power sensor, is reported as an error
 rather than being added up.
 
-**Gaps.** A report over a ``group`` reports an event only when every member reported it, so that a gap in one member does not quietly lower the aggregate,
-and it logs which sensors left the gaps.
-A report over sensors named in ``input`` aggregates what reported, which is what such reports have always done.
-``skip-missing`` sets this either way.
+**Gaps.** A report over a ``group`` aggregates whatever reported, but an event that some members did not report is recorded under a data source of its own,
+whose ``missing-members`` names the sensors it had to leave out.
+A partial aggregate can therefore always be told apart from a complete one, whose source names no missing members,
+and a meter that stops reporting does not take the whole group's aggregate down with it.
+Once the missing data arrives, the next report records the complete aggregate, which then takes precedence:
+it is the more recent belief, and where both carry the same belief time, the complete one still wins.
+The asset's status page shows a yellow light for an aggregate whose most recent event leaves out members, and names them when you hover it.
+A report over sensors named in ``input`` aggregates what reported under its one data source, which is what such reports have always done.
+Set ``skip-missing`` to ``false`` to report an event only when every sensor reported it, which logs the sensors that left gaps.
 An event that *no* sensor reported is missing in both cases, because an hour nothing was measured in is not an hour in which nothing flowed.
 A gap is also left as a gap when resampling: a coarser sensor is carried only across its own event, never across a missing one.
 

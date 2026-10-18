@@ -562,6 +562,22 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         return self._data_generator
 
     @property
+    def missing_members(self) -> list[int]:
+        """The sensors that a data generator says it had to leave out of the data recorded under this source.
+
+        An `AggregatorReporter` records an event that some of its group's members did not report under a source naming them,
+        so its data can be told apart from a complete aggregate, which names none.
+
+            >>> DataSource("Seita", type="reporter", attributes={"data_generator": {"config": {"missing-members": [3]}}}).missing_members
+            [3]
+            >>> DataSource("Seita", type="reporter").missing_members
+            []
+
+        """
+        config = (self.attributes or {}).get("data_generator", {}).get("config") or {}
+        return list(config.get("missing-members") or [])
+
+    @property
     def label(self):
         """Human-readable label (preferably not starting with a capital letter, so it can be used in a sentence)."""
         if self.type == "user":
