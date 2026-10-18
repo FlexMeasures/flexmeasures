@@ -151,7 +151,7 @@ def test_forecast_and_annotate_panels_visible_for_admin(
     assert b'id="annotateForm"' in response.data
 
 
-def test_forecast_and_annotate_panels_hidden_for_other_account(
+def test_sensor_page_forbidden_for_other_account(
     db, client, setup_assets, as_supplier_user
 ):
     """
