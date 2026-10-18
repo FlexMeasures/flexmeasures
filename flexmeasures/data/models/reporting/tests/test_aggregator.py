@@ -1043,6 +1043,85 @@ def test_missing_members_given_in_the_config_are_overwritten(setup_nested_groups
     assert reporter.data_source.missing_members == []
 
 
+def test_the_status_of_a_partial_aggregate_names_the_missing_members(
+    setup_nested_groups, db, restore_beliefs
+):
+    """A partial aggregate says something about the current state of the group, so its status says which members it leaves out.
+
+    Once the aggregate is recorded complete, the status no longer names them.
+    """
+    from flexmeasures.data.services.sensors import get_statuses
+
+    region, street, house, street_total, house_total, pv_power, hp_power, far_power = (
+        setup_nested_groups
+    )
+    aggregate = Sensor(
+        "street status test",
+        generic_asset=street,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+        timezone="UTC",
+    )
+    db.session.add(aggregate)
+    db.session.commit()
+    status_specs = {
+        "staleness_search": {},
+        "max_staleness": "P1D",
+        "max_future_staleness": "-PT12H",
+    }
+    now = datetime(2026, 7, 2, 2, tzinfo=utc)
+    last_event = datetime(2026, 7, 1, 23, 45, tzinfo=utc)
+
+    def report(belief_time):
+        result = AggregatorReporter(config={"group": {"asset": street.id}}).compute(
+            output=[dict(sensor=aggregate)],
+            start=datetime(2026, 7, 1, tzinfo=utc),
+            end=datetime(2026, 7, 2, tzinfo=utc),
+            belief_time=belief_time,
+        )[0]["data"]
+        save_to_db(result, save_changed_beliefs_only=False)
+        db.session.commit()
+
+    def reporter_status():
+        statuses = get_statuses(aggregate, now=now, status_specs=status_specs)
+        return next(
+            status for status in statuses if status["source_type"] == "reporter"
+        )
+
+    late = None
+    try:
+        restore_beliefs(hp_power, last_event)
+        report(datetime(2026, 7, 2, tzinfo=utc))
+        status = reporter_status()
+        assert status["missing_members"] == [dict(id=hp_power.id, name=hp_power.name)]
+        assert f"leaves out 'hp power' ({hp_power.id})" in status["reason"]
+        assert status["stale"] is False
+
+        # the heat pump's data arrives, and a later run records the complete aggregate
+        source = db.session.execute(
+            db.select(DataSource).filter_by(name="nested meter")
+        ).scalar_one()
+        late = TimedBelief(
+            event_start=last_event,
+            belief_horizon=-timedelta(minutes=30),
+            event_value=40,
+            sensor=hp_power,
+            source=source,
+        )
+        db.session.add(late)
+        db.session.commit()
+        report(datetime(2026, 7, 2, 1, tzinfo=utc))
+        status = reporter_status()
+        assert status["missing_members"] == []
+        assert "leaves out" not in status["reason"]
+    finally:
+        if late is not None:
+            db.session.delete(late)
+        db.session.execute(db.delete(TimedBelief).filter_by(sensor_id=aggregate.id))
+        db.session.delete(aggregate)
+        db.session.commit()
+
+
 def test_upsampling_does_not_fill_across_a_gap(setup_pv_group, db, restore_beliefs):
     """Carrying an hourly value across its own hour is right; carrying it across a missing hour is not."""
     _, pv_group, aggregate_sensor, _, carport_power, _, _, _ = setup_pv_group
