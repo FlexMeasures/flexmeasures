@@ -33,6 +33,11 @@ IGNORED: dict[tuple[str, str, str], str] = {
         "vega",
         "5.33.1",
     ): "The advisory names vega-expression 5.2.1 as the fix outside ESM, and vega 5.33.1 depends on vega-expression ~5.2.1.",
+    (
+        "GHSA-fgmj-fm8m-jvvx",
+        "echarts",
+        "5.6.0",
+    ): "Only the tooltip of the 'lines' series type is affected, which FlexMeasures does not use (fast-chart.js draws 'line' and 'bar' series).",
 }
 
 
