@@ -14,6 +14,8 @@ To bump a library, change its version below, then print the hashes of its files 
 
     python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes <key>
 
+Every week, .github/workflows/ui-library-advisories.yml looks up these versions in the OSV database of security advisories.
+
 This is a leaf module, so flexmeasures/ui/__init__.py can import it without an import cycle.
 """
 
@@ -45,6 +47,15 @@ class VendorLibrary:
     license: str  # path relative to the base URL, or a full URL
     license_sha256: str
     base_url: str = NPM_CDN  # formatted with the name and version
+    # For a library not served from npm, the npm package to look up advisories for.
+    npm_package: str | None = None
+
+    @property
+    def npm_name(self) -> str | None:
+        """The npm package which this library is published as, if any, which advisory databases know it by."""
+        if self.npm_package:
+            return self.npm_package
+        return self.name if self.base_url == NPM_CDN else None
 
     def url(self, path: str) -> str:
         return self.base_url.format(name=self.name, version=self.version) + path
@@ -219,6 +230,7 @@ VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
         name="DataTables",
         version="1.10.22",
         base_url="https://cdn.datatables.net/{version}/",
+        npm_package="datatables.net",
         files={
             "js/jquery.dataTables.min.js": "c91c904fbfbe1fcb61c4e4cb955b35e8eb303f29d97a9f757c744fc6603a978a",
             "css/jquery.dataTables.min.css": "ca31d3aa2364f2a372c1d9ed477be2b71852e7d3a98bb92476c19efe67024a48",
@@ -235,6 +247,7 @@ VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
         name="DataTables conditionalPaging plug-in",
         version="1.10.22",
         base_url="https://cdn.datatables.net/plug-ins/{version}/features/conditionalPaging/",
+        npm_package="datatables.net-plugins",
         files={
             "dataTables.conditionalPaging.js": "336e6dd30fe2ba132c2980f057c359453c5e85ca046842717457505acdabc39c",
         },
