@@ -32,7 +32,12 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
-from flexmeasures.ui.utils.vendor_versions import JS_VERSIONS
+from flexmeasures.ui.utils.vendor_assets import (
+    JS_VERSIONS,
+    missing_files,
+    vendor_attrs,
+    vendor_url,
+)
 
 
 class UIBlueprint(Blueprint):
@@ -103,6 +108,7 @@ def register_at(app: Flask):
     add_jinja_filters(app)
     add_jinja_variables(app)
     warn_about_deprecated_js_versions(app)
+    log_where_vendor_files_load_from(app)
 
 
 def warn_about_deprecated_js_versions(app: Flask):
@@ -110,8 +116,17 @@ def warn_about_deprecated_js_versions(app: Flask):
     if app.config.get("FLEXMEASURES_JS_VERSIONS") is not None:
         app.logger.warning(
             "FLEXMEASURES_JS_VERSIONS is deprecated and ignored. "
-            "The UI now serves its own copies of its JavaScript and CSS libraries, "
-            "at the versions listed in flexmeasures/ui/utils/vendor_versions.py."
+            "The UI loads its JavaScript and CSS libraries at the versions listed in flexmeasures/ui/utils/vendor_assets.py."
+        )
+
+
+def log_where_vendor_files_load_from(app: Flask):
+    """Tell hosts whether browsers load the UI's libraries from CDNs, and how to serve them from FlexMeasures instead."""
+    missing = missing_files()
+    if missing:
+        app.logger.info(
+            f"{len(missing)} file(s) of the UI's libraries were not fetched, so browsers load them from CDNs. "
+            "To serve them from FlexMeasures, for example without internet access, run: python -m flexmeasures.ui.utils.fetch_vendor_assets"
         )
 
 
@@ -253,6 +268,8 @@ def add_jinja_variables(app):
         app.jinja_env.globals[v] = app.config.get(v, d)
     # A global rather than a per-render variable, so pages rendered without render_flexmeasures_template (e.g. login, errors) also get it.
     app.jinja_env.globals["js_versions"] = JS_VERSIONS
+    app.jinja_env.globals["vendor_url"] = vendor_url
+    app.jinja_env.globals["vendor_attrs"] = vendor_attrs
     app.jinja_env.globals["sphinx_docs_exist"] = (
         True
         if os.path.exists(

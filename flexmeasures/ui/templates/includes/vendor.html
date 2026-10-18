@@ -1,73 +1,107 @@
-{#- Tags for the third-party assets which the UI serves itself, from static/vendor/<lib>/<version>/.
-    Versions live in flexmeasures/ui/utils/vendor_versions.py, see static/vendor/README.md.
+{#- Tags for the third-party libraries which the UI loads.
+    Each file is served by FlexMeasures if it was fetched into static/vendor/, and loaded from its CDN otherwise.
+    Versions, files and hashes live in flexmeasures/ui/utils/vendor_assets.py, which also explains how to fetch them.
     Import with {% import "includes/vendor.html" as vendor %}. -#}
 
-{% macro _url(lib, path) -%}
-    {{- url_for("flexmeasures_ui.static", filename="vendor/" ~ lib ~ "/" ~ js_versions[lib] ~ "/" ~ path) -}}
-{%- endmacro %}
-
-{#- Stylesheets, and JSON-Editor, which templates use before the end of <body>. -#}
+{#- Stylesheets, fonts, and JSON-Editor, which templates use before the end of <body>. -#}
 {% macro head() %}
-    <script src="{{ _url('jsoneditor', 'jsoneditor.min.js') }}"></script>
-    <link href="{{ _url('leaflet', 'leaflet.css') }}" rel="stylesheet" />
-    <link href="{{ _url('leafletmarkercluster', 'MarkerCluster.css') }}" rel="stylesheet" />
-    <link href="{{ _url('leafletmarkercluster', 'MarkerCluster.Default.css') }}" rel="stylesheet" />
-    <link href="{{ _url('bootstrapicons', 'bootstrap-icons.css') }}" rel="stylesheet" />
-    <link href="{{ _url('bootstrap', 'css/bootstrap.min.css') }}" rel="stylesheet" />
-    <link href="{{ _url('fontawesome', 'css/font-awesome.min.css') }}" rel="stylesheet" />
-    <link href="{{ _url('ionrangeslider', 'ion.rangeSlider.css') }}" rel="stylesheet" />
+    <script {{ vendor_attrs('jsoneditor', 'dist/jsoneditor.min.js') }}></script>
+    <link {{ vendor_attrs('leaflet', 'dist/leaflet.css', 'href') }} rel="stylesheet" />
+    <link {{ vendor_attrs('leafletmarkercluster', 'dist/MarkerCluster.css', 'href') }} rel="stylesheet" />
+    <link {{ vendor_attrs('leafletmarkercluster', 'dist/MarkerCluster.Default.css', 'href') }} rel="stylesheet" />
+    <link {{ vendor_attrs('bootstrapicons', 'font/bootstrap-icons.css', 'href') }} rel="stylesheet" />
+    <link {{ vendor_attrs('bootstrap', 'dist/css/bootstrap.min.css', 'href') }} rel="stylesheet" />
+    <link {{ vendor_attrs('fontawesome', 'css/font-awesome.min.css', 'href') }} rel="stylesheet" />
+    <link {{ vendor_attrs('ionrangeslider', 'css/ion.rangeSlider.css', 'href') }} rel="stylesheet" />
+    {#- These rules refer to vendored fonts and images, so they live here rather than in flexmeasures.css, which cannot tell whether those were fetched. -#}
+    <style>
+        /* devanagari */
+        @font-face {
+            font-family: 'Poppins';
+            font-style: normal;
+            font-weight: 400;
+            src: url({{ vendor_url('poppins', 'pxiEyp8kv8JHgFVrJJbecmNE.woff2') }}) format('woff2');
+            unicode-range: U+0900-097F, U+1CD0-1CF6, U+1CF8-1CF9, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FB;
+        }
+        /* latin-ext */
+        @font-face {
+            font-family: 'Poppins';
+            font-style: normal;
+            font-weight: 400;
+            src: url({{ vendor_url('poppins', 'pxiEyp8kv8JHgFVrJJnecmNE.woff2') }}) format('woff2');
+            unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+        }
+        /* latin */
+        @font-face {
+            font-family: 'Poppins';
+            font-style: normal;
+            font-weight: 400;
+            src: url({{ vendor_url('poppins', 'pxiEyp8kv8JHgFVrJJfecg.woff2') }}) format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+        }
+        /* DataTables sorting icons on the left, when the header is not right-aligned */
+        table.dataTable thead tr th:not(.text-right).sorting_asc {
+            background: url("{{ vendor_url('datatables', 'images/sort_asc.png') }}") no-repeat center left;
+        }
+        table.dataTable thead tr th:not(.text-right).sorting_desc {
+            background: url("{{ vendor_url('datatables', 'images/sort_desc.png') }}") no-repeat center left;
+        }
+        table.dataTable thead tr th:not(.text-right).sorting {
+            background: url("{{ vendor_url('datatables', 'images/sort_both.png') }}") no-repeat center left;
+        }
+    </style>
 {% endmacro %}
 
 {% macro datatables_css() %}
-    <link href="{{ _url('datatables', 'css/jquery.dataTables.min.css') }}" rel="stylesheet" />
+    <link {{ vendor_attrs('datatables', 'css/jquery.dataTables.min.css', 'href') }} rel="stylesheet" />
 {% endmacro %}
 
 {#- Early in <body>, as inline scripts in page content use jQuery. -#}
 {% macro jquery() %}
-    <script src="{{ _url('jquery', 'jquery.min.js') }}"></script>
-    <script src="{{ _url('floatthead', 'jquery.floatThead.min.js') }}"></script>
+    <script {{ vendor_attrs('jquery', 'dist/jquery.min.js') }}></script>
+    <script {{ vendor_attrs('floatthead', 'dist/jquery.floatThead.min.js') }}></script>
 {% endmacro %}
 
 {% macro bootstrap_js() %}
-    <script src="{{ _url('bootstrap', 'js/bootstrap.bundle.min.js') }}"></script>
+    <script {{ vendor_attrs('bootstrap', 'dist/js/bootstrap.bundle.min.js') }}></script>
 {% endmacro %}
 
 {% macro echarts() %}
-    <script src="{{ _url('echarts', 'echarts.min.js') }}"></script>
+    <script {{ vendor_attrs('echarts', 'dist/echarts.min.js') }}></script>
 {% endmacro %}
 
 {#- Chart and widget libraries, in the order base.html loaded them from CDNs. -#}
 {% macro scripts() %}
-    <script src="{{ _url('ionrangeslider', 'ion.rangeSlider.min.js') }}"></script>
-    <script src="{{ _url('d3', 'd3.min.js') }}"></script>
-    <script src="{{ _url('vega', 'vega.min.js') }}"></script>
-    <script src="{{ _url('vegalite', 'vega-lite.min.js') }}"></script>
-    <script src="{{ _url('vegaembed', 'vega-embed.min.js') }}"></script>
+    <script {{ vendor_attrs('ionrangeslider', 'js/ion.rangeSlider.min.js') }}></script>
+    <script {{ vendor_attrs('d3', 'dist/d3.min.js') }}></script>
+    <script {{ vendor_attrs('vega', 'build/vega.min.js') }}></script>
+    <script {{ vendor_attrs('vegalite', 'build/vega-lite.min.js') }}></script>
+    <script {{ vendor_attrs('vegaembed', 'build/vega-embed.min.js') }}></script>
     {{ echarts() }}
     {# Workaround for loading a NodeJS module without NodeJS #}
     <script>var module = { exports: {} };</script>
-    <script src="{{ _url('currencysymbolmap', 'map.js') }}"></script>
+    <script {{ vendor_attrs('currencysymbolmap', 'map.js') }}></script>
     <script>const currencySymbolMap = module.exports;</script>
 {% endmacro %}
 
 {% macro datatables_js() %}
-    <script src="{{ _url('datatables', 'js/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ _url('datatables', 'plug-ins/dataTables.conditionalPaging.js') }}"></script>
+    <script {{ vendor_attrs('datatables', 'js/jquery.dataTables.min.js') }}></script>
+    <script {{ vendor_attrs('datatablesconditionalpaging', 'dataTables.conditionalPaging.js') }}></script>
 {% endmacro %}
 
 {% macro leaflet_js() %}
-    <script src="{{ _url('leaflet', 'leaflet-src.min.js') }}"></script>
+    <script {{ vendor_attrs('leaflet', 'dist/leaflet-src.min.js') }}></script>
 {% endmacro %}
 
 {% macro markercluster_js() %}
-    <script src="{{ _url('leafletmarkercluster', 'leaflet.markercluster.js') }}"></script>
-    <script src="{{ _url('leafletmarkerclusterlayersupport', 'leaflet.markercluster.layersupport.js') }}"></script>
+    <script {{ vendor_attrs('leafletmarkercluster', 'dist/leaflet.markercluster.js') }}></script>
+    <script {{ vendor_attrs('leafletmarkerclusterlayersupport', 'dist/leaflet.markercluster.layersupport.js') }}></script>
 {% endmacro %}
 
 {#- Date range picker on the asset graph, asset properties and sensor pages. -#}
 {% macro litepicker() %}
-    <script src="{{ _url('jstimezonedetect', 'jstz.js') }}"></script>
-    <script src="{{ _url('litepicker', 'litepicker.js') }}"></script>
-    <script src="{{ _url('litepicker', 'plugins/ranges.js') }}"></script>
-    <script src="{{ _url('litepicker', 'plugins/keyboardnav.js') }}"></script>
+    <script {{ vendor_attrs('jstimezonedetect', 'dist/jstz.js') }}></script>
+    <script {{ vendor_attrs('litepicker', 'dist/litepicker.js') }}></script>
+    <script {{ vendor_attrs('litepicker', 'dist/plugins/ranges.js') }}></script>
+    <script {{ vendor_attrs('litepicker', 'dist/plugins/keyboardnav.js') }}></script>
 {% endmacro %}
