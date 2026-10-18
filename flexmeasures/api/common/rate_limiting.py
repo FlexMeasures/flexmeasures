@@ -32,11 +32,13 @@ what you see there is what you get in production.
 from __future__ import annotations
 
 import logging
+from typing import Iterable
 
 from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
+from limits import parse
 from limits.storage import RedisStorage
 from redis.exceptions import RedisError
 from sqlalchemy import insert
@@ -46,14 +48,12 @@ from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.responses import too_many_requests
+from flexmeasures.data.models.user import Account, Plan
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
 # Endpoints under /api/ which the default limit should not apply to
 EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
-
-# The scope which all trigger endpoints share their budget under (see limit_triggers)
-TRIGGER_SCOPE = "triggers"
 
 # Redis Lua script, run atomically by EVAL to claim one audit marker per window.
 # KEYS[1] is the breached limit's full Redis counter key (including account and limit).
@@ -73,6 +73,17 @@ return 0
 # can tell which endpoints hit the stricter trigger limit on top of the default one.
 TRIGGER_LIMITED_VIEWS: set[str] = set()
 
+# The buckets which each limit counts in: all trigger endpoints share one,
+# and the default limit is an application limit, which Flask-Limiter counts in the "global" scope.
+TRIGGER_SCOPE = "triggers"
+DEFAULT_SCOPE = "global"
+
+# The limits there are, and the config settings which set them server-wide
+RATE_LIMIT_SETTINGS = {
+    "default": "FLEXMEASURES_API_DEFAULT_RATE_LIMIT",
+    "trigger": "FLEXMEASURES_API_TRIGGER_RATE_LIMIT",
+}
+
 
 def _plan():
     """The plan of the current user's account, if any."""
@@ -81,9 +92,8 @@ def _plan():
     return current_user.account.plan
 
 
-def _account_rate_limit(limit_name: str) -> str | None:
-    """Look up an account's plan-level override for the given limit, if any."""
-    plan = _plan()
+def _plan_rate_limit(plan: Plan | None, limit_name: str) -> str | None:
+    """Look up a plan's override for the given limit, if any."""
     if plan is None:
         return None
     if limit_name == "default":
@@ -91,6 +101,11 @@ def _account_rate_limit(limit_name: str) -> str | None:
     if limit_name == "trigger":
         return plan.trigger_rate_limit
     return None
+
+
+def _account_rate_limit(limit_name: str) -> str | None:
+    """Look up the current user's account's plan-level override for the given limit, if any."""
+    return _plan_rate_limit(_plan(), limit_name)
 
 
 def _is_unlimited(limit_name: str) -> bool:
@@ -107,6 +122,10 @@ def _is_play_mode() -> bool:
     return current_app.config.get("FLEXMEASURES_MODE") == "play"
 
 
+def _account_key(account_id: int) -> str:
+    return f"account:{account_id}"
+
+
 def default_key_func() -> str:
     """Count requests against the user's account, or against the IP address if unauthenticated.
 
@@ -115,7 +134,7 @@ def default_key_func() -> str:
     because it is the consultancy's integration which makes the requests.
     """
     if current_user.is_authenticated:
-        return f"account:{current_user.account_id}"
+        return _account_key(current_user.account_id)
     return get_remote_address()
 
 
@@ -126,9 +145,11 @@ def _asset_id_of_trigger() -> int | None:
     so we resolve that sensor's asset. That way, both ways of triggering the same asset share one budget.
     Returns None if we cannot tell, which the caller reads as "count this against the account as a whole".
     """
-    resource_id = (request.view_args or {}).get("id")
+    raw_id = (request.view_args or {}).get("id")
+    if raw_id is None:
+        return None
     try:
-        resource_id = int(resource_id)
+        resource_id = int(raw_id)
     except (TypeError, ValueError):
         return None  # the view is about to reject this request anyway
     if "/assets/" in request.path:
@@ -144,7 +165,7 @@ def trigger_key_func() -> str:
     """
     if not current_user.is_authenticated:
         return get_remote_address()
-    return f"account:{current_user.account_id}"
+    return _account_key(current_user.account_id)
 
 
 def warn_about_deprecated_settings(app: Flask):
@@ -165,10 +186,15 @@ def _limit(limit_name: str, config_key: str) -> str:
     but an exemption, which the exempt_when callables grant. What we return in that case
     is irrelevant, as long as it parses.
     """
-    account_limit = _account_rate_limit(limit_name)
-    if account_limit is None or account_limit == UNLIMITED_RATE_LIMIT:
+    return _limit_on_plan(_plan(), limit_name, config_key)
+
+
+def _limit_on_plan(plan: Plan | None, limit_name: str, config_key: str) -> str:
+    """The plan's limit if it sets one, else the server-wide config setting (see _limit)."""
+    plan_limit = _plan_rate_limit(plan, limit_name)
+    if plan_limit is None or plan_limit == UNLIMITED_RATE_LIMIT:
         return current_app.config[config_key]
-    return account_limit
+    return plan_limit
 
 
 def default_limit() -> str:
@@ -248,6 +274,36 @@ def limit_triggers():
         return limit(view)
 
     return decorator
+
+
+def reset_rate_limits(
+    account: Account, limit_names: Iterable[str] = tuple(RATE_LIMIT_SETTINGS)
+) -> list[str]:
+    """Clear an account's rate-limit counters, so that its requests are accepted again straight away.
+
+    We clear the counters of the limits in effect for the account (its plan's, or the server-wide ones).
+    The limit's amount is part of a counter's key, so counters left over from a limit that no longer applies are not counted against anymore, and simply expire.
+    A limit the account is exempt from ("unlimited") has nothing to reset, and is skipped.
+
+    Returns the names of the limits that were reset.
+    """
+    scopes = {"default": DEFAULT_SCOPE, "trigger": TRIGGER_SCOPE}
+    key_prefix = [limiter._key_prefix] if limiter._key_prefix else []
+    reset = []
+    for limit_name in limit_names:
+        if _plan_rate_limit(account.plan, limit_name) == UNLIMITED_RATE_LIMIT:
+            continue
+        limit_string = _limit_on_plan(
+            account.plan, limit_name, RATE_LIMIT_SETTINGS[limit_name]
+        )
+        limiter.limiter.clear(
+            parse(limit_string),
+            *key_prefix,
+            _account_key(account.id),
+            scopes[limit_name],
+        )
+        reset.append(limit_name)
+    return reset
 
 
 def _log_rate_limit_hit(error):
