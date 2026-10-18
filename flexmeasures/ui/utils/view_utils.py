@@ -253,22 +253,22 @@ ICON_MAPPING = {
     "wind speed": "wi wi-strong-wind",
 }
 
-# Icons from iconify.design, served from static/vendor/iconify/ so the UI also works offline.
-CHARGER_ICON = "/ui/static/vendor/iconify/material-symbols/ev-station-outline.svg"
-FALLBACK_SVG_ICON = "/ui/static/vendor/iconify/fa-solid/question-circle.svg"
+# Icons from iconify.design, served from static/icons/ so the UI also works offline (see the README there).
+CHARGER_ICON = "/ui/static/icons/material-symbols/ev-station-outline.svg"
+FALLBACK_SVG_ICON = "/ui/static/icons/fa-solid/question-circle.svg"
 
 SVG_ICON_MAPPING = {
     # site structure
-    "building": "/ui/static/vendor/iconify/mdi/home-city.svg",
-    "battery": "/ui/static/vendor/iconify/mdi/battery.svg",
-    "simulation": "/ui/static/vendor/iconify/mdi/home-city.svg",
-    "site": "/ui/static/vendor/iconify/mdi/map-marker-outline.svg",
-    "scenario": "/ui/static/vendor/iconify/mdi/binoculars.svg",
-    "pv": "/ui/static/vendor/iconify/wi/day-sunny.svg",
-    "solar": "/ui/static/vendor/iconify/wi/day-sunny.svg",
-    "wind": "/ui/static/vendor/iconify/mdi/wind-turbine.svg",
-    "process": "/ui/static/vendor/iconify/mdi/factory.svg",
-    "heat-storage": "/ui/static/vendor/iconify/mdi/storage-tank.svg",
+    "building": "/ui/static/icons/mdi/home-city.svg",
+    "battery": "/ui/static/icons/mdi/battery.svg",
+    "simulation": "/ui/static/icons/mdi/home-city.svg",
+    "site": "/ui/static/icons/mdi/map-marker-outline.svg",
+    "scenario": "/ui/static/icons/mdi/binoculars.svg",
+    "pv": "/ui/static/icons/wi/day-sunny.svg",
+    "solar": "/ui/static/icons/wi/day-sunny.svg",
+    "wind": "/ui/static/icons/mdi/wind-turbine.svg",
+    "process": "/ui/static/icons/mdi/factory.svg",
+    "heat-storage": "/ui/static/icons/mdi/storage-tank.svg",
     # EV infrastructure, which projects name in a variety of ways
     "chargepoint": CHARGER_ICON,
     "ev": CHARGER_ICON,
@@ -280,14 +280,14 @@ SVG_ICON_MAPPING = {
     "ev_charger": CHARGER_ICON,
     "charger": CHARGER_ICON,
     # building services equipment, named by their common abbreviations
-    "hvac": "/ui/static/vendor/iconify/mdi/hvac.svg",
-    "ahu": "/ui/static/vendor/iconify/mdi/air-filter.svg",  # air handling unit
-    "dhw": "/ui/static/vendor/iconify/mdi/water-boiler.svg",  # domestic hot water
-    "heatpump": "/ui/static/vendor/iconify/mdi/heat-pump.svg",
-    "chiller": "/ui/static/vendor/iconify/mdi/snowflake.svg",
-    "lighting": "/ui/static/vendor/iconify/mdi/lightbulb.svg",
-    "other-loads": "/ui/static/vendor/iconify/mdi/power-plug.svg",
-    "add_asset": "/ui/static/vendor/iconify/material-symbols/add-rounded-white.svg",  # Plus Icon for Add Asset
+    "hvac": "/ui/static/icons/mdi/hvac.svg",
+    "ahu": "/ui/static/icons/mdi/air-filter.svg",  # air handling unit
+    "dhw": "/ui/static/icons/mdi/water-boiler.svg",  # domestic hot water
+    "heatpump": "/ui/static/icons/mdi/heat-pump.svg",
+    "chiller": "/ui/static/icons/mdi/snowflake.svg",
+    "lighting": "/ui/static/icons/mdi/lightbulb.svg",
+    "other-loads": "/ui/static/icons/mdi/power-plug.svg",
+    "add_asset": "/ui/static/icons/material-symbols/add-rounded-white.svg",  # Plus Icon for Add Asset
 }
 
 

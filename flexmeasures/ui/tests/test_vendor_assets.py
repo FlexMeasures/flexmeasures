@@ -127,7 +127,7 @@ def test_asset_type_icons_are_served(client):
     from flexmeasures.ui.utils.view_utils import FALLBACK_SVG_ICON, SVG_ICON_MAPPING
 
     for icon in sorted({*SVG_ICON_MAPPING.values(), FALLBACK_SVG_ICON}):
-        assert icon.startswith("/ui/static/vendor/iconify/"), icon
+        assert icon.startswith("/ui/static/icons/"), icon
         response = client.get(icon)
         assert response.status_code == 200, icon
         assert response.mimetype == "image/svg+xml", icon
