@@ -264,8 +264,8 @@ Here are some common parameter choices for our JavaScript function:
 
 As FlexMeasures uses `the Vega-Lite Grammar of Interactive Graphics <https://vega.github.io/vega-lite/>`_ internally, we also need to import this library to render the chart (see the ``script`` tags above). It's crucial to note that FlexMeasures is not transferring images across HTTP here, just information needed to render them.
 
-.. note:: It's best to match the visualization library versions you use in your frontend to those used by FlexMeasures, which are listed in ``flexmeasures/ui/utils/vendor_versions.py``.
-          A plugin page which extends FlexMeasures' ``base.html`` already loads them, from FlexMeasures itself.
+.. note:: It's best to match the visualization library versions you use in your frontend to those used by FlexMeasures, which are listed in ``flexmeasures/ui/utils/vendor_assets.py``.
+          A plugin page which extends FlexMeasures' ``base.html`` already loads them, from FlexMeasures itself if they were fetched (see :ref:`install-ui-libraries`), and from CDNs otherwise.
           A plugin page served by FlexMeasures which does not extend ``base.html`` can load the very same files:
           ``{% import "includes/vendor.html" as vendor %}{{ vendor.scripts() }}`` loads Vega, Vega-Lite, Vega-Embed and the other chart libraries,
           and templates can read the versions as ``js_versions``, e.g. ``{{ js_versions.vegalite }}``.

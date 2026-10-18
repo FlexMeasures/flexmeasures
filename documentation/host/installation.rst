@@ -451,6 +451,25 @@ This suffices for a quick start. For an actually secure secret, here is a Python
 Finally, you should set ``SECURITY_TWO_FACTOR_RESCUE_MAIL`` to an email address under which you can be reached by users who cannot use their 2nd means of authentication. 
 
 
+.. _install-ui-libraries:
+
+Serve the UI's libraries without internet access
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The UI uses third-party JavaScript and CSS libraries, such as Bootstrap and Vega.
+The Docker image comes with them, so FlexMeasures serves them itself.
+A FlexMeasures installed via `pip` does not, so browsers load them from public CDNs, checking each file against its expected hash.
+
+To serve them from FlexMeasures instead, for example on a network without internet access, fetch them once:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets
+
+This downloads each library's files and licence into FlexMeasures' installation, and fails on any file that does not match its expected hash.
+Run it again after upgrading FlexMeasures, as an upgrade can bump a library's version.
+
+
 Where to go from here?
 ------------------------
 

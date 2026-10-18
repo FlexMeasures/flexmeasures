@@ -269,7 +269,7 @@ FLEXMEASURES_JS_VERSIONS
 
 .. deprecated:: 1.1.0
    This setting is ignored.
-   The UI serves its own copies of its JavaScript and CSS libraries, at the versions listed in ``flexmeasures/ui/utils/vendor_versions.py``.
+   The UI loads its JavaScript and CSS libraries at the versions listed in ``flexmeasures/ui/utils/vendor_assets.py``, see :ref:`install-ui-libraries`.
 
 
 Timing
