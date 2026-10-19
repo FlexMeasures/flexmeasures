@@ -138,6 +138,8 @@ def _is_ui_request() -> bool:
     if not current_user.is_authenticated:
         return False
     return get_request_attr("fs_authn_via") == "session"
+
+
 def _account_key(account_id: int) -> str:
     return f"account:{account_id}"
 
