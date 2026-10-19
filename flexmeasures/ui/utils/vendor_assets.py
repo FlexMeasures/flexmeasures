@@ -69,12 +69,13 @@ class VendorLibrary:
 VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
     "vega": VendorLibrary(
         name="vega",
-        version="5.22.1",
+        version="5.33.1",
         files={
-            "build/vega.min.js": "731f01b68116bc185a196322096ca342737424c4995c48a6674f57ebc967e9c1",
+            "build/vega.min.js": "463f3db6a40b20e9747b4ed38f37ed0add508838f9141b1cf8366784b07b30c8",
         },
-        license="LICENSE",
-        license_sha256="b75f7ed0af20dedadf92c52bc236161bcf0d294ff2e6e34ca76403203349f71d",
+        # The npm package of this version has no licence file, so take it from the release's tag.
+        license="https://cdn.jsdelivr.net/gh/vega/vega@v5.33.1/LICENSE",
+        license_sha256="63727832aaf62004a2b249c933e327f3c90caf49e41a72f4bf436edf632cbda8",
     ),
     "vegaembed": VendorLibrary(
         name="vega-embed",
