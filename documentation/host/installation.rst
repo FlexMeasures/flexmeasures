@@ -472,7 +472,7 @@ You can also fetch them yourself, for example on a server without internet acces
 
    $ python -m flexmeasures.ui.utils.fetch_vendor_assets
 
-Both download each library's files and licence into FlexMeasures' installation, and fail on any file that does not match its expected hash.
+Both download each library's files and licence, with any notice file the licence requires, into FlexMeasures' installation, and fail on any file that does not match its expected hash.
 They fetch the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, except for versions set without hashes.
 The command reads that setting from the config file FlexMeasures reads, or from the one passed with ``--config``.
 To stop FlexMeasures from fetching the libraries itself, set :ref:`FLEXMEASURES_FETCH_UI_LIBRARIES <configuration>` to ``False``.
