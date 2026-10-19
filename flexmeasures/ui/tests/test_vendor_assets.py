@@ -493,3 +493,127 @@ def test_unversioned_files_keep_default_caching(client):
     assert response.status_code == 200
     assert response.cache_control.max_age is None
     response.close()
+
+
+@pytest.fixture
+def web_app(not_fetched):
+    """A bare app on which FlexMeasures' fetching on the first request is set up, so tests can count its fetches."""
+    from flask import Flask
+
+    from flexmeasures.ui import fetch_vendor_files_on_first_request
+
+    def make(fetch_setting: bool = True):
+        web_app = Flask("web_app_under_test")
+        web_app.config["FLEXMEASURES_FETCH_UI_LIBRARIES"] = fetch_setting
+        web_app.extensions[APP_EXTENSION] = VENDOR_LIBRARIES
+        web_app.add_url_rule("/", "index", lambda: "page")
+        fetch_vendor_files_on_first_request(web_app)
+        return web_app
+
+    return make
+
+
+@pytest.fixture
+def blocking_fetch(monkeypatch):
+    """Replace fetching with one that waits until the test releases it, and counts how often it was started."""
+    import threading
+
+    started = threading.Semaphore(0)
+    release = threading.Event()
+    calls = []
+
+    def fake_fetch(libraries):
+        calls.append(libraries)
+        started.release()
+        release.wait(timeout=5)
+        return 3
+
+    monkeypatch.setattr("flexmeasures.ui.fetch_unless_fetching", fake_fetch)
+    yield started, release, calls
+    release.set()
+
+
+def test_first_request_fetches_in_the_background(web_app, blocking_fetch):
+    """The first request starts fetching, without waiting for it, and later requests do not fetch again."""
+    started, release, calls = blocking_fetch
+    app_ = web_app()
+    client_ = app_.test_client()
+
+    # The fetch is still blocked, so getting a response shows that the request did not wait for it.
+    assert client_.get("/").data == b"page"
+    assert app_.extensions["flexmeasures_vendor_fetch"].is_alive()
+    assert started.acquire(timeout=10)
+    assert client_.get("/").data == b"page"
+    release.set()
+    app_.extensions["flexmeasures_vendor_fetch"].join(timeout=10)
+    assert len(calls) == 1
+
+
+def test_no_fetching_when_switched_off(web_app, blocking_fetch):
+    _, _, calls = blocking_fetch
+    app_ = web_app(fetch_setting=False)
+    assert app_.test_client().get("/").data == b"page"
+    assert "flexmeasures_vendor_fetch" not in app_.extensions
+    assert calls == []
+
+
+def test_failed_background_fetch_is_logged(web_app, monkeypatch, caplog):
+    """A server without internet access logs that it could not fetch, and keeps serving pages."""
+
+    def failing_fetch(libraries):
+        raise urllib.error.URLError("no internet")
+
+    monkeypatch.setattr("flexmeasures.ui.fetch_unless_fetching", failing_fetch)
+    app_ = web_app()
+    with caplog.at_level(logging.WARNING):
+        assert app_.test_client().get("/").data == b"page"
+        app_.extensions["flexmeasures_vendor_fetch"].join(timeout=10)
+    assert "Could not fetch the UI's libraries" in caplog.text
+
+
+@pytest.mark.skipif(vendor_assets.fcntl is None, reason="file locks need fcntl")
+def test_only_one_process_fetches(not_fetched, fake_library):
+    """While one process holds the lock, another process does not fetch, and fetches once the lock is free."""
+    import fcntl
+
+    _, downloads, download = fake_library
+    libraries = vendor_assets.VENDOR_LIBRARIES
+    vendor_assets.VENDOR_DIR.mkdir(parents=True)
+    # Another open file description of the lock file conflicts with the one held here, as one in another process would.
+    with open(vendor_assets.VENDOR_DIR / vendor_assets.LOCK_FILE, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert vendor_assets.fetch_unless_fetching(libraries, download) is None
+        assert downloads == []
+    assert vendor_assets.fetch_unless_fetching(libraries, download) == 4
+    # Once nothing is missing, the lock is not even taken.
+    with open(vendor_assets.VENDOR_DIR / vendor_assets.LOCK_FILE, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert vendor_assets.fetch_unless_fetching(libraries, download) == 0
+
+
+@pytest.mark.parametrize("fetched_earlier", [False, True])
+def test_startup_log_warns_when_fetched_files_went_missing(
+    app, caplog, monkeypatch, not_fetched, fetched_earlier
+):
+    """When FlexMeasures does not fetch, a host who fetched before but misses files now, most likely after an upgrade, is warned."""
+    monkeypatch.setitem(app.config, "FLEXMEASURES_FETCH_UI_LIBRARIES", False)
+    if fetched_earlier:
+        old_file = vendor_assets.VENDOR_DIR / "vega" / "5.0.0" / "build" / "vega.min.js"
+        old_file.parent.mkdir(parents=True)
+        old_file.write_text("vega 5.0.0")
+
+    with caplog.at_level(logging.INFO):
+        log_where_vendor_files_load_from(app)
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert "run: python -m flexmeasures.ui.utils.fetch_vendor_assets" in caplog.text
+    assert bool(warnings) is fetched_earlier
+
+
+def test_startup_log_says_fetching_follows(app, caplog, monkeypatch, not_fetched):
+    monkeypatch.setitem(app.config, "FLEXMEASURES_FETCH_UI_LIBRARIES", True)
+    with caplog.at_level(logging.INFO):
+        log_where_vendor_files_load_from(app)
+    assert (
+        "fetches them in the background once it serves its first request" in caplog.text
+    )

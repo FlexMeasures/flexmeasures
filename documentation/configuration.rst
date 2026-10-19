@@ -292,6 +292,14 @@ This prints the setting for another version, with the hashes of its files:
 
 Default: ``{}``
 
+FLEXMEASURES_FETCH_UI_LIBRARIES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures fetches the files of the UI's JavaScript and CSS libraries which it is missing, so that it serves them itself rather than browsers loading them from CDNs.
+The first request that a web server process serves starts the download, in the background (see :ref:`install-ui-libraries`).
+
+Default: ``True``
+
 
 Timing
 ------
