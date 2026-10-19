@@ -16,8 +16,13 @@ The two limits count differently. The default limit counts every request, includ
 triggers we accepted, because it exists to protect the expensive computation which those set in motion:
 a client whose payload we rejected did not cost us a schedule, and should not pay for one.
 
-The default limit is counted per account, so that all users and API clients of an account share one budget (set in the account's plan).
+The default limit is counted per account, so that all users and integrations of an account share one budget (set in the account's plan).
+By an integration, we mean anything which calls the API with an auth token, rather than through the UI.
 A user of a consultancy account counts against the consultancy's account, also when acting on a client account's assets.
+The UI is the exception: its pages call the API with the session of the user who is logged in, rather than with a token,
+and those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``), which plans do not touch.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget which the account's integrations need.
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
 
 Each refused request is logged as a warning, saying who hit which limit, on which endpoint (and, for triggers, about which asset),
@@ -38,6 +43,7 @@ from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
+from flask_security import get_request_attr
 from limits import parse
 from limits.storage import RedisStorage
 from redis.exceptions import RedisError
@@ -122,6 +128,18 @@ def _is_play_mode() -> bool:
     return current_app.config.get("FLEXMEASURES_MODE") == "play"
 
 
+def _is_ui_request() -> bool:
+    """Whether the request comes from the UI, rather than from an integration.
+
+    Integrations authenticate with a token, while the UI's pages call the API with the session cookie of the user who is logged in.
+    We ask Flask-Security which of the two it used to load the user, as it accepts a token in a request header,
+    in the query string and in a JSON body.
+    """
+    if not current_user.is_authenticated:
+        return False
+    return get_request_attr("fs_authn_via") == "session"
+
+
 def _account_key(account_id: int) -> str:
     return f"account:{account_id}"
 
@@ -129,13 +147,16 @@ def _account_key(account_id: int) -> str:
 def default_key_func() -> str:
     """Count requests against the user's account, or against the IP address if unauthenticated.
 
-    All users and API clients of an account share one budget, which is what the account's plan sets.
+    All users and integrations of an account share one budget, which is what the account's plan sets.
     A consultant counts against their own account, also when acting on a client account's assets,
     because it is the consultancy's integration which makes the requests.
+    Requests from the UI count against the user instead, in a budget of their own (see default_limit).
     """
-    if current_user.is_authenticated:
-        return _account_key(current_user.account_id)
-    return get_remote_address()
+    if not current_user.is_authenticated:
+        return get_remote_address()
+    if _is_ui_request():
+        return f"ui-user:{current_user.id}"
+    return _account_key(current_user.account_id)
 
 
 def _asset_id_of_trigger() -> int | None:
@@ -198,6 +219,9 @@ def _limit_on_plan(plan: Plan | None, limit_name: str, config_key: str) -> str:
 
 
 def default_limit() -> str:
+    """The UI's budget per user for requests from the UI, and otherwise the account's budget."""
+    if _is_ui_request():
+        return current_app.config["FLEXMEASURES_UI_RATE_LIMIT"]
     return _limit("default", "FLEXMEASURES_API_DEFAULT_RATE_LIMIT")
 
 
@@ -213,6 +237,9 @@ def _exempt_from_default_limit() -> bool:
         return True
     if _is_play_mode():
         return True
+    if _is_ui_request():
+        # A plan sets the budget of the account's integrations, not of the UI.
+        return False
     return _is_unlimited("default")
 
 
@@ -318,7 +345,12 @@ def _log_rate_limit_hit(error):
         is_trigger_limit = False
     else:
         is_trigger_limit = runtime_limit.scope == TRIGGER_SCOPE
-        limit_name = "trigger" if is_trigger_limit else "default"
+        if is_trigger_limit:
+            limit_name = "trigger"
+        elif _is_ui_request():
+            limit_name = "UI"
+        else:
+            limit_name = "default"
         limit_description = f"the {limit_name} rate limit ({runtime_limit.limit})"
     asset = f", asset {_asset_id_of_trigger()}" if is_trigger_limit else ""
     current_app.logger.warning(
@@ -339,6 +371,9 @@ def _audit_rate_limit_hit(error) -> None:
         or not current_user.is_authenticated
         or current_user.account is None
     ):
+        return
+    if runtime_limit.scope != TRIGGER_SCOPE and _is_ui_request():
+        # The user ran out of their UI budget, which is theirs rather than the account's.
         return
 
     account = current_user.account
