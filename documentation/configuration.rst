@@ -912,10 +912,10 @@ That way, an integration which uses up its account's budget does not lock the ac
 and browsing the UI does not spend the budget the account's integrations need.
 Plans do not change this budget (see :ref:`rate-limiting-plans`).
 
-The setting holds one limit, like ``"500 per minute"``. FlexMeasures refuses to start with a setting it cannot read,
+The setting holds one limit, like ``"100 per minute"``. FlexMeasures refuses to start with a setting it cannot read,
 or with one which holds several limits (Flask-Limiter's notation for that, separated by semicolons, is not supported).
 
-Default: ``"500 per minute"``
+Default: ``"100 per minute"``
 
 FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

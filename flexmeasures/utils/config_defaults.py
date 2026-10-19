@@ -192,7 +192,7 @@ class Config(object):
     )
     FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
     FLEXMEASURES_UI_RATE_LIMIT: str = (
-        "500 per minute"  # per user, for the API calls the UI makes with the user's session
+        "100 per minute"  # per user, for the API calls the UI makes with the user's session
     )
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
     # Deprecated, and ignored: triggers are always counted per account
