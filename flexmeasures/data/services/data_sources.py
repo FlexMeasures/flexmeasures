@@ -60,7 +60,9 @@ def get_or_create_source(
         )
     else:
         raise TypeError("source should be of type User or str")
-    _source = db.session.execute(query).scalar_one_or_none()
+    # Leaving out the model, version or attributes matches any of them, so this may find several distinct sources,
+    # which the unique index allows, as they differ on what was left out; the oldest of them is taken.
+    _source = first_source(query)
     if not _source:
         if is_user(source):
             _source = DataSource(user=source, model=model, version=version)
@@ -103,7 +105,7 @@ def add_and_flush_source(source: DataSource, query) -> DataSource:
         ):
             raise
         # Another transaction inserted the same source since we looked it up, so use that one.
-        winner = db.session.execute(query).scalar_one_or_none()
+        winner = first_source(query)
         if winner is None:
             # The index also counts NULL as equal to an empty string, which the lookup does not.
             raise
@@ -115,6 +117,11 @@ def add_and_flush_source(source: DataSource, query) -> DataSource:
 SOURCE_ID_LIST_KEYS = ("sources", "user_source_ids")
 # The key holding a single source ID, next to a "sensor" key (as in reporter inputs).
 SOURCE_ID_KEY = "source"
+
+
+def first_source(query) -> DataSource | None:
+    """Return the oldest data source that a lookup by (part of) a source's identity finds, if any."""
+    return db.session.execute(query.order_by(DataSource.id).limit(1)).scalars().first()
 
 
 def find_referenced_source_ids(value) -> set[int]:

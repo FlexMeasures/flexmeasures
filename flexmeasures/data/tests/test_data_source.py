@@ -369,6 +369,27 @@ def test_duplicate_sources_without_user_or_account_are_refused(db, app):
             db.session.add(DataSource(**identity))
 
 
+def test_a_lookup_leaving_out_the_version_takes_the_oldest_matching_source(db, app):
+    """A lookup that leaves out a source's model, version or attributes matches any of them, so it may find several distinct sources.
+
+    The unique index only rules out two sources that agree on all of them,
+    so such a lookup takes the oldest match rather than fail, as `flexmeasures add beliefs --source <name>` does.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    oldest = DataSource(name="test-versioned-script", type="CLI script", version="1")
+    db.session.add(oldest)
+    db.session.flush()
+    db.session.add(
+        DataSource(name="test-versioned-script", type="CLI script", version="2")
+    )
+    db.session.flush()
+
+    source = get_or_create_source("test-versioned-script", source_type="CLI script")
+
+    assert source.id == oldest.id
+
+
 def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch):
     """get_or_create_source must use the source another transaction inserted since it looked one up, rather than fail.
 
