@@ -88,8 +88,8 @@ def get_or_create_source(
 def add_and_flush_source(source: DataSource, query) -> DataSource:
     """Add and flush a new source, or return the identical source another transaction inserted since `query` looked for it.
 
-    :param source:  the new data source, not yet added to the session
-    :param query:   the lookup that found no such source, to fetch the one another transaction inserted in the meantime
+    :param source:  the new data source, not yet added to the session.
+    :param query:   the lookup that found no such source, to fetch the one another transaction inserted in the meantime.
     """
     # Flush anything else pending first, so that the savepoint below only concerns the new source.
     db.session.flush()
