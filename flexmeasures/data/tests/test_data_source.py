@@ -479,6 +479,8 @@ def test_get_data_source_recovers_from_losing_the_race(db, app, monkeypatch):
     [
         ({"consumption-price": {"sensor": 1, "sources": [3, 4]}}, {3, 4}),
         ([{"sensor": 1, "source": 5}, {"sensor": 2, "user_source_ids": [6]}], {5, 6}),
+        ({"data_source_id": 10, "parameters": {}}, {10}),
+        ({"data_source_id": True}, set()),
         # a "source" key only holds a source ID next to a "sensor" key
         ({"source": 7}, set()),
         ({"sensor": 1, "sources": [True, "8"]}, set()),

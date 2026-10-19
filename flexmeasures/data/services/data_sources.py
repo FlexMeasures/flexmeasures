@@ -120,7 +120,7 @@ SOURCE_ID_KEY = "source"
 def find_referenced_source_ids(value) -> set[int]:
     """Find the data source IDs referred to in a JSON-like value, such as the arguments of a job.
 
-    Source IDs are recognised under the keys that hold them in sensor references and reporter inputs.
+    Source IDs are recognised under the keys that hold them in sensor references, reporter inputs, and report job arguments.
     """
     found: set[int] = set()
     if isinstance(value, (list, tuple)):
@@ -131,6 +131,8 @@ def find_referenced_source_ids(value) -> set[int]:
             if key in SOURCE_ID_LIST_KEYS and isinstance(item, list):
                 found |= {i for i in item if _is_id(i)}
             elif key == SOURCE_ID_KEY and "sensor" in value and _is_id(item):
+                found.add(item)
+            elif key == "data_source_id" and _is_id(item):
                 found.add(item)
             else:
                 found |= find_referenced_source_ids(item)

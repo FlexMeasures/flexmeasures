@@ -202,3 +202,35 @@ def test_check_source_references(app, db, clean_job_redis, monkeypatch):
     assert job_existing.id in result.output
     assert "will be merged into data source 1" in result.output
     assert job_without_sources.id not in result.output
+
+
+def test_check_source_references_reports_reporting_jobs(
+    app, db, clean_job_redis, monkeypatch
+):
+    """Report jobs pass their source ID directly, and fail if that source is merged or missing."""
+    from flexmeasures.cli import jobs as jobs_cli
+    from flexmeasures.data.services.data_sources import get_or_create_source
+    from flexmeasures.data.services.reporting import run_report_job
+
+    runner = app.test_cli_runner()
+    with app.app_context():
+        source_id = get_or_create_source(
+            "test-report-job-source", source_type="reporter"
+        ).id
+        db.session.commit()
+        missing_id = source_id + 1000
+        queue = app.queues["reporting"]
+        missing_job = queue.enqueue(
+            run_report_job, data_source_id=missing_id, parameters={}
+        )
+        merging_job = queue.enqueue(
+            run_report_job, data_source_id=source_id, parameters={}
+        )
+
+    monkeypatch.setattr(jobs_cli, "find_duplicate_sources", lambda: {source_id: 1})
+    result = runner.invoke(jobs_cli.fm_jobs, ["check-source-references"])
+    assert result.exit_code == 0, result.output
+    assert missing_job.id in result.output
+    assert "does not exist" in result.output
+    assert merging_job.id in result.output
+    assert "will be merged into data source 1" in result.output
