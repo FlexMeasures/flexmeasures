@@ -912,6 +912,9 @@ That way, an integration which uses up its account's budget does not lock the ac
 and browsing the UI does not spend the budget the account's integrations need.
 Plans do not change this budget (see :ref:`rate-limiting-plans`).
 
+The setting holds one limit, like ``"500 per minute"``. FlexMeasures refuses to start with a setting it cannot read,
+or with one which holds several limits (Flask-Limiter's notation for that, separated by semicolons, is not supported).
+
 Default: ``"500 per minute"``
 
 FLEXMEASURES_API_TRIGGER_RATE_LIMIT
@@ -920,6 +923,7 @@ FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
 than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
 It is counted per account, so all users and assets of an account share it, too.
+Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
 

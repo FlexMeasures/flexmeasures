@@ -8,6 +8,7 @@ from flexmeasures.utils import config_utils
 from flexmeasures.utils.config_defaults import DevelopmentConfig, ProductionConfig
 
 from flexmeasures.utils.config_utils import (
+    check_rate_limit_settings,
     get_config_warnings,
     normalize_security_durations,
     normalize_trusted_hosts,
@@ -198,6 +199,29 @@ def test_normalize_security_durations(monkeypatch, flask_security_version, expec
     normalize_security_durations(app)
     assert app.config["SECURITY_TWO_FACTOR_LOGIN_VALIDITY"] == expected
     assert app.config["SECURITY_LOGIN_WITHIN"] is None
+
+
+@pytest.mark.parametrize(
+    "value, error",
+    [
+        ("10 per minute; 100 per hour", "holds 2 rate limits"),
+        ("10 per fortnight", "not a valid rate limit"),
+    ],
+)
+def test_check_rate_limit_settings_refuses_what_is_not_one_limit(value, error):
+    """A server-wide rate limit is refused at startup, naming the setting, unless it is one limit."""
+    app = Flask(__name__)
+    app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"] = "500 per minute"
+    app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"] = value
+    with pytest.raises(ValueError, match=error) as exc_info:
+        check_rate_limit_settings(app)
+    assert "FLEXMEASURES_API_TRIGGER_RATE_LIMIT" in str(exc_info.value)
+
+
+def test_check_rate_limit_settings_accepts_the_defaults():
+    app = Flask(__name__)
+    app.config.from_object(ProductionConfig)
+    check_rate_limit_settings(app)
 
 
 def test_config_warnings_flag_unset_trusted_hosts():
