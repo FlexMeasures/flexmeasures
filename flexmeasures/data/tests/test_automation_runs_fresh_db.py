@@ -910,13 +910,13 @@ def _add_partially_queued_run(
     return run
 
 
-def test_only_a_forecast_run_is_dispatched_a_second_time(
+def test_a_schedule_run_is_dispatched_a_second_time_as_a_forecast_run_is(
     fresh_db, due_forecast_automation, freeze_server_now
 ):
-    """A forecast run resumes where it stopped, while a schedule run is left where it failed.
+    """Both kinds of run resume where they stopped, now that a schedule run's jobs carry IDs derived from the run.
 
-    A forecast run's jobs carry IDs derived from the run, so a retry can tell which of them it already queued,
-    whereas a schedule run's jobs get a fresh ID on every dispatch, so retrying one would duplicate its schedules.
+    They used to differ: a schedule run's jobs got a fresh ID on every dispatch, so a retry could not tell
+    an already queued schedule from a missing one, and such a run was recorded and reported but left where it failed.
     """
     from flexmeasures.data.services.automations import (
         get_dispatchable_automation_runs,
@@ -941,7 +941,35 @@ def test_only_a_forecast_run_is_dispatched_a_second_time(
     }
 
     assert forecast_run.id in claimed_ids
-    assert schedule_run.id not in claimed_ids
+    assert schedule_run.id in claimed_ids
+
+
+@pytest.mark.parametrize("automation_type", ("reporting", "my-plugin-type"))
+def test_a_run_of_another_type_is_not_dispatched_a_second_time(
+    fresh_db, due_forecast_automation, freeze_server_now, automation_type
+):
+    """Only forecast and schedule runs are retried, as only their jobs carry IDs derived from the run.
+
+    A report or plugin run whose dispatch stopped halfway is left where it failed,
+    since its jobs take a fresh ID on every dispatch, and a retry could queue the same work twice.
+    """
+    from flexmeasures.data.services.automations import (
+        get_dispatchable_automation_runs,
+    )
+
+    freeze_server_now(datetime(2026, 8, 5, 2, 0, tzinfo=timezone.utc))
+    run = _add_partially_queued_run(
+        fresh_db,
+        due_forecast_automation,
+        automation_type,
+        datetime(2026, 8, 5, 1, 15, tzinfo=timezone.utc),
+    )
+
+    claimed_ids = {
+        claimed.run.id for claimed in get_dispatchable_automation_runs(owner="runner:1")
+    }
+
+    assert run.id not in claimed_ids
 
 
 def test_a_dispatch_that_keeps_failing_is_given_up_on(
