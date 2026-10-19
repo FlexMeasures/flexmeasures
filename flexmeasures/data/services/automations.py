@@ -2673,6 +2673,8 @@ def _plan_schedule_jobs(
     if not sequential:
         return [spec("schedule", "schedule", [])]
     device_keys = [f"device-{sensor.id}" for sensor in device_sensors]
-    return [spec(key, "schedule-device", []) for key in device_keys] + [
-        spec("wrap-up", "schedule-wrap-up", device_keys)
-    ]
+    # Each device is scheduled against the schedules of the devices before it, so its job waits on the previous one.
+    return [
+        spec(key, "schedule-device", device_keys[i - 1 : i])
+        for i, key in enumerate(device_keys)
+    ] + [spec("wrap-up", "schedule-wrap-up", device_keys)]

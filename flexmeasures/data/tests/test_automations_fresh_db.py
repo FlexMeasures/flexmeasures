@@ -900,6 +900,23 @@ def test_a_schedule_run_names_its_jobs_after_the_run(
     assert all(intent.queue == "scheduling" for intent in run.job_intents)
 
 
+def test_a_sequential_schedule_run_records_its_device_chain():
+    """Each device job of a sequential schedule run waits on the one before it, and its intent says so, as the automation's details show."""
+    from types import SimpleNamespace
+
+    from flexmeasures.data.services.automations import _plan_schedule_jobs
+
+    specs = _plan_schedule_jobs(
+        7, [SimpleNamespace(id=sensor_id) for sensor_id in (3, 1, 2)], sequential=True
+    )
+    assert {spec["logical_job_key"]: spec["depends_on"] for spec in specs} == {
+        "device-3": [],
+        "device-1": ["device-3"],
+        "device-2": ["device-1"],
+        "wrap-up": ["device-3", "device-1", "device-2"],
+    }
+
+
 @pytest.mark.parametrize("sequential", (False, True))
 def test_dispatching_a_schedule_run_again_queues_no_second_schedule(
     fresh_db,
