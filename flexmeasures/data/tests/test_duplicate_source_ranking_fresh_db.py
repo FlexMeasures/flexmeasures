@@ -17,8 +17,8 @@ def test_duplicate_source_ranking(fresh_db, setup_markets_fresh_db):
         "7c4e1a9d2b58_refuse_duplicate_data_sources"
     )
 
-    # The migration runs before this index exists. Roll back the savepoint to restore
-    # the test schema after inserting duplicates that the current schema refuses.
+    # The migration runs before this index exists.
+    # Roll back the savepoint to restore the test schema after inserting duplicates that the current schema refuses.
     savepoint = fresh_db.session.begin_nested()
     try:
         fresh_db.session.execute(text(f"DROP INDEX {DATA_SOURCE_UNIQUE_INDEX}"))

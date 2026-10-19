@@ -119,7 +119,7 @@ def downgrade():
 # Which source of a group of duplicates keeps its ID, and therefore stays resolvable from outside the database.
 # The one that recorded most recently is the one an installation is most likely to be naming:
 # a client that discovers a source by looking at recent data finds that one, and a person reading a chart does too.
-# Recency is the belief time, not the event a belief is about, since a generator mostly records about the future
+# Recency is the belief time, not the event a belief is about, since a generator mostly records about the future,
 # and the furthest event start would rank by forecast horizon instead.
 # A group where nobody recorded anything falls back to the oldest, which is at least stable.
 SURVIVOR_RANKING = """
