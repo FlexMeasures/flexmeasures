@@ -4,6 +4,7 @@ Backoffice user interface & charting support.
 
 import json
 import os
+import threading
 from datetime import date, datetime
 
 from flask import current_app, Flask, Blueprint, send_from_directory, request
@@ -35,6 +36,8 @@ from flexmeasures.utils.app_utils import (
 from flexmeasures.ui.utils.vendor_assets import (
     APP_EXTENSION,
     active_libraries,
+    fetch_unless_fetching,
+    fetched_before,
     libraries_with_overrides,
     missing_files,
     unhashed_libraries,
@@ -114,6 +117,7 @@ def register_at(app: Flask):
     add_jinja_filters(app)
     add_jinja_variables(app)
     log_where_vendor_files_load_from(app)
+    fetch_vendor_files_on_first_request(app)
 
 
 def load_vendor_libraries(app: Flask):
@@ -127,8 +131,15 @@ def log_where_vendor_files_load_from(app: Flask):
     """Tell hosts whether browsers load the UI's libraries from CDNs, and how to serve them from FlexMeasures instead."""
     libraries = app.extensions[APP_EXTENSION]
     missing = missing_files(libraries)
-    if missing:
+    if missing and app.config.get("FLEXMEASURES_FETCH_UI_LIBRARIES"):
         app.logger.info(
+            f"{len(missing)} file(s) of the UI's libraries were not fetched yet, so browsers load them from CDNs. "
+            "FlexMeasures fetches them in the background once it serves its first request."
+        )
+    elif missing:
+        # Files fetched before, but missing now, most likely belong to versions which an upgrade bumped.
+        log = app.logger.warning if fetched_before() else app.logger.info
+        log(
             f"{len(missing)} file(s) of the UI's libraries were not fetched, so browsers load them from CDNs. "
             "To serve them from FlexMeasures, for example without internet access, run: python -m flexmeasures.ui.utils.fetch_vendor_assets"
         )
@@ -137,6 +148,48 @@ def log_where_vendor_files_load_from(app: Flask):
         app.logger.warning(
             f"FLEXMEASURES_JS_VERSIONS sets {key} to {version} without hashes, so browsers load it from its CDN without checking it, and it is not fetched. "
             f"To have it checked, set the hashes printed by: python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes {key} --version {version}"
+        )
+
+
+def fetch_vendor_files_on_first_request(app: Flask):
+    """Have the first request which a process serves start fetching the UI's missing library files, in the background.
+
+    Only web processes serve requests, so CLI commands and job workers never fetch.
+    The request does not wait for the fetch, and browsers load the files from CDNs until they are fetched.
+    Of the web processes on a host, only the first one to get the lock fetches.
+    """
+    if not app.config.get("FLEXMEASURES_FETCH_UI_LIBRARIES"):
+        return
+    libraries = app.extensions[APP_EXTENSION]
+    # Each web process has its own copy of this, also when gunicorn forks them from a process which loaded the app.
+    started = threading.Lock()
+
+    @app.before_request
+    def start_fetching_vendor_files():
+        if not started.acquire(blocking=False):
+            return
+        thread = threading.Thread(
+            target=_fetch_vendor_files,
+            args=(app, libraries),
+            name="fetch-ui-libraries",
+            daemon=True,
+        )
+        app.extensions["flexmeasures_vendor_fetch"] = thread
+        thread.start()
+
+
+def _fetch_vendor_files(app: Flask, libraries):
+    try:
+        written = fetch_unless_fetching(libraries)
+    except (OSError, ValueError) as exc:
+        app.logger.warning(
+            f"Could not fetch the UI's libraries, so browsers keep loading them from CDNs: {exc}. "
+            "To fetch them by hand, run: python -m flexmeasures.ui.utils.fetch_vendor_assets"
+        )
+        return
+    if written:
+        app.logger.info(
+            f"Fetched {written} file(s) of the UI's libraries, which FlexMeasures serves itself from now on."
         )
 
 
