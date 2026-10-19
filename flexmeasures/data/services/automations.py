@@ -337,6 +337,42 @@ def get_dispatchable_automation_runs(
     return claimed_runs
 
 
+def pin_automation_run_effective_start(
+    run_id: int, start: datetime, prior: datetime | None = None
+) -> None:
+    """Record when a run is working from, and which data it works with, for an automation which left that to the run time.
+
+    An automation need not say when to start: its parameters then carry no start,
+    and each dispatch attempt resolves one from the clock.
+    A run resumed hours later would therefore queue its remaining jobs for a later window than the ones it already queued.
+    Pin the start the first attempt resolved, so that every later attempt of the same run reads it back instead.
+    Only the start is pinned, because the end follows from it and the automation's own duration,
+    and stating both alongside a duration is rejected as contradictory.
+    A run with offsets needs no pinned start, as its offsets apply to the time the run was due, which a retry shares.
+
+    A forecast's prior is resolved from the clock on each attempt, too (see `resolve_automation_window`),
+    so a resumed run would forecast with data recorded after its first attempt, while believed at that attempt's start.
+    Pin it as well, so that every attempt of the run computes what its first attempt would have.
+    """
+    run = db.session.get(AutomationRun, run_id)
+    if run is None:
+        raise ValueError(f"Automation run {run_id} does not exist.")
+    parameters = dict(run.parameters or {})
+    pinned = {}
+    if parameters.get("start") is None and not any(
+        field in parameters for field in ("start-offset", "end-offset")
+    ):
+        pinned["start"] = start
+    if prior is not None and parameters.get("prior") is None:
+        pinned["prior"] = prior
+    if not pinned:
+        return
+    for field, moment in pinned.items():
+        parameters[field] = moment.astimezone(timezone.utc).isoformat()
+    run.parameters = parameters
+    db.session.commit()
+
+
 def ensure_automation_run_job_intents(
     run_id: int, job_specs: list[dict[str, Any]]
 ) -> list[AutomationRunJob]:
@@ -985,11 +1021,18 @@ def resolve_automation_window(
 
     The offsets apply to the run's claimed cron occurrence, or to now for a run on demand, on the automation's own clock,
     so a delayed run still covers the window it was due for.
-    Without offsets, the parameters are passed on as they are, so the data generator's defaults apply,
+    Without offsets, the window is passed on as it is, so the data generator's defaults apply,
     such as starting at the run time, which keeps a caught-up run current.
+    A forecast is believed at the time it is computed, with or without offsets,
+    so it gets a prior of now, unless its parameters already carry one, such as the one its run pinned on a first attempt.
     Report automations resolve their window in `prepare_report_parameters`, which also knows where the last report ended.
     """
     message = dict(parameters)
+    if automation_type == "forecasting":
+        # A forecast with an explicit start is believed at that start unless told otherwise,
+        # while an automation's forecast should be believed when it is computed, using only the data recorded by then,
+        # also when its job only runs later, or when a resumed run queues it hours later.
+        message.setdefault("prior", server_now().isoformat())
     start_offset = message.pop("start-offset", None)
     end_offset = message.pop("end-offset", None)
     if start_offset is None and end_offset is None:
@@ -1019,10 +1062,6 @@ def resolve_automation_window(
             message["duration"] = isodate.duration_isoformat(end - start)
         else:
             message["end"] = end.isoformat()
-    if automation_type == "forecasting":
-        # A forecast with an explicit start is believed at that start unless told otherwise,
-        # while an automation's forecast should be believed when it is computed, as it would be without offsets.
-        message["prior"] = server_now().isoformat()
     return message
 
 

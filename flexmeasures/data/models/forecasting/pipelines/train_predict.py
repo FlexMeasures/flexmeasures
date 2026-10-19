@@ -641,6 +641,19 @@ class TrainPredictPipeline(Forecaster):
         if self._job_trigger:
             job_metadata["trigger"] = self._job_trigger
 
+        if automation_run_id is not None:
+            from flexmeasures.data.services.automations import (
+                pin_automation_run_effective_start,
+            )
+
+            # An automation which left its start and prior to the run time would resolve later ones on a retry,
+            # so pin what this run is forecasting from, and with which data, the first time it is dispatched.
+            pin_automation_run_effective_start(
+                automation_run_id,
+                start=self._parameters["predict_start"],
+                prior=self._parameters.get("beliefs_before"),
+            )
+
         job_specs = self._plan_cycle_jobs(
             cycles_job_params, queue, data_source_id, job_metadata, automation_run_id
         )

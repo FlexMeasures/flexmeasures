@@ -115,7 +115,8 @@ A run that only happens after midnight, because the runner was delayed, still co
 A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
 two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
 A duration in months or years follows the calendar, so ``P1M`` from midnight ends at midnight, a month later.
-An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
+An automation's forecast is believed at the time its run is dispatched, also when the period it covers starts later,
+and it uses only the data recorded by then, also when its jobs wait in the queue for a while.
 
 A single field can also be given alone, where the automation has a default for the rest.
 A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
@@ -259,7 +260,8 @@ This is what makes a retry safe.
 A run which failed before queueing anything is dispatched again in full.
 A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
 Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
-Timings the automation left to the run time are not part of those parameters, so they are resolved afresh on each attempt: a resumed run's jobs can therefore cover a later window than the ones its first attempt queued.
+A forecast start the automation left to the run time is resolved on the first attempt and stored with those parameters, so a run resumed hours later still forecasts the window its first attempt started on.
+The same goes for the time up to which a forecast uses recorded data, so a resumed run forecasts with the data its first attempt had, not with data recorded since.
 
 A dispatch which fails is attempted again, each time after a longer wait, and stops being attempted after five attempts.
 A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,
