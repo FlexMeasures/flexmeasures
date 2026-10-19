@@ -267,7 +267,38 @@ Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_e
 FLEXMEASURES_JS_VERSIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
+Versions of the UI's JavaScript and CSS libraries to load, in place of the versions listed in ``flexmeasures/ui/utils/vendor_assets.py``.
+Only list the libraries you want to differ, as a listed version stays in place when an upgrade of FlexMeasures bumps that library.
+A library's key maps to its version, optionally together with the SHA-256 hashes of its files:
+
+.. code-block:: python
+
+    FLEXMEASURES_JS_VERSIONS = {
+        # A version only: browsers load the library from its CDN without checking it.
+        "vega": "5.33.1",
+        # A version and the hash of the library's one file.
+        "vegaembed": ("6.26.0", "<sha256>"),
+        # A version and the hash of each of the library's files.
+        "leaflet": ("1.9.5", {"dist/leaflet.css": "<sha256>", "dist/leaflet-src.min.js": "<sha256>", ...}),
+    }
+
+With hashes, browsers check each file they load from a CDN, and the library can be served by FlexMeasures itself (see :ref:`install-ui-libraries`).
+FlexMeasures expects another version to have the same files as the listed one.
+This prints the setting for another version, with the hashes of its files:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes vega --version 5.33.1
+
+Default: ``{}``
+
+FLEXMEASURES_FETCH_UI_LIBRARIES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures fetches the files of the UI's JavaScript and CSS libraries which it is missing, so that it serves them itself rather than browsers loading them from CDNs.
+The first request that a web server process serves starts the download, in the background (see :ref:`install-ui-libraries`).
+
+Default: ``True``
 
 
 Timing
@@ -523,6 +554,7 @@ SECURITY_TWO_FACTOR_ENABLED_METHODS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Which 2FA methods are enabled. FlexMeasures currently supports ``email``; authenticator-app support may be added later.
+Enabling ``authenticator`` anyway requires installing ``qrcode``.
 
 Default: ``["email"]``
 
@@ -893,8 +925,13 @@ Default: ``True``
 FLEXMEASURES_API_DEFAULT_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
-if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
+How often a client may call the API. This is one budget for the whole API, counted per account (or per IP address,
+if unauthenticated), so that all users and API clients of an account share it. A consultant counts against their own
+account, also when acting on a client account's assets. The health endpoints are exempt, so that monitoring cannot lock
+itself out.
+
+The setting holds one limit, like ``"500 per minute"``. FlexMeasures refuses to start with a setting it cannot read,
+or with one which holds several limits (Flask-Limiter's notation for that, separated by semicolons, is not supported).
 
 Default: ``"500 per minute"``
 
@@ -903,26 +940,10 @@ FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 
 How often a client may trigger a schedule, forecast or report. This is the expensive work, so this limit is stricter
 than the default one. The trigger endpoints share this budget, so all three kinds of computation draw on the same one.
+It is counted per account, so all users and assets of an account share it, too.
+Like the default limit, it holds one limit.
 
 Default: ``"10 per 5 minutes"``
-
-FLEXMEASURES_API_RATE_LIMIT_KEY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
-schedule is a business decision, so you decide what shares a budget:
-
-- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
-  usually works, so it is the default.
-- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
-  that this multiplies the limit by the number of assets an account has.
-- ``"user"``: each user gets their own budget.
-
-An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
-to ``"account"`` rather than raising an error.
-
-Default: ``"account"``
-
 
 Demonstrations
 --------------
@@ -1162,3 +1183,16 @@ Overrides the default sunset link across all sunset API versions if
 API version.
 
 Default: ``None``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.1.0
+
+    Triggers are always counted per account now, so this setting is ignored.
+    FlexMeasures logs a warning at startup if it is set to anything other than ``"account"``.
+    To give accounts more room, raise ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``, or the trigger rate limit of their plan.
+
+It used to choose what ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` was counted against: ``"account"``, ``"account+asset"`` or ``"user"``.
+
+Default: ``"account"``

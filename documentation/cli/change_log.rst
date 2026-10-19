@@ -8,6 +8,11 @@ since v1.1.0 | September XX, 2026
 =================================
 
 * Add ``flexmeasures jobs check-source-references`` to list waiting jobs that refer to a data source which no longer exists, or which the database upgrade to v1.1 will merge into an identical one. Run it before upgrading, so that you can wait for the jobs it lists or cancel them yourself, and again after. It is expected to be dropped again in v1.2, as from v1.1 the database refuses duplicate data sources.
+* ``flexmeasures add forecasts`` no longer keeps every trained model as a file; pass ``--model-save-dir`` to keep them.
+* Add ``flexmeasures edit reset-rate-limit --account <id>`` to reset an account's rate limits, so that its requests are accepted again straight away. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
+* ``flexmeasures add plan`` and ``flexmeasures edit plan`` refuse a rate limit which holds several limits (separated by semicolons), as each rate limit is now one limit.
+* Remove the ``--rate-limit-key`` option from ``flexmeasures add plan`` and ``flexmeasures edit plan`` (including ``--clear rate-limit-key``), and its column from ``flexmeasures show plans``, as triggers are now always counted per account. ``flexmeasures show account`` now displays the account's plan and effective default API and trigger rate limits, including server defaults.
+* ``flexmeasures add forecasts`` no longer fails when it runs again from the same ``--from-date``, and says how many of the forecast beliefs it computed were new and saved.
 * Add ``flexmeasures show automations`` to list all automations, including inactive ones, with the IDs which the edit, delete and run commands expect, and ``flexmeasures show automations --id <id>`` to show one automation in detail: its recurrence in words, timezone, cursor, data generator, parameters and the sensors it reads from and writes to.
 * Fix ``flexmeasures add schedule --dry-run`` saving a schedule when combined with ``--as-job``: the combination is now rejected, and a dry run reports the beliefs and events it would have saved.
 * Add ``flexmeasures add forecasts --dry-run`` to compute a forecast and see what it would record, without saving anything to the database. It cannot be combined with ``--as-job``.
@@ -20,6 +25,7 @@ since v1.1.0 | September XX, 2026
 * ``flexmeasures delete sensor`` now warns which automations read from or write to a sensor before it is deleted, as an automation refers to its sensors by ID and would fail on its next run.
 * ``flexmeasures jobs run-automations`` now records a durable run for each scheduled run it claims, and retries the forecast runs whose queueing did not finish. A run which failed before queueing anything is dispatched again in full, and one which queued only part of its jobs resumes from its stored plan, reusing the job IDs it already queued. Each attempt is recorded with its owner, outcome and error, and the command reports the run and attempt it is working on. A run is only picked up by another runner once the claim lease of the runner holding it has expired, which is how a runner that died mid-queueing hands its work over.
 * ``flexmeasures edit automation`` now counts up the automation's schedule revision whenever it rebases the cursor (on a changed cron string or timezone, or on reactivation), which keeps the durable runs of the old and the new schedule apart, even at the same scheduled UTC time.
+* ``flexmeasures add report`` saves all of a report's outputs or none of them, where each output used to be committed on its own, and says for each output how many beliefs it saved. ``flexmeasures add forecasts`` saves the forecasts of a forecaster that a plugin registers, which used to be dropped while the command reported them as created.
 
 since v1.0.1 | September 9, 2026
 =================================

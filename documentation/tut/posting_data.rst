@@ -124,6 +124,8 @@ The following call works for both CSV and Excel files:
 
 ``belief_time_measured_instantly=True`` records each value as known when its event ended.
 Leave it at the default ``False`` when the values only became known at upload time.
+The raw API and the UI also accept a ``belief-time``, which records all uploaded values as known at that time,
+for example the closure time of the market that set the prices.
 
 The file upload currently assumes that values use the sensor's unit.
 The UI and raw API additionally let you specify a different compatible input unit for conversion.

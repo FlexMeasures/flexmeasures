@@ -26,6 +26,7 @@ from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.annotations import SensorAnnotationRelationship
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.parsing_utils import parse_source_arg
@@ -34,6 +35,7 @@ from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import failed_job_reason
 
 # Source types from which we expect data about future events.
 FUTURE_DATA_SOURCE_TYPES = ("scheduler", "forecaster")
@@ -724,6 +726,26 @@ def _get_sensor_asset_relation(
     return ";".join(relations)
 
 
+def _get_flex_context_sensors(asset: Asset) -> dict[str, Sensor]:
+    """The sensors an asset's flex-context refers to, by the field that refers to them.
+
+    A flex-context holds sensor ids, and a sensor can be deleted without those references being cleaned up,
+    for instance when it was deleted directly in the database.
+    A field whose sensor is gone names no sensor to report on, so it is left out here.
+    """
+    context_sensors = {}
+    for field, value in asset.flex_context.items():
+        if not isinstance(value, dict) or field in INFLEXIBLE_DEVICE_KEYS:
+            continue
+        sensor_id = value.get("sensor")
+        if sensor_id is None:
+            continue
+        sensor = db.session.get(Sensor, sensor_id)
+        if sensor is not None:
+            context_sensors[field] = sensor
+    return context_sensors
+
+
 def get_asset_sensors_metadata(
     asset: Asset,
     now: datetime = None,
@@ -742,12 +764,7 @@ def get_asset_sensors_metadata(
     sensors = []
     sensor_ids = set()
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
-    context_sensors = {
-        field: Sensor.query.get(asset.flex_context[field]["sensor"])
-        for field in asset.flex_context
-        if isinstance(asset.flex_context[field], dict)
-        and field not in INFLEXIBLE_DEVICE_KEYS
-    }
+    context_sensors = _get_flex_context_sensors(asset)
 
     # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
@@ -797,12 +814,7 @@ def serialize_sensor_status_data(
         asset = sensor_asset
     sensor_statuses = get_statuses(sensor=sensor, now=server_now())
     inflexible_device_sensors = asset.get_inflexible_device_sensors()
-    context_sensors = {
-        field: Sensor.query.get(asset.flex_context[field]["sensor"])
-        for field in asset.flex_context
-        if isinstance(asset.flex_context[field], dict)
-        and field not in INFLEXIBLE_DEVICE_KEYS
-    }
+    context_sensors = _get_flex_context_sensors(asset)
     sensors = []
     for sensor_status in sensor_statuses:
         sensor_status["id"] = sensor.id
@@ -988,19 +1000,15 @@ def build_asset_jobs_data(
     ) in jobs:
         for job in jobs:
             status = job.get_status(refresh=False)
-            e = job.meta.get(
-                "exception",
-                Exception(
-                    "The job does not state why it failed. "
+            job_err = None
+            if status == JobStatus.FAILED:
+                # Read the failure the same way as the API and the CLI do.
+                reason = failed_job_reason(job) or (
+                    "Exception: The job does not state why it failed. "
                     "The worker may be missing an exception handler, "
                     "or its exception handler is not storing the exception as job meta data."
-                ),
-            )
-            job_err = (
-                f"{queue.capitalize()} job failed with {type(e).__name__}: {e}"
-                if status == JobStatus.FAILED
-                else None
-            )
+                )
+                job_err = f"{queue.capitalize()} job failed with {reason}"
 
             # Show how the job was created (e.g. via the CLI, the API or an automation)
             metadata_dict = {**job.meta, "job_id": job.id}
@@ -1226,6 +1234,28 @@ def get_sensor_stats(
         _sensor_stats_cache[key] = result
 
     return result
+
+
+def sensor_contains_data(sensor: Sensor, lock: bool = True) -> bool:
+    """Return whether a sensor holds beliefs or annotations."""
+    if lock:
+        db.session.scalar(
+            sa.select(Sensor.id).where(Sensor.id == sensor.id).with_for_update()
+        )
+    return bool(
+        db.session.scalar(
+            sa.select(sa.literal(True))
+            .select_from(TimedBelief)
+            .where(TimedBelief.sensor_id == sensor.id)
+            .limit(1)
+        )
+        or db.session.scalar(
+            sa.select(sa.literal(True))
+            .select_from(SensorAnnotationRelationship)
+            .where(SensorAnnotationRelationship.sensor_id == sensor.id)
+            .limit(1)
+        )
+    )
 
 
 def delete_sensor(sensor: Sensor):

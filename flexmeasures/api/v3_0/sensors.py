@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import isodate
 from datetime import datetime, timedelta
 
@@ -85,11 +87,12 @@ from flexmeasures.data.schemas.scheduling import (
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
+from flexmeasures.data.services.sensors import sensor_contains_data
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
@@ -584,7 +587,7 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context(
-        "create-children",
+        "post-data",
         ctx_arg_name="sensor",
     )
     def upload_data(
@@ -594,6 +597,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
+        belief_time: datetime | None = None,
         **kwargs,
     ):
         """
@@ -605,6 +609,10 @@ class SensorAPI(FlaskView):
             The file should have columns for a timestamp (event_start) and a value (event_value).
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
+
+            By default, FlexMeasures assumes the data was not known prior to the time of upload.
+            Set belief-time-measured-instantly to record each value as known when its event ended,
+            or set belief-time to record all values as known at that time (e.g. the closure time of the market that set the prices).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -709,6 +717,9 @@ class SensorAPI(FlaskView):
                 "on" if belief_time_measured_instantly else "off"
             ),
         }
+        if not belief_time_measured_instantly:
+            # Fix the belief time now, so data processed by a queued job is not believed later than its upload
+            upload_data["belief-time"] = (belief_time or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(
@@ -727,7 +738,7 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context(
-        "create-children",
+        "post-data",
         ctx_arg_name="sensor",
     )
     def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
@@ -864,7 +875,7 @@ class SensorAPI(FlaskView):
         location="path",
     )
     @use_kwargs(TriggerScheduleKwargsSchema, location="json")
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context("trigger-schedules", ctx_arg_name="sensor")
     @permission_required_for_context(
         "read",
         ctx_arg_name="flex_model",
@@ -1468,7 +1479,14 @@ class SensorAPI(FlaskView):
         )
 
     @route("/<id>", methods=["GET"])
-    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "sensor": SensorIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
     @permission_required_for_context("read", ctx_arg_name="sensor")
     @as_json
     def fetch_one(self, id, sensor: Sensor):
@@ -1531,6 +1549,8 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
@@ -1542,7 +1562,7 @@ class SensorAPI(FlaskView):
     @route("", methods=["POST"])
     @use_args(sensor_schema)
     @permission_required_for_context(
-        "create-children",
+        "edit-sensors",
         ctx_arg_pos=1,
         ctx_arg_name="generic_asset_id",
         ctx_loader=GenericAsset,
@@ -1614,7 +1634,7 @@ class SensorAPI(FlaskView):
     @route("/<id>", methods=["PATCH"])
     @use_args(partial_sensor_schema)
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("update", ctx_arg_name="sensor")
+    @permission_required_for_context("edit-sensors", ctx_arg_name="sensor")
     @as_json
     def patch(self, sensor_data: dict, id: int, sensor: Sensor):
         """
@@ -1696,7 +1716,6 @@ class SensorAPI(FlaskView):
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
     def delete(self, id: int, sensor: Sensor):
         """Delete a sensor given its identifier.
@@ -1727,7 +1746,10 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
+        check_access(sensor.generic_asset, "edit-sensors")
         sensor_name = sensor.name
+        if sensor_contains_data(sensor):
+            check_access(sensor, "delete-data")
         delete_sensor_and_data(sensor)
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
@@ -1735,7 +1757,7 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/data", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @permission_required_for_context("delete", ctx_arg_name="sensor")
+    @permission_required_for_context("delete-data", ctx_arg_name="sensor")
     @as_json
     def delete_data(
         self,
@@ -2152,7 +2174,7 @@ class SensorAPI(FlaskView):
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
-    @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
+    @permission_required_for_context("trigger-forecasts", ctx_arg_name="sensor_to_save")
     @permission_required_for_context(
         "read",
         ctx_arg_name="config",
@@ -2471,7 +2493,7 @@ class SensorAPI(FlaskView):
     @route("/<id>/annotations", methods=["POST"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
     @use_args(annotation_schema)
-    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context("annotate", ctx_arg_name="sensor")
     def post_annotation(self, annotation: Annotation, id: int, sensor: Sensor):
         """.. :quickref: Sensors; Add an annotation to a sensor.
         ---

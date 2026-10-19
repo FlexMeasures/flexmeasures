@@ -105,29 +105,37 @@ For the data, note the following:
                                             />
                                         </div>
                                         
-                                        <!-- Checkbox for setting the record as measured instantly -->
+                                        <!-- Belief time: when the uploaded data was known -->
                                         <div class="mb-3">
                                             <label class="form-label fw-bold">
-                                                Measurement Time
+                                                Belief time
                                                 <i
                                                     class="fa fa-info-circle ms-1"
-                                                    title="If checked, each data point will be recorded as if it had been measured immediately after the event. Otherwise, FlexMeasures will assume the data was not known prior to the time of upload."
+                                                    title="When was this data known?
+- Measured instantly: each data point is recorded as known right after its event.
+- Time of upload: all data points are recorded as known at the time of upload.
+- Custom: all data points are recorded as known at the time you pick here, for example the closure time of the market that sets the prices."
                                                     style="color: white; cursor: pointer;"
                                                 >
                                                 </i>
                                             </label>
                                             <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="checkbox" 
-                                                    id="belief-time-measured-instantly" 
-                                                    name="belief-time-measured-instantly" 
-                                                    {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}
-                                                >
-                                                <label class="form-check-label" for="belief-time-measured-instantly">
-                                                    Measured instantly
-                                                    
-                                                </label>
+                                                <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-instantly" value="instantly"
+                                                    {% if FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}>
+                                                <label class="form-check-label" for="belief-time-mode-instantly">Measured instantly</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-upload" value="upload"
+                                                    {% if not FLEXMEASURES_ALLOW_DATA_OVERWRITE %} checked {% endif %}>
+                                                <label class="form-check-label" for="belief-time-mode-upload">Time of upload</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="belief-time-mode" id="belief-time-mode-custom" value="custom">
+                                                <label class="form-check-label" for="belief-time-mode-custom">Custom</label>
+                                            </div>
+                                            <div id="beliefTimeCustomContainer" class="mt-2 d-none">
+                                                <input type="datetime-local" class="form-control" id="beliefTimeCustom" step="60" />
+                                                <small id="beliefTimeCustomHint"></small>
                                             </div>
                                         </div>
 
@@ -158,6 +166,8 @@ For the data, note the following:
                                 </fieldset>
                             </div>
                         </div>
+                  {% endif %}
+                  {% if user_can_trigger_forecasts %}
                           <div class="sidepanel-container">
                               <div class="sidepanel-label">Forecast</div>
                           <div class="sidepanel-content" style="text-align: left;">
@@ -230,7 +240,7 @@ For the data, note the following:
                       </div>
                   {% endif %}
 
-                  {% if user_can_delete_sensor %}
+                  {% if user_can_delete_sensor_data %}
                   <div class="sidepanel-container">
                       <div class="sidepanel-label">Delete data</div>
                       <div class="sidepanel-content" style="text-align: left;">
@@ -511,10 +521,8 @@ For the data, note the following:
           <hr>
       </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    {% import "includes/vendor.html" as vendor %}
+    {{ vendor.litepicker() }}
 
 {% include 'includes/graphs.html' %}
 
@@ -634,7 +642,7 @@ For the data, note the following:
         }
     });
 
-    {% if user_can_create_children_sensor %}
+    {% if user_can_trigger_forecasts %}
     let firstAvailableEventStartForForecastTraining = null;
 
     async function triggerForecast() {
@@ -744,7 +752,7 @@ For the data, note the following:
     document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
     {% endif %}
 
-    {% if user_can_delete_sensor %}
+    {% if user_can_delete_sensor_data %}
     const button = document.getElementById('deleteDataButton');
     const spinner = document.getElementById('spinner-delete-data');
 
