@@ -267,7 +267,30 @@ Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_e
 FLEXMEASURES_JS_VERSIONS
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
+Versions of the UI's JavaScript and CSS libraries to load, in place of the versions listed in ``flexmeasures/ui/utils/vendor_assets.py``.
+Only list the libraries you want to differ, as a listed version stays in place when an upgrade of FlexMeasures bumps that library.
+A library's key maps to its version, optionally together with the SHA-256 hashes of its files:
+
+.. code-block:: python
+
+    FLEXMEASURES_JS_VERSIONS = {
+        # A version only: browsers load the library from its CDN without checking it.
+        "vega": "5.33.1",
+        # A version and the hash of the library's one file.
+        "vegaembed": ("6.26.0", "<sha256>"),
+        # A version and the hash of each of the library's files.
+        "leaflet": ("1.9.5", {"dist/leaflet.css": "<sha256>", "dist/leaflet-src.min.js": "<sha256>", ...}),
+    }
+
+With hashes, browsers check each file they load from a CDN, and the library can be served by FlexMeasures itself (see :ref:`install-ui-libraries`).
+FlexMeasures expects another version to have the same files as the listed one.
+This prints the setting for another version, with the hashes of its files:
+
+.. code-block:: bash
+
+   $ python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes vega --version 5.33.1
+
+Default: ``{}``
 
 
 Timing
