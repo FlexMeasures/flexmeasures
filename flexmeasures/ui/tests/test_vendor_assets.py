@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import logging
@@ -9,15 +10,23 @@ import re
 from pathlib import Path
 
 import pytest
+import urllib.error
 from flask import url_for
 from jinja2.runtime import Macro
 
-from flexmeasures.ui import flexmeasures_ui
-from flexmeasures.ui.utils import vendor_assets
+from flexmeasures.ui import (
+    add_jinja_variables,
+    flexmeasures_ui,
+    load_vendor_libraries,
+    log_where_vendor_files_load_from,
+)
+from flexmeasures.ui.utils import fetch_vendor_assets, vendor_assets
 from flexmeasures.ui.utils.vendor_assets import (
+    APP_EXTENSION,
     JS_VERSIONS,
     VENDOR_LIBRARIES,
     VendorLibrary,
+    libraries_with_overrides,
 )
 
 UI_DIR = Path(flexmeasures_ui.root_path)
@@ -28,6 +37,8 @@ TAG = re.compile(r"""<(?:script|link)\b[^>]*>""")
 TAG_URL = re.compile(r"""(?:src|href)="([^"]+)\"""")
 INTEGRITY = re.compile(r"""integrity="([^"]+)\"""")
 CSS_URL = re.compile(r"""url\(\s*["']?([^"')]+?)["']?\s*\)""")
+
+HASH = "ab" * 32
 
 LEGACY_KEYS = {
     "vega",
@@ -71,44 +82,110 @@ def render_vendor_macros(app) -> tuple[list[Macro], str]:
         return macros, "".join(str(macro()) for macro in macros)
 
 
-def manifest_entry(url: str) -> tuple[str, str]:
+def manifest_entry(
+    url: str, libraries: dict[str, VendorLibrary] = VENDOR_LIBRARIES
+) -> tuple[str, str]:
     """The library key and file path that a CDN URL was made from."""
-    for key, library in VENDOR_LIBRARIES.items():
+    for key, library in libraries.items():
         for path in library.files:
             if library.url(path) == url:
                 return key, path
-    raise AssertionError(f"{url} is not in VENDOR_LIBRARIES")
+    raise AssertionError(f"{url} is not in the libraries")
+
+
+@pytest.fixture
+def js_versions_setting(app, monkeypatch):
+    """Start the app as with a FLEXMEASURES_JS_VERSIONS setting, and restore it afterwards."""
+    monkeypatch.setitem(app.extensions, APP_EXTENSION, VENDOR_LIBRARIES)
+    monkeypatch.setitem(app.jinja_env.globals, "js_versions", JS_VERSIONS)
+
+    def set_setting(setting: dict):
+        monkeypatch.setitem(app.config, "FLEXMEASURES_JS_VERSIONS", setting)
+        load_vendor_libraries(app)
+        add_jinja_variables(app)
+        return app.extensions[APP_EXTENSION]
+
+    return set_setting
 
 
 def test_js_versions_global_keeps_legacy_keys(app):
     """Plugin templates that read `js_versions.vega` and the like keep working."""
-    assert app.jinja_env.globals["js_versions"] is JS_VERSIONS
+    assert app.jinja_env.globals["js_versions"] == JS_VERSIONS
     assert LEGACY_KEYS <= JS_VERSIONS.keys()
 
 
+def test_js_versions_global_follows_the_setting(app, js_versions_setting):
+    """Plugin templates read the versions that the host set."""
+    js_versions_setting({"vega": "9.9.9"})
+    assert app.jinja_env.globals["js_versions"]["vega"] == "9.9.9"
+    assert app.jinja_env.globals["js_versions"]["jquery"] == JS_VERSIONS["jquery"]
+
+
 @pytest.mark.parametrize(
-    "setting, expect_warning",
+    "setting, expected_files",
     [
-        (None, False),
-        ({"vega": "5.0.0"}, True),
+        # A copy of the setting's old defaults keeps the recorded hashes.
+        ({"vega": JS_VERSIONS["vega"]}, VENDOR_LIBRARIES["vega"].files),
+        ({"vega": "9.9.9"}, {"build/vega.min.js": None}),
+        ({"vega": ("9.9.9", HASH)}, {"build/vega.min.js": HASH}),
+        (
+            {
+                "leaflet": (
+                    "9.9.9",
+                    dict.fromkeys(VENDOR_LIBRARIES["leaflet"].files, HASH),
+                )
+            },
+            dict.fromkeys(VENDOR_LIBRARIES["leaflet"].files, HASH),
+        ),
     ],
 )
-def test_deprecated_js_versions_setting_is_warned_about(
-    app, monkeypatch, caplog, setting, expect_warning
-):
-    """Hosts who still pin UI library versions hear that this setting is ignored now."""
-    from flexmeasures.ui import warn_about_deprecated_js_versions
+def test_js_versions_setting_forms(setting, expected_files):
+    """A version can be set on its own, with the hash of a library's one file, or with the hash of each of its files."""
+    ((key, value),) = setting.items()
+    library = libraries_with_overrides(setting)[key]
+    assert library.version == (value if isinstance(value, str) else value[0])
+    assert library.files == expected_files
+    if library.version != VENDOR_LIBRARIES[key].version:
+        assert library.license_sha256 is None
 
-    if setting is None:
-        monkeypatch.delitem(app.config, "FLEXMEASURES_JS_VERSIONS", raising=False)
-    else:
-        monkeypatch.setitem(app.config, "FLEXMEASURES_JS_VERSIONS", setting)
 
+def test_js_versions_setting_ignores_unknown_libraries(caplog):
     with caplog.at_level(logging.WARNING):
-        warn_about_deprecated_js_versions(app)
+        libraries = libraries_with_overrides({"vegga": "9.9.9"})
+    assert libraries == VENDOR_LIBRARIES
+    assert "FLEXMEASURES_JS_VERSIONS sets vegga" in caplog.text
 
-    warned = "FLEXMEASURES_JS_VERSIONS is deprecated" in caplog.text
-    assert warned is expect_warning
+
+@pytest.mark.parametrize(
+    "setting, message",
+    [
+        ({"leaflet": ("9.9.9", HASH)}, "has 7 files"),
+        ({"leaflet": ("9.9.9", {"dist/leaflet.css": HASH})}, "needs them for exactly"),
+        ({"vega": ("9.9.9", "sha256-abc")}, "not a SHA-256 hash"),
+        ({"vega": ("9.9.9",)}, "Set a version"),
+        ({"vega": ("9.9.9", 5)}, "Set a version"),
+        ({"vega": 5}, "Set a version"),
+    ],
+)
+def test_js_versions_setting_rejects_unusable_hashes(setting, message):
+    """A setting whose hashes cannot be matched to the library's files stops the app from starting, rather than loading files unchecked."""
+    with pytest.raises(ValueError, match=message):
+        libraries_with_overrides(setting)
+
+
+def test_overridden_versions_load_from_cdns(app, not_fetched, js_versions_setting):
+    """A version set without hashes loads unchecked, and one set with a hash is checked against it."""
+    js_versions_setting({"vega": "9.9.9", "jquery": ("9.9.9", HASH)})
+    _, html = render_vendor_macros(app)
+    tags = {
+        TAG_URL.findall(tag)[0]: tag for tag in TAG.findall(html) if TAG_URL.search(tag)
+    }
+
+    vega_tag = tags["https://cdn.jsdelivr.net/npm/vega@9.9.9/build/vega.min.js"]
+    assert "integrity=" not in vega_tag
+    jquery_tag = tags["https://cdn.jsdelivr.net/npm/jquery@9.9.9/dist/jquery.min.js"]
+    digest = base64.b64encode(bytes.fromhex(HASH)).decode()
+    assert f'integrity="sha256-{digest}"' in jquery_tag
 
 
 def test_libraries_load_from_cdns_with_integrity_when_not_fetched(app, not_fetched):
@@ -179,6 +256,8 @@ def fake_library(monkeypatch):
 
     def download(url: str) -> bytes:
         downloads.append(url)
+        if url not in contents:
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
         return contents[url]
 
     return contents, downloads, download
@@ -187,15 +266,23 @@ def fake_library(monkeypatch):
 def test_fetch_stores_files_and_licence(not_fetched, fake_library):
     """Fetching stores a library's files and licence, and skips files that are already there."""
     contents, downloads, download = fake_library
+    libraries = vendor_assets.VENDOR_LIBRARIES
 
-    assert vendor_assets.fetch(download=download) == 3
-    assert vendor_assets.local_file("lib", "dist/lib.js").read_bytes() == b"lib"
-    assert vendor_assets.local_file("lib", "dist/lib.css").read_bytes() == b"style"
-    assert vendor_assets.local_file("lib", "LICENSE").read_bytes() == b"licence"
-    assert vendor_assets.missing_files() == []
+    assert vendor_assets.fetch(download=download, libraries=libraries) == 3
+    assert (
+        vendor_assets.local_file("lib", "dist/lib.js", libraries).read_bytes() == b"lib"
+    )
+    assert (
+        vendor_assets.local_file("lib", "dist/lib.css", libraries).read_bytes()
+        == b"style"
+    )
+    assert (
+        vendor_assets.local_file("lib", "LICENSE", libraries).read_bytes() == b"licence"
+    )
+    assert vendor_assets.missing_files(libraries) == []
 
     downloads.clear()
-    assert vendor_assets.fetch(download=download) == 0
+    assert vendor_assets.fetch(download=download, libraries=libraries) == 0
     assert downloads == []
 
 
@@ -203,18 +290,115 @@ def test_fetch_rejects_a_file_that_does_not_match_its_hash(not_fetched, fake_lib
     """A file whose content differs from what was recorded is not stored, and fetching fails."""
     contents, _, download = fake_library
     contents["https://cdn.example/lib@1.0/dist/lib.css"] = b"tampered"
+    libraries = vendor_assets.VENDOR_LIBRARIES
 
     with pytest.raises(ValueError, match="does not match the hash"):
-        vendor_assets.fetch(download=download)
-    assert not vendor_assets.local_file("lib", "dist/lib.css").exists()
+        vendor_assets.fetch(download=download, libraries=libraries)
+    assert not vendor_assets.local_file("lib", "dist/lib.css", libraries).exists()
     assert not list(vendor_assets.VENDOR_DIR.rglob("*.part"))
+
+
+def test_fetch_stores_an_overridden_version_with_hashes(
+    not_fetched, fake_library, caplog
+):
+    """A version set with hashes is fetched and checked, while its licence, which is not executed, is fetched unchecked, and may be missing."""
+    contents, _, download = fake_library
+    contents["https://cdn.example/lib@2.0/dist/lib.js"] = b"lib 2"
+    contents["https://cdn.example/lib@2.0/dist/lib.css"] = b"style 2"
+    libraries = libraries_with_overrides(
+        {
+            "lib": (
+                "2.0",
+                {
+                    "dist/lib.js": hashlib.sha256(b"lib 2").hexdigest(),
+                    "dist/lib.css": hashlib.sha256(b"style 2").hexdigest(),
+                },
+            )
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert vendor_assets.fetch(download=download, libraries=libraries) == 2
+    assert (
+        vendor_assets.local_file("lib", "dist/lib.js", libraries).read_bytes()
+        == b"lib 2"
+    )
+    assert "Could not fetch the licence of lib 2.0" in caplog.text
+
+    contents["https://cdn.example/lib@2.0/dist/lib.css"] = b"tampered"
+    vendor_assets.local_file("lib", "dist/lib.css", libraries).unlink()
+    with pytest.raises(ValueError, match="does not match the hash"):
+        vendor_assets.fetch(download=download, libraries=libraries)
+
+
+def test_fetch_skips_an_overridden_version_without_hashes(not_fetched, fake_library):
+    """A version set without hashes is never stored, so FlexMeasures does not serve unchecked files."""
+    _, downloads, download = fake_library
+    libraries = libraries_with_overrides({"lib": "2.0"})
+
+    assert vendor_assets.fetch(download=download, libraries=libraries) == 0
+    assert downloads == []
+    assert vendor_assets.missing_files(libraries) == []
+    assert vendor_assets.unhashed_libraries(libraries) == ["lib"]
+
+
+@pytest.mark.parametrize("version", [None, "2.0"])
+def test_print_hashes(fake_library, capsys, version):
+    """Hashes are printed for VENDOR_LIBRARIES at the recorded version, and as a setting entry at another version."""
+    contents, _, download = fake_library
+    contents["https://cdn.example/lib@2.0/dist/lib.js"] = b"lib 2"
+    contents["https://cdn.example/lib@2.0/dist/lib.css"] = b"style 2"
+
+    vendor_assets.print_hashes("lib", download=download, version=version)
+    printed = capsys.readouterr().out
+    if version is None:
+        assert f'"dist/lib.js": "{hashlib.sha256(b"lib").hexdigest()}",' in printed
+        assert printed.startswith("files={")
+    else:
+        assert printed.startswith('"lib": ("2.0", {')
+        assert f'"dist/lib.js": "{hashlib.sha256(b"lib 2").hexdigest()}",' in printed
+        # What is printed is a valid entry of the setting.
+        setting = ast.literal_eval("{" + printed + "}")
+        assert libraries_with_overrides(setting)["lib"].files == {
+            "dist/lib.js": hashlib.sha256(b"lib 2").hexdigest(),
+            "dist/lib.css": hashlib.sha256(b"style 2").hexdigest(),
+        }
+
+
+def test_fetch_command_reads_the_setting_from_the_config_file(tmp_path, monkeypatch):
+    """The fetch command fetches the versions which the host set in the config file."""
+    config_file = tmp_path / "flexmeasures.cfg"
+    config_file.write_text(
+        'FLEXMEASURES_JS_VERSIONS = {"vega": ("9.9.9", "' + HASH + '")}\n'
+    )
+    fetched_with = {}
+
+    def fake_fetch(keys, libraries):
+        fetched_with.update(libraries)
+        return 0
+
+    monkeypatch.setattr(vendor_assets, "fetch", fake_fetch)
+    assert fetch_vendor_assets.main(["--config", str(config_file)]) == 0
+    assert fetched_with["vega"].version == "9.9.9"
+    assert fetched_with["vega"].files == {"build/vega.min.js": HASH}
+
+    with pytest.raises(SystemExit):
+        fetch_vendor_assets.main(["--config", str(tmp_path / "missing.cfg")])
+
+
+def test_startup_log_warns_about_versions_set_without_hashes(
+    app, caplog, not_fetched, js_versions_setting
+):
+    """Hosts hear which libraries browsers load unchecked, and how to get their hashes."""
+    js_versions_setting({"vega": "9.9.9"})
+    with caplog.at_level(logging.WARNING):
+        log_where_vendor_files_load_from(app)
+    assert "--print-hashes vega --version 9.9.9" in caplog.text
 
 
 @pytest.mark.parametrize("fetch_first", [False, True])
 def test_startup_log_says_where_libraries_load_from(app, caplog, request, fetch_first):
     """Hosts hear that browsers load the libraries from CDNs, and how to change that, unless they fetched them."""
-    from flexmeasures.ui import log_where_vendor_files_load_from
-
     request.getfixturevalue("fetched" if fetch_first else "not_fetched")
     with caplog.at_level(logging.INFO):
         log_where_vendor_files_load_from(app)
@@ -275,6 +459,21 @@ def test_fetched_files_are_cached_long(client, fetched):
     assert response.status_code == 200
     assert response.cache_control.max_age == 31536000
     assert response.cache_control.immutable
+    response.close()
+
+
+def test_fetched_files_of_an_overridden_version_are_cached_long(
+    client, fetched, js_versions_setting
+):
+    """A version set through FLEXMEASURES_JS_VERSIONS gets its own path, so its files are cached long too."""
+    libraries = js_versions_setting({"jquery": ("9.9.9", HASH)})
+    file = vendor_assets.local_file("jquery", "dist/jquery.min.js", libraries)
+    file.parent.mkdir(parents=True)
+    file.write_text("jquery 9.9.9")
+
+    response = client.get("/ui/static/vendor/jquery/9.9.9/dist/jquery.min.js")
+    assert response.status_code == 200
+    assert response.cache_control.max_age == 31536000
     response.close()
 
 

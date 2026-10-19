@@ -33,8 +33,11 @@ from flexmeasures.utils.app_utils import (
     find_first_applicable_config_entry,
 )
 from flexmeasures.ui.utils.vendor_assets import (
-    JS_VERSIONS,
+    APP_EXTENSION,
+    active_libraries,
+    libraries_with_overrides,
     missing_files,
+    unhashed_libraries,
     vendor_attrs,
     vendor_url,
 )
@@ -46,11 +49,13 @@ class UIBlueprint(Blueprint):
     def send_static_file(self, filename: str):
         response = super().send_static_file(filename)
         parts = filename.split("/")
+        libraries = active_libraries()
         # A new version of a library gets a new path, so a cached copy is never stale.
         if (
             len(parts) > 3
             and parts[0] == "vendor"
-            and JS_VERSIONS.get(parts[1]) == parts[2]
+            and parts[1] in libraries
+            and libraries[parts[1]].version == parts[2]
         ):
             response.cache_control.max_age = 31536000
             response.cache_control.immutable = True
@@ -105,28 +110,33 @@ def register_at(app: Flask):
     from flexmeasures.ui.error_handlers import add_html_error_views
 
     add_html_error_views(app)
+    load_vendor_libraries(app)
     add_jinja_filters(app)
     add_jinja_variables(app)
-    warn_about_deprecated_js_versions(app)
     log_where_vendor_files_load_from(app)
 
 
-def warn_about_deprecated_js_versions(app: Flask):
-    """Tell hosts who still pin UI library versions that FlexMeasures now serves its own copies."""
-    if app.config.get("FLEXMEASURES_JS_VERSIONS") is not None:
-        app.logger.warning(
-            "FLEXMEASURES_JS_VERSIONS is deprecated and ignored. "
-            "The UI loads its JavaScript and CSS libraries at the versions listed in flexmeasures/ui/utils/vendor_assets.py."
-        )
+def load_vendor_libraries(app: Flask):
+    """Settle which versions of the UI's libraries the app loads, applying the FLEXMEASURES_JS_VERSIONS setting."""
+    app.extensions[APP_EXTENSION] = libraries_with_overrides(
+        app.config.get("FLEXMEASURES_JS_VERSIONS")
+    )
 
 
 def log_where_vendor_files_load_from(app: Flask):
     """Tell hosts whether browsers load the UI's libraries from CDNs, and how to serve them from FlexMeasures instead."""
-    missing = missing_files()
+    libraries = app.extensions[APP_EXTENSION]
+    missing = missing_files(libraries)
     if missing:
         app.logger.info(
             f"{len(missing)} file(s) of the UI's libraries were not fetched, so browsers load them from CDNs. "
             "To serve them from FlexMeasures, for example without internet access, run: python -m flexmeasures.ui.utils.fetch_vendor_assets"
+        )
+    for key in unhashed_libraries(libraries):
+        version = libraries[key].version
+        app.logger.warning(
+            f"FLEXMEASURES_JS_VERSIONS sets {key} to {version} without hashes, so browsers load it from its CDN without checking it, and it is not fetched. "
+            f"To have it checked, set the hashes printed by: python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes {key} --version {version}"
         )
 
 
@@ -267,7 +277,9 @@ def add_jinja_variables(app):
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)
     # A global rather than a per-render variable, so pages rendered without render_flexmeasures_template (e.g. login, errors) also get it.
-    app.jinja_env.globals["js_versions"] = JS_VERSIONS
+    app.jinja_env.globals["js_versions"] = {
+        key: library.version for key, library in app.extensions[APP_EXTENSION].items()
+    }
     app.jinja_env.globals["vendor_url"] = vendor_url
     app.jinja_env.globals["vendor_attrs"] = vendor_attrs
     app.jinja_env.globals["sphinx_docs_exist"] = (
