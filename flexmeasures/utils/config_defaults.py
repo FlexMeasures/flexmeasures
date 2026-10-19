@@ -194,6 +194,8 @@ class Config(object):
     FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
     # Deprecated, and ignored: triggers are always counted per account
     FLEXMEASURES_API_RATE_LIMIT_KEY: str = "account"
+    # Versions of the UI's libraries to load instead of those in flexmeasures/ui/utils/vendor_assets.py
+    FLEXMEASURES_JS_VERSIONS: dict = {}
     FLEXMEASURES_JSON_COMPACT = False
     OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
