@@ -702,15 +702,16 @@ def test_reset_rate_limit_can_reset_one_limit(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
     )
-    with app.test_client() as client:
-        assert client.get(url_for("SensorAPI:index")).status_code == 200
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
+    auth_token = auth_token_of(app, requesting_user.email)
 
-        reset(app, requesting_user.account, "--limit", "trigger")
-        assert client.get(url_for("SensorAPI:index")).status_code == 429
+    assert get_as(app, auth_token).status_code == 200
+    assert get_as(app, auth_token).status_code == 429
 
-        reset(app, requesting_user.account, "--limit", "default")
-        assert client.get(url_for("SensorAPI:index")).status_code == 200
+    reset(app, requesting_user.account, "--limit", "trigger")
+    assert get_as(app, auth_token).status_code == 429
+
+    reset(app, requesting_user.account, "--limit", "default")
+    assert get_as(app, auth_token).status_code == 200
 
 
 @pytest.mark.parametrize(
