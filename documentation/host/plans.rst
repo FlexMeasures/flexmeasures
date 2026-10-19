@@ -41,6 +41,49 @@ as it is the consultancy's integration which makes those requests.
 The trigger limit is counted per account: all users and assets of an account share one budget.
 A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
 
+.. _rate-limiting-reset:
+
+Resetting an account's rate limits
+-----------------------------------
+
+When an account ran into a rate limit, and its integration has since been fixed, it need not wait out the rest of the window.
+Reset its rate limits with ``flexmeasures edit reset-rate-limit``:
+
+.. code-block:: bash
+
+    $ flexmeasures edit reset-rate-limit --account 3
+
+This resets the account's default limit and its trigger limit (see above).
+Pass ``--limit default`` or ``--limit trigger`` to reset just the one.
+Each limit is counted per account, so a reset gives the account a fresh budget.
+
+A limit the account is exempt from (``"unlimited"``) has nothing to reset, and the command says so.
+
+Finding out who hit a limit
+----------------------------
+
+A budget is shared by everyone it counts (an account's users and integrations, for instance),
+so a ``429`` alone does not tell you which of them used it up.
+That is why each refused request is logged as a warning, saying which limit was hit (and what it allows),
+who made the request (their account and user, or their IP address if they were not logged in),
+and which endpoint they called (and, for the trigger limit, about which asset).
+For example:
+
+.. code-block:: text
+
+    Refused a request for hitting the trigger rate limit (10 per 5 minute): account 3, user 12, asset 41, POST /api/v3_0/assets/41/schedules/trigger (AssetAPI:trigger_schedule).
+
+These warnings only show up when ``LOGGING_LEVEL`` is ``"WARNING"`` or lower (see :ref:`configuration`).
+Note that a production server only logs errors by default, so you need to set it explicitly there.
+
+To see what spent a budget before it ran out, set ``LOGGING_LEVEL`` to ``"DEBUG"``:
+each trigger which counts against the trigger limit is then logged, with the same details.
+
+.. note:: The recurring runs of automations queue their jobs from within FlexMeasures, rather than calling the API,
+          so they are not rate-limited, and do not show up in these logs.
+          Running an automation on demand (``POST /api/v3_0/assets/<id>/automations/<automation-id>/trigger``) is a trigger like any other,
+          and is logged as one.
+
 .. _rate-limiting-plans:
 
 Managing plans
@@ -66,6 +109,7 @@ A plan's ``default_rate_limit`` and ``trigger_rate_limit`` override the server-w
 for the accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account
 on a plan which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the
 value ``"unlimited"`` to exempt an account from a limit altogether.
+Each field holds one limit, like ``"60 per 5 minutes"``, as do the server-wide settings.
 
 Edit a plan with ``flexmeasures edit plan``, which identifies the plan by its ID (so that ``--name`` can rename it),
 and changes only the fields you pass:
