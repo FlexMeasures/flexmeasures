@@ -154,21 +154,32 @@ def find_duplicate_sources() -> dict[int, int]:
 
     :returns: the ID of each duplicate data source, mapped to the ID of the data source it will be merged into
     """
+    # Find duplicate groups before reading beliefs; the sensor/source join can use the beliefs primary key.
     duplicates = db.session.execute(text(f"""
-            WITH recorded AS (
-                SELECT ds.*,
-                       (SELECT max(tb.event_start - tb.belief_horizon)
-                          FROM timed_belief tb
-                         WHERE tb.source_id = ds.id) AS last_recorded
+            WITH grouped_sources AS (
+                SELECT ds.*, count(*) OVER (
+                    PARTITION BY {', '.join(DATA_SOURCE_IDENTITY_EXPRESSIONS)}
+                ) AS group_size
                   FROM data_source ds
+            ), candidates AS (
+                SELECT * FROM grouped_sources WHERE group_size > 1
+            ), recorded AS (
+                SELECT sds.source_id,
+                       max(tb.event_start - tb.belief_horizon) AS last_recorded
+                  FROM candidates c
+                  JOIN sensor_data_source sds ON sds.source_id = c.id
+                  JOIN timed_belief tb ON tb.sensor_id = sds.sensor_id
+                                      AND tb.source_id = sds.source_id
+                 GROUP BY sds.source_id
             )
             SELECT duplicate, keep FROM (
-                SELECT id AS duplicate,
-                       first_value(id) OVER (
+                SELECT c.id AS duplicate,
+                       first_value(c.id) OVER (
                            PARTITION BY {', '.join(DATA_SOURCE_IDENTITY_EXPRESSIONS)}
-                           ORDER BY last_recorded DESC NULLS LAST, id ASC
+                           ORDER BY r.last_recorded DESC NULLS LAST, c.id ASC
                        ) AS keep
-                FROM recorded
+                  FROM candidates c
+                  LEFT JOIN recorded r ON r.source_id = c.id
             ) AS grouped
             WHERE duplicate <> keep
             """)).all()

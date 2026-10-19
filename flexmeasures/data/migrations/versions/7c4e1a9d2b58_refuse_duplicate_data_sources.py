@@ -168,17 +168,28 @@ def merge_duplicate_sources(
     other_references = find_other_references(bind)
     ranking = SURVIVOR_RANKING.format(identity=", ".join(IDENTITY_EXPRESSIONS))
     while True:
+        # Find duplicate groups before reading beliefs; the sensor/source join can use the beliefs primary key.
         duplicates = bind.execute(sa.text(f"""
-            WITH recorded AS (
-                SELECT ds.*,
-                       (SELECT max(tb.event_start - tb.belief_horizon)
-                          FROM timed_belief tb
-                         WHERE tb.source_id = ds.id) AS last_recorded
+            WITH grouped_sources AS (
+                SELECT ds.*, count(*) OVER (
+                    PARTITION BY {', '.join(IDENTITY_EXPRESSIONS)}
+                ) AS group_size
                   FROM data_source ds
+            ), candidates AS (
+                SELECT * FROM grouped_sources WHERE group_size > 1
+            ), recorded AS (
+                SELECT sds.source_id,
+                       max(tb.event_start - tb.belief_horizon) AS last_recorded
+                  FROM candidates c
+                  JOIN sensor_data_source sds ON sds.source_id = c.id
+                  JOIN timed_belief tb ON tb.sensor_id = sds.sensor_id
+                                      AND tb.source_id = sds.source_id
+                 GROUP BY sds.source_id
             )
             SELECT keep, duplicate FROM (
-                SELECT id AS duplicate, {ranking} AS keep
-                FROM recorded
+                SELECT c.id AS duplicate, {ranking} AS keep
+                  FROM candidates c
+                  LEFT JOIN recorded r ON r.source_id = c.id
             ) AS grouped
             WHERE duplicate <> keep
             ORDER BY keep, duplicate
