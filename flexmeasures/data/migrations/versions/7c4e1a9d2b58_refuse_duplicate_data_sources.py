@@ -216,22 +216,30 @@ def _apply_named_keepers(
 
     Each group is a set of IDs mapped onto one of them; naming another member of the same group
     swaps the two roles, so that the named source is kept and the one this migration chose is merged into it.
+    A group keeps only one ID, so naming two of its members is refused, before anything is merged.
     """
     if not keepers:
         return mapping
-    turned = dict(mapping)
+    named_per_group: dict[int, list[int]] = {}
     for named in keepers:
-        group = {named} | {
-            d for d, k in mapping.items() if k == mapping.get(named, named)
-        }
-        group |= {k for d, k in mapping.items() if d == named}
-        chosen = mapping.get(named)
-        if chosen is None or chosen == named:
+        if named in mapping or named in mapping.values():
+            named_per_group.setdefault(mapping.get(named, named), []).append(named)
+    conflicts = [sorted(named) for named in named_per_group.values() if len(named) > 1]
+    if conflicts:
+        raise RuntimeError(
+            "Data sources "
+            + "; ".join(" and ".join(str(n) for n in named) for named in conflicts)
+            + " are duplicates of each other, so only one of them can keep its ID, but -x keep-source names more than one."
+            " Name one source per group of duplicates."
+        )
+    turned = dict(mapping)
+    for chosen, (named,) in named_per_group.items():
+        if named == chosen:
             continue
         for duplicate in list(turned):
             if turned[duplicate] == chosen:
                 turned[duplicate] = named
-        turned.pop(named, None)
+        turned.pop(named)
         turned[chosen] = named
     return turned
 

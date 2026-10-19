@@ -2,6 +2,8 @@
 
 from importlib import import_module
 
+import pytest
+
 from sqlalchemy import text
 
 from flexmeasures.data.models.data_sources import DATA_SOURCE_UNIQUE_INDEX, DataSource
@@ -59,3 +61,29 @@ def test_duplicate_source_ranking(fresh_db, setup_markets_fresh_db):
         )
     finally:
         savepoint.rollback()
+
+
+def _duplicate_source_migration():
+    return import_module(
+        "flexmeasures.data.migrations.versions."
+        "7c4e1a9d2b58_refuse_duplicate_data_sources"
+    )
+
+
+def test_a_named_source_keeps_its_id():
+    """Naming a source of a group of duplicates keeps that one, and merges the others into it."""
+    apply_named_keepers = _duplicate_source_migration()._apply_named_keepers
+
+    assert apply_named_keepers({2: 1, 3: 1}, {3: 3}) == {1: 3, 2: 3}
+    assert apply_named_keepers({2: 1, 3: 1}, {1: 1}) == {2: 1, 3: 1}
+    # A named source that has no duplicates changes nothing.
+    assert apply_named_keepers({2: 1, 3: 1}, {9: 9}) == {2: 1, 3: 1}
+
+
+@pytest.mark.parametrize("named", [(2, 3), (1, 3)])
+def test_naming_two_sources_of_one_group_is_refused(named):
+    """A group of duplicates keeps one ID, so naming two of its sources is a contradiction, refused before anything is merged."""
+    apply_named_keepers = _duplicate_source_migration()._apply_named_keepers
+
+    with pytest.raises(RuntimeError, match=" and ".join(str(n) for n in named)):
+        apply_named_keepers({2: 1, 3: 1}, {n: n for n in named})
