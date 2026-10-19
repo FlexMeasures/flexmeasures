@@ -390,6 +390,24 @@ def test_a_lookup_leaving_out_the_version_takes_the_oldest_matching_source(db, a
     assert source.id == oldest.id
 
 
+def test_get_data_source_finds_a_source_with_an_empty_model_and_version(db, app):
+    """A script's source with an empty model and version is the one it asks for when it names neither.
+
+    The unique index counts an empty model or version as equal to none,
+    so the migration merging duplicates may keep a source with empty ones, which a lookup for none has to find,
+    rather than insert a source the index refuses.
+    """
+    from flexmeasures.data.utils import get_data_source
+
+    existing = DataSource(
+        name="test-script-source", type="script", model="", version=""
+    )
+    db.session.add(existing)
+    db.session.flush()
+
+    assert get_data_source("test-script-source").id == existing.id
+
+
 def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch):
     """get_or_create_source must use the source another transaction inserted since it looked one up, rather than fail.
 

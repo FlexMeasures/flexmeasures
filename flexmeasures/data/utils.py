@@ -11,7 +11,7 @@ from alembic.script import ScriptDirectory
 from dataclasses import dataclass
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame, BeliefsSeries
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -174,12 +174,14 @@ def get_data_source(
     # Imported here to avoid a circular import at module load time.
     from flexmeasures.data.services.data_sources import add_and_flush_source
 
-    query = select(DataSource).filter_by(
-        name=data_source_name,
-        model=data_source_model,
-        version=data_source_version,
-        type=data_source_type,
-        account_id=account.id if account is not None else None,
+    query = select(DataSource).filter(
+        DataSource.name == data_source_name,
+        # The unique index counts an empty model or version as equal to none, so match them the same way here,
+        # or a source it already holds would go unfound, and inserting another would be refused.
+        func.coalesce(DataSource.model, "") == (data_source_model or ""),
+        func.coalesce(DataSource.version, "") == (data_source_version or ""),
+        DataSource.type == data_source_type,
+        DataSource.account_id == (account.id if account is not None else None),
     )
     data_source = db.session.execute(query).scalar_one_or_none()
     if data_source is None:
