@@ -254,6 +254,7 @@ A run which failed before queueing anything is dispatched again in full.
 A run which queued only some of its jobs resumes from the same plan, recognizes the jobs already in Redis by their IDs, and queues only the ones still missing, so a retry never duplicates work, and never silently drops it either.
 Because the plan is stored, a retry hours later still uses the parameters the run was planned with, even if the automation has been edited since.
 A forecast start the automation left to the run time is resolved on the first attempt and stored with those parameters, so a run resumed hours later still forecasts the window its first attempt started on.
+The same goes for the time up to which a forecast uses recorded data, so a resumed run forecasts with the data its first attempt had, not with data recorded since.
 
 A dispatch which fails is attempted again, each time after a longer wait, and stops being attempted after five attempts.
 A dispatch that keeps failing usually fails for a reason no retry fixes, such as a sensor that was deleted,

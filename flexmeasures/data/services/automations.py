@@ -337,8 +337,10 @@ def get_dispatchable_automation_runs(
     return claimed_runs
 
 
-def pin_automation_run_effective_start(run_id: int, start: datetime) -> None:
-    """Record when a run is working from, for an automation which left that to the run time.
+def pin_automation_run_effective_start(
+    run_id: int, start: datetime, prior: datetime | None = None
+) -> None:
+    """Record when a run is working from, and which data it works with, for an automation which left that to the run time.
 
     An automation need not say when to start: its parameters then carry no start,
     and each dispatch attempt resolves one from the clock.
@@ -346,14 +348,27 @@ def pin_automation_run_effective_start(run_id: int, start: datetime) -> None:
     Pin the start the first attempt resolved, so that every later attempt of the same run reads it back instead.
     Only the start is pinned, because the end follows from it and the automation's own duration,
     and stating both alongside a duration is rejected as contradictory.
+    A run with offsets needs no pinned start, as its offsets apply to the time the run was due, which a retry shares.
+
+    A forecast's prior is resolved from the clock on each attempt, too (see `resolve_automation_window`),
+    so a resumed run would forecast with data recorded after its first attempt, while believed at that attempt's start.
+    Pin it as well, so that every attempt of the run computes what its first attempt would have.
     """
     run = db.session.get(AutomationRun, run_id)
     if run is None:
         raise ValueError(f"Automation run {run_id} does not exist.")
     parameters = dict(run.parameters or {})
-    if parameters.get("start") is not None:
+    pinned = {}
+    if parameters.get("start") is None and not any(
+        field in parameters for field in ("start-offset", "end-offset")
+    ):
+        pinned["start"] = start
+    if prior is not None and parameters.get("prior") is None:
+        pinned["prior"] = prior
+    if not pinned:
         return
-    parameters["start"] = start.astimezone(timezone.utc).isoformat()
+    for field, moment in pinned.items():
+        parameters[field] = moment.astimezone(timezone.utc).isoformat()
     run.parameters = parameters
     db.session.commit()
 

@@ -620,10 +620,12 @@ class TrainPredictPipeline(Forecaster):
                 pin_automation_run_effective_start,
             )
 
-            # An automation which left its start to the run time would resolve a later one on a retry,
-            # so pin what this run is forecasting from, the first time it is dispatched.
+            # An automation which left its start and prior to the run time would resolve later ones on a retry,
+            # so pin what this run is forecasting from, and with which data, the first time it is dispatched.
             pin_automation_run_effective_start(
-                automation_run_id, start=self._parameters["predict_start"]
+                automation_run_id,
+                start=self._parameters["predict_start"],
+                prior=self._parameters.get("beliefs_before"),
             )
 
         job_specs = self._plan_cycle_jobs(
