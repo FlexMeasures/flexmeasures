@@ -460,15 +460,23 @@ The UI uses third-party JavaScript and CSS libraries, such as Bootstrap and Vega
 The Docker image comes with them, so FlexMeasures serves them itself.
 A FlexMeasures installed via `pip` does not, so browsers load them from public CDNs, checking each file against its expected hash.
 
-To serve them from FlexMeasures instead, for example on a network without internet access, fetch them once:
+To serve them from FlexMeasures instead, for example for users on a network without internet access, FlexMeasures fetches them itself:
+once it serves its first request, it downloads the files it is missing in the background, while browsers keep loading them from CDNs until it is done.
+That also happens after an upgrade of FlexMeasures bumps a library's version.
+The server needs internet access for this, and write access to FlexMeasures' installation.
+If several web server processes run on one host, only one of them fetches.
+
+You can also fetch them yourself, for example on a server without internet access, before taking its installation offline:
 
 .. code-block:: bash
 
    $ python -m flexmeasures.ui.utils.fetch_vendor_assets
 
-This downloads each library's files and licence into FlexMeasures' installation, and fails on any file that does not match its expected hash.
-It fetches the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, read from the config file FlexMeasures reads (or from the one passed with ``--config``), except for versions set without hashes.
-Run it again after upgrading FlexMeasures, as an upgrade can bump a library's version.
+Both download each library's files and licence into FlexMeasures' installation, and fail on any file that does not match its expected hash.
+They fetch the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, except for versions set without hashes.
+The command reads that setting from the config file FlexMeasures reads, or from the one passed with ``--config``.
+To stop FlexMeasures from fetching the libraries itself, set :ref:`FLEXMEASURES_FETCH_UI_LIBRARIES <configuration>` to ``False``.
+Then run the command again after each upgrade of FlexMeasures, as an upgrade can bump a library's version.
 
 
 Where to go from here?
