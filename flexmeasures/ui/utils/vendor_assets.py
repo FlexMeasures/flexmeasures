@@ -16,6 +16,8 @@ To bump a library, change its version below, then print the hashes of its files 
 
 Hosts can load other versions through the FLEXMEASURES_JS_VERSIONS setting, see libraries_with_overrides.
 
+Every week, .github/workflows/ui-library-advisories.yml looks up these versions in the OSV database of security advisories.
+
 This is a leaf module, so flexmeasures/ui/__init__.py can import it without an import cycle.
 """
 
@@ -50,6 +52,15 @@ class VendorLibrary:
     license: str  # path relative to the base URL, or a full URL
     license_sha256: str | None
     base_url: str = NPM_CDN  # formatted with the name and version
+    # For a library not served from npm, the npm package to look up advisories for.
+    npm_package: str | None = None
+
+    @property
+    def npm_name(self) -> str | None:
+        """The npm package which this library is published as, if any, which advisory databases know it by."""
+        if self.npm_package:
+            return self.npm_package
+        return self.name if self.base_url == NPM_CDN else None
 
     def url(self, path: str) -> str:
         return self.base_url.format(name=self.name, version=self.version) + path
@@ -225,6 +236,7 @@ VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
         name="DataTables",
         version="1.13.11",
         base_url="https://cdn.datatables.net/{version}/",
+        npm_package="datatables.net",
         files={
             "js/jquery.dataTables.min.js": "a33146fad8c7228dc4dc90043e3e50d51cead8b2267aeac32b0a8f3be8a52b86",
             "css/jquery.dataTables.min.css": "b113506cbced802d49dd3f2fdec2d9de60c9cbfe53ab13b87337e34ef10200eb",
@@ -236,6 +248,7 @@ VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
         name="DataTables conditionalPaging plug-in",
         version="1.13.6",
         base_url="https://cdn.datatables.net/plug-ins/{version}/features/conditionalPaging/",
+        npm_package="datatables.net-plugins",
         files={
             "dataTables.conditionalPaging.js": "b2474d8a4335060d3498248a0980471a2e772eb3655dae4d59e60dc26d12ff72",
         },
