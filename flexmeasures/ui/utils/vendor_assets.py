@@ -14,6 +14,8 @@ To bump a library, change its version below, then print the hashes of its files 
 
     python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes <key>
 
+Hosts can load other versions through the FLEXMEASURES_JS_VERSIONS setting, see libraries_with_overrides.
+
 This is a leaf module, so flexmeasures/ui/__init__.py can import it without an import cycle.
 """
 
@@ -21,12 +23,15 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
+import re
+import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
-from flask import url_for
+from flask import current_app, has_app_context, url_for
 from markupsafe import Markup, escape
 
 VENDOR_DIR = Path(__file__).resolve().parents[1] / "static" / "vendor"
@@ -40,9 +45,10 @@ class VendorLibrary:
     # The npm package name, or the library's own name if it does not come from npm.
     name: str
     version: str
-    files: dict[str, str]  # path relative to the base URL -> SHA-256 hash
+    # Path relative to the base URL -> SHA-256 hash, or None for a file that hosts load without a hash, see libraries_with_overrides.
+    files: dict[str, str | None]
     license: str  # path relative to the base URL, or a full URL
-    license_sha256: str
+    license_sha256: str | None
     base_url: str = NPM_CDN  # formatted with the name and version
 
     def url(self, path: str) -> str:
@@ -289,16 +295,113 @@ JS_VERSIONS: dict[str, str] = {
     key: library.version for key, library in VENDOR_LIBRARIES.items()
 }
 
+# Where the app keeps its libraries, with the versions that FLEXMEASURES_JS_VERSIONS sets.
+APP_EXTENSION = "flexmeasures_vendor_libraries"
 
-def local_file(key: str, path: str) -> Path:
+SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+def _logger() -> logging.Logger:
+    """The app's logger, or this module's outside an app, such as in the fetch command.
+
+    A module-level logger in an app would be disabled when FlexMeasures configures logging after importing this module.
+    """
+    return current_app.logger if has_app_context() else logging.getLogger(__name__)
+
+
+def libraries_with_overrides(setting: dict | None) -> dict[str, VendorLibrary]:
+    """The libraries to load, with the versions that the FLEXMEASURES_JS_VERSIONS setting sets in place of the recorded ones.
+
+    The setting maps a library's key to its version, in one of three forms:
+
+    - ``"5.33.1"``: browsers load the library from its CDN without checking it, and it is not fetched.
+    - ``("5.33.1", "<sha256>")``: the hash of the library's one file.
+    - ``("1.9.5", {"dist/leaflet.css": "<sha256>", ...})``: the hash of each of the library's files.
+
+    With hashes, the library is handled like the recorded ones: browsers check its files, and it can be fetched.
+    The new version is expected to have the same files as the recorded one, as the templates name them.
+    ``python -m flexmeasures.ui.utils.fetch_vendor_assets --print-hashes <key> --version <version>`` prints the setting for a version.
+    """
+    libraries = dict(VENDOR_LIBRARIES)
+    for key, value in (setting or {}).items():
+        if key not in libraries:
+            _logger().warning(
+                f"FLEXMEASURES_JS_VERSIONS sets {key}, which is not one of the UI's libraries, so it is ignored. "
+                f"The libraries are: {', '.join(VENDOR_LIBRARIES)}."
+            )
+            continue
+        library = libraries[key]
+        version, hashes = _unpack_override(key, value)
+        if hashes is None:
+            if version == library.version:
+                # For example, a copy of the setting's old defaults.
+                continue
+            files = dict.fromkeys(library.files)
+        elif isinstance(hashes, str):
+            if len(library.files) != 1:
+                raise ValueError(
+                    f"FLEXMEASURES_JS_VERSIONS sets one hash for {key}, which has {len(library.files)} files. "
+                    f"Set a dict with the hash of each of them instead: {', '.join(library.files)}."
+                )
+            files = {path: hashes for path in library.files}
+        else:
+            if set(hashes) != set(library.files):
+                raise ValueError(
+                    f"FLEXMEASURES_JS_VERSIONS sets hashes for {key}'s files {', '.join(sorted(hashes))}, "
+                    f"but needs them for exactly these files: {', '.join(library.files)}."
+                )
+            files = {path: hashes[path] for path in library.files}
+        for path, sha256 in files.items():
+            if sha256 is not None and not SHA256.fullmatch(sha256):
+                raise ValueError(
+                    f"FLEXMEASURES_JS_VERSIONS sets {sha256!r} as the hash of {key}'s {path}, which is not a SHA-256 hash in hexadecimal."
+                )
+        libraries[key] = replace(
+            library,
+            version=version,
+            files=files,
+            # A licence is not executed, so a licence of another version is fetched without a hash.
+            license_sha256=(
+                library.license_sha256 if version == library.version else None
+            ),
+        )
+    return libraries
+
+
+def _unpack_override(key: str, value) -> tuple[str, str | dict | None]:
+    if isinstance(value, str):
+        return value, None
+    if (
+        isinstance(value, (tuple, list))
+        and len(value) == 2
+        and isinstance(value[0], str)
+        and isinstance(value[1], (str, dict))
+    ):
+        return value[0], value[1]
+    raise ValueError(
+        f"FLEXMEASURES_JS_VERSIONS sets {key} to {value!r}. "
+        "Set a version, a version and the hash of the library's file, or a version and a dict with the hash of each of its files."
+    )
+
+
+def active_libraries() -> dict[str, VendorLibrary]:
+    """The libraries which the current app loads, or the recorded ones outside an app."""
+    if has_app_context():
+        return current_app.extensions.get(APP_EXTENSION, VENDOR_LIBRARIES)
+    return VENDOR_LIBRARIES
+
+
+def local_file(
+    key: str, path: str, libraries: dict[str, VendorLibrary] | None = None
+) -> Path:
     """Where a library's file is stored when it was fetched."""
-    library = VENDOR_LIBRARIES[key]
+    library = (active_libraries() if libraries is None else libraries)[key]
     return VENDOR_DIR / key / library.version / path
 
 
 def vendor_url(key: str, path: str) -> str:
     """URL of a library's file: served by FlexMeasures if it was fetched, or else from the library's CDN."""
-    library = VENDOR_LIBRARIES[key]
+    library = active_libraries()[key]
     if local_file(key, path).is_file():
         return url_for(
             "flexmeasures_ui.static",
@@ -310,23 +413,40 @@ def vendor_url(key: str, path: str) -> str:
 def vendor_attrs(key: str, path: str, attribute: str = "src") -> Markup:
     """Attributes for a <script> or <link> tag that loads a library's file.
 
-    When the file comes from a CDN, the browser checks it against its recorded hash.
+    When the file comes from a CDN, the browser checks it against its hash, unless FLEXMEASURES_JS_VERSIONS sets a version without one.
     """
     url = vendor_url(key, path)
     attrs = f'{attribute}="{escape(url)}"'
-    if "://" in url:
-        digest = bytes.fromhex(VENDOR_LIBRARIES[key].files[path])
+    sha256 = active_libraries()[key].files[path]
+    if "://" in url and sha256 is not None:
+        digest = bytes.fromhex(sha256)
         attrs += f' integrity="sha256-{base64.b64encode(digest).decode()}" crossorigin="anonymous"'
     return Markup(attrs)
 
 
-def missing_files() -> list[Path]:
-    """Files of the libraries which were not fetched, so browsers load them from CDNs."""
+def missing_files(libraries: dict[str, VendorLibrary] | None = None) -> list[Path]:
+    """Files of the libraries which were not fetched, so browsers load them from CDNs.
+
+    Files without a hash are left out, as they are never fetched.
+    """
+    libraries = active_libraries() if libraries is None else libraries
     return [
-        local_file(key, path)
-        for key, library in VENDOR_LIBRARIES.items()
-        for path in library.files
-        if not local_file(key, path).is_file()
+        local_file(key, path, libraries)
+        for key, library in libraries.items()
+        for path, sha256 in library.files.items()
+        if sha256 is not None and not local_file(key, path, libraries).is_file()
+    ]
+
+
+def unhashed_libraries(
+    libraries: dict[str, VendorLibrary] | None = None,
+) -> list[str]:
+    """Libraries which FLEXMEASURES_JS_VERSIONS sets to a version without hashes, so browsers load them unchecked."""
+    libraries = active_libraries() if libraries is None else libraries
+    return [
+        key
+        for key, library in libraries.items()
+        if any(sha256 is None for sha256 in library.files.values())
     ]
 
 
@@ -340,46 +460,91 @@ def download(url: str) -> bytes:
 def fetch(
     keys: list[str] | None = None,
     download: Callable[[str], bytes] = download,
+    libraries: dict[str, VendorLibrary] | None = None,
 ) -> int:
-    """Download the libraries' files and licences into static/vendor/, checking each against its recorded hash.
+    """Download the libraries' files and licences into static/vendor/, checking each against its hash.
 
-    Files that are already there with the right hash are skipped.
+    Files that are already there with the right hash are skipped, and so are libraries without hashes.
     Returns the number of files written.
     """
+    libraries = active_libraries() if libraries is None else libraries
     written = 0
-    for key in keys or VENDOR_LIBRARIES:
-        library = VENDOR_LIBRARIES[key]
-        to_fetch = [
-            (path, library.url(path), sha256) for path, sha256 in library.files.items()
-        ]
-        to_fetch.append(
-            (library.license_path, library.license_url, library.license_sha256)
-        )
-        for path, url, sha256 in to_fetch:
-            target = local_file(key, path)
-            if target.is_file() and _sha256(target.read_bytes()) == sha256:
-                continue
-            content = download(url)
-            if _sha256(content) != sha256:
-                raise ValueError(
-                    f"{url} does not match the hash recorded for {key} {library.version}."
-                )
-            target.parent.mkdir(parents=True, exist_ok=True)
-            partial = target.with_name(target.name + ".part")
-            partial.write_bytes(content)
-            partial.replace(target)
-            written += 1
+    for key in keys or libraries:
+        library = libraries[key]
+        if key in unhashed_libraries(libraries):
+            continue
+        for path, sha256 in library.files.items():
+            written += _store(key, path, library.url(path), sha256, download, libraries)
+        try:
+            written += _store(
+                key,
+                library.license_path,
+                library.license_url,
+                library.license_sha256,
+                download,
+                libraries,
+            )
+        except urllib.error.HTTPError as exc:
+            if library.license_sha256 is not None:
+                raise
+            # A version set through FLEXMEASURES_JS_VERSIONS may keep its licence elsewhere.
+            _logger().warning(
+                f"Could not fetch the licence of {key} {library.version} from {library.license_url}: {exc}."
+            )
     return written
 
 
-def print_hashes(key: str, download: Callable[[str], bytes] = download):
-    """Print the hashes of a library's files at its recorded version, ready to paste into VENDOR_LIBRARIES."""
+def _store(
+    key: str,
+    path: str,
+    url: str,
+    sha256: str | None,
+    download: Callable[[str], bytes],
+    libraries: dict[str, VendorLibrary],
+) -> int:
+    """Download a file and store it, unless it is already there. Returns the number of files written."""
+    target = local_file(key, path, libraries)
+    if target.is_file() and (sha256 is None or _sha256(target.read_bytes()) == sha256):
+        return 0
+    content = download(url)
+    if sha256 is not None and _sha256(content) != sha256:
+        raise ValueError(
+            f"{url} does not match the hash recorded for {key} {libraries[key].version}."
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".part")
+    partial.write_bytes(content)
+    partial.replace(target)
+    return 1
+
+
+def print_hashes(
+    key: str,
+    download: Callable[[str], bytes] = download,
+    version: str | None = None,
+):
+    """Print the hashes of a library's files.
+
+    At its recorded version, they are printed ready to paste into VENDOR_LIBRARIES.
+    At another version, they are printed as an entry of the FLEXMEASURES_JS_VERSIONS setting.
+    """
     library = VENDOR_LIBRARIES[key]
-    print("files={")
-    for path in library.files:
-        print(f'    "{path}": "{_sha256(download(library.url(path)))}",')
-    print("},")
-    print(f'license_sha256="{_sha256(download(library.license_url))}",')
+    if version is None:
+        print("files={")
+        for path in library.files:
+            print(f'    "{path}": "{_sha256(download(library.url(path)))}",')
+        print("},")
+        print(f'license_sha256="{_sha256(download(library.license_url))}",')
+        return
+    library = replace(library, version=version)
+    hashes = {path: _sha256(download(library.url(path))) for path in library.files}
+    if len(hashes) == 1:
+        print(f'"{key}": ("{version}", "{next(iter(hashes.values()))}"),')
+        return
+    print(f'"{key}": ("{version}", {{')
+    for path, sha256 in hashes.items():
+        print(f'    "{path}": "{sha256}",')
+    print("}),")
 
 
 def _sha256(content: bytes) -> str:
