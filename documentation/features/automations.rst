@@ -108,7 +108,8 @@ A run that only happens after midnight, because the runner was delayed, still co
 A duration counts real time, so on the day the clocks go forward, ``P1D`` from midnight ends at 1 AM;
 two offsets, such as ``"1D,DB"`` and ``"2D,DB"``, follow the calendar day instead.
 A duration in months or years follows the calendar, so ``P1M`` from midnight ends at midnight, a month later.
-An automation's forecast is believed at the time it is computed, also when the period it covers starts later.
+An automation's forecast is believed at the time its run is dispatched, also when the period it covers starts later,
+and it uses only the data recorded by then, also when its jobs wait in the queue for a while.
 
 A single field can also be given alone, where the automation has a default for the rest.
 A ``start-offset`` alone gives a forecast or schedule its default duration, and has a report end at the time of the run.
