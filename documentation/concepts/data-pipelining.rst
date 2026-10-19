@@ -4,8 +4,7 @@ Data pipelining
 ===============
 
 FlexMeasures reads time-series data in many places: a forecaster trains on it, a scheduler takes its constraints and prices from it, and a reporter computes from it.
-This page describes, in one place, how such data is referenced, how it can be cleaned on the way in, and how it can be bounded on the way out.
-The feature pages (:ref:`forecasting`, :ref:`flexibility_configuration` and :ref:`reporting`) and the tutorials link here, instead of each explaining their own corner.
+This page describes how such data is referenced, how it can be cleaned on the way in, and how it can be bounded on the way out.
 
 .. _referencing_time_series_data:
 
