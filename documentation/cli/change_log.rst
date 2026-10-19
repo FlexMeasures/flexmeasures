@@ -7,6 +7,7 @@ FlexMeasures CLI Changelog
 since v1.1.0 | September XX, 2026
 =================================
 
+* ``flexmeasures add forecasts`` no longer keeps every trained model as a file; pass ``--model-save-dir`` to keep them.
 * Add ``flexmeasures edit reset-rate-limit --account <id>`` to reset an account's rate limits, so that its requests are accepted again straight away. Pass ``--limit trigger`` or ``--limit default`` to reset only one of them.
 * ``flexmeasures add plan`` and ``flexmeasures edit plan`` refuse a rate limit which holds several limits (separated by semicolons), as each rate limit is now one limit.
 * Remove the ``--rate-limit-key`` option from ``flexmeasures add plan`` and ``flexmeasures edit plan`` (including ``--clear rate-limit-key``), and its column from ``flexmeasures show plans``, as triggers are now always counted per account. ``flexmeasures show account`` now displays the account's plan and effective default API and trigger rate limits, including server defaults.
