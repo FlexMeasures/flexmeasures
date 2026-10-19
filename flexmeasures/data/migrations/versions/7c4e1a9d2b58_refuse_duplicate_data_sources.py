@@ -395,7 +395,7 @@ def remap_json_references(bind, mapping: dict[int, int]):
             assignments = f"{column} = CAST(:value AS jsonb)"
             if table == "data_source":
                 old_hash = bytes(row[2]) if row[2] is not None else None
-                if old_hash == hash_attributes(value):
+                if old_hash is not None and old_hash == hash_attributes(value):
                     params["hash"] = hash_attributes(new_value)
                     assignments += ", attributes_hash = :hash"
             bind.execute(
