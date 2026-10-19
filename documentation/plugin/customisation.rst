@@ -419,30 +419,42 @@ A custom automation type combines a :class:`DataGenerator` with an automation ha
 The generator declares its inputs, outputs and strict configuration and parameter schemas.
 The handler gives the type a stable identifier, display name and worker queue.
 
-Declare handlers in the plugin module's ``__automation_types__`` list:
+Let's walk through an example!
+This small plugin adds an ingestion automation type (it is the one FlexMeasures' own tests use):
 
-.. code-block:: python
+.. literalinclude:: ../../flexmeasures/data/tests/plugins/mock_ingestion/__init__.py
+    :language: python
 
-    from flexmeasures.data.automations import AutomationHandler
-    from .ingestion import SiteIngestor
+A few things to note:
 
-    __automation_types__ = [
-        AutomationHandler(
-            type_id="site-ingestion",
-            display_name="Site measurements",
-            generator_class=SiteIngestor,
-            queue="ingestion",
-            result_noun="measurement",
-        ),
-    ]
+- FlexMeasures only registers plugins with a Flask Blueprint, so an automation-only plugin still declares one.
+- ``input_sensors`` and ``output_sensors`` must list every sensor the generator reads or writes.
+  The worker refuses results for any other sensor.
+- ``_compute`` receives the parameters as keyword arguments, and returns a list of dictionaries with ``sensor`` and ``data`` (a ``BeliefsDataFrame``) keys.
+  A real ingestion plugin would fetch its data from an external service here.
+- Unknown fields in the configuration or parameters are always refused.
 
-``SiteIngestor`` must subclass ``flexmeasures.data.models.data_sources.DataGenerator``.
-Set ``__data_generator_base__ = "ingestor"`` and a stable ``__version__`` on the generator class.
-Define ``_config_schema`` and ``_parameters_schema`` as Marshmallow schemas with ``unknown=RAISE``.
-Expose ``input_sensors`` and ``output_sensors`` as properties returning lists of ``Sensor`` objects.
-Implement ``_compute`` to return a list of dictionaries with ``sensor`` and ``data`` keys, where ``data`` is a ``BeliefsDataFrame``.
-The output declarations must cover every sensor returned by the computation.
-The worker rejects undeclared outputs, records results with the generator's data source and version, and attaches automation provenance to the job.
+The generator's results are recorded under a data source, whose type is ``__data_generator_base__`` and whose version is ``__version__``.
+The version is stored when the automation is created, and runs only go ahead while the installed generator has that same version.
+So raising ``__version__`` means existing automations need to be recreated.
+
+Make sure the plugin is listed in ``FLEXMEASURES_PLUGINS`` (see :ref:`plugin-config`) for the web app, the automation dispatcher and the worker alike,
+and run a worker for the handler's queue (here ``flexmeasures jobs run-worker --queue ingestion``).
+
+Now you can create an automation with configuration and parameter files, for instance ``ingestion-config.yml``:
+
+.. code-block:: yaml
+
+    sensor: 12
+
+and ``ingestion-parameters.yml``:
+
+.. code-block:: yaml
+
+    value: 17.5
+
+See :ref:`automations` for the ``flexmeasures add automation`` command.
+Use ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
 
 Type identifiers must be unique across built-in types and installed plugins.
 The built-in identifiers ``forecasting``, ``scheduling`` and ``reporting`` are reserved.
@@ -451,7 +463,3 @@ Do not store credentials in generator configuration or automation parameters; re
 
 For app extensions that do not use plugin discovery, register a handler during app initialization with ``register_automation_handler(app, handler)`` from ``flexmeasures.data.automations``.
 Registration belongs to each Flask application, allowing separate applications to load different handlers.
-
-Create an automation using the CLI example in :ref:`automations`.
-Run a worker for the handler's queue and invoke ``flexmeasures jobs run-automation --automation ID`` to verify one run locally before activating its recurrence.
-The execution user's permissions and the output sensors' asset scope are checked again when queueing and computing a run.
