@@ -69,7 +69,7 @@ def fetched(tmp_path, monkeypatch):
     monkeypatch.setattr(vendor_assets, "VENDOR_DIR", static_dir / "vendor")
     monkeypatch.setattr(flexmeasures_ui, "static_folder", str(static_dir))
     for key, library in VENDOR_LIBRARIES.items():
-        for path in [*library.files, library.license_path]:
+        for path in [*library.files, *(path for path, _, _ in library.licence_files())]:
             file = vendor_assets.local_file(key, path)
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text(f"{key} {path}")
@@ -234,11 +234,12 @@ def test_login_page_loads_libraries(client, not_fetched):
 
 @pytest.fixture
 def fake_library(monkeypatch):
-    """A library with two files and a licence, whose downloads are served from memory."""
+    """A library with two files, a licence and a notice, whose downloads are served from memory."""
     contents = {
         "https://cdn.example/lib@1.0/dist/lib.js": b"lib",
         "https://cdn.example/lib@1.0/dist/lib.css": b"style",
         "https://cdn.example/lib@1.0/LICENSE": b"licence",
+        "https://cdn.example/lib@1.0/NOTICE": b"notice",
     }
     library = VendorLibrary(
         name="lib",
@@ -250,6 +251,7 @@ def fake_library(monkeypatch):
         },
         license="LICENSE",
         license_sha256=hashlib.sha256(b"licence").hexdigest(),
+        notices={"NOTICE": hashlib.sha256(b"notice").hexdigest()},
     )
     monkeypatch.setattr(vendor_assets, "VENDOR_LIBRARIES", {"lib": library})
     downloads = []
@@ -264,11 +266,11 @@ def fake_library(monkeypatch):
 
 
 def test_fetch_stores_files_and_licence(not_fetched, fake_library):
-    """Fetching stores a library's files and licence, and skips files that are already there."""
+    """Fetching stores a library's files, licence and notice, and skips files that are already there."""
     contents, downloads, download = fake_library
     libraries = vendor_assets.VENDOR_LIBRARIES
 
-    assert vendor_assets.fetch(download=download, libraries=libraries) == 3
+    assert vendor_assets.fetch(download=download, libraries=libraries) == 4
     assert (
         vendor_assets.local_file("lib", "dist/lib.js", libraries).read_bytes() == b"lib"
     )
@@ -279,6 +281,9 @@ def test_fetch_stores_files_and_licence(not_fetched, fake_library):
     assert (
         vendor_assets.local_file("lib", "LICENSE", libraries).read_bytes() == b"licence"
     )
+    assert (
+        vendor_assets.local_file("lib", "NOTICE", libraries).read_bytes() == b"notice"
+    )
     assert vendor_assets.missing_files(libraries) == []
 
     downloads.clear()
@@ -286,15 +291,18 @@ def test_fetch_stores_files_and_licence(not_fetched, fake_library):
     assert downloads == []
 
 
-def test_fetch_rejects_a_file_that_does_not_match_its_hash(not_fetched, fake_library):
+@pytest.mark.parametrize("path", ["dist/lib.css", "NOTICE"])
+def test_fetch_rejects_a_file_that_does_not_match_its_hash(
+    not_fetched, fake_library, path
+):
     """A file whose content differs from what was recorded is not stored, and fetching fails."""
     contents, _, download = fake_library
-    contents["https://cdn.example/lib@1.0/dist/lib.css"] = b"tampered"
+    contents[f"https://cdn.example/lib@1.0/{path}"] = b"tampered"
     libraries = vendor_assets.VENDOR_LIBRARIES
 
     with pytest.raises(ValueError, match="does not match the hash"):
         vendor_assets.fetch(download=download, libraries=libraries)
-    assert not vendor_assets.local_file("lib", "dist/lib.css", libraries).exists()
+    assert not vendor_assets.local_file("lib", path, libraries).exists()
     assert not list(vendor_assets.VENDOR_DIR.rglob("*.part"))
 
 
@@ -323,7 +331,8 @@ def test_fetch_stores_an_overridden_version_with_hashes(
         vendor_assets.local_file("lib", "dist/lib.js", libraries).read_bytes()
         == b"lib 2"
     )
-    assert "Could not fetch the licence of lib 2.0" in caplog.text
+    assert "Could not fetch the licence file LICENSE of lib 2.0" in caplog.text
+    assert "Could not fetch the licence file NOTICE of lib 2.0" in caplog.text
 
     contents["https://cdn.example/lib@2.0/dist/lib.css"] = b"tampered"
     vendor_assets.local_file("lib", "dist/lib.css", libraries).unlink()
@@ -354,6 +363,7 @@ def test_print_hashes(fake_library, capsys, version):
     if version is None:
         assert f'"dist/lib.js": "{hashlib.sha256(b"lib").hexdigest()}",' in printed
         assert printed.startswith("files={")
+        assert f'"NOTICE": "{hashlib.sha256(b"notice").hexdigest()}",' in printed
     else:
         assert printed.startswith('"lib": ("2.0", {')
         assert f'"dist/lib.js": "{hashlib.sha256(b"lib 2").hexdigest()}",' in printed

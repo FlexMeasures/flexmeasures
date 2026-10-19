@@ -7,7 +7,7 @@ To serve them from a pip-installed FlexMeasures, for example without internet ac
 
     python -m flexmeasures.ui.utils.fetch_vendor_assets
 
-Fetching also stores each library's licence next to its files, and fails on any file whose hash does not match.
+Fetching also stores each library's licence next to its files, with any notice file the licence requires to be shipped along, and fails on any file whose hash does not match.
 Templates load these libraries through the macros in templates/includes/vendor.html.
 
 To bump a library, change its version below, then print the hashes of its files at that version, and paste them in:
@@ -27,7 +27,7 @@ import logging
 import re
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
@@ -50,6 +50,9 @@ class VendorLibrary:
     license: str  # path relative to the base URL, or a full URL
     license_sha256: str | None
     base_url: str = NPM_CDN  # formatted with the name and version
+    # Further files which the licence requires to be shipped with the library, such as an Apache-2.0 NOTICE file.
+    # Path relative to the base URL -> SHA-256 hash, or None for another version, see libraries_with_overrides.
+    notices: dict[str, str | None] = field(default_factory=dict)
 
     def url(self, path: str) -> str:
         return self.base_url.format(name=self.name, version=self.version) + path
@@ -64,6 +67,13 @@ class VendorLibrary:
         return (
             self.license.rsplit("/", 1)[-1] if "://" in self.license else self.license
         )
+
+    def licence_files(self) -> list[tuple[str, str, str | None]]:
+        """The licence and notices to store next to the library's files, each as its local path, URL and SHA-256 hash."""
+        return [
+            (self.license_path, self.license_url, self.license_sha256),
+            *((path, self.url(path), sha256) for path, sha256 in self.notices.items()),
+        ]
 
 
 VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
@@ -103,6 +113,9 @@ VENDOR_LIBRARIES: dict[str, VendorLibrary] = {
         },
         license="LICENSE",
         license_sha256="634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+        notices={
+            "NOTICE": "fa99ac3af859d0e13166906dc53a73ad34a08898da7e8ae83407275496e9e30c",
+        },
     ),
     "currencysymbolmap": VendorLibrary(
         name="currency-symbol-map",
@@ -360,6 +373,11 @@ def libraries_with_overrides(setting: dict | None) -> dict[str, VendorLibrary]:
             license_sha256=(
                 library.license_sha256 if version == library.version else None
             ),
+            notices=(
+                library.notices
+                if version == library.version
+                else dict.fromkeys(library.notices)
+            ),
         )
     return libraries
 
@@ -458,7 +476,7 @@ def fetch(
     download: Callable[[str], bytes] = download,
     libraries: dict[str, VendorLibrary] | None = None,
 ) -> int:
-    """Download the libraries' files and licences into static/vendor/, checking each against its hash.
+    """Download the libraries' files, licences and notices into static/vendor/, checking each against its hash.
 
     Files that are already there with the right hash are skipped, and so are libraries without hashes.
     Returns the number of files written.
@@ -471,22 +489,16 @@ def fetch(
             continue
         for path, sha256 in library.files.items():
             written += _store(key, path, library.url(path), sha256, download, libraries)
-        try:
-            written += _store(
-                key,
-                library.license_path,
-                library.license_url,
-                library.license_sha256,
-                download,
-                libraries,
-            )
-        except urllib.error.HTTPError as exc:
-            if library.license_sha256 is not None:
-                raise
-            # A version set through FLEXMEASURES_JS_VERSIONS may keep its licence elsewhere.
-            _logger().warning(
-                f"Could not fetch the licence of {key} {library.version} from {library.license_url}: {exc}."
-            )
+        for path, url, sha256 in library.licence_files():
+            try:
+                written += _store(key, path, url, sha256, download, libraries)
+            except urllib.error.HTTPError as exc:
+                if sha256 is not None:
+                    raise
+                # A version set through FLEXMEASURES_JS_VERSIONS may keep its licence elsewhere.
+                _logger().warning(
+                    f"Could not fetch the licence file {path} of {key} {library.version} from {url}: {exc}."
+                )
     return written
 
 
@@ -531,6 +543,11 @@ def print_hashes(
             print(f'    "{path}": "{_sha256(download(library.url(path)))}",')
         print("},")
         print(f'license_sha256="{_sha256(download(library.license_url))}",')
+        if library.notices:
+            print("notices={")
+            for path in library.notices:
+                print(f'    "{path}": "{_sha256(download(library.url(path)))}",')
+            print("},")
         return
     library = replace(library, version=version)
     hashes = {path: _sha256(download(library.url(path))) for path in library.files}

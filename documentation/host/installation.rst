@@ -466,7 +466,7 @@ To serve them from FlexMeasures instead, for example on a network without intern
 
    $ python -m flexmeasures.ui.utils.fetch_vendor_assets
 
-This downloads each library's files and licence into FlexMeasures' installation, and fails on any file that does not match its expected hash.
+This downloads each library's files and licence, with any notice file the licence requires, into FlexMeasures' installation, and fails on any file that does not match its expected hash.
 It fetches the versions set by :ref:`FLEXMEASURES_JS_VERSIONS <configuration>` too, read from the config file FlexMeasures reads (or from the one passed with ``--config``), except for versions set without hashes.
 Run it again after upgrading FlexMeasures, as an upgrade can bump a library's version.
 
