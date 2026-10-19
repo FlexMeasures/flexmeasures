@@ -18,7 +18,7 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import Account, Plan, RateLimitKey
+from flexmeasures.data.models.user import Account, Plan
 
 from flexmeasures.cli.tests.utils import (
     check_command_ran_without_error,
@@ -78,7 +78,6 @@ def test_add_plan(app, fresh_db):
     cli_input = {
         "name": "Pro",
         "trigger-rate-limit": "60 per 5 minutes",
-        "rate-limit-key": "account",
         "max-assets": 200,
     }
     runner = app.test_cli_runner()
@@ -89,7 +88,6 @@ def test_add_plan(app, fresh_db):
 
     plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
     assert plan.trigger_rate_limit == "60 per 5 minutes"
-    assert plan.rate_limit_key == RateLimitKey.ACCOUNT
     assert plan.max_assets == 200
     # Fields we did not set fall back on the server-wide config settings
     assert plan.default_rate_limit is None
@@ -110,6 +108,24 @@ def test_add_plan_with_invalid_rate_limit(app, fresh_db):
     assert result.exit_code != 0
     assert "not a valid rate limit" in result.output
     assert db.session.execute(select(Plan).filter_by(name="Typo")).scalar() is None
+
+
+def test_add_plan_with_several_rate_limits(app, fresh_db):
+    """A rate limit is one limit, so a string holding several (which Flask-Limiter would take) is refused."""
+    from flexmeasures.cli.data_add import new_plan
+
+    db = fresh_db
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_plan,
+        to_flags(
+            {"name": "Layered", "trigger-rate-limit": "10 per minute; 100 per hour"}
+        ),
+    )
+
+    assert result.exit_code != 0
+    assert "holds 2 rate limits" in result.output
+    assert db.session.execute(select(Plan).filter_by(name="Layered")).scalar() is None
 
 
 def test_edit_plan(app, fresh_db):

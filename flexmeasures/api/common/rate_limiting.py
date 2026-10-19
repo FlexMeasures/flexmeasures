@@ -16,7 +16,12 @@ The two limits count differently. The default limit counts every request, includ
 triggers we accepted, because it exists to protect the expensive computation which those set in motion:
 a client whose payload we rejected did not cost us a schedule, and should not pay for one.
 
+The default limit is counted per account, so that all users and API clients of an account share one budget (set in the account's plan).
+A user of a consultancy account counts against the consultancy's account, also when acting on a client account's assets.
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
+
+Each refused request is logged as a warning, saying who hit which limit, on which endpoint (and, for triggers, about which asset),
+because a budget is shared by everyone it counts, so a 429 alone does not tell a host who used it up.
 
 Neither limit applies on a play server (``FLEXMEASURES_MODE`` is "play"), which is the mode for running
 simulations ― precisely the tight trigger loop the trigger limit exists to stop. Note that this is about
@@ -26,25 +31,58 @@ what you see there is what you get in production.
 
 from __future__ import annotations
 
+import logging
+from typing import Iterable
+
 from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
+from limits import parse
+from limits.storage import RedisStorage
+from redis.exceptions import RedisError
+from sqlalchemy import insert
+from sqlalchemy.exc import SQLAlchemyError
 
-from flexmeasures.api.common.responses import too_many_requests
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.user import RateLimitKey
+from flexmeasures.api.common.responses import too_many_requests
+from flexmeasures.data.models.user import Account, Plan
+from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
 # Endpoints under /api/ which the default limit should not apply to
 EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
 
+# Redis Lua script, run atomically by EVAL to claim one audit marker per window.
+# KEYS[1] is the breached limit's full Redis counter key (including account and limit).
+# Read its TTL without changing the request count; write only to KEYS[2], our
+# separate audit marker key. Only the marker's existence matters, so its value
+# is the descriptive string "claimed". It expires with the counter.
+# Return its remaining TTL in milliseconds if newly claimed, or 0 if there is
+# no expiring counter or another request has already claimed the marker.
+_TRY_CLAIM_RATE_LIMIT_AUDIT_MARKER = """
+local remaining_ttl_ms = redis.call('PTTL', KEYS[1])
+if remaining_ttl_ms <= 0 then return 0 end
+if redis.call('SET', KEYS[2], 'claimed', 'PX', remaining_ttl_ms, 'NX') then return remaining_ttl_ms end
+return 0
+"""
+
 # Qualified names of the views which limit_triggers() decorated, so that the OpenAPI specs
 # can tell which endpoints hit the stricter trigger limit on top of the default one.
 TRIGGER_LIMITED_VIEWS: set[str] = set()
 
-_VALID_RATE_LIMIT_KEYS = {key.value for key in RateLimitKey}
+# The buckets which each limit counts in: all trigger endpoints share one,
+# and the default limit is an application limit, which Flask-Limiter counts in the "global" scope.
+TRIGGER_SCOPE = "triggers"
+DEFAULT_SCOPE = "global"
+
+# The limits there are, and the config settings which set them server-wide
+RATE_LIMIT_SETTINGS = {
+    "default": "FLEXMEASURES_API_DEFAULT_RATE_LIMIT",
+    "trigger": "FLEXMEASURES_API_TRIGGER_RATE_LIMIT",
+}
 
 
 def _plan():
@@ -54,9 +92,8 @@ def _plan():
     return current_user.account.plan
 
 
-def _account_rate_limit(limit_name: str) -> str | None:
-    """Look up an account's plan-level override for the given limit, if any."""
-    plan = _plan()
+def _plan_rate_limit(plan: Plan | None, limit_name: str) -> str | None:
+    """Look up a plan's override for the given limit, if any."""
     if plan is None:
         return None
     if limit_name == "default":
@@ -64,6 +101,11 @@ def _account_rate_limit(limit_name: str) -> str | None:
     if limit_name == "trigger":
         return plan.trigger_rate_limit
     return None
+
+
+def _account_rate_limit(limit_name: str) -> str | None:
+    """Look up the current user's account's plan-level override for the given limit, if any."""
+    return _plan_rate_limit(_plan(), limit_name)
 
 
 def _is_unlimited(limit_name: str) -> bool:
@@ -80,30 +122,20 @@ def _is_play_mode() -> bool:
     return current_app.config.get("FLEXMEASURES_MODE") == "play"
 
 
+def _account_key(account_id: int) -> str:
+    return f"account:{account_id}"
+
+
 def default_key_func() -> str:
-    """Count requests against the user, or against the IP address if unauthenticated."""
-    if current_user.is_authenticated:
-        return f"user:{current_user.id}"
-    return get_remote_address()
+    """Count requests against the user's account, or against the IP address if unauthenticated.
 
-
-def _rate_limit_key_value() -> str:
-    """Determine what to count triggers against: the account's plan, or the server config.
-
-    Falls back to the server config (and ultimately to a hardcoded default) rather than raising,
-    so that a bad value never turns into a 500 on every request for an account.
+    All users and API clients of an account share one budget, which is what the account's plan sets.
+    A consultant counts against their own account, also when acting on a client account's assets,
+    because it is the consultancy's integration which makes the requests.
     """
-    plan = _plan()
-    if plan is not None and plan.rate_limit_key is not None:
-        return plan.rate_limit_key.value
-    key = current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
-    if key not in _VALID_RATE_LIMIT_KEYS:
-        current_app.logger.error(
-            f"Unknown FLEXMEASURES_API_RATE_LIMIT_KEY '{key}'. "
-            f"Use one of {sorted(_VALID_RATE_LIMIT_KEYS)}. Falling back to '{RateLimitKey.ACCOUNT.value}'."
-        )
-        return RateLimitKey.ACCOUNT.value
-    return key
+    if current_user.is_authenticated:
+        return _account_key(current_user.account_id)
+    return get_remote_address()
 
 
 def _asset_id_of_trigger() -> int | None:
@@ -113,9 +145,11 @@ def _asset_id_of_trigger() -> int | None:
     so we resolve that sensor's asset. That way, both ways of triggering the same asset share one budget.
     Returns None if we cannot tell, which the caller reads as "count this against the account as a whole".
     """
-    resource_id = (request.view_args or {}).get("id")
+    raw_id = (request.view_args or {}).get("id")
+    if raw_id is None:
+        return None
     try:
-        resource_id = int(resource_id)
+        resource_id = int(raw_id)
     except (TypeError, ValueError):
         return None  # the view is about to reject this request anyway
     if "/assets/" in request.path:
@@ -125,19 +159,24 @@ def _asset_id_of_trigger() -> int | None:
 
 
 def trigger_key_func() -> str:
-    """Count triggers against whatever the host (or the account's plan) configured."""
+    """Count triggers against the account, or against the IP address if unauthenticated.
+
+    The account is what a plan belongs to, so its trigger budget is shared by all of its users and assets.
+    """
     if not current_user.is_authenticated:
         return get_remote_address()
-    key = _rate_limit_key_value()
-    if key == RateLimitKey.USER.value:
-        return f"user:{current_user.id}"
-    account_key = f"account:{current_user.account_id}"
-    if key == RateLimitKey.ACCOUNT.value:
-        return account_key
-    asset_id = _asset_id_of_trigger()  # "account+asset"
-    if asset_id is None:
-        return account_key
-    return f"{account_key}|asset:{asset_id}"
+    return _account_key(current_user.account_id)
+
+
+def warn_about_deprecated_settings(app: Flask):
+    """Tell hosts who still choose what triggers are counted against that this choice is gone."""
+    key = app.config.get("FLEXMEASURES_API_RATE_LIMIT_KEY", "account")
+    if key != "account":
+        app.logger.warning(
+            f"FLEXMEASURES_API_RATE_LIMIT_KEY is deprecated and ignored (it is set to '{key}'). "
+            "Triggers are now always counted per account. "
+            "To give accounts more room, raise their plan's trigger rate limit, or FLEXMEASURES_API_TRIGGER_RATE_LIMIT."
+        )
 
 
 def _limit(limit_name: str, config_key: str) -> str:
@@ -147,10 +186,15 @@ def _limit(limit_name: str, config_key: str) -> str:
     but an exemption, which the exempt_when callables grant. What we return in that case
     is irrelevant, as long as it parses.
     """
-    account_limit = _account_rate_limit(limit_name)
-    if account_limit is None or account_limit == UNLIMITED_RATE_LIMIT:
+    return _limit_on_plan(_plan(), limit_name, config_key)
+
+
+def _limit_on_plan(plan: Plan | None, limit_name: str, config_key: str) -> str:
+    """The plan's limit if it sets one, else the server-wide config setting (see _limit)."""
+    plan_limit = _plan_rate_limit(plan, limit_name)
+    if plan_limit is None or plan_limit == UNLIMITED_RATE_LIMIT:
         return current_app.config[config_key]
-    return account_limit
+    return plan_limit
 
 
 def default_limit() -> str:
@@ -182,14 +226,34 @@ limiter = Limiter(
 )
 
 
+def _requester() -> str:
+    """Who made the current request, for the logs: their account and user, or their IP address."""
+    if not current_user.is_authenticated:
+        return f"unauthenticated caller {get_remote_address()}"
+    return f"account {current_user.account_id}, user {current_user.id}"
+
+
+def _endpoint() -> str:
+    """Which endpoint the current request is for, for the logs."""
+    return f"{request.method} {request.path} ({request.endpoint})"
+
+
 def _trigger_set_work_in_motion(response: Response) -> bool:
     """Whether a trigger request got to the expensive part, and should therefore be counted.
 
     A request we refused (bad credentials, no permission, invalid payload) cost us no computation,
     so it does not spend the account's trigger budget. Such requests are still counted by the default
     limit, which applies to every API endpoint.
+
+    Counted triggers are logged at debug level, so that a host can see what spent a budget before it ran out.
     """
-    return response.status_code < 400
+    counted = response.status_code < 400
+    if counted and current_app.logger.isEnabledFor(logging.DEBUG):
+        # Checking the log level first spares us the asset lookup, which may query the database
+        current_app.logger.debug(
+            f"Counted a trigger against the trigger rate limit: {_requester()}, asset {_asset_id_of_trigger()}, {_endpoint()}."
+        )
+    return counted
 
 
 def limit_triggers():
@@ -199,7 +263,7 @@ def limit_triggers():
         # All trigger endpoints share one budget. Without this, each of them would get its own,
         # so a client could ask for twice as many schedules by alternating between the asset
         # endpoint and the (deprecated) sensor endpoint.
-        scope="triggers",
+        scope=TRIGGER_SCOPE,
         key_func=trigger_key_func,
         exempt_when=lambda: _is_play_mode() or _is_unlimited("trigger"),
         deduct_when=_trigger_set_work_in_motion,
@@ -212,11 +276,145 @@ def limit_triggers():
     return decorator
 
 
+def reset_rate_limits(
+    account: Account, limit_names: Iterable[str] = tuple(RATE_LIMIT_SETTINGS)
+) -> list[str]:
+    """Clear an account's rate-limit counters, so that its requests are accepted again straight away.
+
+    We clear the counters of the limits in effect for the account (its plan's, or the server-wide ones).
+    The limit's amount is part of a counter's key, so counters left over from a limit that no longer applies are not counted against anymore, and simply expire.
+    A limit the account is exempt from ("unlimited") has nothing to reset, and is skipped.
+
+    Returns the names of the limits that were reset.
+    """
+    scopes = {"default": DEFAULT_SCOPE, "trigger": TRIGGER_SCOPE}
+    key_prefix = [limiter._key_prefix] if limiter._key_prefix else []
+    reset = []
+    for limit_name in limit_names:
+        if _plan_rate_limit(account.plan, limit_name) == UNLIMITED_RATE_LIMIT:
+            continue
+        limit_string = _limit_on_plan(
+            account.plan, limit_name, RATE_LIMIT_SETTINGS[limit_name]
+        )
+        limiter.limiter.clear(
+            parse(limit_string),
+            *key_prefix,
+            _account_key(account.id),
+            scopes[limit_name],
+        )
+        reset.append(limit_name)
+    return reset
+
+
+def _log_rate_limit_hit(error):
+    """Log who hit which limit, and where.
+
+    Limits are counted per budget (an account, say), so a 429 alone does not tell a host which integration used that budget up.
+    """
+    runtime_limit = getattr(error, "limit", None)
+    if runtime_limit is None:
+        # Not raised by the limiter, so we cannot tell which limit this was
+        limit_description = "an unknown limit"
+        is_trigger_limit = False
+    else:
+        is_trigger_limit = runtime_limit.scope == TRIGGER_SCOPE
+        limit_name = "trigger" if is_trigger_limit else "default"
+        limit_description = f"the {limit_name} rate limit ({runtime_limit.limit})"
+    asset = f", asset {_asset_id_of_trigger()}" if is_trigger_limit else ""
+    current_app.logger.warning(
+        f"Refused a request for hitting {limit_description}: {_requester()}{asset}, {_endpoint()}."
+    )
+
+
+def _audit_rate_limit_hit(error) -> None:
+    """Record the first breach of an account's API or trigger budget in its audit log."""
+    runtime_limit = getattr(error, "limit", None)
+    limit: RequestLimit | None = limiter.current_limit
+    # Only account-level limiter breaches have a plan and a shared audit window.
+    if (
+        runtime_limit is None
+        or runtime_limit.scope not in ("global", TRIGGER_SCOPE)
+        or limit is None
+        or not limit.breached
+        or not current_user.is_authenticated
+        or current_user.account is None
+    ):
+        return
+
+    account = current_user.account
+    limit_name = "trigger" if runtime_limit.scope == TRIGGER_SCOPE else "API"
+    plan = account.plan
+    plan_label = f"plan '{plan.name}' (ID {plan.id})" if plan else "no plan"
+    plan_override = (
+        (
+            plan.trigger_rate_limit
+            if limit_name == "trigger"
+            else plan.default_rate_limit
+        )
+        if plan
+        else None
+    )
+    limit_source = "plan override" if plan_override is not None else "server default"
+    event_time = server_now()
+    window_seconds = limit.limit.get_expiry()
+
+    try:
+        storage = limit.limiter.storage
+        if (
+            isinstance(storage, RedisStorage)
+            and current_app.config.get("RATELIMIT_STRATEGY", "fixed-window")
+            == "fixed-window"
+        ):
+            counter_key = storage.prefixed_key(limit.key)
+            marker_key = f"{{{counter_key}}}:account-audit"
+            # EVAL's 2 maps counter_key and marker_key to Lua KEYS[1] and KEYS[2].
+            claimed_ttl_ms = storage.get_connection().eval(
+                _TRY_CLAIM_RATE_LIMIT_AUDIT_MARKER, 2, counter_key, marker_key
+            )
+            # No current window to audit, or another request claimed it already.
+            if claimed_ttl_ms == 0:
+                return
+            remaining_seconds = claimed_ttl_ms / 1000
+        else:
+            # Other storage backends use the stable reset time to identify this window.
+            remaining_seconds = max(0, limit.window.reset_time - event_time.timestamp())
+            if remaining_seconds == 0:
+                return
+            marker_key = f"{limit.key}:account-audit:{limit.window.reset_time}"
+            if storage.incr(marker_key, expiry=remaining_seconds) != 1:
+                return
+
+        # Report when the shared budget ran out, relative to its full window.
+        elapsed_seconds = min(
+            window_seconds, max(0, round(window_seconds - remaining_seconds))
+        )
+        elapsed_percent = round(100 * elapsed_seconds / window_seconds)
+        event = (
+            f"{limit_name} rate limit breached for {plan_label}: {limit.limit} ({limit_source}); "
+            f"{elapsed_seconds}s into {window_seconds}s window ({elapsed_percent}%)"
+        )
+        # Commit the audit independently without committing unrelated request state.
+        with db.engine.begin() as connection:
+            connection.execute(
+                insert(AuditLog).values(
+                    event_datetime=event_time,
+                    event=event,
+                    affected_account_id=account.id,
+                )
+            )
+    except (RedisError, SQLAlchemyError):
+        current_app.logger.exception(
+            "Could not record a rate-limit breach in the account audit log"
+        )
+
+
 def rate_limit_exceeded_handler(error):
     """Respond to a hit rate limit like we respond to other API errors.
 
     The Retry-After and X-RateLimit-* headers are added by the limiter itself, after this request.
     """
+    _log_rate_limit_hit(error)
+    _audit_rate_limit_hit(error)
     limit: RequestLimit | None = limiter.current_limit
     message = "You hit a rate limit."
     if limit is not None:
@@ -242,5 +440,6 @@ def register_at(app: Flask):
     app.config.setdefault("RATELIMIT_SWALLOW_ERRORS", True)
     app.config.setdefault("RATELIMIT_IN_MEMORY_FALLBACK_ENABLED", True)
 
+    warn_about_deprecated_settings(app)
     limiter.init_app(app)
     app.register_error_handler(429, rate_limit_exceeded_handler)

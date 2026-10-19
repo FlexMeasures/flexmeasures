@@ -107,7 +107,7 @@ def combined_sensor_data_upload(request: Request, schema):
     uploaded file data (`request.files`) into a single MultiDict, which is then passed to
     webargs for validation and deserialization.
 
-    It also injects the field  "belief-time-measured-instantly" from the form data into the dict.
+    It also injects the fields "belief-time-measured-instantly" and "belief-time" from the form data into the dict.
 
     Note:
         If any keys are present in both `request.view_args` and `request.files`,
@@ -127,6 +127,9 @@ def combined_sensor_data_upload(request: Request, schema):
     data.update(request.files)
     belief_time = request.form.get("belief-time-measured-instantly")
     data.update({"belief-time-measured-instantly": belief_time})
+    custom_belief_time = request.form.get("belief-time")
+    if custom_belief_time:
+        data.update({"belief-time": custom_belief_time})
     unit = request.form.get("unit")
     if unit is not None:
         data.update({"unit": unit})
