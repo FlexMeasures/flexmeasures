@@ -828,11 +828,35 @@ div.dataTables_paginate {
      vertical-align: middle;
 }
 
+/* DataTables draws its sorting arrows as faint glyphs on the right of the header.
+   Draw them as we did with its earlier icons: light grey, with only the active arrow coloured,
+   and on the left, in the header's padding, when the header is not right-aligned.
+   The :not(.sorting_disabled) makes these rules more specific than DataTables' own, whose stylesheet loads after this one. */
+
+table.dataTable thead > tr > th.sorting:not(.sorting_disabled):before,
+table.dataTable thead > tr > th.sorting:not(.sorting_disabled):after {
+  color: #dcdcdc;
+  opacity: 1;
+}
+table.dataTable thead > tr > th.sorting_asc:not(.sorting_disabled):before,
+table.dataTable thead > tr > th.sorting_desc:not(.sorting_disabled):after {
+  color: #7a80dd;
+}
+table.dataTable thead > tr > th.sorting_asc:not(.sorting_disabled):after,
+table.dataTable thead > tr > th.sorting_desc:not(.sorting_disabled):before {
+  opacity: 0;
+}
+table.dataTable thead > tr > th:not(.text-right).sorting:before,
+table.dataTable thead > tr > th:not(.text-right).sorting:after {
+  left: 3px;
+  right: auto;
+}
 table.dataTable thead tr th.no-sort {
     padding: 9px;
 }
+/* !important, as DataTables' own border rule is as specific as this one, and its stylesheet loads after this one */
 table.dataTable thead tr th {
-    border-bottom: inherit;
+    border-bottom: inherit !important;
 }
 table.dataTable.no-footer {
     border-bottom: inherit !important;
