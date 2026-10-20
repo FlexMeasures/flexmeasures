@@ -364,14 +364,49 @@ def test_keeping_a_source_with_an_organisation_that_never_used_it_is_refused(
         )
 
 
+def test_keeping_a_shared_source_without_naming_an_organisation_is_refused(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+    unowned_forecaster,
+):
+    """`-x keep-source=<source id>` is how migration 7c4e1a9d2b58 is told which duplicate keeps its id, so it cannot say who keeps a shared source.
+
+    A host who forgot the organisation would otherwise see neither migration act on it.
+    """
+    for account, name in (
+        (setup_accounts_fresh_db["Prosumer"], "prosumer site"),
+        (setup_accounts_fresh_db["Supplier"], "supplier site"),
+    ):
+        sensor = _asset_with_sensor(
+            fresh_db, account, setup_generic_asset_types_fresh_db["battery"], name
+        )
+        _record(fresh_db, sensor, unowned_forecaster, datetime(2026, 10, 1, tzinfo=utc))
+
+    with pytest.raises(RuntimeError, match=f"keep-source={unowned_forecaster.id}:"):
+        _migration().couple_sources_to_organisations(
+            fresh_db.session.connection(),
+            splitting=True,
+            named_without_organisation={unowned_forecaster.id},
+        )
+
+
 def test_the_x_argument_for_keeping_a_source_is_read_as_a_pair():
-    """`-x keep-source=42:3` names a source and the organisation that keeps it, and says so when it does not."""
+    """`-x keep-source=42:3` names a source and the organisation that keeps it, and says so when it does not.
+
+    A `keep-source` without an organisation is migration 7c4e1a9d2b58's to read, since one upgrade hands both migrations the same arguments.
+    """
     migration = _migration()
-    assert migration._keepers_from_x_arguments(
-        ["split-shared-sources=true", "keep-source=42:3", "keep-source=7:1"]
-    ) == {42: 3, 7: 1}
-    with pytest.raises(RuntimeError, match="keep-source"):
-        migration._keepers_from_x_arguments(["keep-source=42"])
+    arguments = [
+        "split-shared-sources=true",
+        "keep-source=42:3",
+        "keep-source=7:1",
+        "keep-source=37",
+    ]
+    assert migration._keepers_from_x_arguments(arguments) == {42: 3, 7: 1}
+    assert migration._sources_named_without_organisation(arguments) == {37}
+    with pytest.raises(RuntimeError, match="keep-source=42:x"):
+        migration._keepers_from_x_arguments(["keep-source=42:x"])
 
 
 def test_recency_is_when_a_belief_was_recorded_not_what_it_is_about(

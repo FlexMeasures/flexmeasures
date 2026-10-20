@@ -89,15 +89,15 @@ def test_naming_two_sources_of_one_group_is_refused(named):
         apply_named_keepers({2: 1, 3: 1}, {n: n for n in named})
 
 
-def test_the_option_naming_a_kept_duplicate_leaves_the_organisation_migrations_option_alone():
-    """Upgrading past both source migrations at once hands both the same arguments, so each reads only its own option.
+def test_keep_source_naming_an_organisation_is_left_to_the_organisation_migration():
+    """Upgrading past both source migrations at once hands both the same arguments, so each reads only its own format of `-x keep-source`.
 
     Migration c5e1a7b94d20 reads `keep-source=<source id>:<organisation id>`, which this one must not try to read as a source ID.
     """
     keepers_from_x_arguments = _duplicate_source_migration()._keepers_from_x_arguments
 
     assert keepers_from_x_arguments(
-        ["keep-source=42:3", "keep-duplicate-source=37", "split-shared-sources=true"]
+        ["keep-source=42:3", "keep-source=37", "split-shared-sources=true"]
     ) == {37: 37}
-    with pytest.raises(RuntimeError, match="keep-duplicate-source=37:3"):
-        keepers_from_x_arguments(["keep-duplicate-source=37:3"])
+    with pytest.raises(RuntimeError, match="keep-source=thirty-seven"):
+        keepers_from_x_arguments(["keep-source=thirty-seven"])

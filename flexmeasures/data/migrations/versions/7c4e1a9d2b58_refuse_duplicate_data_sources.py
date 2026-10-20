@@ -90,9 +90,8 @@ def upgrade():
     bind = op.get_bind()
     # Drop the previous constraint first, so that recomputing an attributes hash below cannot trip over it.
     op.drop_constraint(PREVIOUS_CONSTRAINT_NAME, "data_source", type_="unique")
-    merged = merge_duplicate_sources(
-        bind, keepers=_keepers_from_x_arguments(list(context.get_x_argument()))
-    )
+    keepers = _keepers_from_x_arguments(list(context.get_x_argument()))
+    merged = merge_duplicate_sources(bind, keepers=keepers)
     op.execute(
         f"CREATE UNIQUE INDEX {INDEX_NAME} ON data_source ({', '.join(IDENTITY_EXPRESSIONS)})"
     )
@@ -105,6 +104,12 @@ def upgrade():
             + ". Jobs waiting in Redis may still refer to the merged data sources by ID, and would then fail. "
             "List them with `flexmeasures jobs check-source-references`. "
             "Users referring to a merged data source by ID (for instance in API calls) should use the ID it was merged into."
+        )
+    # Not refused, since a host may well pass the same arguments again on a later upgrade.
+    unused = sorted(set(keepers) - set(merged.values()))
+    if unused:
+        print(
+            f"Data source(s) {unused} named with -x keep-source had no duplicates, so this upgrade left them as they were."
         )
 
 
@@ -131,23 +136,25 @@ SURVIVOR_RANKING = """
 
 
 def _keepers_from_x_arguments(arguments: list[str]) -> dict[int, int]:
-    """Read `-x keep-duplicate-source=<source id>`, which a host can repeat, naming sources that must keep their ID.
+    """Read `-x keep-source=<source id>`, which a host can repeat, naming sources that must keep their ID.
 
     A source ID can be referred to from outside this database — a client's configuration, a script, an integration —
     where no migration can follow it. Only the host knows about those, so they can overrule the choice made here.
-    The option is not called `keep-source`, which migration c5e1a7b94d20 reads in another format,
+    A `keep-source` that also names an organisation is left to migration c5e1a7b94d20, which reads it as the organisation keeping a shared source's ID,
     because both migrations read the same arguments when a host upgrades past both of them at once.
     """
     keepers: dict[int, int] = {}
     for argument in arguments:
-        if not argument.startswith("keep-duplicate-source="):
+        if not argument.startswith("keep-source="):
             continue
         value = argument.split("=", 1)[1]
+        if ":" in value:
+            continue
         try:
             keepers[int(value)] = int(value)
         except ValueError:
             raise RuntimeError(
-                f"Could not read -x keep-duplicate-source={value}; it takes a data source ID, as in -x keep-duplicate-source=37."
+                f"Could not read -x keep-source={value}; it takes a data source ID, as in -x keep-source=37."
             )
     return keepers
 
@@ -159,7 +166,7 @@ def merge_duplicate_sources(
 
     The source that recorded most recently keeps its ID, because that is the one an installation is most likely to refer to,
     and a source ID is something that can be referred to from outside this database, where no migration can follow it.
-    A host who knows better can say so with ``-x keep-duplicate-source=<source id>``.
+    A host who knows better can say so with ``-x keep-source=<source id>``.
 
     Pointing stored references at the kept source can change the attributes of a data source that records such references,
     making it identical to another data source, so this repeats until no duplicates remain.
@@ -233,7 +240,7 @@ def _apply_named_keepers(
         raise RuntimeError(
             "Data sources "
             + "; ".join(" and ".join(str(n) for n in named) for named in conflicts)
-            + " are duplicates of each other, so only one of them can keep its ID, but -x keep-duplicate-source names more than one."
+            + " are duplicates of each other, so only one of them can keep its ID, but -x keep-source names more than one."
             " Name one source per group of duplicates."
         )
     turned = dict(mapping)

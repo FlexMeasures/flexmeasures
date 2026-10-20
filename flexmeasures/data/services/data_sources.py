@@ -157,7 +157,7 @@ def find_duplicate_sources() -> dict[int, int]:
     Which one that is has to be decided the same way here, because this is what tells a host, before they upgrade,
     which of their waiting jobs name a source that is about to go: the source that recorded most recently keeps its ID.
     Recency is the belief time rather than the event a belief is about, since a generator mostly records about the future.
-    A host naming a source with `-x keep-duplicate-source=<id>` turns one group around, which this cannot know about.
+    A host naming a source with `-x keep-source=<id>` turns one group around, which this cannot know about.
 
     Kept in step with `SURVIVOR_RANKING` in migration 7c4e1a9d2b58, which cannot import from here.
 
