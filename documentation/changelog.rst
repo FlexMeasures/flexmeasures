@@ -20,6 +20,7 @@ v1.1.0 | September XX, 2026
 
 New features
 -------------
+* Enforce plan quotas for users, assets and client organisations, show current usage on the organisation page, and show when rate-limited UI actions can be retried [see PR #TBD]
 * When uploading sensor data, you can now set the time the data was known, such as the closure time of the market that set the prices [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * Browse an asset's jobs page by page, so status pages with long job histories load faster; the jobs API supports optional pagination while existing requests still return the full list [see `PR #2619 <https://www.github.com/FlexMeasures/flexmeasures/pull/2619>`_]
 * The asset's status page now splits its sensor data and its jobs over two tabs, of which only the opened one loads its data, and it opens the tab you last looked at [see `PR #2470 <https://www.github.com/FlexMeasures/flexmeasures/pull/2470>`_]

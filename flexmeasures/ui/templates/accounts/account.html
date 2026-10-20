@@ -310,7 +310,7 @@
                         data-bs-placement="right"
                         data-bs-html="true"
                         tabindex="0"
-                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}{% if rate_limits_disabled_in_play_mode %}<br>Neither limit is enforced in play mode{% endif %}"
+                        title="Default API rate limit: {{ effective_default_rate_limit }}<br>Trigger rate limit: {{ effective_trigger_rate_limit }}{% if rate_limits_disabled_in_play_mode %}<br>Neither limit is enforced in play mode{% endif %}<br>Users: {{ plan_usage.users }} / {{ account.plan.max_users if account.plan and account.plan.max_users is not none else 'unlimited' }}<br>Assets: {{ plan_usage.assets }} / {{ account.plan.max_assets if account.plan and account.plan.max_assets is not none else 'unlimited' }}<br>Client organisations: {{ plan_usage.clients }} / {{ account.plan.max_clients if account.plan and account.plan.max_clients is not none else 'unlimited' }}"
                       >
                         {% if account.plan %}{{ account.plan.name }}{% if
                         account.plan.legacy %} (legacy){% endif %}{% else %}No

@@ -23,9 +23,8 @@ def test_list_plans(app, fresh_db):
     assert "All plans on this" in result.output
     for expected in ("Pro", "60 per 5 minutes"):
         assert expected in result.output
-    # Quotas are not enforced yet, so we do not list them
-    for not_expected in ("Max assets", "200"):
-        assert not_expected not in result.output
+    assert "Max assets" in result.output
+    assert "200" in result.output
 
 
 def test_list_plans_without_any_plan(app, fresh_db):

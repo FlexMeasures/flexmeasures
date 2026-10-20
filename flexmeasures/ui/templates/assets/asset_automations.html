@@ -362,13 +362,17 @@ An active automation follows its cron recurrence in the timezone shown below. Th
 
   function automationAjaxErrorMessage(xhr) {
     const responseMessage = xhr.responseJSON?.message;
+    let message;
     if (typeof responseMessage === "string" && responseMessage) {
-      return responseMessage;
+      message = responseMessage;
+    } else if (responseMessage) {
+      message = JSON.stringify(responseMessage);
+    } else {
+      message = xhr.status ? `HTTP ${xhr.status}` : "unknown error";
     }
-    if (responseMessage) {
-      return JSON.stringify(responseMessage);
-    }
-    return xhr.status ? `HTTP ${xhr.status}` : "unknown error";
+    return xhr.status === 429
+      ? errorWithRetryAfter(message, xhr.getResponseHeader("Retry-After"))
+      : message;
   }
 
   function showAutomationsError(message) {

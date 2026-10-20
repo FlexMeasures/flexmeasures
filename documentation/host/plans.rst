@@ -158,10 +158,12 @@ Quotas
 -------
 
 Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``, the latter capping the number of client
-accounts a consultancy account may manage). These are not enforced yet, which is why ``flexmeasures show plans``
-leaves them out for now.
+organisations a consultancy organisation may manage). An empty quota means unlimited. New users, assets and client
+organisations are refused when their organisation has reached its quota. A plan with ``max_clients=0`` also prevents
+granting consultancy roles. Existing resources remain in place if an administrator lowers a quota below current usage;
+further additions are refused until usage falls below the quota.
 
-.. note:: Changing an account's limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
+.. note:: Changing an organisation's rate limit (by editing its plan, or moving it to another plan) orphans the counters it has in Redis,
           because the limit's amount is part of their key (the old keys simply expire).
           So the account may get a fresh budget for the remainder of the current window.
           Harmless, but worth knowing when you wonder why a plan change handed someone a clean slate.

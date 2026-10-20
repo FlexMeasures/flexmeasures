@@ -65,7 +65,7 @@ class Plan(db.Model):
     an account may create) are enforced through separate code paths, but share this table because
     they are both first-class properties of a commercial plan rather than ad hoc account attributes.
 
-    Quota fields are not enforced yet; enforcement is left to a follow-up.
+    Quotas are enforced when users, assets or client organisations are added.
     """
 
     __tablename__ = "plan"
@@ -77,7 +77,7 @@ class Plan(db.Model):
     default_rate_limit = Column(String(80), nullable=True)
     trigger_rate_limit = Column(String(80), nullable=True)
 
-    # Quotas, not enforced yet. NULL means no quota (falls back to server-wide behaviour).
+    # NULL means no quota.
     max_users = Column(Integer, nullable=True)
     max_assets = Column(Integer, nullable=True)
     # For consultancy accounts, capping the number of client accounts they may manage.
