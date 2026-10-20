@@ -274,8 +274,11 @@ a schedule run that queued two of its three devices queues the third, and schedu
 A schedule start the automation left to the run time is resolved on the first attempt and stored with the run's parameters,
 so the devices a resumed run still owes are scheduled for the same window as the devices it already queued.
 
-A forecast run also records each job it created, and how that job ended, which is what its *execution* state describes.
-A schedule or report run records its dispatch in the same way, while its execution state stays ``pending``, because the jobs of those runs do not report back individually yet.
+A run also records each job it created, and how that job ended, which is what its *execution* state describes.
+This holds for every type of automation: a schedule run records its scheduling job (or, for a sequential schedule, each device job and the job wrapping them up),
+a report run its reporting job, and a plugin run the job its plugin queued.
+A run which queued no jobs, such as a report run with nothing new to report on, has succeeded.
+A job which a schedule queues to fall back on a simpler scheduler is not one of the run's jobs, so a run whose schedule fell back has failed, with the error that made it fall back.
 
 A run tracks two things separately: how far its *dispatch* got (``pending``, ``claimed``, ``partially_queued``, ``queued`` or ``failed``), and how its *execution* by the workers ended (``pending``, ``running``, ``succeeded``, ``failed`` or ``canceled``).
 Each attempt to dispatch a run is recorded too, with the runner which made it, what it queued, and why it failed if it did.
