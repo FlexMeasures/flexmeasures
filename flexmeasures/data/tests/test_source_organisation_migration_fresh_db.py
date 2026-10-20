@@ -6,16 +6,21 @@ rather than only on the way past in an upgrade.
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 from pytz import utc
-from sqlalchemy import select
+from sqlalchemy import select, text
 from timely_beliefs import BeliefsDataFrame  # noqa: F401
 
-from flexmeasures.data.models.data_sources import DataSource, SensorDataSource
+from flexmeasures.data.models.data_sources import (
+    DATA_SOURCE_UNIQUE_INDEX,
+    DataSource,
+    SensorDataSource,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
@@ -531,3 +536,57 @@ def test_a_source_whose_every_claim_is_stale_is_left_alone(
     ).all() == [
         fresh_db.session.get(DataSource, source_id)
     ], "and no sources were made for organisations that would receive nothing"
+
+
+def test_a_source_kept_for_an_organisation_also_keeps_its_id_among_the_duplicates_its_split_leaves(
+    fresh_db,
+    setup_accounts_fresh_db,
+    setup_generic_asset_types_fresh_db,
+):
+    """`-x keep-source=<source id>:<organisation id>` says that source's ID matters, which migration 7c4e1a9d2b58 must respect, too.
+
+    Splitting a shared source can leave the organisation keeping it with a second, identical source,
+    which merging duplicates would keep instead, had that one recorded more recently.
+    """
+    duplicate_migration = importlib.import_module(
+        "flexmeasures.data.migrations.versions.7c4e1a9d2b58_refuse_duplicate_data_sources"
+    )
+    prosumer = setup_accounts_fresh_db["Prosumer"]
+    supplier = setup_accounts_fresh_db["Supplier"]
+    battery = setup_generic_asset_types_fresh_db["battery"]
+
+    # Both migrations run before this index exists.
+    # Roll back the savepoint to restore the test schema after inserting duplicates that the current schema refuses.
+    savepoint = fresh_db.session.begin_nested()
+    try:
+        fresh_db.session.execute(text(f"DROP INDEX {DATA_SOURCE_UNIQUE_INDEX}"))
+        named, other = (DataSource(name="Seita", type="forecaster") for _ in range(2))
+        fresh_db.session.add_all([named, other])
+        fresh_db.session.flush()
+        prosumer_sensor = _asset_with_sensor(
+            fresh_db, prosumer, battery, "prosumer site"
+        )
+        supplier_sensor = _asset_with_sensor(
+            fresh_db, supplier, battery, "supplier site"
+        )
+        _record(fresh_db, prosumer_sensor, named, datetime(2026, 10, 1, tzinfo=utc))
+        _record(fresh_db, supplier_sensor, named, datetime(2026, 10, 2, tzinfo=utc))
+        _record(fresh_db, prosumer_sensor, other, datetime(2026, 10, 3, tzinfo=utc))
+
+        arguments = [
+            "split-shared-sources=true",
+            f"keep-source={named.id}:{prosumer.id}",
+        ]
+        connection = fresh_db.session.connection()
+        _migration().couple_sources_to_organisations(
+            connection,
+            splitting=True,
+            keepers=_migration()._keepers_from_x_arguments(arguments),
+        )
+        merged = duplicate_migration.merge_duplicate_sources(
+            connection,
+            keepers=duplicate_migration._keepers_from_x_arguments(arguments),
+        )
+        assert merged == {other.id: named.id}
+    finally:
+        savepoint.rollback()

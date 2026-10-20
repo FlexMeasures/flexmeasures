@@ -109,7 +109,7 @@ def upgrade():
     unused = sorted(set(keepers) - set(merged.values()))
     if unused:
         print(
-            f"Data source(s) {unused} named with -x keep-source had no duplicates, so this upgrade left them as they were."
+            f"Data source(s) {unused} named with -x keep-source had no duplicates to merge."
         )
 
 
@@ -140,18 +140,19 @@ def _keepers_from_x_arguments(arguments: list[str]) -> dict[int, int]:
 
     A source ID can be referred to from outside this database — a client's configuration, a script, an integration —
     where no migration can follow it. Only the host knows about those, so they can overrule the choice made here.
-    A `keep-source` that also names an organisation is left to migration c5e1a7b94d20, which reads it as the organisation keeping a shared source's ID,
-    because both migrations read the same arguments when a host upgrades past both of them at once.
+    Both migrations read the same arguments when a host upgrades past both of them at once,
+    and migration c5e1a7b94d20 reads `-x keep-source=<source id>:<organisation id>` as the organisation keeping a shared source's ID.
+    That names a source whose ID matters, too, so it keeps its ID here as well:
+    splitting a shared source can leave the organisation keeping it with two identical sources, and the other one may have recorded more recently.
     """
     keepers: dict[int, int] = {}
     for argument in arguments:
         if not argument.startswith("keep-source="):
             continue
         value = argument.split("=", 1)[1]
-        if ":" in value:
-            continue
         try:
-            keepers[int(value)] = int(value)
+            source_id = int(value.split(":", 1)[0])
+            keepers[source_id] = source_id
         except ValueError:
             raise RuntimeError(
                 f"Could not read -x keep-source={value}; it takes a data source ID, as in -x keep-source=37."
