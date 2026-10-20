@@ -46,6 +46,7 @@ from flexmeasures.data.queries.generic_assets import (
     asset_is_in_subtree,
     descendants_cte,
 )
+from flexmeasures.data.services.utils import failed_job_reason
 from flexmeasures.data.services.data_generators import (
     check_sensor_access,
     resolve_data_generator_sensors,
@@ -561,7 +562,19 @@ def record_automation_job_failed(
     logical_job_key: str | None,
     error: BaseException,
 ) -> None:
-    """Record that a worker failed an automation-created job.
+    """Record that a worker failed an automation-created job, with the error it failed on."""
+    _record_automation_job_failure(
+        run_id, logical_job_key, error.__class__.__name__, str(error)
+    )
+
+
+def _record_automation_job_failure(
+    run_id: int | None,
+    logical_job_key: str | None,
+    error_type: str | None,
+    error_message: str,
+) -> None:
+    """Record that a worker failed an automation-created job, by the type and message of the error it failed on.
 
     The job may well have failed on the database itself,
     which leaves the session in an aborted transaction where every further statement is refused.
@@ -587,12 +600,12 @@ def record_automation_job_failed(
         return
     intent.status = "failed"
     intent.finished_at = now
-    intent.last_error_type = error.__class__.__name__
-    intent.last_error_message = str(error)
+    intent.last_error_type = error_type
+    intent.last_error_message = error_message
     run = intent.run
     _refresh_run_execution_state(run, now)
-    run.last_error_type = error.__class__.__name__
-    run.last_error_message = str(error)
+    run.last_error_type = error_type
+    run.last_error_message = error_message
     db.session.commit()
 
 
@@ -613,10 +626,6 @@ def reconcile_automation_job_intent(intent: AutomationRunJob) -> bool:
         )
         return True
     return False
-
-
-class AutomationJobFailed(Exception):
-    """Stands in for the error of a job that failed before its run had a record of it, as only its traceback is left."""
 
 
 def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) -> None:
@@ -665,14 +674,19 @@ def record_automation_run_jobs(run_id: int, jobs: list[tuple[str, str, Job]]) ->
         if status == JobStatus.FINISHED:
             record_automation_job_succeeded(run_id, key)
         elif status == JobStatus.FAILED:
-            traceback_lines = (job.exc_info or "").strip().splitlines()
-            record_automation_job_failed(
-                run_id,
-                key,
-                AutomationJobFailed(
-                    traceback_lines[-1] if traceback_lines else "unknown error"
-                ),
-            )
+            _record_automation_job_failure(run_id, key, *_error_of_failed_job(job))
+
+
+def _error_of_failed_job(job: Job) -> tuple[str | None, str]:
+    """Return the type and message of the error a job already failed on, which its queue's exception handler stored (see `store_job_exception`).
+
+    A job that failed without such a summary is described as well as its traceback allows, without a type.
+    """
+    # The job was handed over when it was queued, before the worker stored anything on it.
+    exception = job.get_meta(refresh=True).get("exception")
+    if isinstance(exception, dict) and exception.get("type"):
+        return exception["type"], exception.get("message", "")
+    return None, failed_job_reason(job) or "unknown error"
 
 
 def record_outcome_on_automation_run(job_function):
