@@ -352,7 +352,7 @@ def merge_annotations(bind, keep: int, duplicate: int):
         FROM annotation d
         JOIN annotation k
           ON k.source_id = :keep AND k.content = d.content AND k.start = d.start
-         AND k.belief_time = d.belief_time AND k.type = d.type
+         AND k.belief_time IS NOT DISTINCT FROM d.belief_time AND k.type = d.type
         WHERE d.source_id = :duplicate
     """
     for link_table, annotated_column in ANNOTATION_LINK_TABLES.items():
