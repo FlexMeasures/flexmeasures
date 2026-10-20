@@ -288,7 +288,8 @@
 </style>
 
 <!-- Initialise the map -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+{% import "includes/vendor.html" as vendor %}
+{{ vendor.leaflet_js() }}
 <script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
 
 <script type="text/javascript">
@@ -322,12 +323,12 @@
     import {
         getFlexFieldTitle, renderSensor, getAsset, getSensor, createReactiveState,
         apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
-        extractApiErrorMessage
+        extractApiErrorMessage, countSensorsGone, unavailableReferencesWarning
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import * as flexContextUtils from "{{ url_for('flexmeasures_ui.static', filename='js/flex-context-utils.js') }}?v={{ flexmeasures_version }}";
     const {
         entrySensorId, isStructuralField, cleanFlexContext, findFlexContextCurrency, currencyInUnit,
-        parseCommitmentValue, describeCommitmentValue
+        parseCommitmentValue, describeCommitmentValue, flexConfigSensorIds
     } = flexContextUtils;
 
     let hasInitialized = false;
@@ -942,6 +943,15 @@
             }
         }
 
+        // Count the dangling references across the whole flex-context, not just the commodity on show,
+        // as one on another tab is out of sight. Inherited fields are left out, as they are not edited here.
+        const warning = unavailableReferencesWarning(
+            await countSensorsGone(flexConfigSensorIds(assetFlexContext)), "sensor", "sensors"
+        );
+        if (warning !== null) {
+            flexContextFormEle.prepend(warning);
+        }
+
         if (storedActiveCard && activeCard()) {
             const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
             if (activeContext[storedActiveCard]) {
@@ -1539,11 +1549,30 @@ Make sure that the sensor data will be available consistently, though, so schedu
 
     // ============== Page Events ============== //
 
+    // Forget what we remember about the sensors this flex-context refers to, each time the editor opens.
+    // A sensor can be deleted while a reference to it is cached,
+    // and the editor has to show such a reference as the dangling one it is,
+    // rather than as the sensor it was when we last looked.
+    function forgetCachedSensors() {
+        // The inherited fields are kept with their provenance, so unwrap them back into a flex-context first,
+        // because a field name is what tells a bare id in the deprecated inflexible-device-sensors field apart from any other number.
+        const inheritedValues = Object.fromEntries(
+            Object.entries(inheritedFlexContext).map(([field, info]) => [field, info["value"]])
+        );
+        const referenced = flexConfigSensorIds(getFlexContext()).concat(
+            flexConfigSensorIds(inheritedValues)
+        );
+        for (const sensorId of referenced) {
+            localStorage.removeItem(`sensor_${sensorId}`);
+        }
+    }
+
     // Deep link (e.g. from an "Edit there" button on a child asset's inherited
     // field): ?flex_context_field=<field> opens the editor with that field selected.
     let preselectFieldOnOpen = new URLSearchParams(window.location.search).get('flex_context_field');
 
     flexContexFormModal.addEventListener('shown.bs.modal', async function () {
+        forgetCachedSensors();
         // Initial renders
         await renderFlexContextForm(); // Initial render of flex context form
         if (preselectFieldOnOpen) {
