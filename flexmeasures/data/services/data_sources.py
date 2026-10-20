@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from flask import current_app
-from sqlalchemy import or_, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import ColumnElement
 from typing import Type, TypeVar
@@ -34,10 +34,12 @@ def get_or_create_source(
     if is_user(source):
         source_type = "user"
     query = select(DataSource).filter(DataSource.type == source_type)
+    # The unique index counts an empty model or version as equal to none, so match them the same way here,
+    # or a source it already holds would go unfound, and inserting another would be refused.
     if model is not None:
-        query = query.filter(DataSource.model == model)
+        query = query.filter(func.coalesce(DataSource.model, "") == model)
     if version is not None:
-        query = query.filter(DataSource.version == version)
+        query = query.filter(func.coalesce(DataSource.version, "") == version)
     if attributes is not None:
         query = query.filter(
             DataSource.attributes_hash == DataSource.hash_attributes(attributes)
@@ -107,7 +109,7 @@ def add_and_flush_source(source: DataSource, query) -> DataSource:
         # Another transaction inserted the same source since we looked it up, so use that one.
         winner = first_source(query)
         if winner is None:
-            # The index also counts NULL as equal to an empty string, which the lookup does not.
+            # The lookup does not match the index after all, so let the violation surface rather than return nothing.
             raise
         return winner
     return source

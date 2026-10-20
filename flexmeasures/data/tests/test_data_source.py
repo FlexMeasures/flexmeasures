@@ -408,6 +408,31 @@ def test_get_data_source_finds_a_source_with_an_empty_model_and_version(db, app)
     assert get_data_source("test-script-source").id == existing.id
 
 
+def test_get_or_create_source_finds_a_source_without_a_model_and_version_when_asked_for_empty_ones(
+    db, app
+):
+    """The unique index counts an empty model or version as equal to none, so a lookup for empty ones has to find a source with none.
+
+    Otherwise the source would go unfound, and inserting another would be refused by the index.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    existing = DataSource(name="test-script-source-without-model", type="script")
+    db.session.add(existing)
+    db.session.flush()
+    assert existing.model is None and existing.version is None
+
+    assert (
+        get_or_create_source(
+            "test-script-source-without-model",
+            source_type="script",
+            model="",
+            version="",
+        ).id
+        == existing.id
+    )
+
+
 def test_get_or_create_source_recovers_from_losing_the_race(db, app, monkeypatch):
     """get_or_create_source must use the source another transaction inserted since it looked one up, rather than fail.
 
@@ -469,7 +494,7 @@ def test_add_and_flush_source_reraises_when_no_source_was_inserted(
 ):
     """A violation of the unique index that the lookup cannot resolve must surface, rather than return nothing.
 
-    The index counts NULL as equal to an empty string, which the lookup does not.
+    That would mean the lookup does not match the index after all.
     """
     from flexmeasures.data.services.data_sources import add_and_flush_source
 
