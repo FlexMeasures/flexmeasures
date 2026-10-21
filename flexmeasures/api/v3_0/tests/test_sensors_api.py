@@ -407,8 +407,8 @@ def test_upload_csv_file_returns_accepted_job(
         ),
         # A prior in the future is accepted, as on POST /sensors/<id>/data
         (
-            {"prior": "2999-01-01T00:00:00+00:00"},
-            "2999-01-01T00:00:00+00:00",
+            {"prior": "2099-01-01T00:00:00+00:00"},
+            "2099-01-01T00:00:00+00:00",
         ),
     ],
 )
