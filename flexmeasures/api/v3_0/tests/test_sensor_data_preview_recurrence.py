@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from flask import current_app, url_for
+import pandas as pd
 import pytest
 from sqlalchemy import func, select
 
@@ -105,6 +106,45 @@ def test_preview_same_weekday(client, soc_sensors, requesting_user):
     assert data["horizon"] == "PT0H"
     assert response.json["report"]["period"] == "weekly"
     assert response.json["report"]["n_values"] == 3
+
+
+@pytest.mark.parametrize(
+    "repeat, expected_days",
+    [
+        ("workdays", [8, 9, 10, 11, 12, 15]),
+        ("weekends", [6, 7, 13, 14]),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_preview_on_some_days_only(
+    client, soc_sensors, requesting_user, repeat, expected_days
+):
+    """Repeat a Friday pattern on workdays or weekends only."""
+    response = preview(
+        client,
+        soc_sensors["hours"],
+        start="2026-06-05T06:00+02:00",  # a Friday
+        duration="PT1H",
+        values=[50],
+        unit="kWh",
+        repeat=repeat,
+        until="2026-06-15",  # the Monday after next
+    )
+
+    assert response.status_code == 200
+    data = response.json["data"]
+    values = pd.Series(
+        data["values"],
+        index=pd.date_range(
+            pd.Timestamp(data["start"]), periods=len(data["values"]), freq="h"
+        ),
+        dtype=float,
+    ).dropna()
+    assert [t.day for t in values.index] == expected_days
+    assert (values.index.hour == 6).all()
+    assert response.json["report"]["n_occurrences"] == len(expected_days)
 
 
 @pytest.mark.parametrize(
