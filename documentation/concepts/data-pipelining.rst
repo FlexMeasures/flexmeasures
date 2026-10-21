@@ -23,7 +23,7 @@ References are accepted in:
 - the config of a forecaster, for the sensors it reads (see :ref:`forecasting`),
 - the ``input`` of a reporter (see :ref:`reporting`).
 
-In a forecaster's config, a bare sensor ID keeps working too.
+In a forecaster's config, a bare sensor ID works too.
 
 
 .. _data_source_filters:
