@@ -6,8 +6,8 @@
  *
  * The pure functions turn a selection on the chart into slots, and fill, replace and remove draft values.
  * wireDraftValuesPanel connects them to the "Draft values" side panel on the sensor page.
- * Nothing here writes to the database: Stop hands the draft values over in a DRAFT_VALUES_RECORDED_EVENT,
- * for the preview (#2469) to pick up.
+ * Nothing here writes to the database: handOver hands the draft values over in a DRAFT_VALUES_RECORDED_EVENT,
+ * for the preview step (#2469) to save them as they are, or to preview them first.
  */
 
 import { snapRangeToEvents } from "./chart-data-utils.js";
@@ -17,7 +17,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // More slots than this in one selection would make the panel's list unwieldy, so such a selection is refused.
 export const MAX_DRAFT_SLOTS = 2000;
 
-// Fired on the panel's event target when the user stops recording, with { sensorId, drafts } as detail.
+// Fired on the panel's event target when the user moves on to save or preview, with { sensorId, drafts, action } as detail,
+// where action is "save" (as they are) or "preview".
 export const DRAFT_VALUES_RECORDED_EVENT = "draftvaluesrecorded";
 
 /**
@@ -80,6 +81,38 @@ export function fillSlots(drafts, slots, value) {
  */
 export function removeDraft(drafts, startMs) {
   return drafts.filter((draft) => draft.start.getTime() !== startMs);
+}
+
+/**
+ * Remove the draft values within a time range, such as one group of groupDrafts.
+ *
+ * @param {Object[]} drafts - The current draft values.
+ * @param {number} startMs - The start of the range, in milliseconds since the epoch.
+ * @param {number} endMs - The end of the range, in milliseconds since the epoch.
+ * @returns {Object[]} The remaining draft values.
+ */
+export function removeDraftsIn(drafts, startMs, endMs) {
+  return drafts.filter((draft) => draft.start.getTime() < startMs || draft.start.getTime() >= endMs);
+}
+
+/**
+ * Group draft values into runs of adjacent slots with the same value, to list them compactly.
+ *
+ * @param {Object[]} drafts - The draft values, sorted by start.
+ * @returns {{start: Date, end: Date, value: number, count: number}[]} The groups, sorted by start.
+ */
+export function groupDrafts(drafts) {
+  const groups = [];
+  for (const draft of drafts) {
+    const last = groups[groups.length - 1];
+    if (last && last.value === draft.value && last.end.getTime() === draft.start.getTime()) {
+      last.end = new Date(draft.end);
+      last.count++;
+    } else {
+      groups.push({ start: new Date(draft.start), end: new Date(draft.end), value: draft.value, count: 1 });
+    }
+  }
+  return groups;
 }
 
 /**
@@ -194,12 +227,13 @@ function defaultFormatTime(date) {
  * Wire the "Draft values" side panel.
  *
  * The panel's elements are found by their data attributes inside the root:
- * data-draft-record (the Record/Stop button), data-draft-start and data-draft-duration (a datetime-local and a text field),
- * data-draft-value (the value field), data-draft-add, data-draft-selection (describes the selection),
- * data-draft-list, data-draft-empty, data-draft-cancel and data-draft-unavailable (a note shown instead of the controls).
+ * data-draft-record (the Select on chart toggle, with data-draft-record-text for its label),
+ * data-draft-start and data-draft-duration (a datetime-local and a text field), data-draft-value (the value field), data-draft-add,
+ * data-draft-selection (describes the selection), data-draft-list (one row per group of draft values), data-draft-count,
+ * data-draft-empty, data-draft-cancel (Discard), and data-draft-unavailable (a note shown instead of the controls).
  *
  * While recording, a "chartrangeselected" event on the target selects the slots its range covers,
- * and so does a start and an ISO 8601 duration typed in, as the sensor data API takes them.
+ * and so does a start and an ISO 8601 duration typed in, as the sensor data API takes them, which start recording if need be.
  * Each fills in the other: a selection on the chart shows as a start and a duration, and a typed one shows on the chart.
  *
  * @param {HTMLElement} root - The panel.
@@ -207,6 +241,7 @@ function defaultFormatTime(date) {
  * @param {number} options.sensorId - The sensor, passed on with the draft values.
  * @param {number} options.resolutionMs - The sensor's event resolution, in milliseconds.
  * @param {string} [options.unit] - The sensor's unit, shown with each value.
+ * @param {string} [options.timeZone] - The sensor's timezone, to show a group of draft values that ends on the day it starts without repeating that day.
  * @param {function(): number} options.getAnchorMs - Any event start of the sensor, in milliseconds since the epoch.
  * @param {Object} options.chart - How the panel drives the chart:
  *   startSelecting() turns on the select tool (it may return a promise, and false when that is not possible),
@@ -233,6 +268,7 @@ export function wireDraftValuesPanel(root, options) {
   const el = (name) => root.querySelector("[data-draft-" + name + "]");
   const recordButton = el("record");
   const valueInput = el("value");
+  const recordText = el("record-text") || recordButton;
   const startInput = el("start");
   const durationInput = el("duration");
   const addButton = el("add");
@@ -240,6 +276,7 @@ export function wireDraftValuesPanel(root, options) {
   const list = el("list");
   const emptyNote = el("empty");
   const cancelButton = el("cancel");
+  const countBadge = el("count");
   const unavailableNote = el("unavailable");
   const controls = el("controls");
 
@@ -257,40 +294,66 @@ export function wireDraftValuesPanel(root, options) {
   const withUnit = (value) => (opts.unit ? value + " " + opts.unit : String(value));
 
   function render() {
-    recordButton.textContent = recording ? "Stop" : "Record";
+    recordText.textContent = recording ? "Stop selecting" : "Select on chart";
     recordButton.setAttribute("aria-pressed", recording ? "true" : "false");
-    recordButton.classList.toggle("btn-danger", recording);
-    recordButton.classList.toggle("btn-success", !recording);
-    addButton.disabled = !recording || slots.length === 0 || parseDraftValue(valueInput.value) === null;
-    startInput.disabled = durationInput.disabled = !recording;
-    cancelButton.disabled = !recording && drafts.length === 0;
+    addButton.disabled = !pending();
+    // Green as soon as a value is typed, so the step that is easy to miss stands out, and once values were added, to show they were.
+    const green = parseDraftValue(valueInput.value) !== null || drafts.length > 0;
+    addButton.classList.toggle("btn-success", green);
+    addButton.classList.toggle("btn-light", !green);
+    // A disabled button is faded, which would hide the green.
+    addButton.style.opacity = green ? "1" : "";
+    cancelButton.classList.toggle("d-none", drafts.length === 0);
     if (!recording) {
-      selectionInfo.textContent = "Press Record, then select a time range on the chart, click a slot, or enter a start and duration.";
+      selectionInfo.textContent = "";
     } else if (slots.length === 0) {
-      selectionInfo.textContent = "Select a time range on the chart, click a slot, or enter a start and duration.";
+      selectionInfo.textContent = "Drag across the chart, click an event, or enter a start and duration.";
     } else {
       const count = slots.length === 1 ? "1 slot" : slots.length + " slots";
       selectionInfo.textContent =
         "Selected: " + opts.formatTime(slots[0].start) + " until " + opts.formatTime(slots[slots.length - 1].end) + " (" + count + ").";
     }
+    // One row per run of the same value, rather than one per event, which could be hundreds.
     list.replaceChildren(
-      ...drafts.map((draft) => {
+      ...groupDrafts(drafts).map((group) => {
         const row = document.createElement("li");
         row.className = "list-group-item d-flex justify-content-between align-items-center py-1 small";
-        row.dataset.draftStart = String(draft.start.getTime());
+        row.dataset.draftStart = String(group.start.getTime());
         const text = document.createElement("span");
-        text.textContent = opts.formatTime(draft.start) + ": " + withUnit(draft.value);
+        const when = document.createElement("div");
+        when.textContent = opts.formatTime(group.start) + " – " + formatGroupEnd(group);
+        const what = document.createElement("div");
+        what.className = "fw-bold";
+        what.textContent = withUnit(group.value) + " · " + (group.count === 1 ? "1 value" : group.count + " values");
+        text.append(when, what);
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "btn-close ms-2";
-        remove.title = "Remove this draft value";
-        remove.setAttribute("aria-label", "Remove the draft value at " + opts.formatTime(draft.start));
-        remove.addEventListener("click", () => controller.remove(draft.start.getTime()));
+        remove.title = "Remove these draft values";
+        remove.setAttribute("aria-label", "Remove the draft values from " + opts.formatTime(group.start));
+        remove.addEventListener("click", () => controller.removeRange(group.start.getTime(), group.end.getTime()));
         row.append(text, remove);
         return row;
       }),
     );
     emptyNote.classList.toggle("d-none", drafts.length > 0);
+    countBadge.textContent = String(drafts.length);
+    countBadge.classList.toggle("d-none", drafts.length === 0);
+  }
+
+  // The end of a group of draft values, without repeating its date when it ends on the day it starts.
+  function formatGroupEnd(group) {
+    if (!opts.timeZone) return opts.formatTime(group.end);
+    const day = (date) => date.toLocaleDateString("en-CA", { timeZone: opts.timeZone });
+    // A group ending at midnight ends on the day it covers.
+    const lastMoment = new Date(group.end.getTime() - 1);
+    if (day(group.start) !== day(lastMoment)) return opts.formatTime(group.end);
+    return group.end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", timeZone: opts.timeZone });
+  }
+
+  // Whether a selection and a value wait to be added.
+  function pending() {
+    return recording && slots.length > 0 && parseDraftValue(valueInput.value) !== null;
   }
 
   function setDrafts(next) {
@@ -324,7 +387,7 @@ export function wireDraftValuesPanel(root, options) {
       recording = true;
       render();
     },
-    // End recording without handing the draft values over, e.g. when the chart can no longer select.
+    // End recording (Stop), keeping the draft values without handing them over; also when the chart can no longer select.
     endRecording() {
       if (!recording) return;
       recording = false;
@@ -332,13 +395,15 @@ export function wireDraftValuesPanel(root, options) {
       opts.chart.stopSelecting();
       render();
     },
-    // End recording, keep the draft values, and hand them over for the preview (#2469).
-    stop() {
-      if (!recording) return;
+    // End recording, keep the draft values, and hand them over, to be saved as they are ("save") or previewed first ("preview").
+    // A selection with a value that was not added yet is added first, so it is not lost.
+    handOver(action) {
+      controller.add();
+      if (drafts.length === 0) return;
       controller.endRecording();
       opts.target.dispatchEvent(
         new CustomEvent(DRAFT_VALUES_RECORDED_EVENT, {
-          detail: { sensorId: opts.sensorId, drafts: drafts.map((d) => ({ ...d })) },
+          detail: { sensorId: opts.sensorId, drafts: drafts.map((d) => ({ ...d })), action: action },
         }),
       );
     },
@@ -369,14 +434,16 @@ export function wireDraftValuesPanel(root, options) {
       }
       render();
     },
-    // Select the slots that the typed start and duration cover, once both are filled in.
-    selectTyped() {
-      if (!recording) return;
+    // Select the slots that the typed start and duration cover, once both are filled in, starting to record if need be.
+    async selectTyped() {
       const start = new Date(startInput.value);
       const duration = parseIsoDuration(durationInput.value);
       durationInput.classList.toggle("is-invalid", durationInput.value.trim() !== "" && duration === null);
       if (!isFinite(start.getTime()) || duration === null) return;
-      controller.select(rangeFromStartAndDuration(start, duration));
+      // Starting to record must not lose what was typed, so it is read before.
+      const range = rangeFromStartAndDuration(start, duration);
+      await controller.record();
+      controller.select(range);
     },
     // Give the selected slots the typed value, then clear the selection (the value stays, to be used again).
     add() {
@@ -390,20 +457,35 @@ export function wireDraftValuesPanel(root, options) {
       setDrafts(removeDraft(drafts, startMs));
       render();
     },
+    removeRange(startMs, endMs) {
+      setDrafts(removeDraftsIn(drafts, startMs, endMs));
+      render();
+    },
     // Discard all draft values, after confirmation, and end recording.
     cancel() {
       if (drafts.length > 0 && !opts.confirm("Discard all " + drafts.length + " draft values? They have not been saved.")) {
         return;
       }
+      controller.discard();
+    },
+    // Discard all draft values without asking, and end recording, e.g. once they are saved, or after the preview asked.
+    discard() {
       controller.endRecording();
       setDrafts([]);
       render();
     },
   };
 
-  recordButton.addEventListener("click", () => (recording ? controller.stop() : controller.record()));
+  // The toggle and Discard are links, like the secondary actions of the other panels.
+  recordButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    recording ? controller.endRecording() : controller.record();
+  });
   addButton.addEventListener("click", () => controller.add());
-  cancelButton.addEventListener("click", () => controller.cancel());
+  cancelButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    controller.cancel();
+  });
   valueInput.addEventListener("input", render);
   startInput.addEventListener("change", () => controller.selectTyped());
   durationInput.addEventListener("change", () => controller.selectTyped());

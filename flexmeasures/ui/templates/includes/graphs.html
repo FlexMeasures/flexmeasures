@@ -345,11 +345,12 @@
     });
 
     // The Draft values panel records values with the select tool of the fast chart, and shows them over the data.
-    // Stop hands them over in a "draftvaluesrecorded" event; nothing is saved from here.
+    // Its handOver hands them over in a "draftvaluesrecorded" event, for the preview step to pick up; nothing is saved from here.
     const draftValuesPanel = wireDraftValuesPanel(document.getElementById('draftValuesPanel'), {
         sensorId: {{ sensor.id }},
         resolutionMs: sensorResolutionMs,
         unit: {{ sensor.unit | tojson }},
+        timeZone: {{ sensor.timezone | tojson }},
         getAnchorMs: sensorEventAnchorMs,
         isTouch: window.matchMedia('(pointer: coarse)').matches,
         chart: {
