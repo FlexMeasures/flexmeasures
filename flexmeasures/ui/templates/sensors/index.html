@@ -301,11 +301,13 @@ For the data, note the following:
                                       <label for="draftRepeat" class="form-label fw-bold">
                                           Repeat
                                           <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
-                                              title="Repeats keep the local time in {{ sensor.timezone }}: a value at 07:00 stays at 07:00 after a clock change. Draft values repeated every day may span at most one day, and those repeated every week at most one week."></i>
+                                              title="Repeats keep the local time in {{ sensor.timezone }}: a value at 07:00 stays at 07:00 after a clock change. Draft values repeated every week may span at most one week, and those repeated on other days at most one day."></i>
                                       </label>
                                       <select id="draftRepeat" data-preview-repeat class="form-select">
                                           <option value="none" selected>Do not repeat</option>
                                           <option value="daily">Every day</option>
+                                          <option value="workdays">Every workday (Mon–Fri)</option>
+                                          <option value="weekends">Every weekend day (Sat–Sun)</option>
                                           <option value="same-weekday">Every week</option>
                                       </select>
                                   </div>
@@ -331,8 +333,15 @@ For the data, note the following:
                                           <div class="d-flex justify-content-between"><dt class="fw-normal">Values</dt><dd data-preview-create class="mb-0"></dd></div>
                                           <div class="d-flex justify-content-between"><dt class="fw-normal">Omitted (clock skips)</dt><dd data-preview-omitted class="mb-0"></dd></div>
                                           <div class="d-flex justify-content-between"><dt class="fw-normal">Written twice (clock repeats)</dt><dd data-preview-duplicated class="mb-0"></dd></div>
-                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Replacing existing values</dt><dd data-preview-superseded class="mb-0"></dd></div>
+                                          <div class="d-flex justify-content-between"><dt data-preview-superseded-label class="fw-normal">Replacing existing values</dt><dd data-preview-superseded class="mb-0"></dd></div>
                                       </dl>
+                                      <div data-preview-existing-group class="mb-2 d-none">
+                                          <label for="draftExisting" class="form-label small mb-0">Where values already exist</label>
+                                          <select id="draftExisting" data-preview-existing class="form-select form-select-sm">
+                                              <option value="replace" selected>Replace them with the new values</option>
+                                              <option value="keep">Keep them, and only fill the gaps</option>
+                                          </select>
+                                      </div>
                                       <ul data-preview-warnings class="alert alert-warning small py-1 ps-4 pe-2 mb-1 d-none"></ul>
                                   </div>
                                   <div class="d-flex align-items-center gap-3">

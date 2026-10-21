@@ -45,8 +45,11 @@ document.body.insertAdjacentHTML("beforeend", `
     <button data-preview-run type="button" class="d-none">Try again</button>
     <div data-preview-busy class="d-none"></div>
     <div data-preview-result class="d-none">
+      <div data-preview-existing-group class="d-none">
+        <select data-preview-existing><option value="replace" selected>Replace</option><option value="keep">Keep</option></select>
+      </div>
       <div><span data-preview-create></span></div><div><span data-preview-omitted></span></div>
-      <div><span data-preview-duplicated></span></div><div><span data-preview-superseded></span></div>
+      <div><span data-preview-duplicated></span></div><div><span data-preview-superseded-label></span><span data-preview-superseded></span></div>
       <ul data-preview-warnings></ul>
       <button data-preview-show-all type="button"></button>
       <button data-preview-show-drafts type="button"></button>
@@ -489,4 +492,33 @@ def test_a_refused_save_keeps_the_draft_values(assert_js):
         eq("the step stays open", visible, [true]);
         check("so the user can try again", !part("confirm").disabled, "");
         check("by confirming, not by previewing again", part("run").classList.contains("d-none"), "");
+        """)
+
+
+def test_existing_values_can_be_kept(assert_js):
+    """Where values already exist, the user may keep them and only fill the gaps, which saves the rest and redraws the preview."""
+    assert_js(STEP + """
+        // Existing values at the second and fourth draft value.
+        answers.fetchExisting = (query) => ok({ start: query.get("start"), values: [null, 50, null, 70] });
+        handOver(42, drafts);
+        await settle();
+        check("the choice shows, as there are existing values", !part("existing-group").classList.contains("d-none"), "");
+        eq("replacing them is the default", [part("existing").value, part("confirm").textContent], ["replace", "Save 4 values"]);
+        part("existing").value = "keep";
+        part("existing").dispatchEvent(new Event("change"));
+        eq("keeping them saves the others only", part("confirm").textContent, "Save 2 values");
+        eq("which the counts say", [part("create").textContent, part("superseded-label").textContent], ["2", "Existing values kept"]);
+        const shown = chart.previews[chart.previews.length - 1];
+        eq("and the chart shows", [shown.points.map((p) => p.value), shown.superseded.length], [[80, 82], 0]);
+        eq("without asking again", calls.fetchExisting.length, 1);
+        await click("confirm");
+        eq("only the gaps are saved", calls.save[0].values, [80, null, 82, null]);
+        """)
+
+
+def test_no_choice_without_existing_values(assert_js):
+    assert_js(STEP + """
+        handOver(42, drafts);
+        await settle();
+        check("the choice is not shown", part("existing-group").classList.contains("d-none"), "");
         """)

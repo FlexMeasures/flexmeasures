@@ -16,7 +16,7 @@ import { DRAFT_VALUES_RECORDED_EVENT, formatIsoDuration } from "./draft-values.j
 import { extractApiErrorMessage } from "./ui-utils.js";
 
 // The repeat choices, as the recurrence preview endpoint names them ("none" means saving the draft values only).
-export const REPEAT_CHOICES = ["none", "daily", "same-weekday"];
+export const REPEAT_CHOICES = ["none", "daily", "workdays", "weekends", "same-weekday"];
 
 // Raised when draft values cannot be previewed or saved as asked; its message is meant for the user.
 export class PreviewError extends Error {
@@ -208,6 +208,24 @@ export function findOverlaps(newPoints, existingPoints) {
 }
 
 /**
+ * The body to save without the values that would replace existing ones, to keep those and only fill the gaps.
+ *
+ * @param {Object} payload - A body from payloadForSaving.
+ * @param {Object[]} overlaps - The existing slots it overlaps, from findOverlaps.
+ * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
+ * @returns {Object} The body, with null where values already exist.
+ */
+export function keepExisting(payload, overlaps, resolutionMs) {
+  const values = payload.values.slice();
+  const t0 = Date.parse(payload.start);
+  for (const overlap of overlaps) {
+    const i = (overlap.start.getTime() - t0) / resolutionMs;
+    if (Number.isInteger(i) && i >= 0 && i < values.length) values[i] = null;
+  }
+  return { ...payload, values: values };
+}
+
+/**
  * The time range the slots cover.
  *
  * @param {Object[]} points - Slots, sorted by start.
@@ -396,6 +414,23 @@ export function wirePreviewStep(root, options) {
   let run = 0;
 
   const repeat = () => repeatField.value || "none";
+  const existingField = el("existing");
+  const keepingExisting = () => !!existingField && existingField.value === "keep";
+
+  // What Confirm saves: everything previewed, or, to keep existing values, everything but what overlaps them.
+  function toSave() {
+    const keep = keepingExisting() && result.overlaps.length > 0;
+    if (!keep) {
+      return { payload: result.payload, points: result.points, superseded: result.overlaps, count: result.summary.toCreate };
+    }
+    const kept = new Set(result.overlaps.map((o) => o.start.getTime()));
+    return {
+      payload: keepExisting(result.payload, result.overlaps, opts.resolutionMs),
+      points: result.points.filter((p) => !kept.has(p.start.getTime())),
+      superseded: [],
+      count: result.summary.toCreate - result.overlaps.length,
+    };
+  }
 
   function render() {
     const count = drafts.length;
@@ -409,22 +444,29 @@ export function wirePreviewStep(root, options) {
     runButton.classList.toggle("d-none", !error || !canRetry || !!result);
     busyNote.classList.toggle("d-none", !busy);
     resultBox.classList.toggle("d-none", !result);
-    confirmButton.disabled = busy || saving || !result;
+    const saved = result ? toSave() : null;
+    confirmButton.disabled = busy || saving || !result || saved.count === 0;
     // Say what Confirm does, once the preview tells how much.
-    confirmButton.textContent = result ? "Save " + plural(result.summary.toCreate, "value") : "Save";
+    confirmButton.textContent = !saved ? "Save" : saved.count === 0 ? "Nothing new to save" : "Save " + plural(saved.count, "value");
     for (const link of [el("back"), el("discard")]) {
       link.classList.toggle("pe-none", saving);
       link.setAttribute("aria-disabled", saving ? "true" : "false");
     }
     if (result) {
       const { summary, overlaps } = result;
-      el("create").textContent = summary.toCreate.toLocaleString();
+      el("create").textContent = saved.count.toLocaleString();
       el("omitted").textContent = summary.omitted.toLocaleString();
       el("duplicated").textContent = summary.duplicated.toLocaleString();
       el("superseded").textContent = overlaps.length.toLocaleString();
       // Rows that do not apply would only add noise.
       for (const [name, n] of [["omitted", summary.omitted], ["duplicated", summary.duplicated], ["superseded", overlaps.length]]) {
         el(name).parentElement.classList.toggle("d-none", n === 0);
+      }
+      // The choice about existing values only matters when there are some.
+      if (existingField) {
+        el("existing-group").classList.toggle("d-none", overlaps.length === 0);
+        existingField.disabled = saving;
+        el("superseded-label").textContent = keepingExisting() ? "Existing values kept" : "Replacing existing values";
       }
       warningList.replaceChildren(
         ...summary.warnings.map((warning) => {
@@ -435,6 +477,12 @@ export function wirePreviewStep(root, options) {
       );
       warningList.classList.toggle("d-none", summary.warnings.length === 0);
     }
+  }
+
+  // Draw what Confirm would save, and what it would replace.
+  function showOnChart() {
+    const saved = toSave();
+    opts.chart.showPreview({ points: saved.points, superseded: saved.superseded });
   }
 
   // A choice changed, so the preview no longer shows what would be saved.
@@ -480,6 +528,7 @@ export function wirePreviewStep(root, options) {
       invalidate();
       drafts = handedOver.map((d) => ({ start: new Date(d.start), end: new Date(d.end), value: d.value }));
       repeatField.value = "none";
+      if (existingField) existingField.value = "replace";
       // Name the weekday, so "every week" says which day.
       const weekly = repeatField.querySelector('option[value="same-weekday"]');
       if (weekly) {
@@ -542,7 +591,7 @@ export function wirePreviewStep(root, options) {
           summary: summarizePreview(report, drafts.length, { formatDate: opts.formatDate }),
         };
         busy = false;
-        opts.chart.showPreview({ points: points, superseded: overlaps });
+        showOnChart();
         // The draft values themselves are in view already; repeats may reach far beyond it.
         if (chosen !== "none") controller.showAll();
         render();
@@ -608,7 +657,7 @@ export function wirePreviewStep(root, options) {
       render();
       let answer;
       try {
-        answer = await opts.api.save(result.payload);
+        answer = await opts.api.save(toSave().payload);
       } catch (e) {
         answer = { ok: false, status: 0, body: { message: e.message } };
       }
@@ -626,6 +675,14 @@ export function wirePreviewStep(root, options) {
     },
   };
 
+  // Keeping or replacing existing values changes what is saved, not the preview, so it needs no new one.
+  if (existingField) {
+    existingField.addEventListener("change", () => {
+      if (!result) return;
+      showOnChart();
+      render();
+    });
+  }
   repeatField.addEventListener("change", () => {
     invalidate();
     setUntilBounds();
