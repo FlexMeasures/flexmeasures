@@ -104,7 +104,7 @@ Cleaning applies at these places. Bounds the sensor cannot take, such as a unit 
    * - Reporter
      - On an entry of the ``input``. Cleaning runs before the report is computed. See :ref:`reporting`.
 
-Out-of-range readings are clipped.
+Out-of-range readings are clipped to the bound, not treated as missing, so a forecaster does not interpolate across them and a scheduler does not fall back to the ``default``.
 Where readings are wrong rather than merely out of range, correcting them at the source is still the better fix.
 
 
