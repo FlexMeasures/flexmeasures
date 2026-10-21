@@ -1499,6 +1499,142 @@
         ]
       }
     },
+    "/api/v3_0/sensors/{id}/data/preview-recurrence": {
+      "post": {
+        "summary": "Preview a repeated pattern of sensor data",
+        "description": "Repeat a pattern of sensor values daily, or on the same weekday only, until a given date, and return the repeats without saving them.\nTo save them, post the returned `data` to [POST /sensors/{id}/data](#/Sensors/post_api_v3_0_sensors__id__data) as it is.\n\nThe pattern is sent in the shape of posted sensor data, and is checked in the same way:\nthe unit has to be convertible to the sensor's unit, and the resolution has to fit the sensor's resolution.\nIt may be coarser than the sensor's resolution (its values are then upsampled), but not finer.\nIt may be at most one day long when repeated daily, or one week long when repeated on the same weekday.\nThe list of values may include null values, which are repeated as null values.\n\nEach repeat lands on the same local time in the sensor's timezone, also across a daylight saving time transition:\nvalues whose local time is skipped (spring forward) are left out, as that time has no slot,\nand values whose local time occurs twice (fall back) are repeated to both instants.\nThe `report` counts the values to be saved, and says which values each transition left out or repeated twice.\nIf the sensor resolution cannot follow a clock change (such as hourly data where clocks shift by 30 minutes),\nthe pattern is repeated every 24 hours (or 168 hours) instead, and the report says so.\n\nRepeating is limited to one year after the pattern starts,\nand to as many values as can be posted in one request (FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES, 3 MiB by default).\nRequires the same permission as posting data to the sensor.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurrencePreview"
+              },
+              "examples": {
+                "repeat_daily": {
+                  "summary": "Repeat two hourly SoC minima daily, for two days",
+                  "value": {
+                    "values": [
+                      80,
+                      90
+                    ],
+                    "start": "2026-11-02T06:00:00+01:00",
+                    "duration": "PT2H",
+                    "unit": "kWh",
+                    "repeat": "daily",
+                    "until": "2026-11-04"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "The repeated values, in the shape of posted sensor data, with null values for slots without a value."
+                    },
+                    "report": {
+                      "type": "object",
+                      "description": "Counts of the values to be saved (`n_values`), and of the values left out (`n_omitted`) or repeated twice (`n_duplicated`) by daylight saving time transitions,\nplus the transitions themselves, and whether repeats follow the local time (`mode` is `wall_clock`) or fall back to fixed steps of 24 hours (`absolute`).\n"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "start": "2026-11-03T06:00:00+01:00",
+                    "duration": "PT26H",
+                    "values": [
+                      80,
+                      90,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      80,
+                      90
+                    ],
+                    "unit": "kWh"
+                  },
+                  "report": {
+                    "n_values": 4,
+                    "n_omitted": 0,
+                    "n_duplicated": 0,
+                    "mode": "wall_clock",
+                    "period": "daily",
+                    "n_occurrences": 2,
+                    "transitions": [],
+                    "fallback_reason": null
+                  },
+                  "status": "PROCESSED",
+                  "message": "Request has been processed."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS - You called the API more often than your rate limit allows. Wait for as long as the Retry-After header says, then try again."
+          }
+        },
+        "tags": [
+          "Sensors"
+        ]
+      }
+    },
     "/api/v3_0/sensors/{id}/forecasts/trigger": {
       "post": {
         "summary": "Trigger forecasting job for one sensor",
@@ -7697,6 +7833,80 @@
           "sensor",
           "start",
           "unit"
+        ],
+        "additionalProperties": false
+      },
+      "RecurrencePreview": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start time of the first event described in the time series data, in ISO 8601 datetime format.",
+            "example": "2026-01-15T10:00+01:00"
+          },
+          "duration": {
+            "type": "string",
+            "description": "Duration of the full set of events described in the time series data, in ISO 8601 duration format.",
+            "example": "PT1H",
+            "format": "duration"
+          },
+          "horizon": {
+            "type": "string",
+            "description": "All sensor data has been recorded at least this duration beforehand (for physical event, before the event ended; for economical events, before gate closure).",
+            "example": "PT2H",
+            "format": "duration"
+          },
+          "prior": {
+            "type": "string",
+            "format": "date-time",
+            "description": "All sensor data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time).",
+            "example": "2026-01-14T20:00+01:00"
+          },
+          "unit": {
+            "type": "string",
+            "description": "The unit of the sensor data, which must be convertible to the sensor unit.",
+            "example": "m\u00b3/h"
+          },
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded.",
+            "example": 14
+          },
+          "values": {
+            "description": "The values of the pattern, at most one recurrence period long; null means no value.",
+            "example": [
+              80,
+              80,
+              null,
+              90
+            ]
+          },
+          "repeat": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "same-weekday",
+              "workdays",
+              "weekends"
+            ],
+            "description": "Repeat the pattern every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone.",
+            "example": "daily"
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "description": "The last date to repeat the pattern on, inclusive, in the sensor's timezone. At most one year after the pattern starts.",
+            "example": "2026-11-30"
+          }
+        },
+        "required": [
+          "duration",
+          "repeat",
+          "sensor",
+          "start",
+          "unit",
+          "until"
         ],
         "additionalProperties": false
       },
