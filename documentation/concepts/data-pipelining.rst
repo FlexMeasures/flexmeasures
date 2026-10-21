@@ -123,8 +123,5 @@ The limits on a schedule belong in the flex-model (see :ref:`flex_models_and_sch
 Where to read more
 ------------------
 
-- :ref:`variable_quantities`: the forms a variable quantity takes in the flex-model and the flex-context.
-- :ref:`forecasting`: configuring a forecaster, including its regressors.
-- :ref:`reporting`: configuring a reporter.
 - :ref:`tut_posting_data`: how data gets onto a sensor, and which source records it.
 - :ref:`tut_forecasting_scheduling`: forecasting and scheduling over the API and the CLI.
