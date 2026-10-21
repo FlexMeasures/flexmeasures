@@ -192,6 +192,79 @@ def test_same_weekday_repeat():
     assert transition.omitted == (time(2, 0),)
 
 
+def is_workday(day: date) -> bool:
+    return day.weekday() < 5
+
+
+def test_repeat_on_some_days_only():
+    """Repeat a Friday on workdays only, which leaves the weekend of the fall-back transition as a gap."""
+    tz = "Europe/Amsterdam"
+    pattern = minute_of_day_pattern(tz, "2026-10-23", DAY, HOUR)  # a Friday
+
+    expanded, report = expand_wall_clock_recurrence(
+        pattern, date(2026, 10, 30), tz, HOUR, on_days=is_workday
+    )
+
+    assert report.n_occurrences == 5
+    with_values = expanded.dropna()
+    assert sorted(set(with_values.index.date)) == [
+        date(2026, 10, d) for d in (26, 27, 28, 29, 30)
+    ]
+    assert (with_values.to_numpy() == local_minute_of_day(with_values.index)).all()
+    # The weekend is a gap in one contiguous series, so its clock change writes nothing twice.
+    assert expanded["2026-10-24":"2026-10-25"].isna().all()
+    assert (expanded.index.to_series().diff().iloc[1:] == HOUR).all()
+    assert sum(t.n_duplicated for t in report.transitions) == 0
+
+
+def test_repeat_on_some_days_keeps_resolving_dst():
+    """A day kept by the filter is still repeated by the wall clock, here writing the repeated hour twice."""
+    tz = "Europe/Amsterdam"
+    pattern = minute_of_day_pattern(tz, "2026-10-23", DAY, HOUR)
+
+    expanded, report = expand_wall_clock_recurrence(
+        pattern, date(2026, 10, 25), tz, HOUR, on_days=lambda day: day.weekday() >= 5
+    )
+
+    assert report.n_occurrences == 2
+    assert sorted(set(expanded.dropna().index.date)) == [
+        date(2026, 10, 24),
+        date(2026, 10, 25),
+    ]
+    (transition,) = report.transitions
+    assert transition.duplicated == (time(2, 0),)
+
+
+def test_repeat_on_no_day_writes_nothing():
+    tz = "Europe/Amsterdam"
+    pattern = minute_of_day_pattern(tz, "2026-06-01", DAY, HOUR)
+
+    expanded, report = expand_wall_clock_recurrence(
+        pattern, date(2026, 6, 10), tz, HOUR, on_days=lambda day: False
+    )
+
+    assert expanded.empty
+    assert report.n_occurrences == 0
+
+
+def test_repeat_on_some_days_with_absolute_steps():
+    """When repeats fall back to absolute steps, the filter still decides which repeats are written."""
+    tz = "Australia/Lord_Howe"
+    pattern = minute_of_day_pattern(tz, "2026-04-03", DAY, HOUR)  # a Friday
+
+    expanded, report = expand_wall_clock_recurrence(
+        pattern, date(2026, 4, 7), tz, HOUR, on_days=is_workday
+    )
+
+    assert report.mode == "absolute"
+    assert report.n_occurrences == 2
+    # Monday and Tuesday only, each 24 hours long, starting half an hour before local midnight after the clock change.
+    starts = expanded.dropna().index
+    assert len(starts) == 2 * 24
+    assert starts[0] == pd.Timestamp("2026-04-05T23:30", tz=tz)
+    assert expanded[: pd.Timestamp("2026-04-05T23:00", tz=tz)].isna().all()
+
+
 @pytest.mark.parametrize(
     "same_weekday_only, duration, resolution, allowed",
     [

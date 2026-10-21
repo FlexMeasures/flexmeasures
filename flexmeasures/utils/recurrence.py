@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from enum import Enum
-from typing import Literal
+from typing import Callable, Literal
 from zoneinfo import ZoneInfoNotFoundError
 
 import isodate
@@ -133,6 +133,7 @@ def expand_wall_clock_recurrence(
     resolution: timedelta,
     same_weekday_only: bool = False,
     policy: DstPolicy = DstPolicy(),
+    on_days: Callable[[date], bool] | None = None,
 ) -> tuple[pd.Series, RecurrenceReport]:
     """Repeat a pattern of sensor values daily (or weekly) by local wall-clock time, until a given date.
 
@@ -157,6 +158,8 @@ def expand_wall_clock_recurrence(
     :param resolution:          The sensor's event resolution, or zero for an instantaneous sensor.
     :param same_weekday_only:   Repeat every 7 days instead of every day.
     :param policy:              How to resolve DST transitions.
+    :param on_days:             Only repeat on the local dates for which this returns True, such as workdays,
+                                where a repeat's date is the date its first slot falls on.
     :returns:                   The repeated values, indexed in `tz`, and a report of what DST transitions did to them.
     :raises RecurrenceError:    When the pattern is longer than the recurrence period, is not regular at the resolution,
                                 or covers the repeated hour of a fall-back transition (two values would claim the same wall-clock time).
@@ -175,7 +178,16 @@ def expand_wall_clock_recurrence(
     n_occurrences = max(
         0, int(np.ceil((end_of_until - wall_clock[0]) / pd.Timedelta(period))) - 1
     )
-    if n_occurrences == 0:
+    # Which repeats to write, by the local date each starts on.
+    first_day = wall_clock[0].date()
+    kept_occurrences = np.array(
+        [
+            on_days is None or on_days(first_day + k * period)
+            for k in range(1, n_occurrences + 1)
+        ],
+        dtype=bool,
+    )
+    if n_occurrences == 0 or not kept_occurrences.any():
         empty = pd.Series(
             [], index=pd.DatetimeIndex([], tz=tz), dtype=float, name=pattern.name
         )
@@ -200,12 +212,18 @@ def expand_wall_clock_recurrence(
     ]
     if incompatible:
         expanded = _expand_absolute(
-            pattern, local_index, n_occurrences, period, resolution, end_instant, tz
+            pattern,
+            local_index,
+            kept_occurrences,
+            period,
+            resolution,
+            end_instant,
+            tz,
         )
         report = RecurrenceReport(
             mode="absolute",
             period=period_name,
-            n_occurrences=n_occurrences,
+            n_occurrences=int(kept_occurrences.sum()),
             transitions=tuple(
                 _describe(t, omitted=[], duplicated=[]) for t in written_transitions
             ),
@@ -218,12 +236,19 @@ def expand_wall_clock_recurrence(
         return expanded, report
 
     expanded, omitted, duplicated = _expand_wall_clock(
-        pattern, wall_clock, n_occurrences, period, resolution, end_of_until, tz, policy
+        pattern,
+        wall_clock,
+        kept_occurrences,
+        period,
+        resolution,
+        end_of_until,
+        tz,
+        policy,
     )
     report = RecurrenceReport(
         mode="wall_clock",
         period=period_name,
-        n_occurrences=n_occurrences,
+        n_occurrences=int(kept_occurrences.sum()),
         transitions=tuple(
             _describe(t, omitted=omitted, duplicated=duplicated)
             for t in written_transitions
@@ -317,7 +342,7 @@ def _validate_wall_clock_span(
 def _expand_wall_clock(
     pattern: pd.Series,
     wall_clock: pd.DatetimeIndex,
-    n_occurrences: int,
+    kept_occurrences: np.ndarray,
     period: timedelta,
     resolution: timedelta,
     end_of_until: pd.Timestamp,
@@ -331,12 +356,13 @@ def _expand_wall_clock(
     # Repeats are stepped on naive local times, where adding whole days always keeps the time-of-day.
     # Don't step tz-aware times instead: freq="24h", pd.Timedelta("1D") and pd.offsets.Day(1) are absolute (Day is a Tick offset, despite its name, at least before pandas 3),
     # and even a calendar-aware pd.DateOffset(days=1) can only land on one of the two instants of an ambiguous local time, where we may want both.
+    n_occurrences = len(kept_occurrences)
     steps = pd.TimedeltaIndex(np.arange(1, n_occurrences + 1) * pd.Timedelta(period))
     targets = pd.DatetimeIndex(
         (wall_clock.values[None, :] + steps.values[:, None]).ravel()
     )
     values = np.tile(pattern.to_numpy(dtype=float), n_occurrences)
-    keep = targets < end_of_until
+    keep = (targets < end_of_until) & np.repeat(kept_occurrences, len(pattern))
     repeated = pd.Series(values[keep], index=targets[keep])
 
     if resolution > timedelta(0):
@@ -378,7 +404,7 @@ def _expand_wall_clock(
 def _expand_absolute(
     pattern: pd.Series,
     local_index: pd.DatetimeIndex,
-    n_occurrences: int,
+    kept_occurrences: np.ndarray,
     period: timedelta,
     resolution: timedelta,
     end_instant: pd.Timestamp,
@@ -386,6 +412,7 @@ def _expand_absolute(
 ) -> pd.Series:
     """Repeat the pattern by absolute steps of the period, keeping the sensor's grid of events intact."""
     # Absolute on purpose: tz-aware times plus a Timedelta keep their distance in hours, not their time-of-day.
+    n_occurrences = len(kept_occurrences)
     steps = pd.TimedeltaIndex(np.arange(1, n_occurrences + 1) * pd.Timedelta(period))
     targets = pd.DatetimeIndex(
         (
@@ -394,7 +421,7 @@ def _expand_absolute(
         ).ravel()
     ).tz_localize("UTC")
     values = np.tile(pattern.to_numpy(dtype=float), n_occurrences)
-    keep = targets < end_instant
+    keep = (targets < end_instant) & np.repeat(kept_occurrences, len(pattern))
     repeated = pd.Series(
         values[keep], index=targets[keep].tz_convert(tz), name=pattern.name
     )
