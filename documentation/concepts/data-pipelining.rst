@@ -52,9 +52,9 @@ The same filters exist elsewhere, with a different spelling:
    * - Sensor reference (flex-model, flex-context, forecaster config)
      - ``source-types``, ``exclude-source-types``, ``source-account``, ``sources`` (all lists)
    * - Input of a reporter
-     - snake case, for example ``source_types`` and ``exclude_source_types`` (see :ref:`reporting`)
+     - snake case: ``source_types``, ``exclude_source_types``, ``source_account_ids``, ``sources`` (see :ref:`reporting`)
    * - Query of a data request
-     - singular: ``source``, ``source-type`` (see :ref:`sources`)
+     - singular: ``source``, ``source-type``, ``source-account`` (see :ref:`sources`)
 
 
 .. _data_fallback_values:
