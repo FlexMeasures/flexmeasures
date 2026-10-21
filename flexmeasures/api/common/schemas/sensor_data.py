@@ -623,9 +623,12 @@ class RecurrencePreviewSchema(PostSensorDataSchema):
     )
     repeat = fields.Str(
         required=True,
-        validate=OneOf(["daily", "same-weekday"]),
+        validate=OneOf(["daily", "same-weekday", "workdays", "weekends"]),
         metadata=dict(
-            description="Repeat the pattern every day, or every 7 days (on the same weekday only), at the same local time in the sensor's timezone.",
+            description=(
+                "Repeat the pattern every day, every 7 days (on the same weekday only), on workdays (Monday to Friday), "
+                "or on weekends (Saturday and Sunday), at the same local time in the sensor's timezone."
+            ),
             example="daily",
         ),
     )
