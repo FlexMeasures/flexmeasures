@@ -63,8 +63,7 @@ Fallback values
 ~~~~~~~~~~~~~~~
 
 A reference in the flex-model or the flex-context can also name a ``default``: a fallback quantity to use for the moments where the sensor holds no value.
-Every time slot the sensor leaves empty is filled with this value, so a sparse sensor becomes densely constrained.
-Take particular care with a fallback of ``0`` on a consumption or production capacity: if the sensor holds no value for the whole scheduling window, the resulting all-zero capacity is read as a physical statement about the device, and enforced strictly.
+How it fills a sparse sensor, and why a fallback of ``0`` on a capacity needs care, is described in :ref:`sensor_references`.
 
 
 .. _data_cleaning_on_input:
