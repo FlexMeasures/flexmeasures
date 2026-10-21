@@ -86,7 +86,7 @@ The rules are the same wherever the fields are used:
 - Snapping runs first and clipping runs afterwards, so ``lower`` and ``upper`` always take precedence: a snap target outside the bounds is clipped back into range.
 - The first bound of a snap interval is inclusive and the second is exclusive, so an interval reads as ``[first, second)``. Listing the bounds in reverse order flips the closed side: ``["10 kW", "4 kW"]`` means ``(4 kW, 10 kW]``. This keeps adjacent intervals unambiguous: a value on a shared boundary belongs to the interval that opens at it.
 - The snap target must lie within its interval (on a bound or inside it), so values never snap to a value outside the interval.
-- Bounds without a unit are read in the unit of the sensor they clean, and bounds with a unit must be convertible to it. Each sensor's bounds are read in that sensor's own unit.
+- Bounds without a unit are read in the unit of the sensor they clean, and bounds with a unit must be convertible to it.
 - Values missing from the sensor are left missing.
 
 Cleaning applies at these places. Bounds the sensor cannot take, such as a unit that does not convert, are refused when the configuration is loaded or the report is set up, not when the data is read:
