@@ -29,7 +29,8 @@
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, setFastChartSelectMode, setFastChartDrawMode, setFastChartDrawScale, getFastChartYAxisMax, refreshFastChartDraftValues } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { wireDraftValuesPanel } from "{{ url_for('flexmeasures_ui.static', filename='js/draft-values.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -267,9 +268,13 @@
     // Round a range to what the annotation will cover: whole events on the grid of the first event shown,
     // or, for an instant or an instantaneous sensor, whole minutes (whole seconds when zoomed in to 10 minutes or less).
     function snapToSensorEvents(range) {
+        return snapSelection(range, sensorResolutionMs, sensorEventAnchorMs(), visibleSelectionStepMs());
+    }
+
+    // The grid of the sensor's events runs through the first event shown, or else through the start of the date picker interval.
+    function sensorEventAnchorMs() {
         const data = previousResult && previousResult.data;
-        const anchor = data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
-        return snapSelection(range, sensorResolutionMs, anchor, visibleSelectionStepMs());
+        return data && data.length > 0 ? new Date(data[0].event_start).getTime() : storeStartDate.getTime();
     }
 
     function showAnnotationRange(range, info, isSelection) {
@@ -338,6 +343,58 @@
         event.preventDefault();
         clearAnnotationSelection();
     });
+
+    // The Draft values panel records values with the select or draw tool of the fast chart, and shows them over the data.
+    // Its handOver hands them over in a "draftvaluesrecorded" event, for the preview step to pick up; nothing is saved from here.
+    const draftValuesPanel = wireDraftValuesPanel(document.getElementById('draftValuesPanel'), {
+        sensorId: {{ sensor.id }},
+        resolutionMs: sensorResolutionMs,
+        unit: {{ sensor.unit | tojson }},
+        timeZone: {{ sensor.timezone | tojson }},
+        getAnchorMs: sensorEventAnchorMs,
+        isTouch: window.matchMedia('(pointer: coarse)').matches,
+        chart: {
+            startSelecting: function () { return startDraftTool(setFastChartSelectMode); },
+            stopSelecting: function () { setFastChartSelectMode(fastChartElementId, false); },
+            startDrawing: function () { return startDraftTool(setFastChartDrawMode); },
+            stopDrawing: function () { setFastChartDrawMode(fastChartElementId, false); },
+            getYAxisMax: function () { return getFastChartYAxisMax(fastChartElementId); },
+            setDrawScale: function (yMax) { setFastChartDrawScale(fastChartElementId, yMax); },
+            showSelection: function (range) { setFastChartSelection(fastChartElementId, range); },
+            showDrafts: function (drafts) { refreshFastChartDraftValues(fastChartElementId, drafts); },
+        },
+    });
+
+    // Selecting and drawing need a tool that only the fast chart offers, and only with a time axis.
+    async function startDraftTool(setToolMode) {
+        if (!fastMode) await setFastMode(true);
+        if (chartType !== 'bar_chart') {
+            document.querySelector('#chart-type-picker .dropdown-item[data-chart-type="bar_chart"]').click();
+        }
+        // Switching to the fast chart renders it once its data is in, which may take a moment.
+        for (let attempt = 0; attempt < 50; attempt++) {
+            if (setToolMode(fastChartElementId, true)) return true;
+            await new Promise(function (resolve) { setTimeout(resolve, 100); });
+        }
+        showToast('The chart is still loading. Please try again in a moment.', 'info');
+        return false;
+    }
+
+    // Leaving the fast chart, or its time axis, ends recording and drawing, and keeps the draft values.
+    document.getElementById('fastChartToggle')?.addEventListener('change', function () {
+        if (!this.checked) {
+            draftValuesPanel.endRecording();
+            draftValuesPanel.stopDrawing();
+        }
+    });
+    document.querySelectorAll('#chart-type-picker .dropdown-item').forEach(function (item) {
+        item.addEventListener('click', function () {
+            if (item.dataset.chartType !== 'bar_chart') {
+                draftValuesPanel.endRecording();
+                draftValuesPanel.stopDrawing();
+            }
+        });
+    });
     {% endif %}
 
     {% if event_starts_after and event_ends_before %}
@@ -388,14 +445,8 @@
             if (fastMode) {
                 applyFastMode();
             }
-            fastChartToggle.addEventListener('change', async function () {
-                fastMode = this.checked;
-                localStorage.setItem('fm-fast-charts', fastMode ? '1' : '0');
-                syncFullBeliefInfoToggle();
-                if (fastMode) {
-                    stopReplay();
-                }
-                await applyFastMode();
+            fastChartToggle.addEventListener('change', function () {
+                return setFastMode(this.checked);
             });
         } else {
             fastMode = false;  // no toggle on this page, so always use Vega-Lite
@@ -997,6 +1048,19 @@
         return fastMode && chartTypeSupportedInFastMode();
     }
 
+    // Switch the fast chart on or off, as the toggle does, and remember the choice.
+    async function setFastMode(on) {
+        const fastChartToggle = document.getElementById('fastChartToggle');
+        if (fastChartToggle) { fastChartToggle.checked = on; }
+        fastMode = on;
+        localStorage.setItem('fm-fast-charts', fastMode ? '1' : '0');
+        syncFullBeliefInfoToggle();
+        if (fastMode) {
+            stopReplay();
+        }
+        await applyFastMode();
+    }
+
     // Show either the fast (canvas-based) chart or the Vega-Lite chart, and render it
     async function applyFastMode() {
         const vegaDiv = document.getElementById(elementId);
@@ -1040,6 +1104,9 @@
             timeWindow: fastChartWindow,
             // The sensor page lets users who can annotate select a time range on the chart.
             selectable: {{ 'true' if active_page == "sensors" and user_can_create_children_sensor else 'false' }},
+            {% if active_page == "sensors" and user_can_create_children_sensor %}
+            draftValues: draftValuesPanel.drafts,
+            {% endif %}
         };
     }
 

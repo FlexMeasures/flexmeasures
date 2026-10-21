@@ -6,6 +6,7 @@ Forecast and Annotate side panels. These tests verify:
 
 - Basic access and 404 behaviour
 - Forecast and Annotate panel visibility gated on ``create-children`` permission
+- Draft values panel visibility gated on ``post-data`` permission
 - Forecast button enabled/disabled state based on available data range
 - Guard that ``get_timerange`` is NOT called for users without permission
 """
@@ -15,7 +16,11 @@ from unittest.mock import patch
 
 import pytest
 from flask import url_for
+from flask_security import SQLAlchemySessionUserDatastore, hash_password
 
+from flexmeasures.auth.policy import ACCOUNT_DATA_INTEGRATOR_ROLE, ACCOUNT_READER_ROLE
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Role, User
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import login, logout
 
@@ -260,3 +265,77 @@ def test_get_timerange_not_called_without_permission(
 
     assert response.status_code == 403
     mock_get_timerange.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Draft values panel – visibility based on the post-data permission
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def setup_prosumer_restricted_users(db, setup_assets):
+    """Add a reader and a data integrator to the organisation owning the Prosumer sensors."""
+    datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    account_id = find_user_by_email("test_prosumer_user@seita.nl").account_id
+    for role_name, email in (
+        (ACCOUNT_READER_ROLE, "test_prosumer_reader@seita.nl"),
+        (ACCOUNT_DATA_INTEGRATOR_ROLE, "test_prosumer_integrator@seita.nl"),
+    ):
+        role = datastore.find_role(role_name) or datastore.create_role(name=role_name)
+        user = datastore.create_user(
+            username=email,
+            email=email,
+            password=hash_password("testtest"),
+            account_id=account_id,
+            roles=[role],
+        )
+        db.session.add(DataSource(user=user))
+    db.session.commit()
+
+
+def _get_sensor_page(client, db, email=None):
+    sensor = _get_prosumer_sensor(db)
+    if email:
+        login(client, email, "testtest")
+    try:
+        return sensor, client.get(
+            url_for("SensorUI:get", id=sensor.id), follow_redirects=True
+        )
+    finally:
+        if email:
+            logout(client)
+
+
+def test_draft_values_panel_visible_for_account_member(
+    db, client, setup_assets, as_prosumer_user1
+):
+    sensor, response = _get_sensor_page(client, db)
+    assert response.status_code == 200
+    assert b'id="draftValuesPanel"' in response.data
+    assert b"data-draft-record" in response.data
+    assert b"data-draft-cancel" in response.data
+    assert f"Value ({sensor.unit})".encode() in response.data
+    assert (
+        b"wireDraftValuesPanel(document.getElementById('draftValuesPanel')"
+        in response.data
+    )
+
+
+def test_draft_values_panel_visible_for_data_integrator(
+    db, client, setup_prosumer_restricted_users
+):
+    """A data integrator may post data, so may draft values for it, though not annotate."""
+    _, response = _get_sensor_page(client, db, "test_prosumer_integrator@seita.nl")
+    assert response.status_code == 200
+    assert b'id="draftValuesPanel"' in response.data
+
+
+def test_draft_values_panel_hidden_for_reader(
+    db, client, setup_prosumer_restricted_users
+):
+    """A reader sees the sensor page, but cannot post data, so gets no Draft values panel."""
+    _, response = _get_sensor_page(client, db, "test_prosumer_reader@seita.nl")
+    assert response.status_code == 200
+    assert b'id="draftValuesPanel"' not in response.data
+    assert b"wireDraftValuesPanel(" not in response.data
+    assert b"draftValues:" not in response.data
