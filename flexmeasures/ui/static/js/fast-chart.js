@@ -1222,7 +1222,8 @@ function seriesTooltipFormatter(seriesMeta, instance) {
       }
       // The chart offers the series whose point lies closest in time to the pointer, which often leaves out the draft values,
       // so they are looked up at the pointer instead, and win when the pointer is closer to them than to the data.
-      const dataParams = params.filter((p) => !(seriesMeta[p.seriesIndex] && seriesMeta[p.seriesIndex].isDraft));
+      const isOverlay = (p) => seriesMeta[p.seriesIndex] && (seriesMeta[p.seriesIndex].isDraft || seriesMeta[p.seriesIndex].isSuperseded);
+      const dataParams = params.filter((p) => !isOverlay(p));
       const best = dataParams.length > 0 ? pickNearestParam(dataParams, instance) : null;
       const draftHit = draftUnderPointer(instance, seriesMeta);
       if (draftHit && (!best || draftHit.distance <= paramPixelDistance(best, instance))) {
@@ -1239,7 +1240,11 @@ function seriesTooltipFormatter(seriesMeta, instance) {
     const meta = seriesMeta[params.seriesIndex];
     if (meta && meta.isDraft) {
       const draftHit = draftUnderPointer(instance, seriesMeta);
-      return draftHit ? draftTooltip(meta, draftHit.draft) : "";
+      return draftHit ? draftTooltip(draftHit.meta, draftHit.draft) : "";
+    }
+    if (meta && meta.isSuperseded) {
+      const overlap = meta.overlaps[params.dataIndex];
+      return overlap ? supersededTooltip(meta, overlap) : "";
     }
     return singlePointTooltip(meta, nearestRealPoint(meta, params.value), tooltipOptions());
   };
@@ -1254,18 +1259,12 @@ const DRAFT_VALUES_COLOR = "#d6336c";
 // The overlay for draft values ({start, end, value}, sorted by start): a level line across each slot.
 // Neighbouring slots join with a step, and a gap between slots breaks the line.
 export function buildDraftValuesSeries(drafts, axisIndex) {
-  const data = [];
-  drafts.forEach((draft, k) => {
-    const start = draft.start.getTime();
-    if (k > 0 && drafts[k - 1].end.getTime() !== start) data.push([start, null]);
-    data.push([start, draft.value], [draft.end.getTime(), draft.value]);
-  });
   return {
     name: DRAFT_VALUES_NAME,
     type: "line",
     xAxisIndex: axisIndex,
     yAxisIndex: axisIndex,
-    data: data,
+    data: slotLineData(drafts),
     color: DRAFT_VALUES_COLOR,
     lineStyle: { width: 3, type: "dashed" },
     // Hovering the data fades the other series, but draft values are what the user is working on.
@@ -1277,30 +1276,104 @@ export function buildDraftValuesSeries(drafts, axisIndex) {
   };
 }
 
+// A level line across each slot ({start, end, value}, sorted by start), stepping between neighbours, and broken by a gap.
+function slotLineData(slots) {
+  const data = [];
+  slots.forEach((slot, k) => {
+    const start = slot.start.getTime();
+    if (k > 0 && slots[k - 1].end.getTime() !== start) data.push([start, null]);
+    data.push([start, slot.value], [slot.end.getTime(), slot.value]);
+  });
+  return data;
+}
+
+// What the preview of draft values would save (see draft-values-preview.js), and the existing values that would be superseded.
+const PREVIEW_VALUES_NAME = "Values to save";
+const SUPERSEDED_VALUES_NAME = "Superseded values";
+const SUPERSEDED_VALUES_COLOR = "#fd7e14";
+
+// The overlay for the values to save: a solid line in the colour of the draft values, which they include.
+export function buildPreviewValuesSeries(points, axisIndex) {
+  return {
+    name: PREVIEW_VALUES_NAME,
+    type: "line",
+    xAxisIndex: axisIndex,
+    yAxisIndex: axisIndex,
+    data: slotLineData(points),
+    color: DRAFT_VALUES_COLOR,
+    lineStyle: { width: 2, opacity: 0.8 },
+    blur: { lineStyle: { opacity: 0.8 } },
+    showSymbol: false,
+    connectNulls: false,
+    z: 4, // above the data, below the draft values
+    animation: false,
+  };
+}
+
+// The overlay for the existing values that the values to save supersede: a ring on each, in the middle of its slot, where its bar is drawn.
+export function buildSupersededValuesSeries(overlaps, axisIndex) {
+  return {
+    name: SUPERSEDED_VALUES_NAME,
+    type: "scatter",
+    xAxisIndex: axisIndex,
+    yAxisIndex: axisIndex,
+    data: overlaps.map((o) => [(o.start.getTime() + o.end.getTime()) / 2, o.existing]),
+    color: SUPERSEDED_VALUES_COLOR,
+    symbol: "emptyCircle",
+    symbolSize: 9,
+    itemStyle: { borderWidth: 2 },
+    blur: { itemStyle: { opacity: 1 } },
+    large: overlaps.length > 2000,
+    z: 6,
+    animation: false,
+  };
+}
+
 // The draft value of the slot at the given time, if any.
 export function draftValueAt(drafts, time) {
   return drafts.find((d) => d.start.getTime() <= time && time < d.end.getTime()) ||
     drafts.find((d) => d.end.getTime() === time) || null;
 }
 
-// The draft value in the slot under the pointer, and how far the pointer is from its line, in pixels.
+// The draft value (or value to save) in the slot under the pointer, and how far the pointer is from its line, in pixels.
+// Of the overlays with slots, the one whose line is closest to the pointer wins.
 function draftUnderPointer(instance, seriesMeta) {
   const pointer = instance && instance._pointerPixel;
   const chart = instance && instance.chart;
-  const seriesIndex = seriesMeta.findIndex((m) => m && m.isDraft);
-  if (!pointer || !chart || chart.isDisposed() || seriesIndex < 0) return null;
-  const time = chart.convertFromPixel({ seriesIndex: seriesIndex }, pointer)[0];
-  const draft = isFinite(time) ? draftValueAt(seriesMeta[seriesIndex].drafts, time) : null;
-  if (!draft) return null;
-  const y = chart.convertToPixel({ seriesIndex: seriesIndex }, [time, draft.value])[1];
-  return { meta: seriesMeta[seriesIndex], draft: draft, distance: Math.abs(y - pointer[1]) };
+  if (!pointer || !chart || chart.isDisposed()) return null;
+  let best = null;
+  seriesMeta.forEach((meta, seriesIndex) => {
+    if (!meta || !meta.isDraft) return;
+    const time = chart.convertFromPixel({ seriesIndex: seriesIndex }, pointer)[0];
+    const draft = isFinite(time) ? draftValueAt(meta.drafts, time) : null;
+    if (!draft) return;
+    const y = chart.convertToPixel({ seriesIndex: seriesIndex }, [time, draft.value])[1];
+    const distance = Math.abs(y - pointer[1]);
+    if (!best || distance < best.distance) best = { meta: meta, draft: draft, distance: distance };
+  });
+  return best;
 }
 
 function draftTooltip(meta, draft) {
   return tooltipTable([
-    ["Draft value", formatQuantity(draft.value, meta.unit)],
+    [meta.label || "Draft value", formatQuantity(draft.value, meta.unit)],
     ["Time and date", formatFullDate(draft.start)],
   ]);
+}
+
+function supersededTooltip(meta, overlap) {
+  return tooltipTable([
+    ["Existing value", formatQuantity(overlap.existing, meta.unit)],
+    ["Superseded by", formatQuantity(overlap.proposed, meta.unit)],
+    ["Time and date", formatFullDate(overlap.start)],
+  ]);
+}
+
+// The legend entries the overlays above add.
+function overlayLegendEntries(opts) {
+  const drafts = Array.isArray(opts.draftValues) && opts.draftValues.length > 0 ? 1 : 0;
+  const preview = opts.previewValues ? (opts.previewValues.superseded.length > 0 ? 2 : 1) : 0;
+  return drafts + preview;
 }
 
 /* ============================== annotations ============================== */
@@ -1477,7 +1550,7 @@ function buildLineBarOption(elementId, groups, opts) {
   // keep it horizontal for a few entries (e.g. the sensor page's sources).
   const numLegendEntries = new Set(
     groups.flatMap((g) => g.series.map((s) => s.name))
-  ).size;
+  ).size + overlayLegendEntries(opts);
   const bottomLegendVertical = numLegendEntries > 4;
   const itemsPerRow = Math.max(Math.floor((containerWidth - GRID_LEFT - 30) / 220), 1);
   const legendHeight = bottomLegendVertical
@@ -1784,6 +1857,16 @@ function buildLineBarOption(elementId, groups, opts) {
     if (i === 0 && Array.isArray(opts.draftValues) && opts.draftValues.length > 0) {
       series.push(buildDraftValuesSeries(opts.draftValues, i));
       seriesMeta.push({ isDraft: true, name: DRAFT_VALUES_NAME, unit: group.units[0] || "", drafts: opts.draftValues });
+    }
+    // So do the values a preview of them would save, and the existing values those supersede.
+    if (i === 0 && opts.previewValues) {
+      const unit = group.units[0] || "";
+      series.push(buildPreviewValuesSeries(opts.previewValues.points, i));
+      seriesMeta.push({ isDraft: true, name: PREVIEW_VALUES_NAME, label: "Value to save", unit: unit, drafts: opts.previewValues.points });
+      if (opts.previewValues.superseded.length > 0) {
+        series.push(buildSupersededValuesSeries(opts.previewValues.superseded, i));
+        seriesMeta.push({ isSuperseded: true, name: SUPERSEDED_VALUES_NAME, unit: unit, overlaps: opts.previewValues.superseded });
+      }
     }
   });
 
@@ -2884,6 +2967,11 @@ export function refreshFastChartAnnotations(elementId, annotations) {
 // Show draft values (see draft-values.js) on the chart, without discarding the user's current zoom.
 export function refreshFastChartDraftValues(elementId, draftValues) {
   rerenderKeepingZoom(elementId, { draftValues });
+}
+
+// Show what a preview of draft values would save (see draft-values-preview.js), or nothing (null), without discarding the zoom.
+export function refreshFastChartPreview(elementId, previewValues) {
+  rerenderKeepingZoom(elementId, { previewValues });
 }
 
 function rerenderKeepingZoom(elementId, changedOptions) {

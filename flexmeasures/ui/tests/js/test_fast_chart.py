@@ -536,3 +536,20 @@ def test_draft_value_tooltip_reads_the_slot_under_the_pointer(assert_js):
         eq("at the end of the last slot, its value", draftValueAt(drafts, 2 * HOUR).value, 2);
         eq("outside the draft values, none", draftValueAt(drafts, 3 * HOUR), null);
         """)
+
+
+def test_a_preview_overlays_the_values_to_save_and_rings_what_they_supersede(assert_js):
+    assert_js("""
+        import { buildPreviewValuesSeries, buildSupersededValuesSeries } from "/js/fast-chart.js";
+        const HOUR = 3600 * 1000;
+        const slot = (h, value) => ({ start: new Date(h * HOUR), end: new Date((h + 1) * HOUR), value });
+        const values = buildPreviewValuesSeries([slot(0, 1), slot(24, 1)], 0);
+        eq("the values to save are drawn like draft values, broken between repeats", values.data, [
+            [0, 1], [HOUR, 1], [24 * HOUR, null], [24 * HOUR, 1], [25 * HOUR, 1],
+        ]);
+        eq("as a solid line, with their own legend entry", [values.name, values.lineStyle.type], ["Values to save", undefined]);
+        const superseded = buildSupersededValuesSeries([{ start: new Date(0), end: new Date(HOUR), existing: 5, proposed: 1 }], 0);
+        eq("a superseded value is ringed at its existing value, in the middle of its slot", superseded.data, [[HOUR / 2, 5]]);
+        eq("with its own legend entry", superseded.name, "Superseded values");
+        eq("as a ring", superseded.symbol, "emptyCircle");
+        """)
