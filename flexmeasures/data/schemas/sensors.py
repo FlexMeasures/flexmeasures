@@ -66,7 +66,11 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 from flexmeasures.data.schemas.attributes import JSON
-from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
+from flexmeasures.data.schemas.times import (
+    DurationField,
+    AwareDateTimeField,
+    validate_storable_belief_time,
+)
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
@@ -930,6 +934,7 @@ class SensorDataFileDescriptionSchema(Schema):
         required=False,
         allow_none=True,
         data_key="prior",
+        validate=validate_storable_belief_time,
         metadata=dict(
             description="All uploaded data has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/concepts/time-series-and-beliefs.html#beliefs-and-their-recording-time), given as an ISO 8601 datetime with a timezone offset. Defaults to the time of upload. Cannot be combined with belief-time-measured-instantly.",
             example="2026-10-15T12:00:00+02:00",
