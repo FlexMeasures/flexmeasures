@@ -237,9 +237,7 @@ For the data, note the following:
                           <div id="draftValuesPanel" class="sidepanel-content" style="text-align: left;">
                               <div data-draft-unavailable class="form-text text-white d-none"></div>
                               <div data-draft-controls>
-                                  <div class="form-text text-white mb-2">
-                                      Sketch values on the chart, then click Stop to preview them, possibly repeated, before saving.
-                                  </div>
+                                  <div class="small text-white-50 mb-2">Step 1 of 2 &middot; Sketch values</div>
                                   <div class="d-flex gap-3 mb-1 small">
                                       <a href="#" data-draft-draw class="link-light" role="button" aria-pressed="false"
                                           title="Press and drag across the chart: where you draw is when, and how high is the value."><i class="fa fa-pencil me-1"></i><span data-draft-draw-text>Draw on chart</span></a>
@@ -288,54 +286,60 @@ For the data, note the following:
                                   </div>
                                   <div class="d-flex align-items-center gap-2">
                                       <a href="#" data-draft-cancel class="small link-light d-none" role="button">Discard</a>
+                                      <button data-draft-save type="button" class="btn btn-sm btn-responsive create-button ms-auto" disabled
+                                          title="Save the draft values as they are, without repeating them"
+                                          style="border: 1px solid var(--light-gray);">Save</button>
+                                      <button data-draft-next type="button" class="btn btn-sm btn-responsive create-button" disabled
+                                          title="Choose whether to repeat the draft values, and see what will be saved before saving"
+                                          style="border: 1px solid var(--light-gray);">Preview<i class="fa fa-chevron-right ms-1"></i></button>
                                   </div>
                               </div>
                               <div id="draftPreviewStep" data-preview-step class="d-none">
-                                  <div class="fw-bold">Save draft values</div>
-                                  <div data-preview-summary class="form-text text-white mb-2"></div>
-                                  <fieldset>
-                                      <legend class="form-label fw-bold fs-6 mt-2 mb-1">Repeat</legend>
-                                      <div class="form-check">
-                                          <input id="draftRepeatNone" data-preview-repeat class="form-check-input" type="radio" name="draftRepeat" value="none" checked />
-                                          <label for="draftRepeatNone" class="form-check-label fw-normal">Do not repeat</label>
-                                      </div>
-                                      <div class="form-check">
-                                          <input id="draftRepeatDaily" data-preview-repeat class="form-check-input" type="radio" name="draftRepeat" value="daily" />
-                                          <label for="draftRepeatDaily" class="form-check-label fw-normal">Daily</label>
-                                      </div>
-                                      <div class="form-check">
-                                          <input id="draftRepeatWeekday" data-preview-repeat class="form-check-input" type="radio" name="draftRepeat" value="same-weekday" />
-                                          <label for="draftRepeatWeekday" class="form-check-label fw-normal">On the same weekday</label>
-                                      </div>
-                                  </fieldset>
-                                  <label for="draftRepeatUntil" class="form-label fw-bold mt-2">Until</label>
-                                  <div class="input-group input-group-sm">
-                                      <input id="draftRepeatUntil" data-preview-until class="form-control" type="date"
-                                          aria-describedby="draftRepeatUntilHelp" disabled />
-                                      <button data-preview-run type="button" class="btn btn-sm btn-light">Preview</button>
+                                  <div class="small text-white-50 mb-2">Step 2 of 2 &middot; Repeat and save</div>
+                                  <div data-preview-summary class="mb-3"></div>
+                                  <div class="mb-3">
+                                      <label for="draftRepeat" class="form-label fw-bold">
+                                          Repeat
+                                          <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
+                                              title="Repeats keep the local time in {{ sensor.timezone }}: a value at 07:00 stays at 07:00 after a clock change. Draft values repeated every day may span at most one day, and those repeated every week at most one week."></i>
+                                      </label>
+                                      <select id="draftRepeat" data-preview-repeat class="form-select">
+                                          <option value="none" selected>Do not repeat</option>
+                                          <option value="daily">Every day</option>
+                                          <option value="same-weekday">Every week</option>
+                                      </select>
                                   </div>
-                                  <div id="draftRepeatUntilHelp" class="form-text text-white">
-                                      At most one year after the draft values start. Repeats keep the local time in {{ sensor.timezone }}.
+                                  <div data-preview-until-group class="mb-3 d-none">
+                                      <label for="draftRepeatUntil" class="form-label fw-bold">
+                                          Until
+                                          <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
+                                              title="The last day to repeat on, at most one year after the draft values start."></i>
+                                      </label>
+                                      <input id="draftRepeatUntil" data-preview-until class="form-control" type="date" />
                                   </div>
-                                  <div data-preview-error class="alert alert-danger small py-1 px-2 mt-2 mb-0 d-none" role="alert"></div>
-                                  <div data-preview-result class="d-none mt-3" aria-live="polite">
+                                  <div data-preview-error class="alert alert-danger small py-1 px-2 mb-2 d-none" role="alert"></div>
+                                  <a href="#" data-preview-run class="small link-light d-none" role="button">Try again</a>
+                                  <div data-preview-busy class="small mb-3 d-none" aria-live="polite">
+                                      <span class="spinner-border spinner-border-sm me-2" role="status"></span>Previewing&hellip;
+                                  </div>
+                                  <div data-preview-result class="d-none mb-3" aria-live="polite">
+                                      <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                          <span class="fw-bold">Will be saved</span>
+                                          <span class="small">Zoom to: <a href="#" data-preview-show-drafts class="link-light" role="button">drafts</a> &middot; <a href="#" data-preview-show-all class="link-light" role="button">all</a></span>
+                                      </div>
                                       <dl class="small mb-1">
-                                          <div class="d-flex justify-content-between"><dt class="fw-normal">To create</dt><dd data-preview-create class="mb-0"></dd></div>
+                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Values</dt><dd data-preview-create class="mb-0"></dd></div>
                                           <div class="d-flex justify-content-between"><dt class="fw-normal">Omitted (clock skips)</dt><dd data-preview-omitted class="mb-0"></dd></div>
                                           <div class="d-flex justify-content-between"><dt class="fw-normal">Written twice (clock repeats)</dt><dd data-preview-duplicated class="mb-0"></dd></div>
-                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Existing values superseded</dt><dd data-preview-superseded class="mb-0"></dd></div>
+                                          <div class="d-flex justify-content-between"><dt class="fw-normal">Replacing existing values</dt><dd data-preview-superseded class="mb-0"></dd></div>
                                       </dl>
                                       <ul data-preview-warnings class="alert alert-warning small py-1 ps-4 pe-2 mb-1 d-none"></ul>
-                                      <div class="btn-group btn-group-sm mt-1" role="group" aria-label="Chart range">
-                                          <button data-preview-show-all type="button" class="btn btn-light">Show all</button>
-                                          <button data-preview-show-drafts type="button" class="btn btn-light">Show drafts</button>
-                                      </div>
                                   </div>
-                                  <div class="d-flex flex-wrap gap-1 mt-3">
-                                      <button data-preview-back type="button" class="btn btn-sm btn-secondary" style="border: 1px solid var(--light-gray);">Back to edit</button>
-                                      <button data-preview-discard type="button" class="btn btn-sm btn-secondary" style="border: 1px solid var(--light-gray);">Discard</button>
-                                      <button data-preview-confirm type="button" class="btn btn-sm btn-success ms-auto" disabled
-                                          style="border: 1px solid var(--light-gray);">Confirm</button>
+                                  <div class="d-flex align-items-center gap-3">
+                                      <a href="#" data-preview-back class="small link-light" role="button"><i class="fa fa-chevron-left me-1"></i>Back</a>
+                                      <a href="#" data-preview-discard class="small link-light" role="button">Discard</a>
+                                      <button data-preview-confirm type="button" class="btn btn-sm btn-responsive create-button ms-auto" disabled
+                                          style="border: 1px solid var(--light-gray);">Save</button>
                                   </div>
                               </div>
                           </div>

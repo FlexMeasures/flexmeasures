@@ -6,8 +6,8 @@
  *
  * The pure functions turn a selection on the chart into slots, and fill, replace and remove draft values.
  * wireDraftValuesPanel connects them to the "Draft values" side panel on the sensor page.
- * Nothing here writes to the database: handOver hands the draft values over in a DRAFT_VALUES_RECORDED_EVENT,
- * for the preview step (#2469) to save them as they are, or to preview them first.
+ * Nothing here writes to the database: the Save and Preview buttons hand the draft values over
+ * in a DRAFT_VALUES_RECORDED_EVENT, for the preview step (#2469) to save them as they are, or to preview them first.
  */
 
 import { snapRangeToEvents } from "./chart-data-utils.js";
@@ -299,7 +299,8 @@ function defaultFormatTime(date) {
  * data-draft-record (the Select on chart toggle, with data-draft-record-text for its label),
  * data-draft-start and data-draft-duration (a datetime-local and a text field), data-draft-value (the value field), data-draft-add,
  * data-draft-selection (describes the selection), data-draft-list (one row per group of draft values), data-draft-count,
- * data-draft-empty, data-draft-cancel (Discard), and data-draft-unavailable (a note shown instead of the controls).
+ * data-draft-empty, data-draft-cancel (Discard), data-draft-save, data-draft-next (Preview),
+ * and data-draft-unavailable (a note shown instead of the controls).
  *
  * While recording, a "chartrangeselected" event on the target selects the slots its range covers,
  * and so does a start and an ISO 8601 duration typed in, as the sensor data API takes them, which start recording if need be.
@@ -352,6 +353,8 @@ export function wireDraftValuesPanel(root, options) {
   const emptyNote = el("empty");
   const cancelButton = el("cancel");
   const countBadge = el("count");
+  const nextButton = el("next");
+  const saveButton = el("save");
   const unavailableNote = el("unavailable");
   const controls = el("controls");
 
@@ -386,6 +389,7 @@ export function wireDraftValuesPanel(root, options) {
     addButton.classList.toggle("btn-light", !green);
     // A disabled button is faded, which would hide the green.
     addButton.style.opacity = green ? "1" : "";
+    nextButton.disabled = saveButton.disabled = drafts.length === 0 && !pending();
     cancelButton.classList.toggle("d-none", drafts.length === 0);
     if (!recording) {
       selectionInfo.textContent = "";
@@ -519,7 +523,14 @@ export function wireDraftValuesPanel(root, options) {
       opts.chart.stopSelecting();
       render();
     },
-    // End recording, keep the draft values, and hand them over, to be saved as they are ("save") or previewed first ("preview").
+    // End recording, keep the draft values, and hand them over to be previewed (#2469).
+    next() {
+      controller.handOver("preview");
+    },
+    // End recording, keep the draft values, and hand them over to be saved as they are.
+    save() {
+      controller.handOver("save");
+    },
     // A selection with a value that was not added yet is added first, so it is not lost.
     handOver(action) {
       controller.add();
@@ -608,6 +619,8 @@ export function wireDraftValuesPanel(root, options) {
     recording ? controller.endRecording() : controller.record();
   });
   addButton.addEventListener("click", () => controller.add());
+  nextButton.addEventListener("click", () => controller.next());
+  saveButton.addEventListener("click", () => controller.save());
   cancelButton.addEventListener("click", (event) => {
     event.preventDefault();
     controller.cancel();

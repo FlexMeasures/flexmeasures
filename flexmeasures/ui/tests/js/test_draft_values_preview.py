@@ -35,15 +35,18 @@ import { DRAFT_VALUES_RECORDED_EVENT } from "/js/draft-values.js";
 document.body.insertAdjacentHTML("beforeend", `
   <div id="step">
     <div data-preview-summary></div>
-    <input data-preview-repeat type="radio" name="repeat" value="none" checked />
-    <input data-preview-repeat type="radio" name="repeat" value="daily" />
-    <input data-preview-repeat type="radio" name="repeat" value="same-weekday" />
-    <input data-preview-until type="date" />
-    <button data-preview-run type="button">Preview</button>
+    <select data-preview-repeat>
+      <option value="none" selected>Do not repeat</option>
+      <option value="daily">Every day</option>
+      <option value="same-weekday">Every week</option>
+    </select>
+    <div data-preview-until-group class="d-none"><input data-preview-until type="date" /></div>
     <div data-preview-error class="d-none"></div>
+    <button data-preview-run type="button" class="d-none">Try again</button>
+    <div data-preview-busy class="d-none"></div>
     <div data-preview-result class="d-none">
-      <span data-preview-create></span><span data-preview-omitted></span>
-      <span data-preview-duplicated></span><span data-preview-superseded></span>
+      <div><span data-preview-create></span></div><div><span data-preview-omitted></span></div>
+      <div><span data-preview-duplicated></span></div><div><span data-preview-superseded></span></div>
       <ul data-preview-warnings></ul>
       <button data-preview-show-all type="button"></button>
       <button data-preview-show-drafts type="button"></button>
@@ -93,14 +96,17 @@ const step = wirePreviewStep(root, {
   formatTime: (date) => date.toISOString(),
   formatDate: (isoDate) => isoDate,
 });
-const handOver = (sensorId, handed) =>
-  target.dispatchEvent(new CustomEvent(DRAFT_VALUES_RECORDED_EVENT, { detail: { sensorId: sensorId, drafts: handed } }));
+const handOver = (sensorId, handed, action) =>
+  target.dispatchEvent(new CustomEvent(DRAFT_VALUES_RECORDED_EVENT, { detail: { sensorId: sensorId, drafts: handed, action: action || "preview" } }));
 const choose = (repeat) => {
-  const input = root.querySelector(`[data-preview-repeat][value="${repeat}"]`);
-  input.checked = true;
-  input.dispatchEvent(new Event("change"));
+  part("repeat").value = repeat;
+  part("repeat").dispatchEvent(new Event("change"));
 };
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const pickUntil = (date) => {
+  part("until").value = date;
+  part("until").dispatchEvent(new Event("change"));
+};
 const click = async (name) => { part(name).click(); await settle(); };
 """
 
@@ -253,10 +259,17 @@ def test_the_step_opens_on_the_hand_off_of_draft_values(assert_js):
         handOver(42, drafts);
         eq("draft values open the step", visible, [true]);
         check("describing them", part("summary").textContent.startsWith("4 draft values"), part("summary").textContent);
-        check("starting with no repetition, so no date", part("until").disabled, "");
-        check("nothing to confirm yet", part("confirm").disabled, "");
+        check("starting with no repetition, so no date", part("until").disabled && part("until-group").classList.contains("d-none"), "");
+        eq("every week names the weekday", part("repeat").options[2].textContent, "Every week on Monday");
+        check("nothing to confirm while previewing", part("confirm").disabled, "");
+        check("which the step says", !part("busy").classList.contains("d-none"), "");
+        await settle();
+        check("the preview runs by itself, so the draft values can be confirmed", !part("confirm").disabled, "");
+        eq("by a button that says how many will be saved", part("confirm").textContent, "Save 4 values");
+        check("and the step no longer says it is busy", part("busy").classList.contains("d-none"), "");
         choose("daily");
-        eq("a repetition proposes a date a week on", part("until").value, "2026-11-09");
+        check("a repetition asks for a date", !part("until-group").classList.contains("d-none"), "");
+        eq("proposing one a week on", part("until").value, "2026-11-09");
         eq("between its bounds", [part("until").min, part("until").max], ["2026-11-03", "2027-11-02"]);
         """)
 
@@ -264,13 +277,13 @@ def test_the_step_opens_on_the_hand_off_of_draft_values(assert_js):
 def test_previewing_without_repetition_saves_the_draft_values(assert_js):
     assert_js(STEP + """
         handOver(42, drafts);
-        await click("run");
+        await settle();
         eq("no repetition needs no preview from the server", calls.preview.length, 0);
         eq("the existing values are loaded once, over the draft values",
            calls.fetchExisting.map((q) => q.toString()), ["start=2026-11-02T05%3A00%3A00Z&duration=PT1H&unit=kWh"]);
         eq("the draft values are to be created", part("create").textContent, "4");
         check("and shown on the chart", chart.previews.length === 1 && chart.previews[0].points.length === 4, JSON.stringify(chart.previews));
-        check("which shows them all", chart.windows.length === 1, "");
+        eq("which leaves the window alone, as the draft values are in view already", chart.windows.length, 0);
         check("they can be confirmed", !part("confirm").disabled, "");
         await click("confirm");
         eq("confirming posts them", calls.save, [{ start: "2026-11-02T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }]);
@@ -279,6 +292,27 @@ def test_previewing_without_repetition_saves_the_draft_values(assert_js):
         eq("closes the step", visible, [true, false]);
         eq("and reloads the chart", chart.reloads, 1);
         eq("the overlay is gone", chart.previews[chart.previews.length - 1], null);
+        """)
+
+
+def test_saving_as_they_are_skips_the_step(assert_js):
+    """Save posts the draft values as they are, without showing the step; a refusal keeps them."""
+    assert_js(STEP + """
+        answers.save = { ok: false, status: 403, body: { message: "You cannot be authorized for this content or functionality." } };
+        handOver(42, drafts, "save");
+        await settle();
+        eq("the step is not shown", visible, []);
+        eq("nothing is previewed", [calls.preview.length, calls.fetchExisting.length], [0, 0]);
+        eq("the draft values are posted as they are", calls.save, [{ start: "2026-11-02T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" }]);
+        check("a refusal is told", notes.length === 1 && notes[0][1] === "error" && notes[0][0].startsWith("Nothing was saved"), JSON.stringify(notes));
+        eq("and keeps the draft values", draftStep.discarded, 0);
+        answers.save = ok({ status: "PROCESSED" }, 202);
+        handOver(42, drafts, "save");
+        await settle();
+        eq("saved, they are told to appear shortly", notes[1], ["Saved, values will appear shortly.", "success"]);
+        eq("cleared", draftStep.discarded, 1);
+        eq("and the chart reloads", chart.reloads, 1);
+        eq("still without the step", visible, []);
         """)
 
 
@@ -300,15 +334,17 @@ def test_previewing_daily_repeats_and_confirming_them(assert_js):
         answers.save = ok({{ status: "PROCESSED" }}, 202);
         handOver(42, drafts);
         choose("daily");
-        part("until").value = "2026-11-03";
-        part("until").dispatchEvent(new Event("change"));
-        await click("run");
-        eq("the pattern is sent with its repetition", calls.preview, [{{
+        pickUntil("2026-11-03");
+        await settle();
+        eq("each choice is previewed in turn", calls.preview.map((body) => body.until), ["2026-11-09", "2026-11-03"]);
+        eq("the pattern is sent with its repetition", calls.preview.slice(-1), [{{
           start: "2026-11-02T05:00:00Z", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh", repeat: "daily", until: "2026-11-03",
         }}]);
-        eq("the existing values are loaded over the whole range, once",
-           calls.fetchExisting.map((q) => q.get("duration")), ["P1DT1H"]);
+        eq("the existing values are loaded over the whole range, for the last choice only",
+           calls.fetchExisting.map((q) => q.get("duration")), ["PT1H", "P1DT1H"]);
         eq("the counts", ["create", "omitted", "duplicated", "superseded"].map((name) => part(name).textContent), ["8", "0", "4", "2"]);
+        eq("of which only those that apply are shown",
+           ["omitted", "duplicated", "superseded"].map((name) => !part(name).parentElement.classList.contains("d-none")), [false, true, true]);
         eq("the warning", Array.from(part("warnings").children).map((li) => li.textContent),
            ["On 2026-10-25 02:00–03:00 occurs twice: those 4 values will be written to both."]);
         eq("the superseded values are highlighted", chart.previews[chart.previews.length - 1].superseded.map((o) => o.existing), [50, 60]);
@@ -325,40 +361,85 @@ def test_previewing_daily_repeats_and_confirming_them(assert_js):
         """)
 
 
+def test_both_runs_of_the_repeated_hour_are_explained_before_asking(assert_js):
+    """Draft values covering both runs of 02:00-03:00 on the night the clocks go back cannot be repeated by the local clock."""
+    assert_js(STEP + """
+        import { repeatedHourProblem } from "/js/draft-values-preview.js";
+        // 01:45-03:15 local time on 25 October 2026: 01:45 (CEST), both runs of 02:00-03:00, then 03:00 (CET).
+        const night = Array.from({ length: 11 }, (_, k) => {
+          const start = Date.UTC(2026, 9, 24, 23, 45) + k * QUARTER;
+          return { start: new Date(start), end: new Date(start + QUARTER), value: 10 };
+        });
+        const problem = repeatedHourProblem(night, "Europe/Amsterdam", { formatDate: (isoDate) => isoDate });
+        check("the hour and the night are named", problem.startsWith("Your draft values cover 02:00–03:00 on 2026-10-25 twice"), problem);
+        check("with what to do", problem.includes("or choose Do not repeat"), problem);
+        eq("one run of the hour is fine", repeatedHourProblem(night.slice(0, 5), "Europe/Amsterdam"), null);
+        eq("and so are other draft values", repeatedHourProblem(drafts, "Europe/Amsterdam"), null);
+
+        handOver(42, night);
+        await settle();
+        check("saving them as they are is fine", !part("confirm").disabled, part("error").textContent);
+        choose("daily");
+        await settle();
+        check("repeating them is explained in the step", part("error").textContent.startsWith("Your draft values cover 02:00–03:00"), part("error").textContent);
+        eq("without asking the server", calls.preview.length, 0);
+        check("nor offering to run it again", part("run").classList.contains("d-none"), "");
+        check("and there is nothing to confirm", part("confirm").disabled, "");
+        """)
+
+
 def test_a_refused_preview_shows_inline(assert_js):
     assert_js(STEP + """
         answers.preview = { ok: false, status: 422, body: { message: "The pattern spans P1DT1H of local time, which is longer than the recurrence period of P1D." } };
         handOver(42, drafts);
         choose("daily");
-        await click("run");
+        await settle();
         check("the endpoint's reason shows in the step", part("error").textContent.includes("longer than the recurrence period"), part("error").textContent);
         check("visibly", !part("error").classList.contains("d-none"), "");
         check("there is nothing to confirm", part("confirm").disabled, "");
         eq("and nothing is shown on the chart", chart.previews.filter(Boolean).length, 0);
+        check("a refusal is not offered to run again, as it would be refused again", part("run").classList.contains("d-none"), "");
+        answers.preview = { ok: false, status: 503, body: { message: "Service unavailable." } };
+        choose("same-weekday");
+        await settle();
+        check("a failure that may pass can be run again", !part("run").classList.contains("d-none"), part("error").textContent);
+        answers.preview = ok({ data: { start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" },
+                               report: { n_values: 4, n_omitted: 0, n_duplicated: 0, transitions: [] } });
+        await click("run");
+        check("which can succeed", !part("confirm").disabled && part("error").classList.contains("d-none"), part("error").textContent);
+        check("and puts the button away", part("run").classList.contains("d-none"), "");
         """)
 
 
 def test_changing_the_repetition_takes_the_preview_away(assert_js):
     assert_js(STEP + """
+        let answerLate;
+        answers.preview = () => new Promise((resolve) => { answerLate = resolve; });
         handOver(42, drafts);
-        await click("run");
+        await settle();
         check("previewed", !part("confirm").disabled, "");
         choose("daily");
-        check("a new choice must be previewed before confirming", part("confirm").disabled, "");
+        check("a new choice cannot be confirmed before its preview is in", part("confirm").disabled, "");
         eq("and the old preview leaves the chart", chart.previews[chart.previews.length - 1], null);
         check("the result is hidden", part("result").classList.contains("d-none"), "");
+        eq("the new choice is previewed by itself", calls.preview.length, 1);
+        answerLate(ok({ data: { start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" },
+                        report: { n_values: 4, n_omitted: 0, n_duplicated: 0, transitions: [] } }));
+        await settle();
+        check("and can be confirmed once it is in", !part("confirm").disabled, "");
         """)
 
 
 def test_a_late_answer_for_an_old_choice_is_ignored(assert_js):
     assert_js(STEP + """
-        let answerLate;
-        answers.preview = () => new Promise((resolve) => { answerLate = resolve; });
+        const pending = [];
+        answers.preview = () => new Promise((resolve) => pending.push(resolve));
         handOver(42, drafts);
+        await settle();
         choose("daily");
-        part("run").click();
         choose("same-weekday");
-        answerLate(ok({ data: { start: "2026-11-03T06:00:00+01:00", values: [1] }, report: { n_values: 1, n_omitted: 0, n_duplicated: 0, transitions: [] } }));
+        eq("both choices were sent", calls.preview.map((body) => body.repeat), ["daily", "same-weekday"]);
+        pending[0](ok({ data: { start: "2026-11-03T06:00:00+01:00", values: [1] }, report: { n_values: 1, n_omitted: 0, n_duplicated: 0, transitions: [] } }));
         await settle();
         eq("the answer to the old choice is not shown", step.result, null);
         check("nor can it be confirmed", part("confirm").disabled, "");
@@ -367,8 +448,12 @@ def test_a_late_answer_for_an_old_choice_is_ignored(assert_js):
 
 def test_back_to_edit_keeps_the_draft_values_and_saves_nothing(assert_js):
     assert_js(STEP + """
+        answers.preview = ok({ data: { start: "2026-11-03T06:00:00+01:00", duration: "PT1H", values: [80, 81, 82, 83], unit: "kWh" },
+                               report: { n_values: 4, n_omitted: 0, n_duplicated: 0, transitions: [] } });
         handOver(42, drafts);
-        await click("run");
+        choose("daily");
+        await settle();
+        check("the chart zoomed out to the repeats", chart.windows.length > 0, "");
         await click("back");
         eq("the step closes", visible, [true, false]);
         eq("the draft values are kept", draftStep.discarded, 0);
@@ -397,10 +482,11 @@ def test_a_refused_save_keeps_the_draft_values(assert_js):
     assert_js(STEP + """
         answers.save = { ok: false, status: 403, body: { message: "You cannot be authorized for this content or functionality." } };
         handOver(42, drafts);
-        await click("run");
+        await settle();
         await click("confirm");
         check("the refusal shows in the step", part("error").textContent.startsWith("Nothing was saved: You cannot be authorized"), part("error").textContent);
         eq("the draft values are kept", draftStep.discarded, 0);
         eq("the step stays open", visible, [true]);
         check("so the user can try again", !part("confirm").disabled, "");
+        check("by confirming, not by previewing again", part("run").classList.contains("d-none"), "");
         """)

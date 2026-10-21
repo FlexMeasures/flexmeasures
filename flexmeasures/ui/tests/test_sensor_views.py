@@ -324,7 +324,7 @@ def test_draft_values_panel_visible_for_account_member(
 def test_draft_values_panel_has_a_preview_step(
     db, client, setup_assets, as_prosumer_user1
 ):
-    """Stop leads to a second step, which previews the draft values before saving them, and draws the preview on the chart."""
+    """Preview (Stop) leads to a second step, which previews the draft values before saving them, and draws the preview on the chart."""
     _, response = _get_sensor_page(client, db)
     assert response.status_code == 200
     assert b"data-preview-step" in response.data

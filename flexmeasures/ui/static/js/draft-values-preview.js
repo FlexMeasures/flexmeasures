@@ -4,7 +4,8 @@
  * The user chooses whether to repeat the draft values (daily, or on the same weekday only) and until when.
  * Repeats come from the recurrence preview endpoint (POST /sensors/<id>/data/preview-recurrence),
  * which resolves daylight saving time transitions and reports what they did.
- * The preview shows what will be saved on the chart, with the existing values it supersedes,
+ * The preview runs as soon as the step opens, and again on each change of these choices.
+ * It shows what will be saved on the chart, with the existing values it supersedes,
  * and Confirm saves it through POST /sensors/<id>/data.
  *
  * The pure functions build the requests and read their answers; wirePreviewStep connects them to the panel.
@@ -248,6 +249,39 @@ export function transitionWarning(transition, options) {
 }
 
 /**
+ * Why draft values cannot be repeated by the local clock, or null when they can.
+ *
+ * When the clocks go back, an hour occurs twice, and draft values covering both runs of it hold two values per local time.
+ * Repeated, those would fall on the same local time, so the recurrence preview endpoint refuses them;
+ * this explains that in terms of the draft values, before asking it.
+ *
+ * @param {{start: Date, end: Date, value: number}[]} drafts - The draft values, sorted by start.
+ * @param {string} timeZone - The sensor's timezone.
+ * @param {Object} [options]
+ * @param {function(string): string} [options.formatDate] - How a date such as "2026-10-25" is shown.
+ * @returns {string|null} The explanation.
+ */
+export function repeatedHourProblem(drafts, timeZone, options) {
+  const format = (options && options.formatDate) || defaultFormatDate;
+  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const seen = new Set();
+  const twice = [];
+  for (const draft of drafts) {
+    const localTime = localDate(draft.start, timeZone) + " " + clock.format(draft.start);
+    if (seen.has(localTime)) twice.push(draft);
+    seen.add(localTime);
+  }
+  if (twice.length === 0) return null;
+  const hours = clock.format(twice[0].start) + "–" + clock.format(twice[twice.length - 1].end);
+  const day = format(localDate(twice[0].start, timeZone));
+  return (
+    `Your draft values cover ${hours} on ${day} twice, because the clocks go back an hour that night. ` +
+    "Repeated, both would land on the same local time, so they cannot be repeated. " +
+    "Remove the draft values of one of the two runs of that hour, or choose Do not repeat."
+  );
+}
+
+/**
  * The counts and warnings to show for a preview.
  *
  * @param {Object|null} report - The preview's report, or null when the draft values are not repeated.
@@ -295,13 +329,16 @@ export function errorText(answer) {
  * Wire the preview step of the "Draft values" panel.
  *
  * The step's elements are found by their data attributes inside the root:
- * data-preview-summary (describes the draft values), data-preview-repeat (one radio button per REPEAT_CHOICES),
- * data-preview-until (a date field), data-preview-run (the Preview button), data-preview-error (an inline alert),
+ * data-preview-summary (describes the draft values), data-preview-repeat (a select with an option per REPEAT_CHOICES),
+ * data-preview-until-group (shown when repeating), holding data-preview-until (a date field),
+ * data-preview-error (an inline alert), data-preview-run (runs a failed preview again),
+ * data-preview-busy (shown while previewing),
  * data-preview-result (shown once previewed), holding data-preview-create, -omitted, -duplicated and -superseded (counts),
- * data-preview-warnings (a list), data-preview-show-all and data-preview-show-drafts (zoom buttons),
+ * data-preview-warnings (a list), data-preview-show-all and data-preview-show-drafts (zoom links),
  * and data-preview-back, data-preview-discard and data-preview-confirm.
  *
- * The step opens on the hand-off of the draft values (DRAFT_VALUES_RECORDED_EVENT), when there are any.
+ * The step opens on the hand-off of the draft values (DRAFT_VALUES_RECORDED_EVENT), when there are any, and previews them;
+ * a hand-off to save them as they are saves them without showing the step.
  *
  * @param {HTMLElement} root - The step.
  * @param {Object} options
@@ -336,9 +373,10 @@ export function wirePreviewStep(root, options) {
     options,
   );
   const el = (name) => root.querySelector("[data-preview-" + name + "]");
-  const repeatInputs = Array.from(root.querySelectorAll("[data-preview-repeat]"));
+  const repeatField = el("repeat");
   const untilInput = el("until");
   const runButton = el("run");
+  const busyNote = el("busy");
   const errorBox = el("error");
   const resultBox = el("result");
   const warningList = el("warnings");
@@ -348,32 +386,46 @@ export function wirePreviewStep(root, options) {
   let drafts = [];
   let result = null;
   let error = "";
+  let canRetry = false;
+  // Busy previewing, which a new choice may interrupt; saving may not be interrupted.
   let busy = false;
+  let saving = false;
   // The window shown before the preview zoomed out, to go back to.
   let draftsWindow = null;
   // Each run, and each change that makes a run out of date, takes a new number, so a late answer is ignored.
   let run = 0;
 
-  const repeat = () => (repeatInputs.find((input) => input.checked) || {}).value || "none";
+  const repeat = () => repeatField.value || "none";
 
   function render() {
     const count = drafts.length;
     el("summary").textContent = count === 0 ? "" :
       plural(count, "draft value") + ", from " + opts.formatTime(drafts[0].start) + " until " + opts.formatTime(drafts[count - 1].end) + ".";
-    untilInput.disabled = busy || repeat() === "none";
-    repeatInputs.forEach((input) => { input.disabled = busy; });
-    runButton.disabled = busy;
+    el("until-group").classList.toggle("d-none", repeat() === "none");
+    untilInput.disabled = saving || repeat() === "none";
+    repeatField.disabled = saving;
     errorBox.textContent = error;
     errorBox.classList.toggle("d-none", !error);
+    runButton.classList.toggle("d-none", !error || !canRetry || !!result);
+    busyNote.classList.toggle("d-none", !busy);
     resultBox.classList.toggle("d-none", !result);
-    confirmButton.disabled = busy || !result;
-    el("back").disabled = el("discard").disabled = busy;
+    confirmButton.disabled = busy || saving || !result;
+    // Say what Confirm does, once the preview tells how much.
+    confirmButton.textContent = result ? "Save " + plural(result.summary.toCreate, "value") : "Save";
+    for (const link of [el("back"), el("discard")]) {
+      link.classList.toggle("pe-none", saving);
+      link.setAttribute("aria-disabled", saving ? "true" : "false");
+    }
     if (result) {
       const { summary, overlaps } = result;
       el("create").textContent = summary.toCreate.toLocaleString();
       el("omitted").textContent = summary.omitted.toLocaleString();
       el("duplicated").textContent = summary.duplicated.toLocaleString();
       el("superseded").textContent = overlaps.length.toLocaleString();
+      // Rows that do not apply would only add noise.
+      for (const [name, n] of [["omitted", summary.omitted], ["duplicated", summary.duplicated], ["superseded", overlaps.length]]) {
+        el(name).parentElement.classList.toggle("d-none", n === 0);
+      }
       warningList.replaceChildren(
         ...summary.warnings.map((warning) => {
           const item = document.createElement("li");
@@ -422,27 +474,35 @@ export function wirePreviewStep(root, options) {
     get error() {
       return error;
     },
-    // Show the step for these draft values, starting from no repetition.
+    // Show the step for these draft values, starting from no repetition, and preview them.
     show(handedOver) {
       if (!handedOver || handedOver.length === 0) return;
       invalidate();
       drafts = handedOver.map((d) => ({ start: new Date(d.start), end: new Date(d.end), value: d.value }));
-      repeatInputs.forEach((input) => { input.checked = input.value === "none"; });
+      repeatField.value = "none";
+      // Name the weekday, so "every week" says which day.
+      const weekly = repeatField.querySelector('option[value="same-weekday"]');
+      if (weekly) {
+        weekly.textContent = "Every week on " + drafts[0].start.toLocaleDateString("en-GB", { weekday: "long", timeZone: opts.timeZone });
+      }
       untilInput.value = "";
       open = true;
       opts.setVisible(true);
       render();
+      controller.preview();
     },
     // Fetch what would be saved, and show it.
     async preview() {
-      if (!open || busy) return;
+      if (!open || saving) return;
       invalidate();
       const thisRun = run;
       const chosen = repeat();
       const until = untilInput.value;
-      const fail = (message) => {
+      // Only a failure that may pass, such as a lost connection, is offered to run again.
+      const fail = (message, retry) => {
         if (thisRun !== run) return;
         error = message;
+        canRetry = !!retry;
         busy = false;
         render();
       };
@@ -451,6 +511,8 @@ export function wirePreviewStep(root, options) {
         if (!until || until < bounds.min || until > bounds.max) {
           return fail("Choose a date to repeat until, from " + bounds.min + " to " + bounds.max + ".");
         }
+        const problem = repeatedHourProblem(drafts, opts.timeZone, { formatDate: opts.formatDate });
+        if (problem) return fail(problem);
       }
       busy = true;
       render();
@@ -461,7 +523,7 @@ export function wirePreviewStep(root, options) {
         if (chosen !== "none") {
           const answer = await opts.api.preview(previewRequestBody(pattern, chosen, until));
           if (thisRun !== run) return;
-          if (!answer.ok) return fail(errorText(answer));
+          if (!answer.ok) return fail(errorText(answer), answer.status === 0 || answer.status >= 500);
           repeats = answer.body.data;
           report = answer.body.report;
         }
@@ -469,7 +531,7 @@ export function wirePreviewStep(root, options) {
         const existingAnswer = await opts.api.fetchExisting(existingDataQuery(payload, opts.unit));
         if (thisRun !== run) return;
         if (!existingAnswer.ok) {
-          return fail("The existing data could not be loaded to compare with: " + errorText(existingAnswer));
+          return fail("The existing data could not be loaded to compare with: " + errorText(existingAnswer), true);
         }
         const points = gridToPoints(payload, opts.resolutionMs);
         const overlaps = findOverlaps(points, gridToPoints(existingAnswer.body, opts.resolutionMs));
@@ -481,11 +543,12 @@ export function wirePreviewStep(root, options) {
         };
         busy = false;
         opts.chart.showPreview({ points: points, superseded: overlaps });
-        controller.showAll();
+        // The draft values themselves are in view already; repeats may reach far beyond it.
+        if (chosen !== "none") controller.showAll();
         render();
       } catch (e) {
         if (e instanceof PreviewError) return fail(e.message);
-        fail("The preview failed: " + e.message);
+        fail("The preview failed: " + e.message, true);
       }
     },
     // Zoom out to everything that would be saved.
@@ -500,21 +563,48 @@ export function wirePreviewStep(root, options) {
     },
     // Go back to the draft step, with the draft values as they were.
     back() {
-      if (busy) return;
+      if (saving) return;
       close(true);
     },
     // Discard the draft values, after confirmation.
     discard() {
-      if (busy) return;
+      if (saving) return;
       if (!opts.confirm("Discard " + plural(drafts.length, "draft value") + "? They have not been saved.")) return;
       opts.drafts.discard();
       close(true);
     },
+    // Save draft values as they are, without showing the step; a refusal is told in a toast, and keeps the draft values.
+    async saveAsIs(handedOver) {
+      if (!handedOver || handedOver.length === 0 || open || saving) return;
+      const slots = handedOver.map((d) => ({ start: new Date(d.start), end: new Date(d.end), value: d.value }));
+      let payload;
+      try {
+        payload = payloadForSaving(draftsToPattern(slots, opts.resolutionMs, opts.unit), null, opts.resolutionMs);
+      } catch (e) {
+        opts.notify(e instanceof PreviewError ? e.message : "Nothing was saved: " + e.message, "error");
+        return;
+      }
+      saving = true;
+      let answer;
+      try {
+        answer = await opts.api.save(payload);
+      } catch (e) {
+        answer = { ok: false, status: 0, body: { message: e.message } };
+      }
+      saving = false;
+      if (!answer.ok) {
+        opts.notify("Nothing was saved: " + errorText(answer), "error");
+        return;
+      }
+      opts.notify(savedMessage(answer), "success");
+      opts.drafts.discard();
+      opts.chart.reload();
+    },
     // Save what the preview shows, unchanged.
     async save() {
-      if (!result || busy) return;
+      if (!result || busy || saving) return;
       const thisRun = run;
-      busy = true;
+      saving = true;
       render();
       let answer;
       try {
@@ -522,44 +612,55 @@ export function wirePreviewStep(root, options) {
       } catch (e) {
         answer = { ok: false, status: 0, body: { message: e.message } };
       }
+      saving = false;
       if (thisRun !== run) return;
-      busy = false;
       if (!answer.ok) {
         error = "Nothing was saved: " + errorText(answer);
         render();
         return;
       }
-      // A 202 means the values are saved in the background.
-      opts.notify(answer.status === 202 ? "Saved, values will appear shortly." : "Saved.", "success");
+      opts.notify(savedMessage(answer), "success");
       opts.drafts.discard();
       close(false);
       opts.chart.reload();
     },
   };
 
-  repeatInputs.forEach((input) =>
-    input.addEventListener("change", () => {
-      invalidate();
-      setUntilBounds();
-      render();
-    }),
-  );
+  repeatField.addEventListener("change", () => {
+    invalidate();
+    setUntilBounds();
+    render();
+    controller.preview();
+  });
   untilInput.addEventListener("change", () => {
     invalidate();
     render();
+    controller.preview();
   });
-  runButton.addEventListener("click", () => controller.preview());
-  el("show-all").addEventListener("click", () => controller.showAll());
-  el("show-drafts").addEventListener("click", () => controller.showDrafts());
-  el("back").addEventListener("click", () => controller.back());
-  el("discard").addEventListener("click", () => controller.discard());
+  // These are links, like the secondary actions of the other panels.
+  const onLink = (name, action) => el(name).addEventListener("click", (event) => {
+    event.preventDefault();
+    action();
+  });
+  onLink("run", () => controller.preview());
+  onLink("show-all", () => controller.showAll());
+  onLink("show-drafts", () => controller.showDrafts());
+  onLink("back", () => controller.back());
+  onLink("discard", () => controller.discard());
   confirmButton.addEventListener("click", () => controller.save());
   opts.target.addEventListener(DRAFT_VALUES_RECORDED_EVENT, (event) => {
-    if (event.detail && event.detail.sensorId === opts.sensorId) controller.show(event.detail.drafts);
+    if (!event.detail || event.detail.sensorId !== opts.sensorId) return;
+    if (event.detail.action === "save") controller.saveAsIs(event.detail.drafts);
+    else controller.show(event.detail.drafts);
   });
 
   render();
   return controller;
+}
+
+// A 202 means the values are saved in the background.
+function savedMessage(answer) {
+  return answer.status === 202 ? "Saved, values will appear shortly." : "Saved.";
 }
 
 function showToastIfAvailable(message, type) {

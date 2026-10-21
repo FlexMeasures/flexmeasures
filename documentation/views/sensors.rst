@@ -73,9 +73,9 @@ Or type them. Choose the time range to fill:
 - Enter a **Start** and a **Duration** under **Time range**. The duration is an ISO 8601 duration, read as the sensor data API reads it: ``PT15M``, ``PT2H``, or ``P1D``, which is always 24 hours, also on a day with a daylight saving time transition.
 - Or click **Select on chart**, then drag across the chart, or click once to choose a single event. This turns on the fast chart and its select tool (switching to the bar chart if a histogram or heatmap was shown); **Stop selecting** turns it off again.
 
-Either way, the range is widened to whole events of the sensor, and a range chosen on the chart fills in **Start** and **Duration**. Type a value in the sensor's unit and click **Add** (or press Enter), and every event in the range gets that value. **Add** turns green as soon as a value is typed, and stays green once values were added. Adding over an existing draft value replaces it.
+Either way, the range is widened to whole events of the sensor, and a range chosen on the chart fills in **Start** and **Duration**. Type a value in the sensor's unit and click **Add** (or press Enter), which turns green once there is a range and a value to add, and stays green once values were added, and every event in the range gets that value. Adding over an existing draft value replaces it.
 
-Draft values show on the chart as a dashed line, with their own legend entry, and are listed in the panel, one row per run of the same value (e.g. "40 kWh · 8 values"), where each run can be removed. **Discard** throws them away, after asking. Since draft values only live in the page, leaving or reloading it asks for confirmation first.
+Draft values show on the chart as a dashed line, with their own legend entry, and are listed in the panel, one row per run of the same value (e.g. "40 kWh · 8 values"), where each run can be removed. Then click **Save** to save them as they are, or **Preview** to repeat them and see what will be saved first (see :ref:`saving_draft_values`); either way, a range with a value that was not added yet is added first. **Save** saves them as **Confirm** does below, without repeating them or showing the existing values they supersede; if they cannot be saved, a message says why, and they are kept. **Discard** throws them away, after asking. Since draft values only live in the page, leaving or reloading it asks for confirmation first.
 
 Draft values are not offered on touch devices, nor on sensors that record instantaneous values.
 
@@ -84,19 +84,19 @@ Draft values are not offered on touch devices, nor on sensors that record instan
 Repeating and saving draft values
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-After **Stop**, the panel shows what will be saved before anything is, and stays open while you look at the chart.
+After **Preview**, the panel shows what will be saved before anything is, and stays open while you look at the chart.
 
-Under **Repeat**, choose to save the draft values as they are, or to repeat them **Daily** or **On the same weekday**, until a date. That date is at most one year after the draft values start, and one week after by default. Repeats keep the local time in the sensor's timezone: a value at 07:00 is repeated at 07:00, also after a daylight saving time transition. Draft values repeated daily may span at most one day, and those repeated on the same weekday at most one week.
+Under **Repeat**, choose to save the draft values as they are, or to repeat them **Every day** or **Every week** (on the weekday they start), until a date. That date is at most one year after the draft values start, and one week after by default. Repeats keep the local time in the sensor's timezone: a value at 07:00 is repeated at 07:00, also after a daylight saving time transition. Draft values repeated daily may span at most one day, and those repeated on the same weekday at most one week. On the night the clocks go back, the hour from 02:00 to 03:00 (in Europe) occurs twice; draft values covering both runs of it can be saved, but not repeated, since repeated, both would fall on the same local time. The panel says so, and you can remove the draft values of one of the two runs, or choose **Do not repeat**.
 
-Click **Preview**. The chart zooms out to everything that will be saved, drawn as a solid line. **Show drafts** zooms back in to the draft values, and **Show all** out again. The panel counts:
+The preview runs by itself, and again whenever you change the repetition or the date. What will be saved is drawn on the chart as a solid line, and for a repetition, the chart zooms out to all of it. **Zoom to: drafts** zooms back in to the draft values, and **all** out again. Under **Will be saved**, the panel counts (leaving out counts of zero):
 
 - the values to create, the draft values included;
 - the values omitted because the clock skips their local time (spring forward), and those written twice because their local time occurs twice (fall back), each with a warning such as "On 28 Mar 2027 the clock skips 02:00–03:00: 4 values will not be written.". These warnings do not keep you from saving;
 - the existing values that the new ones supersede, which are circled on the chart. Existing values are not deleted: they stay in the sensor's history, while the chart, and schedules that read the sensor, use the newest value for each time.
 
-Changing the repetition or the date asks for a new preview. **Back to edit** returns to the draft values as they were, and **Discard** throws them away, after asking.
+If the preview cannot be made, the reason shows in the panel, with **Try again** when the failure may pass, such as a lost connection. **Back** returns to the draft values as they were, and **Discard** throws them away, after asking.
 
-**Confirm** saves exactly what the preview showed, as the sensor data API's ``POST /sensors/<id>/data`` would, with the time of saving as their belief time, and you as their data source. Large saves may take a moment to appear on the chart.
+The button that saves says how many values it will save, e.g. **Save 1,220 values**. It saves exactly what the preview showed, as the sensor data API's ``POST /sensors/<id>/data`` would, with the time of saving as their belief time, and you as their data source. Large saves may take a moment to appear on the chart.
 
 A sensor of saved limits can then be used in a flex-model, by referring to the sensor rather than giving values (see :ref:`variable_quantities`). For instance, to use drafted state-of-charge minima in a storage schedule:
 

@@ -348,7 +348,7 @@
     });
 
     // The Draft values panel records values with the select or draw tool of the fast chart, and shows them over the data.
-    // Its handOver hands them over in a "draftvaluesrecorded" event, for the preview step to pick up; nothing is saved from here.
+    // Save and Preview hand them over in a "draftvaluesrecorded" event; nothing is saved from here.
     const draftValuesPanel = wireDraftValuesPanel(document.getElementById('draftValuesPanel'), {
         sensorId: {{ sensor.id }},
         resolutionMs: sensorResolutionMs,
@@ -399,7 +399,7 @@
         });
     });
 
-    // Stop opens the panel's second step, which previews the draft values, possibly repeated, and saves them on Confirm.
+    // Preview opens the panel's second step (Save saves them through it without showing it), which previews the draft values, possibly repeated, and saves them on Confirm.
     // While it shows, the panel stays open, so the preview can be compared with the data on the chart.
     const sensorDataPath = apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data';
     const jsonRequest = function (body) {

@@ -21,6 +21,8 @@ document.body.insertAdjacentHTML("beforeend", `
       <span data-draft-count class="d-none"></span>
       <div data-draft-empty>None yet.</div>
       <a href="#" data-draft-cancel class="d-none">Discard</a>
+      <button data-draft-save type="button">Save</button>
+      <button data-draft-next type="button">Preview</button>
     </div>
   </div>`);
 const root = document.getElementById("panel");
@@ -236,8 +238,8 @@ def test_record_select_add_and_stop(assert_js):
         eq("Select on chart is offered again", button("record").textContent, "Select on chart");
         eq("the draft values are kept", panel.drafts.length, 3);
         eq("but not handed over", handedOver.length, 0);
-        panel.handOver("preview");
-        eq("handing them over does so once", handedOver.length, 1);
+        button("next").click();
+        eq("Preview hands them over once", handedOver.length, 1);
         eq("to be previewed", handedOver[0].action, "preview");
         eq("for this sensor", handedOver[0].sensorId, 42);
         eq("with every draft value", handedOver[0].drafts.length, 3);
@@ -279,7 +281,7 @@ def test_leaving_the_page_with_drafts_asks_for_confirmation(assert_js):
         typeValue("1");
         panel.add();
         check("leaving with draft values asks first", leave(), "");
-        panel.handOver("preview");
+        panel.next();
         check("so it does after handing them over, since nothing was saved", leave(), "");
         """)
 
@@ -380,17 +382,16 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         """)
 
 
-def test_handing_over_adds_what_is_pending_and_needs_draft_values(assert_js):
-    """Handing over adds a selection with a value that was not added yet, and hands nothing over without draft values."""
+def test_save_and_preview_add_what_is_pending_and_need_draft_values(assert_js):
+    """Save and Preview wait for draft values, and add a selection with a value that was not added yet before handing over."""
     assert_js(PANEL + """
-        panel.handOver("save");
-        eq("with nothing drafted, nothing is handed over", handedOver.length, 0);
+        check("with nothing drafted, there is nothing to save or preview", button("save").disabled && button("next").disabled, "");
         await panel.record();
         selectOnChart(T0, T0 + 3600000 - 60000);
-        panel.handOver("save");
-        eq("nor with a selection alone", handedOver.length, 0);
+        check("nor with a selection alone", button("save").disabled && button("next").disabled, "");
         typeValue("7");
-        panel.handOver("save");
+        check("a selection with a value is enough", !button("save").disabled && !button("next").disabled, "");
+        button("save").click();
         eq("it is added before handing over", handedOver.length, 1);
         eq("with every slot", handedOver[0].drafts.map((d) => d.value), [7, 7, 7, 7]);
         eq("to be saved as they are", handedOver[0].action, "save");
@@ -471,6 +472,7 @@ def test_drawing_on_the_chart_makes_draft_values(assert_js):
         eq("shown on the chart", chart.drafts.length, 4);
         stroke(30, 59, 40);
         eq("drawing again over a part changes it", panel.drafts.map((d) => d.value), [20, 20, 40, 40]);
+        check("they can be saved or previewed", !button("save").disabled && !button("next").disabled, "");
 
         await panel.record();
         check("selecting ends drawing", !panel.drawing && !chart.drawing && chart.selecting, "");
