@@ -64,7 +64,18 @@ export function selectionToSlots(range, resolutionMs, anchorMs) {
  * @returns {Object[]} The new draft values, sorted by start.
  */
 export function fillSlots(drafts, slots, value) {
-  const added = slots.map((slot) => ({ start: new Date(slot.start), end: new Date(slot.end), value: value }));
+  return mergeDrafts(drafts, slots.map((slot) => ({ start: slot.start, end: slot.end, value: value })));
+}
+
+/**
+ * Add draft values, each replacing what it overlaps.
+ *
+ * @param {Object[]} drafts - The current draft values.
+ * @param {Object[]} values - The draft values to add, e.g. from fillSlots or strokeToDrafts.
+ * @returns {Object[]} The new draft values, sorted by start.
+ */
+export function mergeDrafts(drafts, values) {
+  const added = values.map((slot) => ({ start: new Date(slot.start), end: new Date(slot.end), value: slot.value }));
   const overlapsAdded = (draft) => added.some((slot) => draft.start < slot.end && slot.start < draft.end);
   return drafts
     .filter((draft) => !overlapsAdded(draft))
@@ -81,6 +92,62 @@ export function fillSlots(drafts, slots, value) {
  */
 export function removeDraft(drafts, startMs) {
   return drafts.filter((draft) => draft.start.getTime() !== startMs);
+}
+
+/**
+ * The draft values a stroke drawn on the chart makes: one per slot it crosses, with the stroke's height there.
+ *
+ * Each slot takes the value where the stroke passes its middle, interpolated between the drawn points,
+ * and where the stroke passes it more than once, the last pass counts.
+ * A slot the stroke only touches at an end, or a click, takes the value of the nearest point.
+ * Values are rounded to the step, the finest one the drawing can tell apart (see drawnValueStep in fast-chart.js).
+ *
+ * @param {{time: Date, value: number}[]} points - The points of the stroke, in the order drawn.
+ * @param {number} resolutionMs - The sensor's event resolution, in milliseconds.
+ * @param {number} anchorMs - Any event start, in milliseconds since the epoch.
+ * @param {number} [step] - The step to round values to; values are kept as drawn without one.
+ * @returns {{start: Date, end: Date, value: number}[]} The draft values, sorted by start.
+ */
+export function strokeToDrafts(points, resolutionMs, anchorMs, step) {
+  if (!points || points.length === 0) return [];
+  const times = points.map((point) => point.time.getTime());
+  const range = { start: new Date(Math.min(...times)), end: new Date(Math.max(...times)) };
+  const decimals = step > 0 ? Math.max(0, -Math.floor(Math.log10(step))) : null;
+  const round = (value) => (decimals === null ? value : Number((Math.round(value / step) * step).toFixed(decimals)));
+  return selectionToSlots(range, resolutionMs, anchorMs).map((slot) => ({
+    start: slot.start,
+    end: slot.end,
+    value: round(strokeValueAt(points, (slot.start.getTime() + slot.end.getTime()) / 2)),
+  }));
+}
+
+// The height of a stroke at a time: on the last drawn segment that spans it, or else at the nearest point.
+function strokeValueAt(points, t) {
+  for (let k = points.length - 1; k > 0; k--) {
+    const ta = points[k - 1].time.getTime();
+    const tb = points[k].time.getTime();
+    if (Math.min(ta, tb) <= t && t <= Math.max(ta, tb)) {
+      if (ta === tb) return points[k].value;
+      return points[k - 1].value + ((points[k].value - points[k - 1].value) * (t - ta)) / (tb - ta);
+    }
+  }
+  let nearest = points[0];
+  for (const point of points) {
+    if (Math.abs(point.time.getTime() - t) < Math.abs(nearest.time.getTime() - t)) nearest = point;
+  }
+  return nearest.value;
+}
+
+/**
+ * A scale to propose for drawing: twice the top of the chart's y-axis, rounded up to one significant digit.
+ *
+ * @param {number|null} yAxisMax - The top of the y-axis as shown.
+ * @returns {number} The scale, at least 1.
+ */
+export function proposedDrawScale(yAxisMax) {
+  const target = 2 * (yAxisMax > 0 && isFinite(yAxisMax) ? yAxisMax : 0.5);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(target)));
+  return Math.max(1, Math.ceil(target / magnitude) * magnitude);
 }
 
 /**
@@ -227,6 +294,8 @@ function defaultFormatTime(date) {
  * Wire the "Draft values" side panel.
  *
  * The panel's elements are found by their data attributes inside the root:
+ * data-draft-draw (the Draw on chart toggle, with data-draft-draw-text for its label, data-draft-drawing explaining it
+ * and holding data-draft-draw-max, the scale to draw on, and data-draft-typed, the fields hidden while drawing; all optional),
  * data-draft-record (the Select on chart toggle, with data-draft-record-text for its label),
  * data-draft-start and data-draft-duration (a datetime-local and a text field), data-draft-value (the value field), data-draft-add,
  * data-draft-selection (describes the selection), data-draft-list (one row per group of draft values), data-draft-count,
@@ -235,6 +304,7 @@ function defaultFormatTime(date) {
  * While recording, a "chartrangeselected" event on the target selects the slots its range covers,
  * and so does a start and an ISO 8601 duration typed in, as the sensor data API takes them, which start recording if need be.
  * Each fills in the other: a selection on the chart shows as a start and a duration, and a typed one shows on the chart.
+ * While drawing, a "chartdrawn" event on the target turns the stroke it carries into draft values (see strokeToDrafts).
  *
  * @param {HTMLElement} root - The panel.
  * @param {Object} options
@@ -245,7 +315,7 @@ function defaultFormatTime(date) {
  * @param {function(): number} options.getAnchorMs - Any event start of the sensor, in milliseconds since the epoch.
  * @param {Object} options.chart - How the panel drives the chart:
  *   startSelecting() turns on the select tool (it may return a promise, and false when that is not possible),
- *   stopSelecting(), showSelection(range|null) and showDrafts(drafts).
+ *   stopSelecting(), startDrawing() and stopDrawing() likewise for the draw tool, showSelection(range|null) and showDrafts(drafts).
  * @param {function(string): boolean} [options.confirm] - Asks the user to confirm (window.confirm by default).
  * @param {EventTarget} [options.target] - Where chart events arrive and the hand-off is dispatched (document by default).
  * @param {Window} [options.win] - Where leaving the page is guarded (window by default).
@@ -269,6 +339,11 @@ export function wireDraftValuesPanel(root, options) {
   const recordButton = el("record");
   const valueInput = el("value");
   const recordText = el("record-text") || recordButton;
+  const drawButton = el("draw");
+  const drawText = el("draw-text") || drawButton;
+  const drawingNote = el("drawing");
+  const drawMaxInput = el("draw-max");
+  const typedFields = el("typed");
   const startInput = el("start");
   const durationInput = el("duration");
   const addButton = el("add");
@@ -282,6 +357,7 @@ export function wireDraftValuesPanel(root, options) {
 
   let drafts = [];
   let recording = false;
+  let drawing = false;
   let slots = [];
 
   const unavailable = draftValuesUnavailableReason(opts.resolutionMs, opts.isTouch);
@@ -296,6 +372,13 @@ export function wireDraftValuesPanel(root, options) {
   function render() {
     recordText.textContent = recording ? "Stop selecting" : "Select on chart";
     recordButton.setAttribute("aria-pressed", recording ? "true" : "false");
+    if (drawButton) {
+      drawText.textContent = drawing ? "Stop drawing" : "Draw on chart";
+      drawButton.setAttribute("aria-pressed", drawing ? "true" : "false");
+      drawingNote.classList.toggle("d-none", !drawing);
+      // A typed range and value do not apply while drawing.
+      if (typedFields) typedFields.classList.toggle("d-none", drawing);
+    }
     addButton.disabled = !pending();
     // Green as soon as a value is typed, so the step that is easy to miss stands out, and once values were added, to show they were.
     const green = parseDraftValue(valueInput.value) !== null || drafts.length > 0;
@@ -376,12 +459,53 @@ export function wireDraftValuesPanel(root, options) {
     get recording() {
       return recording;
     },
+    get drawing() {
+      return drawing;
+    },
+    // Turn on the draw tool, so that a stroke on the chart makes draft values, ending selecting.
+    async draw() {
+      if (drawing || unavailable) return;
+      controller.endRecording();
+      const started = await opts.chart.startDrawing();
+      if (started === false) return;
+      drawing = true;
+      // Propose room above what the chart shows, as the values to draw may lie above the data so far.
+      if (drawMaxInput && opts.chart.getYAxisMax) {
+        if (!drawMaxInput.value) drawMaxInput.value = String(proposedDrawScale(opts.chart.getYAxisMax()));
+        controller.setDrawScale(drawMaxInput.value);
+      }
+      render();
+    },
+    // Let the chart reach up to this value while drawing.
+    setDrawScale(text) {
+      const yMax = parseDraftValue(text);
+      if (!drawing || yMax === null || !opts.chart.setDrawScale) return;
+      opts.chart.setDrawScale(yMax);
+    },
+    stopDrawing() {
+      if (!drawing) return;
+      drawing = false;
+      opts.chart.stopDrawing();
+      render();
+    },
+    // Turn a stroke drawn on the chart into draft values, replacing what it overlaps.
+    addStroke(stroke) {
+      if (!drawing || !stroke) return;
+      const drawn = strokeToDrafts(stroke.points, opts.resolutionMs, opts.getAnchorMs(), stroke.step);
+      if (drawn.length > MAX_DRAFT_SLOTS) {
+        showToastIfAvailable("That line crosses " + drawn.length + " slots; please draw at most " + MAX_DRAFT_SLOTS + " at once.", "error");
+        return;
+      }
+      setDrafts(mergeDrafts(drafts, drawn));
+      render();
+    },
     get slots() {
       return slots.slice();
     },
     // Turn on the select tool, so that selections on the chart pick slots.
     async record() {
       if (recording || unavailable) return;
+      controller.stopDrawing();
       const started = await opts.chart.startSelecting();
       if (started === false) return;
       recording = true;
@@ -401,6 +525,7 @@ export function wireDraftValuesPanel(root, options) {
       controller.add();
       if (drafts.length === 0) return;
       controller.endRecording();
+      controller.stopDrawing();
       opts.target.dispatchEvent(
         new CustomEvent(DRAFT_VALUES_RECORDED_EVENT, {
           detail: { sensorId: opts.sensorId, drafts: drafts.map((d) => ({ ...d })), action: action },
@@ -471,6 +596,7 @@ export function wireDraftValuesPanel(root, options) {
     // Discard all draft values without asking, and end recording, e.g. once they are saved, or after the preview asked.
     discard() {
       controller.endRecording();
+      controller.stopDrawing();
       setDrafts([]);
       render();
     },
@@ -496,6 +622,19 @@ export function wireDraftValuesPanel(root, options) {
     }
   });
   opts.target.addEventListener("chartrangeselected", (event) => controller.select(event.detail));
+  if (drawButton) {
+    drawButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      drawing ? controller.stopDrawing() : controller.draw();
+    });
+  }
+  opts.target.addEventListener("chartdrawn", (event) => controller.addStroke(event.detail));
+  if (drawMaxInput) drawMaxInput.addEventListener("change", () => controller.setDrawScale(drawMaxInput.value));
+  // Another chart tool was picked, which ended drawing.
+  opts.target.addEventListener("chartdrawmodeended", () => {
+    drawing = false;
+    render();
+  });
   // Draft values only live in this page, so leaving it would lose them.
   opts.win.addEventListener("beforeunload", (event) => {
     if (drafts.length === 0) return;

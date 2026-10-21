@@ -240,15 +240,27 @@ For the data, note the following:
                                   <div class="form-text text-white mb-2">
                                       Sketch values on the chart before saving them. Nothing is saved from this panel.
                                   </div>
-                                  <div class="mb-3">
-                                      <div class="d-flex justify-content-between align-items-baseline">
-                                          <label for="draftStart" class="form-label fw-bold">
-                                              Time range
-                                              <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
-                                                  title="Enter a start and a duration, or click Select on chart and drag across the chart (or click a single event). The range is widened to whole events of the sensor."></i>
-                                          </label>
-                                          <a href="#" data-draft-record class="small link-light" role="button" aria-pressed="false"><i class="fa fa-crosshairs me-1"></i><span data-draft-record-text>Select on chart</span></a>
+                                  <div class="d-flex gap-3 mb-1 small">
+                                      <a href="#" data-draft-draw class="link-light" role="button" aria-pressed="false"
+                                          title="Press and drag across the chart: where you draw is when, and how high is the value."><i class="fa fa-pencil me-1"></i><span data-draft-draw-text>Draw on chart</span></a>
+                                      <a href="#" data-draft-record class="link-light" role="button" aria-pressed="false"
+                                          title="Drag across the chart to choose a time range, or click a single event, then type a value below."><i class="fa fa-crosshairs me-1"></i><span data-draft-record-text>Select on chart</span></a>
+                                  </div>
+                                  <div data-draft-drawing class="mb-3 d-none">
+                                      <div class="form-text text-white mb-1">
+                                          Press and drag across the chart: the height of your line is the value. Draw again over a part to change it.
                                       </div>
+                                      <label for="draftDrawMax" class="form-label small mb-0">Highest value you want to draw{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
+                                      <input id="draftDrawMax" data-draft-draw-max class="form-control" type="number" step="any" aria-describedby="draftDrawMaxHelp" />
+                                      <div id="draftDrawMaxHelp" class="form-text text-white">The chart makes room up to this value, so you can draw above the data it shows.</div>
+                                  </div>
+                                  <div data-draft-typed>
+                                  <div class="mb-3">
+                                      <label for="draftStart" class="form-label fw-bold d-block">
+                                          Time range
+                                          <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
+                                              title="Enter a start and a duration, or click Select on chart and drag across the chart (or click a single event). The range is widened to whole events of the sensor."></i>
+                                      </label>
                                       <label for="draftStart" class="form-label small mb-0">Start</label>
                                       <input id="draftStart" data-draft-start class="form-control" type="datetime-local" step="60" />
                                       <label for="draftDuration" class="form-label small mb-0 mt-2">
@@ -267,6 +279,7 @@ For the data, note the following:
                                               aria-describedby="draftSelection" />
                                           <button data-draft-add type="button" class="btn btn-light" disabled>Add</button>
                                       </div>
+                                  </div>
                                   </div>
                                   <div class="mb-3">
                                       <div class="fw-bold mb-1">Draft values <span data-draft-count class="badge rounded-pill bg-light text-dark ms-1 d-none"></span></div>

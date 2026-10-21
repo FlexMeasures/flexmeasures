@@ -7,11 +7,15 @@ document.body.insertAdjacentHTML("beforeend", `
   <div id="panel">
     <div data-draft-unavailable class="d-none"></div>
     <div data-draft-controls>
+      <a href="#" data-draft-draw><span data-draft-draw-text>Draw on chart</span></a>
+      <div data-draft-drawing class="d-none"><input data-draft-draw-max type="number" /></div>
       <a href="#" data-draft-record><span data-draft-record-text>Select on chart</span></a>
+      <div data-draft-typed>
       <input data-draft-start type="datetime-local" />
       <input data-draft-duration type="text" />
       <input data-draft-value type="number" />
       <button data-draft-add type="button" class="btn-light">Add</button>
+      </div>
       <div data-draft-selection></div>
       <ul data-draft-list></ul>
       <span data-draft-count class="d-none"></span>
@@ -26,6 +30,12 @@ chart.startSelecting = () => { chart.selecting = true; };
 chart.stopSelecting = () => { chart.selecting = false; };
 chart.showSelection = (range) => { chart.selection = range; };
 chart.showDrafts = (drafts) => { chart.drafts = drafts; };
+chart.drawing = false;
+chart.scales = [];
+chart.startDrawing = () => { chart.drawing = true; };
+chart.stopDrawing = () => { chart.drawing = false; };
+chart.getYAxisMax = () => 10;
+chart.setDrawScale = (yMax) => chart.scales.push(yMax);
 const confirmations = [];
 let confirmAnswer = true;
 const target = new EventTarget();
@@ -401,4 +411,73 @@ def test_draft_values_are_grouped_into_runs(assert_js):
            [[0, 2 * Q, 1, 2], [2 * Q, 3 * Q, 2, 1], [4 * Q, 6 * Q, 2, 2]]);
         eq("nothing makes no groups", groupDrafts([]), []);
         eq("a group can be removed by its range", removeDraftsIn(drafts, T0 + 4 * Q, T0 + 6 * Q).length, 3);
+        """)
+
+
+def test_a_stroke_becomes_draft_values(assert_js):
+    """Each slot a stroke crosses takes the stroke's height at its middle, rounded to the step the drawing can tell apart."""
+    assert_js("""
+        import { strokeToDrafts } from "/js/draft-values.js";
+        const Q = 15 * 60 * 1000;
+        const T0 = Date.UTC(2026, 0, 1);
+        const at = (minutes, value) => ({ time: new Date(T0 + minutes * 60000), value: value });
+        const level = strokeToDrafts([at(2, 20.3), at(58, 19.8)], Q, T0, 1);
+        eq("a level line over an hour makes four values, at its rounded height",
+           level.map((d) => [d.start.getTime() - T0, d.value]), [[0, 20], [Q, 20], [2 * Q, 20], [3 * Q, 20]]);
+        const ramp = strokeToDrafts([at(0, 0), at(60, 40)], Q, T0);
+        eq("a ramp is read at the middle of each slot", ramp.map((d) => d.value), [5, 15, 25, 35]);
+        // Along at 10, up at the end, and back along at 30.
+        const back = strokeToDrafts([at(0, 10), at(60, 10), at(60, 30), at(30, 30)], Q, T0);
+        eq("where the stroke passes twice, the last pass counts", back.map((d) => d.value), [10, 10, 30, 30]);
+        eq("a click makes the one slot it is in", strokeToDrafts([at(20, 7)], Q, T0).map((d) => [d.start.getTime() - T0, d.value]), [[Q, 7]]);
+        eq("decimals follow the step", strokeToDrafts([at(5, 0.12345)], Q, T0, 0.01)[0].value, 0.12);
+        eq("nothing drawn makes nothing", strokeToDrafts([], Q, T0), []);
+        """)
+
+
+def test_the_scale_to_draw_on(assert_js):
+    assert_js("""
+        import { proposedDrawScale } from "/js/draft-values.js";
+        import { drawnValueStep } from "/js/fast-chart.js";
+        eq("twice the axis, rounded up to one significant digit", [proposedDrawScale(10), proposedDrawScale(37), proposedDrawScale(0.3)], [20, 80, 1]);
+        eq("an empty chart still gets room", proposedDrawScale(null), 1);
+        eq("values are worth a power of ten no finer than a pixel", [drawnValueStep(0.27), drawnValueStep(0.004), drawnValueStep(3)], [1, 0.01, 10]);
+        """)
+
+
+def test_drawing_on_the_chart_makes_draft_values(assert_js):
+    """Draw turns on the draw tool with a scale above the data, a drawn stroke adds draft values, and other tools end it."""
+    assert_js(PANEL + """
+        const Q = QUARTER;
+        const stroke = (fromMin, toMin, value) => target.dispatchEvent(new CustomEvent("chartdrawn", {
+          detail: { points: [{ time: new Date(T0 + fromMin * 60000), value: value }, { time: new Date(T0 + toMin * 60000), value: value }], step: 1 },
+        }));
+        stroke(0, 59, 20);
+        eq("a stroke is ignored until drawing", panel.drafts.length, 0);
+        await panel.record();
+        button("draw").click();
+        await Promise.resolve();
+        check("Draw turns on the draw tool", chart.drawing && panel.drawing, "");
+        check("ending selecting", !panel.recording && !chart.selecting, "");
+        eq("and offers to stop", button("draw").textContent, "Stop drawing");
+        check("explaining how, and hiding the typed fields", !button("drawing").classList.contains("d-none") && button("typed").classList.contains("d-none"), "");
+        eq("proposing a scale above the data", [button("draw-max").value, chart.scales], ["20", [20]]);
+        button("draw-max").value = "50";
+        button("draw-max").dispatchEvent(new Event("change"));
+        eq("which can be changed", chart.scales, [20, 50]);
+
+        stroke(0, 59, 20);
+        eq("a stroke adds a draft value per slot", panel.drafts.map((d) => d.value), [20, 20, 20, 20]);
+        eq("shown on the chart", chart.drafts.length, 4);
+        stroke(30, 59, 40);
+        eq("drawing again over a part changes it", panel.drafts.map((d) => d.value), [20, 20, 40, 40]);
+
+        await panel.record();
+        check("selecting ends drawing", !panel.drawing && !chart.drawing && chart.selecting, "");
+        check("and brings the typed fields back", !button("typed").classList.contains("d-none"), "");
+        panel.endRecording();
+        button("draw").click();
+        await Promise.resolve();
+        target.dispatchEvent(new CustomEvent("chartdrawmodeended"));
+        check("another chart tool ends drawing too", !panel.drawing && button("draw").textContent === "Draw on chart", "");
         """)

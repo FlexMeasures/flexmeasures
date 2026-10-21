@@ -740,20 +740,21 @@ const TOOL_GRAY = "#666";
 
 // Whether the range selection is *effectively* active right now: the chosen mode, unless Ctrl is held to pan.
 function effectiveSelect(instance) {
-  return !!instance._selectable && !!instance._selectMode && !instance._ctrlHeld;
+  return !!instance._selectable && !!instance._selectMode && !instance._drawMode && !instance._ctrlHeld;
 }
 
 // Whether the marquee zoom (vs pan) is *effectively* active right now: the chosen mode,
 // inverted while Ctrl is held. Drives both the marquee and the blue button highlight.
 // In select mode, Ctrl pans, as it does in zoom mode.
 function effectiveZoom(instance) {
+  if (instance._drawMode) return false;
   if (instance._selectMode && instance._selectable) return false;
   return (instance._zoomMode !== false) !== !!instance._ctrlHeld;
 }
 
 // The button colour of the Pan tool: blue when neither zooming nor selecting.
 function panColor(instance) {
-  return effectiveZoom(instance) || effectiveSelect(instance) ? TOOL_GRAY : TOOL_BLUE;
+  return effectiveZoom(instance) || effectiveSelect(instance) || instance._drawMode ? TOOL_GRAY : TOOL_BLUE;
 }
 
 function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
@@ -855,7 +856,13 @@ function applyChartMode(instance) {
     feature.mySelect = { iconStyle: { borderColor: selectActive ? TOOL_BLUE : TOOL_GRAY } };
   }
   // Recolour the buttons first, then set the marquee (so the merge can't clear it).
-  chart.setOption({ toolbox: { feature: feature } });
+  // While drawing, a drag must draw rather than pan, so the inside zoom stops following the pointer.
+  const dataZoom = (instance.lastOption && instance.lastOption.dataZoom) || [];
+  const update = { toolbox: { feature: feature } };
+  if (dataZoom.length > 0) {
+    update.dataZoom = dataZoom.map((dz) => (dz.type === "inside" ? { moveOnMouseMove: !instance._drawMode } : {}));
+  }
+  chart.setOption(update);
   // The global cursor goes to one tool at a time: taking it for the brush turns the marquee off, and vice versa.
   if (selectActive && instance.lastOption && instance.lastOption.brush) {
     chart.dispatchAction({ type: "takeGlobalCursor", key: "brush", brushOption: { brushType: "lineX", brushMode: "single" } });
@@ -871,7 +878,16 @@ function setChartMode(elementId, zoom) {
   if (!instance || instance.chart.isDisposed()) return;
   instance._zoomMode = zoom;
   instance._selectMode = false;
+  endDrawMode(instance, elementId);
   applyChartMode(instance);
+}
+
+// Picking another tool ends drawing, which the page is told, so a Draw toggle can follow.
+function endDrawMode(instance, elementId) {
+  if (!instance._drawMode) return;
+  instance._drawMode = false;
+  const container = document.getElementById(elementId);
+  if (container) container.dispatchEvent(new CustomEvent("chartdrawmodeended", { bubbles: true }));
 }
 
 // The Select button makes a drag select a time range instead of zooming into it.
@@ -879,6 +895,7 @@ function setSelectMode(elementId) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
   instance._selectMode = true;
+  endDrawMode(instance, elementId);
   applyChartMode(instance);
 }
 
@@ -2548,6 +2565,7 @@ export function renderFastChart(elementId, data, options) {
   if (instance._selectable && Array.isArray(option.dataZoom) && option.dataZoom.length > 0) {
     option.brush = selectionBrush(option);
   }
+  applyDrawScale(option, instance);
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
@@ -2558,7 +2576,120 @@ export function renderFastChart(elementId, data, options) {
   wireZoomInteractions(instance, opts);
   wireZoomRefresh(instance);
   wireSelection(instance, elementId);
+  wireDrawing(instance, elementId);
   wireTouchTooltipDismiss(instance, elementId);
+}
+
+/* ============================== drawing values ============================== */
+
+// Turn the draw tool on (a drag over the first plot draws values, see wireDrawing), or back off to zooming.
+// Returns whether the chart offers it at all, which is where it offers the select tool.
+export function setFastChartDrawMode(elementId, on) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed() || !instance._selectable) return false;
+  instance._drawMode = !!on;
+  if (on) instance._selectMode = false;
+  applyChartMode(instance);
+  // The scale to draw on applies while drawing only.
+  if (!on && instance._drawYMax !== null && instance._drawYMax !== undefined) {
+    instance._drawYMax = null;
+    rerenderKeepingZoom(elementId, {});
+  }
+  return true;
+}
+
+// Let the first plot's y-axis reach up to this value while drawing, so values above the data can be drawn.
+export function setFastChartDrawScale(elementId, yMax) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._drawYMax = isFinite(yMax) ? yMax : null;
+  rerenderKeepingZoom(elementId, {});
+}
+
+// The top of the first plot's y-axis as shown, e.g. to propose a scale to draw on.
+export function getFastChartYAxisMax(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return null;
+  const axis = instance.chart.getModel().getComponent("yAxis", 0);
+  return axis && axis.axis ? axis.axis.scale.getExtent()[1] : null;
+}
+
+// While drawing, raise the first plot's y-axis to the scale to draw on, unless the data reach higher.
+function applyDrawScale(option, instance) {
+  if (!instance._drawMode || instance._drawYMax === null || instance._drawYMax === undefined) return;
+  const yAxis = Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis;
+  if (!yAxis || yAxis.type !== "value") return;
+  const drawMax = instance._drawYMax;
+  const max = yAxis.max;
+  yAxis.max = (extent) => Math.max(typeof max === "function" ? max(extent) : typeof max === "number" ? max : extent.max, drawMax);
+}
+
+// The finest step worth keeping in a drawn value: a power of ten no smaller than what one pixel of the y-axis spans.
+export function drawnValueStep(valuePerPixel) {
+  if (!(valuePerPixel > 0) || !isFinite(valuePerPixel)) return 1;
+  return Math.pow(10, Math.ceil(Math.log10(valuePerPixel)));
+}
+
+// With the draw tool, a press and drag over the first plot draws a stroke that follows the pointer,
+// and on release, the points it went through ({time, value}, in the order drawn) are reported,
+// with the step their values are worth rounding to, as a "chartdrawn" DOM event on the chart container.
+// The stroke is a plain zrender line, so the chart is not re-rendered while drawing.
+function wireDrawing(instance, elementId) {
+  const chart = instance.chart;
+  const zr = chart.getZr();
+  if (instance.onDrawDown) {
+    zr.off("mousedown", instance.onDrawDown);
+    zr.off("mousemove", instance.onDrawMove);
+    zr.off("mouseup", instance.onDrawEnd);
+    zr.off("globalout", instance.onDrawEnd);
+    instance.onDrawDown = null;
+  }
+  instance._stroke = null;
+  const container = document.getElementById(elementId);
+  if (!container || !instance._selectable) return;
+  const pointAt = (e) => {
+    if (!chart.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY])) return null;
+    const [time, value] = chart.convertFromPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+    return isFinite(time) && isFinite(value) ? { time: new Date(time), value: value } : null;
+  };
+  instance.onDrawDown = (e) => {
+    if (!instance._drawMode) return;
+    const point = pointAt(e);
+    if (!point) return;
+    const line = new echarts.graphic.Polyline({
+      shape: { points: [[e.offsetX, e.offsetY]] },
+      style: { stroke: DRAFT_VALUES_COLOR, lineWidth: 3, fill: null },
+      silent: true,
+      z: 100,
+    });
+    zr.add(line);
+    instance._stroke = { points: [point], line: line, y: e.offsetY };
+  };
+  instance.onDrawMove = (e) => {
+    const stroke = instance._stroke;
+    if (!stroke) return;
+    const point = pointAt(e);
+    if (!point) return;
+    stroke.points.push(point);
+    stroke.line.setShape({ points: stroke.line.shape.points.concat([[e.offsetX, e.offsetY]]) });
+  };
+  instance.onDrawEnd = () => {
+    const stroke = instance._stroke;
+    if (!stroke) return;
+    instance._stroke = null;
+    zr.remove(stroke.line);
+    const valuePerPixel = Math.abs(
+      chart.convertFromPixel({ gridIndex: 0 }, [0, stroke.y])[1] - chart.convertFromPixel({ gridIndex: 0 }, [0, stroke.y + 1])[1],
+    );
+    container.dispatchEvent(new CustomEvent("chartdrawn", {
+      bubbles: true,
+      detail: { points: stroke.points, step: drawnValueStep(valuePerPixel) },
+    }));
+  };
+  zr.on("mousedown", instance.onDrawDown);
+  zr.on("mousemove", instance.onDrawMove);
+  zr.on("mouseup", instance.onDrawEnd);
+  zr.on("globalout", instance.onDrawEnd);
 }
 
 /* ============================== range selection ============================== */
