@@ -936,6 +936,11 @@ class SensorAPI(FlaskView):
         if max_size is not None and 2 * min_slots > max_size:
             return too_large(f"at least {2 * min_slots}")
 
+        on_days = {
+            "workdays": lambda day: day.weekday() < 5,
+            "weekends": lambda day: day.weekday() >= 5,
+        }.get(repeat)
+
         try:
             expanded, report = expand_wall_clock_recurrence(
                 pattern,
@@ -943,6 +948,7 @@ class SensorAPI(FlaskView):
                 tz=sensor.timezone,
                 resolution=resolution,
                 same_weekday_only=repeat == "same-weekday",
+                on_days=on_days,
             )
         except RecurrenceError as exc:
             return unprocessable_entity(str(exc))

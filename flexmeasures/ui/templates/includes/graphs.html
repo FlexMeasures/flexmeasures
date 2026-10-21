@@ -29,7 +29,7 @@
     import { checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges, snapSelection, selectionStepMs } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { fetchChartData, fetchChartAnnotations } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-fetch.js') }}?v={{ flexmeasures_version }}";
     import { createChartDataCache } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-cache.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, setFastChartSelectMode, refreshFastChartDraftValues, refreshFastChartPreview } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime, setFastChartFullBeliefInfo, getFastChartVisibleTimeRange, refreshFastChartAnnotations, setFastChartSelection, setFastChartSelectMode, setFastChartDrawMode, setFastChartDrawScale, getFastChartYAxisMax, refreshFastChartDraftValues, refreshFastChartPreview } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
     import { wireDraftValuesPanel } from "{{ url_for('flexmeasures_ui.static', filename='js/draft-values.js') }}?v={{ flexmeasures_version }}";
     import { wirePreviewStep, requestJson } from "{{ url_for('flexmeasures_ui.static', filename='js/draft-values-preview.js') }}?v={{ flexmeasures_version }}";
 
@@ -347,44 +347,55 @@
         clearAnnotationSelection();
     });
 
-    // The Draft values panel records values with the select tool of the fast chart, and shows them over the data.
-    // Stop hands them over in a "draftvaluesrecorded" event; nothing is saved from here.
+    // The Draft values panel records values with the select or draw tool of the fast chart, and shows them over the data.
+    // Its handOver hands them over in a "draftvaluesrecorded" event, for the preview step to pick up; nothing is saved from here.
     const draftValuesPanel = wireDraftValuesPanel(document.getElementById('draftValuesPanel'), {
         sensorId: {{ sensor.id }},
         resolutionMs: sensorResolutionMs,
         unit: {{ sensor.unit | tojson }},
+        timeZone: {{ sensor.timezone | tojson }},
         getAnchorMs: sensorEventAnchorMs,
         isTouch: window.matchMedia('(pointer: coarse)').matches,
         chart: {
-            startSelecting: startDraftSelecting,
+            startSelecting: function () { return startDraftTool(setFastChartSelectMode); },
             stopSelecting: function () { setFastChartSelectMode(fastChartElementId, false); },
+            startDrawing: function () { return startDraftTool(setFastChartDrawMode); },
+            stopDrawing: function () { setFastChartDrawMode(fastChartElementId, false); },
+            getYAxisMax: function () { return getFastChartYAxisMax(fastChartElementId); },
+            setDrawScale: function (yMax) { setFastChartDrawScale(fastChartElementId, yMax); },
             showSelection: function (range) { setFastChartSelection(fastChartElementId, range); },
             showDrafts: function (drafts) { refreshFastChartDraftValues(fastChartElementId, drafts); },
         },
     });
 
-    // Recording needs the select tool, which only the fast chart offers, and only with a time axis.
-    async function startDraftSelecting() {
+    // Selecting and drawing need a tool that only the fast chart offers, and only with a time axis.
+    async function startDraftTool(setToolMode) {
         if (!fastMode) await setFastMode(true);
         if (chartType !== 'bar_chart') {
             document.querySelector('#chart-type-picker .dropdown-item[data-chart-type="bar_chart"]').click();
         }
         // Switching to the fast chart renders it once its data is in, which may take a moment.
         for (let attempt = 0; attempt < 50; attempt++) {
-            if (setFastChartSelectMode(fastChartElementId, true)) return true;
+            if (setToolMode(fastChartElementId, true)) return true;
             await new Promise(function (resolve) { setTimeout(resolve, 100); });
         }
-        showToast('The chart is still loading. Please press Record again in a moment.', 'info');
+        showToast('The chart is still loading. Please try again in a moment.', 'info');
         return false;
     }
 
-    // Leaving the fast chart, or its time axis, ends recording, and keeps the draft values.
+    // Leaving the fast chart, or its time axis, ends recording and drawing, and keeps the draft values.
     document.getElementById('fastChartToggle')?.addEventListener('change', function () {
-        if (!this.checked) draftValuesPanel.endRecording();
+        if (!this.checked) {
+            draftValuesPanel.endRecording();
+            draftValuesPanel.stopDrawing();
+        }
     });
     document.querySelectorAll('#chart-type-picker .dropdown-item').forEach(function (item) {
         item.addEventListener('click', function () {
-            if (item.dataset.chartType !== 'bar_chart') draftValuesPanel.endRecording();
+            if (item.dataset.chartType !== 'bar_chart') {
+                draftValuesPanel.endRecording();
+                draftValuesPanel.stopDrawing();
+            }
         });
     });
 

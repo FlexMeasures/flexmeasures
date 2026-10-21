@@ -66,4 +66,5 @@ def test_post_previewed_recurrence(
     ).sort_index()
     assert len(saved) == preview.json["report"]["n_values"] == 3 * 5 + 1
     assert saved.index.equals(previewed.index.tz_convert("UTC"))
-    assert (saved.values == previewed.values * factor).all()
+    # Unit conversion may round the last digit, depending on the conversions pint has cached before.
+    assert list(saved.values) == pytest.approx(list(previewed.values * factor))

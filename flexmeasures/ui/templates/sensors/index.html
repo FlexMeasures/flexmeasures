@@ -240,31 +240,55 @@ For the data, note the following:
                                   <div class="form-text text-white mb-2">
                                       Sketch values on the chart, then click Stop to preview them, possibly repeated, before saving.
                                   </div>
-                                  <div>
-                                      <button data-draft-record type="button" class="btn btn-sm btn-responsive btn-success create-button"
-                                          aria-pressed="false" style="border: 1px solid var(--light-gray);">Record</button>
+                                  <div class="d-flex gap-3 mb-1 small">
+                                      <a href="#" data-draft-draw class="link-light" role="button" aria-pressed="false"
+                                          title="Press and drag across the chart: where you draw is when, and how high is the value."><i class="fa fa-pencil me-1"></i><span data-draft-draw-text>Draw on chart</span></a>
+                                      <a href="#" data-draft-record class="link-light" role="button" aria-pressed="false"
+                                          title="Drag across the chart to choose a time range, or click a single event, then type a value below."><i class="fa fa-crosshairs me-1"></i><span data-draft-record-text>Select on chart</span></a>
                                   </div>
-                                  <label for="draftStart" class="form-label fw-bold mt-3">Start</label>
-                                  <input id="draftStart" data-draft-start class="form-control form-control-sm" type="datetime-local" step="60" disabled />
-                                  <label for="draftDuration" class="form-label fw-bold mt-2">Duration</label>
-                                  <input id="draftDuration" data-draft-duration class="form-control form-control-sm" type="text" placeholder="PT2H"
-                                      aria-describedby="draftDurationHelp" autocomplete="off" disabled />
-                                  <div class="invalid-feedback">Please use an ISO 8601 duration in whole minutes, e.g. PT15M, PT2H or P1D.</div>
-                                  <div id="draftDurationHelp" class="form-text text-white">
-                                      As in the API: an ISO 8601 duration, e.g. PT15M, PT2H or P1D (always 24 hours).
+                                  <div data-draft-drawing class="mb-3 d-none">
+                                      <div class="form-text text-white mb-1">
+                                          Press and drag across the chart: the height of your line is the value. Draw again over a part to change it.
+                                      </div>
+                                      <label for="draftDrawMax" class="form-label small mb-0">Highest value you want to draw{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
+                                      <input id="draftDrawMax" data-draft-draw-max class="form-control" type="number" step="any" aria-describedby="draftDrawMaxHelp" />
+                                      <div id="draftDrawMaxHelp" class="form-text text-white">The chart makes room up to this value, so you can draw above the data it shows.</div>
                                   </div>
-                                  <label for="draftValue" class="form-label fw-bold mt-3">Value{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
-                                  <div class="input-group input-group-sm">
-                                      <input id="draftValue" data-draft-value class="form-control" type="number" step="any"
-                                          aria-describedby="draftSelection" />
-                                      <button data-draft-add type="button" class="btn btn-sm btn-light" disabled>Add</button>
+                                  <div data-draft-typed>
+                                  <div class="mb-3">
+                                      <label for="draftStart" class="form-label fw-bold d-block">
+                                          Time range
+                                          <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
+                                              title="Enter a start and a duration, or click Select on chart and drag across the chart (or click a single event). The range is widened to whole events of the sensor."></i>
+                                      </label>
+                                      <label for="draftStart" class="form-label small mb-0">Start</label>
+                                      <input id="draftStart" data-draft-start class="form-control" type="datetime-local" step="60" />
+                                      <label for="draftDuration" class="form-label small mb-0 mt-2">
+                                          Duration
+                                          <i class="fa fa-info-circle ms-1" style="color: white; cursor: pointer;"
+                                              title="As in the API: an ISO 8601 duration in whole minutes, e.g. PT15M, PT2H or P1D (always 24 hours)."></i>
+                                      </label>
+                                      <input id="draftDuration" data-draft-duration class="form-control" type="text" placeholder="PT2H" autocomplete="off" />
+                                      <div class="invalid-feedback">Please use an ISO 8601 duration in whole minutes, e.g. PT15M, PT2H or P1D.</div>
+                                      <div id="draftSelection" data-draft-selection class="form-text text-white"></div>
                                   </div>
-                                  <div id="draftSelection" data-draft-selection class="form-text text-white"></div>
-                                  <div class="fw-bold mt-3">Draft values</div>
-                                  <div data-draft-empty class="form-text text-white">No draft values yet.</div>
-                                  <ul data-draft-list class="list-group list-group-flush overflow-auto text-dark" style="max-height: 240px;"></ul>
-                                  <button data-draft-cancel type="button" class="btn btn-sm btn-responsive btn-secondary mt-3" disabled
-                                      style="border: 1px solid var(--light-gray);">Cancel</button>
+                                  <div class="mb-3">
+                                      <label for="draftValue" class="form-label fw-bold">Value{% if sensor.unit %} ({{ sensor.unit }}){% endif %}</label>
+                                      <div class="input-group">
+                                          <input id="draftValue" data-draft-value class="form-control" type="number" step="any"
+                                              aria-describedby="draftSelection" />
+                                          <button data-draft-add type="button" class="btn btn-light" disabled>Add</button>
+                                      </div>
+                                  </div>
+                                  </div>
+                                  <div class="mb-3">
+                                      <div class="fw-bold mb-1">Draft values <span data-draft-count class="badge rounded-pill bg-light text-dark ms-1 d-none"></span></div>
+                                      <div data-draft-empty class="form-text text-white">None yet: choose a time range and a value, then click Add.</div>
+                                      <ul data-draft-list class="list-group list-group-flush overflow-auto text-dark" style="max-height: 200px;"></ul>
+                                  </div>
+                                  <div class="d-flex align-items-center gap-2">
+                                      <a href="#" data-draft-cancel class="small link-light d-none" role="button">Discard</a>
+                                  </div>
                               </div>
                               <div id="draftPreviewStep" data-preview-step class="d-none">
                                   <div class="fw-bold">Save draft values</div>

@@ -7,15 +7,20 @@ document.body.insertAdjacentHTML("beforeend", `
   <div id="panel">
     <div data-draft-unavailable class="d-none"></div>
     <div data-draft-controls>
-      <button data-draft-record type="button">Record</button>
+      <a href="#" data-draft-draw><span data-draft-draw-text>Draw on chart</span></a>
+      <div data-draft-drawing class="d-none"><input data-draft-draw-max type="number" /></div>
+      <a href="#" data-draft-record><span data-draft-record-text>Select on chart</span></a>
+      <div data-draft-typed>
       <input data-draft-start type="datetime-local" />
       <input data-draft-duration type="text" />
       <input data-draft-value type="number" />
-      <button data-draft-add type="button">Add</button>
+      <button data-draft-add type="button" class="btn-light">Add</button>
+      </div>
       <div data-draft-selection></div>
       <ul data-draft-list></ul>
-      <div data-draft-empty>No draft values yet.</div>
-      <button data-draft-cancel type="button">Cancel</button>
+      <span data-draft-count class="d-none"></span>
+      <div data-draft-empty>None yet.</div>
+      <a href="#" data-draft-cancel class="d-none">Discard</a>
     </div>
   </div>`);
 const root = document.getElementById("panel");
@@ -25,6 +30,12 @@ chart.startSelecting = () => { chart.selecting = true; };
 chart.stopSelecting = () => { chart.selecting = false; };
 chart.showSelection = (range) => { chart.selection = range; };
 chart.showDrafts = (drafts) => { chart.drafts = drafts; };
+chart.drawing = false;
+chart.scales = [];
+chart.startDrawing = () => { chart.drawing = true; };
+chart.stopDrawing = () => { chart.drawing = false; };
+chart.getYAxisMax = () => 10;
+chart.setDrawScale = (yMax) => chart.scales.push(yMax);
 const confirmations = [];
 let confirmAnswer = true;
 const target = new EventTarget();
@@ -41,9 +52,11 @@ const panel = wireDraftValuesPanel(root, {
 });
 const selectOnChart = (start, end) =>
   target.dispatchEvent(new CustomEvent("chartrangeselected", { detail: { start: new Date(start), end: new Date(end) } }));
-const typeIn = (name, text) => {
+// Typing a start or a duration may start recording first, so the selection follows a moment later.
+const typeIn = async (name, text) => {
   button(name).value = text;
   button(name).dispatchEvent(new Event("change"));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 };
 const typeValue = (text) => {
   button("value").value = text;
@@ -166,39 +179,66 @@ def test_the_panel_explains_when_drafts_are_unavailable(assert_js):
 
 
 def test_record_select_add_and_stop(assert_js):
-    """Record turns on the select tool, a selection plus a value adds draft values, and Stop hands them over."""
+    """Select on chart turns on the select tool, a selection plus a value adds draft values, stopping keeps them, and Preview hands them over."""
     assert_js(PANEL + """
-        eq("the panel starts idle", button("record").textContent, "Record");
+        eq("the panel starts idle", button("record").textContent, "Select on chart");
+        typeValue("2");
+        check("typing a value turns Add green, before a range is chosen", button("add").classList.contains("btn-success") && button("add").style.opacity === "1", "");
+        check("though it waits for the range", button("add").disabled, "");
+        typeValue("");
+        check("clearing it takes the green away", button("add").classList.contains("btn-light"), "");
         selectOnChart(T0, T0 + 3600000);
         eq("a selection is ignored until recording", panel.slots.length, 0);
 
         button("record").click();
         await Promise.resolve();
-        check("Record turns on the select tool", chart.selecting, "");
-        eq("Stop replaces Record while recording", button("record").textContent, "Stop");
+        check("Select on chart turns on the select tool", chart.selecting, "");
+        eq("and offers to stop selecting", button("record").textContent, "Stop selecting");
 
         selectOnChart(T0 + 60000, T0 + 3600000 - 60000);
         eq("a selection picks the slots it touches", panel.slots.length, 4);
         eq("the chart shows the snapped selection", chart.selection.end.getTime(), T0 + 3600000);
         check("Add waits for a value", button("add").disabled, "");
+        check("and does not stand out yet", button("add").classList.contains("btn-light") && !button("add").classList.contains("btn-success"), "");
+        typeValue("abc");
+        check("nor for something that is not a number", button("add").classList.contains("btn-light"), "");
         typeValue("3.5");
         check("Add is offered with a selection and a value", !button("add").disabled, "");
+        check("and turns green", button("add").classList.contains("btn-success") && !button("add").classList.contains("btn-light"), "");
         button("add").click();
         eq("every slot got the value", panel.drafts.map((d) => d.value), [3.5, 3.5, 3.5, 3.5]);
         eq("the chart shows the draft values", chart.drafts.length, 4);
-        eq("the panel lists them", button("list").children.length, 4);
-        check("each row has the value and its unit", button("list").children[0].textContent.includes("3.5 kWh"), button("list").children[0].textContent);
+        eq("the panel lists them in one row, as they are one run of the same value", button("list").children.length, 1);
+        check("which has the value, its unit and the count", button("list").children[0].textContent.includes("3.5 kWh · 4 values"), button("list").children[0].textContent);
+        eq("and counts them", [button("count").textContent, button("count").classList.contains("d-none")], ["4", false]);
+        check("they can be discarded", !button("cancel").classList.contains("d-none"), "");
         eq("the selection is cleared", chart.selection, null);
         eq("the value stays for the next selection", button("value").value, "3.5");
+        check("Add stays green, showing values were added", button("add").classList.contains("btn-success"), "");
+        eq("not faded, though there is nothing to add for now", [button("add").disabled, button("add").style.opacity], [true, "1"]);
 
+        selectOnChart(T0 + 3600000, T0 + 3600000 + 2 * QUARTER - 60000);
+        typeValue("5");
+        button("add").click();
+        eq("another value makes another row", button("list").children.length, 2);
+        selectOnChart(T0 + 3600000 + 2 * QUARTER, T0 + 3600000 + 3 * QUARTER - 60000);
+        button("add").click();
+        eq("and so does the same value after it, as one run", button("list").children.length, 2);
         button("list").children[1].querySelector("button").click();
-        eq("a row's remove button removes that draft value", panel.drafts.length, 3);
+        eq("a row's remove button removes that run", panel.drafts.map((d) => d.value), [3.5, 3.5, 3.5, 3.5]);
+        button("list").children[0].querySelector("button").click();
+        selectOnChart(T0, T0 + 3 * QUARTER - 60000);
+        typeValue("3.5");
+        button("add").click();
 
         button("record").click();
-        check("Stop turns off the select tool", !chart.selecting, "");
-        eq("Record is offered again", button("record").textContent, "Record");
+        check("stopping turns off the select tool", !chart.selecting, "");
+        eq("Select on chart is offered again", button("record").textContent, "Select on chart");
         eq("the draft values are kept", panel.drafts.length, 3);
-        eq("they are handed over once", handedOver.length, 1);
+        eq("but not handed over", handedOver.length, 0);
+        panel.handOver("preview");
+        eq("handing them over does so once", handedOver.length, 1);
+        eq("to be previewed", handedOver[0].action, "preview");
         eq("for this sensor", handedOver[0].sensorId, 42);
         eq("with every draft value", handedOver[0].drafts.length, 3);
         """)
@@ -218,6 +258,8 @@ def test_cancel_asks_before_discarding(assert_js):
         confirmAnswer = true;
         button("cancel").click();
         eq("confirming discards them", panel.drafts.length, 0);
+        typeValue("");
+        check("and with no value left, Add is no longer green", button("add").classList.contains("btn-light") && !button("add").classList.contains("btn-success"), "");
         eq("from the chart, too", chart.drafts.length, 0);
         check("and ends recording", !panel.recording && !chart.selecting, "");
         eq("nothing is handed over", handedOver.length, 0);
@@ -237,8 +279,8 @@ def test_leaving_the_page_with_drafts_asks_for_confirmation(assert_js):
         typeValue("1");
         panel.add();
         check("leaving with draft values asks first", leave(), "");
-        panel.stop();
-        check("so it does after Stop, since nothing was saved", leave(), "");
+        panel.handOver("preview");
+        check("so it does after handing them over, since nothing was saved", leave(), "");
         """)
 
 
@@ -310,21 +352,19 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
     """Typing a start and a duration selects the slots they cover, and a selection on the chart fills both in."""
     assert_js(PANEL + """
         import { toDatetimeLocalValue } from "/js/draft-values.js";
-        check("the fields wait for Record", button("start").disabled && button("duration").disabled, "");
-        await panel.record();
-        check("Record enables them", !button("start").disabled && !button("duration").disabled, "");
-
         const start = new Date(T0 + 2 * 3600000 + 7 * 60000);
-        typeIn("start", toDatetimeLocalValue(start));
+        await typeIn("start", toDatetimeLocalValue(start));
         eq("a start alone selects nothing", panel.slots.length, 0);
-        typeIn("duration", "PT1H");
+        check("nor starts recording", !panel.recording, "");
+        await typeIn("duration", "PT1H");
+        check("start and duration start recording, without pressing Select on chart", panel.recording && chart.selecting, "");
         eq("start and duration select the slots they touch", panel.slots.length, 5);
         eq("from the slot the start lies in", panel.slots[0].start.getTime(), T0 + 2 * 3600000);
         check("which shows on the chart", chart.selection && chart.selection.start.getTime() === T0 + 2 * 3600000, "");
         eq("the fields show the snapped start", button("start").value, toDatetimeLocalValue(new Date(T0 + 2 * 3600000)));
         eq("and the duration it covers", button("duration").value, "PT1H15M");
 
-        typeIn("duration", "two hours");
+        await typeIn("duration", "two hours");
         check("an unreadable duration is pointed out", button("duration").classList.contains("is-invalid"), "");
         eq("and keeps the previous selection", panel.slots.length, 5);
 
@@ -337,4 +377,107 @@ def test_a_typed_start_and_duration_select_slots(assert_js):
         panel.add();
         eq("adding fills the slots", panel.drafts.length, 2);
         eq("and clears the fields for the next range", [button("start").value, button("duration").value], ["", ""]);
+        """)
+
+
+def test_handing_over_adds_what_is_pending_and_needs_draft_values(assert_js):
+    """Handing over adds a selection with a value that was not added yet, and hands nothing over without draft values."""
+    assert_js(PANEL + """
+        panel.handOver("save");
+        eq("with nothing drafted, nothing is handed over", handedOver.length, 0);
+        await panel.record();
+        selectOnChart(T0, T0 + 3600000 - 60000);
+        panel.handOver("save");
+        eq("nor with a selection alone", handedOver.length, 0);
+        typeValue("7");
+        panel.handOver("save");
+        eq("it is added before handing over", handedOver.length, 1);
+        eq("with every slot", handedOver[0].drafts.map((d) => d.value), [7, 7, 7, 7]);
+        eq("to be saved as they are", handedOver[0].action, "save");
+        check("and recording ends", !panel.recording && !chart.selecting, "");
+        """)
+
+
+def test_draft_values_are_grouped_into_runs(assert_js):
+    assert_js("""
+        import { groupDrafts, removeDraftsIn } from "/js/draft-values.js";
+        const Q = 15 * 60 * 1000;
+        const T0 = Date.UTC(2026, 0, 1);
+        const slot = (k, value) => ({ start: new Date(T0 + k * Q), end: new Date(T0 + (k + 1) * Q), value: value });
+        const drafts = [slot(0, 1), slot(1, 1), slot(2, 2), slot(4, 2), slot(5, 2)];
+        const groups = groupDrafts(drafts);
+        eq("adjacent slots with the same value make one group, a new value or a gap another",
+           groups.map((g) => [g.start.getTime() - T0, g.end.getTime() - T0, g.value, g.count]),
+           [[0, 2 * Q, 1, 2], [2 * Q, 3 * Q, 2, 1], [4 * Q, 6 * Q, 2, 2]]);
+        eq("nothing makes no groups", groupDrafts([]), []);
+        eq("a group can be removed by its range", removeDraftsIn(drafts, T0 + 4 * Q, T0 + 6 * Q).length, 3);
+        """)
+
+
+def test_a_stroke_becomes_draft_values(assert_js):
+    """Each slot a stroke crosses takes the stroke's height at its middle, rounded to the step the drawing can tell apart."""
+    assert_js("""
+        import { strokeToDrafts } from "/js/draft-values.js";
+        const Q = 15 * 60 * 1000;
+        const T0 = Date.UTC(2026, 0, 1);
+        const at = (minutes, value) => ({ time: new Date(T0 + minutes * 60000), value: value });
+        const level = strokeToDrafts([at(2, 20.3), at(58, 19.8)], Q, T0, 1);
+        eq("a level line over an hour makes four values, at its rounded height",
+           level.map((d) => [d.start.getTime() - T0, d.value]), [[0, 20], [Q, 20], [2 * Q, 20], [3 * Q, 20]]);
+        const ramp = strokeToDrafts([at(0, 0), at(60, 40)], Q, T0);
+        eq("a ramp is read at the middle of each slot", ramp.map((d) => d.value), [5, 15, 25, 35]);
+        // Along at 10, up at the end, and back along at 30.
+        const back = strokeToDrafts([at(0, 10), at(60, 10), at(60, 30), at(30, 30)], Q, T0);
+        eq("where the stroke passes twice, the last pass counts", back.map((d) => d.value), [10, 10, 30, 30]);
+        eq("a click makes the one slot it is in", strokeToDrafts([at(20, 7)], Q, T0).map((d) => [d.start.getTime() - T0, d.value]), [[Q, 7]]);
+        eq("decimals follow the step", strokeToDrafts([at(5, 0.12345)], Q, T0, 0.01)[0].value, 0.12);
+        eq("nothing drawn makes nothing", strokeToDrafts([], Q, T0), []);
+        """)
+
+
+def test_the_scale_to_draw_on(assert_js):
+    assert_js("""
+        import { proposedDrawScale } from "/js/draft-values.js";
+        import { drawnValueStep } from "/js/fast-chart.js";
+        eq("twice the axis, rounded up to one significant digit", [proposedDrawScale(10), proposedDrawScale(37), proposedDrawScale(0.3)], [20, 80, 1]);
+        eq("an empty chart still gets room", proposedDrawScale(null), 1);
+        eq("values are worth a power of ten no finer than a pixel", [drawnValueStep(0.27), drawnValueStep(0.004), drawnValueStep(3)], [1, 0.01, 10]);
+        """)
+
+
+def test_drawing_on_the_chart_makes_draft_values(assert_js):
+    """Draw turns on the draw tool with a scale above the data, a drawn stroke adds draft values, and other tools end it."""
+    assert_js(PANEL + """
+        const Q = QUARTER;
+        const stroke = (fromMin, toMin, value) => target.dispatchEvent(new CustomEvent("chartdrawn", {
+          detail: { points: [{ time: new Date(T0 + fromMin * 60000), value: value }, { time: new Date(T0 + toMin * 60000), value: value }], step: 1 },
+        }));
+        stroke(0, 59, 20);
+        eq("a stroke is ignored until drawing", panel.drafts.length, 0);
+        await panel.record();
+        button("draw").click();
+        await Promise.resolve();
+        check("Draw turns on the draw tool", chart.drawing && panel.drawing, "");
+        check("ending selecting", !panel.recording && !chart.selecting, "");
+        eq("and offers to stop", button("draw").textContent, "Stop drawing");
+        check("explaining how, and hiding the typed fields", !button("drawing").classList.contains("d-none") && button("typed").classList.contains("d-none"), "");
+        eq("proposing a scale above the data", [button("draw-max").value, chart.scales], ["20", [20]]);
+        button("draw-max").value = "50";
+        button("draw-max").dispatchEvent(new Event("change"));
+        eq("which can be changed", chart.scales, [20, 50]);
+
+        stroke(0, 59, 20);
+        eq("a stroke adds a draft value per slot", panel.drafts.map((d) => d.value), [20, 20, 20, 20]);
+        eq("shown on the chart", chart.drafts.length, 4);
+        stroke(30, 59, 40);
+        eq("drawing again over a part changes it", panel.drafts.map((d) => d.value), [20, 20, 40, 40]);
+
+        await panel.record();
+        check("selecting ends drawing", !panel.drawing && !chart.drawing && chart.selecting, "");
+        check("and brings the typed fields back", !button("typed").classList.contains("d-none"), "");
+        panel.endRecording();
+        button("draw").click();
+        await Promise.resolve();
+        target.dispatchEvent(new CustomEvent("chartdrawmodeended"));
+        check("another chart tool ends drawing too", !panel.drawing && button("draw").textContent === "Draw on chart", "");
         """)
