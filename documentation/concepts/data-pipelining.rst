@@ -89,7 +89,7 @@ The rules are the same wherever the fields are used:
 - Bounds without a unit are read in the unit of the sensor they clean, and bounds with a unit must be convertible to it.
 - Values missing from the sensor are left missing.
 
-Cleaning applies at these places. Bounds the sensor cannot take, such as a unit that does not convert, are refused when the configuration is loaded or the report is set up, not when the data is read:
+Cleaning applies at these places. Bounds the sensor cannot take, such as a unit that does not convert, are refused before any data is read:
 
 .. list-table::
    :header-rows: 1
