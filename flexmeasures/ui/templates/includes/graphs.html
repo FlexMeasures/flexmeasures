@@ -499,6 +499,14 @@
                     return;
                 }
                 const beliefTime = new Date(beliefTimeCustom.value);
+                // The API takes a future belief time, but in the picker it is more likely a wrong pick,
+                // and until then, later uploads for the same period would not show over these values.
+                if (beliefTime > new Date() && !confirm(
+                    "The belief time you picked, " + beliefTime.toLocaleString() + ", lies in the future. "
+                    + "Until then, data you upload later for the same period will not show over these values. Upload anyway?"
+                )) {
+                    return;
+                }
                 formData.set('prior', beliefTime.toISOString());
             }
             upload.disabled = true;
