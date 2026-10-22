@@ -16,12 +16,13 @@
 ![The most simple view of FlexMeasures, turning data into schedules](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png)
 
 FlexMeasures was created by and continues to be maintained by [Seita Energy Flexibility BV](https://www.seita.nl) in The Netherlands.
-The vision of the project is to make sure that smart backend software is available to all parties working with energy flexibility, no matter where they are working on their local energy transition.
 
-Here is why using FlexMeasures is a great idea:
+We fundamentally believe that the ability to schedule and optimize energy consumption across multiple assets and multiple energy sources is critical to the adoption of renewable energy and for energy diversification in general. At the same time, the models that power energy optimization need to be auditable and transparent, which is why we've created FlexMeasures as an open source project. 
 
-- Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
-- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
+Here's why you should integrate FlexMeasures into your Energy Management System: 
+
+- End users expect energy management systems to include scheduling and optimization capabilities, but doing so is complicated and most energy management system creators aren't experts in scheduling and optimization. 
+- FlexMeasures makes it easier for EMS creators to provide optimization and scheduling functionality with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
 
 ![High-level overview of FlexMeasures as an EMS for energy flexibility apps, using plugins to fit a given use case](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.svg)
 
