@@ -606,6 +606,40 @@ def get_stalenesses(
     return stalenesses
 
 
+def get_missing_members(
+    sensor: Sensor, staleness_search: dict, now: datetime
+) -> list[Sensor]:
+    """Return the sensors that the most recent report on the given sensor had to leave out, if any.
+
+    An `AggregatorReporter` records an event that some members of its group did not report under a data source naming them (see `DataSource.missing_members`).
+    Whether the most recent aggregate is such a partial one says something about the current state of the group,
+    so it belongs on the status page rather than in a log.
+    A sensor that no report ever recorded partially on costs only the lookup of its sources, which the summary of sources per sensor answers.
+    """
+    reporters = _sensor_sources_by_type(sensor, staleness_search).get("reporter", [])
+    if not any(source.missing_members for source in reporters):
+        return []
+    belief_search = {
+        key: value
+        for key, value in staleness_search.items()
+        if key not in ("source", "exclude_source_types")
+    }
+    belief_search["beliefs_before"] = min(now, belief_search.get("beliefs_before", now))
+    bdf = TimedBelief.search(
+        sensors=sensor,
+        most_recent_only=True,
+        source=reporters,
+        **belief_search,
+    )
+    if bdf.empty:
+        return []
+    source = bdf.index.get_level_values("source")[-1]
+    missing = [
+        db.session.get(Sensor, sensor_id) for sensor_id in source.missing_members
+    ]
+    return [member for member in missing if member is not None]
+
+
 def get_status_specs(sensor: Sensor) -> dict:
     """Get status specs from a given sensor."""
 
@@ -637,6 +671,7 @@ def get_statuses(
     """Get the status of the sensor by source type.
     Main part of result here is a stale value, which is True if the sensor is stale, False otherwise.
     Other values are just context information for the stale value.
+    For reporter data, `missing_members` lists the sensors that the most recent report had to leave out (see `get_missing_members`).
     """
     if status_specs is None:
         status_specs = get_status_specs(sensor=sensor)
@@ -689,6 +724,15 @@ def get_statuses(
             staleness = staleness if staleness > timedelta(0) else -staleness
             reason = f"most recent data is {precisedelta(staleness)} {timeline}, {reason_part} than {precisedelta(max_source_staleness)} {timeline}"
 
+        missing_members = []
+        if source_type == "reporter":
+            missing_members = get_missing_members(sensor, staleness_search, now)
+            if missing_members:
+                left_out = ", ".join(
+                    f"'{member.name}' ({member.id})" for member in missing_members
+                )
+                reason += f"; the most recent report leaves out {left_out}, which did not report"
+
         statuses.append(
             dict(
                 staleness=staleness,
@@ -696,6 +740,9 @@ def get_statuses(
                 staleness_since=staleness_since,
                 reason=reason,
                 source_type=source_type,
+                missing_members=[
+                    dict(id=member.id, name=member.name) for member in missing_members
+                ],
             )
         )
 
