@@ -50,6 +50,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     SETUPTOOLS_SCM_PRETEND_VERSION="${FLEXMEASURES_VERSION}" \
     uv sync --frozen --reinstall-package flexmeasures --no-dev --no-editable
 
+# Fetch the UI's third-party libraries into the installed package, so the UI also works without internet access.
+# Each file is checked against the hash recorded in flexmeasures/ui/utils/vendor_assets.py, and the build fails on a mismatch.
+# It runs outside /app, because python -m would otherwise import the source copy in /app/flexmeasures, which the runtime image leaves behind.
+RUN cd / && python -m flexmeasures.ui.utils.fetch_vendor_assets
+
 # Install gunicorn separately since it's not a dependency of the project
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install gunicorn==25.0.3
