@@ -35,13 +35,13 @@ What's unique about FlexMeasures:
 
 FlexMeasures is ideally suited for:
 
-- 
+- Situations where you need to optimize for many different energy use cases, such as batteries, electric vehicles, heating/cooling and more, often simultaneously.
+- Organizations that don't have in-house energy optimization and scheduling expertise
+- Large organizations with enterprise-level requirements around security and auditing
+- End users have complex scheduling and optimization needs. 
 
-As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful!
+## For developers: Frequently asked questions about integrating energy scheduling and optimization into an EMS: 
 
-## How does FlexMeasures enable rapid development of energy flexibility apps?
-
-FlexMeasures is designed to help with three basic needs of developers in the energy flexibility domain:
 
 ### I need help with integrating real-time data and continuously computing new data
 
