@@ -1,11 +1,13 @@
-"""Check that duplicate source ranking reads beliefs through their sensor/source key."""
+"""Checks for migration 7c4e1a9d2b58, which merges duplicate data sources, such as how it ranks them and what it merges."""
 
+from datetime import datetime, timedelta, timezone
 from importlib import import_module
 
 import pytest
 
 from sqlalchemy import text
 
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DATA_SOURCE_UNIQUE_INDEX, DataSource
 from flexmeasures.data.services.data_sources import find_duplicate_sources
 
@@ -102,3 +104,68 @@ def test_keep_source_naming_an_organisation_also_keeps_that_sources_id():
     ) == {42: 42, 37: 37}
     with pytest.raises(RuntimeError, match="keep-source=thirty-seven"):
         keepers_from_x_arguments(["keep-source=thirty-seven"])
+
+
+def test_annotations_without_belief_time_are_merged(fresh_db, setup_accounts_fresh_db):
+    """Matching annotations with no belief time become one, retaining both account links."""
+    migration = _duplicate_source_migration()
+    savepoint = fresh_db.session.begin_nested()
+    try:
+        fresh_db.session.execute(text(f"DROP INDEX {DATA_SOURCE_UNIQUE_INDEX}"))
+        kept_source = DataSource(name="same-annotation-source", type="script")
+        duplicate_source = DataSource(name="same-annotation-source", type="script")
+        fresh_db.session.add_all([kept_source, duplicate_source])
+        fresh_db.session.flush()
+
+        start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        annotations = [
+            Annotation(
+                source_id=source.id,
+                start=start,
+                end=start + timedelta(days=1),
+                belief_time=None,
+                type="holiday",
+                content="New Year",
+            )
+            for source in (kept_source, duplicate_source)
+        ]
+        fresh_db.session.add_all(annotations)
+        fresh_db.session.flush()
+        accounts = [
+            setup_accounts_fresh_db["Prosumer"],
+            setup_accounts_fresh_db["Supplier"],
+        ]
+        for annotation, account in zip(annotations, accounts):
+            fresh_db.session.execute(
+                text("""
+                    INSERT INTO annotations_accounts (annotation_id, account_id)
+                    VALUES (:annotation_id, :account_id)
+                """),
+                {"annotation_id": annotation.id, "account_id": account.id},
+            )
+
+        merged = migration.merge_duplicate_sources(fresh_db.session.connection())
+        assert merged == {duplicate_source.id: kept_source.id}
+        surviving_ids = (
+            fresh_db.session.execute(
+                text("SELECT id FROM annotation WHERE source_id = :source_id"),
+                {"source_id": kept_source.id},
+            )
+            .scalars()
+            .all()
+        )
+        assert surviving_ids == [annotations[0].id]
+        account_ids = (
+            fresh_db.session.execute(
+                text("""
+                SELECT account_id FROM annotations_accounts
+                WHERE annotation_id = :annotation_id
+            """),
+                {"annotation_id": surviving_ids[0]},
+            )
+            .scalars()
+            .all()
+        )
+        assert set(account_ids) == {account.id for account in accounts}
+    finally:
+        savepoint.rollback()
