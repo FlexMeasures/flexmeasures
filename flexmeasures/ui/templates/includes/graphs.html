@@ -510,7 +510,7 @@
                     showToast("The belief time cannot lie in the future.", "error");
                     return;
                 }
-                formData.set('belief-time', beliefTime.toISOString());
+                formData.set('prior', beliefTime.toISOString());
             }
             upload.disabled = true;
             uploadSpinner.classList.remove('d-none');
