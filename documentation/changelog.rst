@@ -17,7 +17,7 @@ v1.1.0 | September XX, 2026
              2. Stop your workers, and run the upgrade **before** deploying the new code: a worker still running the previous version records under a source belonging to no organisation.
              3. Run the upgrade. It changes data sources in two ways:
 
-                - Each data source is coupled to the organisation it records for. Where a source recorded for several organisations, the upgrade stops and names those sources rather than picking one; rerun the upgrade with ``-x split-shared-sources=true`` to give each of those organisations its own source.
+                - Each data source is coupled to the organisation it records for. Where a source recorded for several organisations, the upgrade stops and names those sources rather than picking one; rerun the upgrade with ``-x split-shared-sources=true`` to give each of those organisations its own source. A shared source of a generator version that a newer one has replaced is left belonging to no organisation instead, since nothing records under it again.
                 - Identical data sources are merged, as the database now refuses duplicates. Their beliefs, annotations and other references move over, and stored source IDs, such as the ``sources`` a sensor reference in a flex-context filters on, are pointed at the source they were merged into.
 
              In both cases, the source that recorded most recently keeps its ID. Where something outside FlexMeasures refers to a source by ID, choose yourself with ``-x keep-source``, which you can repeat:
