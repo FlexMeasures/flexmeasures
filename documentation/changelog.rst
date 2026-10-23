@@ -105,6 +105,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* ``[GET] /sensors`` lists sensors in order of their ID, where the order used to be up to the database [see `PR #2756 <https://www.github.com/FlexMeasures/flexmeasures/pull/2756>`_]
 * Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * Keep the current-time bar visible during sensor chart playback when no data is visible yet [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
