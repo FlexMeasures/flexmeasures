@@ -4,6 +4,7 @@ import pytest
 import math
 import io
 import json
+import pandas as pd
 
 from flask import current_app, url_for
 from sqlalchemy import select, func
@@ -18,6 +19,7 @@ from flexmeasures.api.v3_0.tests.utils import (
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.tests.utils import QueryCounter
+from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 sensor_schema = SensorSchema()
@@ -393,6 +395,86 @@ def test_upload_csv_file_returns_accepted_job(
     assert job.kwargs["uploaded_files"][0]["filename"] == "test.csv"
     assert job.kwargs["uploaded_files"][0]["content"] == csv_content.encode("utf-8")
     assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize(
+    "form_data, expected_belief_time",
+    [
+        ({}, None),  # the time of upload
+        (
+            {"prior": "2022-12-15T12:00:00+01:00"},
+            "2022-12-15T12:00:00+01:00",
+        ),
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_job_carries_prior(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+    form_data,
+    expected_belief_time,
+):
+    """A queued upload is believed at the time of the request, not at the time the job runs."""
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    current_app.queues["ingestion"].empty()
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (
+        io.BytesIO(b"event_start,event_value\n2022-12-16T05:11:00Z,4\n"),
+        "test.csv",
+    )
+
+    before_request = server_now()
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file, **form_data},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 202
+
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
+    belief_time = pd.Timestamp(job.kwargs["upload_data"]["prior"])
+    if expected_belief_time is None:
+        assert before_request <= belief_time <= server_now()
+    else:
+        assert belief_time == pd.Timestamp(expected_belief_time)
+
+
+@pytest.mark.parametrize(
+    "form_data, expected_message",
+    [
+        (
+            {
+                "prior": "2022-12-15T12:00:00+01:00",
+                "belief-time-measured-instantly": "on",
+            },
+            "cannot be combined",
+        ),
+        ({"prior": "2999-01-01T00:00:00+00:00"}, "lies in the future"),
+        ({"prior": "2022-12-15T12:00:00"}, "Not a valid aware datetime"),
+    ],
+)
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_rejects_invalid_prior(
+    client, setup_api_test_data, requesting_user, form_data, expected_message
+):
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (
+        io.BytesIO(b"event_start,event_value\n2022-12-16T05:11:00Z,4\n"),
+        "test.csv",
+    )
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file, **form_data},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 422
+    assert expected_message in str(response.json["message"])
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

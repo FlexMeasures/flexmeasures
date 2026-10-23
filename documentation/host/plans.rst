@@ -33,14 +33,37 @@ How the two limits count
   and a request we rejected ― because its payload did not validate, or because the asset belongs to someone else ― cost us no computation.
   In other words, a client who made a mistake in their flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
 
-The default limit is counted per account: all users and API clients of an account share one budget, which is the budget the account's plan sets.
-That includes the UI, which fetches the data it shows from the API, so someone browsing the UI spends from the same budget as the account's integrations.
+The default limit is counted per account: all users and integrations of an account share one budget, which is the budget the account's plan sets.
+By an integration, we mean anything which calls the API with an auth token rather than through the UI, such as a customer's EMS connector, a gateway pushing meter data, or a script built on the `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_.
+FlexMeasures has no such entity: every token belongs to a user, so to the server, an integration is a user's token being used by a machine.
+The UI is the exception. UI pages fetch their data from the API using the session of the logged-in user rather than with an API token.
+Those requests count against a budget per user (``FLEXMEASURES_UI_RATE_LIMIT``, see :ref:`rate-limiting-config`), which is not part of the account plan.
+That way, an integration which uses up its account's budget does not lock the account's users out of the UI,
+and browsing the UI does not spend the budget the account's integrations need.
+Triggers count against the trigger limit, whether they come from the UI or from an integration.
 A user of a consultancy account counts against the consultancy's own account, also when acting on a client account's assets,
 as it is the consultancy's integration which makes those requests.
 
 The trigger limit is counted per account: all users and assets of an account share one budget.
 A plan belongs to an account, so this lets you tell an account, in one number, how much it has left.
 
+.. _rate-limiting-reset:
+
+Resetting an account's rate limits
+-----------------------------------
+
+When an account ran into a rate limit, and its integration has since been fixed, it need not wait out the rest of the window.
+Reset its rate limits with ``flexmeasures edit reset-rate-limit``:
+
+.. code-block:: bash
+
+    $ flexmeasures edit reset-rate-limit --account 3
+
+This resets the account's default limit and its trigger limit (see above).
+Pass ``--limit default`` or ``--limit trigger`` to reset just the one.
+Each limit is counted per account, so a reset gives the account a fresh budget.
+
+A limit the account is exempt from (``"unlimited"``) has nothing to reset, and the command says so.
 
 Finding out who hit a limit
 ----------------------------
@@ -92,6 +115,7 @@ A plan's ``default_rate_limit`` and ``trigger_rate_limit`` override the server-w
 for the accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account
 on a plan which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the
 value ``"unlimited"`` to exempt an account from a limit altogether.
+Each field holds one limit, like ``"60 per 5 minutes"``, as do the server-wide settings.
 
 Edit a plan with ``flexmeasures edit plan``, which identifies the plan by its ID (so that ``--name`` can rename it),
 and changes only the fields you pass:

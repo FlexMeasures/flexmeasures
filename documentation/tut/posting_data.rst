@@ -100,7 +100,7 @@ Before automating the pipeline, you can test the file on the sensor page:
 1. Open the relevant sensor.
 2. Expand **Upload data** in the left side panel.
 3. Choose the file and its unit.
-4. Select **Measured instantly** if each value was known when its event ended.
+4. Under **Belief time**, choose **Measured instantly** if each value was recorded when its event ended.
 5. Upload the file and inspect the chart.
 
 The panel also offers an example Excel file.
@@ -108,8 +108,8 @@ If the UI accepts your file but the automated upload does not,
 focus troubleshooting on the client configuration, credentials and network connection rather than the file format.
 
 .. A future screenshot belongs here. It should show the sensor page with the
-   "Upload data" panel expanded, including the file selector, "Measured
-   instantly" checkbox, unit selector and upload button.
+   "Upload data" panel expanded, including the file selector, the "Belief
+   time" choice, unit selector and upload button.
 
 Uploading the file with the FlexMeasures Client
 -----------------------------------------------
@@ -122,8 +122,10 @@ The following call works for both CSV and Excel files:
     :end-before: # End file upload example
     :dedent: 12
 
-``belief_time_measured_instantly=True`` records each value as known when its event ended.
-Leave it at the default ``False`` when the values only became known at upload time.
+``belief_time_measured_instantly=True`` records each value when its event ended.
+Leave it at the default ``False`` to record the values at upload time.
+The raw API and the UI also accept a ``prior``, which records all uploaded values at that belief time,
+for example their original recording time when moving historical data from another system.
 
 The file upload currently assumes that values use the sensor's unit.
 The UI and raw API additionally let you specify a different compatible input unit for conversion.

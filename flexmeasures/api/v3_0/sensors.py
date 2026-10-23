@@ -92,7 +92,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
 from flexmeasures.data.models.forecasting import Forecaster
@@ -597,6 +597,7 @@ class SensorAPI(FlaskView):
         filenames: list[str],
         unit: str | None = None,
         belief_time_measured_instantly: bool | None = None,
+        prior: datetime | None = None,
         **kwargs,
     ):
         """
@@ -608,6 +609,10 @@ class SensorAPI(FlaskView):
             The file should have columns for a timestamp (event_start) and a value (event_value).
             The timestamp should be in ISO 8601 format.
             The value should be a numeric value.
+
+            By default, FlexMeasures records the data at the time of upload.
+            Set belief-time-measured-instantly to record each value when its event ended,
+            or set prior to record all values at that belief time (e.g. their original recording time, when moving historical data from another system).
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
@@ -712,6 +717,9 @@ class SensorAPI(FlaskView):
                 "on" if belief_time_measured_instantly else "off"
             ),
         }
+        if not belief_time_measured_instantly:
+            # Fix the belief time now, so data processed by a queued job is not believed later than its upload
+            upload_data["prior"] = (prior or server_now()).isoformat()
         if unit is not None:
             upload_data["unit"] = unit
         response, code = process_sensor_data_ingestion(

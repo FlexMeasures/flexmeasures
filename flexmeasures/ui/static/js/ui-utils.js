@@ -807,16 +807,35 @@ export function pollJobStatus(jobUuid, options = {}) {
         signal.addEventListener("abort", stop, { once: true });
     }
 
-    async function poll() {
-        if (stopped) return;
+    // Polls are not sent while one is still waiting for its answer,
+    // or a slow endpoint would answer several of them with the same final status, each reported again.
+    let inFlight = false;
 
+    async function poll() {
+        if (stopped || inFlight) return;
+        inFlight = true;
+        try {
+            await pollOnce();
+        } finally {
+            inFlight = false;
+        }
+    }
+
+    async function pollOnce() {
         let data;
         try {
             const response = await fetch(url, { credentials: "same-origin" });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            try {
+                data = await response.json();
+            } catch {
+                data = null;
             }
-            data = await response.json();
+            // A failed job is answered with 422 and its status in the body, so that is the one error response to read as the job's status.
+            // Other error responses carry a status too (ERROR for a job that is gone, UNAUTHORIZED after logging out), but not a job's.
+            if (!response.ok && !(response.status === 422 && data && data.status)) {
+                const reason = data && data.message ? ` (${data.message})` : "";
+                throw new Error(`HTTP ${response.status}: ${response.statusText}${reason}`);
+            }
         } catch (err) {
             stop();
             showToast("Could not reach job status endpoint: " + err.message, "error");

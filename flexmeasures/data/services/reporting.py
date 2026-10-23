@@ -11,6 +11,7 @@ from rq.job import Job
 
 from flexmeasures.data import db
 from flexmeasures.data.schemas.reporting import ReporterParametersSchema
+from flexmeasures.data.services.automations import record_outcome_on_automation_run
 from flexmeasures.data.services.generator_results import (
     check_generator_results,
     describe_generator,
@@ -137,6 +138,7 @@ def compute_and_save_report(
     return results, save_generator_results(results)
 
 
+@record_outcome_on_automation_run
 def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     """Compute and store a report in a reporting worker.
 
