@@ -34,6 +34,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
+from flexmeasures.data.schemas.sensors import SensorReferenceSchema
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.data.services.utils import failed_job_reason
 
@@ -42,14 +43,11 @@ FUTURE_DATA_SOURCE_TYPES = ("scheduler", "forecaster")
 
 _REMOVE = object()
 
-#: The keys a stored sensor reference may carry (see SensorReferenceSchema):
-#: a dict with the "sensor" key and no keys beyond these is a pure sensor reference.
+#: The keys a stored sensor reference may carry: the source filters, a default and bounds.
+#: Taken from SensorReferenceSchema, so that a key added there is also recognised here.
+#: A dict with the "sensor" key and no keys beyond these is a pure sensor reference.
 _SENSOR_REFERENCE_KEYS = {
-    "sensor",
-    "source-types",
-    "exclude-source-types",
-    "sources",
-    "source-account",
+    field.data_key or name for name, field in SensorReferenceSchema().fields.items()
 }
 
 
@@ -60,8 +58,8 @@ def _prune_flex_config_sensor_refs(
 
     This function handles deeply nested JSON objects and lists from flex_model and flex_context
     JSONB columns. It scans for sensor references in two forms:
-    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filter keys
-      (e.g. entries of "inflexible-consumption"/"inflexible-production" lists)
+    - Direct objects: {"sensor": sensor_id_to_remove}, optionally with source filters,
+      a default or bounds (e.g. entries of "inflexible-consumption"/"inflexible-production" lists)
     - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
 
     Args:
