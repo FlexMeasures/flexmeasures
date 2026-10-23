@@ -10,32 +10,38 @@
 [![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg?kill_cache=1)](https://coveralls.io/github/FlexMeasures/flexmeasures)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/6095/badge)](https://bestpractices.coreinfrastructure.org/projects/6095)
 
-*FlexMeasures* is an intelligent EMS (energy management system) to optimize behind-the-meter energy flexibility.
-Build your smart energy apps & services with FlexMeasures as backend for real-time orchestration! 
+*FlexMeasures* is an energy scheduling and optimization engine for powerful energy management systems. With FlexMeasures, you can integrate complex, multi-asset, multi-commodity optimization capabilities into your EMS. 
 
-In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets like batteries and heat pumps, or for flexible industry processes:
 
 ![The most simple view of FlexMeasures, turning data into schedules](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png)
 
 FlexMeasures was created by and continues to be maintained by [Seita Energy Flexibility BV](https://www.seita.nl) in The Netherlands.
-The vision of the project is to make sure that smart backend software is available to all parties working with energy flexibility, no matter where they are working on their local energy transition.
 
-Here is why using FlexMeasures is a great idea:
+We fundamentally believe that the ability to schedule and optimize energy consumption across multiple assets and multiple energy sources is critical to the adoption of renewable energy and for energy diversification in general. At the same time, the models that power energy optimization need to be auditable and transparent, which is why we've created FlexMeasures as an open source project. 
 
-- Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
-- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
+Here's why you should integrate FlexMeasures into your Energy Management System: 
+
+- End users expect energy management systems to include scheduling and optimization capabilities, but doing so is complicated and most energy management system creators aren't experts in scheduling and optimization. 
+- FlexMeasures makes it easier for EMS creators to provide optimization and scheduling functionality with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
 
 ![High-level overview of FlexMeasures as an EMS for energy flexibility apps, using plugins to fit a given use case](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.svg)
 
 
-So why optimise the schedules of flexible assets? Because planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to other times.
-For the asset owners, this creates CO₂ savings but also monetary value (e.g. through self-consumption, dynamic tariffs and grid incentives). FlexMeasures thrives to be applicable in cases with multiple sources of value ("value stacking") and multiple types of assets (e.g. home/office/factory).
+What's unique about FlexMeasures: 
 
-As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful!
+- Flexibility. With FlexMeasures, you can manage complex optimizations that include multiple asset types, multiple commodities and value-stacking. It's also easy to customize, so you can also integrate your specific business logic into the optimizations.
+- Transparency. FlexMeasures is built using mathematical formulas and is open source and inspectable. You can see how the optimization decisions are made and audit the process.
+- Cost savings. Your customers will save money and reduce their carbon footprint. 
 
-## How does FlexMeasures enable rapid development of energy flexibility apps?
+FlexMeasures is ideally suited for:
 
-FlexMeasures is designed to help with three basic needs of developers in the energy flexibility domain:
+- Situations where you need to optimize for many different energy use cases, such as batteries, electric vehicles, heating/cooling and more, often simultaneously.
+- Organizations that don't have in-house energy optimization and scheduling expertise
+- Large organizations with enterprise-level requirements around security and auditing
+- End users have complex scheduling and optimization needs. 
+
+## For developers: Frequently asked questions about integrating energy scheduling and optimization into an EMS: 
+
 
 ### I need help with integrating real-time data and continuously computing new data
 
