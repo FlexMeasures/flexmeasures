@@ -254,10 +254,23 @@ def test_development_config_trusts_loopback():
     assert "TRUSTED_HOSTS" not in missing_settings
 
     normalize_trusted_hosts(app)
-    for host in ("localhost:5000", "127.0.0.1", "[::1]:5000", "app.localhost:5000"):
+    for host in ("localhost:5000", "127.0.0.1", "app.localhost:5000"):
         assert host_is_trusted(host, app.config["TRUSTED_HOSTS"]), host
     # Other hosts are still rejected, so development resembles production.
     assert not host_is_trusted("evil.example", app.config["TRUSTED_HOSTS"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Werkzeug 3.1.9 cuts each trusted host at its first colon, so no IPv6 address matches (https://github.com/pallets/werkzeug/issues/3312).",
+)
+def test_development_config_trusts_ipv6_loopback():
+    """A dev server reached over IPv6 loopback is trusted, and other IPv6 hosts are not."""
+    app = Flask(__name__)
+    app.config.from_object(DevelopmentConfig)
+    normalize_trusted_hosts(app)
+    assert host_is_trusted("[::1]:5000", app.config["TRUSTED_HOSTS"])
+    assert not host_is_trusted("[::2]:5000", app.config["TRUSTED_HOSTS"])
 
 
 def test_production_config_does_not_trust_any_host():
