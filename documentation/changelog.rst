@@ -22,7 +22,7 @@ v1.1.0 | September XX, 2026
 
              In both cases, the source that recorded most recently keeps its ID. Where something outside FlexMeasures refers to a source by ID, choose yourself with ``-x keep-source``, which you can repeat:
              ``-x keep-source=<source id>:<organisation id>`` names the organisation that keeps a shared source's ID, and ``-x keep-source=<source id>`` names the duplicate that keeps its ID.
-             The upgrade prints what it split and merged, so anyone referring to a source by ID can switch over [see `PR #2634 <https://www.github.com/FlexMeasures/flexmeasures/pull/2634>`_ and `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_]
+             The upgrade prints what it split and merged, so anyone referring to a source by ID can switch over [see `PR #2634 <https://www.github.com/FlexMeasures/flexmeasures/pull/2634>`_, `PR #2613 <https://www.github.com/FlexMeasures/flexmeasures/pull/2613>`_ and `PR #2758 <https://www.github.com/FlexMeasures/flexmeasures/pull/2758>`_]
 
 .. note:: A scheduler's data source now also records the flex config it computed under, so a sensor can carry schedules from several configs, the way it already could for forecasts.
           Select a data source on the sensor page to see the schedule computed under one configuration.
