@@ -105,6 +105,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Posting or uploading sensor data with a ``prior`` beyond the year 2262 is refused with an explanation, where it used to fail with a server error [see `PR #2735 <https://www.github.com/FlexMeasures/flexmeasures/pull/2735>`_]
 * The sensor upload form now reports whether a queued upload succeeded, and a refused replacement of existing values is explained rather than shown as a database error [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * Keep the current-time bar visible during sensor chart playback when no data is visible yet [see `PR #2722 <https://www.github.com/FlexMeasures/flexmeasures/pull/2722>`_]
 * The flex-config and graph dialogues now say so when a configuration refers to a sensor which no longer exists, as a sensor deleted directly in the database leaves such references behind, where they used to show it as a sensor with an undefined name and unit: each dialogue names the dangling reference, lets you remove it, and warns above the configuration how many there are, the graph dialogue no longer reports such a sensor as having a different unit, and an asset's status page no longer fails to load over a flex-context field whose sensor is gone; a sensor that merely failed to load, for instance on a server error, is said to be just that, rather than deleted [see `PR #2650 <https://www.github.com/FlexMeasures/flexmeasures/pull/2650>`_]

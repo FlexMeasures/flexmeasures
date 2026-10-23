@@ -210,6 +210,11 @@ def test_post_sensor_data_sets_account_id_on_data_source(
             {"prior": "2022-12-15T12:00:00+01:00"},
             pd.Timestamp("2022-12-15T11:00:00Z"),
         ),
+        # A prior in the future is saved, not only queued
+        (
+            {"prior": "2099-01-01T00:00:00+00:00"},
+            pd.Timestamp("2099-01-01T00:00:00Z"),
+        ),
         # Measured instantly: each value is known when its event ends
         ({"belief-time-measured-instantly": "on"}, None),
     ],
